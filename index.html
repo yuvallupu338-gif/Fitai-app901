@@ -214,10 +214,35 @@
     #keys-hud{position:absolute;bottom:14px;right:16px;font-size:11px;color:rgba(190,215,235,.45);line-height:1.7}
     #keys-hud kbd{font-family:Consolas,monospace;color:rgba(190,225,245,.75);direction:ltr}
 
+    .padfocus{
+        outline:2px solid var(--acc)!important;outline-offset:2px;
+        box-shadow:0 0 0 4px rgba(77,214,255,.18),0 10px 26px rgba(77,214,255,.2)!important;
+        background:linear-gradient(180deg,rgba(77,214,255,.18),rgba(77,214,255,.05))!important;
+    }
+    .pad-badge{
+        display:inline-flex;align-items:center;gap:6px;padding:3px 9px;border-radius:99px;
+        background:rgba(77,214,255,.14);border:1px solid rgba(77,214,255,.35);
+        font-size:11px;color:var(--acc);letter-spacing:.06em;
+    }
+    #h-pad{position:absolute;top:62px;left:16px;display:none}
+    #h-pad.on{display:block}
+    .gp{display:inline-flex;align-items:center;justify-content:center;min-width:20px;height:20px;padding:0 5px;
+        border-radius:99px;background:#22303f;border:1px solid rgba(255,255,255,.16);
+        font-size:11px;font-weight:800;color:#dff0ff;font-family:Consolas,monospace;direction:ltr}
+    .gp.a{background:#1f6b3a;border-color:#39c46a}
+    .gp.b{background:#7a2530;border-color:#e0505f}
+    .gp.x{background:#1d4a7a;border-color:#4d9fe0}
+    .gp.y{background:#7a6320;border-color:#e0be4d}
+
     #spd{position:absolute;bottom:14px;left:16px;width:132px}
     #spd .lb{font-size:10px;letter-spacing:.18em;color:#8fa8bd;margin-bottom:4px}
     #spd .bar{height:5px;border-radius:9px;background:rgba(255,255,255,.1);overflow:hidden}
     #spd .bar i{display:block;height:100%;width:0;background:linear-gradient(90deg,var(--acc),var(--acc2));transition:width .1s linear}
+    #flow{position:absolute;bottom:54px;left:16px;width:132px;opacity:0;transition:opacity .25s}
+    #flow.on{opacity:1}
+    #flow .lb{font-size:10px;letter-spacing:.18em;color:var(--acc2);margin-bottom:4px;display:flex;justify-content:space-between}
+    #flow .bar{height:4px;border-radius:9px;background:rgba(255,255,255,.1);overflow:hidden}
+    #flow .bar i{display:block;height:100%;width:0;background:linear-gradient(90deg,var(--acc2),#ff6b9d);transition:width .12s linear}
     #state-tag{position:absolute;bottom:36px;left:16px;font-size:12px;font-weight:700;letter-spacing:.16em;color:var(--acc2);opacity:0;transition:opacity .15s}
     #state-tag.on{opacity:1}
 
@@ -283,7 +308,7 @@
     <div class="wrap">
         <div class="logo">
             <h1>URBAN EDGE</h1>
-            <p>PARKOUR &nbsp;•&nbsp; FIRST PERSON &nbsp;•&nbsp; 5 LEVELS</p>
+            <p>PARKOUR &nbsp;•&nbsp; FIRST PERSON &nbsp;•&nbsp; 13 LEVELS &nbsp;•&nbsp; 🎮</p>
         </div>
 
         <div id="pg-main" class="btns">
@@ -310,14 +335,34 @@
                 <div class="k"><kbd>CTRL / C</kbd><span>התכופפות · החלקה בריצה</span></div>
                 <div class="k"><kbd>R</kbd><span>חזרה לצ'קפוינט</span></div>
                 <div class="k"><kbd>ESC</kbd><span>תפריט עצירה</span></div>
+                <div class="k"><kbd>E</kbd><span>אחיזה בכבל גלישה</span></div>
                 <div class="k"><kbd>M</kbd><span>השתקת קול</span></div>
+            </div>
+            <h2 style="margin-top:22px">שלט משחק 🎮</h2>
+            <div class="keys">
+                <div class="k"><kbd>ג׳ויסטיק שמאלי</kbd><span>תנועה</span></div>
+                <div class="k"><kbd>ג׳ויסטיק ימני</kbd><span>מבט</span></div>
+                <div class="k"><span class="gp a">A</span><span>קפיצה · טיפוס · אחיזה בכבל</span></div>
+                <div class="k"><span class="gp b">B</span><span>התכופפות · החלקה · גלגול</span></div>
+                <div class="k"><span class="gp x">X</span><span>אחיזה בכבל גלישה</span></div>
+                <div class="k"><span class="gp y">Y</span><span>חזרה לצ'קפוינט</span></div>
+                <div class="k"><kbd>RT / L3</kbd><span>ריצה מהירה</span></div>
+                <div class="k"><kbd>START</kbd><span>תפריט עצירה</span></div>
+                <div class="k"><kbd>BACK</kbd><span>השתקת קול</span></div>
+                <div class="k"><kbd>D-Pad + A</kbd><span>ניווט בתפריטים</span></div>
             </div>
             <div class="tips">
                 <b>החלקה:</b> רוץ ולחץ CTRL כדי להחליק מתחת למכשולים נמוכים.<br>
                 <b>טיפוס:</b> רוץ אל מכשול נמוך — הדמות תעלה או תקפוץ מעליו אוטומטית.<br>
                 <b>תפיסת קצה:</b> קפוץ אל קצה של פלטפורמה — תיתפס אליו אוטומטית, ואז SPACE כדי לעלות (S כדי להרפות).<br>
                 <b>ריצה על קיר:</b> קפוץ לעבר קיר בזמן ריצה והמשך להחזיק W — תרוץ עליו לזמן קצר.<br>
-                <b>קפיצת קיר:</b> לחץ SPACE בזמן ריצה על קיר כדי לזנק ממנו קדימה ולמעלה.
+                <b>קפיצת קיר:</b> לחץ SPACE בזמן ריצה על קיר כדי לזנק ממנו קדימה ולמעלה.<br>
+                <b>ריצה אנכית:</b> רוץ ישר אל קיר גבוה, קפוץ והחזק W — תטפס עליו כלפי מעלה.<br>
+                <b>גלגול נחיתה:</b> לחץ CTRL רגע לפני נחיתה מגובה — תתגלגל, תשמור על המהירות ותמנע את זעזוע הנחיתה.<br>
+                <b>זחילה על קצה:</b> בזמן אחיזה, A/D מזיזים אותך לצדדים; S + SPACE קופצים אחורה.<br>
+                <b>כבל גלישה:</b> התקרב לידית הזוהרת ולחץ E או SPACE כדי להיאחז, ו-SPACE שוב כדי להשתחרר.<br>
+                <b>סולמות:</b> היכנס לסולם והחזק W כדי לטפס.<br>
+                <b>FLOW:</b> שרשור תנועות פארקור מעלה את מד ה-FLOW ומגדיל את מהירותך המרבית.
             </div>
             <div class="row" style="margin-top:18px"><button class="btn small ghost back">חזרה</button></div>
         </div>
@@ -327,10 +372,14 @@
             <div class="set"><label>רגישות עכבר</label><div class="ctl"><input type="range" id="s-sens" min="20" max="300" step="5"><span class="val" id="v-sens">100</span></div></div>
             <div class="set"><label>עוצמת קול</label><div class="ctl"><input type="range" id="s-vol" min="0" max="100" step="1"><span class="val" id="v-vol">70%</span></div></div>
             <div class="set"><label>שדה ראייה (FOV)</label><div class="ctl"><input type="range" id="s-fov" min="65" max="110" step="1"><span class="val" id="v-fov">80</span></div></div>
+            <div class="set"><label>רגישות שלט</label><div class="ctl"><input type="range" id="s-psens" min="20" max="300" step="5"><span class="val" id="v-psens">100</span></div></div>
+            <div class="set"><label>היפוך ציר Y בשלט</label><div class="ctl"><div class="tgl" id="s-pinv"></div></div></div>
+            <div class="set"><label>רטט בשלט</label><div class="ctl"><div class="tgl" id="s-pvib"></div></div></div>
             <div class="set"><label>איכות גרפיקה</label><div class="ctl"><div class="seg" id="s-qual">
                 <button data-q="low">נמוכה</button><button data-q="med">בינונית</button><button data-q="high">גבוהה</button>
             </div></div></div>
             <div class="set"><label>צללים</label><div class="ctl"><div class="tgl" id="s-shadow"></div></div></div>
+            <div class="set"><label>זוהר (Bloom)</label><div class="ctl"><div class="tgl" id="s-bloom"></div></div></div>
             <div class="set"><label>תנועת מצלמה (Head Bob)</label><div class="ctl"><div class="tgl" id="s-bob"></div></div></div>
             <div class="set"><label>מוזיקת רקע</label><div class="ctl"><div class="tgl" id="s-music"></div></div></div>
             <div class="row" style="margin-top:18px"><button class="btn small ghost back">חזרה</button></div>
@@ -357,10 +406,12 @@
     <div id="hint"></div>
     <div id="toast"></div>
     <div id="spd"><div class="lb">מהירות</div><div class="bar"><i id="spd-bar"></i></div></div>
+    <div id="flow"><div class="lb"><span>FLOW</span><span id="flow-val">×1.00</span></div><div class="bar"><i id="flow-bar"></i></div></div>
+    <div id="h-pad" class="hud-box"><span class="pad-badge">🎮 שלט מחובר</span></div>
     <div id="state-tag"></div>
     <div id="keys-hud">
         <kbd>WASD</kbd> תנועה · <kbd>SPACE</kbd> קפיצה · <kbd>SHIFT</kbd> ריצה<br>
-        <kbd>CTRL</kbd> החלקה · <kbd>R</kbd> צ'קפוינט · <kbd>ESC</kbd> תפריט
+        <kbd>CTRL</kbd> החלקה/גלגול · <kbd>E</kbd> כבל · <kbd>R</kbd> צ'קפוינט · <kbd>ESC</kbd> תפריט
     </div>
 </div>
 
@@ -429,12 +480,21 @@
     <button class="btn small ghost" id="b-mobile-anyway" style="max-width:260px">בכל זאת נסה להמשיך</button>
 </div>
 
+<script type="importmap">
+{
+  "imports": {
+    "three": "https://cdn.jsdelivr.net/npm/three@0.160.1/build/three.module.js",
+    "three/addons/": "https://cdn.jsdelivr.net/npm/three@0.160.1/examples/jsm/"
+  }
+}
+</script>
+
 <script type="module">
 /* =========================================================================
    URBAN EDGE — משחק פארקור תלת־ממדי בגוף ראשון
    כל המשחק בקובץ אחד. Three.js נטען מ-CDN.
    ========================================================================= */
-import * as THREE from 'https://cdn.jsdelivr.net/npm/three@0.160.1/build/three.module.js';
+import * as THREE from 'three';
 
 /* =========================================================================
    1. הגדרות קבועות
@@ -462,7 +522,7 @@ const CFG = {
     STEP_HEIGHT:    0.62,
 
     // פארקור
-    COYOTE:         0.13,
+    COYOTE:         0.15,
     JUMP_BUFFER:    0.16,
     SLIDE_TIME:     0.95,
     SLIDE_BOOST:    3.6,
@@ -479,6 +539,25 @@ const CFG = {
     LAND_SOFT:      9.0,
     LAND_HARD:      17.0,
 
+    // פארקור מתקדם
+    ROLL_WINDOW:    0.28,    // חלון הזמן ללחיצה על התכופפות לפני/בזמן הנחיתה
+    ROLL_TIME:      0.5,
+    ROLL_KEEP:      0.94,    // שמירת מהירות בגלגול
+    SHIMMY_SPEED:   1.9,     // זחילה לצדדים בזמן אחיזה
+    LEDGE_JUMP_OUT: 4.6,
+    LEDGE_JUMP_UP:  7.2,
+    WALLCLIMB_TIME: 0.52,    // ריצה אנכית על קיר
+    WALLCLIMB_SPEED: 6.6,
+    WALLCLIMB_MINSPD: 5.0,
+    SLIDE_JUMP_BOOST: 2.1,
+    ZIP_SPEED:      13.5,
+    ZIP_ACCEL:      7.0,
+    LADDER_SPEED:   3.6,
+    FLOW_MAX:       1.16,    // מכפיל מהירות מרבי בשרשור תנועות
+    FLOW_GAIN:      0.05,
+    FLOW_DECAY:     0.22,
+    SLIP_FRICTION:  3.4,     // חיכוך על משטחים חלקים (גשם)
+
     // מצלמה
     FOV_SPRINT:     9.0,
     FOV_SLIDE:      13.0,
@@ -493,14 +572,16 @@ const QUALITY = {
     high: { shadow: 4096, pr: 2.0, fogFar: 430, aa: true,  shadowSize: 4096 },
 };
 
-const SAVE_KEY = 'urban_edge_save_v1';
+const SAVE_KEY = 'urban_edge_save_v2';
+const TOTAL_LEVELS = 13;
 
 const DEFAULT_SAVE = {
     unlocked: 1,
-    best: [null, null, null, null, null],
+    best: new Array(TOTAL_LEVELS).fill(null),
     settings: {
         sens: 100, vol: 70, fov: 80, quality: 'high',
         shadows: true, bob: true, music: true, muted: false,
+        bloom: true, padSens: 100, padInvertY: false, padVibrate: true,
     },
 };
 
@@ -515,9 +596,9 @@ const Save = {
             if (raw) {
                 const p = JSON.parse(raw);
                 if (p && typeof p === 'object') {
-                    this.data.unlocked = Math.min(5, Math.max(1, p.unlocked | 0 || 1));
+                    this.data.unlocked = Math.min(TOTAL_LEVELS, Math.max(1, p.unlocked | 0 || 1));
                     if (Array.isArray(p.best)) {
-                        for (let i = 0; i < 5; i++) {
+                        for (let i = 0; i < TOTAL_LEVELS; i++) {
                             const v = p.best[i];
                             this.data.best[i] = (typeof v === 'number' && isFinite(v) && v > 0) ? v : null;
                         }
@@ -542,7 +623,7 @@ const Save = {
     },
     /* סיום שלב במיקום levelIndex פותח את השלב הבא אחריו */
     unlock(levelIndex) {
-        const next = Math.min(5, levelIndex + 2);
+        const next = Math.min(TOTAL_LEVELS, levelIndex + 2);
         if (next > this.data.unlocked) {
             this.data.unlocked = next;
             this.save();
@@ -591,9 +672,12 @@ function mulberry32(seed) {
    ========================================================================= */
 const TexLib = {
     cache: new Map(),
+    canvases: new Map(),
     _canvas(size) {
         const c = document.createElement('canvas');
         c.width = c.height = size;
+        // הטקסטורות נקראות חזרה ליצירת מפות נורמלים
+        c.getContext('2d', { willReadFrequently: true });
         return c;
     },
     _finish(canvas, repeat, aniso) {
@@ -609,6 +693,19 @@ const TexLib = {
         if (this.cache.has(name)) return this.cache.get(name);
         const t = this['make_' + name](aniso);
         this.cache.set(name, t);
+        this.canvases.set(name, t.image);
+        return t;
+    },
+
+    /* מפת נורמלים נגזרת מהטקסטורה עצמה — נותנת עומק פני שטח בלי קבצים */
+    getNormal(name, strength, aniso) {
+        const key = name + '::normal';
+        if (this.cache.has(key)) return this.cache.get(key);
+        this.get(name, aniso);
+        const src = this.canvases.get(name);
+        const t = makeNormalMap(src, strength === undefined ? 2.2 : strength);
+        t.anisotropy = aniso || 4;
+        this.cache.set(key, t);
         return t;
     },
 
@@ -783,6 +880,56 @@ const TexLib = {
         return this._finish(c, 1, aniso);
     },
 
+    make_tiles(aniso) {
+        const S = 256, c = this._canvas(S), x = c.getContext('2d'), rng = mulberry32(131);
+        x.fillStyle = '#5c626a'; x.fillRect(0, 0, S, S);
+        const t = 64;
+        for (let gy = 0; gy < S; gy += t) for (let gx = 0; gx < S; gx += t) {
+            const v = 150 + rng() * 60;
+            x.fillStyle = `rgb(${v | 0},${(v + 4) | 0},${(v + 10) | 0})`;
+            x.fillRect(gx + 3, gy + 3, t - 6, t - 6);
+            x.fillStyle = `rgba(0,0,0,${rng() * .12})`;
+            x.fillRect(gx + 3, gy + t - 9, t - 6, 6);
+        }
+        for (let i = 0; i < 1400; i++) {
+            x.fillStyle = `rgba(${rng() * 255 | 0},${rng() * 255 | 0},${rng() * 255 | 0},.05)`;
+            x.fillRect(rng() * S, rng() * S, 2, 2);
+        }
+        return this._finish(c, 1, aniso);
+    },
+
+    make_neonwall(aniso) {
+        const S = 256, c = this._canvas(S), x = c.getContext('2d'), rng = mulberry32(151);
+        x.fillStyle = '#151a22'; x.fillRect(0, 0, S, S);
+        for (let i = 0; i < 40; i++) {
+            const hgt = 6 + rng() * 16, y = rng() * S;
+            const col = [[255, 60, 120], [80, 220, 255], [255, 190, 60], [150, 110, 255]][Math.floor(rng() * 4)];
+            x.fillStyle = `rgba(${col[0]},${col[1]},${col[2]},${.25 + rng() * .55})`;
+            x.fillRect(rng() * S, y, 20 + rng() * 90, hgt);
+        }
+        for (let i = 0; i < 900; i++) {
+            const g = 20 + rng() * 40;
+            x.fillStyle = `rgba(${g},${g + 4},${g + 10},.5)`;
+            x.fillRect(rng() * S, rng() * S, 2, 2);
+        }
+        return this._finish(c, 1, aniso);
+    },
+
+    make_dirt(aniso) {
+        const S = 256, c = this._canvas(S), x = c.getContext('2d'), rng = mulberry32(173);
+        x.fillStyle = '#8a7a63'; x.fillRect(0, 0, S, S);
+        for (let i = 0; i < 5000; i++) {
+            const g = 90 + rng() * 80;
+            x.fillStyle = `rgba(${g | 0},${(g * .88) | 0},${(g * .7) | 0},${rng() * .7})`;
+            x.fillRect(rng() * S, rng() * S, 1 + rng() * 3, 1 + rng() * 3);
+        }
+        for (let i = 0; i < 120; i++) {
+            x.fillStyle = `rgba(${60 + rng() * 40 | 0},${52 + rng() * 30 | 0},${40 + rng() * 24 | 0},.5)`;
+            x.beginPath(); x.arc(rng() * S, rng() * S, 2 + rng() * 7, 0, 6.3); x.fill();
+        }
+        return this._finish(c, 1, aniso);
+    },
+
     make_rubber(aniso) {
         const S = 128, c = this._canvas(S), x = c.getContext('2d');
         x.fillStyle = '#3a4046'; x.fillRect(0, 0, S, S);
@@ -793,6 +940,45 @@ const TexLib = {
         return this._finish(c, 1, aniso);
     },
 };
+
+/* יצירת מפת נורמלים מטקסטורה קיימת (Sobel על הבהירות) */
+function makeNormalMap(srcCanvas, strength) {
+    const S = srcCanvas.width;
+    const sctx = srcCanvas.getContext('2d', { willReadFrequently: true });
+    const src = sctx.getImageData(0, 0, S, S).data;
+    const h = new Float32Array(S * S);
+    for (let i = 0, p = 0; i < h.length; i++, p += 4) {
+        h[i] = (src[p] * 0.299 + src[p + 1] * 0.587 + src[p + 2] * 0.114) / 255;
+    }
+    const out = document.createElement('canvas');
+    out.width = out.height = S;
+    const octx = out.getContext('2d');
+    const img = octx.createImageData(S, S);
+    const d = img.data;
+    const at = (x, y) => h[((y + S) % S) * S + ((x + S) % S)];
+    for (let y = 0; y < S; y++) {
+        for (let x = 0; x < S; x++) {
+            const dx = (at(x - 1, y - 1) + 2 * at(x - 1, y) + at(x - 1, y + 1))
+                     - (at(x + 1, y - 1) + 2 * at(x + 1, y) + at(x + 1, y + 1));
+            const dy = (at(x - 1, y - 1) + 2 * at(x, y - 1) + at(x + 1, y - 1))
+                     - (at(x - 1, y + 1) + 2 * at(x, y + 1) + at(x + 1, y + 1));
+            let nx = dx * strength, ny = dy * strength, nz = 1;
+            const len = Math.hypot(nx, ny, nz) || 1;
+            nx /= len; ny /= len; nz /= len;
+            const i = (y * S + x) * 4;
+            d[i] = (nx * 0.5 + 0.5) * 255;
+            d[i + 1] = (ny * 0.5 + 0.5) * 255;
+            d[i + 2] = (nz * 0.5 + 0.5) * 255;
+            d[i + 3] = 255;
+        }
+    }
+    octx.putImageData(img, 0, 0);
+    const t = new THREE.CanvasTexture(out);
+    t.wrapS = t.wrapT = THREE.RepeatWrapping;
+    t.colorSpace = THREE.NoColorSpace;
+    t.needsUpdate = true;
+    return t;
+}
 
 /* טקסטורת זוהר עגולה (לסימוני צ'קפוינט וסיום) */
 function makeGlowTexture() {
@@ -1027,8 +1213,13 @@ class AudioManager {
 }
 
 /* =========================================================================
-   6. קלט — מקלדת + Pointer Lock
+   6. קלט — מקלדת, עכבר (Pointer Lock) ושלט משחק (Gamepad API)
    ========================================================================= */
+const PAD = {
+    A: 0, B: 1, X: 2, Y: 3, LB: 4, RB: 5, LT: 6, RT: 7,
+    BACK: 8, START: 9, L3: 10, R3: 11, UP: 12, DOWN: 13, LEFT: 14, RIGHT: 15,
+};
+
 class Input {
     constructor(canvas) {
         this.canvas = canvas;
@@ -1038,10 +1229,27 @@ class Input {
         this.mouseDY = 0;
         this.sensitivity = 1.0;
         this.locked = false;
-        this.enabled = false;
         this.onEscape = null;
         this.onLockChange = null;
         this.onLockError = null;
+
+        // --- שלט ---
+        this.padConnected = false;
+        this.padId = '';
+        this.padIndex = -1;
+        this.padSens = 1.0;
+        this.padInvertY = false;
+        this.padVibrate = true;
+        this.padLookX = 0;
+        this.padLookY = 0;
+        this.padMoveX = 0;
+        this.padMoveY = 0;
+        this.padBtn = new Uint8Array(20);
+        this.padPrev = new Uint8Array(20);
+        this.navRepeat = 0;
+        this.nav = { up: false, down: false, left: false, right: false };
+        this.onPadChange = null;
+        this.lastDevice = 'kb';        // 'kb' או 'pad' — לפי מקור הקלט האחרון
 
         this._kd = (e) => {
             if (e.repeat) return;
@@ -1049,6 +1257,7 @@ class Input {
             if (['Space', 'ArrowUp', 'ArrowDown', 'ArrowLeft', 'ArrowRight', 'Tab'].includes(c)) e.preventDefault();
             this.keys[c] = true;
             this.pressed[c] = true;
+            this.lastDevice = 'kb';
             if (c === 'Escape' && this.onEscape) this.onEscape();
         };
         this._ku = (e) => { this.keys[e.code] = false; };
@@ -1057,6 +1266,7 @@ class Input {
             const s = this.sensitivity * 0.0022;
             this.mouseDX += (e.movementX || 0) * s;
             this.mouseDY += (e.movementY || 0) * s;
+            if (e.movementX || e.movementY) this.lastDevice = 'kb';
         };
         this._blur = () => { this.keys = Object.create(null); };
         this._plc = () => {
@@ -1072,21 +1282,131 @@ class Input {
         document.addEventListener('pointerlockerror', () => {
             if (this.onLockError) this.onLockError();
         });
+        window.addEventListener('gamepadconnected', (e) => {
+            this.padIndex = e.gamepad.index;
+            this.padId = e.gamepad.id;
+            this.padConnected = true;
+            this.lastDevice = 'pad';
+            if (this.onPadChange) this.onPadChange(true, e.gamepad.id);
+        });
+        window.addEventListener('gamepaddisconnected', (e) => {
+            if (e.gamepad.index === this.padIndex) {
+                this.padConnected = false;
+                this.padIndex = -1;
+                if (this.onPadChange) this.onPadChange(false, '');
+            }
+        });
     }
+
+    /* --- עכבר --- */
     requestLock() {
+        if (!this.canvas.requestPointerLock) return;
         const p = this.canvas.requestPointerLock({ unadjustedMovement: true });
         if (p && typeof p.catch === 'function') p.catch(() => this.canvas.requestPointerLock());
     }
     exitLock() { if (document.pointerLockElement) document.exitPointerLock(); }
+
+    /* --- שלט: דגימה בכל פריים --- */
+    pollPad(dt) {
+        const list = navigator.getGamepads ? navigator.getGamepads() : null;
+        let gp = null;
+        if (list) {
+            if (this.padIndex >= 0 && list[this.padIndex] && list[this.padIndex].connected) gp = list[this.padIndex];
+            else {
+                for (let i = 0; i < list.length; i++) {
+                    if (list[i] && list[i].connected) { gp = list[i]; this.padIndex = i; this.padId = list[i].id; break; }
+                }
+            }
+        }
+        this.padPrev.set(this.padBtn);
+        if (!gp) {
+            if (this.padConnected) { this.padConnected = false; if (this.onPadChange) this.onPadChange(false, ''); }
+            this.padBtn.fill(0);
+            this.padLookX = this.padLookY = this.padMoveX = this.padMoveY = 0;
+            this.nav.up = this.nav.down = this.nav.left = this.nav.right = false;
+            return;
+        }
+        if (!this.padConnected) {
+            this.padConnected = true;
+            if (this.onPadChange) this.onPadChange(true, gp.id);
+        }
+
+        const dz = (v, d) => (Math.abs(v) < d ? 0 : (v - Math.sign(v) * d) / (1 - d));
+        const ax = gp.axes;
+        this.padMoveX = dz(ax[0] || 0, 0.22);
+        this.padMoveY = dz(ax[1] || 0, 0.22);
+        const rx = dz(ax[2] || 0, 0.16), ry = dz(ax[3] || 0, 0.16);
+        // עקומה מעורבת (לינארית + ריבועית) — כיוון עדין במרכז בלי לאבד תגובתיות
+        this.padLookX = rx * (0.34 + 0.66 * Math.abs(rx));
+        this.padLookY = ry * (0.34 + 0.66 * Math.abs(ry));
+
+        for (let i = 0; i < this.padBtn.length; i++) {
+            const b = gp.buttons[i];
+            this.padBtn[i] = b && (b.pressed || b.value > 0.45) ? 1 : 0;
+        }
+        if (this.padBtn.some((v, i) => v && !this.padPrev[i]) ||
+            Math.abs(this.padMoveX) > 0.4 || Math.abs(this.padMoveY) > 0.4 ||
+            Math.abs(rx) > 0.4 || Math.abs(ry) > 0.4) {
+            this.lastDevice = 'pad';
+        }
+
+        // ניווט בתפריטים (חץ/ג'ויסטיק) עם חזרה אוטומטית
+        const nx = this.padBtn[PAD.RIGHT] - this.padBtn[PAD.LEFT] + (Math.abs(this.padMoveX) > 0.55 ? Math.sign(this.padMoveX) : 0);
+        const ny = this.padBtn[PAD.DOWN] - this.padBtn[PAD.UP] + (Math.abs(this.padMoveY) > 0.55 ? Math.sign(this.padMoveY) : 0);
+        const active = nx !== 0 || ny !== 0;
+        let fire = false;
+        if (active) {
+            if (this.navRepeat <= 0) { fire = true; this.navRepeat = (this.navRepeat === 0 ? 0.42 : 0.16); }
+            else this.navRepeat -= dt;
+        } else this.navRepeat = 0;
+        this.nav.up = fire && ny < 0;
+        this.nav.down = fire && ny > 0;
+        this.nav.left = fire && nx < 0;
+        this.nav.right = fire && nx > 0;
+
+        if (this.padTap(PAD.START) && this.onEscape) this.onEscape();
+    }
+
+    rumble(strength, ms) {
+        if (!this.padVibrate || !this.padConnected) return;
+        const list = navigator.getGamepads ? navigator.getGamepads() : null;
+        const gp = list && this.padIndex >= 0 ? list[this.padIndex] : null;
+        if (!gp || !gp.vibrationActuator) return;
+        try {
+            gp.vibrationActuator.playEffect('dual-rumble', {
+                duration: ms, strongMagnitude: clamp(strength, 0, 1), weakMagnitude: clamp(strength * 0.7, 0, 1),
+            });
+        } catch (e) { /* לא כל שלט תומך ברטט */ }
+    }
+
+    padDown(i) { return this.padBtn[i] === 1; }
+    padTap(i) { return this.padBtn[i] === 1 && this.padPrev[i] === 0; }
+
+    /* --- שאילתות משולבות --- */
     down(code) { return !!this.keys[code]; }
     tap(code) { if (this.pressed[code]) { this.pressed[code] = false; return true; } return false; }
     consume() { this.mouseDX = 0; this.mouseDY = 0; }
     clearPressed() { this.pressed = Object.create(null); }
-    // צירי תנועה
-    get moveF() { return (this.down('KeyW') || this.down('ArrowUp') ? 1 : 0) - (this.down('KeyS') || this.down('ArrowDown') ? 1 : 0); }
-    get moveR() { return (this.down('KeyD') || this.down('ArrowRight') ? 1 : 0) - (this.down('KeyA') || this.down('ArrowLeft') ? 1 : 0); }
-    get sprint() { return this.down('ShiftLeft') || this.down('ShiftRight'); }
-    get crouch() { return this.down('ControlLeft') || this.down('ControlRight') || this.down('KeyC'); }
+
+    get moveF() {
+        const kb = (this.down('KeyW') || this.down('ArrowUp') ? 1 : 0) - (this.down('KeyS') || this.down('ArrowDown') ? 1 : 0);
+        return clamp(kb - this.padMoveY, -1, 1);
+    }
+    get moveR() {
+        const kb = (this.down('KeyD') || this.down('ArrowRight') ? 1 : 0) - (this.down('KeyA') || this.down('ArrowLeft') ? 1 : 0);
+        return clamp(kb + this.padMoveX, -1, 1);
+    }
+    get sprint() {
+        return this.down('ShiftLeft') || this.down('ShiftRight') || this.padDown(PAD.RT) || this.padDown(PAD.L3);
+    }
+    get crouch() {
+        return this.down('ControlLeft') || this.down('ControlRight') || this.down('KeyC') ||
+               this.padDown(PAD.B) || this.padDown(PAD.LT);
+    }
+    get jumpPressed() { return this.tap('Space') || this.padTap(PAD.A); }
+    get respawnPressed() { return this.tap('KeyR') || this.padTap(PAD.Y); }
+    get mutePressed() { return this.tap('KeyM') || this.padTap(PAD.BACK); }
+    get interactHeld() { return this.down('KeyE') || this.padDown(PAD.X); }
 }
 
 /* =========================================================================
@@ -1094,34 +1414,53 @@ class Input {
    ========================================================================= */
 const MAT = {};
 function buildMaterials(aniso) {
-    const std = (tex, opts) => new THREE.MeshStandardMaterial(Object.assign({
-        map: tex, roughness: .92, metalness: .02,
-    }, opts || {}));
+    /* std(name, opts) — טוען מפת צבע ומפת נורמלים שנוצרו פרוצדורלית */
+    const std = (name, opts) => {
+        const o = Object.assign({ roughness: .92, metalness: .02 }, opts || {});
+        const ns = o.normalStrength === undefined ? 2.0 : o.normalStrength;
+        delete o.normalStrength;
+        o.map = TexLib.get(name, aniso);
+        if (ns > 0) {
+            o.normalMap = TexLib.getNormal(name, ns, aniso);
+            o.normalScale = new THREE.Vector2(o.normalAmount || 0.85, o.normalAmount || 0.85);
+        }
+        delete o.normalAmount;
+        return new THREE.MeshStandardMaterial(o);
+    };
 
-    MAT.concrete   = std(TexLib.get('concrete', aniso), { color: 0xd6d9dd, roughness: .93 });
-    MAT.concreteD  = std(TexLib.get('concrete', aniso), { color: 0x9ba0a6, roughness: .95 });
-    MAT.asphalt    = std(TexLib.get('asphalt', aniso),  { color: 0xb4b8bd, roughness: .99 });
-    MAT.brick      = std(TexLib.get('brick', aniso),    { color: 0xdccec0, roughness: .94 });
-    MAT.metal      = std(TexLib.get('metal', aniso),    { color: 0xd8dee6, roughness: .38, metalness: .55 });
-    MAT.metalDark  = std(TexLib.get('metal', aniso),    { color: 0x8d949c, roughness: .48, metalness: .5 });
-    MAT.rust       = std(TexLib.get('rust', aniso),     { color: 0xd8bb9c, roughness: .85, metalness: .18 });
-    MAT.wood       = std(TexLib.get('wood', aniso),     { color: 0xe6d0a8, roughness: .88 });
-    MAT.window     = std(TexLib.get('window', aniso),   { color: 0xc4d2e0, roughness: .14, metalness: .45 });
-    MAT.stripe     = std(TexLib.get('stripe', aniso),   { color: 0xffffff, roughness: .66 });
-    MAT.grate      = std(TexLib.get('grate', aniso),    { color: 0xc6ccd4, roughness: .5,  metalness: .45 });
-    MAT.roof       = std(TexLib.get('roof', aniso),     { color: 0xcfd3d8, roughness: .97 });
-    MAT.rubber     = std(TexLib.get('rubber', aniso),   { color: 0xdfe3e7, roughness: .93 });
-    MAT.crane      = std(TexLib.get('metal', aniso),    { color: 0xffca3a, roughness: .52, metalness: .38 });
-    MAT.red        = std(TexLib.get('metal', aniso),    { color: 0xe0604c, roughness: .58, metalness: .25 });
-    MAT.blue       = std(TexLib.get('metal', aniso),    { color: 0x5f8fc8, roughness: .58, metalness: .25 });
-    MAT.green      = std(TexLib.get('metal', aniso),    { color: 0x62b07a, roughness: .58, metalness: .25 });
+    MAT.concrete   = std('concrete', { color: 0xd6d9dd, roughness: .93 });
+    MAT.concreteD  = std('concrete', { color: 0x9ba0a6, roughness: .95 });
+    MAT.asphalt    = std('asphalt', { color: 0xb4b8bd, roughness: .99 });
+    MAT.brick      = std('brick', { color: 0xdccec0, roughness: .94 });
+    MAT.metal      = std('metal', { color: 0xd8dee6, roughness: .38, metalness: .55 });
+    MAT.metalDark  = std('metal', { color: 0x8d949c, roughness: .48, metalness: .5 });
+    MAT.rust       = std('rust', { color: 0xd8bb9c, roughness: .85, metalness: .18 });
+    MAT.wood       = std('wood', { color: 0xe6d0a8, roughness: .88 });
+    MAT.window     = std('window', { color: 0xc4d2e0, roughness: .14, metalness: .45 });
+    MAT.stripe     = std('stripe', { color: 0xffffff, roughness: .66 });
+    MAT.grate      = std('grate', { color: 0xc6ccd4, roughness: .5,  metalness: .45 });
+    MAT.roof       = std('roof', { color: 0xcfd3d8, roughness: .97 });
+    MAT.rubber     = std('rubber', { color: 0xdfe3e7, roughness: .93 });
+    MAT.crane      = std('metal', { color: 0xffca3a, roughness: .52, metalness: .38 });
+    MAT.red        = std('metal', { color: 0xe0604c, roughness: .58, metalness: .25 });
+    MAT.blue       = std('metal', { color: 0x5f8fc8, roughness: .58, metalness: .25 });
+    MAT.green      = std('metal', { color: 0x62b07a, roughness: .58, metalness: .25 });
+    MAT.tiles      = std('tiles',      { color: 0xd2d7dd, roughness: .55, metalness: .1, normalAmount: 1.0 });
+    MAT.neonwall   = std('neonwall',   { color: 0xffffff, roughness: .35, metalness: .3, normalStrength: 1.0,
+                                         emissive: 0x223344, emissiveIntensity: .9 });
+    MAT.dirt       = std('dirt',       { color: 0xc8b89c, roughness: 1.0, normalAmount: 1.1 });
+    MAT.wet        = std('asphalt',    { color: 0x8f959c, roughness: .18, metalness: .35, normalAmount: .45 });
+    MAT.glass      = new THREE.MeshStandardMaterial({ color: 0x9ec8e8, roughness: .05, metalness: .9,
+                                                      transparent: true, opacity: .34, side: THREE.DoubleSide });
+    MAT.lamp       = new THREE.MeshStandardMaterial({ color: 0xfff4e2, emissive: 0xffe9c4,
+                                                      emissiveIntensity: 2.4, roughness: .5 });
     MAT.plainDark  = new THREE.MeshStandardMaterial({ color: 0x3a4048, roughness: .9 });
 
     MAT.cpOff      = new THREE.MeshStandardMaterial({ color: 0x2f4a58, emissive: 0x0d3d55, emissiveIntensity: .8, roughness: .35, metalness: .4 });
     MAT.cpOn       = new THREE.MeshStandardMaterial({ color: 0x2bd6a0, emissive: 0x18ffb0, emissiveIntensity: 1.9, roughness: .3, metalness: .3 });
     MAT.goal       = new THREE.MeshStandardMaterial({ color: 0xffd27a, emissive: 0xffb03a, emissiveIntensity: 2.1, roughness: .3, metalness: .2 });
     MAT.hazard     = new THREE.MeshStandardMaterial({ color: 0xff5544, emissive: 0xaa1200, emissiveIntensity: 1.1, roughness: .5, transparent: true, opacity: .38 });
-    MAT.wallrun    = std(TexLib.get('stripe', aniso),   { color: 0x7fd0ff, roughness: .55, metalness: .2 });
+    MAT.wallrun    = std('stripe', { color: 0x7fd0ff, roughness: .55, metalness: .2 });
 }
 
 /* גאומטריות משותפות */
@@ -1151,6 +1490,8 @@ class Collider {
         this.dynamic = !!opts.dynamic;
         this.mesh = opts.mesh || null;
         this.noWallrun = !!opts.noWallrun;
+        this.launch = opts.launch || 0;      // משטח שיגור
+        this.slip = !!opts.slip;             // משטח חלק (גשם/קרח)
         this.min = new THREE.Vector3();
         this.max = new THREE.Vector3();
         this._mark = -1;
@@ -1279,6 +1620,9 @@ class LevelBuilder {
         this.movers = [];
         this.spinners = [];
         this.pulses = [];
+        this.followers = [];
+        this.ziplines = [];
+        this.ladders = [];
         this.disposables = [];
         this.spawn = { pos: new THREE.Vector3(0, 1, 0), yaw: Math.PI };
         this.goal = null;
@@ -1305,6 +1649,7 @@ class LevelBuilder {
         const col = new Collider(x, y, z, sx / 2, sy / 2, sz / 2, o.yaw || 0, {
             solid: o.solid !== false, hazard: !!o.hazard, conveyor: o.conveyor || null,
             dynamic: !!o.dynamic, noWallrun: !!o.noWallrun, mesh: m,
+            launch: o.launch || 0, slip: !!o.slip,
         });
         this.world.add(col);
         return { mesh: m, col };
@@ -1361,11 +1706,12 @@ class LevelBuilder {
             }
         }
         if (o.noCollide) return { mesh: m, col: null };
-        const w = radius * 1.38;
+        // גובה ההתנגשות תואם לחלק העליון של הגליל, הרוחב מעט גדול יותר לאחיזה נוחה
+        const wv = radius, wh = radius * 1.12;
         let hx, hy, hz;
-        if (axis === 'x') { hx = len / 2; hy = w; hz = w; }
-        else if (axis === 'z') { hx = w; hy = w; hz = len / 2; }
-        else { hx = w; hy = len / 2; hz = w; }
+        if (axis === 'x') { hx = len / 2; hy = wv; hz = wh; }
+        else if (axis === 'z') { hx = wh; hy = wv; hz = len / 2; }
+        else { hx = wh; hy = len / 2; hz = wh; }
         const col = new Collider(x, y, z, hx, hy, hz, 0, { mesh: m });
         this.world.add(col);
         return { mesh: m, col };
@@ -1687,6 +2033,227 @@ class LevelBuilder {
         return { group: g, armTop: y + height + .2 };
     }
 
+    /* ---------------- אלמנטים חדשים ---------------- */
+    /* כבל גלישה — השחקן נאחז בו וגולש לקצה השני */
+    zipline(x1, y1, z1, x2, y2, z2, o = {}) {
+        const a = new THREE.Vector3(x1, y1, z1), b = new THREE.Vector3(x2, y2, z2);
+        const dir = b.clone().sub(a);
+        const len = dir.length();
+        const cable = new THREE.Mesh(GEO.cylHi, MAT.metalDark);
+        cable.scale.set(.07, len, .07);
+        cable.position.copy(a).add(b).multiplyScalar(0.5);
+        cable.quaternion.setFromUnitVectors(new THREE.Vector3(0, 1, 0), dir.clone().normalize());
+        cable.castShadow = false;
+        this.group.add(cable);
+        // עמודי עיגון
+        for (const p of [a, b]) {
+            const post = new THREE.Mesh(GEO.cylHi, MAT.metal);
+            post.scale.set(.16, 1.5, .16);
+            post.position.set(p.x, p.y - .75, p.z);
+            post.castShadow = true;
+            this.group.add(post);
+        }
+        // ידית זוהרת
+        const handle = new THREE.Group();
+        const bar = new THREE.Mesh(GEO.cylHi, MAT.cpOn);
+        bar.scale.set(.09, .55, .09); bar.rotation.z = Math.PI / 2;
+        const hook = new THREE.Mesh(GEO.torus, MAT.metal);
+        hook.scale.setScalar(.22); hook.position.y = .3;
+        handle.add(bar, hook);
+        handle.position.copy(a);
+        this.group.add(handle);
+        const glowMat = new THREE.SpriteMaterial({
+            map: SPR_GLOW, color: 0x2bd6a0, transparent: true, opacity: .5,
+            blending: THREE.AdditiveBlending, depthWrite: false,
+        });
+        this._track(glowMat);
+        const glow = new THREE.Sprite(glowMat);
+        glow.scale.set(1.9, 1.9, 1);
+        handle.add(glow);
+        const zip = { a, b, handle, home: a.clone() };
+        this.ziplines.push(zip);
+        this.pulses.push((t) => {
+            glowMat.opacity = .4 + Math.sin(t * 3) * .18;
+            // הידית חוזרת לתחילת הכבל כשלא משתמשים בה
+            if (!zip.inUse) handle.position.lerp(zip.home, 0.06);
+        });
+        void o;
+        return zip;
+    }
+
+    /* סולם טיפוס */
+    ladder(x, y, z, height, yaw = 0) {
+        const g = new THREE.Group();
+        g.position.set(x, y, z); g.rotation.y = yaw;
+        const w = .62;
+        for (const s of [-1, 1]) {
+            const rail = new THREE.Mesh(boxGeo(.09, height, .09, 1), MAT.metal);
+            rail.position.set(s * w / 2, height / 2, 0);
+            rail.castShadow = true;
+            g.add(rail);
+        }
+        for (let h = 0.35; h < height; h += 0.42) {
+            const rung = new THREE.Mesh(boxGeo(w, .06, .06, 1), MAT.metal);
+            rung.position.set(0, h, 0);
+            g.add(rung);
+        }
+        // כלוב בטיחות
+        for (let h = 2.2; h < height; h += 0.8) {
+            const ring = new THREE.Mesh(GEO.torus, MAT.metalDark);
+            ring.scale.setScalar(.52); ring.rotation.x = Math.PI / 2;
+            ring.position.set(0, h, -.28);
+            ring.castShadow = false;
+            g.add(ring);
+        }
+        this.group.add(g);
+        const c = Math.cos(yaw), s = Math.sin(yaw);
+        const ex = Math.abs(c) * 0.62 + Math.abs(s) * 0.72;
+        const ez = Math.abs(s) * 0.62 + Math.abs(c) * 0.72;
+        this.ladders.push({
+            min: new THREE.Vector3(x - ex, y - 0.2, z - ez),
+            max: new THREE.Vector3(x + ex, y + height + 0.4, z + ez),
+        });
+        return g;
+    }
+
+    /* משטח שיגור */
+    launchPad(x, y, z, power, o = {}) {
+        const r = o.r || 1.5;
+        const base = new THREE.Mesh(GEO.cylHi, MAT.metalDark);
+        base.scale.set(r, .3, r);
+        base.position.set(x, y - .15, z);
+        base.receiveShadow = true; base.castShadow = true;
+        this.group.add(base);
+        const padMat = MAT.cpOn.clone(); padMat.userData.cloned = true; this._track(padMat);
+        const pad = new THREE.Mesh(GEO.cylHi, padMat);
+        pad.scale.set(r * .82, .1, r * .82);
+        pad.position.set(x, y, z);
+        this.group.add(pad);
+        const glowMat = new THREE.SpriteMaterial({
+            map: SPR_GLOW, color: 0x7fffd0, transparent: true, opacity: .5,
+            blending: THREE.AdditiveBlending, depthWrite: false,
+        });
+        this._track(glowMat);
+        const glow = new THREE.Sprite(glowMat);
+        glow.scale.set(r * 3, r * 3, 1);
+        glow.position.set(x, y + .5, z);
+        this.group.add(glow);
+        const col = new Collider(x, y - .05, z, r * .8, .1, r * .8, 0, { launch: power, mesh: pad });
+        this.world.add(col);
+        this.pulses.push((t) => {
+            const p = (Math.sin(t * 4) * .5 + .5);
+            pad.scale.y = .1 + p * .06;
+            glowMat.opacity = .35 + p * .35;
+            padMat.emissiveIntensity = 1.4 + p * 1.2;
+        });
+        return col;
+    }
+
+    /* שלט ניאון מואר */
+    neonSign(x, y, z, w, h, color, yaw = 0) {
+        const frame = this.box(x, y, z, w, h, .25, MAT.plainDark, { yaw, uv: .6, noCollide: true, cast: false });
+        const mat = new THREE.MeshStandardMaterial({
+            color: 0x111318, emissive: color, emissiveIntensity: 1.95, roughness: .4,
+        });
+        this._track(mat);
+        const tube = new THREE.Mesh(boxGeo(w * .78, h * .5, .1, 1), mat);
+        tube.position.set(x + Math.sin(yaw) * .18, y, z + Math.cos(yaw) * .18);
+        tube.rotation.y = yaw;
+        tube.castShadow = false;
+        this.group.add(tube);
+        const glowMat = new THREE.SpriteMaterial({
+            map: SPR_GLOW, color, transparent: true, opacity: .34,
+            blending: THREE.AdditiveBlending, depthWrite: false,
+        });
+        this._track(glowMat);
+        const glow = new THREE.Sprite(glowMat);
+        glow.scale.set(w * 2.2, h * 2.6, 1);
+        glow.position.set(x + Math.sin(yaw) * .3, y, z + Math.cos(yaw) * .3);
+        this.group.add(glow);
+        this.pulses.push((t) => {
+            const flicker = 0.82 + Math.sin(t * 17 + x) * 0.06 + (Math.sin(t * 53 + z) > 0.94 ? -0.35 : 0);
+            mat.emissiveIntensity = 1.95 * flicker;
+            glowMat.opacity = .34 * flicker;
+        });
+        void frame;
+    }
+
+    /* מעקה דקורטיבי (לא חוסם) */
+    railing(x, y, z, len, yaw = 0) {
+        const g = new THREE.Group();
+        g.position.set(x, y, z); g.rotation.y = yaw;
+        const top = new THREE.Mesh(boxGeo(len, .07, .07, 1), MAT.metal);
+        top.position.y = 1.02;
+        const mid = new THREE.Mesh(boxGeo(len, .05, .05, 1), MAT.metal);
+        mid.position.y = .6;
+        g.add(top, mid);
+        for (let i = -len / 2 + .3; i <= len / 2; i += 1.5) {
+            const post = new THREE.Mesh(boxGeo(.07, 1.05, .07, 1), MAT.metal);
+            post.position.set(i, .52, 0);
+            g.add(post);
+        }
+        g.traverse(m => { m.castShadow = true; });
+        this.group.add(g);
+        return g;
+    }
+
+    /* גשם — פסי טיפות שעוקבים אחרי השחקן */
+    rain(count, area, o = {}) {
+        const n = count;
+        const pos = new Float32Array(n * 6);      // שני קודקודים לכל טיפה
+        const spd = new Float32Array(n);
+        const len = o.streak || 0.9;
+        for (let i = 0; i < n; i++) {
+            const x = (Math.random() - .5) * area, y = Math.random() * 36, z = (Math.random() - .5) * area;
+            const k = i * 6;
+            pos[k] = x; pos[k + 1] = y; pos[k + 2] = z;
+            pos[k + 3] = x + 0.06; pos[k + 4] = y + len; pos[k + 5] = z;
+            spd[i] = 26 + Math.random() * 20;
+        }
+        const geo = new THREE.BufferGeometry();
+        geo.setAttribute('position', new THREE.BufferAttribute(pos, 3));
+        this._track(geo);
+        const mat = new THREE.LineBasicMaterial({
+            color: o.color || 0xc6dcec, transparent: true,
+            opacity: o.opacity || 0.42, depthWrite: false,
+        });
+        this._track(mat);
+        const drops = new THREE.LineSegments(geo, mat);
+        drops.frustumCulled = false;
+        this.group.add(drops);
+        let last = 0;
+        this.followers.push((t, p) => {
+            const dt = Math.min(0.05, Math.max(0, t - last));
+            last = t;
+            const arr = geo.attributes.position.array;
+            for (let i = 0; i < n; i++) {
+                const k = i * 6;
+                const fall = spd[i] * dt;
+                arr[k + 1] -= fall; arr[k + 4] -= fall;
+                if (arr[k + 1] < p.y - 5) {
+                    const x = p.x + (Math.random() - .5) * area;
+                    const z = p.z + (Math.random() - .5) * area;
+                    const y = p.y + 24 + Math.random() * 12;
+                    arr[k] = x; arr[k + 1] = y; arr[k + 2] = z;
+                    arr[k + 3] = x + 0.06; arr[k + 4] = y + len; arr[k + 5] = z;
+                }
+            }
+            geo.attributes.position.needsUpdate = true;
+        });
+        return drops;
+    }
+
+    /* לוח זכוכית (חלון ראווה) */
+    glassPanel(x, y, z, w, h, yaw = 0) {
+        const m = new THREE.Mesh(boxGeo(w, h, .1, .3), MAT.glass);
+        m.position.set(x, y, z); m.rotation.y = yaw;
+        m.castShadow = false; m.receiveShadow = false;
+        this.group.add(m);
+        const col = new Collider(x, y, z, w / 2, h / 2, .05, yaw, { mesh: m });
+        this.world.add(col);
+        return col;
+    }
+
     /* ---------------- טריגרים ---------------- */
     checkpoint(x, y, z, yaw) {
         const g = new THREE.Group();
@@ -1824,11 +2391,12 @@ class LevelBuilder {
         }
     }
 
-    update(time) {
+    update(time, playerPos) {
         this.time = time;
         for (let i = 0; i < this.movers.length; i++) this.movers[i](time);
         for (let i = 0; i < this.spinners.length; i++) this.spinners[i](time);
         for (let i = 0; i < this.pulses.length; i++) this.pulses[i](time);
+        if (playerPos) for (let i = 0; i < this.followers.length; i++) this.followers[i](time, playerPos);
     }
 
     /* שחרור משאבים שנוצרו במיוחד לשלב (הגאומטריות המשותפות נשמרות במטמון) */
@@ -1845,6 +2413,9 @@ class LevelBuilder {
         this.movers.length = 0;
         this.spinners.length = 0;
         this.pulses.length = 0;
+        this.followers.length = 0;
+        this.ziplines.length = 0;
+        this.ladders.length = 0;
         this.checkpoints.length = 0;
         this.hints.length = 0;
     }
@@ -1894,6 +2465,14 @@ class PlayerController {
         this.wallTouchCol = null;
         this.wallTouchNormal = new THREE.Vector3();
 
+        // פארקור מתקדם
+        this.rollT = 0; this.rollBuf = 0; this.rollDir = new THREE.Vector3();
+        this.climbT = 0; this.climbNormal = new THREE.Vector3(); this.climbUsed = false;
+        this.flow = 1;
+        this.onLadder = null;
+        this.zip = null; this.zipT = 0; this.zipSpeed = 0; this.zipCooldown = 0;
+        this.level = null;
+
         // אפקטים
         this.bobT = 0;
         this.bobY = 0; this.bobX = 0;
@@ -1930,6 +2509,8 @@ class PlayerController {
         this.roll = 0; this.rollTarget = 0; this.fovOffset = 0; this.fovTarget = 0;
         this.shake = 0; this.bobT = 0; this.bobX = this.bobY = 0;
         this.landImpact = 0; this.stepPhase = 0;
+        this.rollT = 0; this.rollBuf = 0; this.climbT = 0; this.climbUsed = false;
+        this.flow = 1; this.onLadder = null; this.zip = null; this.zipCooldown = 0;
         this.stateLabel = '';
         this.updateCameraTransform(0);
     }
@@ -1992,21 +2573,30 @@ class PlayerController {
     /* ---------- לולאת העדכון הראשית ---------- */
     update(dt, level) {
         const world = level.world;
+        this.level = level;
         this.wasGrounded = this.grounded;
-        this.applyLook();
+        this.applyLook(dt);
 
         this.wallCooldown = Math.max(0, this.wallCooldown - dt);
         this.grabCooldown = Math.max(0, this.grabCooldown - dt);
         this.vaultCooldown = Math.max(0, this.vaultCooldown - dt);
-        if (this.input.tap('Space')) this.jumpBuf = CFG.JUMP_BUFFER;
+        this.zipCooldown = Math.max(0, this.zipCooldown - dt);
+        this.rollBuf = Math.max(0, this.rollBuf - dt);
+        if (this.input.jumpPressed) this.jumpBuf = CFG.JUMP_BUFFER;
+        if (this.input.crouch && !this.grounded) this.rollBuf = CFG.ROLL_WINDOW;
         this.jumpBuf = Math.max(0, this.jumpBuf - dt);
+        // דעיכת ה"פלואו" כשלא משרשרים תנועות
+        this.flow = Math.max(1, this.flow - CFG.FLOW_DECAY * dt * (this.grounded ? 1 : 0.35));
 
         switch (this.state) {
-            case 'hang':    this.updateHang(dt, world); break;
-            case 'mantle':  this.updateMantle(dt, world); break;
-            case 'vault':   this.updateVault(dt, world); break;
-            case 'wallrun': this.updateWallrun(dt, world); break;
-            default:        this.updateGround(dt, world); break;
+            case 'hang':      this.updateHang(dt, world); break;
+            case 'mantle':    this.updateMantle(dt, world); break;
+            case 'vault':     this.updateVault(dt, world); break;
+            case 'wallrun':   this.updateWallrun(dt, world); break;
+            case 'wallclimb': this.updateWallclimb(dt, world); break;
+            case 'roll':      this.updateRoll(dt, world); break;
+            case 'zip':       this.updateZip(dt, world); break;
+            default:          this.updateGround(dt, world); break;
         }
 
         this.speed = Math.hypot(this.vel.x, this.vel.z);
@@ -2015,15 +2605,20 @@ class PlayerController {
         this.input.consume();
     }
 
-    applyLook() {
+    applyLook(dt) {
         const inp = this.input;
         if (inp.locked) {
             this.yaw -= inp.mouseDX;
             this.pitch -= inp.mouseDY;
-            this.pitch = clamp(this.pitch, -1.53, 1.53);
-            if (this.yaw > Math.PI * 2) this.yaw -= Math.PI * 2;
-            if (this.yaw < -Math.PI * 2) this.yaw += Math.PI * 2;
         }
+        if (inp.padConnected && (inp.padLookX || inp.padLookY)) {
+            const s = inp.padSens * 3.2 * dt;
+            this.yaw -= inp.padLookX * s;
+            this.pitch -= (inp.padInvertY ? -1 : 1) * inp.padLookY * s;
+        }
+        this.pitch = clamp(this.pitch, -1.53, 1.53);
+        if (this.yaw > Math.PI * 2) this.yaw -= Math.PI * 2;
+        if (this.yaw < -Math.PI * 2) this.yaw += Math.PI * 2;
     }
 
     forwardVec(out) { out.set(-Math.sin(this.yaw), 0, -Math.cos(this.yaw)); return out; }
@@ -2043,6 +2638,30 @@ class PlayerController {
         if (wlen > 0.0001) { wx /= wlen; wz /= wlen; }
 
         const sprinting = inp.sprint && mf > 0 && this.state !== 'slide' && !this.crouching;
+
+        // --- סולם / משטח טיפוס ---
+        this.onLadder = this.findLadder();
+        if (this.onLadder) {
+            const climbUp = mf > 0 || inp.down('Space');
+            const climbDown = mf < 0 || inp.crouch;
+            this.vel.y = climbUp ? CFG.LADDER_SPEED : (climbDown ? -CFG.LADDER_SPEED : 0);
+            this.vel.x *= 0.55; this.vel.z *= 0.55;
+            if (this.jumpBuf > 0 && mf <= 0) {   // ניתוק מהסולם
+                const f = this.forwardVec(_v3c);
+                this.vel.set(f.x * 4.5, CFG.JUMP_SPEED * .8, f.z * 4.5);
+                this.onLadder = null;
+                this.jumpBuf = 0;
+                this.audio.jump();
+            } else {
+                this.stepPhase += Math.abs(this.vel.y) * dt;
+                if (this.stepPhase > 1.1) { this.stepPhase = 0; this.audio.footstep(false); }
+                this.integrate(dt, world);
+                this.stateLabel = 'טיפוס על סולם';
+                this.fovTarget = -2;
+                this.rollTarget = 0;
+                return;
+            }
+        }
 
         // --- התכופפות והחלקה ---
         const wantCrouch = inp.crouch;
@@ -2077,6 +2696,7 @@ class PlayerController {
         else maxSpeed = CFG.WALK_SPEED;
         if (mf < 0) maxSpeed = Math.min(maxSpeed, CFG.WALK_SPEED * 0.92);
 
+        maxSpeed *= this.flow;
         const accel = this.grounded ? (this.state === 'slide' ? 8 : CFG.ACCEL_GROUND) : CFG.ACCEL_AIR;
 
         if (wlen > 0.0001) {
@@ -2090,7 +2710,9 @@ class PlayerController {
 
         // חיכוך / האטה
         if (this.grounded) {
-            const f = this.state === 'slide' ? 1.9 : (wlen > 0.0001 ? CFG.FRICTION * .45 : CFG.FRICTION);
+            const slick = this.groundCol && this.groundCol.slip;
+            let f = this.state === 'slide' ? 1.9 : (wlen > 0.0001 ? CFG.FRICTION * .45 : CFG.FRICTION);
+            if (slick) f = Math.min(f, CFG.SLIP_FRICTION);
             const spd = Math.hypot(this.vel.x, this.vel.z);
             if (spd > 0.001) {
                 const drop = Math.max(spd, 2.5) * f * dt;
@@ -2125,12 +2747,15 @@ class PlayerController {
             }
         }
 
-        // --- ריצה על קיר ---
+        // --- ריצה על קיר (צדדית ואנכית) ---
         if (!this.grounded && this.state === 'normal' && this.wallCooldown <= 0 &&
             this.vel.y < 5.5 && this.vel.y > -9 && mf > 0 &&
             Math.hypot(this.vel.x, this.vel.z) > CFG.WALLRUN_MINSPD) {
-            this.tryWallrun(world);
+            if (!this.tryWallrun(world) && !this.climbUsed) this.tryWallclimb(world);
         }
+
+        // --- אחיזה בכבל גלישה ---
+        if (this.state === 'normal' && this.zipCooldown <= 0 && this.tryZip()) return;
 
         // --- תנועה + התנגשויות ---
         this.integrate(dt, world);
@@ -2146,6 +2771,9 @@ class PlayerController {
             this.vel.y < CFG.JUMP_SPEED * 0.98) {
             this.tryLedgeGrab(world);
         }
+
+        // --- שרשור: הפלואו עולה כשמנחיתים תנועה מוצלחת ---
+        if (this.grounded && this.state === 'slide') this.addFlow(0.12 * dt);
 
         // --- צעדים ---
         if (this.grounded && this.state !== 'slide') {
@@ -2193,13 +2821,199 @@ class PlayerController {
         this.targetHeight = this.crouching ? CFG.CROUCH_HEIGHT : CFG.HEIGHT;
     }
 
+    addFlow(amount) {
+        this.flow = clamp(this.flow + amount, 1, CFG.FLOW_MAX);
+    }
+
+    /* ---------- גלגול נחיתה ---------- */
+    startRoll(impact) {
+        this.state = 'roll';
+        this.rollT = 0;
+        this.rollBuf = 0;
+        const spd = Math.hypot(this.vel.x, this.vel.z);
+        if (spd > 0.4) this.rollDir.set(this.vel.x / spd, 0, this.vel.z / spd);
+        else this.forwardVec(this.rollDir);
+        const keep = Math.max(spd * CFG.ROLL_KEEP, CFG.WALK_SPEED);
+        this.vel.set(this.rollDir.x * keep, 0, this.rollDir.z * keep);
+        this.targetHeight = CFG.CROUCH_HEIGHT;
+        this.crouching = true;
+        this.landDip = Math.min(0.18, 0.06 + impact * 0.004);
+        this.shake = Math.max(this.shake, 0.16);
+        this.addFlow(CFG.FLOW_GAIN * 1.6);
+        this.audio.slide();
+    }
+
+    updateRoll(dt, world) {
+        this.rollT += dt;
+        const t = clamp(this.rollT / CFG.ROLL_TIME, 0, 1);
+        this.height = damp(this.height, CFG.CROUCH_HEIGHT, 14, dt);
+        this.vel.y -= CFG.GRAVITY * dt;
+        const spd = Math.hypot(this.vel.x, this.vel.z);
+        const target = Math.max(CFG.WALK_SPEED, spd - 3.2 * dt);
+        if (spd > 0.01) { this.vel.x *= target / spd; this.vel.z *= target / spd; }
+        if (this.jumpBuf > 0 && this.grounded) { this.endRoll(world); this.doJump(); return; }
+        this.integrate(dt, world);
+        // סיבוב מצלמה מלא לאורך הגלגול
+        this.rollTarget = Math.sin(t * Math.PI) * 0.55;
+        this.fovTarget = 8 * Math.sin(t * Math.PI);
+        this.stateLabel = 'גלגול נחיתה';
+        if (t >= 1) this.endRoll(world);
+    }
+
+    endRoll(world) {
+        this.state = 'normal';
+        this.rollT = 0;
+        const canStand = this.freeAt(this.pos.x, this.pos.y, this.pos.z, CFG.HEIGHT, CFG.RADIUS, null, world);
+        this.crouching = !canStand || this.input.crouch;
+        this.targetHeight = this.crouching ? CFG.CROUCH_HEIGHT : CFG.HEIGHT;
+    }
+
+    /* ---------- ריצה אנכית על קיר ---------- */
+    tryWallclimb(world) {
+        const fwd = this.forwardVec(_v3a);
+        const feet = this.pos.y;
+        const cands = world.near(this.pos.x - 1.6, this.pos.z - 1.6, this.pos.x + 1.6, this.pos.z + 1.6);
+        for (let i = 0; i < cands.length; i++) {
+            const c = cands[i];
+            if (!c.solid || c.noWallrun || c.dynamic) continue;
+            if (c.top < feet + 2.2) continue;
+            if (c.bottom > feet + 0.9) continue;
+            const pen = this._horizPen(c, CFG.RADIUS + 0.36, _v3b);
+            if (pen <= 0) continue;
+            // הקיר חייב להיות ממש מלפנים
+            const facing = -(_v3b.x * fwd.x + _v3b.z * fwd.z);
+            if (facing < 0.72) continue;
+            this.state = 'wallclimb';
+            this.climbT = 0;
+            this.climbUsed = true;
+            this.climbNormal.copy(_v3b);
+            this.wallCol = c;
+            this.vel.set(-_v3b.x * 0.6, CFG.WALLCLIMB_SPEED, -_v3b.z * 0.6);
+            this.audio.wall();
+            this.addFlow(CFG.FLOW_GAIN);
+            this.input.rumble(0.25, 90);
+            return true;
+        }
+        return false;
+    }
+
+    updateWallclimb(dt, world) {
+        this.climbT += dt;
+        const stillOnWall = this.wallCol && this._horizPen(this.wallCol, CFG.RADIUS + 0.5, _v3b) > 0;
+        if (this.jumpBuf > 0) { this.doWallJump(this.climbNormal); return; }
+        if (!stillOnWall || this.climbT > CFG.WALLCLIMB_TIME || this.input.moveF <= 0) {
+            this.state = 'normal';
+            this.wallCooldown = 0.12;
+            this.vel.y = Math.min(this.vel.y, 2.4);
+            this.vel.x *= 0.3; this.vel.z *= 0.3;
+            this.integrate(dt, world);
+            return;
+        }
+        const decay = 1 - this.climbT / CFG.WALLCLIMB_TIME;
+        this.vel.y = CFG.WALLCLIMB_SPEED * (0.45 + 0.55 * decay);
+        this.vel.x = -this.climbNormal.x * 0.8;
+        this.vel.z = -this.climbNormal.z * 0.8;
+        this.integrate(dt, world);
+        this.stateLabel = 'ריצה על קיר (אנכית)';
+        this.fovTarget = 6;
+        this.rollTarget = 0;
+        if (Math.random() < dt * 12) this.audio.footstep(true);
+        // בסוף הריצה — ניסיון אוטומטי לתפוס את הקצה
+        if (this.climbT > CFG.WALLCLIMB_TIME * 0.55) this.tryLedgeGrab(world);
+    }
+
+    /* ---------- כבל גלישה ---------- */
+    tryZip() {
+        const L = this.level;
+        if (!L || !L.ziplines || !L.ziplines.length) return false;
+        const wantGrab = this.input.interactHeld || this.jumpBuf > 0;
+        if (!wantGrab) return false;
+        for (let i = 0; i < L.ziplines.length; i++) {
+            const z = L.ziplines[i];
+            // הנקודה הקרובה ביותר על הכבל
+            _v3a.copy(z.b).sub(z.a);
+            const len2 = _v3a.lengthSq();
+            _v3b.copy(this.pos).setY(this.pos.y + this.height * 0.9).sub(z.a);
+            let t = clamp(_v3b.dot(_v3a) / len2, 0, 0.9);
+            _v3c.copy(z.a).addScaledVector(_v3a, t);
+            const dx = _v3c.x - this.pos.x, dz = _v3c.z - this.pos.z;
+            const dy = _v3c.y - (this.pos.y + this.height * 0.9);
+            if (dx * dx + dz * dz > 2.9 || dy < -0.5 || dy > 2.3) continue;
+            this.state = 'zip';
+            this.zip = z;
+            this.zipT = t;
+            this.zipSpeed = Math.max(4.5, Math.hypot(this.vel.x, this.vel.z) * 0.75);
+            this.jumpBuf = 0;
+            this.audio.grab();
+            this.input.rumble(0.35, 140);
+            this.addFlow(CFG.FLOW_GAIN);
+            return true;
+        }
+        return false;
+    }
+
+    updateZip(dt, world) {
+        const z = this.zip;
+        if (!z) { this.state = 'normal'; return; }
+        _v3a.copy(z.b).sub(z.a);
+        const len = _v3a.length();
+        _v3a.divideScalar(len);
+        // תאוצה לפי שיפוע הכבל
+        const slope = -_v3a.y;
+        this.zipSpeed = clamp(this.zipSpeed + (CFG.ZIP_ACCEL * slope + 1.2) * dt, 3.5, CFG.ZIP_SPEED);
+        this.zipT += (this.zipSpeed / len) * dt;
+        const done = this.zipT >= 1;
+        this.zipT = clamp(this.zipT, 0, 1);
+        _v3b.copy(z.a).addScaledVector(_v3c.copy(z.b).sub(z.a), this.zipT);
+        this.pos.set(_v3b.x, _v3b.y - this.height * 0.95, _v3b.z);
+        this.vel.set(_v3a.x * this.zipSpeed, _v3a.y * this.zipSpeed, _v3a.z * this.zipSpeed);
+        this.stateLabel = 'גלישה על כבל';
+        this.fovTarget = 11;
+        this.rollTarget = Math.sin(this.zipT * 6) * 0.03;
+        this.grounded = false;
+        if (z.handle) z.handle.position.copy(_v3b);
+        if (this.jumpBuf > 0 || done) {
+            this.state = 'normal';
+            this.zip = null;
+            this.zipCooldown = 0.5;
+            this.jumpBuf = 0;
+            this.vel.y = done ? 3.0 : CFG.JUMP_SPEED * 0.7;
+            this.addFlow(CFG.FLOW_GAIN);
+            this.audio.jump();
+        }
+    }
+
+    /* ---------- סולמות ---------- */
+    findLadder() {
+        const L = this.level;
+        if (!L || !L.ladders || !L.ladders.length) return null;
+        for (let i = 0; i < L.ladders.length; i++) {
+            const d = L.ladders[i];
+            if (this.pos.x < d.min.x || this.pos.x > d.max.x) continue;
+            if (this.pos.z < d.min.z || this.pos.z > d.max.z) continue;
+            if (this.pos.y + this.height < d.min.y || this.pos.y > d.max.y) continue;
+            return d;
+        }
+        return null;
+    }
+
     doJump() {
         this.vel.y = CFG.JUMP_SPEED;
         this.grounded = false;
         this.coyote = 0;
         this.jumpBuf = 0;
         this.groundCol = null;
-        if (this.state === 'slide') { this.state = 'normal'; this.targetHeight = CFG.HEIGHT; this.crouching = false; }
+        if (this.state === 'slide') {
+            // קפיצת אורך מתוך החלקה — שומרת מומנטום ומוסיפה דחיפה
+            const spd = Math.hypot(this.vel.x, this.vel.z);
+            if (spd > 0.5) {
+                const k = (spd + CFG.SLIDE_JUMP_BOOST) / spd;
+                this.vel.x *= k; this.vel.z *= k;
+            }
+            this.vel.y = CFG.JUMP_SPEED * 0.94;
+            this.addFlow(CFG.FLOW_GAIN * 1.4);
+            this.state = 'normal'; this.targetHeight = CFG.HEIGHT; this.crouching = false;
+        }
         this.audio.jump();
         this.landDip = Math.min(this.landDip + 0.035, 0.1);
     }
@@ -2213,6 +3027,8 @@ class PlayerController {
         const cap = Math.max(CFG.RUN_SPEED + 1.5, spd);
         if (ns > cap) { this.vel.x *= cap / ns; this.vel.z *= cap / ns; }
         this.lastWallJumpCol = this.wallCol || this.wallTouchCol;
+        this.addFlow(CFG.FLOW_GAIN * 1.3);
+        this.input.rumble(0.45, 110);
         this.state = 'normal';
         this.wallCooldown = 0.22;
         this.jumpBuf = 0;
@@ -2278,6 +3094,17 @@ class PlayerController {
             this.vel.y = 0;
             this.grounded = true;
             this.groundCol = bestCol;
+            if (bestCol.launch) {          // משטח שיגור
+                this.vel.y = bestCol.launch;
+                this.grounded = false;
+                this.landImpact = 0;
+                this.groundCol = null;
+                this.audio.jump();
+                this.input.rumble(0.55, 200);
+                this.addFlow(CFG.FLOW_GAIN);
+                this.shake = Math.max(this.shake, 0.22);
+                this.fovOffset = Math.max(this.fovOffset, 8);
+            }
         } else if (ceilCol && this.vel.y > 0) {
             this.pos.y = bestBottom - hgt;
             this.vel.y = Math.min(this.vel.y, 0);
@@ -2351,6 +3178,16 @@ class PlayerController {
     postLand() {
         if (this.grounded && !this.wasGrounded) {
             const impact = this.landImpact;
+            this.climbUsed = false;
+            // גלגול: לוחצים התכופפות סמוך לנחיתה ומבטלים את מלוא ההשפעה
+            if (impact > CFG.LAND_SOFT * 0.55 && (this.rollBuf > 0 || this.input.crouch) &&
+                this.state !== 'slide' && Math.hypot(this.vel.x, this.vel.z) > 2.5) {
+                this.audio.land(clamp((impact - CFG.LAND_SOFT) / 12, 0, 0.4));
+                this.input.rumble(0.4, 130);
+                this.startRoll(impact);
+                this.landImpact = 0;
+                return;
+            }
             if (impact > CFG.LAND_SOFT) {
                 const t = clamp((impact - CFG.LAND_SOFT) / (CFG.LAND_HARD - CFG.LAND_SOFT), 0, 1.6);
                 this.landDip = Math.min(0.55, 0.12 + t * 0.42);
@@ -2358,6 +3195,8 @@ class PlayerController {
                 this.shake = Math.max(this.shake, 0.1 + t * 0.35);
                 this.fovOffset = Math.min(this.fovOffset + 3 + t * 5, 12);
                 this.audio.land(t);
+                this.input.rumble(clamp(0.3 + t * 0.6, 0, 1), 120 + t * 120);
+                this.flow = Math.max(1, this.flow - 0.1);
                 if (this.onLand) this.onLand(t);
             } else if (impact > 3.5) {
                 this.landDip = Math.min(0.14, 0.05 + impact * 0.008);
@@ -2406,6 +3245,8 @@ class PlayerController {
         this.vaultFrom.copy(this.pos);
         this.vaultTo.set(tx, targetTop + 0.05, tz);
         this.vaultCooldown = 0.4;
+        this.addFlow(CFG.FLOW_GAIN * 1.2);
+        this.input.rumble(0.3, 90);
         this.audio.grab();
         this.shake = Math.max(this.shake, 0.13);
         this.stateLabel = 'קפיצה מעל מכשול';
@@ -2516,8 +3357,38 @@ class PlayerController {
         // תנודה עדינה
         this.pos.y += Math.sin(this.hangT * 3) * 0.0016;
 
+        // זחילה לצדדים לאורך הקצה
+        const side = this.input.moveR;
+        if (Math.abs(side) > 0.25 && this.hangCol) {
+            const tx = -this.hangNormal.z, tz = this.hangNormal.x;
+            const step = side * CFG.SHIMMY_SPEED * dt;
+            const nx = this.pos.x + tx * step, nz = this.pos.z + tz * step;
+            // ממשיכים רק אם עדיין יש קצה לאחוז בו וגם מקום לעמוד למעלה
+            const stillLedge = this.topAt(nx - this.hangNormal.x * 0.5, nz - this.hangNormal.z * 0.5,
+                CFG.RADIUS * 0.6, this.hangTop - 0.12, this.hangTop + 0.12, world) > -Infinity;
+            if (stillLedge && this.freeAt(nx, this.pos.y, nz, this.height * 0.9, CFG.RADIUS * 0.8, this.hangCol, world)) {
+                this.pos.x = nx; this.pos.z = nz;
+                this.mantleTo.x += tx * step; this.mantleTo.z += tz * step;
+                this.stepPhase += Math.abs(step);
+                if (this.stepPhase > 0.55) { this.stepPhase = 0; this.audio.footstep(false); }
+                this.stateLabel = 'זחילה לאורך הקצה';
+            }
+        }
+
+        // קפיצה אחורה מהקצה
+        if (this.jumpBuf > 0 && this.input.moveF < 0) {
+            this.state = 'normal';
+            this.grabCooldown = 0.5;
+            this.jumpBuf = 0;
+            this.vel.set(this.hangNormal.x * CFG.LEDGE_JUMP_OUT, CFG.LEDGE_JUMP_UP, this.hangNormal.z * CFG.LEDGE_JUMP_OUT);
+            this.hangCol = null;
+            this.audio.jump();
+            this.addFlow(CFG.FLOW_GAIN);
+            return;
+        }
+
         const wantUp = this.jumpBuf > 0 || this.input.moveF > 0;
-        const wantDrop = this.input.crouch || this.input.moveF < 0;
+        const wantDrop = this.input.crouch || (this.input.moveF < 0 && this.jumpBuf <= 0);
         if (wantDrop && this.hangT > 0.12) {
             this.state = 'normal';
             this.grabCooldown = 0.55;
@@ -2531,6 +3402,7 @@ class PlayerController {
                 this.mantleT = 0;
                 this.mantleFrom.copy(this.pos);
                 this.jumpBuf = 0;
+                this.addFlow(CFG.FLOW_GAIN);
                 this.audio.footstep(true);
             } else {
                 this.state = 'normal';
@@ -2598,6 +3470,8 @@ class PlayerController {
                 this.wallTangent.set(tx * sgn, 0, tz * sgn);
                 this.vel.y = Math.max(this.vel.y, 2.1);
                 this.audio.wall();
+                this.addFlow(CFG.FLOW_GAIN);
+                this.input.rumble(0.22, 160);
                 return true;
             }
         }
@@ -3263,16 +4137,742 @@ function buildLevel5() {
 }
 
 
+
+/* =========================================================================
+   12ב. שלבים 6–13
+   ========================================================================= */
+
+/* משטח מים / נוזל — חזותי בלבד, הנפילה אליו מטופלת ע"י killY */
+function liquid(L, cx, cz, size, y, color, opacity) {
+    const mat = new THREE.MeshStandardMaterial({
+        color, roughness: .08, metalness: .55, transparent: true,
+        opacity: opacity === undefined ? .85 : opacity,
+    });
+    L._track(mat);
+    const geo = new THREE.PlaneGeometry(size, size, 1, 1);
+    L._track(geo);
+    const m = new THREE.Mesh(geo, mat);
+    m.rotation.x = -Math.PI / 2;
+    m.position.set(cx, y, cz);
+    m.receiveShadow = false;
+    L.group.add(m);
+    L.pulses.push((t) => { m.position.y = y + Math.sin(t * 0.8) * 0.06; });
+    return m;
+}
+
+/* ערימת מכולות */
+function stack(L, x, y, z, yaw, levels, mats) {
+    for (let i = 0; i < levels; i++) {
+        container(L, x + (i % 2 ? 0.3 : -0.2), y + i * 2.6, z, yaw, mats[i % mats.length]);
+    }
+    return y + levels * 2.6;
+}
+
+/* עמוד עם משטח בקצה */
+function pillar(L, x, y, z, w, d, top, mat) {
+    L.box(x, (y + top) / 2, z, w, top - y, d, mat || MAT.concreteD, { uv: .35, cast: false });
+    L.platform(x, top, z, w + .3, d + .3, MAT.concrete, { thick: .4 });
+    return top;
+}
+
+/* ============================ שלב 6 — הנמל ============================ */
+function buildLevel6() {
+    const L = new LevelBuilder('הנמל', 'מכולות, מנופים וכבלים');
+    L.env = {
+        skyTop: 0x2b6ea6, skyBottom: 0xdbe7ee, sunColor: 0xfff2d8, sunInt: 2.9,
+        sunDir: new THREE.Vector3(0.62, 0.7, -0.35), fog: 0xc9d9e4, fogNear: 55, fogFar: 430,
+        ambSky: 0xb4d0e8, ambGround: 0x6b6a60, ambInt: 1.05, expo: 1.05,
+    };
+    L.killY = -1.2;
+    cityBackdrop(L, 0, 100, -6, { count: 90, inner: 210, outer: 640, minH: 12, tall: 55, cloudY: 120 });
+    liquid(L, 0, 90, 700, -0.6, 0x123a52, 1);
+
+    // --- רציף ההתחלה ---
+    L.platform(0, 2, -6, 24, 20, MAT.concrete, { thick: 1.4 });
+    L.box(0, 0.6, -6, 22, 1.4, 18, MAT.concreteD, { uv: .35, cast: false });
+    L.setSpawn(0, 2, -12, Math.PI);
+    L.hint(0, 3, -12, 8, 'הנמל: קפוץ בין המכולות. <b>גלגול נחיתה:</b> לחץ <kbd>CTRL</kbd> ברגע הנחיתה מגובה');
+    L.railing(-11, 2, -6, 20, Math.PI / 2);
+    for (let i = 0; i < 4; i++) L.pipe(-9 + i * .95, 2.5, -12, 7, .45, 'z', MAT.rust, { rings: false });
+    container(L, 8, 2, -12, .2, MAT.red);
+
+    // --- שדה מכולות ---
+    stack(L, -4, 0, 8, 0, 1, [MAT.blue]);
+    stack(L, 4, 0, 14, .12, 1, [MAT.red]);
+    stack(L, -3, 0, 20, -.1, 2, [MAT.green, MAT.blue]);
+    L.checkpoint(-3, 5.2, 20, Math.PI);
+    L.hint(-3, 6.2, 20, 5, 'המכולות בגבהים שונים — נצל ירידות לקפיצות ארוכות');
+
+    stack(L, 4.5, 0, 27, .18, 1, [MAT.red]);
+    stack(L, -4.5, 0, 33, -.2, 3, [MAT.blue, MAT.green, MAT.red]);
+    stack(L, 4, 0, 40, .1, 2, [MAT.green, MAT.red]);
+    stack(L, -3.5, 0, 47, 0, 1, [MAT.blue]);
+
+    // --- מנוף נמל עם סולם וכבל גלישה ---
+    L.platform(2, 2.6, 54, 8, 7, MAT.grate, { thick: .5 });
+    L.box(2, 1.3, 54, 7, 2.6, 6, MAT.metalDark, { uv: .4, cast: false });
+    L.checkpoint(2, 2.6, 54, Math.PI);
+    L.ladder(5.4, 2.6, 52, 12.5, Math.PI);
+    L.hint(2, 3.6, 54, 5, 'טפס בסולם (<kbd>W</kbd>) ואז היאחז בכבל הגלישה');
+    // מבנה המנוף
+    L.box(2, 9, 57, 3, 13, 3, MAT.crane, { uv: .5 });
+    L.platform(4.6, 15.1, 54, 6, 7, MAT.grate, { thick: .4 });
+    L.box(2, 15.6, 60, 12, 1, 2, MAT.crane, { uv: .6 });
+    L.zipline(4.6, 16.6, 56, -6, 8.2, 78);
+
+    // --- אזור הפריקה ---
+    L.platform(-6, 7.2, 80, 10, 8, MAT.grate, { thick: .6 });
+    L.box(-6, 3.6, 80, 9, 7.2, 7, MAT.metalDark, { uv: .4, cast: false });
+    L.checkpoint(-6, 7.2, 80, Math.PI);
+    L.hint(-6, 8.2, 80, 5, 'הגלישה שומרת מהירות — נחת ותמשיך לרוץ');
+
+    L.movingPlatform(-6, 7.2, 89, 4.2, 4.2, 'x', 5, .85, 0, MAT.metal);
+    L.platform(-6, 7.6, 96, 6, 5, MAT.grate);
+    L.box(-6, 3.8, 96, 5, 7.6, 4, MAT.metalDark, { uv: .4, cast: false });
+    stack(L, -1, 5.2, 103, .1, 1, [MAT.red]);
+    stack(L, 5, 2.6, 109, -.15, 1, [MAT.blue]);
+
+    // --- אונייה + סיום ---
+    L.box(4, 3.2, 122, 16, 6.4, 26, MAT.red, { uv: .35 });
+    L.platform(4, 6.6, 122, 15, 25, MAT.metalDark, { thick: .4 });
+    for (let i = 0; i < 5; i++) L.box(-1 + i * 2.6, 7.6, 116 + i * 2, 1.6, 2, 1.6, MAT.metal, { uv: .6 });
+    L.box(4, 9.6, 130, 7, 6, 5, MAT.metal, { uv: .5 });
+    L.platform(4, 12.6, 130, 7.5, 5.5, MAT.grate, { thick: .4 });
+    L.ladder(4, 6.6, 127.2, 6.2, 0);        // סולם אל גשר הפיקוד
+    L.platform(7.6, 9.4, 128, 3, 3.4, MAT.grate, { thick: .3 });
+    L.railing(4, 6.6, 110, 14, 0);
+    L.checkpoint(4, 6.6, 118, Math.PI);
+    L.setGoal(4, 12.6, 130);
+    L.hint(4, 7.6, 124, 6, 'טפס על גשר הפיקוד וסיים את השלב');
+    return L;
+}
+
+/* ====================== שלב 7 — הרכבת התחתית ====================== */
+function buildLevel7() {
+    const L = new LevelBuilder('הרכבת התחתית', 'מנהרות, רציפים ורכבות');
+    L.env = {
+        skyTop: 0x141d26, skyBottom: 0x27323d, sunColor: 0xffe0b0, sunInt: 1.0,
+        sunDir: new THREE.Vector3(0.2, 0.9, 0.1), fog: 0x1e2831, fogNear: 24, fogFar: 150,
+        ambSky: 0x7d94ab, ambGround: 0x4a453c, ambInt: 1.95, expo: 1.18,
+    };
+    L.killY = -12;
+
+    const W = 16;
+    // מנהרה ארוכה: רצפה, תקרה וקירות
+    const build = (z0, z1) => {
+        const len = z1 - z0, cz = (z0 + z1) / 2;
+        L.box(0, -0.5, cz, W + 8, 1, len, MAT.concreteD, { uv: .35 });          // רצפת מנהרה
+        L.box(0, 9.5, cz, W + 8, 1, len, MAT.concreteD, { uv: .35, cast: false }); // תקרה
+        for (const s of [-1, 1]) L.box(s * (W / 2 + 4), 4.5, cz, 1, 10, len, MAT.tiles, { uv: .45 });
+    };
+    build(-20, 150);
+    // תאורת מנהרה
+    for (let z = -16; z < 148; z += 12) {
+        const lamp = new THREE.Mesh(boxGeo(1.6, .22, .5, 1), MAT.lamp);
+        lamp.position.set(0, 8.9, z); lamp.castShadow = false;
+        L.group.add(lamp);
+    }
+
+    // --- רציף ההתחלה ---
+    L.platform(-6, 1.2, -8, 9, 20, MAT.tiles, { thick: 1.2 });
+    L.setSpawn(-6, 1.2, -15, Math.PI);
+    L.hint(-6, 2.2, -15, 8, 'תחנת רכבת תחתית — הישאר מעל הפסים והיזהר מהמסילה החשמלית');
+    for (let i = 0; i < 4; i++) {
+        L.box(-6, 5, -14 + i * 7, .5, 7.6, .5, MAT.metal, { uv: .8 });
+    }
+    // מסילות + מסילה חשמלית מסוכנת
+    for (let s of [-1, 1]) L.box(2.2 + s * 1.4, .12, 65, .3, .24, 168, MAT.metal, { uv: 1, cast: false });
+    L.hazard(2.2, .5, 40, 3.6, 1, 106, { frame: false });
+    L.hazard(2.2, .5, 118, 3.6, 1, 46, { frame: false });
+
+    // --- קרונות רכבת כפלטפורמות ---
+    const car = (x, z, len, y) => {
+        L.box(x, y + 1.7, z, 4.4, 3.4, len, MAT.metalDark, { uv: .4 });
+        L.platform(x, y + 3.5, z, 4.6, len + .2, MAT.metal, { thick: .3 });
+        for (let i = -len / 2 + 2; i < len / 2; i += 3.2) {
+            L.box(x + 2.25, y + 2.2, z + i, .12, 1.2, 1.8, MAT.window, { uv: .5, noCollide: true, cast: false });
+            L.box(x - 2.25, y + 2.2, z + i, .12, 1.2, 1.8, MAT.window, { uv: .5, noCollide: true, cast: false });
+        }
+        return y + 3.5;
+    };
+    const carTop = car(2.2, 8, 14, 0);
+    L.hint(-6, 2.2, 0, 6, 'קפוץ על גג הקרון והמשך במנהרה');
+    L.checkpoint(2.2, carTop, 8, Math.PI);
+    car(2.2, 26, 12, 0);
+    L.platform(-6, 1.2, 24, 9, 14, MAT.tiles, { thick: 1.2 });
+
+    // --- קטע צינורות וסולמות ---
+    L.pipe(-8, 5.2, 45, 22, .8, 'z', MAT.rust);
+    L.pipe(8, 6.4, 50, 24, .8, 'z', MAT.metal);
+    L.ladder(-9.5, 1.2, 35, 4.6, -Math.PI / 2);
+    L.platform(-6, 1.2, 38, 9, 12, MAT.tiles, { thick: 1.2 });
+    L.checkpoint(-8, 6.0, 40, Math.PI);
+    L.hint(-8, 7, 40, 5, 'לך על הצינורות — הם צרים אבל בטוחים');
+    L.platform(-8, 6.0, 33, 4, 4, MAT.grate, { thick: .3 });   // מדף בראש הסולם
+
+    // --- מעבר החלקה מתחת למכשולים ---
+    L.platform(-8, 6.0, 62, 5, 10, MAT.grate, { thick: .4 });
+    for (const bz of [60, 65]) L.box(-8, 6.0 + 1.15 + .7, bz, 5, 1.4, 1.1, MAT.stripe, { uv: .8 });
+    L.hint(-8, 7, 58, 5, 'החלק מתחת לצינורות (<kbd>CTRL</kbd> בזמן ריצה)');
+
+    // --- רכבת נעה ---
+    L.platform(-8, 6.0, 74, 6, 6, MAT.grate, { thick: .4 });
+    L.checkpoint(-8, 6.0, 74, Math.PI);
+    L.movingPlatform(0, 6.0, 84, 5, 9, 'z', 7, .55, 0, MAT.metalDark);
+    L.movingPlatform(0, 6.4, 98, 5, 9, 'z', 7, .55, 2.2, MAT.metalDark);
+    L.platform(-7, 6.8, 110, 8, 8, MAT.grate, { thick: .5 });
+    L.checkpoint(-7, 6.8, 110, Math.PI);
+    L.hint(-7, 7.8, 110, 5, 'הקרונות נעים — קפוץ בתזמון הנכון');
+
+    // --- יציאה: פיר עם סולם ומדפים ---
+    L.ladder(-11.2, 6.8, 120, 5.5, -Math.PI / 2);
+    L.platform(-9, 12.3, 122, 5, 5, MAT.grate, { thick: .4 });
+    L.platform(-3, 13.8, 128, 4.5, 4.5, MAT.grate, { thick: .4 });
+    L.platform(3, 15.3, 134, 4.5, 4.5, MAT.grate, { thick: .4 });
+    L.box(0, 12, 141, 26, 14, 1, MAT.concreteD, { uv: .4 });
+    L.platform(0, 16.8, 141.8, 10, 6, MAT.tiles, { thick: .5 });
+    L.setGoal(0, 16.8, 142.5);
+    L.hint(0, 17.8, 139, 6, 'היציאה לרחוב — סיים את השלב');
+    return L;
+}
+
+/* ========================== שלב 8 — הגשר ========================== */
+function buildLevel8() {
+    const L = new LevelBuilder('הגשר', 'כבלים, מגדלים ורוח');
+    L.env = {
+        skyTop: 0x1f5c9c, skyBottom: 0xe2d9c8, sunColor: 0xffe0b4, sunInt: 3.0,
+        sunDir: new THREE.Vector3(-0.6, 0.5, 0.55), fog: 0xd2d8dc, fogNear: 70, fogFar: 520,
+        ambSky: 0xb6cee6, ambGround: 0x6f6a60, ambInt: 1.0, expo: 1.06,
+    };
+    L.killY = 4;
+    cityBackdrop(L, 0, 120, 0, { count: 110, inner: 260, outer: 700, minH: 18, tall: 80, cloudY: 140 });
+    liquid(L, 0, 120, 900, 1.5, 0x24576e, .9);
+
+    const DY = 24;   // גובה מפלס הגשר
+    // --- מפלס הגשר עם פערים ---
+    const deck = (z0, z1, y) => {
+        const len = z1 - z0;
+        L.platform(0, y, (z0 + z1) / 2, 13, len, MAT.asphalt, { thick: 1 });
+        L.railing(-6.2, y, (z0 + z1) / 2, len, Math.PI / 2);
+        L.railing(6.2, y, (z0 + z1) / 2, len, Math.PI / 2);
+    };
+    deck(-14, 16, DY);
+    L.setSpawn(0, DY, -10, Math.PI);
+    L.hint(0, DY + 1, -10, 8, 'גשר תלוי בגובה 24 מ׳ — קפוץ מעל הפערים והשתמש בכבלים');
+    container(L, -4, DY, 6, 0, MAT.blue);
+
+    deck(21, 40, DY);
+    deck(45.5, 62, DY);
+    L.checkpoint(0, DY, 52, Math.PI);
+    // כבלי מתלה
+    for (let z = -12; z < 130; z += 5) {
+        for (const s of [-1, 1]) {
+            const h = 3 + 9 * Math.abs(Math.sin((z + 20) * 0.028));
+            const c = new THREE.Mesh(GEO.cyl, MAT.metal);
+            c.scale.set(.05, h, .05);
+            c.position.set(s * 6.6, DY + h / 2, z);
+            c.castShadow = false;
+            L.group.add(c);
+        }
+    }
+
+    // --- מגדל ראשון: ריצה על קיר ---
+    L.box(-8.5, DY + 12, 70, 3.5, 34, 7, MAT.concreteD, { uv: .35 });
+    L.box(8.5, DY + 12, 70, 3.5, 34, 7, MAT.concreteD, { uv: .35 });
+    L.box(0, DY + 26, 70, 21, 2, 6, MAT.concreteD, { uv: .4 });
+    L.box(-6.3, DY + 3.2, 70, 1, 7, 7.4, MAT.wallrun, { uv: .5 });
+    L.platform(-3.4, DY, 66, 6, 5, MAT.asphalt, { thick: .6 });
+    L.platform(-3.4, DY - 0.6, 77.5, 7, 6, MAT.asphalt, { thick: .6 });
+    L.hint(-3.4, DY + 1, 66, 5, 'רוץ צמוד לקיר המסומן וקפוץ — ריצה על קיר תעביר אותך');
+
+    // --- קטע כבלים ומדפים ---
+    L.checkpoint(-3.4, DY - 0.6, 77.5, Math.PI);
+    L.zipline(-3.4, DY + 1.6, 79, 4.5, DY - 5.5, 96);
+    L.platform(4.5, DY - 6.6, 97, 8, 7, MAT.metal, { thick: .5 });
+    L.hint(-3.4, DY + 0.6, 79, 5, 'היאחז בכבל (<kbd>E</kbd>) וגלוש אל המשטח הבא');
+    L.checkpoint(4.5, DY - 6.6, 97, Math.PI);
+
+    // --- טיפוס חזרה למפלס: שלוש קפיצות שיגור ---
+    L.launchPad(4.5, DY - 6.6, 100.5, 13.5);
+    L.platform(0, DY - 3.1, 106, 6, 5, MAT.metal, { thick: .4 });
+    L.launchPad(0, DY - 3.1, 107.5, 13.5);
+    L.platform(-4, DY + 0.4, 113, 6, 5, MAT.metal, { thick: .4 });
+    L.launchPad(-4, DY + 0.4, 114.5, 13.5);
+    L.hint(4.5, DY - 5.6, 100.5, 4, 'משטחי השיגור זורקים אותך למעלה — כוון את הנחיתה');
+
+    // --- מגדל שני וסיום ---
+    L.box(-9, DY + 14, 124, 4, 40, 8, MAT.concreteD, { uv: .35 });
+    L.box(9, DY + 14, 124, 4, 40, 8, MAT.concreteD, { uv: .35 });
+    L.platform(-4, DY + 3.9, 120, 5.5, 5, MAT.metal, { thick: .4 });
+    L.platform(2, DY + 5.3, 125, 5, 5, MAT.metal, { thick: .4 });
+    L.platform(-2, DY + 6.7, 130, 5, 5, MAT.metal, { thick: .4 });
+    L.checkpoint(-2, DY + 6.7, 130, Math.PI);
+    L.platform(0, DY + 8.1, 137, 12, 9, MAT.concrete, { thick: .7 });
+    L.box(0, (DY + 8.1) / 2, 137, 10, DY + 8.1, 7, MAT.concreteD, { uv: .35, cast: false });
+    L.setGoal(0, DY + 8.1, 138);
+    L.hint(0, DY + 9.1, 134, 6, 'הצד השני של הגשר — סיימת!');
+    return L;
+}
+
+/* ======================= שלב 9 — העיר בלילה ======================= */
+function buildLevel9() {
+    const L = new LevelBuilder('העיר בלילה', 'ניאון, זכוכית וקירות');
+    L.env = {
+        skyTop: 0x070c18, skyBottom: 0x2a2440, sunColor: 0x9fb4ff, sunInt: 0.75,
+        sunDir: new THREE.Vector3(-0.3, 0.85, -0.4), fog: 0x171426, fogNear: 30, fogFar: 240,
+        ambSky: 0x4a5a8a, ambGround: 0x3a2a3a, ambInt: 1.5, expo: 1.25,
+    };
+    L.killY = 6;
+    cityBackdrop(L, 0, 90, 0, { count: 160, inner: 120, outer: 560, minH: 30, tall: 120, cloudY: 150, clouds: 10 });
+
+    const Y = 32;
+    L.building(0, 0, 18, 18, Y, { parapetH: .55, gaps: ['n'] });
+    L.setSpawn(0, Y + .26, -6, Math.PI);
+    L.hint(0, Y + 1.3, -6, 8, 'העיר בלילה — נצל קירות ומשטחי שיגור. שרשר תנועות כדי להעלות את ה-FLOW');
+    L.neonSign(-8, Y + 4, 2, 3, 5, 0xff3d7f, Math.PI / 2);
+    L.neonSign(8, Y + 5, 6, 3, 4, 0x3df0ff, -Math.PI / 2);
+    L.ac(-5, Y + .26, 2, { yaw: .3 });
+
+    let e = 9.2, y = Y + .26;
+    const roof = (gap, w, d, h, x) => {
+        const zc = e + gap + d / 2 + .18;
+        const ry = L.building(x, zc, w, d, h, { parapetH: .5, gaps: ['n', 's'] });
+        e = zc + d / 2 + .18;
+        y = ry;
+        return { z: zc, y: ry, x };
+    };
+
+    const r1 = roof(4.2, 12, 12, 31, 0);
+    L.neonSign(r1.x + 6, r1.y + 4, r1.z, 3, 5, 0xffd23d, -Math.PI / 2);
+    L.launchPad(r1.x, r1.y, r1.z, 13.5);
+    L.hint(r1.x, r1.y + 1, r1.z - 3, 5, 'משטח שיגור — עלה גבוה וקפוץ אל הגג הבא');
+
+    const r2 = roof(5.0, 14, 12, 33.5, 1.5);
+    L.checkpoint(r2.x, r2.y, r2.z, Math.PI);
+    L.neonSign(r2.x - 7, r2.y + 4.5, r2.z, 3.5, 6, 0x7d3dff, Math.PI / 2);
+
+    // סמטה עם ריצה על קירות
+    const aZ = e + 3;
+    L.box(-4.6, r2.y - 5, aZ + 8, 1.2, 22, 17, MAT.neonwall, { uv: .4 });
+    L.box(4.6, r2.y - 5, aZ + 8, 1.2, 22, 17, MAT.neonwall, { uv: .4 });
+    L.platform(0, r2.y - 3.6, aZ + 1, 6, 5, MAT.metal, { thick: .4 });
+    L.box(-3.4, r2.y - 1.6, aZ + 9, .8, 6, 13, MAT.wallrun, { uv: .5 });
+    L.platform(0, r2.y - 5.1, aZ + 12, 7, 6, MAT.metal, { thick: .5 });
+    L.hint(0, r2.y - 2.6, aZ + 2, 5, 'סמטת ניאון — רוץ על הקיר המסומן כדי לחצות');
+    L.checkpoint(0, r2.y - 5.1, aZ + 12, Math.PI);
+    e = aZ + 15;
+
+    // פיר קפיצות קיר
+    const sZ = e + 5;
+    for (const s of [-1, 1]) L.box(s * 1.8, r2.y + 1, sZ, 1.3, 16, 7, MAT.neonwall, { uv: .45 });
+    for (const [s, dy] of [[-1, 1.4], [1, 2.8], [-1, 4.2]]) {
+        L.box(s * 0.8, r2.y - 5.1 + dy - .12, sZ + s * 1.4, 1.2, .24, 2.2, MAT.metal, { uv: .8 });
+    }
+    L.platform(0, r2.y + .1, sZ + 5.6, 6, 5, MAT.concrete, { thick: .5 });
+    L.hint(0, r2.y - 4.1, sZ - 2, 5, 'קפוץ מקיר לקיר (<kbd>SPACE</kbd>) או השתמש במדפים');
+    e = sZ + 8;
+
+    // גגות אחרונים + כבל אל היעד
+    const r3 = roof(3.6, 13, 12, 34, -2);
+    L.neonSign(r3.x + 6.5, r3.y + 4, r3.z, 3, 5, 0x3dff9e, -Math.PI / 2);
+    L.checkpoint(r3.x, r3.y, r3.z, Math.PI);
+    L.zipline(r3.x, r3.y + 2.2, r3.z + 5, 3, 29.5, e + 30);
+
+    const gz = e + 32;
+    L.box(3, 14.5, gz, 16, 29, 16, MAT.concreteD, { uv: .3 });
+    L.platform(3, 29.2, gz, 17, 17, MAT.roof, { thick: .5 });
+    for (const s of [-1, 1]) {
+        L.box(3 + s * 8.2, 29.7, gz, .5, 1, 17, MAT.concreteD, { uv: .8 });
+        L.box(3, 29.7, gz + s * 8.2, 17, 1, .5, MAT.concreteD, { uv: .8 });
+    }
+    L.neonSign(3, 33, gz - 8.4, 8, 4, 0xff3d7f, 0);
+    L.setGoal(3, 29.2, gz + 2);
+    L.hint(3, 30.2, gz - 2, 6, 'הגג האחרון — סיים את השלב!');
+    return L;
+}
+
+/* ====================== שלב 10 — תחנת הכוח ====================== */
+function buildLevel10() {
+    const L = new LevelBuilder('תחנת הכוח', 'קיטור, טורבינות וצינורות');
+    L.env = {
+        skyTop: 0x4d6076, skyBottom: 0xbdb6a8, sunColor: 0xffe6c0, sunInt: 2.3,
+        sunDir: new THREE.Vector3(0.4, 0.6, 0.5), fog: 0xaba79c, fogNear: 40, fogFar: 300,
+        ambSky: 0xa8b4c4, ambGround: 0x6a6055, ambInt: 1.2, expo: 1.05,
+    };
+    L.killY = -8;
+    cityBackdrop(L, 0, 100, -0.4, { count: 70, inner: 220, outer: 600, minH: 12, tall: 50, cloudY: 110 });
+
+    // --- רחבת התחלה ---
+    L.platform(0, 4, -6, 20, 18, MAT.grate, { thick: .8 });
+    L.box(0, 1.8, -6, 18, 4, 16, MAT.metalDark, { uv: .4, cast: false });
+    L.setSpawn(0, 4, -12, Math.PI);
+    L.hint(0, 5, -12, 8, 'תחנת כוח — הקיטור הלבן מסוכן. עבור בין הטורבינות בתזמון');
+    for (let i = 0; i < 3; i++) L.pipe(-8.5, 6 + i * 1.3, -6, 16, .5, 'z', MAT.metal);
+
+    // --- מגדלי קירור ---
+    for (const [tx, tz] of [[-22, 20], [22, 34]]) {
+        const tower = new THREE.Mesh(GEO.cylHi, MAT.concreteD);
+        tower.scale.set(9, 30, 9);
+        tower.position.set(tx, 15, tz);
+        tower.castShadow = true; tower.receiveShadow = true;
+        L.group.add(tower);
+        L.world.add(new Collider(tx, 15, tz, 8, 15, 8, 0, { mesh: tower }));
+    }
+
+    // --- מסלול צינורות ---
+    L.pipe(0, 4.3, 10, 14, 1.0, 'z', MAT.rust);            // משטח 5.3
+    L.hazard(0, 2.2, 18, 14, 3, 8, { frame: false });
+    L.pipe(-4, 5.5, 22, 12, 1.0, 'z', MAT.metal);          // משטח 6.5
+    L.pipe(1.5, 6.7, 30, 14, 1.0, 'z', MAT.rust);          // משטח 7.7
+    L.platform(0, 7.6, 40, 10, 8, MAT.grate, { thick: .6 });
+    L.box(0, 3.8, 40, 9, 7.6, 7, MAT.metalDark, { uv: .4, cast: false });
+    L.checkpoint(0, 7.6, 40, Math.PI);
+    L.hint(0, 8.6, 40, 5, 'הצינורות צרים — לך במרכז ואל תמהר');
+
+    // --- אולם הטורבינות ---
+    L.platform(0, 7.6, 50, 14, 10, MAT.grate, { thick: .6 });
+    L.spinner(0, 8.8, 50, 8.5, 1.25, { arms: 3, postH: 1.2 });
+    L.hazard(0, 5.6, 56.5, 18, 3, 3, { frame: false });
+    L.platform(0, 7.6, 61, 12, 8, MAT.grate, { thick: .6 });
+    L.spinner(0, 8.8, 61, 9, -1.6, { arms: 2, postH: 1.2 });
+    L.hint(0, 8.6, 46, 5, 'הזרועות דוחפות — עבור ביניהן בתזמון נכון');
+
+    // --- מסועים וקיטור ---
+    L.platform(0, 7.6, 70, 8, 6, MAT.grate, { thick: .5 });
+    L.checkpoint(0, 7.6, 70, Math.PI);
+    L.conveyor(0, 7.6, 80, 5, 14, 0, -1, 3.4);
+    L.box(0, 6.2, 80, 5.4, 1.6, 13, MAT.metalDark, { uv: .4, cast: false });
+    L.hint(0, 8.6, 74, 5, 'המסוע דוחף לאחור — רוץ נגדו!');
+    L.platform(0, 7.6, 90, 9, 7, MAT.grate, { thick: .5 });
+    L.box(0, 3.8, 90, 8, 7.6, 6, MAT.metalDark, { uv: .4, cast: false });
+
+    // --- טיפוס אל הגג ---
+    L.ladder(3.6, 7.6, 93, 7.5, Math.PI);
+    L.platform(3, 15.1, 96, 6, 6, MAT.grate, { thick: .5 });
+    L.checkpoint(3, 15.1, 96, Math.PI);
+    L.hint(3, 16.1, 96, 5, 'טפס בסולם והמשך על הצינורות העליונים');
+    L.pipe(-1, 15.6, 105, 14, .85, 'z', MAT.metal);
+    L.hazard(0, 11, 105, 16, 4, 12, { frame: false });
+    L.platform(-1, 16.4, 115, 8, 7, MAT.grate, { thick: .5 });
+    L.movingPlatform(-1, 17.4, 123, 4.4, 4.4, 'y', 2.4, .9, 0, MAT.metal);
+    L.platform(-1, 20.2, 131, 11, 9, MAT.concrete, { thick: .7 });
+    L.box(-1, 10.1, 131, 10, 20.2, 8, MAT.concreteD, { uv: .35, cast: false });
+    L.setGoal(-1, 20.2, 131);
+    L.hint(-1, 21.2, 128, 6, 'ראש הארובה — סיים את השלב!');
+    return L;
+}
+
+/* ===================== שלב 11 — גגות בגשם ===================== */
+function buildLevel11() {
+    const L = new LevelBuilder('גגות בגשם', 'משטחים חלקים וסופה');
+    L.env = {
+        skyTop: 0x2b3444, skyBottom: 0x6e7885, sunColor: 0xc9d6e6, sunInt: 1.2,
+        sunDir: new THREE.Vector3(-0.4, 0.75, 0.3), fog: 0x6b7480, fogNear: 25, fogFar: 190,
+        ambSky: 0x93a6bd, ambGround: 0x525250, ambInt: 1.75, expo: 1.16,
+    };
+    L.killY = 5;
+    cityBackdrop(L, 0, 90, 0, { count: 130, inner: 120, outer: 480, minH: 22, tall: 90, cloudY: 90, clouds: 26 });
+    L.rain(1700, 64, { opacity: .38, streak: 1.1 });
+
+    const Y = 28;
+    L.building(0, 0, 18, 18, Y, { parapetH: .5, gaps: ['n'] });
+    L.setSpawn(0, Y + .26, -6, Math.PI);
+    L.hint(0, Y + 1.3, -6, 8, 'גשם — הגגות חלקים ובלימה קשה. השתמש ב<b>גלגול נחיתה</b> (<kbd>CTRL</kbd>) כדי לשמור שליטה');
+    L.ac(-5, Y + .26, 0, { yaw: .3 });
+    waterTank(L, 6, Y + .26, -2);
+
+    let e = 9.2;
+    const wetRoof = (gap, w, d, h, x) => {
+        const zc = e + gap + d / 2 + .18;
+        L.box(x, h / 2, zc, w, h, d, MAT.concreteD, { uv: .3 });
+        const ry = h + .26;
+        L.box(x, h + .13, zc, w + .36, .26, d + .36, MAT.wet, { uv: .5, slip: true });
+        e = zc + d / 2 + .18;
+        return { z: zc, y: ry, x };
+    };
+
+    const a1 = wetRoof(3.8, 13, 12, 27, 0);
+    L.checkpoint(a1.x, a1.y, a1.z, Math.PI);
+    const a2 = wetRoof(4.4, 12, 11, 25.5, 2);
+    L.ac(a2.x - 3, a2.y, a2.z, { yaw: -.2 });
+    const a3 = wetRoof(4.8, 14, 12, 24, -1.5);
+    L.hint(a3.x, a3.y + 1, a3.z, 5, 'על משטח רטוב קשה לעצור — תכנן את הקפיצה מראש');
+    const a4 = wetRoof(5.2, 11, 10, 22.5, 1);
+    L.checkpoint(a4.x, a4.y, a4.z, Math.PI);
+
+    // גשר צינור חלקלק
+    const pz = e;
+    L.pipe(a4.x, a4.y - .6, pz + 5, 10, .85, 'z', MAT.metal);
+    e = pz + 10;
+    const a5 = wetRoof(1.0, 15, 13, 21, a4.x);
+    L.ac(a5.x + 4, a5.y, a5.z - 3, { yaw: .4 });
+    L.box(a5.x, a5.y + .55, a5.z + 3, 10, 1.1, .7, MAT.concreteD, { uv: .8 });
+
+    // ירידה עם נחיתות גבוהות — דורש גלגול
+    const d1 = wetRoof(4.6, 12, 11, 14.5, -2);
+    L.checkpoint(d1.x, d1.y, d1.z, Math.PI);
+    L.hint(d1.x, d1.y + 1, d1.z, 6, 'נחיתה מגובה! לחץ <kbd>CTRL</kbd> ברגע הפגיעה כדי להתגלגל');
+    const d2 = wetRoof(4.2, 13, 12, 12.5, 1.5);
+    const d3 = wetRoof(4.6, 12, 11, 11, -1);
+
+    // מסלול סיום עם פלטפורמות נעות
+    L.movingPlatform(d3.x, d3.y - .5, e + 5, 4.4, 4.4, 'x', 4.5, .8, 0, MAT.metal);
+    L.movingPlatform(d3.x, d3.y - 1.2, e + 12, 4.4, 4.4, 'x', 5, .95, 1.7, MAT.metal);
+    const fz = e + 21;
+    L.box(0, 5.4, fz, 16, 10.8, 15, MAT.concreteD, { uv: .3 });
+    L.box(0, 10.9, fz, 16.4, .3, 15.4, MAT.wet, { uv: .5, slip: true });
+    L.checkpoint(0, 11.05, fz - 4, Math.PI);
+    L.setGoal(0, 11.05, fz + 2);
+    L.hint(0, 12, fz - 2, 6, 'הגג האחרון בסערה — סיים!');
+    return L;
+}
+
+/* ====================== שלב 12 — המנהרות ====================== */
+function buildLevel12() {
+    const L = new LevelBuilder('המנהרות', 'ביוב, מים וחשכה');
+    L.env = {
+        skyTop: 0x0a1014, skyBottom: 0x141c22, sunColor: 0xa8d4c0, sunInt: 0.6,
+        sunDir: new THREE.Vector3(0.1, 0.95, 0.2), fog: 0x0e161c, fogNear: 12, fogFar: 95,
+        ambSky: 0x6d8e8c, ambGround: 0x3e4840, ambInt: 1.95, expo: 1.22,
+    };
+    L.killY = -10;
+
+    // מנהרה ראשית — שני מפלסים ללא חפיפה
+    const tunnel = (z0, z1, y, w, ceil) => {
+        const len = z1 - z0, cz = (z0 + z1) / 2;
+        L.box(0, y - .6, cz, w + 6, 1.2, len, MAT.tiles, { uv: .4 });
+        L.box(0, y + ceil, cz, w + 6, 1, len, MAT.concreteD, { uv: .35, cast: false });
+        for (const s of [-1, 1]) L.box(s * (w / 2 + 3), y + ceil / 2, cz, 1, ceil, len, MAT.tiles, { uv: .45 });
+    };
+    tunnel(-16, 62, 0, 12, 12);
+    tunnel(62, 132, 4, 12, 13);
+
+    L.setSpawn(0, 0, -12, Math.PI);
+    L.hint(0, 1, -12, 8, 'מנהרות הביוב — הרבה החלקות והתכופפויות. המים למטה מסוכנים');
+    for (let z = -12; z < 128; z += 10) {
+        const lamp = new THREE.Mesh(boxGeo(.8, .2, .4, 1), MAT.lamp);
+        lamp.position.set(-5.2, (z < 62 ? 6.6 : 10.6), z); lamp.castShadow = false;
+        L.group.add(lamp);
+    }
+
+    // תעלת מים במרכז
+    liquid(L, 0, 24, 60, -2.2, 0x2a4436, .9);
+    L.box(-4.5, -0.3, 20, 3, .6, 60, MAT.tiles, { uv: .5 });   // מדרכה שמאלית
+    L.box(4.5, -0.3, 20, 3, .6, 60, MAT.tiles, { uv: .5 });    // מדרכה ימנית
+    L.hint(-4.5, 1, -2, 5, 'לך על המדרכות בצדדים — במרכז יש מים');
+
+    // מכשולים נמוכים לחלוף מתחתיהם
+    for (const [bz, bx] of [[6, -4.5], [14, 4.5], [22, -4.5], [30, 4.5]]) {
+        L.box(bx, 1.15 + .7, bz, 3.2, 1.4, 1.1, MAT.stripe, { uv: .8 });
+    }
+    L.hint(-4.5, 1, 4, 5, 'רוץ והחלק (<kbd>CTRL</kbd>) מתחת למחסומים');
+    L.checkpoint(-4.5, 0, 34, Math.PI);
+
+    // מעבר צינורות מעל המים
+    L.pipe(0, .6, 44, 12, .7, 'z', MAT.rust);
+    L.pipe(-3.5, 1.6, 52, 10, .55, 'z', MAT.metal);
+    L.platform(0, 2.4, 60, 8, 6, MAT.grate, { thick: .5 });
+    L.checkpoint(0, 2.4, 60, Math.PI);
+
+    // עלייה למפלס השני
+    L.ladder(-4.6, 2.4, 59, 5.6, -Math.PI / 2);
+    L.platform(-4, 8.0, 59, 4.5, 5, MAT.grate, { thick: .4 });
+    L.platform(-3, 8.0, 66, 6, 6, MAT.grate, { thick: .5 });
+    L.hint(-4, 9, 59, 5, 'טפס בסולם אל המפלס העליון');
+    L.platform(3, 8.8, 73, 5, 5, MAT.grate, { thick: .4 });
+    L.platform(-3, 9.4, 80, 5, 5, MAT.grate, { thick: .4 });
+    L.checkpoint(-3, 9.4, 80, Math.PI);
+
+    // מסועים במנהרה
+    L.conveyor(0, 9.4, 90, 5, 14, 0, 1, 4.0);
+    L.box(0, 8, 90, 5.4, 1.6, 13, MAT.metalDark, { uv: .4, cast: false });
+    for (const cz of [86, 94]) L.box(0, 9.4 + 1.15 + .7, cz, 5, 1.4, 1.0, MAT.stripe, { uv: .8 });
+    L.hint(0, 10.4, 84, 5, 'החלק מתחת למחסומים בזמן שהמסוע דוחף אותך');
+
+    // חדר משאבות + סיום
+    L.platform(0, 9.4, 102, 12, 9, MAT.grate, { thick: .6 });
+    L.checkpoint(0, 9.4, 102, Math.PI);
+    L.spinner(0, 10.6, 102, 7, 1.5, { arms: 2, postH: 1.2 });
+    L.hazard(0, 6.5, 110, 14, 4, 4, { frame: false });
+    L.platform(-4, 9.4, 114, 5, 5, MAT.grate, { thick: .5 });
+    L.platform(4, 10.6, 120, 5, 5, MAT.grate, { thick: .5 });
+    L.platform(0, 10.6, 124, 4.5, 4.5, MAT.grate, { thick: .4 });
+    L.ladder(0, 10.6, 125.6, 6.5, 0);
+    L.platform(0, 17.1, 127.5, 8, 7, MAT.tiles, { thick: .6 });
+    L.box(0, 12, 133, 16, 12, 1, MAT.concreteD, { uv: .4 });
+    L.setGoal(0, 17.1, 128);
+    L.hint(0, 18.1, 126, 6, 'פתח היציאה — סיים את השלב!');
+    return L;
+}
+
+/* ======================= שלב 13 — הפסגה ======================= */
+function buildLevel13() {
+    const L = new LevelBuilder('הפסגה', 'המבחן האחרון');
+    L.env = {
+        skyTop: 0x14264d, skyBottom: 0xffc98a, sunColor: 0xffb066, sunInt: 3.2,
+        sunDir: new THREE.Vector3(-0.8, 0.28, 0.35), fog: 0xe8b487, fogNear: 100, fogFar: 700,
+        ambSky: 0xa8c0e8, ambGround: 0x8a6248, ambInt: 0.95, expo: 1.12,
+    };
+    L.killY = 20;
+    cityBackdrop(L, 0, 140, 0, { count: 210, inner: 140, outer: 760, minH: 40, tall: 170, cloudY: 200, clouds: 26 });
+
+    const Y = 60;
+    L.building(0, 0, 20, 20, Y, { parapetH: .55, gaps: ['n'] });
+    L.setSpawn(0, Y + .26, -6, Math.PI);
+    L.hint(0, Y + 1.3, -6, 9, 'הפסגה: כל היכולות שלמדת במסלול אחד. בהצלחה!');
+    L.ac(-6, Y + .26, -2, { yaw: .3 });
+    antenna(L, 7, Y + .26, 2);
+    let y = Y + .26;
+
+    // --- 1: קפיצות מדויקות ---
+    const seg = [[0, 0, 15, 4.2], [-3.6, .8, 21, 3.4], [3.2, 1.6, 27, 3.2], [-2.4, 2.4, 33, 3.0], [2.8, 3.2, 39, 3.0]];
+    for (const [px, dy, pz, s] of seg) {
+        L.platform(px, y + dy, pz, s, s, MAT.metal, { thick: .4 });
+        L.box(px, (y + dy) / 2, pz, s * .4, y + dy, s * .4, MAT.concreteD, { uv: .35, cast: false });
+    }
+    y += 3.2;
+    L.platform(0, y + .8, 46, 9, 7, MAT.concrete, { thick: .6 });
+    L.box(0, (y + .8) / 2, 46, 8, y + .8, 6, MAT.concreteD, { uv: .35, cast: false });
+    L.checkpoint(0, y + .8, 46, Math.PI);
+    y += .8;
+
+    // --- 2: ריצה על קיר ארוכה ---
+    L.hint(-2.4, y + 1, 49, 6, 'רוץ צמוד לקיר וקפוץ — ריצה על קיר');
+    L.platform(-2.4, y, 51, 5, 4, MAT.concrete, { thick: .5 });
+    L.box(-4.6, y + 3.6, 59, .9, 9, 16, MAT.wallrun, { uv: .5 });
+    L.box(-4.6, y - 5, 59, 1.8, 9, 16, MAT.concreteD, { uv: .4, cast: false });
+    L.platform(-2.4, y - 1.4, 63, 6, 5, MAT.concrete, { thick: .5 });
+    L.box(-2.4, (y - 1.4) / 2, 63, 5, y - 1.4, 4, MAT.concreteD, { uv: .35, cast: false });
+    y -= 1.4;
+    L.checkpoint(-2.4, y, 63, Math.PI);
+
+    // --- 3: כבל גלישה ארוך ---
+    L.hint(-2.4, y + 1, 65, 5, 'כבל ארוך — <kbd>E</kbd> להיאחז, <kbd>SPACE</kbd> להשתחרר');
+    L.zipline(-2.4, y + 2, 66, 4, y - 9, 90);
+    L.platform(4, y - 10, 91, 8, 7, MAT.metal, { thick: .5 });
+    L.box(4, (y - 10) / 2, 91, 7, y - 10, 6, MAT.concreteD, { uv: .35, cast: false });
+    y -= 10;
+    L.checkpoint(4, y, 91, Math.PI);
+
+    // --- 4: משטחי שיגור וטיפוס ---
+    L.launchPad(4, y, 94, 13.5);
+    L.platform(0, y + 3.4, 100, 6, 5, MAT.metal, { thick: .4 });
+    L.launchPad(0, y + 3.4, 101.5, 13.5);
+    L.platform(-4, y + 6.8, 107, 6, 5, MAT.metal, { thick: .4 });
+    L.hint(4, y + 1, 94, 4, 'משטחי שיגור — כוון את הנחיתה');
+    y += 6.8;
+
+    // --- 5: פיר קפיצות קיר ---
+    const sZ = 114;
+    for (const s of [-1, 1]) L.box(s * 1.75, y + 5, sZ, 1.25, 15, 7, MAT.wallrun, { uv: .5 });
+    for (const [s, dy] of [[-1, 1.35], [1, 2.7], [-1, 4.05]]) {
+        L.box(s * .78, y + dy - .12, sZ + s * 1.4, 1.2, .24, 2.2, MAT.metal, { uv: .8 });
+    }
+    L.platform(0, y + 5.4, sZ + 5.6, 6, 5, MAT.concrete, { thick: .5 });
+    y += 5.4;
+    L.checkpoint(0, y, sZ + 5.6, Math.PI);
+    L.hint(0, y + 1, sZ + 5.6, 5, 'פיר הקירות — עלה בקפיצות קיר');
+
+    // --- 6: פלטפורמות נעות מעל תהום ---
+    L.movingPlatform(0, y, 128, 4, 4, 'x', 5, .9, 0, MAT.metal);
+    L.movingPlatform(0, y + 1.2, 135, 4, 4, 'x', 5.5, 1.0, 1.6, MAT.metal);
+    L.movingPlatform(0, y + 2.4, 142, 4, 4, 'z', 3.2, .85, .6, MAT.metal);
+    L.platform(0, y + 3.4, 149, 9, 7, MAT.concrete, { thick: .6 });
+    L.box(0, (y + 3.4) / 2, 149, 8, y + 3.4, 6, MAT.concreteD, { uv: .35, cast: false });
+    y += 3.4;
+    L.checkpoint(0, y, 149, Math.PI);
+
+    // --- 7: טיפוס במגדל בזיגזג ---
+    const tx = 0, tz = 162, towerTop = y + 19;
+    L.box(tx, towerTop / 2, tz, 14, towerTop, 14, MAT.concreteD, { uv: .3 });
+    for (let i = 0; i < 2; i++) {
+        const wm = new THREE.Mesh(boxGeo(12.4, towerTop - 6, .12, .4), MAT.window);
+        wm.position.set(tx + (i === 0 ? 7.07 : -7.07), towerTop / 2, tz);
+        wm.rotation.y = Math.PI / 2;
+        wm.receiveShadow = true; wm.castShadow = false;
+        L.group.add(wm);
+    }
+    L.platform(6, y + .64, 155, 4, 4, MAT.metal, { thick: .4 });
+    let sy = y + 1.44;
+    for (let i = 0; i < 12; i++) {
+        const side = (i % 2 === 0) ? -1 : 1;
+        L.platform(8.6, sy, tz + side * 3, 3.2, 3.2, MAT.metal, { thick: .35 });
+        if (i === 6) L.checkpoint(8.6, sy, tz + side * 3, Math.PI / 2);
+        sy += 1.45;
+    }
+    L.platform(tx, towerTop, tz, 15, 15, MAT.roof, { thick: .6 });
+    for (const s of [-1, 1]) {
+        L.box(tx + s * 7.2, towerTop + .5, tz, .55, 1, 15, MAT.concreteD, { uv: .8 });
+        L.box(tx, towerTop + .5, tz + s * 7.2, 15, 1, .55, MAT.concreteD, { uv: .8 });
+    }
+    L.checkpoint(tx + 3, towerTop, tz + 4, Math.PI);
+    L.ac(tx - 4, towerTop, tz + 4, { yaw: .4 });
+    antenna(L, tx + 5, towerTop, tz - 5);
+    L.hint(tx, towerTop + 1, tz + 3, 6, 'המקטע האחרון — קפיצות בין הפסגות');
+
+    // --- 8: קפיצות בין המגדלים הגבוהים ---
+    const towers = [[6, 177, 9, 9, towerTop - 1.3], [-6, 189, 9, 9, towerTop - .7], [6, 201, 9, 9, towerTop + .1]];
+    for (const [px, pz, w, d, h] of towers) {
+        L.box(px, h / 2, pz, w, h, d, MAT.concreteD, { uv: .3 });
+        L.platform(px, h, pz, w + .4, d + .4, MAT.roof, { thick: .5 });
+        L.ac(px - 2, h, pz + 2, { yaw: .3 });
+    }
+    L.beam(1, towerTop - .1, 211, 12, MAT.rust, { yaw: Math.PI / 2 + .35, w: .6 });
+    const finalY = towerTop + 1.0;
+    L.box(-6, finalY / 2, 220, 16, finalY, 16, MAT.concreteD, { uv: .3 });
+    L.platform(-6, finalY, 220, 17, 17, MAT.roof, { thick: .6 });
+    for (const s of [-1, 1]) {
+        L.box(-6 + s * 8.2, finalY + .5, 220, .5, 1, 17, MAT.concreteD, { uv: .8 });
+        L.box(-6, finalY + .5, 220 + s * 8.2, 17, 1, .5, MAT.concreteD, { uv: .8 });
+    }
+    antenna(L, -1, finalY, 224);
+    L.setGoal(-6, finalY, 218);
+    L.hint(-6, finalY + 1, 215, 7, 'הגעת לפסגה — סיים את המשחק!');
+    return L;
+}
+
 const LEVELS = [
-    { name: 'אימון', subtitle: 'גג האימונים', diff: 1, build: buildLevel1 },
-    { name: 'גגות העיר', subtitle: 'קפיצות בין גגות', diff: 2, build: buildLevel2 },
-    { name: 'אתר הבנייה', subtitle: 'פיגומים, קורות ומנוף', diff: 3, build: buildLevel3 },
-    { name: 'המפעל', subtitle: 'מסועים ומכשולים נעים', diff: 4, build: buildLevel4 },
-    { name: 'המגדל', subtitle: 'העלייה האחרונה', diff: 5, build: buildLevel5 },
+    { name: 'אימון',          subtitle: 'גג האימונים',            diff: 1, build: buildLevel1 },
+    { name: 'גגות העיר',      subtitle: 'קפיצות בין גגות',        diff: 1, build: buildLevel2 },
+    { name: 'אתר הבנייה',     subtitle: 'פיגומים, קורות ומנוף',   diff: 2, build: buildLevel3 },
+    { name: 'המפעל',          subtitle: 'מסועים ומכשולים נעים',   diff: 2, build: buildLevel4 },
+    { name: 'המגדל',          subtitle: 'ריצה על קירות וטיפוס',   diff: 3, build: buildLevel5 },
+    { name: 'הנמל',           subtitle: 'מכולות, מנופים וכבלים',  diff: 3, build: buildLevel6 },
+    { name: 'הרכבת התחתית',   subtitle: 'מנהרות, רציפים ורכבות',  diff: 3, build: buildLevel7 },
+    { name: 'הגשר',           subtitle: 'כבלים, מגדלים ורוח',     diff: 4, build: buildLevel8 },
+    { name: 'העיר בלילה',     subtitle: 'ניאון, זכוכית וקירות',   diff: 4, build: buildLevel9 },
+    { name: 'תחנת הכוח',      subtitle: 'קיטור, טורבינות וצינורות', diff: 4, build: buildLevel10 },
+    { name: 'גגות בגשם',      subtitle: 'משטחים חלקים וסופה',     diff: 5, build: buildLevel11 },
+    { name: 'המנהרות',        subtitle: 'ביוב, מים וחשכה',        diff: 5, build: buildLevel12 },
+    { name: 'הפסגה',          subtitle: 'המבחן האחרון',           diff: 5, build: buildLevel13 },
 ];
 
 /* =========================================================================
-   13. שמיים פרוצדורליים
+   13. אפקטי מסך (Bloom) — נטענים בנפרד, והמשחק פועל גם בלעדיהם
+   ========================================================================= */
+let FX = null;
+async function loadPostFX() {
+    if (FX !== null) return FX;
+    try {
+        const [ec, rp, bp, op] = await Promise.all([
+            import('three/addons/postprocessing/EffectComposer.js'),
+            import('three/addons/postprocessing/RenderPass.js'),
+            import('three/addons/postprocessing/UnrealBloomPass.js'),
+            import('three/addons/postprocessing/OutputPass.js'),
+        ]);
+        FX = {
+            EffectComposer: ec.EffectComposer, RenderPass: rp.RenderPass,
+            UnrealBloomPass: bp.UnrealBloomPass, OutputPass: op.OutputPass,
+        };
+    } catch (e) {
+        console.warn('אפקטי מסך לא נטענו — ממשיכים בציור רגיל:', e.message);
+        FX = false;
+    }
+    return FX;
+}
+
+/* =========================================================================
+   14. שמיים פרוצדורליים
    ========================================================================= */
 const SKY_VERT = `
 varying vec3 vDir;
@@ -3355,7 +4955,7 @@ class Sky {
 }
 
 /* =========================================================================
-   14. ניהול ממשק המשתמש
+   15. ניהול ממשק המשתמש
    ========================================================================= */
 const $ = (id) => document.getElementById(id);
 
@@ -3371,6 +4971,7 @@ class UIManager {
             htCur: $('ht-cur'), htBest: $('ht-best'), hFalls: $('h-falls'),
             hint: $('hint'), toast: $('toast'), cross: $('cross'),
             spdBar: $('spd-bar'), stateTag: $('state-tag'), mute: $('btn-mute'),
+            flow: $('flow'), flowBar: $('flow-bar'), flowVal: $('flow-val'), pad: $('h-pad'),
             pages: {
                 main: $('pg-main'), levels: $('pg-levels'), help: $('pg-help'), settings: $('pg-settings'),
             },
@@ -3489,10 +5090,17 @@ class UIManager {
     }
 
     setMuteIcon(muted) { this.el.mute.textContent = muted ? '🔇' : '🔊'; }
+    setPadIcon(on) { this.el.pad.classList.toggle('on', !!on); }
+    setFlow(flow) {
+        const f = (flow - 1) / (CFG.FLOW_MAX - 1);
+        this.el.flow.classList.toggle('on', flow > 1.005);
+        this.el.flowBar.style.width = clamp(f * 100, 0, 100) + '%';
+        this.el.flowVal.textContent = '\u00d7' + flow.toFixed(2);
+    }
 }
 
 /* =========================================================================
-   15. המשחק
+   16. המשחק
    ========================================================================= */
 class Game {
     constructor() {
@@ -3538,7 +5146,13 @@ class Game {
             else if (this.state === 'paused') this.resume();
         };
         this.input.onLockChange = (locked) => {
-            if (!locked && this.state === 'playing') this.pause();
+            if (!locked && this.state === 'playing' && !this.input.padConnected) this.pause();
+        };
+        this.input.onPadChange = (connected, id) => {
+            this.ui.setPadIcon(connected);
+            if (connected && this.state === 'playing') {
+                this.ui.showHint('שלט זוהה: ' + (id || '').slice(0, 28) + ' — ג׳ויסטיק שמאלי לתנועה, ימני למבט', 4);
+            }
         };
         this.input.onLockError = () => {
             if (this.state === 'playing') this.ui.showHint('לחץ על המסך כדי להחזיר את שליטת העכבר', 3.5);
@@ -3560,6 +5174,28 @@ class Game {
         this.renderer.toneMappingExposure = 1.05;
         this.renderer.shadowMap.enabled = this.settings.shadows && q.shadow > 0;
         this.renderer.shadowMap.type = THREE.PCFSoftShadowMap;
+        this.composer = null;
+        this.bloomPass = null;
+    }
+
+    /* בניית שרשרת אפקטים (Bloom) — אופציונלית לגמרי */
+    async setupPostFX() {
+        const fx = await loadPostFX();
+        if (!fx) return;
+        const q = QUALITY[this.settings.quality] || QUALITY.high;
+        const pr = this.renderer.getPixelRatio();
+        const w = Math.floor(window.innerWidth * pr), h = Math.floor(window.innerHeight * pr);
+        const rt = new THREE.WebGLRenderTarget(w, h, {
+            type: THREE.HalfFloatType, samples: q.aa ? 4 : 0,
+        });
+        this.composer = new fx.EffectComposer(this.renderer, rt);
+        this.composer.addPass(new fx.RenderPass(this.scene, this.camera));
+        // רזולוציית ה-Bloom חצי מהמסך — כמעט אותו מראה בעלות נמוכה בהרבה
+        this.bloomPass = new fx.UnrealBloomPass(
+            new THREE.Vector2(Math.max(160, w >> 1), Math.max(120, h >> 1)), 0.6, 0.6, 0.84);
+        this.composer.addPass(this.bloomPass);
+        this.composer.addPass(new fx.OutputPass());
+        this.composer.setSize(window.innerWidth, window.innerHeight);
     }
 
     initScene() {
@@ -3598,6 +5234,7 @@ class Game {
         this.camera.aspect = w / h;
         this.camera.updateProjectionMatrix();
         this.renderer.setSize(w, h, false);
+        if (this.composer) this.composer.setSize(w, h);
     }
 
     /* ---------- חיבור ממשק ---------- */
@@ -3949,27 +5586,68 @@ class Game {
         }
     }
 
+    /* ---------- ניווט בתפריטים עם שלט ---------- */
+    padButtons() {
+        const screen = document.querySelector('.screen.on');
+        if (!screen) return [];
+        return [...screen.querySelectorAll('button')].filter(b =>
+            b.offsetParent !== null && !b.classList.contains('locked') && !b.disabled);
+    }
+
+    padNavigate() {
+        const inp = this.input;
+        if (!inp.padConnected) return;
+        const btns = this.padButtons();
+        if (!btns.length) return;
+        if (this.padFocusEl && !btns.includes(this.padFocusEl)) this.padFocusEl = null;
+        if (!this.padFocusEl) { this.padFocusEl = btns[0]; this.markFocus(btns); }
+
+        let idx = btns.indexOf(this.padFocusEl);
+        let moved = false;
+        if (inp.nav.down || inp.nav.right) { idx = (idx + 1) % btns.length; moved = true; }
+        else if (inp.nav.up || inp.nav.left) { idx = (idx - 1 + btns.length) % btns.length; moved = true; }
+        if (moved) {
+            this.padFocusEl = btns[idx];
+            this.markFocus(btns);
+            this.audio.hover();
+            this.padFocusEl.scrollIntoView({ block: 'nearest' });
+        }
+        if (inp.padTap(PAD.A) && this.padFocusEl) {
+            this.padFocusEl.click();
+            this.padFocusEl = null;
+        } else if (inp.padTap(PAD.B)) {
+            const back = document.querySelector('.screen.on .back');
+            if (back) back.click();
+            else if (this.state === 'paused') this.resume();
+        }
+    }
+
+    markFocus(btns) {
+        for (const b of btns) b.classList.toggle('padfocus', b === this.padFocusEl);
+    }
+
     /* ---------- לולאת המשחק ---------- */
     step(dt) {
         this.clock += dt;
         if (this.state === 'playing') {
-            this.level.update(this.clock);
+            this.level.update(this.clock, this.player.pos);
             this.player.update(dt, this.level);
             this.elapsed += dt;
 
-            if (this.input.tap('KeyR')) {
+            if (this.input.respawnPressed) {
                 this.respawn(true);
                 this.ui.toast('חזרה לצ׳קפוינט', '#4dd6ff', 1.1);
             }
-            if (this.input.tap('KeyM')) this.toggleMute();
+            if (this.input.mutePressed) this.toggleMute();
 
             if (this.player.pos.y < this.level.killY) this.triggerFall(false);
             else this.checkTriggers();
 
             this.ui.setTime(this.elapsed);
             this.ui.setSpeed(this.player.speed / (CFG.RUN_SPEED + CFG.SLIDE_BOOST), this.player.stateLabel);
+            this.ui.setFlow(this.player.flow);
         } else if (this.state === 'falling') {
-            this.level.update(this.clock);
+            this.level.update(this.clock, this.player.pos);
             this.player.vel.y = Math.max(this.player.vel.y - CFG.GRAVITY * dt, CFG.MAX_FALL);
             this.player.pos.y += this.player.vel.y * dt;
             this.player.updateCameraTransform(dt);
@@ -3991,7 +5669,11 @@ class Game {
         this.sun.position.set(p.x + d.x * 70, p.y + d.y * 70, p.z + d.z * 70);
         this.sun.target.position.set(p.x, p.y, p.z);
         this.sun.target.updateMatrixWorld();
-        this.renderer.render(this.scene, this.camera);
+        if (this.composer && this.settings.bloom && this.settings.quality !== 'low') {
+            this.composer.render();
+        } else {
+            this.renderer.render(this.scene, this.camera);
+        }
     }
 
     loop(now) {
@@ -4001,6 +5683,9 @@ class Game {
         this.lastFrame = now;
         if (dt > 0.1) dt = 0.1;
         if (dt <= 0) return;
+
+        this.input.pollPad(dt);
+        if (this.state !== 'playing' && this.state !== 'falling') this.padNavigate();
 
         if (this.state === 'playing' || this.state === 'falling') {
             // צעדי פיזיקה קבועים לתנועה יציבה
@@ -4027,7 +5712,7 @@ class Game {
 }
 
 /* =========================================================================
-   16. הפעלה
+   17. הפעלה
    ========================================================================= */
 function isMobile() {
     const ua = navigator.userAgent || '';
@@ -4063,6 +5748,8 @@ async function boot() {
     await new Promise(r => setTimeout(r, 180));
 
     if (isMobile()) $('mobile').classList.add('on');
+    // אפקטי המסך נטענים ברקע — המשחק זמין גם אם הם לא הגיעו
+    game.setupPostFX().catch(e => console.warn('אפקטי מסך:', e.message));
     game.state = 'menu';
     game.ui.screen('menu');
     game.ui.menuPage('main');
