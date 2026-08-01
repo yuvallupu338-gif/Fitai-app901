@@ -519,7 +519,7 @@ const CFG = {
     CROUCH_HEIGHT:  1.05,
     EYE:            1.62,
     EYE_CROUCH:     0.88,
-    STEP_HEIGHT:    0.62,
+    STEP_HEIGHT:    0.52,
 
     // פארקור
     COYOTE:         0.15,
@@ -541,7 +541,7 @@ const CFG = {
 
     // פארקור מתקדם
     ROLL_WINDOW:    0.28,    // חלון הזמן ללחיצה על התכופפות לפני/בזמן הנחיתה
-    ROLL_TIME:      0.5,
+    ROLL_TIME:      0.42,
     ROLL_KEEP:      0.94,    // שמירת מהירות בגלגול
     SHIMMY_SPEED:   1.9,     // זחילה לצדדים בזמן אחיזה
     LEDGE_JUMP_OUT: 4.6,
@@ -1824,7 +1824,7 @@ class LevelBuilder {
         const roofY = h + .26;
         this.box(x, h + .13, z, w + .36, .26, d + .36, MAT.roof, { uv: .5 });
         if (o.parapet !== false) {
-            const ph = o.parapetH === undefined ? .6 : o.parapetH, t = .32;
+            const ph = o.parapetH === undefined ? .95 : o.parapetH, t = .32;
             if (ph > 0) {
                 const gaps = o.gaps || [];
                 const has = (side) => !gaps.includes(side);
@@ -2454,6 +2454,7 @@ class PlayerController {
         this.jumpBuf = 0;
         this.slideT = 0;
         this.vaultT = 0; this.vaultFrom = new THREE.Vector3(); this.vaultTo = new THREE.Vector3();
+        this.vaultArc = 0.42;
         this.mantleT = 0; this.mantleFrom = new THREE.Vector3(); this.mantleTo = new THREE.Vector3();
         this.hangCol = null; this.hangNormal = new THREE.Vector3(); this.hangTop = 0; this.hangT = 0;
         this.wallT = 0; this.wallNormal = new THREE.Vector3(); this.wallTangent = new THREE.Vector3();
@@ -2529,10 +2530,12 @@ class PlayerController {
         const d2 = dx * dx + dz * dz;
         if (d2 > 1e-8) {
             if (d2 >= r * r) return 0;
+            this._penInside = false;
             const d = Math.sqrt(d2);
             if (outNormal) col.toWorldDir(dx / d, dz / d, outNormal);
             return r - d;
         }
+        this._penInside = true;
         // מרכז הגליל בתוך המלבן — דחיפה לציר עם החדירה הקטנה ביותר
         const penX = hx + r - Math.abs(lx);
         const penZ = hz + r - Math.abs(lz);
@@ -2551,18 +2554,18 @@ class PlayerController {
             const c = cands[i];
             if (!c.solid || c === ignore) continue;
             if (y + h <= c.bottom + 0.02 || y >= c.top - 0.02) continue;
-            if (this._horizPenAt(c, x, z, r * 0.92, null) > 0) return false;
+            if (this._horizPenAt(c, x, z, r * 0.95, null) > 0) return false;
         }
         return true;
     }
 
     /* גובה המשטח הגבוה ביותר מתחת לנקודה בטווח גובה נתון (או -Infinity) */
-    topAt(x, z, r, yMin, yMax, world) {
+    topAt(x, z, r, yMin, yMax, world, ignore) {
         const cands = world.near(x - r - 1, z - r - 1, x + r + 1, z + r + 1);
         let best = -Infinity;
         for (let i = 0; i < cands.length; i++) {
             const c = cands[i];
-            if (!c.solid) continue;
+            if (!c.solid || c === ignore) continue;
             if (c.top < yMin || c.top > yMax) continue;
             if (this._horizPenAt(c, x, z, r, null) <= 0) continue;
             if (c.top > best) best = c.top;
@@ -2760,9 +2763,9 @@ class PlayerController {
         // --- תנועה + התנגשויות ---
         this.integrate(dt, world);
 
-        // --- טיפוס וקפיצה מעל מכשולים ---
-        if (this.grounded && this.state === 'normal' && this.vaultCooldown <= 0 &&
-            Math.hypot(this.vel.x, this.vel.z) > 3.2 && mf > 0) {
+        // --- טיפוס וקפיצה מעל מכשולים (רק בריצה או בלחיצת קפיצה מכוונת) ---
+        if (this.grounded && this.state === 'normal' && this.vaultCooldown <= 0 && mf > 0 &&
+            (Math.hypot(this.vel.x, this.vel.z) > 5.4 || this.jumpBuf > 0)) {
             this.tryVault(world);
         }
 
@@ -2849,8 +2852,22 @@ class PlayerController {
         this.height = damp(this.height, CFG.CROUCH_HEIGHT, 14, dt);
         this.vel.y -= CFG.GRAVITY * dt;
         const spd = Math.hypot(this.vel.x, this.vel.z);
-        const target = Math.max(CFG.WALK_SPEED, spd - 3.2 * dt);
+        const target = Math.max(CFG.WALK_SPEED, spd - 6.0 * dt);
         if (spd > 0.01) { this.vel.x *= target / spd; this.vel.z *= target / spd; }
+        // שליטה חלקית בכיוון בזמן הגלגול
+        const fwd = this.forwardVec(_v3a), right = this.rightVec(_v3b);
+        const wx = fwd.x * this.input.moveF + right.x * this.input.moveR;
+        const wz = fwd.z * this.input.moveF + right.z * this.input.moveR;
+        const wl = Math.hypot(wx, wz);
+        if (wl > 0.001 && this.grounded) {
+            const k = 3.4 * dt;
+            this.vel.x += (wx / wl) * target * k;
+            this.vel.z += (wz / wl) * target * k;
+            const ns = Math.hypot(this.vel.x, this.vel.z);
+            if (ns > target) { this.vel.x *= target / ns; this.vel.z *= target / ns; }
+        }
+        // ביטול הגלגול כשמשחררים התכופפות
+        if (!this.input.crouch && this.rollT > 0.16 && this.grounded) { this.endRoll(world); return; }
         if (this.jumpBuf > 0 && this.grounded) { this.endRoll(world); this.doJump(); return; }
         this.integrate(dt, world);
         // סיבוב מצלמה מלא לאורך הגלגול
@@ -3058,6 +3075,7 @@ class PlayerController {
         for (let i = 0; i < steps; i++) {
             this.pos.y += this.vel.y * h;
             this.resolveVertical(world, h);
+            this._prevX = this.pos.x; this._prevZ = this.pos.z;
             this.pos.x += this.vel.x * h;
             this.pos.z += this.vel.z * h;
             this.resolveHorizontal(world);
@@ -3075,6 +3093,9 @@ class PlayerController {
         const cands = world.near(this.pos.x - r - .6, this.pos.z - r - .6, this.pos.x + r + .6, this.pos.z + r + .6);
         let bestTop = -Infinity, bestCol = null;
         let bestBottom = Infinity, ceilCol = null;
+        // מרחק ההצמדה המרבי — רק מה שחדרנו אליו בצעד הזה נחשב רצפה/תקרה.
+        // בלי זה כל קיר שנוגעים בו היה "מרים" את השחקן לראשו.
+        const maxSnap = Math.max(0.12, Math.abs(this.vel.y) * dt + 0.05);
 
         for (let i = 0; i < cands.length; i++) {
             const c = cands[i];
@@ -3084,8 +3105,8 @@ class PlayerController {
             const penUp = c.top - feet;
             const penDown = head - c.bottom;
             if (penUp <= penDown) {
-                if (c.top > bestTop) { bestTop = c.top; bestCol = c; }
-            } else if (c.bottom < bestBottom) { bestBottom = c.bottom; ceilCol = c; }
+                if (penUp <= maxSnap && c.top > bestTop) { bestTop = c.top; bestCol = c; }
+            } else if (penDown <= maxSnap && c.bottom < bestBottom) { bestBottom = c.bottom; ceilCol = c; }
         }
 
         if (bestCol && this.vel.y <= 0.001) {
@@ -3144,8 +3165,29 @@ class PlayerController {
                 if (!c.solid) continue;
                 const feet = this.pos.y, head = feet + hgt;
                 if (feet >= c.top - 0.02 || head <= c.bottom + 0.02) continue;
-                const pen = this._horizPen(c, r, _v3a);
+                let pen = this._horizPen(c, r, _v3a);
                 if (pen <= 0) continue;
+
+                // אם מרכז השחקן כבר בתוך התיבה — יוצאים לצד שממנו הגענו,
+                // אחרת אפשר "לעבור דרך" קיר דק בגלל בחירת ציר החדירה המינימלית
+                if (this._penInside && this._prevX !== undefined) {
+                    c.toLocal(this._prevX, this._prevZ, _v2);
+                    const plx = _v2.x, plz = _v2.y;
+                    const outX = Math.abs(plx) - c.h.x, outZ = Math.abs(plz) - c.h.z;
+                    if (outX > -0.02 || outZ > -0.02) {
+                        c.toLocal(this.pos.x, this.pos.z, _v2);
+                        if (outX >= outZ) {
+                            const sg = Math.sign(plx) || 1;
+                            c.toWorldDir(sg, 0, _v3a);
+                            pen = c.h.x + r - sg * _v2.x;
+                        } else {
+                            const sg = Math.sign(plz) || 1;
+                            c.toWorldDir(0, sg, _v3a);
+                            pen = c.h.z + r - sg * _v2.y;
+                        }
+                        if (pen <= 0) continue;
+                    }
+                }
 
                 // טיפוס אוטומטי על מכשול נמוך
                 const stepUp = c.top - feet;
@@ -3236,14 +3278,23 @@ class PlayerController {
         const depth = Math.abs(fwd.x) * ex * 2 + Math.abs(fwd.z) * ez * 2;
         if (depth > 3.2) return false;
 
-        const dist = depth + CFG.RADIUS * 2 + 0.55;
-        const tx = this.pos.x + fwd.x * dist, tz = this.pos.z + fwd.z * dist;
+        // נקודת הנחיתה נמדדת מהמכשול עצמו — כך היא תמיד מעברו השני
+        const out = depth / 2 + CFG.RADIUS + 0.5;
+        const tx = target.c.x + fwd.x * out, tz = target.c.z + fwd.z * out;
         if (!this.freeAt(tx, targetTop + 0.05, tz, this.height, CFG.RADIUS, null, world)) return false;
+
+        // חייב להיות משטח נחיתה אמיתי מעבר למכשול (לא המכשול עצמו).
+        // אחרת מדובר במעקה בקצה גג, וקפיצה מעליו = נפילה — ולכן הוא חוסם.
+        const landing = this.topAt(tx, tz, CFG.RADIUS * 0.85, targetTop - 3.2, targetTop + 0.2, world, target);
+        if (landing === -Infinity) return false;
 
         this.state = 'vault';
         this.vaultT = 0;
         this.vaultFrom.copy(this.pos);
-        this.vaultTo.set(tx, targetTop + 0.05, tz);
+        // מסיימים על משטח הנחיתה עצמו ולא בגובה המכשול — אחרת נוחתים על מעקות
+        this.vaultTo.set(tx, Math.min(targetTop + 0.05, landing + 0.04), tz);
+        // גובה הקשת מותאם כך שבאמת עוברים מעל המכשול
+        this.vaultArc = Math.max(0.35, targetTop - Math.max(this.vaultFrom.y, this.vaultTo.y) + 0.3);
         this.vaultCooldown = 0.4;
         this.addFlow(CFG.FLOW_GAIN * 1.2);
         this.input.rumble(0.3, 90);
@@ -3258,7 +3309,7 @@ class PlayerController {
         const t = clamp(this.vaultT / CFG.VAULT_TIME, 0, 1);
         const e = t * t * (3 - 2 * t);
         this.pos.lerpVectors(this.vaultFrom, this.vaultTo, e);
-        this.pos.y += Math.sin(t * Math.PI) * 0.42;
+        this.pos.y += Math.sin(t * Math.PI) * (this.vaultArc || 0.42);
         this.targetHeight = CFG.CROUCH_HEIGHT + 0.35;
         this.height = damp(this.height, this.targetHeight, 12, dt);
         this.rollTarget = 0.06;
@@ -3267,9 +3318,14 @@ class PlayerController {
         if (t >= 1) {
             this.state = 'normal';
             this.targetHeight = CFG.HEIGHT;
-            const fwd = this.forwardVec(_v3a);
-            const keep = Math.max(4.5, Math.hypot(this.vel.x, this.vel.z) * 0.85);
-            this.vel.set(fwd.x * keep, 0, fwd.z * keep);
+            if (!this.freeAt(this.pos.x, this.pos.y, this.pos.z, CFG.CROUCH_HEIGHT, CFG.RADIUS, null, world)) {
+                this.pos.copy(this.vaultFrom);       // ביטול — לא נתקעים בתוך קיר
+                this.vel.set(0, 0, 0);
+            } else {
+                const fwd = this.forwardVec(_v3a);
+                const keep = Math.max(4.5, Math.hypot(this.vel.x, this.vel.z) * 0.85);
+                this.vel.set(fwd.x * keep, 0, fwd.z * keep);
+            }
             this.grounded = false;
             this.resolveVertical(world, dt);
         }
@@ -3302,12 +3358,16 @@ class PlayerController {
         // מקום עמידה מעל הקצה — בודקים גם שיש משטח לעמוד עליו
         this._horizPen(best, CFG.RADIUS + CFG.GRAB_REACH, _v3b);
         let standX = 0, standZ = 0, ok = false;
+        const inX = -_v3b.x, inZ = -_v3b.z;   // כיוון פנימה, אל תוך המשטח
         for (const extra of [CFG.RADIUS + 0.55, CFG.RADIUS + 0.22, CFG.RADIUS + 0.9]) {
             standX = this.pos.x - _v3b.x * (bestDist + extra);
             standZ = this.pos.z - _v3b.z * (bestDist + extra);
             if (!this.freeAt(standX, bestTop + 0.06, standZ, CFG.HEIGHT, CFG.RADIUS, null, world)) continue;
-            const support = this.topAt(standX, standZ, CFG.RADIUS * 0.8, bestTop - 0.3, bestTop + 0.05, world);
-            if (support > -Infinity) { ok = true; break; }
+            // המשטח חייב להיות רחב מספיק כדי לעמוד עליו — לא מעקה או קצה דק
+            const s1 = this.topAt(standX, standZ, CFG.RADIUS * 0.7, bestTop - 0.3, bestTop + 0.05, world);
+            const s2 = this.topAt(standX + inX * CFG.RADIUS * 0.95, standZ + inZ * CFG.RADIUS * 0.95,
+                CFG.RADIUS * 0.7, bestTop - 0.3, bestTop + 0.05, world);
+            if (s1 > -Infinity && s2 > -Infinity) { ok = true; break; }
         }
         if (!ok) return false;
 
@@ -3431,6 +3491,9 @@ class PlayerController {
             this.state = 'normal';
             this.vel.set(0, 0, 0);
             this.grabCooldown = 0.3;
+            if (!this.freeAt(this.pos.x, this.pos.y, this.pos.z, CFG.CROUCH_HEIGHT, CFG.RADIUS, null, world)) {
+                this.pos.copy(this.mantleFrom);
+            }
             this.grounded = false;
             this.resolveVertical(world, dt);
             this.audio.footstep(false);
@@ -3696,7 +3759,7 @@ function buildLevel1() {
     L.ac(6.5, Y, z0 - 9.5, { yaw: -.2 });
     waterTank(L, -6.5, Y, z0 + 8);
     antenna(L, 7, Y, z0 + 9);
-    L.pipe(-8.2, Y + .5, z0 + 2, 16, .28, 'z', MAT.rust);
+    L.pipe(-7.2, Y + .5, z0 + 2, 16, .28, 'z', MAT.rust);
 
     L.hint(0, Y + 1, -6, 7, 'ברוך הבא ל־URBAN EDGE! <kbd>W A S D</kbd> לתנועה, עכבר להסתכלות');
     L.hint(0, Y + 1, 2, 6, 'החזק <kbd>SHIFT</kbd> כדי לרוץ מהר — שים לב לשינוי בשדה הראייה');
@@ -3704,8 +3767,8 @@ function buildLevel1() {
     // --- מסלול ריצה ---
     const z1 = pad(1.6, 9, 26, MAT.concrete);
     L.hint(0, Y + 1, z1 - 8, 6, 'רוץ קדימה ולחץ <kbd>SPACE</kbd> כדי לקפוץ');
-    L.box(4.9, Y + .3, z1, .35, .6, 26, MAT.concreteD, { uv: .8 });
-    L.box(-4.9, Y + .3, z1, .35, .6, 26, MAT.concreteD, { uv: .8 });
+    L.box(4.9, Y + .5, z1, .35, 1.0, 26, MAT.concreteD, { uv: .8 });
+    L.box(-4.9, Y + .5, z1, .35, 1.0, 26, MAT.concreteD, { uv: .8 });
     L.checkpoint(0, Y, z1 + 9, Math.PI);
 
     // --- קפיצות מעל מרווחים ---
@@ -3768,25 +3831,25 @@ function buildLevel2() {
     };
 
     // גג ההתחלה
-    const b1 = bld(0, 18, 18, 24, 0, { parapetH: .55, gaps: ['n'] });
+    const b1 = bld(0, 18, 18, 24, 0, { parapetH: .95, gaps: ['n'] });
     L.setSpawn(0, b1.y, b1.z - 6, Math.PI);
     L.ac(-5, b1.y, b1.z - 2, { yaw: .3 });
     L.ac(5.5, b1.y, b1.z + 1, { yaw: -.4 });
     waterTank(L, -6, b1.y, b1.z + 5);
-    L.pipe(7.5, b1.y + .55, b1.z, 14, .3, 'z', MAT.rust);
+    L.pipe(6.0, b1.y + .55, b1.z, 14, .3, 'z', MAT.rust);
     L.hint(0, b1.y + 1, b1.z - 6, 8, 'גגות העיר: קפוץ בין הבניינים. <kbd>SHIFT</kbd> + <kbd>SPACE</kbd> לקפיצה ארוכה');
 
-    const b2 = bld(4.0, 13, 12, 23, 0, { parapetH: .5, gaps: ['n', 's'] });
+    const b2 = bld(4.0, 13, 12, 23, 0, { parapetH: .95, gaps: ['n', 's'] });
     L.ac(-3.5, b2.y, b2.z + 2, { yaw: .2 });
     L.box(0, b2.y + .55, b2.z - 1, 8, 1.1, .7, MAT.concreteD, { uv: .8 });   // קיר לקפיצה מעל
     L.hint(0, b2.y + 1, b2.z, 5, 'קיר נמוך? פשוט רוץ אליו — הדמות תעבור מעליו');
 
-    const b3 = bld(4.4, 14, 11, 21.5, 1.5, { parapetH: .5, gaps: ['n', 's'] });
+    const b3 = bld(4.4, 14, 11, 21.5, 1.5, { parapetH: .95, gaps: ['n', 's'] });
     L.checkpoint(b3.x, b3.y, b3.z, Math.PI);
     L.pipe(b3.x - 5, b3.y + .6, b3.z, 10, .32, 'z', MAT.metal);
     L.ac(b3.x + 4.5, b3.y, b3.z - 2.5, { yaw: -.3 });
 
-    const b4 = bld(5.0, 10, 10, 20, 0, { parapetH: .5, gaps: ['n', 's'] });
+    const b4 = bld(5.0, 10, 10, 20, 0, { parapetH: .95, gaps: ['n', 's'] });
     L.ac(3, b4.y, b4.z, { yaw: .1, w: 1.6, d: 1.3 });
 
     // גשר קרש צר
@@ -3798,18 +3861,18 @@ function buildLevel2() {
     L.hint(0, b4.y + 1, plankZ0 + 1, 5, 'פלטפורמה צרה — לך ישר ואל תיפול');
     e = plankZ0 + plankLen;
 
-    const b5 = bld(0.4, 16, 14, 20, 0, { parapetH: .5, gaps: ['n', 's'] });
+    const b5 = bld(0.4, 16, 14, 20, 0, { parapetH: .95, gaps: ['n', 's'] });
     // מדרגות מזגנים לטיפוס
     L.ac(-4, b5.y, b5.z - 3, { yaw: 0 });
     L.ac(-4, b5.y + 1.29, b5.z - 1, { yaw: 0, h: .9 });
     L.pipe(5, b5.y + .6, b5.z, 12, .34, 'z', MAT.rust);
     L.box(0, b5.y + .55, b5.z + 4, 10, 1.1, .7, MAT.brick, { uv: .8 });
 
-    const b6 = bld(4.2, 12, 12, 21, -1.5, { parapetH: .5, gaps: ['n', 's'] });
+    const b6 = bld(4.2, 12, 12, 21, -1.5, { parapetH: .95, gaps: ['n', 's'] });
     L.checkpoint(b6.x, b6.y, b6.z, Math.PI);
     antenna(L, b6.x + 4, b6.y, b6.z + 3);
 
-    const b7 = bld(5.4, 14, 14, 19.5, 1, { parapetH: .5, gaps: ['n', 's'] });
+    const b7 = bld(5.4, 14, 14, 19.5, 1, { parapetH: .95, gaps: ['n', 's'] });
     L.ac(b7.x - 4, b7.y, b7.z - 3, { yaw: .5 });
     L.ac(b7.x + 4, b7.y, b7.z + 3, { yaw: -.5 });
 
@@ -3819,7 +3882,7 @@ function buildLevel2() {
     L.hint(b7.x, b7.y + 1, pz + 1, 5, 'לך על הצינור בזהירות');
     e = pz + 9;
 
-    const b8 = bld(0.5, 18, 16, 18, b7.x, { parapetH: .5, gaps: ['n', 's'] });
+    const b8 = bld(0.5, 18, 16, 18, b7.x, { parapetH: .95, gaps: ['n', 's'] });
     L.checkpoint(b8.x, b8.y, b8.z, Math.PI);
     waterTank(L, b8.x + 6, b8.y, b8.z - 4);
     L.box(b8.x, b8.y + .55, b8.z + 2, 12, 1.1, .7, MAT.concreteD, { uv: .8 });
@@ -3831,7 +3894,7 @@ function buildLevel2() {
     L.platform(b8.x + 3, b8.y - 2.4, s2z, 4, 4, MAT.metal);
     e = s2z + 2;
 
-    const b9 = bld(4.2, 15, 15, 17, 0, { parapetH: .5, gaps: ['s'] });
+    const b9 = bld(4.2, 15, 15, 17, 0, { parapetH: .95, gaps: ['s'] });
     L.setGoal(0, b9.y, b9.z + 2);
     L.hint(0, b9.y + 1, b9.z - 4, 6, 'הגעת! עלה אל האור כדי לסיים');
     return L;
@@ -4022,7 +4085,7 @@ function buildLevel5() {
 
     // --- גג ההתחלה ---
     const Y0 = 42;
-    const start = L.building(0, 0, 20, 20, Y0, { parapetH: .55, gaps: ['n'] });   // 42.26
+    const start = L.building(0, 0, 20, 20, Y0, { parapetH: .95, gaps: ['n'] });   // 42.26
     L.setSpawn(0, start, -6, Math.PI);
     L.hint(0, start + 1, -6, 8, 'המגדל: קפיצות מדויקות, ריצה על קירות ותפיסת קצוות. בהצלחה!');
     L.ac(-6, start, -3, { yaw: .3 });
@@ -4351,10 +4414,12 @@ function buildLevel8() {
     const DY = 24;   // גובה מפלס הגשר
     // --- מפלס הגשר עם פערים ---
     const deck = (z0, z1, y) => {
-        const len = z1 - z0;
-        L.platform(0, y, (z0 + z1) / 2, 13, len, MAT.asphalt, { thick: 1 });
-        L.railing(-6.2, y, (z0 + z1) / 2, len, Math.PI / 2);
-        L.railing(6.2, y, (z0 + z1) / 2, len, Math.PI / 2);
+        const len = z1 - z0, cz = (z0 + z1) / 2;
+        L.platform(0, y, cz, 13, len, MAT.asphalt, { thick: 1 });
+        for (const s of [-1, 1]) {
+            L.box(s * 6.3, y + .55, cz, .35, 1.1, len, MAT.concreteD, { uv: .8 });  // מעקה מוצק
+            L.railing(s * 6.3, y + 1.1, cz, len, Math.PI / 2);
+        }
     };
     deck(-14, 16, DY);
     L.setSpawn(0, DY, -10, Math.PI);
@@ -4426,7 +4491,7 @@ function buildLevel9() {
     cityBackdrop(L, 0, 90, 0, { count: 160, inner: 120, outer: 560, minH: 30, tall: 120, cloudY: 150, clouds: 10 });
 
     const Y = 32;
-    L.building(0, 0, 18, 18, Y, { parapetH: .55, gaps: ['n'] });
+    L.building(0, 0, 18, 18, Y, { parapetH: .95, gaps: ['n'] });
     L.setSpawn(0, Y + .26, -6, Math.PI);
     L.hint(0, Y + 1.3, -6, 8, 'העיר בלילה — נצל קירות ומשטחי שיגור. שרשר תנועות כדי להעלות את ה-FLOW');
     L.neonSign(-8, Y + 4, 2, 3, 5, 0xff3d7f, Math.PI / 2);
@@ -4436,7 +4501,7 @@ function buildLevel9() {
     let e = 9.2, y = Y + .26;
     const roof = (gap, w, d, h, x) => {
         const zc = e + gap + d / 2 + .18;
-        const ry = L.building(x, zc, w, d, h, { parapetH: .5, gaps: ['n', 's'] });
+        const ry = L.building(x, zc, w, d, h, { parapetH: .95, gaps: ['n', 's'] });
         e = zc + d / 2 + .18;
         y = ry;
         return { z: zc, y: ry, x };
@@ -4575,7 +4640,7 @@ function buildLevel11() {
     L.rain(1700, 64, { opacity: .38, streak: 1.1 });
 
     const Y = 28;
-    L.building(0, 0, 18, 18, Y, { parapetH: .5, gaps: ['n'] });
+    L.building(0, 0, 18, 18, Y, { parapetH: .95, gaps: ['n'] });
     L.setSpawn(0, Y + .26, -6, Math.PI);
     L.hint(0, Y + 1.3, -6, 8, 'גשם — הגגות חלקים ובלימה קשה. השתמש ב<b>גלגול נחיתה</b> (<kbd>CTRL</kbd>) כדי לשמור שליטה');
     L.ac(-5, Y + .26, 0, { yaw: .3 });
@@ -4717,7 +4782,7 @@ function buildLevel13() {
     cityBackdrop(L, 0, 140, 0, { count: 210, inner: 140, outer: 760, minH: 40, tall: 170, cloudY: 200, clouds: 26 });
 
     const Y = 60;
-    L.building(0, 0, 20, 20, Y, { parapetH: .55, gaps: ['n'] });
+    L.building(0, 0, 20, 20, Y, { parapetH: .95, gaps: ['n'] });
     L.setSpawn(0, Y + .26, -6, Math.PI);
     L.hint(0, Y + 1.3, -6, 9, 'הפסגה: כל היכולות שלמדת במסלול אחד. בהצלחה!');
     L.ac(-6, Y + .26, -2, { yaw: .3 });
