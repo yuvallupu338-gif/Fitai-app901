@@ -1,1 +1,4083 @@
+<!DOCTYPE html>
+<html lang="he" dir="rtl">
+<head>
+<meta charset="utf-8">
+<meta name="viewport" content="width=device-width,initial-scale=1,maximum-scale=1,user-scalable=no">
+<meta name="theme-color" content="#0a0e14">
+<title>URBAN EDGE — משחק פארקור תלת־ממדי</title>
+<link rel="icon" href="data:image/svg+xml,%3Csvg xmlns='http://www.w3.org/2000/svg' viewBox='0 0 64 64'%3E%3Crect width='64' height='64' rx='12' fill='%230b1017'/%3E%3Cpath d='M8 46h14l6-12h10l6-12h12' stroke='%234dd6ff' stroke-width='6' fill='none' stroke-linecap='round' stroke-linejoin='round'/%3E%3Ccircle cx='46' cy='16' r='5' fill='%23ffb03a'/%3E%3C/svg%3E">
+<style>
+    /* ===================== בסיס ===================== */
+    *{margin:0;padding:0;box-sizing:border-box}
+    html,body{width:100%;height:100%;overflow:hidden;background:#05070b}
+    body{
+        font-family:"Segoe UI",Rubik,Arial,Helvetica,sans-serif;
+        color:#e8eef6;
+        -webkit-font-smoothing:antialiased;
+        user-select:none;
+        cursor:default;
+    }
+    canvas#scene{position:fixed;inset:0;width:100%;height:100%;display:block;z-index:0}
 
+    :root{
+        --acc:#4dd6ff;
+        --acc2:#ffb03a;
+        --good:#5cf29b;
+        --bad:#ff5f6d;
+        --glass:rgba(12,17,24,.82);
+        --line:rgba(120,190,230,.18);
+    }
+
+    .screen{
+        position:fixed;inset:0;z-index:20;
+        display:none;align-items:center;justify-content:center;
+        padding:20px;
+    }
+    .screen.on{display:flex}
+    .fade{animation:fadeIn .35s ease both}
+    @keyframes fadeIn{from{opacity:0;transform:translateY(10px)}to{opacity:1;transform:none}}
+    @keyframes pop{from{opacity:0;transform:scale(.9)}to{opacity:1;transform:scale(1)}}
+
+    /* ===================== רקע תפריטים ===================== */
+    #menu,#pause,#complete,#finish,#loading{
+        background:
+            radial-gradient(1200px 700px at 70% 15%,rgba(77,214,255,.10),transparent 60%),
+            radial-gradient(900px 600px at 20% 85%,rgba(255,176,58,.09),transparent 60%),
+            linear-gradient(160deg,rgba(5,8,12,.96),rgba(8,13,20,.99));
+        backdrop-filter:blur(6px);
+    }
+    #menu::after,#loading::after{
+        content:"";position:absolute;inset:0;pointer-events:none;
+        background:repeating-linear-gradient(0deg,rgba(255,255,255,.03) 0 1px,transparent 1px 3px);
+        opacity:.35;
+    }
+
+    /* ===================== מסך טעינה ===================== */
+    #loading{flex-direction:column;gap:26px;z-index:60}
+    #loading .lgo{font-size:clamp(30px,6vw,64px);font-weight:800;letter-spacing:.18em}
+    #loading .bar{width:min(420px,70vw);height:6px;border-radius:99px;background:rgba(255,255,255,.09);overflow:hidden}
+    #loading .bar i{display:block;height:100%;width:8%;border-radius:99px;background:linear-gradient(90deg,var(--acc),var(--acc2));transition:width .3s ease}
+    #loading .msg{font-size:13px;letter-spacing:.22em;color:#8ea6bd;text-transform:uppercase}
+
+    /* ===================== לוגו ===================== */
+    .logo{
+        text-align:center;line-height:1;
+    }
+    .logo h1{
+        font-size:clamp(38px,8.5vw,92px);
+        font-weight:900;letter-spacing:.06em;
+        background:linear-gradient(100deg,#ffffff 0%,var(--acc) 45%,var(--acc2) 100%);
+        -webkit-background-clip:text;background-clip:text;color:transparent;
+        filter:drop-shadow(0 6px 30px rgba(77,214,255,.28));
+        direction:ltr;
+    }
+    .logo p{margin-top:10px;font-size:clamp(11px,1.6vw,15px);letter-spacing:.42em;color:#8fb6d0;text-transform:uppercase;direction:ltr}
+
+    /* ===================== לוחות ===================== */
+    .panel{
+        width:min(720px,94vw);
+        background:var(--glass);
+        border:1px solid var(--line);
+        border-radius:20px;
+        padding:clamp(18px,3vw,30px);
+        box-shadow:0 30px 90px rgba(0,0,0,.65),inset 0 1px 0 rgba(255,255,255,.06);
+        max-height:88vh;overflow:auto;
+        animation:pop .3s ease both;
+    }
+    .panel::-webkit-scrollbar{width:8px}
+    .panel::-webkit-scrollbar-thumb{background:rgba(120,190,230,.25);border-radius:9px}
+    .wrap{display:flex;flex-direction:column;align-items:center;gap:clamp(16px,3vh,34px);width:100%}
+    .panel h2{font-size:20px;letter-spacing:.06em;margin-bottom:14px;color:#fff;display:flex;align-items:center;gap:10px}
+    .panel h2::before{content:"";width:4px;height:20px;border-radius:3px;background:linear-gradient(var(--acc),var(--acc2))}
+
+    /* ===================== כפתורים ===================== */
+    .btns{display:flex;flex-direction:column;gap:11px;width:min(360px,86vw)}
+    .btn{
+        position:relative;
+        display:flex;align-items:center;justify-content:center;gap:10px;
+        padding:14px 20px;border:1px solid var(--line);border-radius:12px;
+        background:linear-gradient(180deg,rgba(255,255,255,.055),rgba(255,255,255,.015));
+        color:#e9f2fa;font-size:16px;font-weight:600;letter-spacing:.02em;
+        cursor:pointer;transition:transform .12s ease,background .18s ease,border-color .18s ease,box-shadow .18s ease;
+        font-family:inherit;overflow:hidden;
+    }
+    .btn:hover{background:linear-gradient(180deg,rgba(77,214,255,.20),rgba(77,214,255,.06));border-color:rgba(77,214,255,.55);transform:translateY(-2px);box-shadow:0 10px 26px rgba(77,214,255,.18)}
+    .btn:active{transform:translateY(0) scale(.985)}
+    .btn.primary{
+        background:linear-gradient(180deg,rgba(77,214,255,.28),rgba(77,214,255,.10));
+        border-color:rgba(77,214,255,.6);font-size:18px;padding:16px 20px;
+    }
+    .btn.warn:hover{background:linear-gradient(180deg,rgba(255,95,109,.22),rgba(255,95,109,.06));border-color:rgba(255,95,109,.6);box-shadow:0 10px 26px rgba(255,95,109,.15)}
+    .btn.small{padding:9px 14px;font-size:13px;border-radius:9px}
+    .btn.ghost{background:rgba(255,255,255,.03)}
+    .row{display:flex;gap:10px;flex-wrap:wrap;justify-content:center}
+
+    /* ===================== בחירת שלב ===================== */
+    .levels{display:grid;grid-template-columns:repeat(auto-fill,minmax(200px,1fr));gap:12px}
+    .lvl{
+        text-align:right;border:1px solid var(--line);border-radius:14px;padding:14px;
+        background:linear-gradient(160deg,rgba(255,255,255,.05),rgba(255,255,255,.012));
+        cursor:pointer;transition:.18s ease;position:relative;overflow:hidden;font-family:inherit;color:inherit;
+    }
+    .lvl:hover:not(.locked){transform:translateY(-3px);border-color:rgba(77,214,255,.55);box-shadow:0 12px 28px rgba(0,0,0,.4)}
+    .lvl .num{font-size:11px;letter-spacing:.24em;color:var(--acc);text-transform:uppercase}
+    .lvl .nm{font-size:17px;font-weight:700;margin:5px 0 8px}
+    .lvl .mt{font-size:12px;color:#8ea6bd;display:flex;justify-content:space-between;gap:8px}
+    .lvl .diff{display:flex;gap:3px;margin-top:9px}
+    .lvl .diff i{width:16px;height:4px;border-radius:2px;background:rgba(255,255,255,.14)}
+    .lvl .diff i.f{background:linear-gradient(90deg,var(--acc),var(--acc2))}
+    .lvl.locked{opacity:.42;cursor:not-allowed;filter:grayscale(.7)}
+    .lvl.locked::after{content:"🔒";position:absolute;top:12px;left:14px;font-size:19px}
+    .lvl.done::before{content:"✓";position:absolute;top:10px;left:14px;font-size:16px;color:var(--good);font-weight:900}
+
+    /* ===================== הגדרות ===================== */
+    .set{display:flex;align-items:center;justify-content:space-between;gap:14px;padding:11px 4px;border-bottom:1px solid rgba(255,255,255,.06)}
+    .set:last-child{border-bottom:0}
+    .set label{font-size:14px;color:#c9dae9}
+    .set .ctl{display:flex;align-items:center;gap:10px;min-width:210px;justify-content:flex-end}
+    input[type=range]{
+        -webkit-appearance:none;appearance:none;width:150px;height:4px;border-radius:9px;
+        background:rgba(255,255,255,.16);outline:none;cursor:pointer;
+    }
+    input[type=range]::-webkit-slider-thumb{-webkit-appearance:none;width:15px;height:15px;border-radius:50%;background:var(--acc);cursor:pointer;box-shadow:0 0 10px rgba(77,214,255,.6)}
+    input[type=range]::-moz-range-thumb{width:15px;height:15px;border:0;border-radius:50%;background:var(--acc);cursor:pointer}
+    .val{font-size:13px;color:var(--acc);min-width:46px;text-align:left;font-variant-numeric:tabular-nums;direction:ltr}
+    .seg{display:flex;border:1px solid var(--line);border-radius:9px;overflow:hidden}
+    .seg button{padding:7px 13px;background:transparent;border:0;color:#9fb4c7;font-size:13px;cursor:pointer;font-family:inherit;transition:.15s}
+    .seg button.on{background:rgba(77,214,255,.22);color:#fff}
+    .seg button:hover{background:rgba(255,255,255,.07)}
+    .tgl{width:50px;height:26px;border-radius:99px;background:rgba(255,255,255,.14);border:1px solid var(--line);position:relative;cursor:pointer;transition:.2s}
+    .tgl::after{content:"";position:absolute;top:2px;right:2px;width:20px;height:20px;border-radius:50%;background:#8ea6bd;transition:.2s}
+    .tgl.on{background:rgba(77,214,255,.32);border-color:rgba(77,214,255,.6)}
+    .tgl.on::after{right:calc(100% - 22px);background:var(--acc);box-shadow:0 0 10px rgba(77,214,255,.7)}
+
+    /* ===================== הוראות ===================== */
+    .keys{display:grid;grid-template-columns:repeat(auto-fill,minmax(230px,1fr));gap:9px}
+    .k{display:flex;align-items:center;gap:11px;padding:9px 11px;background:rgba(255,255,255,.035);border-radius:9px;border:1px solid rgba(255,255,255,.05)}
+    .k kbd{
+        display:inline-flex;align-items:center;justify-content:center;min-width:38px;padding:5px 9px;
+        background:linear-gradient(180deg,#243040,#141c26);border:1px solid rgba(255,255,255,.14);
+        border-bottom-width:3px;border-radius:7px;font-size:12px;font-weight:700;color:#dff0ff;
+        font-family:Consolas,monospace;direction:ltr;
+    }
+    .k span{font-size:13.5px;color:#c3d5e4}
+    .tips{margin-top:14px;font-size:13px;line-height:1.85;color:#9db4c8}
+    .tips b{color:var(--acc2)}
+
+    /* ===================== HUD ===================== */
+    #hud{position:fixed;inset:0;z-index:10;pointer-events:none;display:none;font-variant-numeric:tabular-nums}
+    #hud.on{display:block}
+    .hud-box{
+        position:absolute;background:rgba(8,12,18,.5);border:1px solid rgba(140,200,235,.14);
+        border-radius:11px;padding:9px 13px;backdrop-filter:blur(7px);
+    }
+    #h-level{top:16px;right:16px;min-width:150px}
+    #h-level .t{font-size:10px;letter-spacing:.24em;color:var(--acc);text-transform:uppercase}
+    #h-level .n{font-size:17px;font-weight:700;margin-top:2px}
+    #h-level .c{font-size:12px;color:#9db4c8;margin-top:3px}
+    #h-time{top:16px;left:50%;transform:translateX(-50%);text-align:center;min-width:150px}
+    #h-time .big{font-size:26px;font-weight:800;letter-spacing:.04em;direction:ltr}
+    #h-time .sm{font-size:11px;color:#93aabf;margin-top:1px;direction:ltr}
+    #h-right{top:16px;left:16px;display:flex;align-items:center;gap:12px}
+    #h-right .st{text-align:center}
+    #h-right .st b{display:block;font-size:17px;font-weight:800}
+    #h-right .st i{font-style:normal;font-size:10px;color:#93aabf;letter-spacing:.1em}
+    #btn-mute{pointer-events:auto;cursor:pointer;background:rgba(255,255,255,.06);border:1px solid var(--line);border-radius:9px;width:38px;height:38px;font-size:17px;color:#dbe9f5;transition:.15s}
+    #btn-mute:hover{background:rgba(77,214,255,.2)}
+
+    #cross{
+        position:absolute;top:50%;left:50%;width:7px;height:7px;margin:-3.5px 0 0 -3.5px;
+        border-radius:50%;background:rgba(255,255,255,.9);box-shadow:0 0 0 1.5px rgba(0,0,0,.5),0 0 9px rgba(255,255,255,.35);
+        transition:transform .12s ease,background .12s;
+    }
+    #cross.act{transform:scale(1.9);background:var(--acc2)}
+
+    #hint{
+        position:absolute;bottom:12%;left:50%;transform:translateX(-50%);
+        max-width:min(620px,88vw);text-align:center;
+        background:rgba(8,12,18,.62);border:1px solid rgba(140,200,235,.18);
+        border-radius:13px;padding:12px 22px;backdrop-filter:blur(8px);
+        font-size:16px;line-height:1.6;opacity:0;transition:opacity .3s ease,transform .3s ease;
+    }
+    #hint.on{opacity:1}
+    #hint kbd{display:inline-block;padding:2px 8px;margin:0 3px;background:#1b2634;border:1px solid rgba(255,255,255,.18);border-bottom-width:2px;border-radius:6px;font-size:13px;font-family:Consolas,monospace;color:var(--acc);direction:ltr}
+
+    #toast{
+        position:absolute;top:22%;left:50%;transform:translateX(-50%);
+        font-size:22px;font-weight:800;letter-spacing:.02em;text-align:center;
+        text-shadow:0 3px 22px rgba(0,0,0,.85);opacity:0;transition:opacity .25s ease;
+        color:var(--acc);
+    }
+    #toast.on{opacity:1;animation:toastPop .4s ease}
+    @keyframes toastPop{0%{transform:translate(-50%,10px) scale(.9)}60%{transform:translate(-50%,0) scale(1.05)}100%{transform:translate(-50%,0) scale(1)}}
+
+    #keys-hud{position:absolute;bottom:14px;right:16px;font-size:11px;color:rgba(190,215,235,.45);line-height:1.7}
+    #keys-hud kbd{font-family:Consolas,monospace;color:rgba(190,225,245,.75);direction:ltr}
+
+    #spd{position:absolute;bottom:14px;left:16px;width:132px}
+    #spd .lb{font-size:10px;letter-spacing:.18em;color:#8fa8bd;margin-bottom:4px}
+    #spd .bar{height:5px;border-radius:9px;background:rgba(255,255,255,.1);overflow:hidden}
+    #spd .bar i{display:block;height:100%;width:0;background:linear-gradient(90deg,var(--acc),var(--acc2));transition:width .1s linear}
+    #state-tag{position:absolute;bottom:36px;left:16px;font-size:12px;font-weight:700;letter-spacing:.16em;color:var(--acc2);opacity:0;transition:opacity .15s}
+    #state-tag.on{opacity:1}
+
+    /* ויניית + הבזקים */
+    #vig{position:fixed;inset:0;z-index:8;pointer-events:none;box-shadow:inset 0 0 200px rgba(0,0,0,.55);display:none}
+    #vig.on{display:block}
+    #flash{position:fixed;inset:0;z-index:9;pointer-events:none;background:#fff;opacity:0;transition:opacity .35s ease}
+
+    /* ===================== מסך נפילה ===================== */
+    #fall{
+        position:fixed;inset:0;z-index:30;display:none;align-items:center;justify-content:center;
+        background:radial-gradient(circle at 50% 50%,rgba(120,0,10,.35),rgba(2,3,5,.92));
+        flex-direction:column;gap:12px;
+    }
+    #fall.on{display:flex;animation:fadeIn .18s ease both}
+    #fall h3{font-size:clamp(30px,6vw,54px);font-weight:900;color:#ff6b78;letter-spacing:.06em;text-shadow:0 6px 34px rgba(255,60,80,.4)}
+    #fall p{font-size:15px;color:#c6d3de}
+
+    /* ===================== סיום שלב ===================== */
+    #complete .panel,#finish .panel{width:min(560px,94vw);text-align:center}
+    .stats{display:grid;grid-template-columns:repeat(3,1fr);gap:10px;margin:20px 0}
+    .stat{background:rgba(255,255,255,.045);border:1px solid rgba(255,255,255,.07);border-radius:12px;padding:13px 8px}
+    .stat b{display:block;font-size:23px;font-weight:800;color:#fff;direction:ltr}
+    .stat i{font-style:normal;font-size:11px;color:#93aabf;letter-spacing:.08em}
+    .rec{color:var(--acc2);font-weight:700;font-size:15px;margin-top:-6px;margin-bottom:8px;min-height:20px}
+
+    /* ===================== נייד ===================== */
+    #mobile{
+        position:fixed;inset:0;z-index:99;display:none;flex-direction:column;align-items:center;justify-content:center;
+        gap:18px;padding:26px;text-align:center;background:linear-gradient(160deg,#080c12,#0d141d);
+    }
+    #mobile.on{display:flex}
+    #mobile .ic{font-size:60px}
+    #mobile h3{font-size:23px}
+    #mobile p{font-size:15px;color:#a9bdcf;line-height:1.8;max-width:440px}
+
+    @media (max-height:620px){
+        .logo h1{font-size:clamp(30px,7vw,54px)}
+        .wrap{gap:14px}
+        .btn{padding:11px 18px;font-size:15px}
+    }
+    @media (max-width:520px){
+        #h-time .big{font-size:20px}
+        #keys-hud{display:none}
+    }
+</style>
+</head>
+<body>
+
+<canvas id="scene"></canvas>
+<div id="vig"></div>
+<div id="flash"></div>
+
+<!-- ===== 1. מסך טעינה ===== -->
+<div id="loading" class="screen on">
+    <div class="lgo logo"><h1>URBAN EDGE</h1></div>
+    <div class="bar"><i id="load-bar"></i></div>
+    <div class="msg" id="load-msg">טוען מנוע…</div>
+</div>
+
+<!-- ===== 2. תפריט ראשי ===== -->
+<div id="menu" class="screen">
+    <div class="wrap">
+        <div class="logo">
+            <h1>URBAN EDGE</h1>
+            <p>PARKOUR &nbsp;•&nbsp; FIRST PERSON &nbsp;•&nbsp; 5 LEVELS</p>
+        </div>
+
+        <div id="pg-main" class="btns">
+            <button class="btn primary" id="b-play">▶ התחל משחק</button>
+            <button class="btn" id="b-levels">בחירת שלב</button>
+            <button class="btn" id="b-help">הוראות</button>
+            <button class="btn" id="b-settings">הגדרות</button>
+            <button class="btn warn small" id="b-reset">איפוס התקדמות</button>
+        </div>
+
+        <div id="pg-levels" class="panel" style="display:none">
+            <h2>בחירת שלב</h2>
+            <div class="levels" id="lvl-grid"></div>
+            <div class="row" style="margin-top:18px"><button class="btn small ghost back">חזרה</button></div>
+        </div>
+
+        <div id="pg-help" class="panel" style="display:none">
+            <h2>שליטה ויכולות</h2>
+            <div class="keys">
+                <div class="k"><kbd>W A S D</kbd><span>תנועה</span></div>
+                <div class="k"><kbd>עכבר</kbd><span>הסתכלות</span></div>
+                <div class="k"><kbd>SPACE</kbd><span>קפיצה / טיפוס מאחיזה</span></div>
+                <div class="k"><kbd>SHIFT</kbd><span>ריצה מהירה</span></div>
+                <div class="k"><kbd>CTRL / C</kbd><span>התכופפות · החלקה בריצה</span></div>
+                <div class="k"><kbd>R</kbd><span>חזרה לצ'קפוינט</span></div>
+                <div class="k"><kbd>ESC</kbd><span>תפריט עצירה</span></div>
+                <div class="k"><kbd>M</kbd><span>השתקת קול</span></div>
+            </div>
+            <div class="tips">
+                <b>החלקה:</b> רוץ ולחץ CTRL כדי להחליק מתחת למכשולים נמוכים.<br>
+                <b>טיפוס:</b> רוץ אל מכשול נמוך — הדמות תעלה או תקפוץ מעליו אוטומטית.<br>
+                <b>תפיסת קצה:</b> קפוץ אל קצה של פלטפורמה — תיתפס אליו אוטומטית, ואז SPACE כדי לעלות (S כדי להרפות).<br>
+                <b>ריצה על קיר:</b> קפוץ לעבר קיר בזמן ריצה והמשך להחזיק W — תרוץ עליו לזמן קצר.<br>
+                <b>קפיצת קיר:</b> לחץ SPACE בזמן ריצה על קיר כדי לזנק ממנו קדימה ולמעלה.
+            </div>
+            <div class="row" style="margin-top:18px"><button class="btn small ghost back">חזרה</button></div>
+        </div>
+
+        <div id="pg-settings" class="panel" style="display:none">
+            <h2>הגדרות</h2>
+            <div class="set"><label>רגישות עכבר</label><div class="ctl"><input type="range" id="s-sens" min="20" max="300" step="5"><span class="val" id="v-sens">100</span></div></div>
+            <div class="set"><label>עוצמת קול</label><div class="ctl"><input type="range" id="s-vol" min="0" max="100" step="1"><span class="val" id="v-vol">70%</span></div></div>
+            <div class="set"><label>שדה ראייה (FOV)</label><div class="ctl"><input type="range" id="s-fov" min="65" max="110" step="1"><span class="val" id="v-fov">80</span></div></div>
+            <div class="set"><label>איכות גרפיקה</label><div class="ctl"><div class="seg" id="s-qual">
+                <button data-q="low">נמוכה</button><button data-q="med">בינונית</button><button data-q="high">גבוהה</button>
+            </div></div></div>
+            <div class="set"><label>צללים</label><div class="ctl"><div class="tgl" id="s-shadow"></div></div></div>
+            <div class="set"><label>תנועת מצלמה (Head Bob)</label><div class="ctl"><div class="tgl" id="s-bob"></div></div></div>
+            <div class="set"><label>מוזיקת רקע</label><div class="ctl"><div class="tgl" id="s-music"></div></div></div>
+            <div class="row" style="margin-top:18px"><button class="btn small ghost back">חזרה</button></div>
+        </div>
+    </div>
+</div>
+
+<!-- ===== 3. HUD ===== -->
+<div id="hud">
+    <div class="hud-box" id="h-level">
+        <div class="t">שלב <span id="hl-num">1</span></div>
+        <div class="n" id="hl-name">אימון</div>
+        <div class="c">צ'קפוינט <span id="hl-cp">0</span>/<span id="hl-cpt">3</span></div>
+    </div>
+    <div class="hud-box" id="h-time">
+        <div class="big" id="ht-cur">00:00.00</div>
+        <div class="sm">שיא: <span id="ht-best">--:--.--</span></div>
+    </div>
+    <div class="hud-box" id="h-right">
+        <button id="btn-mute" title="השתקה (M)">🔊</button>
+        <div class="st"><b id="h-falls">0</b><i>נפילות</i></div>
+    </div>
+    <div id="cross"></div>
+    <div id="hint"></div>
+    <div id="toast"></div>
+    <div id="spd"><div class="lb">מהירות</div><div class="bar"><i id="spd-bar"></i></div></div>
+    <div id="state-tag"></div>
+    <div id="keys-hud">
+        <kbd>WASD</kbd> תנועה · <kbd>SPACE</kbd> קפיצה · <kbd>SHIFT</kbd> ריצה<br>
+        <kbd>CTRL</kbd> החלקה · <kbd>R</kbd> צ'קפוינט · <kbd>ESC</kbd> תפריט
+    </div>
+</div>
+
+<!-- ===== 4. תפריט עצירה ===== -->
+<div id="pause" class="screen">
+    <div class="panel" style="width:min(430px,94vw)">
+        <h2>המשחק מושהה</h2>
+        <div class="btns" style="width:100%">
+            <button class="btn primary" id="b-resume">המשך משחק</button>
+            <button class="btn" id="b-restart">התחל שלב מחדש</button>
+            <button class="btn" id="b-p-settings">הגדרות</button>
+            <button class="btn warn" id="b-quit">יציאה לתפריט הראשי</button>
+        </div>
+        <div class="tips" style="text-align:center">לחיצה על <b>ESC</b> או על "המשך" תחזיר אותך למשחק</div>
+    </div>
+</div>
+
+<!-- ===== 5. מסך נפילה ===== -->
+<div id="fall">
+    <h3>נפלת!</h3>
+    <p>חוזר לצ'קפוינט האחרון…</p>
+</div>
+
+<!-- ===== 6. סיום שלב ===== -->
+<div id="complete" class="screen">
+    <div class="panel">
+        <h2 style="justify-content:center">השלב הושלם! 🏁</h2>
+        <div style="font-size:15px;color:#a9c0d3;margin-top:-6px" id="cm-name">שלב 1 — אימון</div>
+        <div class="rec" id="cm-rec"></div>
+        <div class="stats">
+            <div class="stat"><b id="cm-time">00:00.00</b><i>זמן</i></div>
+            <div class="stat"><b id="cm-best">00:00.00</b><i>שיא</i></div>
+            <div class="stat"><b id="cm-falls">0</b><i>נפילות</i></div>
+        </div>
+        <div class="btns" style="width:100%">
+            <button class="btn primary" id="b-next">▶ לשלב הבא</button>
+            <button class="btn" id="b-retry">שחק שוב</button>
+            <button class="btn ghost" id="b-c-menu">תפריט ראשי</button>
+        </div>
+    </div>
+</div>
+
+<!-- ===== 7. סיום המשחק ===== -->
+<div id="finish" class="screen">
+    <div class="panel">
+        <div class="logo"><h1 style="font-size:clamp(28px,6vw,54px)">FINISHED</h1></div>
+        <h2 style="justify-content:center;margin-top:16px">כל חמשת השלבים הושלמו!</h2>
+        <div style="font-size:15px;color:#a9c0d3;line-height:1.9;margin-top:6px">
+            עברת את העיר, את הגגות, את אתר הבנייה, את המפעל ואת המגדל.<br>נסה לשפר את הזמנים שלך!
+        </div>
+        <div class="stats" style="grid-template-columns:repeat(2,1fr)">
+            <div class="stat"><b id="fn-total">00:00.00</b><i>סך הזמנים הטובים</i></div>
+            <div class="stat"><b id="fn-falls">0</b><i>נפילות בשלב האחרון</i></div>
+        </div>
+        <div class="btns" style="width:100%">
+            <button class="btn primary" id="b-f-menu">חזרה לתפריט</button>
+        </div>
+    </div>
+</div>
+
+<!-- ===== נייד ===== -->
+<div id="mobile">
+    <div class="ic">🖥️</div>
+    <h3>המשחק מיועד למחשב</h3>
+    <p>URBAN EDGE דורש מקלדת ועכבר (Pointer Lock) לשליטה בגוף ראשון.<br>פתח את המשחק במחשב נייח או נייד לחוויה המלאה.</p>
+    <button class="btn small ghost" id="b-mobile-anyway" style="max-width:260px">בכל זאת נסה להמשיך</button>
+</div>
+
+<script type="module">
+/* =========================================================================
+   URBAN EDGE — משחק פארקור תלת־ממדי בגוף ראשון
+   כל המשחק בקובץ אחד. Three.js נטען מ-CDN.
+   ========================================================================= */
+import * as THREE from 'https://cdn.jsdelivr.net/npm/three@0.160.1/build/three.module.js';
+
+/* =========================================================================
+   1. הגדרות קבועות
+   ========================================================================= */
+const CFG = {
+    // פיזיקה
+    GRAVITY:        22.0,
+    JUMP_SPEED:     8.6,
+    WALK_SPEED:     4.6,
+    RUN_SPEED:      9.0,
+    CROUCH_SPEED:   2.5,
+    AIR_SPEED:      9.4,
+    ACCEL_GROUND:   62.0,
+    ACCEL_AIR:      16.0,
+    FRICTION:       11.0,
+    AIR_DRAG:       0.35,
+    MAX_FALL:       -46.0,
+
+    // גוף השחקן
+    RADIUS:         0.36,
+    HEIGHT:         1.80,
+    CROUCH_HEIGHT:  1.05,
+    EYE:            1.62,
+    EYE_CROUCH:     0.88,
+    STEP_HEIGHT:    0.62,
+
+    // פארקור
+    COYOTE:         0.13,
+    JUMP_BUFFER:    0.16,
+    SLIDE_TIME:     0.95,
+    SLIDE_BOOST:    3.6,
+    SLIDE_MIN_SPD:  5.2,
+    VAULT_TIME:     0.36,
+    VAULT_MAX_H:    1.45,
+    MANTLE_TIME:    0.46,
+    GRAB_REACH:     0.75,
+    WALLRUN_TIME:   1.35,
+    WALLRUN_GRAV:   0.16,
+    WALLRUN_MINSPD: 4.6,
+    WALLJUMP_OUT:   6.4,
+    WALLJUMP_UP:    8.2,
+    LAND_SOFT:      9.0,
+    LAND_HARD:      17.0,
+
+    // מצלמה
+    FOV_SPRINT:     9.0,
+    FOV_SLIDE:      13.0,
+    BOB_FREQ:       10.5,
+    BOB_AMP:        0.055,
+
+};
+
+const QUALITY = {
+    low:  { shadow: 0,    pr: 1.0, fogFar: 190, aa: false, shadowSize: 1024 },
+    med:  { shadow: 2048, pr: 1.5, fogFar: 300, aa: true,  shadowSize: 2048 },
+    high: { shadow: 4096, pr: 2.0, fogFar: 430, aa: true,  shadowSize: 4096 },
+};
+
+const SAVE_KEY = 'urban_edge_save_v1';
+
+const DEFAULT_SAVE = {
+    unlocked: 1,
+    best: [null, null, null, null, null],
+    settings: {
+        sens: 100, vol: 70, fov: 80, quality: 'high',
+        shadows: true, bob: true, music: true, muted: false,
+    },
+};
+
+/* =========================================================================
+   2. שמירת התקדמות (LocalStorage)
+   ========================================================================= */
+const Save = {
+    data: JSON.parse(JSON.stringify(DEFAULT_SAVE)),
+    load() {
+        try {
+            const raw = localStorage.getItem(SAVE_KEY);
+            if (raw) {
+                const p = JSON.parse(raw);
+                if (p && typeof p === 'object') {
+                    this.data.unlocked = Math.min(5, Math.max(1, p.unlocked | 0 || 1));
+                    if (Array.isArray(p.best)) {
+                        for (let i = 0; i < 5; i++) {
+                            const v = p.best[i];
+                            this.data.best[i] = (typeof v === 'number' && isFinite(v) && v > 0) ? v : null;
+                        }
+                    }
+                    if (p.settings && typeof p.settings === 'object') {
+                        Object.assign(this.data.settings, p.settings);
+                    }
+                }
+            }
+        } catch (e) {
+            console.warn('לא ניתן לקרוא שמירה מקומית:', e.message);
+        }
+        return this.data;
+    },
+    save() {
+        try { localStorage.setItem(SAVE_KEY, JSON.stringify(this.data)); }
+        catch (e) { console.warn('לא ניתן לשמור התקדמות:', e.message); }
+    },
+    reset() {
+        this.data = JSON.parse(JSON.stringify(DEFAULT_SAVE));
+        this.save();
+    },
+    /* סיום שלב במיקום levelIndex פותח את השלב הבא אחריו */
+    unlock(levelIndex) {
+        const next = Math.min(5, levelIndex + 2);
+        if (next > this.data.unlocked) {
+            this.data.unlocked = next;
+            this.save();
+        }
+    },
+    recordTime(levelIndex, seconds) {
+        const cur = this.data.best[levelIndex];
+        if (cur === null || seconds < cur) {
+            this.data.best[levelIndex] = seconds;
+            this.save();
+            return true;
+        }
+        return false;
+    },
+};
+
+/* =========================================================================
+   3. כלי עזר
+   ========================================================================= */
+const clamp = (v, a, b) => v < a ? a : (v > b ? b : v);
+const lerp = (a, b, t) => a + (b - a) * t;
+const damp = (a, b, lambda, dt) => lerp(a, b, 1 - Math.exp(-lambda * dt));
+const rand = (a, b) => a + Math.random() * (b - a);
+
+function fmtTime(sec) {
+    if (sec === null || sec === undefined || !isFinite(sec)) return '--:--.--';
+    const m = Math.floor(sec / 60);
+    const s = Math.floor(sec % 60);
+    const c = Math.floor((sec * 100) % 100);
+    return `${String(m).padStart(2, '0')}:${String(s).padStart(2, '0')}.${String(c).padStart(2, '0')}`;
+}
+
+/* גנרטור רעש דטרמיניסטי לטקסטורות */
+function mulberry32(seed) {
+    let a = seed >>> 0;
+    return function () {
+        a |= 0; a = (a + 0x6D2B79F5) | 0;
+        let t = Math.imul(a ^ (a >>> 15), 1 | a);
+        t = (t + Math.imul(t ^ (t >>> 7), 61 | t)) ^ t;
+        return ((t ^ (t >>> 14)) >>> 0) / 4294967296;
+    };
+}
+
+/* =========================================================================
+   4. טקסטורות פרוצדורליות (Canvas — ללא קבצים חיצוניים)
+   ========================================================================= */
+const TexLib = {
+    cache: new Map(),
+    _canvas(size) {
+        const c = document.createElement('canvas');
+        c.width = c.height = size;
+        return c;
+    },
+    _finish(canvas, repeat, aniso) {
+        const t = new THREE.CanvasTexture(canvas);
+        t.wrapS = t.wrapT = THREE.RepeatWrapping;
+        t.repeat.set(repeat, repeat);
+        t.colorSpace = THREE.SRGBColorSpace;
+        t.anisotropy = aniso || 4;
+        t.needsUpdate = true;
+        return t;
+    },
+    get(name, aniso) {
+        if (this.cache.has(name)) return this.cache.get(name);
+        const t = this['make_' + name](aniso);
+        this.cache.set(name, t);
+        return t;
+    },
+
+    make_concrete(aniso) {
+        const S = 256, c = this._canvas(S), x = c.getContext('2d'), rng = mulberry32(11);
+        x.fillStyle = '#8d8f92'; x.fillRect(0, 0, S, S);
+        const img = x.getImageData(0, 0, S, S), d = img.data;
+        for (let i = 0; i < d.length; i += 4) {
+            const n = (rng() - 0.5) * 46;
+            d[i] += n; d[i + 1] += n; d[i + 2] += n;
+        }
+        x.putImageData(img, 0, 0);
+        for (let i = 0; i < 90; i++) {
+            x.globalAlpha = rng() * 0.09;
+            x.fillStyle = rng() > .5 ? '#ffffff' : '#4a4d51';
+            const r = rng() * 26 + 5;
+            x.beginPath(); x.arc(rng() * S, rng() * S, r, 0, 6.3); x.fill();
+        }
+        x.globalAlpha = .22; x.strokeStyle = '#5c5f63'; x.lineWidth = 1.4;
+        for (let i = 0; i < 12; i++) {
+            x.beginPath();
+            let px = rng() * S, py = rng() * S;
+            x.moveTo(px, py);
+            for (let k = 0; k < 5; k++) { px += rng() * 40 - 20; py += rng() * 40 - 20; x.lineTo(px, py); }
+            x.stroke();
+        }
+        x.globalAlpha = 1;
+        return this._finish(c, 1, aniso);
+    },
+
+    make_asphalt(aniso) {
+        const S = 256, c = this._canvas(S), x = c.getContext('2d'), rng = mulberry32(29);
+        x.fillStyle = '#55595f'; x.fillRect(0, 0, S, S);
+        for (let i = 0; i < 5200; i++) {
+            const g = 62 + rng() * 74;
+            x.fillStyle = `rgba(${g},${g + 2},${g + 6},${rng() * .6})`;
+            x.fillRect(rng() * S, rng() * S, 1 + rng() * 2.4, 1 + rng() * 2.4);
+        }
+        return this._finish(c, 1, aniso);
+    },
+
+    make_brick(aniso) {
+        const S = 256, c = this._canvas(S), x = c.getContext('2d'), rng = mulberry32(7);
+        x.fillStyle = '#6d6660'; x.fillRect(0, 0, S, S);
+        const bh = 26, bw = 62;
+        for (let row = 0, y = 0; y < S; y += bh, row++) {
+            const off = (row % 2) * (bw / 2);
+            for (let bx = -bw; bx < S + bw; bx += bw) {
+                const r = 118 + rng() * 44, g = 62 + rng() * 26, b = 48 + rng() * 20;
+                x.fillStyle = `rgb(${r | 0},${g | 0},${b | 0})`;
+                x.fillRect(bx + off + 2, y + 2, bw - 4, bh - 4);
+                x.fillStyle = `rgba(0,0,0,${rng() * .18})`;
+                x.fillRect(bx + off + 2, y + bh - 7, bw - 4, 5);
+            }
+        }
+        return this._finish(c, 1, aniso);
+    },
+
+    make_metal(aniso) {
+        const S = 256, c = this._canvas(S), x = c.getContext('2d'), rng = mulberry32(41);
+        const g = x.createLinearGradient(0, 0, 0, S);
+        g.addColorStop(0, '#9aa2ab'); g.addColorStop(.5, '#7d858e'); g.addColorStop(1, '#99a1aa');
+        x.fillStyle = g; x.fillRect(0, 0, S, S);
+        for (let i = 0; i < 220; i++) {
+            x.strokeStyle = `rgba(255,255,255,${rng() * .08})`;
+            x.lineWidth = rng() * 1.6;
+            x.beginPath(); const y = rng() * S; x.moveTo(0, y); x.lineTo(S, y + rng() * 4 - 2); x.stroke();
+        }
+        x.fillStyle = 'rgba(30,34,40,.55)';
+        for (let i = 0; i < 4; i++) { x.fillRect(0, i * 64, S, 2); x.fillRect(i * 64, 0, 2, S); }
+        for (let i = 0; i < 40; i++) {
+            x.fillStyle = 'rgba(58,64,72,.75)';
+            x.beginPath(); x.arc(8 + Math.floor(rng() * 4) * 64, 8 + Math.floor(rng() * 4) * 64, 3, 0, 6.3); x.fill();
+        }
+        return this._finish(c, 1, aniso);
+    },
+
+    make_rust(aniso) {
+        const S = 256, c = this._canvas(S), x = c.getContext('2d'), rng = mulberry32(53);
+        x.fillStyle = '#7b6555'; x.fillRect(0, 0, S, S);
+        for (let i = 0; i < 260; i++) {
+            const r = rng() * 34 + 4;
+            x.fillStyle = `rgba(${120 + rng() * 60 | 0},${60 + rng() * 40 | 0},${28 + rng() * 26 | 0},${rng() * .5})`;
+            x.beginPath(); x.arc(rng() * S, rng() * S, r, 0, 6.3); x.fill();
+        }
+        for (let i = 0; i < 1800; i++) {
+            x.fillStyle = `rgba(${40 + rng() * 40 | 0},${30 + rng() * 24 | 0},${24 + rng() * 20 | 0},${rng() * .4})`;
+            x.fillRect(rng() * S, rng() * S, 2, 2);
+        }
+        return this._finish(c, 1, aniso);
+    },
+
+    make_wood(aniso) {
+        const S = 256, c = this._canvas(S), x = c.getContext('2d'), rng = mulberry32(67);
+        x.fillStyle = '#a8825a'; x.fillRect(0, 0, S, S);
+        for (let p = 0; p < 4; p++) {
+            const y = p * 64;
+            x.fillStyle = `rgb(${150 + rng() * 40 | 0},${112 + rng() * 30 | 0},${68 + rng() * 24 | 0})`;
+            x.fillRect(0, y + 2, S, 60);
+            for (let i = 0; i < 46; i++) {
+                x.strokeStyle = `rgba(${80 + rng() * 40 | 0},${56 + rng() * 26 | 0},${30 + rng() * 20 | 0},${rng() * .35})`;
+                x.lineWidth = rng() * 1.8;
+                x.beginPath();
+                const yy = y + 4 + rng() * 56;
+                x.moveTo(0, yy);
+                x.bezierCurveTo(S * .3, yy + rng() * 6 - 3, S * .6, yy + rng() * 6 - 3, S, yy + rng() * 5 - 2.5);
+                x.stroke();
+            }
+            x.fillStyle = 'rgba(40,26,14,.5)'; x.fillRect(0, y, S, 2);
+        }
+        return this._finish(c, 1, aniso);
+    },
+
+    make_window(aniso) {
+        const S = 256, c = this._canvas(S), x = c.getContext('2d'), rng = mulberry32(83);
+        x.fillStyle = '#3d4f61'; x.fillRect(0, 0, S, S);
+        const cw = 32, ch = 42;
+        for (let y = 0; y < S; y += ch) {
+            for (let bx = 0; bx < S; bx += cw) {
+                const lit = rng();
+                let col;
+                if (lit > .86) col = `rgba(${240},${222},${168},.92)`;
+                else if (lit > .7) col = `rgba(${120},${160},${180},.55)`;
+                else col = `rgba(${28 + rng() * 26 | 0},${44 + rng() * 30 | 0},${60 + rng() * 34 | 0},.95)`;
+                x.fillStyle = col;
+                x.fillRect(bx + 3, y + 4, cw - 6, ch - 9);
+                x.fillStyle = 'rgba(255,255,255,.07)';
+                x.fillRect(bx + 3, y + 4, cw - 6, 5);
+            }
+        }
+        x.strokeStyle = 'rgba(16,22,30,.9)'; x.lineWidth = 3;
+        for (let y = 0; y <= S; y += ch) { x.beginPath(); x.moveTo(0, y); x.lineTo(S, y); x.stroke(); }
+        for (let bx = 0; bx <= S; bx += cw) { x.beginPath(); x.moveTo(bx, 0); x.lineTo(bx, S); x.stroke(); }
+        return this._finish(c, 1, aniso);
+    },
+
+    make_stripe(aniso) {
+        const S = 128, c = this._canvas(S), x = c.getContext('2d'), rng = mulberry32(97);
+        x.fillStyle = '#e9b21c'; x.fillRect(0, 0, S, S);
+        x.fillStyle = '#181818';
+        x.save(); x.translate(-S, 0); x.rotate(-0.5);
+        for (let i = 0; i < 22; i++) x.fillRect(i * 26, -S, 13, S * 3);
+        x.restore();
+        for (let i = 0; i < 900; i++) {
+            x.fillStyle = `rgba(${rng() > .5 ? 255 : 0},${rng() > .5 ? 255 : 0},${rng() > .5 ? 255 : 0},${rng() * .12})`;
+            x.fillRect(rng() * S, rng() * S, 2, 2);
+        }
+        return this._finish(c, 1, aniso);
+    },
+
+    make_grate(aniso) {
+        const S = 128, c = this._canvas(S), x = c.getContext('2d');
+        x.fillStyle = '#767d86'; x.fillRect(0, 0, S, S);
+        x.fillStyle = '#3c424a';
+        for (let i = 0; i < S; i += 16) { x.fillRect(i, 0, 9, S); }
+        for (let i = 0; i < S; i += 32) { x.fillRect(0, i, S, 5); }
+        x.fillStyle = 'rgba(255,255,255,.10)';
+        for (let i = 0; i < S; i += 16) x.fillRect(i + 9, 0, 2, S);
+        return this._finish(c, 1, aniso);
+    },
+
+    make_roof(aniso) {
+        const S = 256, c = this._canvas(S), x = c.getContext('2d'), rng = mulberry32(103);
+        x.fillStyle = '#71757b'; x.fillRect(0, 0, S, S);
+        for (let i = 0; i < 6500; i++) {
+            const g = 72 + rng() * 62;
+            x.fillStyle = `rgba(${g},${g - 2},${g - 6},${rng() * .55})`;
+            x.fillRect(rng() * S, rng() * S, 1.5 + rng() * 2, 1.5 + rng() * 2);
+        }
+        x.strokeStyle = 'rgba(30,32,36,.35)'; x.lineWidth = 3;
+        for (let i = 0; i <= S; i += 64) { x.beginPath(); x.moveTo(0, i); x.lineTo(S, i); x.stroke(); }
+        return this._finish(c, 1, aniso);
+    },
+
+    make_rubber(aniso) {
+        const S = 128, c = this._canvas(S), x = c.getContext('2d');
+        x.fillStyle = '#3a4046'; x.fillRect(0, 0, S, S);
+        x.fillStyle = '#2b3036';
+        for (let i = 0; i < S; i += 12) x.fillRect(0, i, S, 6);
+        x.fillStyle = 'rgba(255,255,255,.05)';
+        for (let i = 0; i < S; i += 12) x.fillRect(0, i + 6, S, 1.5);
+        return this._finish(c, 1, aniso);
+    },
+};
+
+/* טקסטורת זוהר עגולה (לסימוני צ'קפוינט וסיום) */
+function makeGlowTexture() {
+    const S = 128, c = document.createElement('canvas');
+    c.width = c.height = S;
+    const x = c.getContext('2d');
+    const g = x.createRadialGradient(S / 2, S / 2, 0, S / 2, S / 2, S / 2);
+    g.addColorStop(0, 'rgba(255,255,255,1)');
+    g.addColorStop(.25, 'rgba(255,255,255,.55)');
+    g.addColorStop(.6, 'rgba(255,255,255,.14)');
+    g.addColorStop(1, 'rgba(255,255,255,0)');
+    x.fillStyle = g; x.fillRect(0, 0, S, S);
+    const t = new THREE.CanvasTexture(c);
+    t.colorSpace = THREE.SRGBColorSpace;
+    return t;
+}
+
+/* טקסטורת ענן רכה */
+function makeCloudTexture() {
+    const S = 256, c = document.createElement('canvas');
+    c.width = c.height = S;
+    const x = c.getContext('2d'), rng = mulberry32(211);
+    x.clearRect(0, 0, S, S);
+    for (let i = 0; i < 46; i++) {
+        const cx = S * .5 + (rng() - .5) * S * .68;
+        const cy = S * .5 + (rng() - .5) * S * .34;
+        const r = 16 + rng() * 46;
+        const g = x.createRadialGradient(cx, cy, 0, cx, cy, r);
+        g.addColorStop(0, 'rgba(255,255,255,.30)');
+        g.addColorStop(1, 'rgba(255,255,255,0)');
+        x.fillStyle = g;
+        x.beginPath(); x.arc(cx, cy, r, 0, 6.3); x.fill();
+    }
+    const t = new THREE.CanvasTexture(c);
+    t.colorSpace = THREE.SRGBColorSpace;
+    return t;
+}
+
+/* =========================================================================
+   5. סאונד — Web Audio API בלבד (ללא קבצים)
+   ========================================================================= */
+class AudioManager {
+    constructor() {
+        this.ctx = null;
+        this.ready = false;
+        this.muted = false;
+        this.volume = 0.7;
+        this.musicOn = true;
+        this.noiseBuf = null;
+        this.nextChordTime = 0;
+        this.chordIndex = 0;
+        this.progression = [
+            [110.00, 164.81, 220.00, 329.63],   // A minor
+            [ 98.00, 146.83, 196.00, 293.66],   // G
+            [ 87.31, 130.81, 174.61, 261.63],   // F
+            [ 82.41, 123.47, 164.81, 246.94],   // E
+        ];
+        this.stepToggle = 0;
+    }
+
+    init() {
+        if (this.ready) return;
+        const AC = window.AudioContext || window.webkitAudioContext;
+        if (!AC) { console.warn('Web Audio API אינו נתמך בדפדפן זה'); return; }
+        this.ctx = new AC();
+        this.master = this.ctx.createGain();
+        this.master.gain.value = this.muted ? 0 : this.volume;
+        this.comp = this.ctx.createDynamicsCompressor();
+        this.comp.threshold.value = -14;
+        this.comp.ratio.value = 8;
+        this.comp.connect(this.ctx.destination);
+        this.master.connect(this.comp);
+
+        this.sfxGain = this.ctx.createGain(); this.sfxGain.gain.value = 1.0; this.sfxGain.connect(this.master);
+        this.musicGain = this.ctx.createGain(); this.musicGain.gain.value = 0.0; this.musicGain.connect(this.master);
+
+        // רברב פשוט מרעש דועך — נותן עומק לצלילים
+        this.reverb = this.ctx.createConvolver();
+        this.reverb.buffer = this._makeImpulse(1.7, 2.6);
+        this.revGain = this.ctx.createGain(); this.revGain.gain.value = 0.30;
+        this.reverb.connect(this.revGain); this.revGain.connect(this.master);
+
+        // מאגר רעש לבן לשימוש חוזר
+        const len = this.ctx.sampleRate * 2;
+        const buf = this.ctx.createBuffer(1, len, this.ctx.sampleRate);
+        const d = buf.getChannelData(0);
+        for (let i = 0; i < len; i++) d[i] = Math.random() * 2 - 1;
+        this.noiseBuf = buf;
+
+        this.ready = true;
+        this.nextChordTime = this.ctx.currentTime + 0.2;
+    }
+
+    _makeImpulse(seconds, decay) {
+        const rate = this.ctx.sampleRate;
+        const len = Math.floor(rate * seconds);
+        const imp = this.ctx.createBuffer(2, len, rate);
+        for (let ch = 0; ch < 2; ch++) {
+            const d = imp.getChannelData(ch);
+            for (let i = 0; i < len; i++) {
+                d[i] = (Math.random() * 2 - 1) * Math.pow(1 - i / len, decay);
+            }
+        }
+        return imp;
+    }
+
+    resume() { if (this.ctx && this.ctx.state === 'suspended') this.ctx.resume(); }
+
+    setVolume(v) {
+        this.volume = clamp(v, 0, 1);
+        if (this.master) this.master.gain.setTargetAtTime(this.muted ? 0 : this.volume, this.ctx.currentTime, 0.05);
+    }
+    setMuted(m) {
+        this.muted = m;
+        if (this.master) this.master.gain.setTargetAtTime(m ? 0 : this.volume, this.ctx.currentTime, 0.05);
+    }
+    setMusic(on) {
+        this.musicOn = on;
+        if (this.musicGain) this.musicGain.gain.setTargetAtTime(on ? 0.22 : 0.0, this.ctx.currentTime, 0.6);
+    }
+
+    _noise(dur, filterType, freq, q, gain, sendRev) {
+        if (!this.ready) return null;
+        const t = this.ctx.currentTime;
+        const src = this.ctx.createBufferSource();
+        src.buffer = this.noiseBuf;
+        src.loop = true;
+        const f = this.ctx.createBiquadFilter();
+        f.type = filterType; f.frequency.value = freq; f.Q.value = q;
+        const g = this.ctx.createGain();
+        g.gain.setValueAtTime(0.0001, t);
+        g.gain.exponentialRampToValueAtTime(gain, t + 0.008);
+        g.gain.exponentialRampToValueAtTime(0.0001, t + dur);
+        src.connect(f); f.connect(g); g.connect(this.sfxGain);
+        if (sendRev) g.connect(this.reverb);
+        src.start(t); src.stop(t + dur + 0.05);
+        return { src, f, g, t };
+    }
+
+    _tone(freq, dur, type, gain, sweepTo, sendRev) {
+        if (!this.ready) return null;
+        const t = this.ctx.currentTime;
+        const o = this.ctx.createOscillator();
+        o.type = type || 'sine';
+        o.frequency.setValueAtTime(freq, t);
+        if (sweepTo) o.frequency.exponentialRampToValueAtTime(Math.max(20, sweepTo), t + dur);
+        const g = this.ctx.createGain();
+        g.gain.setValueAtTime(0.0001, t);
+        g.gain.exponentialRampToValueAtTime(gain, t + 0.012);
+        g.gain.exponentialRampToValueAtTime(0.0001, t + dur);
+        o.connect(g); g.connect(this.sfxGain);
+        if (sendRev) g.connect(this.reverb);
+        o.start(t); o.stop(t + dur + 0.05);
+        return o;
+    }
+
+    footstep(running) {
+        if (!this.ready) return;
+        this.stepToggle ^= 1;
+        const base = running ? 720 : 520;
+        this._noise(running ? 0.13 : 0.17, 'bandpass', base + (this.stepToggle ? 90 : -70) + rand(-40, 40),
+            1.3, running ? 0.20 : 0.11, false);
+        this._tone(running ? 86 : 66, 0.09, 'sine', running ? 0.10 : 0.055, null, false);
+    }
+    jump() {
+        this._tone(240, 0.20, 'triangle', 0.16, 460, false);
+        this._noise(0.10, 'highpass', 900, 0.7, 0.07, false);
+    }
+    land(strength) {
+        const s = clamp(strength, 0, 1);
+        this._tone(90 - s * 26, 0.26 + s * 0.14, 'sine', 0.16 + s * 0.24, 42, true);
+        this._noise(0.16 + s * 0.1, 'lowpass', 460 + s * 500, 0.9, 0.14 + s * 0.2, s > .5);
+    }
+    slide() {
+        this._noise(0.75, 'bandpass', 1250, 0.9, 0.16, true);
+        this._tone(150, 0.5, 'sawtooth', 0.05, 90, false);
+    }
+    wall() {
+        this._noise(0.36, 'bandpass', 2000, 1.6, 0.11, false);
+    }
+    grab() {
+        this._noise(0.14, 'bandpass', 380, 1.1, 0.19, false);
+        this._tone(120, 0.14, 'square', 0.06, 80, false);
+    }
+    checkpoint() {
+        if (!this.ready) return;
+        const notes = [523.25, 659.25, 783.99, 1046.5];
+        notes.forEach((n, i) => setTimeout(() => this._tone(n, 0.5, 'triangle', 0.15, null, true), i * 82));
+    }
+    fall() {
+        this._tone(330, 0.75, 'sawtooth', 0.13, 55, true);
+        this._noise(0.55, 'lowpass', 700, 0.7, 0.10, true);
+    }
+    levelComplete() {
+        if (!this.ready) return;
+        const notes = [523.25, 659.25, 783.99, 1046.5, 1318.5];
+        notes.forEach((n, i) => setTimeout(() => {
+            this._tone(n, 0.75, 'triangle', 0.17, null, true);
+            this._tone(n / 2, 0.9, 'sine', 0.10, null, true);
+        }, i * 115));
+    }
+    click() { this._tone(880, 0.055, 'square', 0.055, 1180, false); }
+    hover() { this._tone(1400, 0.03, 'sine', 0.02, null, false); }
+
+    /* מוזיקת רקע — פדים איטיים שנוצרים בזמן אמת */
+    updateMusic() {
+        if (!this.ready || !this.musicOn || this.muted) return;
+        const now = this.ctx.currentTime;
+        if (now < this.nextChordTime) return;
+        const chord = this.progression[this.chordIndex % this.progression.length];
+        this.chordIndex++;
+        const dur = 7.0;
+        const t0 = this.nextChordTime;
+        for (let i = 0; i < chord.length; i++) {
+            const f = chord[i];
+            for (let d = 0; d < 2; d++) {
+                const o = this.ctx.createOscillator();
+                o.type = i === 0 ? 'sine' : 'triangle';
+                o.frequency.value = f * (d === 0 ? 1 : 1.0035);
+                const g = this.ctx.createGain();
+                g.gain.setValueAtTime(0.0001, t0);
+                g.gain.linearRampToValueAtTime((i === 0 ? 0.16 : 0.075) / (d + 1), t0 + 2.2);
+                g.gain.linearRampToValueAtTime(0.0001, t0 + dur);
+                const flt = this.ctx.createBiquadFilter();
+                flt.type = 'lowpass'; flt.frequency.value = 900 + i * 220; flt.Q.value = 0.6;
+                o.connect(flt); flt.connect(g); g.connect(this.musicGain);
+                o.start(t0); o.stop(t0 + dur + 0.1);
+            }
+        }
+        this.nextChordTime = t0 + dur * 0.82;
+    }
+}
+
+/* =========================================================================
+   6. קלט — מקלדת + Pointer Lock
+   ========================================================================= */
+class Input {
+    constructor(canvas) {
+        this.canvas = canvas;
+        this.keys = Object.create(null);
+        this.pressed = Object.create(null);
+        this.mouseDX = 0;
+        this.mouseDY = 0;
+        this.sensitivity = 1.0;
+        this.locked = false;
+        this.enabled = false;
+        this.onEscape = null;
+        this.onLockChange = null;
+        this.onLockError = null;
+
+        this._kd = (e) => {
+            if (e.repeat) return;
+            const c = e.code;
+            if (['Space', 'ArrowUp', 'ArrowDown', 'ArrowLeft', 'ArrowRight', 'Tab'].includes(c)) e.preventDefault();
+            this.keys[c] = true;
+            this.pressed[c] = true;
+            if (c === 'Escape' && this.onEscape) this.onEscape();
+        };
+        this._ku = (e) => { this.keys[e.code] = false; };
+        this._mm = (e) => {
+            if (!this.locked) return;
+            const s = this.sensitivity * 0.0022;
+            this.mouseDX += (e.movementX || 0) * s;
+            this.mouseDY += (e.movementY || 0) * s;
+        };
+        this._blur = () => { this.keys = Object.create(null); };
+        this._plc = () => {
+            this.locked = (document.pointerLockElement === this.canvas);
+            if (this.onLockChange) this.onLockChange(this.locked);
+        };
+
+        window.addEventListener('keydown', this._kd);
+        window.addEventListener('keyup', this._ku);
+        window.addEventListener('blur', this._blur);
+        document.addEventListener('mousemove', this._mm);
+        document.addEventListener('pointerlockchange', this._plc);
+        document.addEventListener('pointerlockerror', () => {
+            if (this.onLockError) this.onLockError();
+        });
+    }
+    requestLock() {
+        const p = this.canvas.requestPointerLock({ unadjustedMovement: true });
+        if (p && typeof p.catch === 'function') p.catch(() => this.canvas.requestPointerLock());
+    }
+    exitLock() { if (document.pointerLockElement) document.exitPointerLock(); }
+    down(code) { return !!this.keys[code]; }
+    tap(code) { if (this.pressed[code]) { this.pressed[code] = false; return true; } return false; }
+    consume() { this.mouseDX = 0; this.mouseDY = 0; }
+    clearPressed() { this.pressed = Object.create(null); }
+    // צירי תנועה
+    get moveF() { return (this.down('KeyW') || this.down('ArrowUp') ? 1 : 0) - (this.down('KeyS') || this.down('ArrowDown') ? 1 : 0); }
+    get moveR() { return (this.down('KeyD') || this.down('ArrowRight') ? 1 : 0) - (this.down('KeyA') || this.down('ArrowLeft') ? 1 : 0); }
+    get sprint() { return this.down('ShiftLeft') || this.down('ShiftRight'); }
+    get crouch() { return this.down('ControlLeft') || this.down('ControlRight') || this.down('KeyC'); }
+}
+
+/* =========================================================================
+   7. חומרים משותפים (שימוש חוזר — ביצועים)
+   ========================================================================= */
+const MAT = {};
+function buildMaterials(aniso) {
+    const std = (tex, opts) => new THREE.MeshStandardMaterial(Object.assign({
+        map: tex, roughness: .92, metalness: .02,
+    }, opts || {}));
+
+    MAT.concrete   = std(TexLib.get('concrete', aniso), { color: 0xd6d9dd, roughness: .93 });
+    MAT.concreteD  = std(TexLib.get('concrete', aniso), { color: 0x9ba0a6, roughness: .95 });
+    MAT.asphalt    = std(TexLib.get('asphalt', aniso),  { color: 0xb4b8bd, roughness: .99 });
+    MAT.brick      = std(TexLib.get('brick', aniso),    { color: 0xdccec0, roughness: .94 });
+    MAT.metal      = std(TexLib.get('metal', aniso),    { color: 0xd8dee6, roughness: .38, metalness: .55 });
+    MAT.metalDark  = std(TexLib.get('metal', aniso),    { color: 0x8d949c, roughness: .48, metalness: .5 });
+    MAT.rust       = std(TexLib.get('rust', aniso),     { color: 0xd8bb9c, roughness: .85, metalness: .18 });
+    MAT.wood       = std(TexLib.get('wood', aniso),     { color: 0xe6d0a8, roughness: .88 });
+    MAT.window     = std(TexLib.get('window', aniso),   { color: 0xc4d2e0, roughness: .14, metalness: .45 });
+    MAT.stripe     = std(TexLib.get('stripe', aniso),   { color: 0xffffff, roughness: .66 });
+    MAT.grate      = std(TexLib.get('grate', aniso),    { color: 0xc6ccd4, roughness: .5,  metalness: .45 });
+    MAT.roof       = std(TexLib.get('roof', aniso),     { color: 0xcfd3d8, roughness: .97 });
+    MAT.rubber     = std(TexLib.get('rubber', aniso),   { color: 0xdfe3e7, roughness: .93 });
+    MAT.crane      = std(TexLib.get('metal', aniso),    { color: 0xffca3a, roughness: .52, metalness: .38 });
+    MAT.red        = std(TexLib.get('metal', aniso),    { color: 0xe0604c, roughness: .58, metalness: .25 });
+    MAT.blue       = std(TexLib.get('metal', aniso),    { color: 0x5f8fc8, roughness: .58, metalness: .25 });
+    MAT.green      = std(TexLib.get('metal', aniso),    { color: 0x62b07a, roughness: .58, metalness: .25 });
+    MAT.plainDark  = new THREE.MeshStandardMaterial({ color: 0x3a4048, roughness: .9 });
+
+    MAT.cpOff      = new THREE.MeshStandardMaterial({ color: 0x2f4a58, emissive: 0x0d3d55, emissiveIntensity: .8, roughness: .35, metalness: .4 });
+    MAT.cpOn       = new THREE.MeshStandardMaterial({ color: 0x2bd6a0, emissive: 0x18ffb0, emissiveIntensity: 1.9, roughness: .3, metalness: .3 });
+    MAT.goal       = new THREE.MeshStandardMaterial({ color: 0xffd27a, emissive: 0xffb03a, emissiveIntensity: 2.1, roughness: .3, metalness: .2 });
+    MAT.hazard     = new THREE.MeshStandardMaterial({ color: 0xff5544, emissive: 0xaa1200, emissiveIntensity: 1.1, roughness: .5, transparent: true, opacity: .38 });
+    MAT.wallrun    = std(TexLib.get('stripe', aniso),   { color: 0x7fd0ff, roughness: .55, metalness: .2 });
+}
+
+/* גאומטריות משותפות */
+const GEO = {};
+function buildGeometries() {
+    GEO.box = new THREE.BoxGeometry(1, 1, 1);
+    GEO.cyl = new THREE.CylinderGeometry(1, 1, 1, 16);
+    GEO.cylHi = new THREE.CylinderGeometry(1, 1, 1, 24);
+    GEO.torus = new THREE.TorusGeometry(1, 0.12, 8, 28);
+    GEO.cone = new THREE.ConeGeometry(1, 1, 16);
+}
+
+/* =========================================================================
+   8. מערכת התנגשויות — תיבות מסובבות סביב ציר Y מול גליל השחקן
+   ========================================================================= */
+class Collider {
+    constructor(cx, cy, cz, hx, hy, hz, yaw = 0, opts = {}) {
+        this.c = new THREE.Vector3(cx, cy, cz);
+        this.prev = new THREE.Vector3(cx, cy, cz);
+        this.h = new THREE.Vector3(hx, hy, hz);
+        this.yaw = yaw;
+        this.cos = Math.cos(yaw);
+        this.sin = Math.sin(yaw);
+        this.solid = opts.solid !== false;
+        this.hazard = !!opts.hazard;
+        this.conveyor = opts.conveyor || null;   // Vector3 — כיוון ומהירות דחיפה
+        this.dynamic = !!opts.dynamic;
+        this.mesh = opts.mesh || null;
+        this.noWallrun = !!opts.noWallrun;
+        this.min = new THREE.Vector3();
+        this.max = new THREE.Vector3();
+        this._mark = -1;
+        this.updateAABB();
+    }
+    setYaw(y) { this.yaw = y; this.cos = Math.cos(y); this.sin = Math.sin(y); this.updateAABB(); }
+    updateAABB() {
+        const ax = Math.abs(this.cos), az = Math.abs(this.sin);
+        const ex = ax * this.h.x + az * this.h.z;
+        const ez = az * this.h.x + ax * this.h.z;
+        this.min.set(this.c.x - ex, this.c.y - this.h.y, this.c.z - ez);
+        this.max.set(this.c.x + ex, this.c.y + this.h.y, this.c.z + ez);
+    }
+    /* נקודה עולמית (x,z) -> מרחב מקומי של התיבה. out.x = מקומי X, out.y = מקומי Z */
+    toLocal(px, pz, out) {
+        const dx = px - this.c.x, dz = pz - this.c.z;
+        out.x = dx * this.cos + dz * this.sin;
+        out.y = -dx * this.sin + dz * this.cos;
+        return out;
+    }
+    /* וקטור מקומי -> עולמי (סיבוב בלבד) */
+    toWorldDir(lx, lz, out) {
+        out.x = lx * this.cos - lz * this.sin;
+        out.z = lx * this.sin + lz * this.cos;
+        return out;
+    }
+    get top() { return this.c.y + this.h.y; }
+    get bottom() { return this.c.y - this.h.y; }
+}
+
+const CELL = 9;
+class CollisionWorld {
+    constructor() {
+        this.all = [];
+        this.statics = [];
+        this.dynamics = [];
+        this.grid = new Map();
+        // מאגר מערכים לשימוש חוזר — מונע הקצאות בכל פריים וגם קריאות מקוננות
+        this._bufs = [[], [], [], [], [], []];
+        this._bufIdx = 0;
+        this._token = 0;
+    }
+    _key(ix, iz) { return (ix * 73856093) ^ (iz * 19349663); }
+    add(col) {
+        this.all.push(col);
+        if (col.dynamic) { this.dynamics.push(col); return col; }
+        this.statics.push(col);
+        const x0 = Math.floor(col.min.x / CELL), x1 = Math.floor(col.max.x / CELL);
+        const z0 = Math.floor(col.min.z / CELL), z1 = Math.floor(col.max.z / CELL);
+        for (let ix = x0; ix <= x1; ix++) {
+            for (let iz = z0; iz <= z1; iz++) {
+                const k = this._key(ix, iz);
+                let arr = this.grid.get(k);
+                if (!arr) { arr = []; this.grid.set(k, arr); }
+                arr.push(col);
+            }
+        }
+        return col;
+    }
+    /* מחזיר מערך מועמדים בסביבה (משתמש במערך פנימי — ללא הקצאות בכל פריים) */
+    near(minx, minz, maxx, maxz) {
+        const out = this._bufs[this._bufIdx];
+        this._bufIdx = (this._bufIdx + 1) % this._bufs.length;
+        out.length = 0;
+        this._token++;
+        const tk = this._token;
+        const x0 = Math.floor(minx / CELL), x1 = Math.floor(maxx / CELL);
+        const z0 = Math.floor(minz / CELL), z1 = Math.floor(maxz / CELL);
+        for (let ix = x0; ix <= x1; ix++) {
+            for (let iz = z0; iz <= z1; iz++) {
+                const arr = this.grid.get(this._key(ix, iz));
+                if (!arr) continue;
+                for (let i = 0; i < arr.length; i++) {
+                    const c = arr[i];
+                    if (c._mark === tk) continue;
+                    c._mark = tk;
+                    out.push(c);
+                }
+            }
+        }
+        for (let i = 0; i < this.dynamics.length; i++) out.push(this.dynamics[i]);
+        return out;
+    }
+}
+
+/* =========================================================================
+   9. מטמון גאומטריות — שימוש חוזר במקום יצירה בכל פריים
+   ========================================================================= */
+const geoCache = new Map();
+function boxGeo(sx, sy, sz, uvScale) {
+    const s = uvScale || 0.5;
+    const k = `${sx.toFixed(3)}|${sy.toFixed(3)}|${sz.toFixed(3)}|${s}`;
+    let g = geoCache.get(k);
+    if (g) return g;
+    g = new THREE.BoxGeometry(sx, sy, sz);
+    const uv = g.attributes.uv;
+    // סדר הפאות של BoxGeometry: +X, -X, +Y, -Y, +Z, -Z (4 קודקודים לכל פאה)
+    const scales = [[sz, sy], [sz, sy], [sx, sz], [sx, sz], [sx, sy], [sx, sy]];
+    for (let f = 0; f < 6; f++) {
+        const su = scales[f][0] * s, sv = scales[f][1] * s;
+        for (let i = 0; i < 4; i++) {
+            const idx = f * 4 + i;
+            uv.setXY(idx, uv.getX(idx) * su, uv.getY(idx) * sv);
+        }
+    }
+    uv.needsUpdate = true;
+    geoCache.set(k, g);
+    return g;
+}
+
+/* ספרייטים משותפים (מאותחלים ב-boot) */
+let SPR_GLOW = null;
+let SPR_CLOUD = null;
+
+/* =========================================================================
+   10. בונה שלבים — כל העולם נבנה מצורות Three.js בלבד
+   ========================================================================= */
+class LevelBuilder {
+    constructor(name, subtitle) {
+        this.name = name;
+        this.subtitle = subtitle;
+        this.group = new THREE.Group();
+        this.world = new CollisionWorld();
+        this.checkpoints = [];
+        this.hints = [];
+        this.movers = [];
+        this.spinners = [];
+        this.pulses = [];
+        this.disposables = [];
+        this.spawn = { pos: new THREE.Vector3(0, 1, 0), yaw: Math.PI };
+        this.goal = null;
+        this.killY = -30;
+        this.env = {
+            skyTop: 0x2f74bb, skyBottom: 0xcfe1ee, sunColor: 0xfff3dd, sunInt: 2.5,
+            sunDir: new THREE.Vector3(0.45, 0.8, 0.35), fog: 0xc3d4e0, fogNear: 45, fogFar: 340,
+            ambSky: 0xbcd8f0, ambGround: 0x6a625a, ambInt: 0.85, expo: 1.05,
+        };
+        this.time = 0;
+    }
+
+    _track(x) { this.disposables.push(x); return x; }
+
+    /* ---------------- פרימיטיבים ---------------- */
+    box(x, y, z, sx, sy, sz, mat, o = {}) {
+        const m = new THREE.Mesh(boxGeo(sx, sy, sz, o.uv || 0.5), mat);
+        m.position.set(x, y, z);
+        if (o.yaw) m.rotation.y = o.yaw;
+        m.castShadow = o.cast !== false;
+        m.receiveShadow = o.receive !== false;
+        this.group.add(m);
+        if (o.noCollide) return { mesh: m, col: null };
+        const col = new Collider(x, y, z, sx / 2, sy / 2, sz / 2, o.yaw || 0, {
+            solid: o.solid !== false, hazard: !!o.hazard, conveyor: o.conveyor || null,
+            dynamic: !!o.dynamic, noWallrun: !!o.noWallrun, mesh: m,
+        });
+        this.world.add(col);
+        return { mesh: m, col };
+    }
+
+    /* פלטפורמה שטוחה: y הוא גובה המשטח העליון */
+    platform(x, y, z, sx, sz, mat, o = {}) {
+        const t = o.thick || 0.5;
+        const r = this.box(x, y - t / 2, z, sx, t, sz, mat || MAT.concrete, o);
+        if (o.edge !== false) {
+            const em = o.edgeMat || MAT.metalDark;
+            const eh = 0.1;
+            const gz = boxGeo(sx + .05, eh, .14, 1);
+            const gx = boxGeo(.14, eh, sz + .05, 1);
+            const parts = [
+                [gz, x, z + sz / 2 - .07], [gz, x, z - sz / 2 + .07],
+            ];
+            for (const [g, px, pz] of parts) {
+                const e = new THREE.Mesh(g, em);
+                e.position.set(px, y - eh / 2 + .01, pz);
+                e.castShadow = false; e.receiveShadow = true;
+                this.group.add(e);
+            }
+            for (const sxx of [-1, 1]) {
+                const e = new THREE.Mesh(gx, em);
+                e.position.set(x + sxx * (sx / 2 - .07), y - eh / 2 + .01, z);
+                e.castShadow = false; e.receiveShadow = true;
+                this.group.add(e);
+            }
+        }
+        return r;
+    }
+
+    /* צינור (חזותי גליל, התנגשות תיבה) — axis: 'x' | 'y' | 'z' */
+    pipe(x, y, z, len, radius, axis, mat, o = {}) {
+        const m = new THREE.Mesh(GEO.cylHi, mat || MAT.metal);
+        m.scale.set(radius, len, radius);
+        m.position.set(x, y, z);
+        if (axis === 'x') m.rotation.z = Math.PI / 2;
+        else if (axis === 'z') m.rotation.x = Math.PI / 2;
+        m.castShadow = true; m.receiveShadow = true;
+        this.group.add(m);
+        if (o.rings !== false && len > 3.5) {
+            const n = Math.min(5, Math.floor(len / 4));
+            for (let i = 1; i <= n; i++) {
+                const t = -len / 2 + (len * i) / (n + 1);
+                const rm = new THREE.Mesh(GEO.cylHi, MAT.metalDark);
+                rm.scale.set(radius * 1.15, 0.18, radius * 1.15);
+                if (axis === 'x') { rm.position.set(x + t, y, z); rm.rotation.z = Math.PI / 2; }
+                else if (axis === 'z') { rm.position.set(x, y, z + t); rm.rotation.x = Math.PI / 2; }
+                else rm.position.set(x, y + t, z);
+                rm.castShadow = false;
+                this.group.add(rm);
+            }
+        }
+        if (o.noCollide) return { mesh: m, col: null };
+        const w = radius * 1.38;
+        let hx, hy, hz;
+        if (axis === 'x') { hx = len / 2; hy = w; hz = w; }
+        else if (axis === 'z') { hx = w; hy = w; hz = len / 2; }
+        else { hx = w; hy = len / 2; hz = w; }
+        const col = new Collider(x, y, z, hx, hy, hz, 0, { mesh: m });
+        this.world.add(col);
+        return { mesh: m, col };
+    }
+
+    /* קורת פלדה — y הוא מרכז הקורה */
+    beam(x, y, z, len, mat, o = {}) {
+        const w = o.w || 0.5, h = o.h || 0.4;
+        const yaw = o.yaw || 0;
+        const material = mat || MAT.rust;
+        const g = new THREE.Group();
+        const top = new THREE.Mesh(boxGeo(len, 0.09, w, .9), material);
+        const bot = new THREE.Mesh(boxGeo(len, 0.09, w, .9), material);
+        const web = new THREE.Mesh(boxGeo(len, h, 0.12, .9), material);
+        top.position.y = h / 2; bot.position.y = -h / 2;
+        g.add(top, bot, web);
+        g.position.set(x, y, z); g.rotation.y = yaw;
+        g.traverse(m => { m.castShadow = true; m.receiveShadow = true; });
+        this.group.add(g);
+        const col = new Collider(x, y, z, len / 2, h / 2 + .05, w / 2, yaw, { mesh: g });
+        this.world.add(col);
+        return { mesh: g, col };
+    }
+
+    /* מזגן — y הוא הבסיס */
+    ac(x, y, z, o = {}) {
+        const w = o.w || 1.9, d = o.d || 1.5, h = o.h || 1.15;
+        const yaw = o.yaw || 0;
+        const g = new THREE.Group();
+        const base = new THREE.Mesh(boxGeo(w + .3, .14, d + .3, .8), MAT.concreteD);
+        base.position.y = .07;
+        const body = new THREE.Mesh(boxGeo(w, h, d, .8), MAT.metalDark);
+        body.position.y = .14 + h / 2;
+        const grill = new THREE.Mesh(boxGeo(w * .74, h * .55, .07, 1.8), MAT.grate);
+        grill.position.set(0, .14 + h * .55, d / 2 + .02);
+        const fan = new THREE.Mesh(GEO.cylHi, MAT.metal);
+        fan.scale.set(w * .3, .09, w * .3); fan.position.y = .14 + h + .05;
+        const blade = new THREE.Mesh(boxGeo(w * .52, .04, .16, 1), MAT.metalDark);
+        blade.position.y = .14 + h + .11;
+        g.add(base, body, grill, fan, blade);
+        g.position.set(x, y, z); g.rotation.y = yaw;
+        g.traverse(m => { m.castShadow = true; m.receiveShadow = true; });
+        this.group.add(g);
+        const th = .14 + h;
+        const col = new Collider(x, y + th / 2, z, w / 2 + .15, th / 2, d / 2 + .15, yaw, { mesh: g });
+        this.world.add(col);
+        this.pulses.push((t) => { blade.rotation.y = t * 5.5; });
+        return { col, group: g, top: y + th };
+    }
+
+    /* מגדל פיגומים — decks: אילו קומות מקבלות רצפת עץ */
+    scaffold(x, y, z, w, d, levels, o = {}) {
+        const lh = o.levelHeight || 2.6;
+        const yaw = o.yaw || 0;
+        const g = new THREE.Group();
+        const legH = levels * lh;
+        for (const sx of [-1, 1]) for (const sz of [-1, 1]) {
+            const leg = new THREE.Mesh(GEO.cylHi, MAT.metal);
+            leg.scale.set(.09, legH, .09);
+            leg.position.set(sx * (w / 2 - .12), legH / 2, sz * (d / 2 - .12));
+            g.add(leg);
+        }
+        for (let i = 1; i <= levels; i++) {
+            const yy = i * lh;
+            for (const sz of [-1, 1]) {
+                const bar = new THREE.Mesh(boxGeo(w - .2, .1, .1, 1), MAT.metal);
+                bar.position.set(0, yy, sz * (d / 2 - .12)); g.add(bar);
+                const mid = new THREE.Mesh(boxGeo(w - .2, .08, .08, 1), MAT.metal);
+                mid.position.set(0, yy - lh * .45, sz * (d / 2 - .12)); g.add(mid);
+                const diag = new THREE.Mesh(boxGeo(Math.hypot(w - .2, lh), .07, .07, 1), MAT.metal);
+                diag.position.set(0, yy - lh / 2, sz * (d / 2 - .12));
+                diag.rotation.z = Math.atan2(lh, w - .2) * (sz > 0 ? 1 : -1);
+                g.add(diag);
+            }
+            for (const sx of [-1, 1]) {
+                const bar = new THREE.Mesh(boxGeo(.1, .1, d - .2, 1), MAT.metal);
+                bar.position.set(sx * (w / 2 - .12), yy, 0); g.add(bar);
+            }
+        }
+        g.position.set(x, y, z); g.rotation.y = yaw;
+        g.traverse(m => { m.castShadow = true; m.receiveShadow = true; });
+        this.group.add(g);
+        const decks = o.decks || [levels];
+        const tops = [];
+        for (const li of decks) {
+            const yy = y + li * lh;
+            this.box(x, yy - .07, z, w, .14, d, MAT.wood, { yaw, uv: .7 });
+            tops.push(yy);
+        }
+        return { group: g, tops };
+    }
+
+    /* בניין עם גג שאפשר לעמוד עליו. מחזיר את גובה משטח הגג */
+    building(x, z, w, d, h, o = {}) {
+        const bodyMat = o.mat || MAT.concreteD;
+        this.box(x, h / 2, z, w, h, d, bodyMat, { uv: .3 });
+        if (o.windows !== false) {
+            const wm = MAT.window;
+            const mk = (sx, sy, sz, px, py, pz) => {
+                const m = new THREE.Mesh(boxGeo(sx, sy, sz, .42), wm);
+                m.position.set(px, py, pz);
+                m.castShadow = false; m.receiveShadow = true;
+                this.group.add(m);
+            };
+            mk(w * .86, h * .88, .08, x, h * .5, z + d / 2 + .04);
+            mk(w * .86, h * .88, .08, x, h * .5, z - d / 2 - .04);
+            mk(.08, h * .88, d * .86, x + w / 2 + .04, h * .5, z);
+            mk(.08, h * .88, d * .86, x - w / 2 - .04, h * .5, z);
+        }
+        const roofY = h + .26;
+        this.box(x, h + .13, z, w + .36, .26, d + .36, MAT.roof, { uv: .5 });
+        if (o.parapet !== false) {
+            const ph = o.parapetH === undefined ? .6 : o.parapetH, t = .32;
+            if (ph > 0) {
+                const gaps = o.gaps || [];
+                const has = (side) => !gaps.includes(side);
+                if (has('n')) this.box(x, roofY + ph / 2, z + d / 2 + .1, w + .36, ph, t, MAT.concreteD, { uv: .8 });
+                if (has('s')) this.box(x, roofY + ph / 2, z - d / 2 - .1, w + .36, ph, t, MAT.concreteD, { uv: .8 });
+                if (has('e')) this.box(x + w / 2 + .1, roofY + ph / 2, z, t, ph, d + .36, MAT.concreteD, { uv: .8 });
+                if (has('w')) this.box(x - w / 2 - .1, roofY + ph / 2, z, t, ph, d + .36, MAT.concreteD, { uv: .8 });
+            }
+        }
+        return roofY;
+    }
+
+    /* ---------------- אלמנטים דינמיים ---------------- */
+    /* פלטפורמה נעה — axis: 'x' | 'y' | 'z'. y הוא גובה המשטח במרכז התנועה */
+    movingPlatform(x, y, z, sx, sz, axis, amp, speed, phase, mat, o = {}) {
+        const t = o.thick || .45;
+        const res = this.box(x, y - t / 2, z, sx, t, sz, mat || MAT.metal, { dynamic: true, uv: .55 });
+        const col = res.col, mesh = res.mesh;
+        col.motion = { axis, amp };
+        const bx = x, by = y - t / 2, bz = z;
+        if (o.rail !== false && axis !== 'y') {
+            const rail = new THREE.Mesh(
+                boxGeo(axis === 'x' ? amp * 2 + sx : .18, .1, axis === 'z' ? amp * 2 + sz : .18, 1), MAT.metalDark);
+            rail.position.set(x, y - t - .35, z);
+            rail.castShadow = false;
+            this.group.add(rail);
+        }
+        // סימון זוהר בפינות כדי שיהיה קל לראות פלטפורמה נעה
+        for (const s of [-1, 1]) {
+            const led = new THREE.Mesh(boxGeo(sx * .9, .05, .1, 1), MAT.cpOn);
+            led.position.set(0, t / 2 + .02, s * (sz / 2 - .06));
+            led.castShadow = false;
+            mesh.add(led);
+        }
+        this.movers.push((time) => {
+            const off = Math.sin(time * speed + phase) * amp;
+            col.prev.copy(col.c);
+            if (axis === 'x') col.c.set(bx + off, by, bz);
+            else if (axis === 'y') col.c.set(bx, by + off, bz);
+            else col.c.set(bx, by, bz + off);
+            col.updateAABB();
+            mesh.position.copy(col.c);
+        });
+        return res;
+    }
+
+    /* מכשול מסתובב */
+    spinner(x, y, z, len, speed, o = {}) {
+        const arms = o.arms || 2;
+        const g = new THREE.Group();
+        g.position.set(x, y, z);
+        const ph = o.postH || 3.4;
+        const post = new THREE.Mesh(GEO.cylHi, MAT.metalDark);
+        post.scale.set(.24, ph, .24);
+        post.position.y = -ph / 2;
+        post.castShadow = true;
+        g.add(post);
+        const hub = new THREE.Mesh(GEO.cylHi, MAT.metal);
+        hub.scale.set(.4, .6, .4); hub.castShadow = true;
+        g.add(hub);
+        this.group.add(g);
+        const cols = [];
+        for (let i = 0; i < arms; i++) {
+            const a = (i / arms) * Math.PI * 2;
+            const m = new THREE.Mesh(boxGeo(len, .55, .45, .8), MAT.stripe);
+            m.castShadow = true; m.receiveShadow = true;
+            m.position.set(Math.cos(a) * len / 2, 0, -Math.sin(a) * len / 2);
+            m.rotation.y = a;
+            g.add(m);
+            const col = new Collider(x + Math.cos(a) * len / 2, y, z - Math.sin(a) * len / 2,
+                len / 2, .28, .23, a, { dynamic: true, mesh: m, noWallrun: true });
+            this.world.add(col);
+            cols.push({ col, a });
+        }
+        this.spinners.push((time) => {
+            const rot = time * speed;
+            g.rotation.y = rot;
+            for (const it of cols) {
+                const a = it.a + rot;
+                it.col.prev.copy(it.col.c);
+                it.col.c.set(x + Math.cos(a) * len / 2, y, z - Math.sin(a) * len / 2);
+                it.col.setYaw(a);
+            }
+        });
+        return g;
+    }
+
+    /* מסוע — דוחף את השחקן בכיוון (dirX,dirZ) */
+    conveyor(x, y, z, sx, sz, dirX, dirZ, speed) {
+        const t = .5;
+        const dir = new THREE.Vector3(dirX, 0, dirZ).normalize().multiplyScalar(speed);
+        const res = this.box(x, y - t / 2, z, sx, t, sz, MAT.rubber, { conveyor: dir, uv: .9 });
+        const along = Math.abs(dirZ) > Math.abs(dirX) ? 'z' : 'x';
+        for (const s of [-1, 1]) {
+            const r = new THREE.Mesh(GEO.cylHi, MAT.metalDark);
+            if (along === 'z') { r.scale.set(.3, sx, .3); r.rotation.z = Math.PI / 2; r.position.set(x, y - t / 2, z + s * sz / 2); }
+            else { r.scale.set(.3, sz, .3); r.rotation.x = Math.PI / 2; r.position.set(x + s * sx / 2, y - t / 2, z); }
+            r.castShadow = false; this.group.add(r);
+        }
+        const n = Math.max(2, Math.floor((along === 'z' ? sz : sx) / 3.5));
+        const arrows = [];
+        for (let i = 0; i < n; i++) {
+            const a = new THREE.Mesh(GEO.cone, MAT.cpOn);
+            a.scale.set(.3, .55, .3);
+            if (dirZ > 0) a.rotation.x = Math.PI / 2;
+            else if (dirZ < 0) a.rotation.x = -Math.PI / 2;
+            else if (dirX > 0) a.rotation.z = -Math.PI / 2;
+            else a.rotation.z = Math.PI / 2;
+            a.castShadow = false;
+            this.group.add(a);
+            arrows.push({ mesh: a, i });
+        }
+        const span = along === 'z' ? sz : sx;
+        const sgn = along === 'z' ? Math.sign(dirZ) : Math.sign(dirX);
+        this.pulses.push((time) => {
+            for (const ar of arrows) {
+                let f = ((ar.i / n) + (time * 0.25 * sgn)) % 1;
+                if (f < 0) f += 1;
+                const p = (f - .5) * span;
+                if (along === 'z') ar.mesh.position.set(x, y + .08, z + p);
+                else ar.mesh.position.set(x + p, y + .08, z);
+            }
+        });
+        return res;
+    }
+
+    /* אזור סכנה — מחזיר את השחקן לצ'קפוינט */
+    hazard(x, y, z, sx, sy, sz, o = {}) {
+        const mat = MAT.hazard.clone();
+        mat.userData.cloned = true;
+        this._track(mat);
+        const m = new THREE.Mesh(boxGeo(sx, sy, sz, .4), mat);
+        m.position.set(x, y, z);
+        m.castShadow = false; m.receiveShadow = false;
+        this.group.add(m);
+        const col = new Collider(x, y, z, sx / 2, sy / 2, sz / 2, 0, { solid: false, hazard: true, mesh: m });
+        this.world.add(col);
+        if (o.frame !== false) {
+            const fy = y - sy / 2 + .07;
+            this.box(x, fy, z + sz / 2 + .35, sx + 1.4, .14, .7, MAT.stripe, { uv: .8, cast: false });
+            this.box(x, fy, z - sz / 2 - .35, sx + 1.4, .14, .7, MAT.stripe, { uv: .8, cast: false });
+        }
+        this.pulses.push((time) => { mat.opacity = .26 + Math.sin(time * 3 + x) * .12; });
+        return col;
+    }
+
+    /* מנוף בנייה — הזרוע האופקית ניתנת להליכה */
+    crane(x, y, z, height, armLen, yaw, o = {}) {
+        const g = new THREE.Group();
+        g.position.set(x, y, z); g.rotation.y = yaw;
+        this.group.add(g);
+        const segH = 2.2;
+        for (let i = 0; i * segH < height; i++) {
+            const yy = i * segH + segH / 2;
+            for (const sx of [-1, 1]) for (const sz of [-1, 1]) {
+                const leg = new THREE.Mesh(boxGeo(.16, segH, .16, 1), MAT.crane);
+                leg.position.set(sx * .8, yy, sz * .8);
+                leg.castShadow = true;
+                g.add(leg);
+            }
+            for (const sz of [-1, 1]) {
+                const d1 = new THREE.Mesh(boxGeo(Math.hypot(1.6, segH), .1, .1, 1), MAT.crane);
+                d1.position.set(0, yy, sz * .8);
+                d1.rotation.z = Math.atan2(segH, 1.6) * (i % 2 ? 1 : -1);
+                g.add(d1);
+                const bar = new THREE.Mesh(boxGeo(1.6, .12, .12, 1), MAT.crane);
+                bar.position.set(0, i * segH, sz * .8); g.add(bar);
+            }
+            for (const sx of [-1, 1]) {
+                const bar = new THREE.Mesh(boxGeo(.12, .12, 1.6, 1), MAT.crane);
+                bar.position.set(sx * .8, i * segH, 0); g.add(bar);
+            }
+        }
+        // תא הפעלה
+        const cab = new THREE.Mesh(boxGeo(1.7, 1.6, 2.0, .8), MAT.crane);
+        cab.position.set(0, height + .8, -1.6); cab.castShadow = true;
+        g.add(cab);
+        // הזרוע (jib) — משטח הליכה אמיתי (המעקות דקורטיביים בלבד, כדי לשמור על אתגר)
+        const armW = o.armW || 1.6;
+        const c = Math.cos(yaw), s = Math.sin(yaw);
+        const armCX = x + c * (armLen / 2 + 1.2), armCZ = z + s * (armLen / 2 + 1.2);
+        this.box(armCX, y + height + .1, armCZ, armLen, .2, armW, MAT.crane, { yaw, uv: .6 });
+        for (const side of [-1, 1]) {
+            this.box(armCX - s * side * (armW / 2), y + height + .36, armCZ + c * side * (armW / 2),
+                armLen, .1, .1, MAT.crane, { yaw, uv: .9, noCollide: true, cast: false });
+            this.box(armCX - s * side * (armW / 2), y + height + .22, armCZ + c * side * (armW / 2),
+                armLen, .08, .08, MAT.crane, { yaw, uv: .9, noCollide: true, cast: false });
+        }
+        // זרוע נגד + משקל — דקורטיביים (אינם חוסמים את מסלול השחקן)
+        const backCX = x - c * 4.5, backCZ = z - s * 4.5;
+        this.box(backCX, y + height + .1, backCZ, 7, .2, armW, MAT.crane, { yaw, uv: .6, noCollide: true });
+        this.box(x - c * 7.6, y + height + .7, z - s * 7.6, 2.4, 1.4, 2.2, MAT.concreteD, { yaw, uv: .6, noCollide: true });
+        // כבל וּווֹ הרמה
+        const hookLen = o.hookLen || 6;
+        const cg = new THREE.Group();
+        cg.position.set(x + c * (armLen * .72), 0, z + s * (armLen * .72));
+        const cable = new THREE.Mesh(GEO.cyl, MAT.metalDark);
+        cable.scale.set(.05, hookLen, .05);
+        cable.position.set(0, y + height - hookLen / 2, 0);
+        cg.add(cable);
+        const hook = new THREE.Mesh(boxGeo(.5, .5, .5, 1), MAT.rust);
+        hook.position.set(0, y + height - hookLen, 0);
+        hook.castShadow = true;
+        cg.add(hook);
+        this.group.add(cg);
+        return { group: g, armTop: y + height + .2 };
+    }
+
+    /* ---------------- טריגרים ---------------- */
+    checkpoint(x, y, z, yaw) {
+        const g = new THREE.Group();
+        g.position.set(x, y, z);
+        const baseMat = MAT.cpOff.clone(); baseMat.userData.cloned = true; this._track(baseMat);
+        const ringMat = MAT.cpOff.clone(); ringMat.userData.cloned = true; this._track(ringMat);
+        const beamMat = MAT.cpOff.clone(); beamMat.transparent = true; beamMat.opacity = .14;
+        beamMat.userData.cloned = true; this._track(beamMat);
+
+        const base = new THREE.Mesh(GEO.cylHi, baseMat);
+        base.scale.set(.9, .12, .9); base.position.y = .06;
+        base.castShadow = false; base.receiveShadow = true;
+        const pole = new THREE.Mesh(GEO.cylHi, MAT.metalDark);
+        pole.scale.set(.07, 2.3, .07); pole.position.y = 1.15;
+        const ring = new THREE.Mesh(GEO.torus, ringMat);
+        ring.scale.setScalar(.78); ring.rotation.x = Math.PI / 2; ring.position.y = 1.3;
+        const beam = new THREE.Mesh(GEO.cylHi, beamMat);
+        beam.scale.set(.55, 6, .55); beam.position.y = 3; beam.castShadow = false;
+        const glowMat = new THREE.SpriteMaterial({
+            map: SPR_GLOW, color: 0x2bd6a0, transparent: true, opacity: .4,
+            blending: THREE.AdditiveBlending, depthWrite: false,
+        });
+        this._track(glowMat);
+        const glow = new THREE.Sprite(glowMat);
+        glow.scale.set(3.4, 3.4, 1); glow.position.y = 1.3;
+        g.add(base, pole, ring, beam, glow);
+        this.group.add(g);
+
+        const cp = {
+            pos: new THREE.Vector3(x, y, z),
+            yaw: yaw === undefined ? this.spawn.yaw : yaw,
+            group: g, ring, base, beam, glow, active: false,
+            index: this.checkpoints.length + 1,
+            mats: { baseMat, ringMat, beamMat, glowMat },
+        };
+        this.checkpoints.push(cp);
+        this.pulses.push((time) => {
+            ring.rotation.z = time * (cp.active ? 2.2 : .7);
+            ring.position.y = 1.3 + Math.sin(time * 2 + cp.index) * .13;
+            glowMat.opacity = (cp.active ? .75 : .3) + Math.sin(time * 3 + cp.index) * .12;
+            beamMat.opacity = (cp.active ? .2 : .1) + Math.sin(time * 2.2 + cp.index) * .05;
+        });
+        return cp;
+    }
+
+    activateCheckpointVisual(cp) {
+        cp.active = true;
+        cp.mats.baseMat.color.set(0x2bd6a0); cp.mats.baseMat.emissive.set(0x18ffb0); cp.mats.baseMat.emissiveIntensity = 1.9;
+        cp.mats.ringMat.color.set(0x2bd6a0); cp.mats.ringMat.emissive.set(0x18ffb0); cp.mats.ringMat.emissiveIntensity = 2.2;
+        cp.mats.beamMat.color.set(0x2bd6a0); cp.mats.beamMat.emissive.set(0x18ffb0); cp.mats.beamMat.emissiveIntensity = 1.4;
+    }
+
+    setGoal(x, y, z) {
+        const g = new THREE.Group();
+        g.position.set(x, y, z);
+        const pillarMat = MAT.goal.clone(); pillarMat.transparent = true; pillarMat.opacity = .2;
+        pillarMat.userData.cloned = true; this._track(pillarMat);
+        const pad = new THREE.Mesh(GEO.cylHi, MAT.goal);
+        pad.scale.set(1.8, .16, 1.8); pad.position.y = .08; pad.receiveShadow = true;
+        const pillar = new THREE.Mesh(GEO.cylHi, pillarMat);
+        pillar.scale.set(1.35, 14, 1.35); pillar.position.y = 7; pillar.castShadow = false;
+        const r1 = new THREE.Mesh(GEO.torus, MAT.goal); r1.scale.setScalar(1.6); r1.rotation.x = Math.PI / 2; r1.position.y = 1.3;
+        const r2 = new THREE.Mesh(GEO.torus, MAT.goal); r2.scale.setScalar(1.15); r2.rotation.x = Math.PI / 2; r2.position.y = 2.6;
+        const glowMat = new THREE.SpriteMaterial({
+            map: SPR_GLOW, color: 0xffb03a, transparent: true, opacity: .8,
+            blending: THREE.AdditiveBlending, depthWrite: false,
+        });
+        this._track(glowMat);
+        const glow = new THREE.Sprite(glowMat);
+        glow.scale.set(8, 8, 1); glow.position.y = 2.2;
+        g.add(pad, pillar, r1, r2, glow);
+        this.group.add(g);
+        this.goal = { pos: new THREE.Vector3(x, y, z), group: g };
+        this.pulses.push((time) => {
+            r1.rotation.z = time * 1.3; r2.rotation.z = -time * 1.7;
+            r1.position.y = 1.3 + Math.sin(time * 1.8) * .2;
+            r2.position.y = 2.6 + Math.sin(time * 1.8 + 1) * .2;
+            glowMat.opacity = .6 + Math.sin(time * 2.4) * .22;
+            pillarMat.opacity = .16 + Math.sin(time * 2.4) * .07;
+        });
+        return this.goal;
+    }
+
+    hint(x, y, z, radius, text, o = {}) {
+        this.hints.push({
+            pos: new THREE.Vector3(x, y, z), r: radius, text,
+            shown: false, hold: o.hold || 4.2,
+        });
+    }
+
+    setSpawn(x, y, z, yaw) {
+        this.spawn.pos.set(x, y, z);
+        this.spawn.yaw = yaw === undefined ? Math.PI : yaw;
+    }
+
+    /* קו רקיע רחוק — תחושת גובה, ללא צללים */
+    skyline(cx, cz, count, inner, outer, minH, maxH, baseY) {
+        const geo = new THREE.BoxGeometry(1, 1, 1);
+        const mat = new THREE.MeshStandardMaterial({ color: 0x8b96a2, roughness: .95, metalness: .05 });
+        this._track(geo); this._track(mat);
+        const mesh = new THREE.InstancedMesh(geo, mat, count);
+        const dummy = new THREE.Object3D();
+        const rng = mulberry32(1337);
+        const col = new THREE.Color();
+        for (let i = 0; i < count; i++) {
+            const a = rng() * Math.PI * 2;
+            const r = inner + rng() * (outer - inner);
+            const h = minH + rng() * (maxH - minH);
+            dummy.position.set(cx + Math.cos(a) * r, (baseY || 0) + h / 2, cz + Math.sin(a) * r);
+            dummy.rotation.y = rng() * Math.PI;
+            dummy.scale.set(9 + rng() * 20, h, 9 + rng() * 20);
+            dummy.updateMatrix();
+            mesh.setMatrixAt(i, dummy.matrix);
+            const g = .40 + rng() * .34;
+            col.setRGB(g * .93, g * .97, g);
+            mesh.setColorAt(i, col);
+        }
+        mesh.instanceMatrix.needsUpdate = true;
+        if (mesh.instanceColor) mesh.instanceColor.needsUpdate = true;
+        mesh.castShadow = false; mesh.receiveShadow = false;
+        this.group.add(mesh);
+        return mesh;
+    }
+
+    clouds(cx, cy, cz, count, spread) {
+        const rng = mulberry32(4242);
+        const mat = new THREE.SpriteMaterial({ map: SPR_CLOUD, transparent: true, opacity: .55, depthWrite: false });
+        this._track(mat);
+        for (let i = 0; i < count; i++) {
+            const s = new THREE.Sprite(mat);
+            s.position.set(cx + (rng() - .5) * spread, cy + rng() * 55, cz + (rng() - .5) * spread);
+            const sc = 45 + rng() * 110;
+            s.scale.set(sc, sc * .42, 1);
+            this.group.add(s);
+        }
+    }
+
+    update(time) {
+        this.time = time;
+        for (let i = 0; i < this.movers.length; i++) this.movers[i](time);
+        for (let i = 0; i < this.spinners.length; i++) this.spinners[i](time);
+        for (let i = 0; i < this.pulses.length; i++) this.pulses[i](time);
+    }
+
+    /* שחרור משאבים שנוצרו במיוחד לשלב (הגאומטריות המשותפות נשמרות במטמון) */
+    dispose() {
+        for (const d of this.disposables) {
+            if (d && typeof d.dispose === 'function') d.dispose();
+        }
+        this.disposables.length = 0;
+        this.group.clear();
+        this.world.all.length = 0;
+        this.world.statics.length = 0;
+        this.world.dynamics.length = 0;
+        this.world.grid.clear();
+        this.movers.length = 0;
+        this.spinners.length = 0;
+        this.pulses.length = 0;
+        this.checkpoints.length = 0;
+        this.hints.length = 0;
+    }
+}
+
+/* =========================================================================
+   11. השחקן — תנועה, פיזיקה, פארקור והתנגשויות
+   ========================================================================= */
+const _v2 = new THREE.Vector2();
+const _v3a = new THREE.Vector3();
+const _v3b = new THREE.Vector3();
+const _v3c = new THREE.Vector3();
+
+class PlayerController {
+    constructor(camera, input, audio) {
+        this.cam = camera;
+        this.input = input;
+        this.audio = audio;
+
+        this.pos = new THREE.Vector3(0, 2, 0);   // מיקום כפות הרגליים
+        this.vel = new THREE.Vector3();
+        this.yaw = Math.PI;
+        this.pitch = 0;
+
+        this.height = CFG.HEIGHT;
+        this.targetHeight = CFG.HEIGHT;
+        this.eyeH = CFG.EYE;
+
+        this.grounded = false;
+        this.wasGrounded = false;
+        this.groundCol = null;
+        this.state = 'normal';         // normal | slide | vault | mantle | hang | wallrun
+        this.crouching = false;
+
+        this.coyote = 0;
+        this.jumpBuf = 0;
+        this.slideT = 0;
+        this.vaultT = 0; this.vaultFrom = new THREE.Vector3(); this.vaultTo = new THREE.Vector3();
+        this.mantleT = 0; this.mantleFrom = new THREE.Vector3(); this.mantleTo = new THREE.Vector3();
+        this.hangCol = null; this.hangNormal = new THREE.Vector3(); this.hangTop = 0; this.hangT = 0;
+        this.wallT = 0; this.wallNormal = new THREE.Vector3(); this.wallTangent = new THREE.Vector3();
+        this.wallSide = 1; this.wallCol = null; this.wallCooldown = 0;
+        this.lastWallJumpCol = null;
+        this.grabCooldown = 0;
+        this.vaultCooldown = 0;
+
+        this.wallTouchCol = null;
+        this.wallTouchNormal = new THREE.Vector3();
+
+        // אפקטים
+        this.bobT = 0;
+        this.bobY = 0; this.bobX = 0;
+        this.landDip = 0; this.landVel = 0;
+        this.stepOffset = 0;
+        this.roll = 0; this.rollTarget = 0;
+        this.fovOffset = 0; this.fovTarget = 0;
+        this.shake = 0;
+        this.stepPhase = 0;
+        this.speed = 0;
+        this.landImpact = 0;
+
+        this.bobEnabled = true;
+        this.baseFov = 80;
+        this.onLand = null;
+        this.onHazard = null;
+        this.stateLabel = '';
+    }
+
+    reset(pos, yaw) {
+        this.pos.copy(pos);
+        this.vel.set(0, 0, 0);
+        this.yaw = yaw;
+        this.pitch = 0;
+        this.height = this.targetHeight = CFG.HEIGHT;
+        this.eyeH = CFG.EYE;
+        this.state = 'normal';
+        this.crouching = false;
+        this.grounded = false; this.wasGrounded = false; this.groundCol = null;
+        this.coyote = 0; this.jumpBuf = 0; this.slideT = 0;
+        this.wallT = 0; this.wallCol = null; this.wallCooldown = 0;
+        this.lastWallJumpCol = null; this.grabCooldown = 0; this.vaultCooldown = 0;
+        this.landDip = 0; this.landVel = 0; this.stepOffset = 0;
+        this.roll = 0; this.rollTarget = 0; this.fovOffset = 0; this.fovTarget = 0;
+        this.shake = 0; this.bobT = 0; this.bobX = this.bobY = 0;
+        this.landImpact = 0; this.stepPhase = 0;
+        this.stateLabel = '';
+        this.updateCameraTransform(0);
+    }
+
+    /* ---------- עזרי גאומטריה ---------- */
+    /* חפיפה אופקית בין גליל השחקן לתיבה. מחזיר מרחק חדירה (>0) או 0 */
+    _horizPen(col, r, outNormal) {
+        return this._horizPenAt(col, this.pos.x, this.pos.z, r, outNormal);
+    }
+    _horizPenAt(col, x, z, r, outNormal) {
+        col.toLocal(x, z, _v2);
+        const lx = _v2.x, lz = _v2.y;
+        const hx = col.h.x, hz = col.h.z;
+        const cx = clamp(lx, -hx, hx), cz = clamp(lz, -hz, hz);
+        const dx = lx - cx, dz = lz - cz;
+        const d2 = dx * dx + dz * dz;
+        if (d2 > 1e-8) {
+            if (d2 >= r * r) return 0;
+            const d = Math.sqrt(d2);
+            if (outNormal) col.toWorldDir(dx / d, dz / d, outNormal);
+            return r - d;
+        }
+        // מרכז הגליל בתוך המלבן — דחיפה לציר עם החדירה הקטנה ביותר
+        const penX = hx + r - Math.abs(lx);
+        const penZ = hz + r - Math.abs(lz);
+        if (penX < penZ) {
+            if (outNormal) col.toWorldDir(Math.sign(lx) || 1, 0, outNormal);
+            return penX;
+        }
+        if (outNormal) col.toWorldDir(0, Math.sign(lz) || 1, outNormal);
+        return penZ;
+    }
+
+    /* האם גליל בגובה [y, y+h] במיקום (x,z) פנוי מהתנגשות? */
+    freeAt(x, y, z, h, r, ignore, world) {
+        const cands = world.near(x - r - 1, z - r - 1, x + r + 1, z + r + 1);
+        for (let i = 0; i < cands.length; i++) {
+            const c = cands[i];
+            if (!c.solid || c === ignore) continue;
+            if (y + h <= c.bottom + 0.02 || y >= c.top - 0.02) continue;
+            if (this._horizPenAt(c, x, z, r * 0.92, null) > 0) return false;
+        }
+        return true;
+    }
+
+    /* גובה המשטח הגבוה ביותר מתחת לנקודה בטווח גובה נתון (או -Infinity) */
+    topAt(x, z, r, yMin, yMax, world) {
+        const cands = world.near(x - r - 1, z - r - 1, x + r + 1, z + r + 1);
+        let best = -Infinity;
+        for (let i = 0; i < cands.length; i++) {
+            const c = cands[i];
+            if (!c.solid) continue;
+            if (c.top < yMin || c.top > yMax) continue;
+            if (this._horizPenAt(c, x, z, r, null) <= 0) continue;
+            if (c.top > best) best = c.top;
+        }
+        return best;
+    }
+
+    /* ---------- לולאת העדכון הראשית ---------- */
+    update(dt, level) {
+        const world = level.world;
+        this.wasGrounded = this.grounded;
+        this.applyLook();
+
+        this.wallCooldown = Math.max(0, this.wallCooldown - dt);
+        this.grabCooldown = Math.max(0, this.grabCooldown - dt);
+        this.vaultCooldown = Math.max(0, this.vaultCooldown - dt);
+        if (this.input.tap('Space')) this.jumpBuf = CFG.JUMP_BUFFER;
+        this.jumpBuf = Math.max(0, this.jumpBuf - dt);
+
+        switch (this.state) {
+            case 'hang':    this.updateHang(dt, world); break;
+            case 'mantle':  this.updateMantle(dt, world); break;
+            case 'vault':   this.updateVault(dt, world); break;
+            case 'wallrun': this.updateWallrun(dt, world); break;
+            default:        this.updateGround(dt, world); break;
+        }
+
+        this.speed = Math.hypot(this.vel.x, this.vel.z);
+        this.checkHazards(world);
+        this.updateCameraTransform(dt);
+        this.input.consume();
+    }
+
+    applyLook() {
+        const inp = this.input;
+        if (inp.locked) {
+            this.yaw -= inp.mouseDX;
+            this.pitch -= inp.mouseDY;
+            this.pitch = clamp(this.pitch, -1.53, 1.53);
+            if (this.yaw > Math.PI * 2) this.yaw -= Math.PI * 2;
+            if (this.yaw < -Math.PI * 2) this.yaw += Math.PI * 2;
+        }
+    }
+
+    forwardVec(out) { out.set(-Math.sin(this.yaw), 0, -Math.cos(this.yaw)); return out; }
+    rightVec(out) { out.set(Math.cos(this.yaw), 0, -Math.sin(this.yaw)); return out; }
+
+    /* ---------- מצב רגיל / החלקה ---------- */
+    updateGround(dt, world) {
+        const inp = this.input;
+        const fwd = this.forwardVec(_v3a);
+        const right = this.rightVec(_v3b);
+        const mf = inp.moveF, mr = inp.moveR;
+
+        // כיוון רצוי
+        let wx = fwd.x * mf + right.x * mr;
+        let wz = fwd.z * mf + right.z * mr;
+        const wlen = Math.hypot(wx, wz);
+        if (wlen > 0.0001) { wx /= wlen; wz /= wlen; }
+
+        const sprinting = inp.sprint && mf > 0 && this.state !== 'slide' && !this.crouching;
+
+        // --- התכופפות והחלקה ---
+        const wantCrouch = inp.crouch;
+        if (this.state !== 'slide' && wantCrouch && this.grounded &&
+            Math.hypot(this.vel.x, this.vel.z) >= CFG.SLIDE_MIN_SPD && this.slideT <= 0) {
+            this.startSlide();
+        } else if (this.state === 'slide') {
+            this.slideT += dt;
+            const spd = Math.hypot(this.vel.x, this.vel.z);
+            if (this.slideT > CFG.SLIDE_TIME || spd < 2.6 || !wantCrouch || !this.grounded) {
+                this.endSlide(world);
+            }
+        } else {
+            this.crouching = wantCrouch && this.grounded;
+            this.targetHeight = this.crouching ? CFG.CROUCH_HEIGHT : CFG.HEIGHT;
+        }
+
+        // גובה הגוף (בדיקת תקרה לפני התרוממות)
+        if (this.targetHeight > this.height) {
+            if (this.freeAt(this.pos.x, this.pos.y, this.pos.z, this.targetHeight, CFG.RADIUS, null, world)) {
+                this.height = Math.min(this.targetHeight, this.height + dt * 6.5);
+            }
+        } else if (this.targetHeight < this.height) {
+            this.height = Math.max(this.targetHeight, this.height - dt * 9);
+        }
+
+        // --- מהירות יעד ---
+        let maxSpeed;
+        if (this.state === 'slide') maxSpeed = CFG.RUN_SPEED + CFG.SLIDE_BOOST;
+        else if (this.crouching) maxSpeed = CFG.CROUCH_SPEED;
+        else if (sprinting) maxSpeed = CFG.RUN_SPEED;
+        else maxSpeed = CFG.WALK_SPEED;
+        if (mf < 0) maxSpeed = Math.min(maxSpeed, CFG.WALK_SPEED * 0.92);
+
+        const accel = this.grounded ? (this.state === 'slide' ? 8 : CFG.ACCEL_GROUND) : CFG.ACCEL_AIR;
+
+        if (wlen > 0.0001) {
+            // תאוצה בכיוון הרצוי (מודל quake — שליטה מוגבלת באוויר)
+            const cur = this.vel.x * wx + this.vel.z * wz;
+            const limit = this.grounded ? maxSpeed : CFG.AIR_SPEED;
+            const add = Math.min(accel * dt, Math.max(0, limit - cur));
+            this.vel.x += wx * add;
+            this.vel.z += wz * add;
+        }
+
+        // חיכוך / האטה
+        if (this.grounded) {
+            const f = this.state === 'slide' ? 1.9 : (wlen > 0.0001 ? CFG.FRICTION * .45 : CFG.FRICTION);
+            const spd = Math.hypot(this.vel.x, this.vel.z);
+            if (spd > 0.001) {
+                const drop = Math.max(spd, 2.5) * f * dt;
+                const scale = Math.max(0, spd - drop) / spd;
+                this.vel.x *= scale; this.vel.z *= scale;
+            }
+            // הגבלת מהירות על הקרקע
+            const spd2 = Math.hypot(this.vel.x, this.vel.z);
+            const cap = maxSpeed + (this.state === 'slide' ? 0.5 : 0.35);
+            if (spd2 > cap) {
+                const s = Math.max(cap, spd2 - (this.state === 'slide' ? 2.5 : 26) * dt) / spd2;
+                this.vel.x *= s; this.vel.z *= s;
+            }
+        } else {
+            const d = 1 - CFG.AIR_DRAG * dt;
+            this.vel.x *= d; this.vel.z *= d;
+        }
+
+        // --- כבידה ---
+        this.vel.y -= CFG.GRAVITY * dt;
+        if (this.vel.y < CFG.MAX_FALL) this.vel.y = CFG.MAX_FALL;
+
+        // --- קפיצה ---
+        if (this.grounded) this.coyote = CFG.COYOTE;
+        else this.coyote = Math.max(0, this.coyote - dt);
+
+        if (this.jumpBuf > 0) {
+            if (this.grounded || this.coyote > 0) {
+                this.doJump();
+            } else if (this.wallTouchCol && this.wallTouchCol !== this.lastWallJumpCol && this.wallCooldown <= 0) {
+                this.doWallJump(this.wallTouchNormal);
+            }
+        }
+
+        // --- ריצה על קיר ---
+        if (!this.grounded && this.state === 'normal' && this.wallCooldown <= 0 &&
+            this.vel.y < 5.5 && this.vel.y > -9 && mf > 0 &&
+            Math.hypot(this.vel.x, this.vel.z) > CFG.WALLRUN_MINSPD) {
+            this.tryWallrun(world);
+        }
+
+        // --- תנועה + התנגשויות ---
+        this.integrate(dt, world);
+
+        // --- טיפוס וקפיצה מעל מכשולים ---
+        if (this.grounded && this.state === 'normal' && this.vaultCooldown <= 0 &&
+            Math.hypot(this.vel.x, this.vel.z) > 3.2 && mf > 0) {
+            this.tryVault(world);
+        }
+
+        // --- תפיסת קצה ---
+        if (!this.grounded && this.state === 'normal' && this.grabCooldown <= 0 &&
+            this.vel.y < CFG.JUMP_SPEED * 0.98) {
+            this.tryLedgeGrab(world);
+        }
+
+        // --- צעדים ---
+        if (this.grounded && this.state !== 'slide') {
+            const spd = Math.hypot(this.vel.x, this.vel.z);
+            if (spd > 1.4) {
+                this.stepPhase += spd * dt;
+                const interval = sprinting ? 2.45 : 1.95;
+                if (this.stepPhase > interval) { this.stepPhase = 0; this.audio.footstep(sprinting); }
+            } else this.stepPhase = Math.min(this.stepPhase, 1.2);
+        }
+
+        // --- אפקטים ---
+        this.fovTarget = 0;
+        if (this.state === 'slide') this.fovTarget = CFG.FOV_SLIDE;
+        else if (sprinting && this.grounded && Math.hypot(this.vel.x, this.vel.z) > 6)
+            this.fovTarget = CFG.FOV_SPRINT * clamp((Math.hypot(this.vel.x, this.vel.z) - 5.5) / 3.5, 0, 1);
+        this.rollTarget = -mr * 0.022 + (this.state === 'slide' ? 0.05 : 0);
+
+        this.stateLabel = this.state === 'slide' ? 'החלקה'
+            : (this.crouching ? 'התכופפות' : (sprinting && this.grounded && this.speed > 6 ? 'ריצה' : ''));
+    }
+
+    startSlide() {
+        this.state = 'slide';
+        this.slideT = 0;
+        this.targetHeight = CFG.CROUCH_HEIGHT;
+        this.crouching = true;
+        const spd = Math.hypot(this.vel.x, this.vel.z);
+        if (spd > 0.1) {
+            const boost = Math.min(CFG.SLIDE_BOOST, CFG.RUN_SPEED + CFG.SLIDE_BOOST - spd);
+            if (boost > 0) {
+                this.vel.x += (this.vel.x / spd) * boost;
+                this.vel.z += (this.vel.z / spd) * boost;
+            }
+        }
+        this.audio.slide();
+        this.shake = Math.max(this.shake, 0.12);
+    }
+
+    endSlide(world) {
+        this.state = 'normal';
+        this.slideT = 0;
+        const canStand = this.freeAt(this.pos.x, this.pos.y, this.pos.z, CFG.HEIGHT, CFG.RADIUS, null, world);
+        this.crouching = !canStand || this.input.crouch;
+        this.targetHeight = this.crouching ? CFG.CROUCH_HEIGHT : CFG.HEIGHT;
+    }
+
+    doJump() {
+        this.vel.y = CFG.JUMP_SPEED;
+        this.grounded = false;
+        this.coyote = 0;
+        this.jumpBuf = 0;
+        this.groundCol = null;
+        if (this.state === 'slide') { this.state = 'normal'; this.targetHeight = CFG.HEIGHT; this.crouching = false; }
+        this.audio.jump();
+        this.landDip = Math.min(this.landDip + 0.035, 0.1);
+    }
+
+    doWallJump(normal) {
+        this.vel.y = CFG.WALLJUMP_UP;
+        const spd = Math.hypot(this.vel.x, this.vel.z);
+        this.vel.x = normal.x * CFG.WALLJUMP_OUT + this.vel.x * 0.42;
+        this.vel.z = normal.z * CFG.WALLJUMP_OUT + this.vel.z * 0.42;
+        const ns = Math.hypot(this.vel.x, this.vel.z);
+        const cap = Math.max(CFG.RUN_SPEED + 1.5, spd);
+        if (ns > cap) { this.vel.x *= cap / ns; this.vel.z *= cap / ns; }
+        this.lastWallJumpCol = this.wallCol || this.wallTouchCol;
+        this.state = 'normal';
+        this.wallCooldown = 0.22;
+        this.jumpBuf = 0;
+        this.wallT = 0;
+        this.audio.jump();
+        this.fovOffset = Math.max(this.fovOffset, 6);
+        this.shake = Math.max(this.shake, 0.16);
+    }
+
+    /* ---------- אינטגרציה + פתרון התנגשויות ---------- */
+    integrate(dt, world) {
+        // נשיאה על פלטפורמה נעה
+        if (this.groundCol && this.groundCol.dynamic) {
+            _v3c.copy(this.groundCol.c).sub(this.groundCol.prev);
+            this.pos.add(_v3c);
+        }
+        // דחיפת מסוע
+        if (this.groundCol && this.groundCol.conveyor) {
+            this.pos.x += this.groundCol.conveyor.x * dt;
+            this.pos.z += this.groundCol.conveyor.z * dt;
+        }
+
+        const speed = Math.hypot(this.vel.x, this.vel.y, this.vel.z);
+        const steps = clamp(Math.ceil(speed * dt / 0.22), 1, 8);
+        const h = dt / steps;
+        this.wallTouchCol = null;
+        for (let i = 0; i < steps; i++) {
+            this.pos.y += this.vel.y * h;
+            this.resolveVertical(world, h);
+            this.pos.x += this.vel.x * h;
+            this.pos.z += this.vel.z * h;
+            this.resolveHorizontal(world);
+        }
+        this.postLand();
+    }
+
+    resolveVertical(world, dt) {
+        const r = CFG.RADIUS, hgt = this.height;
+        const feet = this.pos.y, head = feet + hgt;
+        const wasGround = this.grounded;
+        this.grounded = false;
+        this.groundCol = null;
+
+        const cands = world.near(this.pos.x - r - .6, this.pos.z - r - .6, this.pos.x + r + .6, this.pos.z + r + .6);
+        let bestTop = -Infinity, bestCol = null;
+        let bestBottom = Infinity, ceilCol = null;
+
+        for (let i = 0; i < cands.length; i++) {
+            const c = cands[i];
+            if (!c.solid) continue;
+            if (feet >= c.top - 0.0001 || head <= c.bottom + 0.0001) continue;
+            if (this._horizPen(c, r, null) <= 0) continue;
+            const penUp = c.top - feet;
+            const penDown = head - c.bottom;
+            if (penUp <= penDown) {
+                if (c.top > bestTop) { bestTop = c.top; bestCol = c; }
+            } else if (c.bottom < bestBottom) { bestBottom = c.bottom; ceilCol = c; }
+        }
+
+        if (bestCol && this.vel.y <= 0.001) {
+            this.pos.y = bestTop;
+            this.landImpact = Math.max(this.landImpact, -this.vel.y);
+            this.vel.y = 0;
+            this.grounded = true;
+            this.groundCol = bestCol;
+        } else if (ceilCol && this.vel.y > 0) {
+            this.pos.y = bestBottom - hgt;
+            this.vel.y = Math.min(this.vel.y, 0);
+        } else if (ceilCol && !bestCol) {
+            this.pos.y = bestBottom - hgt;
+        }
+
+        // הצמדה לקרקע בירידה קלה (מדרגות / מדרונות)
+        if (!this.grounded && wasGround && this.vel.y <= 0.2 && this.state !== 'wallrun') {
+            let snapTop = -Infinity, snapCol = null;
+            const limit = this.pos.y - Math.max(0.36, Math.abs(this.vel.y) * dt + 0.12);
+            for (let i = 0; i < cands.length; i++) {
+                const c = cands[i];
+                if (!c.solid) continue;
+                if (c.top > this.pos.y + 0.02 || c.top < limit) continue;
+                if (this._horizPen(c, r, null) <= 0) continue;
+                if (c.top > snapTop) { snapTop = c.top; snapCol = c; }
+            }
+            if (snapCol) {
+                this.stepOffset += this.pos.y - snapTop;
+                this.pos.y = snapTop;
+                this.vel.y = 0;
+                this.grounded = true;
+                this.groundCol = snapCol;
+            }
+        }
+        if (this.grounded) this.lastWallJumpCol = null;
+    }
+
+    resolveHorizontal(world) {
+        const r = CFG.RADIUS, hgt = this.height;
+        const cands = world.near(this.pos.x - r - .6, this.pos.z - r - .6, this.pos.x + r + .6, this.pos.z + r + .6);
+        for (let pass = 0; pass < 2; pass++) {
+            let hit = false;
+            for (let i = 0; i < cands.length; i++) {
+                const c = cands[i];
+                if (!c.solid) continue;
+                const feet = this.pos.y, head = feet + hgt;
+                if (feet >= c.top - 0.02 || head <= c.bottom + 0.02) continue;
+                const pen = this._horizPen(c, r, _v3a);
+                if (pen <= 0) continue;
+
+                // טיפוס אוטומטי על מכשול נמוך
+                const stepUp = c.top - feet;
+                if (stepUp > 0 && stepUp <= CFG.STEP_HEIGHT &&
+                    (this.grounded || this.vel.y <= 0.2) &&
+                    this.freeAt(this.pos.x, c.top + 0.02, this.pos.z, hgt, r, null, world)) {
+                    this.stepOffset += this.pos.y - (c.top + 0.02);
+                    this.pos.y = c.top + 0.02;
+                    this.grounded = true;
+                    this.groundCol = c;
+                    this.vel.y = Math.max(this.vel.y, 0);
+                    hit = true;
+                    continue;
+                }
+
+                this.pos.x += _v3a.x * pen;
+                this.pos.z += _v3a.z * pen;
+                const vn = this.vel.x * _v3a.x + this.vel.z * _v3a.z;
+                if (vn < 0) { this.vel.x -= vn * _v3a.x; this.vel.z -= vn * _v3a.z; }
+                if (!c.noWallrun && c.top > feet + 0.9) {
+                    this.wallTouchCol = c;
+                    this.wallTouchNormal.copy(_v3a);
+                }
+                hit = true;
+            }
+            if (!hit) break;
+        }
+    }
+
+    postLand() {
+        if (this.grounded && !this.wasGrounded) {
+            const impact = this.landImpact;
+            if (impact > CFG.LAND_SOFT) {
+                const t = clamp((impact - CFG.LAND_SOFT) / (CFG.LAND_HARD - CFG.LAND_SOFT), 0, 1.6);
+                this.landDip = Math.min(0.55, 0.12 + t * 0.42);
+                this.landVel = 0;
+                this.shake = Math.max(this.shake, 0.1 + t * 0.35);
+                this.fovOffset = Math.min(this.fovOffset + 3 + t * 5, 12);
+                this.audio.land(t);
+                if (this.onLand) this.onLand(t);
+            } else if (impact > 3.5) {
+                this.landDip = Math.min(0.14, 0.05 + impact * 0.008);
+                this.audio.land(0.05);
+            }
+            this.wallCooldown = 0;
+            this.lastWallJumpCol = null;
+        }
+        this.landImpact = 0;
+    }
+
+    /* ---------- קפיצה מעל מכשול / טיפוס ---------- */
+    tryVault(world) {
+        const fwd = this.forwardVec(_v3a);
+        const px = this.pos.x + fwd.x * (CFG.RADIUS + 0.42);
+        const pz = this.pos.z + fwd.z * (CFG.RADIUS + 0.42);
+        const cands = world.near(px - 1, pz - 1, px + 1, pz + 1);
+        const feet = this.pos.y;
+        let target = null, targetTop = 0;
+        const sx = this.pos.x, sz = this.pos.z;
+        this.pos.x = px; this.pos.z = pz;
+        for (let i = 0; i < cands.length; i++) {
+            const c = cands[i];
+            if (!c.solid) continue;
+            const h = c.top - feet;
+            if (h < CFG.STEP_HEIGHT || h > CFG.VAULT_MAX_H) continue;
+            if (c.bottom > feet + 0.15) continue;
+            if (this._horizPen(c, CFG.RADIUS + 0.12, null) <= 0) continue;
+            if (c.top > targetTop) { target = c; targetTop = c.top; }
+        }
+        this.pos.x = sx; this.pos.z = sz;
+        if (!target) return false;
+
+        // חישוב עומק המכשול בכיוון התנועה
+        const ex = Math.abs(target.cos) * target.h.x + Math.abs(target.sin) * target.h.z;
+        const ez = Math.abs(target.sin) * target.h.x + Math.abs(target.cos) * target.h.z;
+        const depth = Math.abs(fwd.x) * ex * 2 + Math.abs(fwd.z) * ez * 2;
+        if (depth > 3.2) return false;
+
+        const dist = depth + CFG.RADIUS * 2 + 0.55;
+        const tx = this.pos.x + fwd.x * dist, tz = this.pos.z + fwd.z * dist;
+        if (!this.freeAt(tx, targetTop + 0.05, tz, this.height, CFG.RADIUS, null, world)) return false;
+
+        this.state = 'vault';
+        this.vaultT = 0;
+        this.vaultFrom.copy(this.pos);
+        this.vaultTo.set(tx, targetTop + 0.05, tz);
+        this.vaultCooldown = 0.4;
+        this.audio.grab();
+        this.shake = Math.max(this.shake, 0.13);
+        this.stateLabel = 'קפיצה מעל מכשול';
+        return true;
+    }
+
+    updateVault(dt, world) {
+        this.vaultT += dt;
+        const t = clamp(this.vaultT / CFG.VAULT_TIME, 0, 1);
+        const e = t * t * (3 - 2 * t);
+        this.pos.lerpVectors(this.vaultFrom, this.vaultTo, e);
+        this.pos.y += Math.sin(t * Math.PI) * 0.42;
+        this.targetHeight = CFG.CROUCH_HEIGHT + 0.35;
+        this.height = damp(this.height, this.targetHeight, 12, dt);
+        this.rollTarget = 0.06;
+        this.fovTarget = 6;
+        this.stateLabel = 'טיפוס מעל מכשול';
+        if (t >= 1) {
+            this.state = 'normal';
+            this.targetHeight = CFG.HEIGHT;
+            const fwd = this.forwardVec(_v3a);
+            const keep = Math.max(4.5, Math.hypot(this.vel.x, this.vel.z) * 0.85);
+            this.vel.set(fwd.x * keep, 0, fwd.z * keep);
+            this.grounded = false;
+            this.resolveVertical(world, dt);
+        }
+    }
+
+    /* ---------- תפיסת קצה + טיפוס ---------- */
+    tryLedgeGrab(world) {
+        const fwd = this.forwardVec(_v3a);
+        const feet = this.pos.y;
+        // הגובה המרבי שאפשר להגיע אליו בקפיצה הנוכחית — מעליו נדרשת אחיזה
+        const apex = feet + (this.vel.y > 0 ? (this.vel.y * this.vel.y) / (2 * CFG.GRAVITY) : 0);
+        const reachMin = feet + 0.45, reachMax = feet + this.height + 0.55;
+        const cands = world.near(this.pos.x - 2, this.pos.z - 2, this.pos.x + 2, this.pos.z + 2);
+        let best = null, bestDist = Infinity, bestTop = 0;
+        for (let i = 0; i < cands.length; i++) {
+            const c = cands[i];
+            if (!c.solid || c.dynamic) continue;
+            if (c.top < reachMin || c.top > reachMax) continue;
+            if (c.top < apex + 0.12) continue;   // אפשר פשוט לנחות עליו — אין צורך באחיזה
+            const pen = this._horizPen(c, CFG.RADIUS + CFG.GRAB_REACH, _v3b);
+            if (pen <= 0) continue;
+            // הקיר חייב להיות לפנינו
+            const facing = -(_v3b.x * fwd.x + _v3b.z * fwd.z);
+            if (facing < 0.45) continue;
+            const d = (CFG.RADIUS + CFG.GRAB_REACH) - pen;
+            if (d < bestDist) { bestDist = d; best = c; bestTop = c.top; }
+        }
+        if (!best) return false;
+
+        // מקום עמידה מעל הקצה — בודקים גם שיש משטח לעמוד עליו
+        this._horizPen(best, CFG.RADIUS + CFG.GRAB_REACH, _v3b);
+        let standX = 0, standZ = 0, ok = false;
+        for (const extra of [CFG.RADIUS + 0.55, CFG.RADIUS + 0.22, CFG.RADIUS + 0.9]) {
+            standX = this.pos.x - _v3b.x * (bestDist + extra);
+            standZ = this.pos.z - _v3b.z * (bestDist + extra);
+            if (!this.freeAt(standX, bestTop + 0.06, standZ, CFG.HEIGHT, CFG.RADIUS, null, world)) continue;
+            const support = this.topAt(standX, standZ, CFG.RADIUS * 0.8, bestTop - 0.3, bestTop + 0.05, world);
+            if (support > -Infinity) { ok = true; break; }
+        }
+        if (!ok) return false;
+
+        // מיקום התלייה — ממש מחוץ לקיר
+        best.toLocal(this.pos.x, this.pos.z, _v2);
+        const lx = clamp(_v2.x, -best.h.x, best.h.x), lz = clamp(_v2.y, -best.h.z, best.h.z);
+        best.toWorldDir(lx, lz, _v3c);
+        const wx = best.c.x + _v3c.x, wz = best.c.z + _v3c.z;
+        const hx = wx + _v3b.x * (CFG.RADIUS + 0.04);
+        const hz = wz + _v3b.z * (CFG.RADIUS + 0.04);
+        const hangY = bestTop - CFG.HEIGHT * 0.92;
+
+        // כמעט הגענו לקצה — משיכה ישירה למעלה במקום תלייה
+        if (this.pos.y > hangY + 0.06) {
+            this.state = 'mantle';
+            this.mantleT = 0;
+            this.pos.set(hx, this.pos.y, hz);
+            this.mantleFrom.copy(this.pos);
+            this.mantleTo.set(standX, bestTop + 0.06, standZ);
+            this.vel.set(0, 0, 0);
+            this.height = this.targetHeight = CFG.HEIGHT;
+            this.audio.grab();
+            this.shake = Math.max(this.shake, 0.06);
+            return true;
+        }
+
+        this.state = 'hang';
+        this.hangCol = best;
+        this.hangTop = bestTop;
+        this.hangNormal.copy(_v3b);
+        this.hangT = 0;
+        this.pos.set(hx, hangY, hz);
+        this.mantleTo.set(standX, bestTop + 0.06, standZ);
+        this.vel.set(0, 0, 0);
+        this.height = this.targetHeight = CFG.HEIGHT;
+        this.audio.grab();
+        this.shake = Math.max(this.shake, 0.08);
+        return true;
+    }
+
+    updateHang(dt, world) {
+        this.hangT += dt;
+        this.vel.set(0, 0, 0);
+        this.stateLabel = 'אחיזה בקצה';
+        this.rollTarget = 0;
+        this.fovTarget = -3;
+        // תנודה עדינה
+        this.pos.y += Math.sin(this.hangT * 3) * 0.0016;
+
+        const wantUp = this.jumpBuf > 0 || this.input.moveF > 0;
+        const wantDrop = this.input.crouch || this.input.moveF < 0;
+        if (wantDrop && this.hangT > 0.12) {
+            this.state = 'normal';
+            this.grabCooldown = 0.55;
+            this.vel.set(this.hangNormal.x * 2.2, 0, this.hangNormal.z * 2.2);
+            this.hangCol = null;
+            return;
+        }
+        if (wantUp && this.hangT > 0.08) {
+            if (this.freeAt(this.mantleTo.x, this.mantleTo.y, this.mantleTo.z, CFG.HEIGHT, CFG.RADIUS, null, world)) {
+                this.state = 'mantle';
+                this.mantleT = 0;
+                this.mantleFrom.copy(this.pos);
+                this.jumpBuf = 0;
+                this.audio.footstep(true);
+            } else {
+                this.state = 'normal';
+                this.grabCooldown = 0.5;
+                this.vel.set(this.hangNormal.x * 2.5, 3.2, this.hangNormal.z * 2.5);
+            }
+            this.hangCol = null;
+        }
+    }
+
+    updateMantle(dt, world) {
+        this.mantleT += dt;
+        const t = clamp(this.mantleT / CFG.MANTLE_TIME, 0, 1);
+        // קודם למעלה, אחר כך קדימה
+        const up = clamp(t / 0.62, 0, 1);
+        const fw = clamp((t - 0.38) / 0.62, 0, 1);
+        const eu = up * up * (3 - 2 * up), ef = fw * fw * (3 - 2 * fw);
+        this.pos.x = lerp(this.mantleFrom.x, this.mantleTo.x, ef);
+        this.pos.z = lerp(this.mantleFrom.z, this.mantleTo.z, ef);
+        this.pos.y = lerp(this.mantleFrom.y, this.mantleTo.y + 0.02, eu);
+        this.stateLabel = 'טיפוס';
+        this.rollTarget = 0.035;
+        this.fovTarget = 3;
+        this.height = this.targetHeight = CFG.HEIGHT;
+        if (t >= 1) {
+            this.state = 'normal';
+            this.vel.set(0, 0, 0);
+            this.grabCooldown = 0.3;
+            this.grounded = false;
+            this.resolveVertical(world, dt);
+            this.audio.footstep(false);
+        }
+    }
+
+    /* ---------- ריצה על קיר ---------- */
+    tryWallrun(world) {
+        const right = this.rightVec(_v3a);
+        const feet = this.pos.y;
+        const cands = world.near(this.pos.x - 1.6, this.pos.z - 1.6, this.pos.x + 1.6, this.pos.z + 1.6);
+        for (const side of [1, -1]) {
+            for (let i = 0; i < cands.length; i++) {
+                const c = cands[i];
+                if (!c.solid || c.noWallrun || c.dynamic) continue;
+                if (c === this.lastWallJumpCol) continue;
+                if (c.top < feet + 1.4) continue;
+                if (c.bottom > feet + 0.9) continue;
+                const pen = this._horizPen(c, CFG.RADIUS + 0.34, _v3b);
+                if (pen <= 0) continue;
+                // הקיר חייב להיות בצד הנכון
+                const dotSide = -(_v3b.x * right.x + _v3b.z * right.z) * side;
+                if (dotSide < 0.55) continue;
+                // הקיר חייב להיות תלול (הנורמל כמעט אופקי — תמיד נכון כאן) ובכיוון התנועה
+                const vlen = Math.hypot(this.vel.x, this.vel.z);
+                const along = Math.abs((this.vel.x * -_v3b.z + this.vel.z * _v3b.x)) / Math.max(vlen, 0.001);
+                if (along < 0.55) continue;
+
+                this.state = 'wallrun';
+                this.wallCol = c;
+                this.wallSide = side;
+                this.wallNormal.copy(_v3b);
+                this.wallT = 0;
+                // משיק לקיר בכיוון התנועה
+                const tx = -_v3b.z, tz = _v3b.x;
+                const sgn = (this.vel.x * tx + this.vel.z * tz) >= 0 ? 1 : -1;
+                this.wallTangent.set(tx * sgn, 0, tz * sgn);
+                this.vel.y = Math.max(this.vel.y, 2.1);
+                this.audio.wall();
+                return true;
+            }
+        }
+        return false;
+    }
+
+    updateWallrun(dt, world) {
+        this.wallT += dt;
+        const inp = this.input;
+        const spd = Math.hypot(this.vel.x, this.vel.z);
+
+        // קפיצה מהקיר
+        if (this.jumpBuf > 0) { this.doWallJump(this.wallNormal); return; }
+
+        // תנאי יציאה
+        const stillOnWall = this.wallCol && this._horizPen(this.wallCol, CFG.RADIUS + 0.45, _v3b) > 0;
+        if (!stillOnWall || this.wallT > CFG.WALLRUN_TIME || spd < 3.2 || inp.moveF <= 0) {
+            this.state = 'normal';
+            this.wallCooldown = 0.25;
+            this.lastWallJumpCol = this.wallCol;
+            this.wallCol = null;
+            this.integrate(dt, world);
+            return;
+        }
+        this.wallNormal.copy(_v3b);
+
+        // תנועה לאורך הקיר
+        const decay = 1 - 0.35 * dt;
+        const target = Math.max(CFG.WALLRUN_MINSPD, spd * decay);
+        this.vel.x = this.wallTangent.x * target - this.wallNormal.x * 1.1;
+        this.vel.z = this.wallTangent.z * target - this.wallNormal.z * 1.1;
+        // כבידה מופחתת + הרמה קלה בהתחלה
+        const lift = clamp(1 - this.wallT / (CFG.WALLRUN_TIME * 0.55), 0, 1);
+        this.vel.y += (-CFG.GRAVITY * CFG.WALLRUN_GRAV + lift * 5.5) * dt;
+        this.vel.y = clamp(this.vel.y, -6, 4.2);
+
+        this.integrate(dt, world);
+        if (this.grounded) {
+            this.state = 'normal';
+            this.wallCooldown = 0.2;
+            this.wallCol = null;
+            return;
+        }
+        this.rollTarget = -this.wallSide * 0.17;
+        this.fovTarget = 8;
+        this.stateLabel = 'ריצה על קיר';
+        if (Math.random() < dt * 9) this.audio.footstep(true);
+    }
+
+    /* ---------- סכנות ---------- */
+    checkHazards(world) {
+        const r = CFG.RADIUS;
+        const cands = world.near(this.pos.x - r - .6, this.pos.z - r - .6, this.pos.x + r + .6, this.pos.z + r + .6);
+        for (let i = 0; i < cands.length; i++) {
+            const c = cands[i];
+            if (!c.hazard) continue;
+            if (this.pos.y > c.top || this.pos.y + this.height < c.bottom) continue;
+            if (this._horizPen(c, r, null) <= 0) continue;
+            if (this.onHazard) this.onHazard();
+            return;
+        }
+    }
+
+    /* ---------- מצלמה ---------- */
+    updateCameraTransform(dt) {
+        // התאוששות מנחיתה (קפיץ)
+        const k = 105, damping = 13;
+        this.landVel += (-this.landDip * k - this.landVel * damping) * dt;
+        this.landDip += this.landVel * dt;
+        if (Math.abs(this.landDip) < 0.0005 && Math.abs(this.landVel) < 0.005) { this.landDip = 0; this.landVel = 0; }
+
+        this.stepOffset = damp(this.stepOffset, 0, 12, dt);
+        this.stepOffset = clamp(this.stepOffset, -CFG.STEP_HEIGHT, CFG.STEP_HEIGHT);
+
+        const targetEye = (this.height <= CFG.CROUCH_HEIGHT + 0.06)
+            ? CFG.EYE_CROUCH : (this.height / CFG.HEIGHT) * CFG.EYE;
+        this.eyeH = damp(this.eyeH, targetEye, 14, dt);
+
+        // תנודת הליכה
+        const spd = Math.hypot(this.vel.x, this.vel.z);
+        if (this.bobEnabled && this.grounded && this.state !== 'slide' && spd > 0.6) {
+            this.bobT += dt * (CFG.BOB_FREQ * (0.55 + spd / CFG.RUN_SPEED * 0.75));
+            const amp = CFG.BOB_AMP * clamp(spd / CFG.RUN_SPEED, 0.25, 1.25);
+            this.bobY = damp(this.bobY, Math.sin(this.bobT * 2) * amp, 18, dt);
+            this.bobX = damp(this.bobX, Math.cos(this.bobT) * amp * 0.85, 18, dt);
+        } else {
+            this.bobY = damp(this.bobY, 0, 9, dt);
+            this.bobX = damp(this.bobX, 0, 9, dt);
+        }
+
+        // רעידה
+        this.shake = Math.max(0, this.shake - dt * 1.9);
+        const sh = this.shake * this.shake;
+        const shx = (Math.random() - .5) * sh * 0.12;
+        const shy = (Math.random() - .5) * sh * 0.12;
+
+        this.roll = damp(this.roll, this.rollTarget, 8, dt);
+        this.fovOffset = damp(this.fovOffset, this.fovTarget, 6, dt);
+
+        const cam = this.cam;
+        const right = this.rightVec(_v3a);
+        cam.position.set(
+            this.pos.x + right.x * this.bobX,
+            this.pos.y + this.eyeH + this.bobY + this.landDip + this.stepOffset,
+            this.pos.z + right.z * this.bobX
+        );
+        cam.rotation.order = 'YXZ';
+        cam.rotation.y = this.yaw + shx;
+        cam.rotation.x = this.pitch + shy;
+        cam.rotation.z = this.roll;
+
+        const wantFov = this.baseFov + this.fovOffset;
+        if (Math.abs(cam.fov - wantFov) > 0.01) {
+            cam.fov = wantFov;
+            cam.updateProjectionMatrix();
+        }
+    }
+}
+
+/* =========================================================================
+   12. יצירת השלבים
+   ========================================================================= */
+
+/* רקע עירוני משותף — קרקע רחוקה, קו רקיע, עננים */
+function cityBackdrop(L, cx, cz, groundY, opts = {}) {
+    const g = new THREE.Mesh(new THREE.PlaneGeometry(1400, 1400), MAT.asphalt);
+    g.rotation.x = -Math.PI / 2;
+    g.position.set(cx, groundY, cz);
+    g.receiveShadow = true;
+    L._track(g.geometry);
+    L.group.add(g);
+    // רשת רחובות
+    const roadMat = MAT.plainDark;
+    for (let i = -3; i <= 3; i++) {
+        const r1 = new THREE.Mesh(boxGeo(1300, .06, 12, .2), roadMat);
+        r1.position.set(cx, groundY + .04, cz + i * 90);
+        r1.receiveShadow = true; r1.castShadow = false;
+        L.group.add(r1);
+        const r2 = new THREE.Mesh(boxGeo(12, .06, 1300, .2), roadMat);
+        r2.position.set(cx + i * 90, groundY + .04, cz);
+        r2.receiveShadow = true; r2.castShadow = false;
+        L.group.add(r2);
+    }
+    L.skyline(cx, cz, opts.count || 150, opts.inner || 120, opts.outer || 560,
+        opts.minH || 30, opts.maxH || (opts.tall || 120), groundY);
+    L.clouds(cx, (opts.cloudY || 150), cz, opts.clouds || 16, 700);
+}
+
+/* ארגז אשפה / מכולה דקורטיבית */
+function container(L, x, y, z, yaw, mat) {
+    L.box(x, y + 1.3, z, 6, 2.6, 2.5, mat || MAT.blue, { yaw, uv: .45 });
+    for (let i = -2; i <= 2; i++) {
+        const rib = new THREE.Mesh(boxGeo(.12, 2.4, 2.6, 1), MAT.metalDark);
+        rib.position.set(x + Math.cos(yaw) * i * 1.1, y + 1.3, z + Math.sin(yaw) * i * 1.1);
+        rib.rotation.y = yaw; rib.castShadow = true;
+        L.group.add(rib);
+    }
+}
+
+/* מיכל מים על גג */
+function waterTank(L, x, y, z) {
+    const g = new THREE.Group();
+    g.position.set(x, y, z);
+    for (const sx of [-1, 1]) for (const sz of [-1, 1]) {
+        const leg = new THREE.Mesh(GEO.cylHi, MAT.metal);
+        leg.scale.set(.1, 2.2, .1);
+        leg.position.set(sx * .9, 1.1, sz * .9);
+        leg.castShadow = true;
+        g.add(leg);
+    }
+    const tank = new THREE.Mesh(GEO.cylHi, MAT.rust);
+    tank.scale.set(1.5, 3, 1.5); tank.position.y = 3.7;
+    tank.castShadow = true; tank.receiveShadow = true;
+    const cap = new THREE.Mesh(GEO.cone, MAT.rust);
+    cap.scale.set(1.6, 1, 1.6); cap.position.y = 5.7;
+    cap.castShadow = true;
+    g.add(tank, cap);
+    L.group.add(g);
+    L.world.add(new Collider(x, y + 3.7, z, 1.5, 1.5, 1.5, 0, { mesh: tank }));
+}
+
+/* אנטנה */
+function antenna(L, x, y, z) {
+    const m = new THREE.Mesh(GEO.cylHi, MAT.metalDark);
+    m.scale.set(.07, 6, .07); m.position.set(x, y + 3, z); m.castShadow = true;
+    L.group.add(m);
+    for (let i = 1; i <= 3; i++) {
+        const b = new THREE.Mesh(boxGeo(1.4 - i * .3, .06, .06, 1), MAT.metalDark);
+        b.position.set(x, y + 2 + i * 1.2, z); b.castShadow = false;
+        L.group.add(b);
+    }
+}
+
+/* ============================ שלב 1 — אימון ============================ */
+function buildLevel1() {
+    const L = new LevelBuilder('אימון', 'גג האימונים');
+    L.env = {
+        skyTop: 0x1d5ea8, skyBottom: 0xcadeec, sunColor: 0xfff1d8, sunInt: 2.7,
+        sunDir: new THREE.Vector3(0.55, 0.8, 0.3), fog: 0xc2d5e2, fogNear: 70, fogFar: 460,
+        ambSky: 0xa9cce9, ambGround: 0x6f675d, ambInt: 0.95, expo: 1.02,
+    };
+    const Y = 30;
+    L.killY = 8;
+    L.setSpawn(0, Y, -6, Math.PI);
+    cityBackdrop(L, 0, 70, 0, { count: 150, inner: 90, outer: 520, minH: 20, tall: 90, cloudY: 120 });
+
+    let edge = -12;
+    const pad = (gap, sx, sz, mat, o) => {
+        const zc = edge + gap + sz / 2;
+        L.platform(0, Y, zc, sx, sz, mat || MAT.concrete, o);
+        // מגדל תמיכה מתחת — תחושת גובה
+        L.box(0, Y / 2 - 1, zc, sx * .92, Y - 2, sz * .92, MAT.concreteD, { uv: .3, cast: false });
+        edge = zc + sz / 2;
+        return zc;
+    };
+
+    // --- אזור התחלה ---
+    const z0 = pad(0, 18, 26, MAT.roof);
+    for (const s of [-1, 1]) L.box(s * 9.15, Y + .55, z0, .3, 1.1, 26, MAT.concreteD, { uv: .8 });
+    L.box(0, Y + .55, z0 - 13.15, 18.6, 1.1, .3, MAT.concreteD, { uv: .8 });
+    L.ac(-6, Y, z0 - 8, { yaw: .4 });
+    L.ac(6.5, Y, z0 - 9.5, { yaw: -.2 });
+    waterTank(L, -6.5, Y, z0 + 8);
+    antenna(L, 7, Y, z0 + 9);
+    L.pipe(-8.2, Y + .5, z0 + 2, 16, .28, 'z', MAT.rust);
+
+    L.hint(0, Y + 1, -6, 7, 'ברוך הבא ל־URBAN EDGE! <kbd>W A S D</kbd> לתנועה, עכבר להסתכלות');
+    L.hint(0, Y + 1, 2, 6, 'החזק <kbd>SHIFT</kbd> כדי לרוץ מהר — שים לב לשינוי בשדה הראייה');
+
+    // --- מסלול ריצה ---
+    const z1 = pad(1.6, 9, 26, MAT.concrete);
+    L.hint(0, Y + 1, z1 - 8, 6, 'רוץ קדימה ולחץ <kbd>SPACE</kbd> כדי לקפוץ');
+    L.box(4.9, Y + .3, z1, .35, .6, 26, MAT.concreteD, { uv: .8 });
+    L.box(-4.9, Y + .3, z1, .35, .6, 26, MAT.concreteD, { uv: .8 });
+    L.checkpoint(0, Y, z1 + 9, Math.PI);
+
+    // --- קפיצות מעל מרווחים ---
+    L.hint(0, Y + 1, z1 + 11, 6, 'ריצה מגדילה את מרחק הקפיצה. קפוץ בין הפלטפורמות!');
+    pad(2.6, 7, 6, MAT.concrete);
+    pad(3.4, 7, 6, MAT.concrete);
+    pad(4.3, 7, 6, MAT.concrete);
+    const z5 = pad(5.2, 11, 9, MAT.concrete);
+    L.checkpoint(0, Y, z5 + 2.5, Math.PI);
+
+    // --- מסלול החלקה ---
+    const z6 = pad(2.2, 9, 30, MAT.concrete);
+    L.hint(0, Y + 1, z6 - 13, 7, 'רוץ ולחץ <kbd>CTRL</kbd> או <kbd>C</kbd> כדי להחליק מתחת למכשולים');
+    for (const s of [-1, 1]) L.box(s * 4.85, Y + 1.3, z6, .3, 2.6, 30, MAT.concreteD, { uv: .7 });
+    for (const bz of [z6 - 8, z6 + 2]) {
+        L.box(0, Y + 1.15 + .75, bz, 9, 1.5, 1.3, MAT.stripe, { uv: .8 });
+        L.box(0, Y + 2.7, bz, 9.4, .3, 1.6, MAT.metalDark, { uv: .8 });
+    }
+    L.checkpoint(0, Y, z6 + 13, Math.PI);
+
+    // --- טיפוס ---
+    const z7 = pad(2.4, 11, 22, MAT.concrete);
+    L.hint(0, Y + 1, z7 - 9, 6, 'רוץ אל המכשול הנמוך — תעבור מעליו אוטומטית');
+    L.box(0, Y + .6, z7 - 5, 10, 1.2, .8, MAT.brick, { uv: .8 });          // קיר לקפיצה מעל
+    L.box(0, Y + .25, z7 + 1, 3, .5, 2, MAT.wood, { uv: .8 });             // ארגזים
+    L.box(0, Y + .5, z7 + 3.4, 3, 1.0, 2, MAT.wood, { uv: .8 });
+    L.box(0, Y + .75, z7 + 5.8, 3, 1.5, 2, MAT.wood, { uv: .8 });
+    L.box(4, Y + .3, z7 + 4, 2.4, .6, 6, MAT.concreteD, { uv: .8 });
+
+    // --- תפיסת קצה ---
+    L.hint(0, Y + 1, z7 + 8.5, 6, 'קפוץ אל הקיר הגבוה — תיתפס לקצה, ואז <kbd>SPACE</kbd> כדי לעלות');
+    const wallZ = edge + 3.4;
+    L.box(0, Y + 1.7, wallZ, 14, 3.4, 7, MAT.brick, { uv: .45 });
+    L.box(0, Y / 2 - 1, wallZ, 13, Y - 2, 6.5, MAT.concreteD, { uv: .3, cast: false });
+    const topY = Y + 3.4;
+    L.ac(-4.5, topY, wallZ + 1.5, { yaw: .3 });
+    antenna(L, 5, topY, wallZ - 1.6);
+    L.setGoal(0, topY, wallZ + 1.4);
+    L.hint(0, topY + 1, wallZ + 1.4, 4, 'עלה אל האור הזוהר כדי לסיים את השלב!');
+    return L;
+}
+
+/* ======================= שלב 2 — גגות העיר ======================= */
+function buildLevel2() {
+    const L = new LevelBuilder('גגות העיר', 'קפיצות בין גגות');
+    L.env = {
+        skyTop: 0x2a72bd, skyBottom: 0xd6e6f0, sunColor: 0xfff6e6, sunInt: 2.9,
+        sunDir: new THREE.Vector3(-0.4, 0.85, 0.35), fog: 0xc9d9e6, fogNear: 80, fogFar: 520,
+        ambSky: 0xb2d2ee, ambGround: 0x746b60, ambInt: 0.95, expo: 1.05,
+    };
+    L.killY = 6;
+    cityBackdrop(L, 0, 80, 0, { count: 170, inner: 110, outer: 620, minH: 24, tall: 110, cloudY: 130 });
+
+    let e = 0;
+    const bld = (gap, w, d, h, x, o = {}) => {
+        const zc = e + gap + d / 2 + .18;
+        const roofY = L.building(x, zc, w, d, h, o);
+        e = zc + d / 2 + .18;
+        return { z: zc, y: roofY, x };
+    };
+
+    // גג ההתחלה
+    const b1 = bld(0, 18, 18, 24, 0, { parapetH: .55, gaps: ['n'] });
+    L.setSpawn(0, b1.y, b1.z - 6, Math.PI);
+    L.ac(-5, b1.y, b1.z - 2, { yaw: .3 });
+    L.ac(5.5, b1.y, b1.z + 1, { yaw: -.4 });
+    waterTank(L, -6, b1.y, b1.z + 5);
+    L.pipe(7.5, b1.y + .55, b1.z, 14, .3, 'z', MAT.rust);
+    L.hint(0, b1.y + 1, b1.z - 6, 8, 'גגות העיר: קפוץ בין הבניינים. <kbd>SHIFT</kbd> + <kbd>SPACE</kbd> לקפיצה ארוכה');
+
+    const b2 = bld(4.0, 13, 12, 23, 0, { parapetH: .5, gaps: ['n', 's'] });
+    L.ac(-3.5, b2.y, b2.z + 2, { yaw: .2 });
+    L.box(0, b2.y + .55, b2.z - 1, 8, 1.1, .7, MAT.concreteD, { uv: .8 });   // קיר לקפיצה מעל
+    L.hint(0, b2.y + 1, b2.z, 5, 'קיר נמוך? פשוט רוץ אליו — הדמות תעבור מעליו');
+
+    const b3 = bld(4.4, 14, 11, 21.5, 1.5, { parapetH: .5, gaps: ['n', 's'] });
+    L.checkpoint(b3.x, b3.y, b3.z, Math.PI);
+    L.pipe(b3.x - 5, b3.y + .6, b3.z, 10, .32, 'z', MAT.metal);
+    L.ac(b3.x + 4.5, b3.y, b3.z - 2.5, { yaw: -.3 });
+
+    const b4 = bld(5.0, 10, 10, 20, 0, { parapetH: .5, gaps: ['n', 's'] });
+    L.ac(3, b4.y, b4.z, { yaw: .1, w: 1.6, d: 1.3 });
+
+    // גשר קרש צר
+    const plankZ0 = e, plankLen = 7.5;
+    L.box(0, b4.y - .12, plankZ0 + plankLen / 2, 1.5, .24, plankLen, MAT.wood, { uv: .8 });
+    for (const s of [-1, 1]) {
+        L.box(s * .8, b4.y + .35, plankZ0 + plankLen / 2, .1, .7, plankLen, MAT.wood, { uv: .9, solid: false, noCollide: true });
+    }
+    L.hint(0, b4.y + 1, plankZ0 + 1, 5, 'פלטפורמה צרה — לך ישר ואל תיפול');
+    e = plankZ0 + plankLen;
+
+    const b5 = bld(0.4, 16, 14, 20, 0, { parapetH: .5, gaps: ['n', 's'] });
+    // מדרגות מזגנים לטיפוס
+    L.ac(-4, b5.y, b5.z - 3, { yaw: 0 });
+    L.ac(-4, b5.y + 1.29, b5.z - 1, { yaw: 0, h: .9 });
+    L.pipe(5, b5.y + .6, b5.z, 12, .34, 'z', MAT.rust);
+    L.box(0, b5.y + .55, b5.z + 4, 10, 1.1, .7, MAT.brick, { uv: .8 });
+
+    const b6 = bld(4.2, 12, 12, 21, -1.5, { parapetH: .5, gaps: ['n', 's'] });
+    L.checkpoint(b6.x, b6.y, b6.z, Math.PI);
+    antenna(L, b6.x + 4, b6.y, b6.z + 3);
+
+    const b7 = bld(5.4, 14, 14, 19.5, 1, { parapetH: .5, gaps: ['n', 's'] });
+    L.ac(b7.x - 4, b7.y, b7.z - 3, { yaw: .5 });
+    L.ac(b7.x + 4, b7.y, b7.z + 3, { yaw: -.5 });
+
+    // מעבר על צינור גדול
+    const pz = e;
+    L.pipe(b7.x, b7.y - .55, pz + 4.5, 9, .8, 'z', MAT.rust);
+    L.hint(b7.x, b7.y + 1, pz + 1, 5, 'לך על הצינור בזהירות');
+    e = pz + 9;
+
+    const b8 = bld(0.5, 18, 16, 18, b7.x, { parapetH: .5, gaps: ['n', 's'] });
+    L.checkpoint(b8.x, b8.y, b8.z, Math.PI);
+    waterTank(L, b8.x + 6, b8.y, b8.z - 4);
+    L.box(b8.x, b8.y + .55, b8.z + 2, 12, 1.1, .7, MAT.concreteD, { uv: .8 });
+
+    // שתי פלטפורמות קטנות אל בניין הסיום
+    const s1z = e + 3.6;
+    L.platform(b8.x - 3, b8.y - 1.2, s1z, 4, 4, MAT.metal);
+    const s2z = s1z + 7.5;
+    L.platform(b8.x + 3, b8.y - 2.4, s2z, 4, 4, MAT.metal);
+    e = s2z + 2;
+
+    const b9 = bld(4.2, 15, 15, 17, 0, { parapetH: .5, gaps: ['s'] });
+    L.setGoal(0, b9.y, b9.z + 2);
+    L.hint(0, b9.y + 1, b9.z - 4, 6, 'הגעת! עלה אל האור כדי לסיים');
+    return L;
+}
+
+/* ====================== שלב 3 — אתר בנייה ====================== */
+function buildLevel3() {
+    const L = new LevelBuilder('אתר הבנייה', 'פיגומים, קורות ומנוף');
+    L.env = {
+        skyTop: 0x3a72a8, skyBottom: 0xe8dcc4, sunColor: 0xffe0b0, sunInt: 3.0,
+        sunDir: new THREE.Vector3(0.7, 0.55, -0.35), fog: 0xd8cfbc, fogNear: 60, fogFar: 430,
+        ambSky: 0xc8d8ea, ambGround: 0x8a7a62, ambInt: 0.9, expo: 1.06,
+    };
+    L.killY = -4;
+    // הקרקע הרחוקה מעט מתחת לרחבה — מונע Z-fighting עם משטח האתר
+    cityBackdrop(L, 0, 80, -0.35, { count: 120, inner: 150, outer: 620, minH: 20, tall: 80, cloudY: 140 });
+
+    // רחבת התחלה
+    L.platform(0, 0, -4, 26, 22, MAT.asphalt, { thick: 1.2 });
+    L.setSpawn(0, 0, -10, Math.PI);
+    L.hint(0, 1, -10, 7, 'אתר בנייה. טפס בעזרת <b>תפיסת קצה</b>: קפוץ אל שפת המשטח ולחץ <kbd>SPACE</kbd>');
+    container(L, -9, 0, -6, 0, MAT.blue);
+    container(L, 9, 0, -9, .3, MAT.red);
+    container(L, 10, 0, 2, -.25, MAT.green);
+    for (let i = 0; i < 5; i++) L.pipe(-10 + i * .9, .45 + (i % 2) * .8, 2, 8, .42, 'z', MAT.rust, { rings: false });
+
+    // מגדל פיגומים 1 — טיפוס בעזרת תפיסת קצה (2.6 מ' לכל קומה)
+    L.scaffold(0, 0, 10, 7, 7, 3, { decks: [1, 2, 3], levelHeight: 2.6 });
+    L.hint(0, 1, 5, 5, 'קפוץ אל קצה הפיגום — הדמות תיתפס אליו. <kbd>SPACE</kbd> לטיפוס');
+    L.box(0, .3, 6.2, 3, .6, 1.6, MAT.wood, { uv: .8 });   // מדרגה ראשונה
+    L.checkpoint(0, 7.8, 10, Math.PI);
+
+    // קורות אל מגדל 2
+    L.beam(0, 7.55, 17, 9, MAT.rust, { yaw: Math.PI / 2, w: .55 });
+    L.scaffold(0, 0, 24, 7, 7, 4, { decks: [3, 4], levelHeight: 2.6 });
+    L.hint(0, 9, 17, 5, 'קורות צרות — לך במרכז');
+
+    // מדף ביניים לטיפוס לקומה 4
+    L.platform(4.6, 9.1, 24, 3, 4, MAT.metal);
+    const deck4 = 10.4;
+
+    // גשר קורות ארוך אל אזור העמודים
+    L.beam(0, deck4 - .25, 32, 10, MAT.rust, { yaw: Math.PI / 2, w: .6 });
+    L.platform(0, deck4, 39, 8, 6, MAT.wood);
+    L.checkpoint(0, deck4, 39, Math.PI);
+
+    // עמודי בטון בגבהים שונים — קפיצות מדויקות
+    const cols = [
+        [-4.5, 11.4, 45], [1.5, 12.2, 48.5], [-2.5, 13.0, 52.5],
+        [3.0, 13.8, 56.0], [-1.0, 14.6, 59.5],
+    ];
+    for (const [cx, cy, cz] of cols) {
+        L.box(cx, cy / 2, cz, 3.2, cy, 3.2, MAT.concreteD, { uv: .4 });
+        L.platform(cx, cy, cz, 3.4, 3.4, MAT.concrete, { thick: .3 });
+    }
+    L.hint(-4.5, 12.4, 45, 4.5, 'קפיצות מדויקות בין עמודים — כוון והתקדם');
+
+    // משטח בנייה גדול
+    L.platform(0, 15.4, 66, 14, 10, MAT.concrete, { thick: .7 });
+    L.box(0, 7.7, 66, 12, 15.4, 8, MAT.concreteD, { uv: .35, cast: false });
+    L.checkpoint(0, 15.4, 66, Math.PI);
+    for (let i = 0; i < 4; i++) {
+        L.box(-5 + i * 3.4, 15.4 + 1.1, 62.5, 2.6, 2.2, 2.6, MAT.concreteD, { uv: .5 });
+    }
+    L.hint(0, 16.4, 63, 6, 'טפס על גוש הבטון והמשך אל הפיגומים הגבוהים');
+
+    // מגדלי פיגומים גבוהים — טיפוס בעזרת תפיסת קצה
+    L.scaffold(-7, 15.4, 72, 6, 6, 3, { decks: [1, 2, 3], levelHeight: 2.5 });   // 17.9 / 20.4 / 22.9
+    L.beam(-0.5, 23.0, 72, 9, MAT.rust, { yaw: 0, w: .6 });                      // משטח 23.25
+    L.scaffold(6, 0, 72, 6, 6, 9, { decks: [8, 9], levelHeight: 2.9 });          // 23.2 / 26.1
+    const highDeck = 26.1;
+    L.checkpoint(6, highDeck, 72, Math.PI);
+    L.hint(6, highDeck + 1, 72, 5, 'עלה אל זרוע המנוף ורוץ עליה עד הסוף');
+
+    // מנוף — הזרוע (jib) היא מסלול ריצה לכיוון +Z, במפלס 27.2
+    L.crane(6, 0, 77, 27.0, 26, Math.PI / 2, { armW: 1.8, hookLen: 8 });
+    L.hint(6, 28.4, 88, 6, 'זרוע המנוף — 27 מטר מעל הקרקע. אל תסתכל למטה');
+
+    // בניין לא גמור — יעד סופי
+    const bx = -4, bz = 111, floorH = 3.6, topFloor = 27.8;
+    for (let f = 0; f < 4; f++) {
+        const fy = topFloor - (3 - f) * floorH;
+        L.platform(bx, fy, bz, 16, 14, MAT.concrete, { thick: .55 });
+        for (const sx of [-1, 1]) for (const sz of [-1, 1]) {
+            L.box(bx + sx * 6.5, fy + 1.8, bz + sz * 5.5, 1, floorH, 1, MAT.concreteD, { uv: .5 });
+        }
+        if (f < 3) L.box(bx - 7.4, fy + 1.8, bz, .5, floorH, 12, MAT.concreteD, { uv: .5 });
+    }
+    // ערימת חומרים על הגג
+    L.box(bx - 4, topFloor + .35, bz + 4, 3, .7, 2.4, MAT.wood, { uv: .7 });
+    L.pipe(bx + 4, topFloor + .45, bz + 4, 6, .42, 'z', MAT.rust, { rings: false });
+    L.setGoal(bx, topFloor, bz + 1);
+    L.hint(bx, topFloor + 1, bz - 4, 6, 'הקומה האחרונה — סיים את השלב!');
+    return L;
+}
+
+/* ========================= שלב 4 — המפעל ========================= */
+function buildLevel4() {
+    const L = new LevelBuilder('המפעל', 'מסועים, פלטפורמות נעות וסכנות');
+    L.env = {
+        skyTop: 0x4a6a92, skyBottom: 0xc2cbd4, sunColor: 0xffe2bc, sunInt: 2.7,
+        sunDir: new THREE.Vector3(-0.55, 0.72, -0.35), fog: 0xa8b2bd, fogNear: 45, fogFar: 330,
+        ambSky: 0xa8bed6, ambGround: 0x6d6555, ambInt: 1.25, expo: 1.08,
+    };
+    L.killY = -16;
+    cityBackdrop(L, 0, 90, -8, { count: 90, inner: 170, outer: 600, minH: 14, tall: 60, cloudY: 110 });
+
+    // אולם המפעל — רצפה ראשית
+    L.platform(0, 4, -6, 24, 20, MAT.grate, { thick: .8 });
+    L.box(0, 1.8, -6, 22, 4, 18, MAT.metalDark, { uv: .4, cast: false });
+    L.setSpawn(0, 4, -12, Math.PI);
+    L.hint(0, 5, -12, 7, 'המפעל: היזהר מהאזורים האדומים ומהזרועות המסתובבות');
+    for (let i = 0; i < 3; i++) L.pipe(-10.5, 7 + i * 1.2, -6, 18, .45, 'z', MAT.metal);
+    L.pipe(10.5, 8, -6, 18, .7, 'z', MAT.rust);
+
+    // מסוע ראשון — דוחף קדימה
+    L.conveyor(0, 4, 8, 6, 12, 0, 1, 3.2);
+    L.hint(0, 5, 5, 5, 'המסוע דוחף אותך — רוץ נגדו או תן לו לעזור');
+    L.box(0, 1.8, 8, 5.4, 4, 11, MAT.metalDark, { uv: .4, cast: false });
+
+    // בור סכנה + פלטפורמות נעות
+    L.hazard(0, 1.6, 22, 20, 3, 12);
+    L.box(0, -1, 22, 22, 2, 14, MAT.plainDark, { uv: .4, cast: false });
+    L.platform(0, 4, 16, 8, 4, MAT.grate);
+    L.checkpoint(0, 4, 16, Math.PI);
+    L.movingPlatform(-4, 4, 21, 3.4, 3.4, 'x', 4.5, 1.0, 0, MAT.metal);
+    L.movingPlatform(4, 4, 26, 3.4, 3.4, 'x', 4.5, 1.0, Math.PI, MAT.metal);
+    L.platform(0, 4, 31.5, 9, 5, MAT.grate);
+    L.hint(0, 5, 16, 5, 'פלטפורמות נעות — חכה לרגע הנכון');
+
+    // צינורות גדולים להליכה
+    L.pipe(-3, 4.2, 39, 12, .9, 'z', MAT.rust);
+    L.pipe(3.5, 5.4, 41, 14, .9, 'z', MAT.metal);
+    L.hazard(0, 1.6, 40, 18, 3, 14);
+    L.box(0, -1, 40, 20, 2, 16, MAT.plainDark, { uv: .4, cast: false });
+
+    // אזור זרועות מסתובבות
+    L.platform(0, 5.8, 50, 12, 8, MAT.grate, { thick: .6 });
+    L.checkpoint(-4, 5.8, 48, Math.PI);
+    L.spinner(0, 6.9, 50, 7, 1.15, { arms: 2, postH: 1.1 });
+    L.hint(0, 6.8, 47, 5, 'עבור בין הזרועות המסתובבות בתזמון נכון');
+
+    L.platform(0, 5.8, 59, 10, 6, MAT.grate, { thick: .6 });
+    L.spinner(0, 6.9, 59, 8, -1.45, { arms: 3, postH: 1.1 });
+    L.hazard(0, 3.0, 54.5, 16, 3, 3.5);
+
+    // פלטפורמות עולות ויורדות
+    L.platform(0, 5.8, 65, 8, 4, MAT.grate);
+    L.movingPlatform(-3.5, 6.5, 70, 3.6, 3.6, 'y', 2.6, .9, 0, MAT.metal);
+    L.movingPlatform(3.5, 8.0, 75, 3.6, 3.6, 'y', 2.6, .9, 1.7, MAT.metal);
+    L.movingPlatform(-3, 9.5, 80, 3.6, 3.6, 'z', 3.0, .8, .8, MAT.metal);
+    L.hazard(0, 1.6, 74, 20, 3, 18);
+    L.box(0, -1, 74, 22, 2, 20, MAT.plainDark, { uv: .4, cast: false });
+    L.platform(0, 11, 86, 10, 6, MAT.grate, { thick: .6 });
+    L.checkpoint(0, 11, 86, Math.PI);
+
+    // מסוע מהיר מעל התהום + מכשולים
+    L.conveyor(0, 11, 96, 5, 14, 0, 1, 4.5);
+    L.box(0, 9.6, 96, 5.4, 1.6, 13, MAT.metalDark, { uv: .4, cast: false });
+    for (const cz of [92, 99]) {
+        L.box(0, 11 + .55, cz, 5, 1.1, .7, MAT.stripe, { uv: .8 });
+    }
+    L.hint(0, 12, 90, 5, 'קפוץ מעל המחסומים בזמן שהמסוע דוחף אותך');
+
+    // מגדל יציאה — טיפוס אחרון
+    L.platform(0, 11, 106, 12, 8, MAT.grate, { thick: .6 });
+    L.box(0, 5, 106, 11, 12, 7, MAT.metalDark, { uv: .4, cast: false });
+    L.hazard(0, 1.6, 116, 16, 3, 10);
+    L.movingPlatform(0, 12.5, 114, 4, 4, 'y', 2.2, 1.0, 0, MAT.metal);
+    L.platform(0, 15.5, 120, 10, 8, MAT.concrete, { thick: .7 });
+    L.box(0, 7.5, 120, 9, 16, 7, MAT.metalDark, { uv: .4, cast: false });
+    for (let i = 0; i < 3; i++) L.pipe(-6.2, 12 + i * 1.4, 112, 22, .5, 'z', MAT.metal);
+    L.setGoal(0, 15.5, 121);
+    L.hint(0, 16.5, 118, 5, 'כמעט סיימת — עלה אל האור!');
+    return L;
+}
+
+/* ========================= שלב 5 — המגדל ========================= */
+function buildLevel5() {
+    const L = new LevelBuilder('המגדל', 'העלייה האחרונה');
+    L.env = {
+        skyTop: 0x1b3f77, skyBottom: 0xffb578, sunColor: 0xffb060, sunInt: 3.1,
+        sunDir: new THREE.Vector3(-0.75, 0.34, 0.4), fog: 0xe0a678, fogNear: 90, fogFar: 620,
+        ambSky: 0xa9c2e6, ambGround: 0x8a6248, ambInt: 0.85, expo: 1.1,
+    };
+    L.killY = 14;
+    cityBackdrop(L, 0, 110, 0, { count: 190, inner: 130, outer: 700, minH: 30, tall: 140, cloudY: 165, clouds: 22 });
+
+    // --- גג ההתחלה ---
+    const Y0 = 42;
+    const start = L.building(0, 0, 20, 20, Y0, { parapetH: .55, gaps: ['n'] });   // 42.26
+    L.setSpawn(0, start, -6, Math.PI);
+    L.hint(0, start + 1, -6, 8, 'המגדל: קפיצות מדויקות, ריצה על קירות ותפיסת קצוות. בהצלחה!');
+    L.ac(-6, start, -3, { yaw: .3 });
+    waterTank(L, 6, start, -4);
+    antenna(L, -7, start, 3);
+
+    // --- מקטע 1: פלטפורמות צרות ועולות ---
+    const seg = [
+        [0, 0.0, 15, 4.5, 4.5], [-3.5, 0.8, 21, 3.6, 3.6], [3.0, 1.6, 27, 3.4, 3.4],
+        [-2.0, 2.4, 33, 3.2, 3.2], [2.5, 3.2, 38.5, 3.2, 3.2],
+    ];
+    for (const [px, dy, pz, sx, sz] of seg) {
+        const py = start + dy;
+        L.platform(px, py, pz, sx, sz, MAT.metal, { thick: .4 });
+        L.box(px, py / 2, pz, sx * .45, py, sz * .45, MAT.concreteD, { uv: .35, cast: false });
+    }
+    const p1y = start + 3.2;             // 45.46
+    L.platform(0, p1y + .8, 45, 10, 8, MAT.concrete, { thick: .6 });
+    L.box(0, (p1y + .8) / 2, 45, 9, p1y + .8, 7, MAT.concreteD, { uv: .35, cast: false });
+    L.checkpoint(0, p1y + .8, 45, Math.PI);
+
+    // --- מקטע 2: ריצה על קיר מעל התהום ---
+    const wy = p1y + .8;                 // 46.26
+    L.hint(-2.2, wy + 1, 48.2, 6, 'רוץ צמוד לקיר המסומן, קפוץ והמשך להחזיק <kbd>W</kbd> — תרוץ על הקיר!');
+    L.platform(-2.2, wy, 49.5, 5.5, 5, MAT.concrete, { thick: .5 });
+    L.box(-2.2, wy / 2, 49.5, 4.5, wy, 4, MAT.concreteD, { uv: .35, cast: false });
+    L.box(-4.4, wy + 3.4, 57, .9, 9, 16, MAT.wallrun, { uv: .5 });               // הקיר לריצה
+    L.box(-4.4, wy - 5.5, 57, 1.8, 9, 16, MAT.concreteD, { uv: .4, cast: false });
+    const wy1 = wy - 1.5;                // 44.76
+    L.platform(-2.2, wy1, 61, 6.5, 6, MAT.concrete, { thick: .5 });
+    L.box(-2.2, wy1 / 2, 61, 5.5, wy1, 5, MAT.concreteD, { uv: .35, cast: false });
+    L.checkpoint(-2.2, wy1, 61, Math.PI);
+
+    // --- מקטע 3: פיר קפיצות קיר (עם מדפי עזר) ---
+    const zz = 69;
+    L.hint(-2.2, wy1 + 1, 63.5, 5, 'פיר הקירות: קפוץ מקיר לקיר עם <kbd>SPACE</kbd>, או טפס על המדפים');
+    for (const side of [-1, 1]) {
+        L.box(side * 1.7, wy1 + 5.5, zz, 1.2, 13, 7, MAT.wallrun, { uv: .5 });
+    }
+    for (const [side, dy] of [[-1, 1.35], [1, 2.70], [-1, 4.05]]) {
+        L.box(side * 0.75, wy1 + dy - .12, zz + side * 1.4, 1.2, .24, 2.2, MAT.metal, { uv: .8 });
+    }
+    const wy2 = wy1 + 5.4;               // 50.16
+    L.platform(0, wy2, zz + 5.6, 5.5, 4.5, MAT.concrete, { thick: .5 });
+    L.checkpoint(0, wy2, zz + 5.6, Math.PI);
+
+    // --- מקטע 4: פלטפורמות נעות מעל התהום ---
+    L.hint(0, wy2 + 1, zz + 6.5, 5, 'פלטפורמות נעות מעל התהום — תזמן את הקפיצה');
+    L.movingPlatform(0, wy2, 80.5, 4, 4, 'x', 4.0, 0.85, 0, MAT.metal);
+    L.movingPlatform(0, wy2 + 1.2, 86, 4, 4, 'x', 4.5, 0.95, 1.6, MAT.metal);
+    L.movingPlatform(0, wy2 + 2.4, 91.5, 4, 4, 'z', 3.0, 0.80, 0.6, MAT.metal);
+    const wy3 = wy2 + 3.4;               // 53.56
+    L.platform(0, wy3, 98, 9, 7, MAT.concrete, { thick: .6 });
+    L.box(0, wy3 / 2, 98, 8, wy3, 6, MAT.concreteD, { uv: .35, cast: false });
+    L.checkpoint(0, wy3, 98, Math.PI);
+
+    // --- מקטע 5: טיפוס במעלה המגדל המרכזי ---
+    L.hint(0, wy3 + 1, 100, 5, 'טפס במעלה המגדל — מדף אחרי מדף, זיגזג');
+    const tx = 0, tz = 110, towerTop = 71.4;
+    L.box(tx, towerTop / 2, tz, 14, towerTop, 14, MAT.concreteD, { uv: .3 });
+    for (let i = 0; i < 2; i++) {
+        const wm = new THREE.Mesh(boxGeo(12.4, towerTop - 4, .12, .4), MAT.window);
+        wm.position.set(tx + (i === 0 ? 7.07 : -7.07), towerTop / 2, tz);
+        wm.rotation.y = Math.PI / 2;
+        wm.receiveShadow = true; wm.castShadow = false;
+        L.group.add(wm);
+    }
+    L.platform(6, wy3 + .64, 103, 4, 4, MAT.metal, { thick: .4 });   // מדף חיבור
+    let sy = wy3 + 1.44;
+    for (let i = 0; i < 12; i++) {
+        const side = (i % 2 === 0) ? -1 : 1;
+        L.platform(8.6, sy, tz + side * 3, 3.2, 3.2, MAT.metal, { thick: .35 });
+        L.box(7.6, sy - 1.1, tz + side * 3, 1.2, 1.8, .3, MAT.metalDark, { uv: .8, cast: false, solid: false, noCollide: true });
+        if (i === 5) L.checkpoint(8.6, sy, tz + side * 3, Math.PI / 2);
+        sy += 1.45;
+    }
+
+    // --- גג המגדל ---
+    L.platform(tx, towerTop, tz, 15, 15, MAT.roof, { thick: .6 });
+    for (const s of [-1, 1]) {
+        L.box(tx + s * 7.2, towerTop + .5, tz, .55, 1, 15, MAT.concreteD, { uv: .8 });
+        L.box(tx, towerTop + .5, tz + s * 7.2, 15, 1, .55, MAT.concreteD, { uv: .8 });
+    }
+    L.checkpoint(tx + 3, towerTop, tz + 4, Math.PI);
+    L.hint(tx, towerTop + 1, tz + 3, 6, 'המקטע האחרון — קפיצות בין המגדלים הגבוהים!');
+    L.ac(tx - 4, towerTop, tz + 4, { yaw: .4 });
+    antenna(L, tx + 5, towerTop, tz - 5);
+
+    // --- מקטע 6: קפיצות בין מגדלים ---
+    const towers = [[6, 125, 9, 9, 70.1], [-6, 137, 9, 9, 70.7], [6, 149, 9, 9, 71.5]];
+    for (const [px, pz, w, d, h] of towers) {
+        L.box(px, h / 2, pz, w, h, d, MAT.concreteD, { uv: .3 });
+        L.platform(px, h, pz, w + .4, d + .4, MAT.roof, { thick: .5 });
+        L.ac(px - 2, h, pz + 2, { yaw: .3 });
+    }
+    // גשר קורה אחרון
+    L.beam(1, 71.3, 159, 12, MAT.rust, { yaw: Math.PI / 2 + .35, w: .6 });
+    L.hint(3, 72.3, 154, 5, 'קורה צרה — לך במרכז ואל תמהר');
+
+    const finalY = 72.4;
+    L.box(-6, finalY / 2, 168, 16, finalY, 16, MAT.concreteD, { uv: .3 });
+    L.platform(-6, finalY, 168, 17, 17, MAT.roof, { thick: .6 });
+    for (const s of [-1, 1]) {
+        L.box(-6 + s * 8.2, finalY + .5, 168, .5, 1, 17, MAT.concreteD, { uv: .8 });
+        L.box(-6, finalY + .5, 168 + s * 8.2, 17, 1, .5, MAT.concreteD, { uv: .8 });
+    }
+    L.ac(-11, finalY, 172, { yaw: -.3 });
+    antenna(L, -1, finalY, 172);
+    L.setGoal(-6, finalY, 166);
+    L.hint(-6, finalY + 1, 163, 6, 'סיימת את המגדל — סיים את המשחק!');
+    return L;
+}
+
+
+const LEVELS = [
+    { name: 'אימון', subtitle: 'גג האימונים', diff: 1, build: buildLevel1 },
+    { name: 'גגות העיר', subtitle: 'קפיצות בין גגות', diff: 2, build: buildLevel2 },
+    { name: 'אתר הבנייה', subtitle: 'פיגומים, קורות ומנוף', diff: 3, build: buildLevel3 },
+    { name: 'המפעל', subtitle: 'מסועים ומכשולים נעים', diff: 4, build: buildLevel4 },
+    { name: 'המגדל', subtitle: 'העלייה האחרונה', diff: 5, build: buildLevel5 },
+];
+
+/* =========================================================================
+   13. שמיים פרוצדורליים
+   ========================================================================= */
+const SKY_VERT = `
+varying vec3 vDir;
+void main() {
+    vDir = normalize(position);
+    vec4 mv = modelViewMatrix * vec4(position, 1.0);
+    gl_Position = projectionMatrix * mv;
+}`;
+const SKY_FRAG = `
+uniform vec3 topColor;
+uniform vec3 bottomColor;
+uniform vec3 sunColor;
+uniform vec3 sunDir;
+varying vec3 vDir;
+void main() {
+    vec3 d = normalize(vDir);
+    float h = clamp(d.y * 0.5 + 0.5, 0.0, 1.0);
+    vec3 col = mix(bottomColor, topColor, pow(smoothstep(0.34, 0.86, h), 0.85));
+    float sd = max(dot(d, normalize(sunDir)), 0.0);
+    col += sunColor * pow(sd, 900.0) * 3.4;
+    col += sunColor * pow(sd, 14.0) * 0.30;
+    col += sunColor * pow(sd, 2.6) * 0.055;
+    float horizon = 1.0 - smoothstep(0.0, 0.16, abs(d.y));
+    col = mix(col, bottomColor * 1.06, horizon * 0.5);
+    gl_FragColor = vec4(col, 1.0);
+    #include <tonemapping_fragment>
+    #include <colorspace_fragment>
+}`;
+
+class Sky {
+    constructor(scene, renderer) {
+        this.renderer = renderer;
+        this.rt = null;
+        this.uniforms = {
+            topColor:    { value: new THREE.Color(0x2f74bb) },
+            bottomColor: { value: new THREE.Color(0xcfe1ee) },
+            sunColor:    { value: new THREE.Color(0xfff3dd) },
+            sunDir:      { value: new THREE.Vector3(0.45, 0.8, 0.35) },
+        };
+        this.geo = new THREE.SphereGeometry(1, 32, 20);
+        this.mat = new THREE.ShaderMaterial({
+            uniforms: this.uniforms, vertexShader: SKY_VERT, fragmentShader: SKY_FRAG,
+            side: THREE.BackSide, depthWrite: false, fog: false,
+        });
+        this.mesh = new THREE.Mesh(this.geo, this.mat);
+        this.mesh.scale.setScalar(2600);
+        this.mesh.frustumCulled = false;
+        this.mesh.renderOrder = -1000;
+        scene.add(this.mesh);
+
+        // סצנה קטנה לייצור מפת סביבה (IBL) מהשמיים עצמם
+        this.envScene = new THREE.Scene();
+        const em = new THREE.Mesh(this.geo, this.mat);
+        em.scale.setScalar(40);
+        this.envScene.add(em);
+    }
+    apply(env, scene) {
+        this.uniforms.topColor.value.set(env.skyTop);
+        this.uniforms.bottomColor.value.set(env.skyBottom);
+        this.uniforms.sunColor.value.set(env.sunColor);
+        this.uniforms.sunDir.value.copy(env.sunDir).normalize();
+        if (scene) this.bakeEnvironment(scene);
+    }
+    /* מפת סביבה מהשמיים — נותנת השתקפויות ותאורה עקיפה למתכות ולבטון */
+    bakeEnvironment(scene) {
+        try {
+            if (!this.pmrem) {
+                this.pmrem = new THREE.PMREMGenerator(this.renderer);
+                this.pmrem.compileEquirectangularShader();
+            }
+            const old = this.rt;
+            this.rt = this.pmrem.fromScene(this.envScene, 0, 1, 200);
+            scene.environment = this.rt.texture;
+            if (old) old.dispose();
+        } catch (e) {
+            console.warn('לא ניתן לייצר מפת סביבה:', e.message);
+        }
+    }
+    follow(pos) { this.mesh.position.set(pos.x, 0, pos.z); }
+}
+
+/* =========================================================================
+   14. ניהול ממשק המשתמש
+   ========================================================================= */
+const $ = (id) => document.getElementById(id);
+
+class UIManager {
+    constructor(audio) {
+        this.audio = audio;
+        this.el = {
+            loading: $('loading'), loadBar: $('load-bar'), loadMsg: $('load-msg'),
+            menu: $('menu'), hud: $('hud'), pause: $('pause'), fall: $('fall'),
+            complete: $('complete'), finish: $('finish'), mobile: $('mobile'),
+            vig: $('vig'), flash: $('flash'),
+            hlNum: $('hl-num'), hlName: $('hl-name'), hlCp: $('hl-cp'), hlCpt: $('hl-cpt'),
+            htCur: $('ht-cur'), htBest: $('ht-best'), hFalls: $('h-falls'),
+            hint: $('hint'), toast: $('toast'), cross: $('cross'),
+            spdBar: $('spd-bar'), stateTag: $('state-tag'), mute: $('btn-mute'),
+            pages: {
+                main: $('pg-main'), levels: $('pg-levels'), help: $('pg-help'), settings: $('pg-settings'),
+            },
+            grid: $('lvl-grid'),
+        };
+        this.hintTimer = 0;
+        this.toastTimer = 0;
+        this._lastTime = -1;
+        this._flashT = 0;
+    }
+
+    screen(name) {
+        for (const k of ['loading', 'menu', 'pause', 'complete', 'finish']) {
+            this.el[k].classList.toggle('on', k === name);
+        }
+        this.el.fall.classList.toggle('on', name === 'fall');
+        const playing = (name === 'hud');
+        this.el.hud.classList.toggle('on', playing || name === 'fall');
+        this.el.vig.classList.toggle('on', playing || name === 'fall');
+    }
+
+    menuPage(page) {
+        for (const k in this.el.pages) {
+            const el = this.el.pages[k];
+            el.style.display = (k === page) ? (k === 'main' ? 'flex' : 'block') : 'none';
+        }
+    }
+
+    setLoading(pct, msg) {
+        this.el.loadBar.style.width = clamp(pct, 0, 100) + '%';
+        if (msg) this.el.loadMsg.textContent = msg;
+    }
+
+    buildLevelGrid(save, onPick) {
+        const g = this.el.grid;
+        g.innerHTML = '';
+        LEVELS.forEach((lv, i) => {
+            const locked = (i + 1) > save.unlocked;
+            const done = save.best[i] !== null;
+            const b = document.createElement('button');
+            b.className = 'lvl' + (locked ? ' locked' : '') + (done ? ' done' : '');
+            b.innerHTML =
+                `<div class="num">שלב ${i + 1}</div>` +
+                `<div class="nm">${lv.name}</div>` +
+                `<div class="mt"><span>${lv.subtitle}</span></div>` +
+                `<div class="mt" style="margin-top:6px"><span>שיא</span><span dir="ltr">${fmtTime(save.best[i])}</span></div>` +
+                `<div class="diff">${[1, 2, 3, 4, 5].map(n => `<i class="${n <= lv.diff ? 'f' : ''}"></i>`).join('')}</div>`;
+            if (!locked) {
+                b.addEventListener('click', () => { this.audio.click(); onPick(i); });
+                b.addEventListener('mouseenter', () => this.audio.hover());
+            }
+            g.appendChild(b);
+        });
+    }
+
+    setLevelInfo(index, level, best) {
+        this.el.hlNum.textContent = String(index + 1);
+        this.el.hlName.textContent = level.name;
+        this.el.hlCpt.textContent = String(level.checkpoints.length);
+        this.el.hlCp.textContent = '0';
+        this.el.htBest.textContent = fmtTime(best);
+    }
+
+    setCheckpoint(n) { this.el.hlCp.textContent = String(n); }
+    setFalls(n) { this.el.hFalls.textContent = String(n); }
+
+    setTime(sec) {
+        const v = Math.floor(sec * 100);
+        if (v !== this._lastTime) { this._lastTime = v; this.el.htCur.textContent = fmtTime(sec); }
+    }
+
+    setSpeed(frac, label) {
+        this.el.spdBar.style.width = clamp(frac * 100, 0, 100) + '%';
+        const t = this.el.stateTag;
+        if (label) { t.textContent = label; t.classList.add('on'); }
+        else t.classList.remove('on');
+    }
+
+    showHint(text, seconds) {
+        this.el.hint.innerHTML = text;
+        this.el.hint.classList.add('on');
+        this.hintTimer = seconds || 4.2;
+    }
+    hideHint() { this.el.hint.classList.remove('on'); this.hintTimer = 0; }
+
+    toast(text, color, seconds) {
+        this.el.toast.textContent = text;
+        this.el.toast.style.color = color || '#4dd6ff';
+        this.el.toast.classList.remove('on');
+        void this.el.toast.offsetWidth;
+        this.el.toast.classList.add('on');
+        this.toastTimer = seconds || 1.8;
+    }
+
+    flash(color, strength) {
+        this.el.flash.style.background = color || '#fff';
+        this.el.flash.style.opacity = String(strength || .35);
+        this._flashT = 0.05;
+    }
+
+    crosshairActive(on) { this.el.cross.classList.toggle('act', on); }
+
+    update(dt) {
+        if (this.hintTimer > 0) {
+            this.hintTimer -= dt;
+            if (this.hintTimer <= 0) this.el.hint.classList.remove('on');
+        }
+        if (this.toastTimer > 0) {
+            this.toastTimer -= dt;
+            if (this.toastTimer <= 0) this.el.toast.classList.remove('on');
+        }
+        if (this._flashT > 0) {
+            this._flashT -= dt;
+            if (this._flashT <= 0) this.el.flash.style.opacity = '0';
+        }
+    }
+
+    setMuteIcon(muted) { this.el.mute.textContent = muted ? '🔇' : '🔊'; }
+}
+
+/* =========================================================================
+   15. המשחק
+   ========================================================================= */
+class Game {
+    constructor() {
+        this.canvas = $('scene');
+        this.state = 'loading';
+        this.levelIndex = 0;
+        this.level = null;
+        this.time = 0;
+        this.elapsed = 0;
+        this.falls = 0;
+        this.cpIndex = 0;
+        this.respawnPos = new THREE.Vector3();
+        this.respawnYaw = Math.PI;
+        this.fallTimer = 0;
+        this.clock = 0;
+        this.acc = 0;
+        this.lastFrame = 0;
+        this.fadeIn = 0;
+        this.idleFrame = 0;
+
+        this.save = Save.load();
+        this.settings = this.save.settings;
+
+        this.audio = new AudioManager();
+        this.ui = new UIManager(this.audio);
+        this.input = new Input(this.canvas);
+        this.input.sensitivity = this.settings.sens / 100;
+
+        this.initRenderer();
+        this.initScene();
+
+        this.player = new PlayerController(this.camera, this.input, this.audio);
+        this.player.baseFov = this.settings.fov;
+        this.player.bobEnabled = this.settings.bob;
+        this.player.onHazard = () => this.triggerFall(true);
+        this.player.onLand = (t) => { if (t > 0.5) this.ui.flash('#07090c', 0.42 + t * 0.2); };
+
+        this.bindUI();
+        this.applySettingsToUI();
+
+        this.input.onEscape = () => {
+            if (this.state === 'playing') this.pause();
+            else if (this.state === 'paused') this.resume();
+        };
+        this.input.onLockChange = (locked) => {
+            if (!locked && this.state === 'playing') this.pause();
+        };
+        this.input.onLockError = () => {
+            if (this.state === 'playing') this.ui.showHint('לחץ על המסך כדי להחזיר את שליטת העכבר', 3.5);
+        };
+
+        window.addEventListener('resize', () => this.onResize());
+        this.onResize();
+    }
+
+    /* ---------- אתחול ---------- */
+    initRenderer() {
+        const q = QUALITY[this.settings.quality] || QUALITY.high;
+        this.renderer = new THREE.WebGLRenderer({
+            canvas: this.canvas, antialias: q.aa, powerPreference: 'high-performance', stencil: false,
+        });
+        this.renderer.setPixelRatio(Math.min(window.devicePixelRatio || 1, q.pr));
+        this.renderer.outputColorSpace = THREE.SRGBColorSpace;
+        this.renderer.toneMapping = THREE.ACESFilmicToneMapping;
+        this.renderer.toneMappingExposure = 1.05;
+        this.renderer.shadowMap.enabled = this.settings.shadows && q.shadow > 0;
+        this.renderer.shadowMap.type = THREE.PCFSoftShadowMap;
+    }
+
+    initScene() {
+        this.scene = new THREE.Scene();
+        this.camera = new THREE.PerspectiveCamera(this.settings.fov, window.innerWidth / window.innerHeight, 0.1, 3000);
+        this.camera.rotation.order = 'YXZ';
+        this.scene.fog = new THREE.Fog(0xc3d4e0, 60, 380);
+
+        this.sky = new Sky(this.scene, this.renderer);
+
+        this.hemi = new THREE.HemisphereLight(0xbcd8f0, 0x6a625a, 0.35);
+        this.scene.add(this.hemi);
+
+        this.sun = new THREE.DirectionalLight(0xfff3dd, 2.6);
+        this.sun.castShadow = true;
+        const q = QUALITY[this.settings.quality] || QUALITY.high;
+        this.sun.shadow.mapSize.set(q.shadowSize, q.shadowSize);
+        this.sun.shadow.camera.near = 1;
+        this.sun.shadow.camera.far = 190;
+        this.sun.shadow.camera.left = -42;
+        this.sun.shadow.camera.right = 42;
+        this.sun.shadow.camera.top = 42;
+        this.sun.shadow.camera.bottom = -42;
+        this.sun.shadow.bias = -0.0009;
+        this.sun.shadow.normalBias = 0.035;
+        this.scene.add(this.sun);
+        this.scene.add(this.sun.target);
+
+        this.fill = new THREE.DirectionalLight(0x9fc0e8, 0.35);
+        this.fill.position.set(-1, 0.6, -1);
+        this.scene.add(this.fill);
+    }
+
+    onResize() {
+        const w = window.innerWidth, h = window.innerHeight;
+        this.camera.aspect = w / h;
+        this.camera.updateProjectionMatrix();
+        this.renderer.setSize(w, h, false);
+    }
+
+    /* ---------- חיבור ממשק ---------- */
+    bindUI() {
+        const click = (id, fn) => {
+            const el = $(id);
+            if (!el) return;
+            el.addEventListener('click', () => { this.audio.init(); this.audio.click(); fn(); });
+            el.addEventListener('mouseenter', () => this.audio.hover());
+        };
+
+        click('b-play', () => this.startLevel(Math.min(this.save.unlocked - 1, 4)));
+        click('b-levels', () => { this.ui.buildLevelGrid(this.save, (i) => this.startLevel(i)); this.ui.menuPage('levels'); });
+        click('b-help', () => this.ui.menuPage('help'));
+        click('b-settings', () => this.ui.menuPage('settings'));
+        document.querySelectorAll('.back').forEach(b => {
+            b.addEventListener('click', () => { this.audio.click(); this.ui.menuPage('main'); });
+        });
+
+        // איפוס התקדמות (אישור בשתי לחיצות)
+        const rb = $('b-reset');
+        let armed = false, armTimer = null;
+        rb.addEventListener('click', () => {
+            this.audio.init(); this.audio.click();
+            if (!armed) {
+                armed = true;
+                rb.textContent = 'לחץ שוב לאישור האיפוס';
+                rb.style.borderColor = 'rgba(255,95,109,.7)';
+                clearTimeout(armTimer);
+                armTimer = setTimeout(() => {
+                    armed = false; rb.textContent = 'איפוס התקדמות'; rb.style.borderColor = '';
+                }, 3200);
+            } else {
+                clearTimeout(armTimer);
+                armed = false;
+                Save.reset();
+                this.save = Save.data;
+                this.settings = this.save.settings;
+                this.applySettingsToUI();
+                this.applyAllSettings();
+                rb.textContent = 'ההתקדמות אופסה ✓';
+                rb.style.borderColor = 'rgba(92,242,155,.7)';
+                setTimeout(() => { rb.textContent = 'איפוס התקדמות'; rb.style.borderColor = ''; }, 2000);
+            }
+        });
+
+        click('b-resume', () => this.resume());
+        click('b-restart', () => this.startLevel(this.levelIndex));
+        click('b-p-settings', () => { this.toMenu(); this.ui.menuPage('settings'); });
+        click('b-quit', () => this.toMenu());
+
+        click('b-next', () => {
+            if (this.levelIndex >= LEVELS.length - 1) this.showFinish();
+            else this.startLevel(this.levelIndex + 1);
+        });
+        click('b-retry', () => this.startLevel(this.levelIndex));
+        click('b-c-menu', () => this.toMenu());
+        click('b-f-menu', () => this.toMenu());
+
+        $('btn-mute').addEventListener('click', (e) => {
+            e.stopPropagation();
+            this.toggleMute();
+        });
+        $('b-mobile-anyway').addEventListener('click', () => {
+            $('mobile').classList.remove('on');
+        });
+
+        // הגדרות
+        const bindRange = (id, valId, fmt, apply) => {
+            const el = $(id), vv = $(valId);
+            el.addEventListener('input', () => {
+                const v = parseFloat(el.value);
+                vv.textContent = fmt(v);
+                apply(v);
+                Save.save();
+            });
+        };
+        bindRange('s-sens', 'v-sens', v => String(v), v => {
+            this.settings.sens = v; this.input.sensitivity = v / 100;
+        });
+        bindRange('s-vol', 'v-vol', v => v + '%', v => {
+            this.settings.vol = v; this.audio.setVolume(v / 100);
+        });
+        bindRange('s-fov', 'v-fov', v => String(v), v => {
+            this.settings.fov = v; this.player.baseFov = v;
+            this.camera.fov = v + this.player.fovOffset; this.camera.updateProjectionMatrix();
+        });
+
+        $('s-qual').querySelectorAll('button').forEach(b => {
+            b.addEventListener('click', () => {
+                this.audio.click();
+                this.settings.quality = b.dataset.q;
+                this.applyQuality();
+                this.applySettingsToUI();
+                Save.save();
+            });
+        });
+
+        const bindToggle = (id, key, apply) => {
+            const el = $(id);
+            el.addEventListener('click', () => {
+                this.audio.init(); this.audio.click();
+                this.settings[key] = !this.settings[key];
+                el.classList.toggle('on', this.settings[key]);
+                apply(this.settings[key]);
+                Save.save();
+            });
+        };
+        bindToggle('s-shadow', 'shadows', v => {
+            const q = QUALITY[this.settings.quality] || QUALITY.high;
+            this.renderer.shadowMap.enabled = v && q.shadow > 0;
+            this.scene.traverse(o => { if (o.isMesh) o.material.needsUpdate = true; });
+        });
+        bindToggle('s-bob', 'bob', v => { this.player.bobEnabled = v; });
+        bindToggle('s-music', 'music', v => { this.audio.setMusic(v); });
+
+        // לחיצה על הקנבס מחזירה נעילת סמן
+        this.canvas.addEventListener('click', () => {
+            if (this.state === 'playing' && !this.input.locked) this.input.requestLock();
+        });
+    }
+
+    applySettingsToUI() {
+        const s = this.settings;
+        $('s-sens').value = s.sens; $('v-sens').textContent = String(s.sens);
+        $('s-vol').value = s.vol; $('v-vol').textContent = s.vol + '%';
+        $('s-fov').value = s.fov; $('v-fov').textContent = String(s.fov);
+        $('s-qual').querySelectorAll('button').forEach(b => b.classList.toggle('on', b.dataset.q === s.quality));
+        $('s-shadow').classList.toggle('on', s.shadows);
+        $('s-bob').classList.toggle('on', s.bob);
+        $('s-music').classList.toggle('on', s.music);
+        this.ui.setMuteIcon(s.muted);
+    }
+
+    applyAllSettings() {
+        const s = this.settings;
+        this.input.sensitivity = s.sens / 100;
+        this.audio.setVolume(s.vol / 100);
+        this.audio.setMuted(s.muted);
+        this.audio.setMusic(s.music);
+        this.player.baseFov = s.fov;
+        this.player.bobEnabled = s.bob;
+        this.applyQuality();
+    }
+
+    applyQuality() {
+        const q = QUALITY[this.settings.quality] || QUALITY.high;
+        this.renderer.setPixelRatio(Math.min(window.devicePixelRatio || 1, q.pr));
+        this.renderer.shadowMap.enabled = this.settings.shadows && q.shadow > 0;
+        if (this.sun.shadow.mapSize.width !== q.shadowSize) {
+            this.sun.shadow.mapSize.set(q.shadowSize, q.shadowSize);
+            if (this.sun.shadow.map) { this.sun.shadow.map.dispose(); this.sun.shadow.map = null; }
+        }
+        if (this.scene.fog && this.level) {
+            this.scene.fog.far = Math.min(this.level.env.fogFar, q.fogFar + 120);
+        }
+        this.scene.traverse(o => { if (o.isMesh && o.material) o.material.needsUpdate = true; });
+    }
+
+    toggleMute() {
+        this.settings.muted = !this.settings.muted;
+        this.audio.init();
+        this.audio.setMuted(this.settings.muted);
+        this.ui.setMuteIcon(this.settings.muted);
+        Save.save();
+    }
+
+    /* ---------- ניהול שלבים ---------- */
+    unloadLevel() {
+        if (!this.level) return;
+        this.scene.remove(this.level.group);
+        this.level.dispose();
+        this.level = null;
+    }
+
+    startLevel(index) {
+        index = clamp(index, 0, LEVELS.length - 1);
+        this.audio.init();
+        this.audio.resume();
+        this.audio.setMusic(this.settings.music);
+        this.ui.screen('loading');
+        this.ui.setLoading(15, 'בונה את השלב…');
+        // מאפשר לדפדפן לצייר את מסך הטעינה לפני הבנייה הכבדה
+        requestAnimationFrame(() => requestAnimationFrame(() => this._doStartLevel(index)));
+    }
+
+    _doStartLevel(index) {
+        this.unloadLevel();
+        this.ui.setLoading(45, 'יוצר גאומטריה…');
+        const level = LEVELS[index].build();
+        this.level = level;
+        this.levelIndex = index;
+        this.scene.add(level.group);
+
+        // סביבה
+        this.sky.apply(level.env, this.scene);
+        this.scene.fog.color.set(level.env.fog);
+        this.scene.fog.near = level.env.fogNear;
+        const q = QUALITY[this.settings.quality] || QUALITY.high;
+        this.scene.fog.far = Math.min(level.env.fogFar, q.fogFar + 120);
+        this.hemi.color.set(level.env.ambSky);
+        this.hemi.groundColor.set(level.env.ambGround);
+        this.hemi.intensity = level.env.ambInt * 0.42;
+        this.sun.color.set(level.env.sunColor);
+        this.sun.intensity = level.env.sunInt;
+        this.renderer.toneMappingExposure = level.env.expo;
+        this.fill.position.copy(level.env.sunDir).multiplyScalar(-1).setY(0.5);
+
+        this.ui.setLoading(80, 'מתחיל…');
+        this.elapsed = 0;
+        this.falls = 0;
+        this.cpIndex = 0;
+        this.respawnPos.copy(level.spawn.pos);
+        this.respawnYaw = level.spawn.yaw;
+        for (const h of level.hints) h.shown = false;
+        this.player.reset(this.respawnPos, this.respawnYaw);
+        this.ui.hideHint();
+
+        this.ui.setLevelInfo(index, level, this.save.best[index]);
+        this.ui.setFalls(0);
+        this.ui.setCheckpoint(0);
+        this.ui.setTime(0);
+        this.ui.setLoading(100, 'מוכן');
+
+        // חימום שיידרים כדי למנוע קפיצות בפריימים הראשונים
+        this.renderer.compile(this.scene, this.camera);
+
+        this.state = 'playing';
+        this.ui.screen('hud');
+        this.fadeIn = 0.6;
+        this.input.clearPressed();
+        this.input.requestLock();
+    }
+
+    toMenu() {
+        this.input.exitLock();
+        this.state = 'menu';
+        this.ui.screen('menu');
+        this.ui.menuPage('main');
+        this.ui.buildLevelGrid(this.save, (i) => this.startLevel(i));
+    }
+
+    pause() {
+        if (this.state !== 'playing') return;
+        this.state = 'paused';
+        this.input.exitLock();
+        this.ui.screen('pause');
+    }
+
+    resume() {
+        if (this.state !== 'paused') return;
+        this.state = 'playing';
+        this.ui.screen('hud');
+        this.input.clearPressed();
+        this.input.consume();
+        this.input.requestLock();
+        this.audio.resume();
+    }
+
+    triggerFall(instant) {
+        if (this.state !== 'playing') return;
+        this.state = 'falling';
+        this.falls++;
+        this.ui.setFalls(this.falls);
+        this.ui.screen('fall');
+        this.audio.fall();
+        this.fallTimer = instant ? 0.62 : 0.78;
+    }
+
+    respawn(manual) {
+        this.player.reset(this.respawnPos, this.respawnYaw);
+        this.state = 'playing';
+        this.ui.screen('hud');
+        this.fadeIn = 0.45;
+        if (!manual) this.ui.toast('חוזר לצ׳קפוינט', '#ff8b95', 1.2);
+        if (!this.input.locked) this.input.requestLock();
+    }
+
+    completeLevel() {
+        if (this.state !== 'playing') return;
+        this.state = 'complete';
+        this.input.exitLock();
+        this.audio.levelComplete();
+        this.ui.flash('#ffd27a', .5);
+
+        const t = this.elapsed;
+        const isRecord = Save.recordTime(this.levelIndex, t);
+        Save.unlock(this.levelIndex);
+        this.save = Save.data;
+
+        $('cm-name').textContent = `שלב ${this.levelIndex + 1} — ${LEVELS[this.levelIndex].name}`;
+        $('cm-time').textContent = fmtTime(t);
+        $('cm-best').textContent = fmtTime(this.save.best[this.levelIndex]);
+        $('cm-falls').textContent = String(this.falls);
+        $('cm-rec').textContent = isRecord ? '🏆 שיא חדש!' : '';
+        const nb = $('b-next');
+        nb.textContent = (this.levelIndex >= LEVELS.length - 1) ? '🏁 סיום המשחק' : '▶ לשלב הבא';
+        this.ui.screen('complete');
+    }
+
+    showFinish() {
+        let total = 0, all = true;
+        for (let i = 0; i < LEVELS.length; i++) {
+            if (this.save.best[i] === null) all = false;
+            else total += this.save.best[i];
+        }
+        $('fn-total').textContent = all ? fmtTime(total) : fmtTime(total) + '*';
+        $('fn-falls').textContent = String(this.falls);
+        this.state = 'finished';
+        this.input.exitLock();
+        this.ui.screen('finish');
+    }
+
+    /* ---------- טריגרים בעולם ---------- */
+    checkTriggers() {
+        const L = this.level, p = this.player.pos;
+        // צ'קפוינטים
+        for (let i = 0; i < L.checkpoints.length; i++) {
+            const cp = L.checkpoints[i];
+            if (cp.active) continue;
+            const dx = p.x - cp.pos.x, dz = p.z - cp.pos.z, dy = p.y - cp.pos.y;
+            if (dx * dx + dz * dz < 6.0 && dy > -2.2 && dy < 3.4) {
+                L.activateCheckpointVisual(cp);
+                this.cpIndex = Math.max(this.cpIndex, cp.index);
+                this.respawnPos.set(cp.pos.x, cp.pos.y + 0.05, cp.pos.z);
+                this.respawnYaw = this.player.yaw;
+                this.ui.setCheckpoint(this.cpIndex);
+                this.ui.toast('צ׳קפוינט ' + cp.index + ' הופעל!', '#2bd6a0', 1.6);
+                this.ui.flash('#2bd6a0', .22);
+                this.audio.checkpoint();
+            }
+        }
+        // הדרכות
+        for (let i = 0; i < L.hints.length; i++) {
+            const h = L.hints[i];
+            if (h.shown) continue;
+            const dx = p.x - h.pos.x, dz = p.z - h.pos.z, dy = p.y - h.pos.y;
+            if (dx * dx + dz * dz < h.r * h.r && Math.abs(dy) < 5) {
+                h.shown = true;
+                this.ui.showHint(h.text, h.hold);
+            }
+        }
+        // סיום
+        if (L.goal) {
+            const dx = p.x - L.goal.pos.x, dz = p.z - L.goal.pos.z, dy = p.y - L.goal.pos.y;
+            const near = dx * dx + dz * dz < 36 && dy > -3 && dy < 6;
+            this.ui.crosshairActive(near);
+            if (dx * dx + dz * dz < 6.2 && dy > -2.5 && dy < 4) this.completeLevel();
+        }
+    }
+
+    /* ---------- לולאת המשחק ---------- */
+    step(dt) {
+        this.clock += dt;
+        if (this.state === 'playing') {
+            this.level.update(this.clock);
+            this.player.update(dt, this.level);
+            this.elapsed += dt;
+
+            if (this.input.tap('KeyR')) {
+                this.respawn(true);
+                this.ui.toast('חזרה לצ׳קפוינט', '#4dd6ff', 1.1);
+            }
+            if (this.input.tap('KeyM')) this.toggleMute();
+
+            if (this.player.pos.y < this.level.killY) this.triggerFall(false);
+            else this.checkTriggers();
+
+            this.ui.setTime(this.elapsed);
+            this.ui.setSpeed(this.player.speed / (CFG.RUN_SPEED + CFG.SLIDE_BOOST), this.player.stateLabel);
+        } else if (this.state === 'falling') {
+            this.level.update(this.clock);
+            this.player.vel.y = Math.max(this.player.vel.y - CFG.GRAVITY * dt, CFG.MAX_FALL);
+            this.player.pos.y += this.player.vel.y * dt;
+            this.player.updateCameraTransform(dt);
+            this.fallTimer -= dt;
+            if (this.fallTimer <= 0) this.respawn(false);
+        } else if (this.state === 'paused' || this.state === 'complete' || this.state === 'finished') {
+            // המשחק מושהה — לא מעדכנים פיזיקה
+            this.input.consume();
+        }
+        this.ui.update(dt);
+        this.audio.updateMusic();
+    }
+
+    render() {
+        if (!this.level) return;
+        const p = this.player.pos;
+        this.sky.follow(p);
+        const d = this.level.env.sunDir;
+        this.sun.position.set(p.x + d.x * 70, p.y + d.y * 70, p.z + d.z * 70);
+        this.sun.target.position.set(p.x, p.y, p.z);
+        this.sun.target.updateMatrixWorld();
+        this.renderer.render(this.scene, this.camera);
+    }
+
+    loop(now) {
+        requestAnimationFrame((t) => this.loop(t));
+        if (!this.lastFrame) this.lastFrame = now;
+        let dt = (now - this.lastFrame) / 1000;
+        this.lastFrame = now;
+        if (dt > 0.1) dt = 0.1;
+        if (dt <= 0) return;
+
+        if (this.state === 'playing' || this.state === 'falling') {
+            // צעדי פיזיקה קבועים לתנועה יציבה
+            this.acc += dt;
+            let guard = 0;
+            const h = 1 / 120;
+            while (this.acc >= h && guard < 12) { this.step(h); this.acc -= h; guard++; }
+            if (guard >= 12) this.acc = 0;
+            if (this.fadeIn > 0) {
+                this.fadeIn -= dt;
+                this.ui.el.flash.style.background = '#000';
+                this.ui.el.flash.style.opacity = String(clamp(this.fadeIn / 0.6, 0, 1) * 0.9);
+                if (this.fadeIn <= 0) this.ui.el.flash.style.opacity = '0';
+            }
+            this.render();
+        } else {
+            this.ui.update(dt);
+            this.audio.updateMusic();
+            // המשחק מושהה — מציירים תמונה סטטית בקצב נמוך כדי לחסוך במשאבים
+            this.idleFrame = (this.idleFrame || 0) + 1;
+            if ((this.state === 'paused' || this.state === 'complete') && this.idleFrame % 6 === 0) this.render();
+        }
+    }
+}
+
+/* =========================================================================
+   16. הפעלה
+   ========================================================================= */
+function isMobile() {
+    const ua = navigator.userAgent || '';
+    const touch = (navigator.maxTouchPoints || 0) > 1;
+    return /Android|iPhone|iPad|iPod|Mobile|Windows Phone/i.test(ua) || (touch && window.innerWidth < 900);
+}
+
+async function boot() {
+    const ui = { bar: $('load-bar'), msg: $('load-msg') };
+    const setLoad = (p, m) => { ui.bar.style.width = p + '%'; if (m) ui.msg.textContent = m; };
+
+    setLoad(12, 'מכין טקסטורות…');
+    await new Promise(r => setTimeout(r, 60));
+
+    SPR_GLOW = makeGlowTexture();
+    SPR_CLOUD = makeCloudTexture();
+    buildGeometries();
+    buildMaterials(4);
+
+    setLoad(55, 'מכין את המנוע…');
+    await new Promise(r => setTimeout(r, 60));
+
+    const game = new Game();
+    window.__urbanEdge = game;   // גישה לניפוי שגיאות מהקונסולה
+
+    setLoad(88, 'טוען ממשק…');
+    await new Promise(r => setTimeout(r, 60));
+
+    game.applyAllSettings();
+    game.ui.buildLevelGrid(game.save, (i) => game.startLevel(i));
+
+    setLoad(100, 'מוכן!');
+    await new Promise(r => setTimeout(r, 180));
+
+    if (isMobile()) $('mobile').classList.add('on');
+    game.state = 'menu';
+    game.ui.screen('menu');
+    game.ui.menuPage('main');
+    requestAnimationFrame((t) => game.loop(t));
+}
+
+boot().catch(err => {
+    console.error(err);
+    const msg = $('load-msg');
+    if (msg) {
+        msg.style.color = '#ff6b78';
+        msg.textContent = 'שגיאה בטעינה: ' + err.message;
+    }
+});
+
+</script>
+</body>
+</html>
