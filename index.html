@@ -224,6 +224,8 @@
         background:rgba(77,214,255,.14);border:1px solid rgba(77,214,255,.35);
         font-size:11px;color:var(--acc);letter-spacing:.06em;
     }
+    #h-fps{position:absolute;top:16px;left:calc(50% + 96px);font-size:11px;letter-spacing:.1em;
+        color:rgba(190,215,235,.5);font-variant-numeric:tabular-nums;direction:ltr}
     #h-pad{position:absolute;top:62px;left:16px;display:none}
     #h-pad.on{display:block}
     .gp{display:inline-flex;align-items:center;justify-content:center;min-width:20px;height:20px;padding:0 5px;
@@ -374,6 +376,8 @@
             <div class="set"><label>שדה ראייה (FOV)</label><div class="ctl"><input type="range" id="s-fov" min="65" max="110" step="1"><span class="val" id="v-fov">80</span></div></div>
             <div class="set"><label>רגישות שלט</label><div class="ctl"><input type="range" id="s-psens" min="20" max="300" step="5"><span class="val" id="v-psens">100</span></div></div>
             <div class="set"><label>היפוך ציר Y בשלט</label><div class="ctl"><div class="tgl" id="s-pinv"></div></div></div>
+            <div class="set"><label>אזור מת בג׳ויסטיק</label><div class="ctl"><input type="range" id="s-pdz" min="5" max="40" step="1"><span class="val" id="v-pdz">18%</span></div></div>
+            <div class="set"><label>ריצה בשלט כמתג (Toggle)</label><div class="ctl"><div class="tgl" id="s-ptog"></div></div></div>
             <div class="set"><label>רטט בשלט</label><div class="ctl"><div class="tgl" id="s-pvib"></div></div></div>
             <div class="set"><label>איכות גרפיקה</label><div class="ctl"><div class="seg" id="s-qual">
                 <button data-q="low">נמוכה</button><button data-q="med">בינונית</button><button data-q="high">גבוהה</button>
@@ -408,6 +412,7 @@
     <div id="spd"><div class="lb">מהירות</div><div class="bar"><i id="spd-bar"></i></div></div>
     <div id="flow"><div class="lb"><span>FLOW</span><span id="flow-val">×1.00</span></div><div class="bar"><i id="flow-bar"></i></div></div>
     <div id="h-pad" class="hud-box"><span class="pad-badge">🎮 שלט מחובר</span></div>
+    <div id="h-fps">60 FPS</div>
     <div id="state-tag"></div>
     <div id="keys-hud">
         <kbd>WASD</kbd> תנועה · <kbd>SPACE</kbd> קפיצה · <kbd>SHIFT</kbd> ריצה<br>
@@ -567,9 +572,9 @@ const CFG = {
 };
 
 const QUALITY = {
-    low:  { shadow: 0,    pr: 1.0, fogFar: 190, aa: false, shadowSize: 1024 },
-    med:  { shadow: 2048, pr: 1.5, fogFar: 300, aa: true,  shadowSize: 2048 },
-    high: { shadow: 4096, pr: 2.0, fogFar: 430, aa: true,  shadowSize: 4096 },
+    low:  { shadow: 0,    pr: 1.0,  fogFar: 420, aa: false, shadowSize: 1024, shadowSpan: 24 },
+    med:  { shadow: 1536, pr: 1.25, fogFar: 750, aa: true,  shadowSize: 1536, shadowSpan: 28 },
+    high: { shadow: 2560, pr: 1.5,  fogFar: 1200, aa: true, shadowSize: 2560, shadowSpan: 32 },
 };
 
 const SAVE_KEY = 'urban_edge_save_v2';
@@ -582,6 +587,7 @@ const DEFAULT_SAVE = {
         sens: 100, vol: 70, fov: 80, quality: 'high',
         shadows: true, bob: true, music: true, muted: false,
         bloom: true, padSens: 100, padInvertY: false, padVibrate: true,
+        padDead: 18, padSprintToggle: false,
     },
 };
 
@@ -879,6 +885,43 @@ const TexLib = {
         for (let i = 0; i <= S; i += 64) { x.beginPath(); x.moveTo(0, i); x.lineTo(S, i); x.stroke(); }
         return this._finish(c, 1, aniso);
     },
+
+    /* חזית בניין רחוק — פסי חלונות אופקיים על בטון בהיר */
+    _facade(lit, aniso, seed) {
+        const S = 256, c = this._canvas(S), x = c.getContext('2d'), rng = mulberry32(seed);
+        x.fillStyle = lit ? '#20262e' : '#b6bdc5';
+        x.fillRect(0, 0, S, S);
+        const rowH = 32, winH = 19, colW = 16;
+        for (let y = 5; y < S; y += rowH) {
+            x.fillStyle = lit ? 'rgba(12,16,22,.9)' : 'rgba(64,76,90,.66)';
+            x.fillRect(0, y, S, winH);
+            for (let bx = 0; bx < S; bx += colW) {
+                const r = rng();
+                if (lit) {
+                    if (r > 0.52) {
+                        const warm = 0.75 + rng() * 0.25;
+                        x.fillStyle = `rgba(${255 * warm | 0},${226 * warm | 0},${162 * warm | 0},${.7 + rng() * .3})`;
+                        x.fillRect(bx + 3, y + 2, colW - 6, winH - 5);
+                    }
+                } else if (r > 0.5) {
+                    x.fillStyle = `rgba(158,184,208,${.22 + rng() * .45})`;
+                    x.fillRect(bx + 3, y + 2, colW - 6, winH - 8);
+                }
+                x.fillStyle = lit ? 'rgba(26,32,40,.95)' : 'rgba(178,185,193,.95)';
+                x.fillRect(bx, y, 3, winH);
+            }
+        }
+        if (!lit) {
+            for (let i = 0; i < 1500; i++) {
+                const g = 150 + rng() * 70;
+                x.fillStyle = `rgba(${g | 0},${g + 4 | 0},${g + 9 | 0},${rng() * .22})`;
+                x.fillRect(rng() * S, rng() * S, 2, 2);
+            }
+        }
+        return this._finish(c, 1, aniso);
+    },
+    make_facade(aniso) { return this._facade(false, aniso, 191); },
+    make_facadelit(aniso) { return this._facade(true, aniso, 191); },
 
     make_tiles(aniso) {
         const S = 256, c = this._canvas(S), x = c.getContext('2d'), rng = mulberry32(131);
@@ -1240,12 +1283,18 @@ class Input {
         this.padSens = 1.0;
         this.padInvertY = false;
         this.padVibrate = true;
+        this.padDeadzone = 0.18;
+        this.padSprintToggle = false;
+        this.padSprintLatch = false;
+        this.padKind = 'xbox';        // xbox | playstation
+        this.lookRamp = 0;            // האצה הדרגתית של המבט
         this.padLookX = 0;
         this.padLookY = 0;
         this.padMoveX = 0;
         this.padMoveY = 0;
         this.padBtn = new Uint8Array(20);
         this.padPrev = new Uint8Array(20);
+        this.padMoveMag = 0;
         this.navRepeat = 0;
         this.nav = { up: false, down: false, left: false, right: false };
         this.onPadChange = null;
@@ -1301,9 +1350,20 @@ class Input {
     /* --- עכבר --- */
     requestLock() {
         if (!this.canvas.requestPointerLock) return;
-        const p = this.canvas.requestPointerLock({ unadjustedMovement: true });
-        if (p && typeof p.catch === 'function') p.catch(() => this.canvas.requestPointerLock());
+        // בלי מחוות משתמש הדפדפן זורק שגיאה — תופסים אותה ומציגים רמז במקום
+        try {
+            const p = this.canvas.requestPointerLock({ unadjustedMovement: true });
+            if (p && typeof p.catch === 'function') {
+                p.catch(() => {
+                    try {
+                        const p2 = this.canvas.requestPointerLock();
+                        if (p2 && typeof p2.catch === 'function') p2.catch(() => this._lockFailed());
+                    } catch (e) { this._lockFailed(); }
+                });
+            }
+        } catch (e) { this._lockFailed(); }
     }
+    _lockFailed() { if (this.onLockError) this.onLockError(); }
     exitLock() { if (document.pointerLockElement) document.exitPointerLock(); }
 
     /* --- שלט: דגימה בכל פריים --- */
@@ -1331,14 +1391,39 @@ class Input {
             if (this.onPadChange) this.onPadChange(true, gp.id);
         }
 
-        const dz = (v, d) => (Math.abs(v) < d ? 0 : (v - Math.sign(v) * d) / (1 - d));
+        // אזור מת רדיאלי — מונע "זחילה" של הדמות ושומר על כיוון מדויק
+        const dzm = clamp(this.padDeadzone, 0.05, 0.4);
         const ax = gp.axes;
-        this.padMoveX = dz(ax[0] || 0, 0.22);
-        this.padMoveY = dz(ax[1] || 0, 0.22);
-        const rx = dz(ax[2] || 0, 0.16), ry = dz(ax[3] || 0, 0.16);
-        // עקומה מעורבת (לינארית + ריבועית) — כיוון עדין במרכז בלי לאבד תגובתיות
-        this.padLookX = rx * (0.34 + 0.66 * Math.abs(rx));
-        this.padLookY = ry * (0.34 + 0.66 * Math.abs(ry));
+        let lx = ax[0] || 0, ly = ax[1] || 0;
+        const lm = Math.hypot(lx, ly);
+        if (lm < dzm) { lx = 0; ly = 0; }
+        else {
+            const k = ((lm - dzm) / (1 - dzm)) / lm;
+            lx *= k; ly *= k;
+        }
+        this.padMoveX = lx;
+        this.padMoveY = ly;
+        this.padMoveMag = Math.min(1, Math.hypot(lx, ly));
+
+        let rx = ax[2] || 0, ry = ax[3] || 0;
+        const rm = Math.hypot(rx, ry);
+        if (rm < dzm * 0.8) { rx = 0; ry = 0; }
+        else {
+            const k = ((rm - dzm * 0.8) / (1 - dzm * 0.8)) / rm;
+            rx *= k; ry *= k;
+        }
+        // עקומה מעורבת + האצה הדרגתית כשמחזיקים את הג'ויסטיק בקצה
+        const mag = Math.min(1, Math.hypot(rx, ry));
+        if (mag > 0.85) this.lookRamp = Math.min(1, this.lookRamp + dt * 1.6);
+        else this.lookRamp = Math.max(0, this.lookRamp - dt * 4.5);
+        const boost = 1 + this.lookRamp * 0.85;
+        this.padLookX = rx * (0.34 + 0.66 * Math.abs(rx)) * boost;
+        this.padLookY = ry * (0.34 + 0.66 * Math.abs(ry)) * boost;
+
+        // זיהוי סוג השלט לצורך תוויות הכפתורים
+        const id = (gp.id || '').toLowerCase();
+        this.padKind = (id.includes('dualsense') || id.includes('dualshock') ||
+                        id.includes('playstation') || id.includes('054c')) ? 'playstation' : 'xbox';
 
         for (let i = 0; i < this.padBtn.length; i++) {
             const b = gp.buttons[i];
@@ -1397,7 +1482,27 @@ class Input {
         return clamp(kb + this.padMoveX, -1, 1);
     }
     get sprint() {
-        return this.down('ShiftLeft') || this.down('ShiftRight') || this.padDown(PAD.RT) || this.padDown(PAD.L3);
+        if (this.down('ShiftLeft') || this.down('ShiftRight')) return true;
+        if (!this.padConnected) return false;
+        if (this.padSprintToggle) {
+            if (this.padTapped(PAD.RT) || this.padTapped(PAD.L3)) this.padSprintLatch = !this.padSprintLatch;
+            return this.padSprintLatch;
+        }
+        return this.padDown(PAD.RT) || this.padDown(PAD.L3);
+    }
+    /* גרסה שאינה "צורכת" את הלחיצה — ה-getter נקרא כמה פעמים בפריים */
+    padTapped(i) { return this.padBtn[i] === 1 && this.padPrev[i] === 0; }
+    /* עוצמת הזזת הג'ויסטיק — מאפשרת הליכה איטית ולא רק ריצה/עצירה */
+    get moveMag() {
+        const kb = (this.down('KeyW') || this.down('KeyS') || this.down('KeyA') || this.down('KeyD') ||
+                    this.down('ArrowUp') || this.down('ArrowDown') || this.down('ArrowLeft') || this.down('ArrowRight'));
+        if (kb) return 1;
+        return this.padConnected ? (this.padMoveMag || 0) : 1;
+    }
+    /* תווית כפתור לפי סוג השלט */
+    glyph(name) {
+        if (this.padKind !== 'playstation') return name;
+        return ({ A: '✕', B: '○', X: '□', Y: '△', RT: 'R2', LT: 'L2', START: 'OPTIONS', BACK: 'SHARE' })[name] || name;
     }
     get crouch() {
         return this.down('ControlLeft') || this.down('ControlRight') || this.down('KeyC') ||
@@ -1605,6 +1710,9 @@ function boxGeo(sx, sy, sz, uvScale) {
 /* ספרייטים משותפים (מאותחלים ב-boot) */
 let SPR_GLOW = null;
 let SPR_CLOUD = null;
+/* כלי מיזוג גאומטריה (נטען מ-CDN; אם לא זמין, פשוט לא ממזגים) */
+let BGU = null;
+const _mv = new THREE.Vector3();
 
 /* =========================================================================
    10. בונה שלבים — כל העולם נבנה מצורות Three.js בלבד
@@ -1646,6 +1754,7 @@ class LevelBuilder {
         m.receiveShadow = o.receive !== false;
         this.group.add(m);
         if (o.noCollide) return { mesh: m, col: null };
+        if (o.dynamic) m.userData.noMerge = true;
         const col = new Collider(x, y, z, sx / 2, sy / 2, sz / 2, o.yaw || 0, {
             solid: o.solid !== false, hazard: !!o.hazard, conveyor: o.conveyor || null,
             dynamic: !!o.dynamic, noWallrun: !!o.noWallrun, mesh: m,
@@ -1751,6 +1860,7 @@ class LevelBuilder {
         fan.scale.set(w * .3, .09, w * .3); fan.position.y = .14 + h + .05;
         const blade = new THREE.Mesh(boxGeo(w * .52, .04, .16, 1), MAT.metalDark);
         blade.position.y = .14 + h + .11;
+        blade.userData.noMerge = true;
         g.add(base, body, grill, fan, blade);
         g.position.set(x, y, z); g.rotation.y = yaw;
         g.traverse(m => { m.castShadow = true; m.receiveShadow = true; });
@@ -1875,6 +1985,7 @@ class LevelBuilder {
     spinner(x, y, z, len, speed, o = {}) {
         const arms = o.arms || 2;
         const g = new THREE.Group();
+        g.userData.noMerge = true;
         g.position.set(x, y, z);
         const ph = o.postH || 3.4;
         const post = new THREE.Mesh(GEO.cylHi, MAT.metalDark);
@@ -1934,6 +2045,7 @@ class LevelBuilder {
             else if (dirX > 0) a.rotation.z = -Math.PI / 2;
             else a.rotation.z = Math.PI / 2;
             a.castShadow = false;
+            a.userData.noMerge = true;
             this.group.add(a);
             arrows.push({ mesh: a, i });
         }
@@ -2055,6 +2167,7 @@ class LevelBuilder {
         }
         // ידית זוהרת
         const handle = new THREE.Group();
+        handle.userData.noMerge = true;
         const bar = new THREE.Mesh(GEO.cylHi, MAT.cpOn);
         bar.scale.set(.09, .55, .09); bar.rotation.z = Math.PI / 2;
         const hook = new THREE.Mesh(GEO.torus, MAT.metal);
@@ -2128,6 +2241,7 @@ class LevelBuilder {
         const pad = new THREE.Mesh(GEO.cylHi, padMat);
         pad.scale.set(r * .82, .1, r * .82);
         pad.position.set(x, y, z);
+        pad.userData.noMerge = true;
         this.group.add(pad);
         const glowMat = new THREE.SpriteMaterial({
             map: SPR_GLOW, color: 0x7fffd0, transparent: true, opacity: .5,
@@ -2257,6 +2371,7 @@ class LevelBuilder {
     /* ---------------- טריגרים ---------------- */
     checkpoint(x, y, z, yaw) {
         const g = new THREE.Group();
+        g.userData.noMerge = true;
         g.position.set(x, y, z);
         const baseMat = MAT.cpOff.clone(); baseMat.userData.cloned = true; this._track(baseMat);
         const ringMat = MAT.cpOff.clone(); ringMat.userData.cloned = true; this._track(ringMat);
@@ -2308,6 +2423,7 @@ class LevelBuilder {
 
     setGoal(x, y, z) {
         const g = new THREE.Group();
+        g.userData.noMerge = true;
         g.position.set(x, y, z);
         const pillarMat = MAT.goal.clone(); pillarMat.transparent = true; pillarMat.opacity = .2;
         pillarMat.userData.cloned = true; this._track(pillarMat);
@@ -2349,33 +2465,94 @@ class LevelBuilder {
         this.spawn.yaw = yaw === undefined ? Math.PI : yaw;
     }
 
-    /* קו רקיע רחוק — תחושת גובה, ללא צללים */
-    skyline(cx, cz, count, inner, outer, minH, maxH, baseY) {
-        const geo = new THREE.BoxGeometry(1, 1, 1);
-        const mat = new THREE.MeshStandardMaterial({ color: 0x8b96a2, roughness: .95, metalness: .05 });
-        this._track(geo); this._track(mat);
-        const mesh = new THREE.InstancedMesh(geo, mat, count);
+    /* קו רקיע רחוק — בניינים עם חלונות, גגות ושכבת עומק שנייה */
+    skyline(cx, cz, count, inner, outer, minH, maxH, baseY, opts = {}) {
+        const night = opts.night || 0;
+        const y0 = baseY || 0;
+        const texName = night > 0.5 ? 'facadelit' : 'facade';
+        const winTex = TexLib.get(texName, 4).clone();
+        winTex.needsUpdate = true;
+        winTex.wrapS = winTex.wrapT = THREE.RepeatWrapping;
+        winTex.repeat.set(2, 5);
+        this._track(winTex);
+
+        const bodyMat = new THREE.MeshStandardMaterial({
+            map: winTex, color: opts.tint || (night > 0.5 ? 0xa8b0bc : 0xcbd2da),
+            roughness: .82, metalness: .08,
+            emissive: new THREE.Color(night > 0 ? 0xffcf92 : 0x000000),
+            emissiveMap: night > 0.5 ? winTex : null,
+            emissiveIntensity: night > 0.5 ? 0.85 : 0,
+        });
+        const roofMat = new THREE.MeshStandardMaterial({
+            color: opts.roofTint || 0x6f7883, roughness: .95, metalness: .05,
+        });
+        this._track(bodyMat); this._track(roofMat);
+
+        const bodyGeo = new THREE.BoxGeometry(1, 1, 1);
+        const roofGeo = new THREE.BoxGeometry(1, 1, 1);
+        this._track(bodyGeo); this._track(roofGeo);
+
+        const tiers = Math.floor(count * 0.32);
+        const bodies = new THREE.InstancedMesh(bodyGeo, bodyMat, count + tiers);
+        const roofs = new THREE.InstancedMesh(roofGeo, roofMat, count + tiers);
         const dummy = new THREE.Object3D();
         const rng = mulberry32(1337);
         const col = new THREE.Color();
+        let bi = 0;
+
         for (let i = 0; i < count; i++) {
             const a = rng() * Math.PI * 2;
-            const r = inner + rng() * (outer - inner);
+            const r = inner + Math.pow(rng(), 0.75) * (outer - inner);
             const h = minH + rng() * (maxH - minH);
-            dummy.position.set(cx + Math.cos(a) * r, (baseY || 0) + h / 2, cz + Math.sin(a) * r);
-            dummy.rotation.y = rng() * Math.PI;
-            dummy.scale.set(9 + rng() * 20, h, 9 + rng() * 20);
+            const w = 9 + rng() * 20, d = 9 + rng() * 20;
+            const bx = cx + Math.cos(a) * r, bz = cz + Math.sin(a) * r;
+            const rot = rng() * Math.PI;
+
+            dummy.position.set(bx, y0 + h / 2, bz);
+            dummy.rotation.y = rot;
+            dummy.scale.set(w, h, d);
             dummy.updateMatrix();
-            mesh.setMatrixAt(i, dummy.matrix);
-            const g = .40 + rng() * .34;
-            col.setRGB(g * .93, g * .97, g);
-            mesh.setColorAt(i, col);
+            bodies.setMatrixAt(bi, dummy.matrix);
+
+            dummy.position.set(bx, y0 + h + 0.6, bz);
+            dummy.scale.set(w + 1.2, 1.2, d + 1.2);
+            dummy.updateMatrix();
+            roofs.setMatrixAt(bi, dummy.matrix);
+
+            const g = .46 + rng() * .32;
+            col.setRGB(g * .94, g * .97, g);
+            bodies.setColorAt(bi, col);
+            roofs.setColorAt(bi, col);
+            bi++;
+
+            // חלק מהבניינים מקבלים קומה נסוגה למעלה — צללית מגוונת
+            if (i < tiers) {
+                const th = h * (0.18 + rng() * 0.28);
+                dummy.position.set(bx, y0 + h + 1.2 + th / 2, bz);
+                dummy.rotation.y = rot;
+                dummy.scale.set(w * .62, th, d * .62);
+                dummy.updateMatrix();
+                bodies.setMatrixAt(bi, dummy.matrix);
+                dummy.position.set(bx, y0 + h + 1.2 + th + 0.5, bz);
+                dummy.scale.set(w * .62 + 1, 1, d * .62 + 1);
+                dummy.updateMatrix();
+                roofs.setMatrixAt(bi, dummy.matrix);
+                bodies.setColorAt(bi, col);
+                roofs.setColorAt(bi, col);
+                bi++;
+            }
         }
-        mesh.instanceMatrix.needsUpdate = true;
-        if (mesh.instanceColor) mesh.instanceColor.needsUpdate = true;
-        mesh.castShadow = false; mesh.receiveShadow = false;
-        this.group.add(mesh);
-        return mesh;
+        bodies.count = bi; roofs.count = bi;
+        bodies.instanceMatrix.needsUpdate = true;
+        roofs.instanceMatrix.needsUpdate = true;
+        if (bodies.instanceColor) bodies.instanceColor.needsUpdate = true;
+        if (roofs.instanceColor) roofs.instanceColor.needsUpdate = true;
+        for (const m of [bodies, roofs]) {
+            m.castShadow = false; m.receiveShadow = false;
+            m.userData.noMerge = true;
+            this.group.add(m);
+        }
+        return bodies;
     }
 
     clouds(cx, cy, cz, count, spread) {
@@ -2389,6 +2566,53 @@ class LevelBuilder {
             s.scale.set(sc, sc * .42, 1);
             this.group.add(s);
         }
+    }
+
+    /* מיזוג כל הגאומטריה הסטטית לקבוצות גדולות — מוריד מאות draw calls
+       למספר דו־ספרתי ומבטל את רוב הקטיעות. מדלג על כל מה שמונפש. */
+    finalize() {
+        if (!BGU || !BGU.mergeGeometries) return { merged: 0, removed: 0 };
+        this.group.updateMatrixWorld(true);
+        const buckets = new Map();
+        this.group.traverse((o) => {
+            if (!o.isMesh || o.isInstancedMesh) return;
+            if (!o.material || !o.material.isMeshStandardMaterial || o.material.transparent) return;
+            if (!o.geometry || !o.geometry.attributes.uv || !o.geometry.index) return;
+            for (let p = o; p; p = p.parent) if (p.userData && p.userData.noMerge) return;
+            o.getWorldPosition(_mv);
+            const key = o.material.uuid + '|' + (o.castShadow ? 1 : 0) + (o.receiveShadow ? 1 : 0) +
+                '|' + Math.floor(_mv.x / 70) + '_' + Math.floor(_mv.z / 70);
+            let b = buckets.get(key);
+            if (!b) { b = { mat: o.material, cast: o.castShadow, receive: o.receiveShadow, list: [] }; buckets.set(key, b); }
+            b.list.push(o);
+        });
+        let merged = 0, removed = 0;
+        for (const b of buckets.values()) {
+            if (b.list.length < 4) continue;
+            const geos = [];
+            for (const m of b.list) {
+                const g = m.geometry.clone();
+                for (const name of Object.keys(g.attributes)) {
+                    if (name !== 'position' && name !== 'normal' && name !== 'uv') g.deleteAttribute(name);
+                }
+                g.applyMatrix4(m.matrixWorld);
+                geos.push(g);
+            }
+            let mg = null;
+            try { mg = BGU.mergeGeometries(geos, false); } catch (e) { mg = null; }
+            for (const g of geos) g.dispose();
+            if (!mg) continue;
+            mg.computeBoundingSphere();
+            const mesh = new THREE.Mesh(mg, b.mat);
+            mesh.castShadow = b.cast;
+            mesh.receiveShadow = b.receive;
+            mesh.matrixAutoUpdate = false;
+            this.group.add(mesh);
+            this._track(mg);
+            for (const m of b.list) { m.removeFromParent(); removed++; }
+            merged++;
+        }
+        return { merged, removed };
     }
 
     update(time, playerPos) {
@@ -2700,6 +2924,9 @@ class PlayerController {
         if (mf < 0) maxSpeed = Math.min(maxSpeed, CFG.WALK_SPEED * 0.92);
 
         maxSpeed *= this.flow;
+        // הזזה חלקית של הג'ויסטיק = הליכה איטית יותר (שליטה אנלוגית מלאה)
+        const mag = inp.moveMag;
+        if (mag < 0.98) maxSpeed *= Math.max(0.28, mag);
         const accel = this.grounded ? (this.state === 'slide' ? 8 : CFG.ACCEL_GROUND) : CFG.ACCEL_AIR;
 
         if (wlen > 0.0001) {
@@ -3679,7 +3906,8 @@ function cityBackdrop(L, cx, cz, groundY, opts = {}) {
         L.group.add(r2);
     }
     L.skyline(cx, cz, opts.count || 150, opts.inner || 120, opts.outer || 560,
-        opts.minH || 30, opts.maxH || (opts.tall || 120), groundY);
+        opts.minH || 30, opts.maxH || (opts.tall || 120), groundY,
+        { night: opts.night || 0, tint: opts.tint, roofTint: opts.roofTint });
     L.clouds(cx, (opts.cloudY || 150), cz, opts.clouds || 16, 700);
 }
 
@@ -3733,13 +3961,13 @@ function buildLevel1() {
     const L = new LevelBuilder('אימון', 'גג האימונים');
     L.env = {
         skyTop: 0x1d5ea8, skyBottom: 0xcadeec, sunColor: 0xfff1d8, sunInt: 2.7,
-        sunDir: new THREE.Vector3(0.55, 0.8, 0.3), fog: 0xc2d5e2, fogNear: 70, fogFar: 460,
+        sunDir: new THREE.Vector3(0.55, 0.8, 0.3), fog: 0xc2d5e2, fogNear: 105, fogFar: 874,
         ambSky: 0xa9cce9, ambGround: 0x6f675d, ambInt: 0.95, expo: 1.02,
     };
     const Y = 30;
     L.killY = 8;
     L.setSpawn(0, Y, -6, Math.PI);
-    cityBackdrop(L, 0, 70, 0, { count: 150, inner: 90, outer: 520, minH: 20, tall: 90, cloudY: 120 });
+    cityBackdrop(L, 0, 70, 0, { count: 150, inner: 80, outer: 478, minH: 20, tall: 90, cloudY: 120 });
 
     let edge = -12;
     const pad = (gap, sx, sz, mat, o) => {
@@ -3816,11 +4044,11 @@ function buildLevel2() {
     const L = new LevelBuilder('גגות העיר', 'קפיצות בין גגות');
     L.env = {
         skyTop: 0x2a72bd, skyBottom: 0xd6e6f0, sunColor: 0xfff6e6, sunInt: 2.9,
-        sunDir: new THREE.Vector3(-0.4, 0.85, 0.35), fog: 0xc9d9e6, fogNear: 80, fogFar: 520,
+        sunDir: new THREE.Vector3(-0.4, 0.85, 0.35), fog: 0xc9d9e6, fogNear: 120, fogFar: 988,
         ambSky: 0xb2d2ee, ambGround: 0x746b60, ambInt: 0.95, expo: 1.05,
     };
     L.killY = 6;
-    cityBackdrop(L, 0, 80, 0, { count: 170, inner: 110, outer: 620, minH: 24, tall: 110, cloudY: 130 });
+    cityBackdrop(L, 0, 80, 0, { count: 170, inner: 80, outer: 570, minH: 24, tall: 110, cloudY: 130 });
 
     let e = 0;
     const bld = (gap, w, d, h, x, o = {}) => {
@@ -3905,12 +4133,12 @@ function buildLevel3() {
     const L = new LevelBuilder('אתר הבנייה', 'פיגומים, קורות ומנוף');
     L.env = {
         skyTop: 0x3a72a8, skyBottom: 0xe8dcc4, sunColor: 0xffe0b0, sunInt: 3.0,
-        sunDir: new THREE.Vector3(0.7, 0.55, -0.35), fog: 0xd8cfbc, fogNear: 60, fogFar: 430,
+        sunDir: new THREE.Vector3(0.7, 0.55, -0.35), fog: 0xd8cfbc, fogNear: 90, fogFar: 817,
         ambSky: 0xc8d8ea, ambGround: 0x8a7a62, ambInt: 0.9, expo: 1.06,
     };
     L.killY = -4;
     // הקרקע הרחוקה מעט מתחת לרחבה — מונע Z-fighting עם משטח האתר
-    cityBackdrop(L, 0, 80, -0.35, { count: 120, inner: 150, outer: 620, minH: 20, tall: 80, cloudY: 140 });
+    cityBackdrop(L, 0, 80, -0.35, { count: 120, inner: 93, outer: 570, minH: 20, tall: 80, cloudY: 140 });
 
     // רחבת התחלה
     L.platform(0, 0, -4, 26, 22, MAT.asphalt, { thick: 1.2 });
@@ -3996,11 +4224,11 @@ function buildLevel4() {
     const L = new LevelBuilder('המפעל', 'מסועים, פלטפורמות נעות וסכנות');
     L.env = {
         skyTop: 0x4a6a92, skyBottom: 0xc2cbd4, sunColor: 0xffe2bc, sunInt: 2.7,
-        sunDir: new THREE.Vector3(-0.55, 0.72, -0.35), fog: 0xa8b2bd, fogNear: 45, fogFar: 330,
+        sunDir: new THREE.Vector3(-0.55, 0.72, -0.35), fog: 0xa8b2bd, fogNear: 80, fogFar: 627,
         ambSky: 0xa8bed6, ambGround: 0x6d6555, ambInt: 1.25, expo: 1.08,
     };
     L.killY = -16;
-    cityBackdrop(L, 0, 90, -8, { count: 90, inner: 170, outer: 600, minH: 14, tall: 60, cloudY: 110 });
+    cityBackdrop(L, 0, 90, -8, { count: 90, inner: 105, outer: 552, minH: 14, tall: 60, cloudY: 110 });
 
     // אולם המפעל — רצפה ראשית
     L.platform(0, 4, -6, 24, 20, MAT.grate, { thick: .8 });
@@ -4077,11 +4305,11 @@ function buildLevel5() {
     const L = new LevelBuilder('המגדל', 'העלייה האחרונה');
     L.env = {
         skyTop: 0x1b3f77, skyBottom: 0xffb578, sunColor: 0xffb060, sunInt: 3.1,
-        sunDir: new THREE.Vector3(-0.75, 0.34, 0.4), fog: 0xe0a678, fogNear: 90, fogFar: 620,
-        ambSky: 0xa9c2e6, ambGround: 0x8a6248, ambInt: 0.85, expo: 1.1,
+        sunDir: new THREE.Vector3(-0.75, 0.34, 0.4), fog: 0xe0a678, fogNear: 135, fogFar: 1000,
+        ambSky: 0xa9c2e6, ambGround: 0x8a6248, ambInt: 0.85, expo: 1.1, night: 0.35,
     };
     L.killY = 14;
-    cityBackdrop(L, 0, 110, 0, { count: 190, inner: 130, outer: 700, minH: 30, tall: 140, cloudY: 165, clouds: 22 });
+    cityBackdrop(L, 0, 110, 0, { count: 190, inner: 81, outer: 644, minH: 30, tall: 140, cloudY: 165, clouds: 22 });
 
     // --- גג ההתחלה ---
     const Y0 = 42;
@@ -4243,11 +4471,11 @@ function buildLevel6() {
     const L = new LevelBuilder('הנמל', 'מכולות, מנופים וכבלים');
     L.env = {
         skyTop: 0x2b6ea6, skyBottom: 0xdbe7ee, sunColor: 0xfff2d8, sunInt: 2.9,
-        sunDir: new THREE.Vector3(0.62, 0.7, -0.35), fog: 0xc9d9e4, fogNear: 55, fogFar: 430,
+        sunDir: new THREE.Vector3(0.62, 0.7, -0.35), fog: 0xc9d9e4, fogNear: 82, fogFar: 817,
         ambSky: 0xb4d0e8, ambGround: 0x6b6a60, ambInt: 1.05, expo: 1.05,
     };
     L.killY = -1.2;
-    cityBackdrop(L, 0, 100, -6, { count: 90, inner: 210, outer: 640, minH: 12, tall: 55, cloudY: 120 });
+    cityBackdrop(L, 0, 100, -6, { count: 90, inner: 130, outer: 589, minH: 12, tall: 55, cloudY: 120 });
     liquid(L, 0, 90, 700, -0.6, 0x123a52, 1);
 
     // --- רציף ההתחלה ---
@@ -4404,11 +4632,11 @@ function buildLevel8() {
     const L = new LevelBuilder('הגשר', 'כבלים, מגדלים ורוח');
     L.env = {
         skyTop: 0x1f5c9c, skyBottom: 0xe2d9c8, sunColor: 0xffe0b4, sunInt: 3.0,
-        sunDir: new THREE.Vector3(-0.6, 0.5, 0.55), fog: 0xd2d8dc, fogNear: 70, fogFar: 520,
+        sunDir: new THREE.Vector3(-0.6, 0.5, 0.55), fog: 0xd2d8dc, fogNear: 105, fogFar: 988,
         ambSky: 0xb6cee6, ambGround: 0x6f6a60, ambInt: 1.0, expo: 1.06,
     };
     L.killY = 4;
-    cityBackdrop(L, 0, 120, 0, { count: 110, inner: 260, outer: 700, minH: 18, tall: 80, cloudY: 140 });
+    cityBackdrop(L, 0, 120, 0, { count: 110, inner: 161, outer: 644, minH: 18, tall: 80, cloudY: 140 });
     liquid(L, 0, 120, 900, 1.5, 0x24576e, .9);
 
     const DY = 24;   // גובה מפלס הגשר
@@ -4484,11 +4712,12 @@ function buildLevel9() {
     const L = new LevelBuilder('העיר בלילה', 'ניאון, זכוכית וקירות');
     L.env = {
         skyTop: 0x070c18, skyBottom: 0x2a2440, sunColor: 0x9fb4ff, sunInt: 0.75,
-        sunDir: new THREE.Vector3(-0.3, 0.85, -0.4), fog: 0x171426, fogNear: 30, fogFar: 240,
-        ambSky: 0x4a5a8a, ambGround: 0x3a2a3a, ambInt: 1.5, expo: 1.25,
+        sunDir: new THREE.Vector3(-0.3, 0.85, -0.4), fog: 0x171426, fogNear: 80, fogFar: 456,
+        ambSky: 0x4a5a8a, ambGround: 0x3a2a3a, ambInt: 1.5, expo: 1.25, night: 1.0,
     };
     L.killY = 6;
-    cityBackdrop(L, 0, 90, 0, { count: 160, inner: 120, outer: 560, minH: 30, tall: 120, cloudY: 150, clouds: 10 });
+    cityBackdrop(L, 0, 90, 0, { count: 160, inner: 80, outer: 515, minH: 30, tall: 120, cloudY: 150, clouds: 10,
+        night: 1.0, tint: 0x4a5568, roofTint: 0x3a4250 });
 
     const Y = 32;
     L.building(0, 0, 18, 18, Y, { parapetH: .95, gaps: ['n'] });
@@ -4561,11 +4790,11 @@ function buildLevel10() {
     const L = new LevelBuilder('תחנת הכוח', 'קיטור, טורבינות וצינורות');
     L.env = {
         skyTop: 0x4d6076, skyBottom: 0xbdb6a8, sunColor: 0xffe6c0, sunInt: 2.3,
-        sunDir: new THREE.Vector3(0.4, 0.6, 0.5), fog: 0xaba79c, fogNear: 40, fogFar: 300,
+        sunDir: new THREE.Vector3(0.4, 0.6, 0.5), fog: 0xaba79c, fogNear: 80, fogFar: 570,
         ambSky: 0xa8b4c4, ambGround: 0x6a6055, ambInt: 1.2, expo: 1.05,
     };
     L.killY = -8;
-    cityBackdrop(L, 0, 100, -0.4, { count: 70, inner: 220, outer: 600, minH: 12, tall: 50, cloudY: 110 });
+    cityBackdrop(L, 0, 100, -0.4, { count: 70, inner: 136, outer: 552, minH: 12, tall: 50, cloudY: 110 });
 
     // --- רחבת התחלה ---
     L.platform(0, 4, -6, 20, 18, MAT.grate, { thick: .8 });
@@ -4633,10 +4862,10 @@ function buildLevel11() {
     L.env = {
         skyTop: 0x2b3444, skyBottom: 0x6e7885, sunColor: 0xc9d6e6, sunInt: 1.2,
         sunDir: new THREE.Vector3(-0.4, 0.75, 0.3), fog: 0x6b7480, fogNear: 25, fogFar: 190,
-        ambSky: 0x93a6bd, ambGround: 0x525250, ambInt: 1.75, expo: 1.16,
+        ambSky: 0x93a6bd, ambGround: 0x525250, ambInt: 1.75, expo: 1.16, night: 0.25,
     };
     L.killY = 5;
-    cityBackdrop(L, 0, 90, 0, { count: 130, inner: 120, outer: 480, minH: 22, tall: 90, cloudY: 90, clouds: 26 });
+    cityBackdrop(L, 0, 90, 0, { count: 130, inner: 80, outer: 442, minH: 22, tall: 90, cloudY: 90, clouds: 26 });
     L.rain(1700, 64, { opacity: .38, streak: 1.1 });
 
     const Y = 28;
@@ -4775,11 +5004,12 @@ function buildLevel13() {
     const L = new LevelBuilder('הפסגה', 'המבחן האחרון');
     L.env = {
         skyTop: 0x14264d, skyBottom: 0xffc98a, sunColor: 0xffb066, sunInt: 3.2,
-        sunDir: new THREE.Vector3(-0.8, 0.28, 0.35), fog: 0xe8b487, fogNear: 100, fogFar: 700,
-        ambSky: 0xa8c0e8, ambGround: 0x8a6248, ambInt: 0.95, expo: 1.12,
+        sunDir: new THREE.Vector3(-0.8, 0.28, 0.35), fog: 0xe8b487, fogNear: 150, fogFar: 1000,
+        ambSky: 0xa8c0e8, ambGround: 0x8a6248, ambInt: 0.95, expo: 1.12, night: 0.3,
     };
     L.killY = 20;
-    cityBackdrop(L, 0, 140, 0, { count: 210, inner: 140, outer: 760, minH: 40, tall: 170, cloudY: 200, clouds: 26 });
+    cityBackdrop(L, 0, 140, 0, { count: 210, inner: 87, outer: 699, minH: 40, tall: 170, cloudY: 200, clouds: 26,
+        night: 0.3, tint: 0x9c8d7f });
 
     const Y = 60;
     L.building(0, 0, 20, 20, Y, { parapetH: .95, gaps: ['n'] });
@@ -4915,6 +5145,16 @@ const LEVELS = [
 /* =========================================================================
    13. אפקטי מסך (Bloom) — נטענים בנפרד, והמשחק פועל גם בלעדיהם
    ========================================================================= */
+let BGU_PROMISE = null;
+function loadMergeUtils() {
+    if (!BGU_PROMISE) {
+        BGU_PROMISE = import('three/addons/utils/BufferGeometryUtils.js')
+            .then(m => { BGU = m; return m; })
+            .catch(e => { console.warn('מיזוג גאומטריה לא זמין:', e.message); return null; });
+    }
+    return BGU_PROMISE;
+}
+
 let FX = null;
 async function loadPostFX() {
     if (FX !== null) return FX;
@@ -4951,17 +5191,49 @@ uniform vec3 topColor;
 uniform vec3 bottomColor;
 uniform vec3 sunColor;
 uniform vec3 sunDir;
+uniform float night;
 varying vec3 vDir;
+
+float hash21(vec2 p) {
+    p = fract(p * vec2(123.34, 456.21));
+    p += dot(p, p + 45.32);
+    return fract(p.x * p.y);
+}
+
 void main() {
     vec3 d = normalize(vDir);
     float h = clamp(d.y * 0.5 + 0.5, 0.0, 1.0);
-    vec3 col = mix(bottomColor, topColor, pow(smoothstep(0.34, 0.86, h), 0.85));
+    vec3 col = mix(bottomColor, topColor, pow(smoothstep(0.34, 0.88, h), 0.85));
+
+    // כוכבים (רק בשלבי לילה)
+    if (night > 0.01 && d.y > 0.015) {
+        vec2 sp = d.xz / (d.y + 0.30) * 22.0;
+        vec2 cell = floor(sp);
+        float r = hash21(cell);
+        if (r > 0.972) {
+            vec2 f = fract(sp) - 0.5;
+            float tw = 0.55 + 0.45 * hash21(cell + 7.3);
+            float star = smoothstep(0.20, 0.0, length(f));
+            col += vec3(0.86, 0.92, 1.0) * star * tw * night * 2.2;
+        }
+    }
+
+    // שכבת עננים רכה סביב האופק
+    float band = smoothstep(0.015, 0.30, d.y) * (1.0 - smoothstep(0.34, 0.78, d.y));
+    float cl = sin(d.x * 3.7 + 1.3) * sin(d.z * 2.9 - 0.6) * 0.5 + 0.5;
+    cl = smoothstep(0.42, 0.95, cl) * band;
+    col = mix(col, bottomColor * 1.18 + sunColor * 0.05, cl * 0.38 * (1.0 - night * 0.6));
+
+    // שמש והילה
     float sd = max(dot(d, normalize(sunDir)), 0.0);
     col += sunColor * pow(sd, 900.0) * 3.4;
-    col += sunColor * pow(sd, 14.0) * 0.30;
-    col += sunColor * pow(sd, 2.6) * 0.055;
-    float horizon = 1.0 - smoothstep(0.0, 0.16, abs(d.y));
-    col = mix(col, bottomColor * 1.06, horizon * 0.5);
+    col += sunColor * pow(sd, 14.0) * 0.32;
+    col += sunColor * pow(sd, 2.6) * 0.06;
+
+    // אובך אופק
+    float horizon = 1.0 - smoothstep(0.0, 0.17, abs(d.y));
+    col = mix(col, bottomColor * 1.06, horizon * 0.55);
+
     gl_FragColor = vec4(col, 1.0);
     #include <tonemapping_fragment>
     #include <colorspace_fragment>
@@ -4976,6 +5248,7 @@ class Sky {
             bottomColor: { value: new THREE.Color(0xcfe1ee) },
             sunColor:    { value: new THREE.Color(0xfff3dd) },
             sunDir:      { value: new THREE.Vector3(0.45, 0.8, 0.35) },
+            night:       { value: 0 },
         };
         this.geo = new THREE.SphereGeometry(1, 32, 20);
         this.mat = new THREE.ShaderMaterial({
@@ -4999,6 +5272,7 @@ class Sky {
         this.uniforms.bottomColor.value.set(env.skyBottom);
         this.uniforms.sunColor.value.set(env.sunColor);
         this.uniforms.sunDir.value.copy(env.sunDir).normalize();
+        this.uniforms.night.value = env.night || 0;
         if (scene) this.bakeEnvironment(scene);
     }
     /* מפת סביבה מהשמיים — נותנת השתקפויות ותאורה עקיפה למתכות ולבטון */
@@ -5036,7 +5310,8 @@ class UIManager {
             htCur: $('ht-cur'), htBest: $('ht-best'), hFalls: $('h-falls'),
             hint: $('hint'), toast: $('toast'), cross: $('cross'),
             spdBar: $('spd-bar'), stateTag: $('state-tag'), mute: $('btn-mute'),
-            flow: $('flow'), flowBar: $('flow-bar'), flowVal: $('flow-val'), pad: $('h-pad'),
+            flow: $('flow'), flowBar: $('flow-bar'), flowVal: $('flow-val'), pad: $('h-pad'), fps: $('h-fps'),
+            keys: $('keys-hud'),
             pages: {
                 main: $('pg-main'), levels: $('pg-levels'), help: $('pg-help'), settings: $('pg-settings'),
             },
@@ -5116,7 +5391,7 @@ class UIManager {
     }
 
     showHint(text, seconds) {
-        this.el.hint.innerHTML = text;
+        this.el.hint.innerHTML = this.padGlyphs ? this.padGlyphs(text) : text;
         this.el.hint.classList.add('on');
         this.hintTimer = seconds || 4.2;
     }
@@ -5156,6 +5431,26 @@ class UIManager {
 
     setMuteIcon(muted) { this.el.mute.textContent = muted ? '🔇' : '🔊'; }
     setPadIcon(on) { this.el.pad.classList.toggle('on', !!on); }
+    /* מחליף את רשימת המקשים בפינה לתוויות שלט וחזרה */
+    setControlHints(usePad, glyph) {
+        if (!this.el.keys) return;
+        if (this._hintsPad === usePad) return;
+        this._hintsPad = usePad;
+        this.el.keys.innerHTML = usePad
+            ? `<kbd>ג׳ויסטיק שמאלי</kbd> תנועה · <span class="gp a">${glyph('A')}</span> קפיצה · <kbd>${glyph('RT')}</kbd> ריצה<br>` +
+              `<span class="gp b">${glyph('B')}</span> החלקה/גלגול · <span class="gp x">${glyph('X')}</span> כבל · ` +
+              `<span class="gp y">${glyph('Y')}</span> צ'קפוינט · <kbd>${glyph('START')}</kbd> תפריט`
+            : `<kbd>WASD</kbd> תנועה · <kbd>SPACE</kbd> קפיצה · <kbd>SHIFT</kbd> ריצה<br>` +
+              `<kbd>CTRL</kbd> החלקה/גלגול · <kbd>E</kbd> כבל · <kbd>R</kbd> צ'קפוינט · <kbd>ESC</kbd> תפריט`;
+    }
+    setFps(v) {
+        if (!this.el.fps) return;
+        const n = Math.round(v);
+        if (n === this._lastFps) return;
+        this._lastFps = n;
+        this.el.fps.textContent = n + ' FPS';
+        this.el.fps.style.color = n < 40 ? '#ff8b95' : (n < 55 ? '#ffb03a' : 'rgba(190,215,235,.5)');
+    }
     setFlow(flow) {
         const f = (flow - 1) / (CFG.FLOW_MAX - 1);
         this.el.flow.classList.toggle('on', flow > 1.005);
@@ -5185,6 +5480,11 @@ class Game {
         this.lastFrame = 0;
         this.fadeIn = 0;
         this.idleFrame = 0;
+        this.dynScale = 1;
+        this.fpsAcc = 0;
+        this.fpsFrames = 0;
+        this.fpsValue = 60;
+        this.lastAdapt = 0;
 
         this.save = Save.load();
         this.settings = this.save.settings;
@@ -5212,6 +5512,19 @@ class Game {
         };
         this.input.onLockChange = (locked) => {
             if (!locked && this.state === 'playing' && !this.input.padConnected) this.pause();
+        };
+        // המרת תוויות מקלדת לתוויות שלט כשמשחקים בשלט
+        this.ui.padGlyphs = (html) => {
+            if (!this.input.padConnected || this.input.lastDevice !== 'pad') return html;
+            const g = (n) => this.input.glyph(n);
+            return html
+                .replace(/<kbd>SPACE<\/kbd>/g, '<span class="gp a">' + g('A') + '</span>')
+                .replace(/<kbd>CTRL<\/kbd> או <kbd>C<\/kbd>/g, '<span class="gp b">' + g('B') + '</span>')
+                .replace(/<kbd>CTRL<\/kbd>/g, '<span class="gp b">' + g('B') + '</span>')
+                .replace(/<kbd>E<\/kbd>/g, '<span class="gp x">' + g('X') + '</span>')
+                .replace(/<kbd>SHIFT<\/kbd>/g, '<kbd>' + g('RT') + '</kbd>')
+                .replace(/<kbd>W A S D<\/kbd>/g, '<kbd>ג׳ויסטיק שמאלי</kbd>')
+                .replace(/<kbd>W<\/kbd>/g, '<kbd>ג׳ויסטיק שמאלי</kbd>');
         };
         this.input.onPadChange = (connected, id) => {
             this.ui.setPadIcon(connected);
@@ -5278,12 +5591,13 @@ class Game {
         this.sun.castShadow = true;
         const q = QUALITY[this.settings.quality] || QUALITY.high;
         this.sun.shadow.mapSize.set(q.shadowSize, q.shadowSize);
+        const span = q.shadowSpan || 32;
         this.sun.shadow.camera.near = 1;
-        this.sun.shadow.camera.far = 190;
-        this.sun.shadow.camera.left = -42;
-        this.sun.shadow.camera.right = 42;
-        this.sun.shadow.camera.top = 42;
-        this.sun.shadow.camera.bottom = -42;
+        this.sun.shadow.camera.far = 150;
+        this.sun.shadow.camera.left = -span;
+        this.sun.shadow.camera.right = span;
+        this.sun.shadow.camera.top = span;
+        this.sun.shadow.camera.bottom = -span;
         this.sun.shadow.bias = -0.0009;
         this.sun.shadow.normalBias = 0.035;
         this.scene.add(this.sun);
@@ -5387,6 +5701,12 @@ class Game {
             this.settings.fov = v; this.player.baseFov = v;
             this.camera.fov = v + this.player.fovOffset; this.camera.updateProjectionMatrix();
         });
+        bindRange('s-psens', 'v-psens', v => String(v), v => {
+            this.settings.padSens = v; this.input.padSens = v / 100;
+        });
+        bindRange('s-pdz', 'v-pdz', v => v + '%', v => {
+            this.settings.padDead = v; this.input.padDeadzone = v / 100;
+        });
 
         $('s-qual').querySelectorAll('button').forEach(b => {
             b.addEventListener('click', () => {
@@ -5415,6 +5735,10 @@ class Game {
         });
         bindToggle('s-bob', 'bob', v => { this.player.bobEnabled = v; });
         bindToggle('s-music', 'music', v => { this.audio.setMusic(v); });
+        bindToggle('s-bloom', 'bloom', () => { /* נקרא ישירות בעת הציור */ });
+        bindToggle('s-pinv', 'padInvertY', v => { this.input.padInvertY = v; });
+        bindToggle('s-pvib', 'padVibrate', v => { this.input.padVibrate = v; if (v) this.input.rumble(0.5, 160); });
+        bindToggle('s-ptog', 'padSprintToggle', v => { this.input.padSprintToggle = v; this.input.padSprintLatch = false; });
 
         // לחיצה על הקנבס מחזירה נעילת סמן
         this.canvas.addEventListener('click', () => {
@@ -5427,16 +5751,27 @@ class Game {
         $('s-sens').value = s.sens; $('v-sens').textContent = String(s.sens);
         $('s-vol').value = s.vol; $('v-vol').textContent = s.vol + '%';
         $('s-fov').value = s.fov; $('v-fov').textContent = String(s.fov);
+        $('s-psens').value = s.padSens; $('v-psens').textContent = String(s.padSens);
+        $('s-pdz').value = s.padDead; $('v-pdz').textContent = s.padDead + '%';
         $('s-qual').querySelectorAll('button').forEach(b => b.classList.toggle('on', b.dataset.q === s.quality));
         $('s-shadow').classList.toggle('on', s.shadows);
         $('s-bob').classList.toggle('on', s.bob);
         $('s-music').classList.toggle('on', s.music);
+        $('s-bloom').classList.toggle('on', s.bloom);
+        $('s-pinv').classList.toggle('on', s.padInvertY);
+        $('s-pvib').classList.toggle('on', s.padVibrate);
+        $('s-ptog').classList.toggle('on', s.padSprintToggle);
         this.ui.setMuteIcon(s.muted);
     }
 
     applyAllSettings() {
         const s = this.settings;
         this.input.sensitivity = s.sens / 100;
+        this.input.padSens = (s.padSens || 100) / 100;
+        this.input.padInvertY = !!s.padInvertY;
+        this.input.padVibrate = s.padVibrate !== false;
+        this.input.padDeadzone = (s.padDead || 18) / 100;
+        this.input.padSprintToggle = !!s.padSprintToggle;
         this.audio.setVolume(s.vol / 100);
         this.audio.setMuted(s.muted);
         this.audio.setMusic(s.music);
@@ -5447,14 +5782,19 @@ class Game {
 
     applyQuality() {
         const q = QUALITY[this.settings.quality] || QUALITY.high;
-        this.renderer.setPixelRatio(Math.min(window.devicePixelRatio || 1, q.pr));
+        this.renderer.setPixelRatio(Math.min(window.devicePixelRatio || 1, q.pr) * (this.dynScale || 1));
         this.renderer.shadowMap.enabled = this.settings.shadows && q.shadow > 0;
         if (this.sun.shadow.mapSize.width !== q.shadowSize) {
             this.sun.shadow.mapSize.set(q.shadowSize, q.shadowSize);
             if (this.sun.shadow.map) { this.sun.shadow.map.dispose(); this.sun.shadow.map = null; }
         }
+        const span = q.shadowSpan || 32;
+        this.sun.shadow.camera.left = -span; this.sun.shadow.camera.right = span;
+        this.sun.shadow.camera.top = span; this.sun.shadow.camera.bottom = -span;
+        this.sun.shadow.camera.updateProjectionMatrix();
+        this.dynScale = 1;
         if (this.scene.fog && this.level) {
-            this.scene.fog.far = Math.min(this.level.env.fogFar, q.fogFar + 120);
+            this.scene.fog.far = Math.min(this.level.env.fogFar, q.fogFar);
         }
         this.scene.traverse(o => { if (o.isMesh && o.material) o.material.needsUpdate = true; });
     }
@@ -5486,10 +5826,13 @@ class Game {
         requestAnimationFrame(() => requestAnimationFrame(() => this._doStartLevel(index)));
     }
 
-    _doStartLevel(index) {
+    async _doStartLevel(index) {
         this.unloadLevel();
         this.ui.setLoading(45, 'יוצר גאומטריה…');
+        // כלי המיזוג נטענים פעם אחת; אם הם לא הגיעו תוך זמן קצר ממשיכים בלעדיהם
+        await Promise.race([loadMergeUtils(), new Promise(r => setTimeout(r, 4000))]);
         const level = LEVELS[index].build();
+        level.finalize();
         this.level = level;
         this.levelIndex = index;
         this.scene.add(level.group);
@@ -5499,7 +5842,7 @@ class Game {
         this.scene.fog.color.set(level.env.fog);
         this.scene.fog.near = level.env.fogNear;
         const q = QUALITY[this.settings.quality] || QUALITY.high;
-        this.scene.fog.far = Math.min(level.env.fogFar, q.fogFar + 120);
+        this.scene.fog.far = Math.min(level.env.fogFar, q.fogFar);
         this.hemi.color.set(level.env.ambSky);
         this.hemi.groundColor.set(level.env.ambGround);
         this.hemi.intensity = level.env.ambInt * 0.42;
@@ -5524,8 +5867,13 @@ class Game {
         this.ui.setTime(0);
         this.ui.setLoading(100, 'מוכן');
 
-        // חימום שיידרים כדי למנוע קפיצות בפריימים הראשונים
+        // חימום שיידרים כדי למנוע קטיעות בפריימים הראשונים
+        this.player.updateCameraTransform(0);
         this.renderer.compile(this.scene, this.camera);
+        try {
+            if (this.composer && this.settings.bloom && this.settings.quality !== 'low') this.composer.render();
+            else this.renderer.render(this.scene, this.camera);
+        } catch (e) { console.warn('חימום ציור נכשל:', e.message); }
 
         this.state = 'playing';
         this.ui.screen('hud');
@@ -5711,6 +6059,8 @@ class Game {
             this.ui.setTime(this.elapsed);
             this.ui.setSpeed(this.player.speed / (CFG.RUN_SPEED + CFG.SLIDE_BOOST), this.player.stateLabel);
             this.ui.setFlow(this.player.flow);
+            this.ui.setControlHints(this.input.padConnected && this.input.lastDevice === 'pad',
+                (n) => this.input.glyph(n));
         } else if (this.state === 'falling') {
             this.level.update(this.clock, this.player.pos);
             this.player.vel.y = Math.max(this.player.vel.y - CFG.GRAVITY * dt, CFG.MAX_FALL);
@@ -5724,6 +6074,31 @@ class Game {
         }
         this.ui.update(dt);
         this.audio.updateMusic();
+    }
+
+    /* מדידת קצב פריימים והתאמת רזולוציה אוטומטית — מונע קטיעות במחשבים חלשים */
+    trackPerformance(dt) {
+        this.fpsAcc += dt;
+        this.fpsFrames++;
+        if (this.fpsAcc < 0.5) return;
+        this.fpsValue = this.fpsFrames / this.fpsAcc;
+        this.fpsAcc = 0;
+        this.fpsFrames = 0;
+        this.ui.setFps(this.fpsValue);
+        if (this.state !== 'playing') return;
+        this.lastAdapt += 0.5;
+        if (this.lastAdapt < 2) return;
+        const q = QUALITY[this.settings.quality] || QUALITY.high;
+        let s = this.dynScale;
+        if (this.fpsValue < 45 && s > 0.62) s = Math.max(0.62, s - 0.16);
+        else if (this.fpsValue > 58 && s < 1) s = Math.min(1, s + 0.12);
+        if (Math.abs(s - this.dynScale) > 0.01) {
+            this.dynScale = s;
+            this.lastAdapt = 0;
+            const pr = Math.min(window.devicePixelRatio || 1, q.pr) * s;
+            this.renderer.setPixelRatio(pr);
+            if (this.composer) this.composer.setSize(window.innerWidth, window.innerHeight);
+        }
     }
 
     render() {
@@ -5752,6 +6127,7 @@ class Game {
         this.input.pollPad(dt);
         if (this.state !== 'playing' && this.state !== 'falling') this.padNavigate();
 
+        this.trackPerformance(dt);
         if (this.state === 'playing' || this.state === 'falling') {
             // צעדי פיזיקה קבועים לתנועה יציבה
             this.acc += dt;
