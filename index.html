@@ -353,6 +353,12 @@
                 <div class="k"><kbd>BACK</kbd><span>השתקת קול</span></div>
                 <div class="k"><kbd>D-Pad + A</kbd><span>ניווט בתפריטים</span></div>
             </div>
+            <div class="tips" style="margin-top:10px">
+                <b>הג׳ויסטיק הימני לא מזיז את המבט?</b> חלק מהשלטים מדווחים על צירים אחרים.
+                המשחק מזהה אותם אוטומטית אחרי כמה תזוזות של הג׳ויסטיק; אם זה עדיין לא עובד —
+                היכנס ל<b>הגדרות → צירי ג׳ויסטיק ימני</b> ובחר ידנית 2/3, 3/4 או 4/5.
+                שורת <b>בדיקת שלט</b> באותו מסך מציגה את ערכי הצירים בזמן אמת.
+            </div>
             <div class="tips">
                 <b>החלקה:</b> רוץ ולחץ CTRL כדי להחליק מתחת למכשולים נמוכים.<br>
                 <b>טיפוס:</b> רוץ אל מכשול נמוך — הדמות תעלה או תקפוץ מעליו אוטומטית.<br>
@@ -379,6 +385,10 @@
             <div class="set"><label>אזור מת בג׳ויסטיק</label><div class="ctl"><input type="range" id="s-pdz" min="5" max="40" step="1"><span class="val" id="v-pdz">18%</span></div></div>
             <div class="set"><label>ריצה בשלט כמתג (Toggle)</label><div class="ctl"><div class="tgl" id="s-ptog"></div></div></div>
             <div class="set"><label>רטט בשלט</label><div class="ctl"><div class="tgl" id="s-pvib"></div></div></div>
+            <div class="set"><label>צירי ג׳ויסטיק ימני</label><div class="ctl"><div class="seg" id="s-paxis">
+                <button data-a="0">אוטומטי</button><button data-a="1">2/3</button><button data-a="2">3/4</button><button data-a="3">4/5</button>
+            </div></div></div>
+            <div class="set"><label>בדיקת שלט</label><div class="ctl"><span class="val" id="v-ptest" dir="ltr" style="min-width:210px;text-align:left">לא מחובר</span></div></div>
             <div class="set"><label>איכות גרפיקה</label><div class="ctl"><div class="seg" id="s-qual">
                 <button data-q="low">נמוכה</button><button data-q="med">בינונית</button><button data-q="high">גבוהה</button>
             </div></div></div>
@@ -587,7 +597,7 @@ const DEFAULT_SAVE = {
         sens: 100, vol: 70, fov: 80, quality: 'high',
         shadows: true, bob: true, music: true, muted: false,
         bloom: true, padSens: 100, padInvertY: false, padVibrate: true,
-        padDead: 18, padSprintToggle: false,
+        padDead: 18, padSprintToggle: false, padAxis: 0,
     },
 };
 
@@ -1061,197 +1071,926 @@ function makeCloudTexture() {
 }
 
 /* =========================================================================
-   5. סאונד — Web Audio API בלבד (ללא קבצים)
+   5. סאונד — Web Audio API בלבד (סינתזה בזמן אמת, ללא קבצים)
+
+   מבנה האותות:
+     sfx / amb / music  ->  dry ---------------\
+                        ->  revSend -> reverb -> revGain -> muffle -> comp -> master -> out
+
+   כל צליל נבנה מגלי אוסצילטור ומרעש מסונן; אין דגימות מוקלטות ואין קבצים.
    ========================================================================= */
+
+/* מאפייני חומרים — כל משטח נשמע אחרת תחת הרגליים */
+const SURFACES = {
+    concrete: { fc: 700,  q: 1.1, dur: .16, gain: .155, body: 74,  bodyG: .085, scuff: 2600, scuffG: .030, rev: .16 },
+    asphalt:  { fc: 520,  q: 0.9, dur: .18, gain: .135, body: 66,  bodyG: .090, scuff: 1900, scuffG: .022, rev: .12 },
+    metal:    { fc: 2500, q: 3.4, dur: .17, gain: .120, body: 190, bodyG: .050, scuff: 5200, scuffG: .045, rev: .30, ring: [1180, 1870], ringG: .055 },
+    grate:    { fc: 3200, q: 4.2, dur: .20, gain: .105, body: 240, bodyG: .035, scuff: 6400, scuffG: .055, rev: .34, ring: [1560, 2340, 3120], ringG: .060 },
+    wood:     { fc: 1150, q: 2.1, dur: .13, gain: .145, body: 128, bodyG: .075, scuff: 3100, scuffG: .026, rev: .18, ring: [520, 780], ringG: .038 },
+    gravel:   { fc: 1750, q: 0.8, dur: .13, gain: .095, body: 58,  bodyG: .045, scuff: 4200, scuffG: .020, rev: .10, grains: 5 },
+    dirt:     { fc: 900,  q: 0.7, dur: .15, gain: .105, body: 62,  bodyG: .070, scuff: 2200, scuffG: .014, rev: .08, grains: 3 },
+    tile:     { fc: 3000, q: 3.0, dur: .11, gain: .130, body: 210, bodyG: .040, scuff: 6800, scuffG: .050, rev: .38, ring: [2100, 3150], ringG: .048 },
+    glass:    { fc: 4200, q: 5.0, dur: .10, gain: .110, body: 260, bodyG: .030, scuff: 7600, scuffG: .055, rev: .40, ring: [2640, 3960], ringG: .052 },
+    rubber:   { fc: 380,  q: 1.4, dur: .12, gain: .120, body: 92,  bodyG: .060, scuff: 1200, scuffG: .012, rev: .05 },
+    water:    { fc: 1400, q: 0.6, dur: .30, gain: .180, body: 150, bodyG: .030, scuff: 5200, scuffG: .060, rev: .26, splash: true },
+    wet:      { fc: 780,  q: 1.0, dur: .17, gain: .150, body: 70,  bodyG: .085, scuff: 4600, scuffG: .048, rev: .22, drops: 3 },
+    glassPane:{ fc: 4200, q: 5.0, dur: .10, gain: .110, body: 260, bodyG: .030, scuff: 7600, scuffG: .055, rev: .40, ring: [2640, 3960], ringG: .052 },
+};
+
+/* חללי הדהוד — לכל שלב אופי אקוסטי משלו */
+const REVERBS = {
+    open:   { sec: 1.1, decay: 4.2, wet: 0.16, damp: 5200 },
+    street: { sec: 1.8, decay: 3.0, wet: 0.24, damp: 4200 },
+    room:   { sec: 1.0, decay: 3.6, wet: 0.28, damp: 3200 },
+    hall:   { sec: 2.9, decay: 2.1, wet: 0.34, damp: 3800 },
+    tunnel: { sec: 2.2, decay: 2.4, wet: 0.44, damp: 2200, comb: true },
+};
+
+/* סולמות לפי שלב — כל שלב מקבל טוניקה ואופי הרמוני משלו */
+const MUSIC_KEYS = [
+    { root: 55.00, mode: [0, 3, 5, 7, 10], prog: [0, 5, 3, 4] },     // A minor pentatonic
+    { root: 49.00, mode: [0, 2, 3, 7, 8],  prog: [0, 3, 5, 2] },     // G phrygian-ish
+    { root: 61.74, mode: [0, 3, 5, 7, 10], prog: [0, 4, 2, 5] },     // B
+    { root: 58.27, mode: [0, 2, 5, 7, 9],  prog: [0, 2, 4, 3] },     // Bb dorian
+    { root: 65.41, mode: [0, 3, 5, 6, 10], prog: [0, 5, 1, 4] },     // C blues
+];
+
 class AudioManager {
     constructor() {
         this.ctx = null;
         this.ready = false;
+        this.failed = false;
         this.muted = false;
         this.volume = 0.7;
         this.musicOn = true;
         this.noiseBuf = null;
-        this.nextChordTime = 0;
-        this.chordIndex = 0;
-        this.progression = [
-            [110.00, 164.81, 220.00, 329.63],   // A minor
-            [ 98.00, 146.83, 196.00, 293.66],   // G
-            [ 87.31, 130.81, 174.61, 261.63],   // F
-            [ 82.41, 123.47, 164.81, 246.94],   // E
-        ];
+        this.pinkBuf = null;
         this.stepToggle = 0;
+        this.loops = {};
+        this.impulses = {};
+        this.reverbKind = 'street';
+        this.intensity = 0;
+        this._intensity = 0;
+        this.windBase = 0.25;
+        this.rainAmount = 0;
+        this.beatTime = 0;
+        this.bar = 0;
+        this.beatInBar = 0;
+        this.keyIndex = 0;
+        this.bpm = 96;
+        this.musicLevel = 0.22;
+        this.lastStepAt = -1;
     }
 
+    /* ---------------- אתחול ותשתית ---------------- */
     init() {
-        if (this.ready) return;
+        if (this.ready || this.failed) return;
         const AC = window.AudioContext || window.webkitAudioContext;
-        if (!AC) { console.warn('Web Audio API אינו נתמך בדפדפן זה'); return; }
-        this.ctx = new AC();
-        this.master = this.ctx.createGain();
+        if (!AC) { this.failed = true; console.warn('Web Audio API אינו נתמך בדפדפן זה — המשחק ירוץ ללא סאונד'); return; }
+        try { this.ctx = new AC({ latencyHint: 'interactive' }); }
+        catch (e) { this.failed = true; console.warn('לא ניתן לפתוח הקשר שמע:', e.message); return; }
+        const ctx = this.ctx;
+
+        this.master = ctx.createGain();
         this.master.gain.value = this.muted ? 0 : this.volume;
-        this.comp = this.ctx.createDynamicsCompressor();
-        this.comp.threshold.value = -14;
-        this.comp.ratio.value = 8;
-        this.comp.connect(this.ctx.destination);
-        this.master.connect(this.comp);
+        this.master.connect(ctx.destination);
 
-        this.sfxGain = this.ctx.createGain(); this.sfxGain.gain.value = 1.0; this.sfxGain.connect(this.master);
-        this.musicGain = this.ctx.createGain(); this.musicGain.gain.value = 0.0; this.musicGain.connect(this.master);
+        // דחיסה קלה — שומרת על עוצמה אחידה כשהרבה צלילים מתנגנים יחד
+        this.comp = ctx.createDynamicsCompressor();
+        this.comp.threshold.value = -16;
+        this.comp.knee.value = 22;
+        this.comp.ratio.value = 6;
+        this.comp.attack.value = 0.004;
+        this.comp.release.value = 0.22;
+        this.comp.connect(this.master);
 
-        // רברב פשוט מרעש דועך — נותן עומק לצלילים
-        this.reverb = this.ctx.createConvolver();
-        this.reverb.buffer = this._makeImpulse(1.7, 2.6);
-        this.revGain = this.ctx.createGain(); this.revGain.gain.value = 0.30;
-        this.reverb.connect(this.revGain); this.revGain.connect(this.master);
+        // מסנן "עמעום" — נסגר כשהמשחק מושהה, כאילו האוזניים נאטמות
+        this.muffle = ctx.createBiquadFilter();
+        this.muffle.type = 'lowpass';
+        this.muffle.frequency.value = 20000;
+        this.muffle.Q.value = 0.35;
+        this.muffle.connect(this.comp);
 
-        // מאגר רעש לבן לשימוש חוזר
-        const len = this.ctx.sampleRate * 2;
-        const buf = this.ctx.createBuffer(1, len, this.ctx.sampleRate);
-        const d = buf.getChannelData(0);
-        for (let i = 0; i < len; i++) d[i] = Math.random() * 2 - 1;
-        this.noiseBuf = buf;
+        this.dry = ctx.createGain(); this.dry.gain.value = 1.0; this.dry.connect(this.muffle);
+
+        this.sfxGain = ctx.createGain(); this.sfxGain.gain.value = 1.0; this.sfxGain.connect(this.dry);
+        this.ambGain = ctx.createGain(); this.ambGain.gain.value = 1.0; this.ambGain.connect(this.dry);
+        this.musicGain = ctx.createGain();
+        // ההגדרה כבר נטענה מהאחסון — מתחילים ישירות במצב הנכון
+        this.musicGain.gain.value = this.musicOn ? this.musicLevel : 0.0;
+        this.musicGain.connect(this.dry);
+        this.musicDuck = ctx.createGain(); this.musicDuck.gain.value = 1.0;
+        this.musicDuck.connect(this.musicGain);
+
+        // ערוץ הדהוד משותף
+        this.revSend = ctx.createGain(); this.revSend.gain.value = 1.0;
+        this.reverb = ctx.createConvolver();
+        this.revDamp = ctx.createBiquadFilter();
+        this.revDamp.type = 'lowpass'; this.revDamp.frequency.value = 4200; this.revDamp.Q.value = 0.4;
+        this.revGain = ctx.createGain(); this.revGain.gain.value = REVERBS.street.wet;
+        this.revSend.connect(this.reverb);
+        this.reverb.connect(this.revDamp);
+        this.revDamp.connect(this.revGain);
+        this.revGain.connect(this.muffle);
+        this.reverb.buffer = this._impulse('street');
+
+        // מאגרי רעש לשימוש חוזר — לבן לחדות, ורוד לרוח ולרחשים
+        this.noiseBuf = this._makeNoise(2.0, false);
+        this.pinkBuf = this._makeNoise(4.0, true);
 
         this.ready = true;
-        this.nextChordTime = this.ctx.currentTime + 0.2;
+        this.beatTime = ctx.currentTime + 0.25;
+        this._startWind();
+        this._startRain();
+        this._startHum();
     }
 
-    _makeImpulse(seconds, decay) {
+    _makeNoise(seconds, pink) {
         const rate = this.ctx.sampleRate;
         const len = Math.floor(rate * seconds);
+        const buf = this.ctx.createBuffer(1, len, rate);
+        const d = buf.getChannelData(0);
+        if (!pink) {
+            for (let i = 0; i < len; i++) d[i] = Math.random() * 2 - 1;
+        } else {
+            // רעש ורוד בשיטת Voss-McCartney מקוצרת — נשמע טבעי יותר לרוח
+            let b0 = 0, b1 = 0, b2 = 0, b3 = 0, b4 = 0, b5 = 0, b6 = 0;
+            for (let i = 0; i < len; i++) {
+                const w = Math.random() * 2 - 1;
+                b0 = 0.99886 * b0 + w * 0.0555179;
+                b1 = 0.99332 * b1 + w * 0.0750759;
+                b2 = 0.96900 * b2 + w * 0.1538520;
+                b3 = 0.86650 * b3 + w * 0.3104856;
+                b4 = 0.55000 * b4 + w * 0.5329522;
+                b5 = -0.7616 * b5 - w * 0.0168980;
+                d[i] = (b0 + b1 + b2 + b3 + b4 + b5 + b6 + w * 0.5362) * 0.11;
+                b6 = w * 0.115926;
+            }
+            // התאמת קצוות ללולאה חלקה
+            const fade = Math.floor(rate * 0.05);
+            for (let i = 0; i < fade; i++) {
+                const t = i / fade;
+                d[i] = d[i] * t + d[len - fade + i] * (1 - t);
+            }
+        }
+        return buf;
+    }
+
+    _impulse(kind) {
+        if (this.impulses[kind]) return this.impulses[kind];
+        const cfg = REVERBS[kind] || REVERBS.street;
+        const rate = this.ctx.sampleRate;
+        const len = Math.max(1, Math.floor(rate * cfg.sec));
         const imp = this.ctx.createBuffer(2, len, rate);
         for (let ch = 0; ch < 2; ch++) {
             const d = imp.getChannelData(ch);
+            let lp = 0;
             for (let i = 0; i < len; i++) {
-                d[i] = (Math.random() * 2 - 1) * Math.pow(1 - i / len, decay);
+                const t = i / len;
+                const w = Math.random() * 2 - 1;
+                lp += (w - lp) * 0.42;                       // ריכוך הזנב
+                let v = lp * Math.pow(1 - t, cfg.decay);
+                if (cfg.comb) {
+                    // החזרות מוקדמות — נותן תחושת מנהרה צרה
+                    const d1 = Math.floor(rate * (0.021 + ch * 0.003));
+                    const d2 = Math.floor(rate * (0.043 + ch * 0.005));
+                    if (i > d1) v += d[i - d1] * 0.42;
+                    if (i > d2) v += d[i - d2] * 0.26;
+                }
+                d[i] = v;
             }
         }
+        this.impulses[kind] = imp;
         return imp;
     }
 
-    resume() { if (this.ctx && this.ctx.state === 'suspended') this.ctx.resume(); }
+    resume() {
+        if (this.ctx && this.ctx.state === 'suspended') {
+            const p = this.ctx.resume();
+            if (p && p.catch) p.catch(() => {});
+        }
+    }
+
+    get now() { return this.ctx ? this.ctx.currentTime : 0; }
 
     setVolume(v) {
         this.volume = clamp(v, 0, 1);
-        if (this.master) this.master.gain.setTargetAtTime(this.muted ? 0 : this.volume, this.ctx.currentTime, 0.05);
+        if (this.master) this.master.gain.setTargetAtTime(this.muted ? 0 : this.volume, this.now, 0.04);
     }
     setMuted(m) {
-        this.muted = m;
-        if (this.master) this.master.gain.setTargetAtTime(m ? 0 : this.volume, this.ctx.currentTime, 0.05);
+        this.muted = !!m;
+        if (this.master) this.master.gain.setTargetAtTime(this.muted ? 0 : this.volume, this.now, 0.04);
     }
     setMusic(on) {
-        this.musicOn = on;
-        if (this.musicGain) this.musicGain.gain.setTargetAtTime(on ? 0.22 : 0.0, this.ctx.currentTime, 0.6);
+        this.musicOn = !!on;
+        if (this.musicGain) this.musicGain.gain.setTargetAtTime(on ? this.musicLevel : 0.0, this.now, 0.5);
+    }
+    /* עמעום כללי — במסכי השהיה, סיום ונפילה */
+    setMuffle(on) {
+        if (!this.ready) return;
+        this.muffle.frequency.setTargetAtTime(on ? 480 : 20000, this.now, on ? 0.05 : 0.12);
+        this.dry.gain.setTargetAtTime(on ? 0.55 : 1.0, this.now, 0.08);
+        if (on) this._fadeLoops();
+    }
+    /* בחירת חלל אקוסטי לשלב */
+    setReverb(kind) {
+        if (!this.ready) return;
+        const cfg = REVERBS[kind] || REVERBS.street;
+        this.reverbKind = REVERBS[kind] ? kind : 'street';
+        this.reverb.buffer = this._impulse(this.reverbKind);
+        this.revGain.gain.setTargetAtTime(cfg.wet, this.now, 0.3);
+        this.revDamp.frequency.setTargetAtTime(cfg.damp, this.now, 0.3);
+    }
+    /* טוניקה מוזיקלית לפי מספר השלב */
+    setMusicKey(levelIndex) {
+        this.keyIndex = ((levelIndex % MUSIC_KEYS.length) + MUSIC_KEYS.length) % MUSIC_KEYS.length;
+        this.bpm = 88 + (levelIndex % 5) * 5;
     }
 
-    _noise(dur, filterType, freq, q, gain, sendRev) {
+    /* ---------------- אבני בניין ---------------- */
+    _pan(amount) {
+        if (!amount || !this.ctx.createStereoPanner) return null;
+        const p = this.ctx.createStereoPanner();
+        p.pan.value = clamp(amount, -1, 1);
+        return p;
+    }
+
+    /* מנתב שרשרת אל הפלט המבוקש + שליחה להדהוד */
+    _out(node, o) {
+        const bus = o.bus === 'amb' ? this.ambGain : (o.bus === 'music' ? this.musicDuck : this.sfxGain);
+        const pan = this._pan(o.pan);
+        if (pan) { node.connect(pan); pan.connect(bus); if (o.rev) { const s = this.ctx.createGain(); s.gain.value = o.rev; pan.connect(s); s.connect(this.revSend); } }
+        else {
+            node.connect(bus);
+            if (o.rev) { const s = this.ctx.createGain(); s.gain.value = o.rev; node.connect(s); s.connect(this.revSend); }
+        }
+    }
+
+    /* פרץ רעש מסונן */
+    _noise(o) {
         if (!this.ready) return null;
-        const t = this.ctx.currentTime;
+        const t = o.when || this.now;
+        const dur = o.dur || 0.15;
         const src = this.ctx.createBufferSource();
-        src.buffer = this.noiseBuf;
+        src.buffer = o.pink ? this.pinkBuf : this.noiseBuf;
         src.loop = true;
+        src.playbackRate.value = o.rate || 1;
+        const off = Math.random() * (src.buffer.duration - dur - 0.05);
         const f = this.ctx.createBiquadFilter();
-        f.type = filterType; f.frequency.value = freq; f.Q.value = q;
+        f.type = o.type || 'bandpass';
+        f.frequency.setValueAtTime(Math.max(20, o.freq || 800), t);
+        if (o.sweep) f.frequency.exponentialRampToValueAtTime(Math.max(20, o.sweep), t + dur);
+        f.Q.value = o.q === undefined ? 1 : o.q;
         const g = this.ctx.createGain();
+        const atk = o.atk === undefined ? 0.006 : o.atk;
+        const peak = Math.max(0.0002, o.gain || 0.1);
         g.gain.setValueAtTime(0.0001, t);
-        g.gain.exponentialRampToValueAtTime(gain, t + 0.008);
+        g.gain.exponentialRampToValueAtTime(peak, t + atk);
         g.gain.exponentialRampToValueAtTime(0.0001, t + dur);
-        src.connect(f); f.connect(g); g.connect(this.sfxGain);
-        if (sendRev) g.connect(this.reverb);
-        src.start(t); src.stop(t + dur + 0.05);
-        return { src, f, g, t };
+        src.connect(f); f.connect(g);
+        this._out(g, o);
+        src.start(t, Math.max(0, off));
+        src.stop(t + dur + 0.03);
+        return { src, f, g };
     }
 
-    _tone(freq, dur, type, gain, sweepTo, sendRev) {
+    /* צליל אוסצילטור עם מעטפת */
+    _tone(o) {
         if (!this.ready) return null;
-        const t = this.ctx.currentTime;
-        const o = this.ctx.createOscillator();
-        o.type = type || 'sine';
-        o.frequency.setValueAtTime(freq, t);
-        if (sweepTo) o.frequency.exponentialRampToValueAtTime(Math.max(20, sweepTo), t + dur);
+        const t = o.when || this.now;
+        const dur = o.dur || 0.2;
+        const osc = this.ctx.createOscillator();
+        osc.type = o.type || 'sine';
+        osc.frequency.setValueAtTime(Math.max(8, o.freq), t);
+        if (o.sweep) osc.frequency.exponentialRampToValueAtTime(Math.max(8, o.sweep), t + (o.sweepT || dur));
+        if (o.detune) osc.detune.value = o.detune;
         const g = this.ctx.createGain();
+        const atk = o.atk === undefined ? 0.008 : o.atk;
+        const peak = Math.max(0.0002, o.gain || 0.1);
         g.gain.setValueAtTime(0.0001, t);
-        g.gain.exponentialRampToValueAtTime(gain, t + 0.012);
+        g.gain.exponentialRampToValueAtTime(peak, t + atk);
+        if (o.hold) g.gain.setValueAtTime(peak, t + Math.max(atk, o.hold));
         g.gain.exponentialRampToValueAtTime(0.0001, t + dur);
-        o.connect(g); g.connect(this.sfxGain);
-        if (sendRev) g.connect(this.reverb);
-        o.start(t); o.stop(t + dur + 0.05);
-        return o;
+        let node = g;
+        osc.connect(g);
+        if (o.lp) {
+            const f = this.ctx.createBiquadFilter();
+            f.type = 'lowpass'; f.frequency.value = o.lp; f.Q.value = o.lpQ || 0.7;
+            g.connect(f); node = f;
+        }
+        this._out(node, o);
+        osc.start(t);
+        osc.stop(t + dur + 0.05);
+        return osc;
     }
 
-    footstep(running) {
+    /* לולאה מתמשכת (החלקה, כבל, רוח) */
+    _loop(name, build) {
+        if (!this.ready) return null;
+        let L = this.loops[name];
+        if (L && L.alive) return L;
+        L = build();
+        if (!L) return null;
+        L.alive = true;
+        this.loops[name] = L;
+        return L;
+    }
+    _stopLoop(name, fade) {
+        const L = this.loops[name];
+        if (!L || !L.alive) return;
+        L.alive = false;
+        const t = this.now, f = fade === undefined ? 0.12 : fade;
+        try {
+            L.gain.gain.cancelScheduledValues(t);
+            L.gain.gain.setValueAtTime(Math.max(0.0001, L.gain.gain.value), t);
+            L.gain.gain.exponentialRampToValueAtTime(0.0001, t + f);
+            L.src.stop(t + f + 0.05);
+            if (L.src2) L.src2.stop(t + f + 0.05);
+        } catch (e) { /* המקור כבר נעצר */ }
+        this.loops[name] = null;
+    }
+    _fadeLoops() {
+        for (const k of ['slide', 'zip', 'wallrun']) this._stopLoop(k, 0.08);
+    }
+    /* משתיק את כל האווירה — בשימוש בעת מעבר בין שלבים */
+    silenceAmbience() {
         if (!this.ready) return;
+        this._fadeLoops();
+        this.windBase = 0;
+        this.setWind(0, 0.2);
+        this.setRain(0);
+        this.setHum(0);
+    }
+
+    /* ---------------- רוח ואווירה ---------------- */
+    _startWind() {
+        this._loop('wind', () => {
+            const src = this.ctx.createBufferSource();
+            src.buffer = this.pinkBuf; src.loop = true;
+            const bp = this.ctx.createBiquadFilter();
+            bp.type = 'bandpass'; bp.frequency.value = 420; bp.Q.value = 0.55;
+            const lp = this.ctx.createBiquadFilter();
+            lp.type = 'lowpass'; lp.frequency.value = 1200; lp.Q.value = 0.4;
+            const g = this.ctx.createGain(); g.gain.value = 0.0001;
+            // תנודה איטית — הרוח לא אחידה
+            const lfo = this.ctx.createOscillator();
+            lfo.type = 'sine'; lfo.frequency.value = 0.09;
+            const lfoG = this.ctx.createGain(); lfoG.gain.value = 160;
+            lfo.connect(lfoG); lfoG.connect(bp.frequency);
+            lfo.start();
+            src.connect(bp); bp.connect(lp); lp.connect(g);
+            g.connect(this.ambGain);
+            const rs = this.ctx.createGain(); rs.gain.value = 0.25;
+            g.connect(rs); rs.connect(this.revSend);
+            src.start();
+            return { src, src2: null, gain: g, filter: bp, lp, lfo };
+        });
+    }
+    /* גשם — רחש רחב עם טיפות בודדות מעל */
+    _startRain() {
+        this._loop('rain', () => {
+            const src = this.ctx.createBufferSource();
+            src.buffer = this.noiseBuf; src.loop = true;
+            const hp = this.ctx.createBiquadFilter();
+            hp.type = 'highpass'; hp.frequency.value = 1400; hp.Q.value = 0.5;
+            const lp = this.ctx.createBiquadFilter();
+            lp.type = 'lowpass'; lp.frequency.value = 7000; lp.Q.value = 0.4;
+            const g = this.ctx.createGain(); g.gain.value = 0.0001;
+            src.connect(hp); hp.connect(lp); lp.connect(g);
+            g.connect(this.ambGain);
+            const rs = this.ctx.createGain(); rs.gain.value = 0.3;
+            g.connect(rs); rs.connect(this.revSend);
+            src.start();
+            return { src, gain: g, filter: hp, lp };
+        });
+    }
+    setRain(amount) {
+        const L = this.loops.rain;
+        if (!L || !L.alive) return;
+        this.rainAmount = clamp(amount, 0, 1);
+        L.gain.gain.setTargetAtTime(Math.max(0.0001, this.rainAmount * 0.16), this.now, 0.6);
+    }
+
+    /* המהום תעשייתי — מנועים, טורבינות ותאורת ניאון */
+    _startHum() {
+        this._loop('hum', () => {
+            const t = this.now;
+            const o1 = this.ctx.createOscillator(); o1.type = 'sawtooth'; o1.frequency.value = 49;
+            const o2 = this.ctx.createOscillator(); o2.type = 'sine'; o2.frequency.value = 98.4;
+            const lp = this.ctx.createBiquadFilter();
+            lp.type = 'lowpass'; lp.frequency.value = 220; lp.Q.value = 1.2;
+            const g = this.ctx.createGain(); g.gain.value = 0.0001;
+            const g2 = this.ctx.createGain(); g2.gain.value = 0.35;
+            o1.connect(lp); o2.connect(g2); g2.connect(lp); lp.connect(g);
+            g.connect(this.ambGain);
+            // תנודה איטית — המנוע לא יציב לחלוטין
+            const lfo = this.ctx.createOscillator(); lfo.type = 'sine'; lfo.frequency.value = 0.23;
+            const lfoG = this.ctx.createGain(); lfoG.gain.value = 5;
+            lfo.connect(lfoG); lfoG.connect(o1.frequency);
+            lfo.start(t); o1.start(t); o2.start(t);
+            return { src: o1, src2: o2, gain: g, filter: lp, lfo };
+        });
+    }
+    setHum(amount) {
+        const L = this.loops.hum;
+        if (!L || !L.alive) return;
+        L.gain.gain.setTargetAtTime(Math.max(0.0001, clamp(amount, 0, 1) * 0.10), this.now, 0.8);
+    }
+
+    /* מגדיר את פס הקול של השלב — הדהוד, רוח, גשם והמהום */
+    setAmbience(env) {
+        if (!this.ready || !env) return;
+        this.setReverb(env.reverb || 'street');
+        this.windBase = clamp(env.wind === undefined ? 0.25 : env.wind, 0, 1);
+        this.setRain(env.rain || 0);
+        this.setHum(env.hum || 0);
+    }
+
+    /* עוצמת הרוח נגזרת מגובה, ממהירות ומהיותנו באוויר */
+    setWind(amount, sharpness) {
+        if (!this.ready) return;
+        const L = this.loops.wind;
+        if (!L || !L.alive) return;
+        const a = clamp(amount, 0, 1);
+        L.gain.gain.setTargetAtTime(Math.max(0.0001, a * 0.34), this.now, 0.25);
+        L.lp.frequency.setTargetAtTime(700 + clamp(sharpness, 0, 1) * 2600, this.now, 0.3);
+    }
+
+    /* ---------------- צעדים ומגע עם הקרקע ---------------- */
+    _surf(name) { return SURFACES[name] || SURFACES.concrete; }
+
+    footstep(running, surface, pan) {
+        if (!this.ready) return;
+        const s = this._surf(surface);
         this.stepToggle ^= 1;
-        const base = running ? 720 : 520;
-        this._noise(running ? 0.13 : 0.17, 'bandpass', base + (this.stepToggle ? 90 : -70) + rand(-40, 40),
-            1.3, running ? 0.20 : 0.11, false);
-        this._tone(running ? 86 : 66, 0.09, 'sine', running ? 0.10 : 0.055, null, false);
-    }
-    jump() {
-        this._tone(240, 0.20, 'triangle', 0.16, 460, false);
-        this._noise(0.10, 'highpass', 900, 0.7, 0.07, false);
-    }
-    land(strength) {
-        const s = clamp(strength, 0, 1);
-        this._tone(90 - s * 26, 0.26 + s * 0.14, 'sine', 0.16 + s * 0.24, 42, true);
-        this._noise(0.16 + s * 0.1, 'lowpass', 460 + s * 500, 0.9, 0.14 + s * 0.2, s > .5);
-    }
-    slide() {
-        this._noise(0.75, 'bandpass', 1250, 0.9, 0.16, true);
-        this._tone(150, 0.5, 'sawtooth', 0.05, 90, false);
-    }
-    wall() {
-        this._noise(0.36, 'bandpass', 2000, 1.6, 0.11, false);
-    }
-    grab() {
-        this._noise(0.14, 'bandpass', 380, 1.1, 0.19, false);
-        this._tone(120, 0.14, 'square', 0.06, 80, false);
-    }
-    checkpoint() {
-        if (!this.ready) return;
-        const notes = [523.25, 659.25, 783.99, 1046.5];
-        notes.forEach((n, i) => setTimeout(() => this._tone(n, 0.5, 'triangle', 0.15, null, true), i * 82));
-    }
-    fall() {
-        this._tone(330, 0.75, 'sawtooth', 0.13, 55, true);
-        this._noise(0.55, 'lowpass', 700, 0.7, 0.10, true);
-    }
-    levelComplete() {
-        if (!this.ready) return;
-        const notes = [523.25, 659.25, 783.99, 1046.5, 1318.5];
-        notes.forEach((n, i) => setTimeout(() => {
-            this._tone(n, 0.75, 'triangle', 0.17, null, true);
-            this._tone(n / 2, 0.9, 'sine', 0.10, null, true);
-        }, i * 115));
-    }
-    click() { this._tone(880, 0.055, 'square', 0.055, 1180, false); }
-    hover() { this._tone(1400, 0.03, 'sine', 0.02, null, false); }
+        const side = pan === undefined ? (this.stepToggle ? 0.22 : -0.22) : pan;
+        const t = this.now;
+        const heavy = running ? 1 : 0.62;
+        const jit = rand(0.93, 1.08);
 
-    /* מוזיקת רקע — פדים איטיים שנוצרים בזמן אמת */
-    updateMusic() {
-        if (!this.ready || !this.musicOn || this.muted) return;
-        const now = this.ctx.currentTime;
-        if (now < this.nextChordTime) return;
-        const chord = this.progression[this.chordIndex % this.progression.length];
-        this.chordIndex++;
-        const dur = 7.0;
-        const t0 = this.nextChordTime;
-        for (let i = 0; i < chord.length; i++) {
-            const f = chord[i];
-            for (let d = 0; d < 2; d++) {
-                const o = this.ctx.createOscillator();
-                o.type = i === 0 ? 'sine' : 'triangle';
-                o.frequency.value = f * (d === 0 ? 1 : 1.0035);
-                const g = this.ctx.createGain();
-                g.gain.setValueAtTime(0.0001, t0);
-                g.gain.linearRampToValueAtTime((i === 0 ? 0.16 : 0.075) / (d + 1), t0 + 2.2);
-                g.gain.linearRampToValueAtTime(0.0001, t0 + dur);
-                const flt = this.ctx.createBiquadFilter();
-                flt.type = 'lowpass'; flt.frequency.value = 900 + i * 220; flt.Q.value = 0.6;
-                o.connect(flt); flt.connect(g); g.connect(this.musicGain);
-                o.start(t0); o.stop(t0 + dur + 0.1);
+        if (s.splash) { this._splash(t, heavy, side); return; }
+
+        // גוף המכה — התדר משתנה מעט בכל צעד כדי למנוע מונוטוניות
+        this._noise({ when: t, dur: s.dur * (running ? 0.85 : 1.05), type: 'bandpass',
+            freq: s.fc * jit, q: s.q, gain: s.gain * heavy, rate: jit, rev: s.rev * 0.7, pan: side });
+        this._tone({ when: t, dur: 0.085 + (running ? 0.02 : 0.04), type: 'sine',
+            freq: s.body * jit, gain: s.bodyG * heavy, sweep: s.body * 0.6, pan: side * 0.5 });
+        // חיכוך הסוליה
+        this._noise({ when: t + 0.012, dur: 0.05 + (running ? 0.02 : 0.05), type: 'highpass',
+            freq: s.scuff * jit, q: 0.6, gain: s.scuffG * heavy, rate: jit, pan: side });
+
+        if (s.ring) {
+            // צלצול מתכתי קצר
+            const f = s.ring[(Math.random() * s.ring.length) | 0] * jit;
+            this._tone({ when: t + 0.004, dur: 0.12 + Math.random() * 0.09, type: 'triangle',
+                freq: f, gain: s.ringG * heavy, rev: s.rev, pan: side });
+        }
+        if (s.drops) {
+            // משטח רטוב — כמה טיפות זעירות אחרי כל צעד
+            for (let i = 0; i < s.drops; i++) {
+                this._tone({ when: t + rand(0.02, 0.11), dur: rand(0.03, 0.07), type: 'sine',
+                    freq: rand(1400, 3400), gain: rand(0.008, 0.022) * heavy,
+                    sweep: rand(2200, 4800), pan: side + rand(-0.25, 0.25) });
             }
         }
-        this.nextChordTime = t0 + dur * 0.82;
+        if (s.grains) {
+            // חצץ — כמה גרגרים קטנים בפיזור אקראי
+            const n = s.grains;
+            for (let i = 0; i < n; i++) {
+                this._noise({ when: t + rand(0.005, 0.075), dur: rand(0.018, 0.04), type: 'bandpass',
+                    freq: rand(1800, 5200), q: 2.4, gain: s.gain * heavy * rand(0.18, 0.4),
+                    atk: 0.002, pan: side + rand(-0.15, 0.15) });
+            }
+        }
+    }
+
+    _splash(t, heavy, side) {
+        const s = SURFACES.water;
+        this._noise({ when: t, dur: 0.26 * heavy + 0.08, type: 'lowpass', freq: 900, q: 0.5,
+            sweep: 260, gain: s.gain * heavy, atk: 0.004, rev: s.rev, pan: side });
+        this._noise({ when: t + 0.02, dur: 0.20, type: 'highpass', freq: 2600, q: 0.5,
+            sweep: 6200, gain: 0.06 * heavy, atk: 0.01, rev: s.rev, pan: side });
+        for (let i = 0; i < 4; i++) {
+            this._tone({ when: t + rand(0.02, 0.14), dur: rand(0.05, 0.11), type: 'sine',
+                freq: rand(900, 2400), gain: rand(0.012, 0.03) * heavy, sweep: rand(1400, 3600),
+                pan: side + rand(-0.3, 0.3) });
+        }
+    }
+
+    /* חיכוך קצר — ידיים או נעליים שמחליקות על משטח */
+    scuff(surface) {
+        if (!this.ready) return;
+        const s = this._surf(surface);
+        const t = this.now;
+        this._noise({ when: t, dur: 0.13, type: 'bandpass', freq: s.fc * 1.25 * rand(0.9, 1.1),
+            q: 0.9, gain: s.gain * 0.5, atk: 0.02, rev: s.rev * 0.6, pan: rand(-0.25, 0.25) });
+        this._noise({ when: t + 0.02, dur: 0.08, type: 'highpass', freq: s.scuff, q: 0.5,
+            gain: s.scuffG * 0.8, atk: 0.015 });
+    }
+
+    jump(surface) {
+        if (!this.ready) return;
+        const t = this.now;
+        const s = this._surf(surface);
+        // נשיפה קצרה + דחיפה מהמשטח
+        this._noise({ when: t, dur: 0.16, type: 'bandpass', freq: 620, q: 0.9, sweep: 1500,
+            gain: 0.075, atk: 0.012, pan: rand(-0.1, 0.1) });
+        this._tone({ when: t, dur: 0.19, type: 'triangle', freq: 190, gain: 0.10, sweep: 420 });
+        this._noise({ when: t, dur: 0.09, type: 'bandpass', freq: s.fc * 1.1, q: s.q,
+            gain: s.gain * 0.55, rev: s.rev * 0.5 });
+    }
+
+    land(strength, surface) {
+        if (!this.ready) return;
+        const st = clamp(strength, 0, 1);
+        const s = this._surf(surface);
+        const t = this.now;
+        if (s.splash) { this._splash(t, 1 + st, 0); return; }
+        // מכה נמוכה בגוף
+        this._tone({ when: t, dur: 0.24 + st * 0.20, type: 'sine',
+            freq: (s.body * 0.9) + 30 - st * 22, gain: 0.16 + st * 0.26, sweep: 38, atk: 0.004, rev: 0.25 });
+        // הפריכה של המשטח
+        this._noise({ when: t, dur: s.dur * (1.3 + st), type: 'bandpass', freq: s.fc * 0.85, q: s.q * 0.8,
+            gain: s.gain * (1.5 + st * 1.6), atk: 0.003, rev: s.rev * (0.9 + st) });
+        // בגדים ונשימה
+        this._noise({ when: t + 0.02, dur: 0.13 + st * 0.1, type: 'highpass', freq: 1800, q: 0.5,
+            gain: 0.05 + st * 0.09, atk: 0.01 });
+        if (s.ring) this._tone({ when: t + 0.006, dur: 0.28 + st * 0.2, type: 'triangle',
+            freq: s.ring[0] * rand(0.95, 1.05), gain: s.ringG * (1.4 + st), rev: s.rev });
+        if (st > 0.45) {
+            // נחיתה כבדה — הד תת-בסי
+            this._tone({ when: t, dur: 0.5, type: 'sine', freq: 52, gain: 0.16 * st, sweep: 28, rev: 0.3 });
+        }
+    }
+
+    /* ---------------- לולאות תנועה ---------------- */
+    slideStart(surface) {
+        if (!this.ready) return;
+        const s = this._surf(surface);
+        const t = this.now;
+        // מכה ראשונית של הגוף על הרצפה
+        this._noise({ when: t, dur: 0.18, type: 'bandpass', freq: s.fc * 0.8, q: 1.0,
+            gain: s.gain * 1.4, rev: s.rev });
+        this._tone({ when: t, dur: 0.22, type: 'sine', freq: 96, gain: 0.13, sweep: 48 });
+        this._loop('slide', () => {
+            const src = this.ctx.createBufferSource();
+            src.buffer = this.noiseBuf; src.loop = true;
+            const bp = this.ctx.createBiquadFilter();
+            bp.type = 'bandpass'; bp.frequency.value = s.fc * 1.5; bp.Q.value = 0.75;
+            const lp = this.ctx.createBiquadFilter();
+            lp.type = 'lowpass'; lp.frequency.value = 3200; lp.Q.value = 0.5;
+            const g = this.ctx.createGain();
+            g.gain.setValueAtTime(0.0001, this.now);
+            g.gain.exponentialRampToValueAtTime(0.19, this.now + 0.05);
+            src.connect(bp); bp.connect(lp); lp.connect(g);
+            g.connect(this.sfxGain);
+            const rs = this.ctx.createGain(); rs.gain.value = s.rev;
+            g.connect(rs); rs.connect(this.revSend);
+            src.start();
+            return { src, gain: g, filter: bp, lp };
+        });
+    }
+    slideUpdate(speed01) {
+        const L = this.loops.slide;
+        if (!L || !L.alive) return;
+        const t = this.now;
+        L.filter.frequency.setTargetAtTime(500 + speed01 * 1900, t, 0.08);
+        L.gain.gain.setTargetAtTime(0.05 + speed01 * 0.20, t, 0.08);
+    }
+    slideStop() { this._stopLoop('slide', 0.16); }
+
+    wallrunStart() {
+        if (!this.ready) return;
+        this._noise({ when: this.now, dur: 0.22, type: 'bandpass', freq: 1700, q: 1.4, gain: 0.13, rev: 0.3 });
+        this._loop('wallrun', () => {
+            const src = this.ctx.createBufferSource();
+            src.buffer = this.noiseBuf; src.loop = true;
+            const bp = this.ctx.createBiquadFilter();
+            bp.type = 'bandpass'; bp.frequency.value = 2200; bp.Q.value = 1.1;
+            const g = this.ctx.createGain();
+            g.gain.setValueAtTime(0.0001, this.now);
+            g.gain.exponentialRampToValueAtTime(0.09, this.now + 0.06);
+            src.connect(bp); bp.connect(g); g.connect(this.sfxGain);
+            const rs = this.ctx.createGain(); rs.gain.value = 0.28;
+            g.connect(rs); rs.connect(this.revSend);
+            src.start();
+            return { src, gain: g, filter: bp };
+        });
+    }
+    wallrunStop() { this._stopLoop('wallrun', 0.12); }
+
+    zipStart() {
+        if (!this.ready) return;
+        this._noise({ when: this.now, dur: 0.2, type: 'bandpass', freq: 3200, q: 2.2, gain: 0.14, rev: 0.35 });
+        this._loop('zip', () => {
+            const t = this.now;
+            const src = this.ctx.createBufferSource();
+            src.buffer = this.noiseBuf; src.loop = true;
+            const bp = this.ctx.createBiquadFilter();
+            bp.type = 'bandpass'; bp.frequency.value = 2600; bp.Q.value = 6;
+            const osc = this.ctx.createOscillator();
+            osc.type = 'sawtooth'; osc.frequency.value = 260;
+            const oG = this.ctx.createGain(); oG.gain.value = 0.035;
+            const g = this.ctx.createGain();
+            g.gain.setValueAtTime(0.0001, t);
+            g.gain.exponentialRampToValueAtTime(0.16, t + 0.08);
+            src.connect(bp); bp.connect(g);
+            osc.connect(oG); oG.connect(g);
+            g.connect(this.sfxGain);
+            const rs = this.ctx.createGain(); rs.gain.value = 0.4;
+            g.connect(rs); rs.connect(this.revSend);
+            src.start(); osc.start();
+            return { src, src2: osc, gain: g, filter: bp, osc };
+        });
+    }
+    zipUpdate(speed01) {
+        const L = this.loops.zip;
+        if (!L || !L.alive) return;
+        const t = this.now;
+        L.filter.frequency.setTargetAtTime(1600 + speed01 * 3200, t, 0.1);
+        L.osc.frequency.setTargetAtTime(180 + speed01 * 340, t, 0.1);
+        L.gain.gain.setTargetAtTime(0.06 + speed01 * 0.14, t, 0.1);
+    }
+    zipStop() {
+        if (this.loops.zip && this.loops.zip.alive) {
+            this._noise({ when: this.now, dur: 0.18, type: 'bandpass', freq: 1800, q: 3, gain: 0.11, rev: 0.35 });
+        }
+        this._stopLoop('zip', 0.14);
+    }
+
+    /* ---------------- תנועות פארקור ---------------- */
+    wall(surface) {
+        if (!this.ready) return;
+        const s = this._surf(surface);
+        const t = this.now;
+        this._noise({ when: t, dur: 0.30, type: 'bandpass', freq: s.fc * 1.6, q: 1.5,
+            gain: s.gain * 0.8, sweep: s.fc, rev: s.rev + 0.1 });
+        this._tone({ when: t, dur: 0.12, type: 'sine', freq: 140, gain: 0.07, sweep: 90 });
+        if (s.ring) this._tone({ when: t, dur: 0.3, type: 'triangle', freq: s.ring[0] * 0.8,
+            gain: s.ringG * 0.9, rev: s.rev });
+    }
+    grab() {
+        if (!this.ready) return;
+        const t = this.now;
+        // חבטת כפות הידיים + חריקת בד
+        this._noise({ when: t, dur: 0.12, type: 'bandpass', freq: 420, q: 1.2, gain: 0.17, atk: 0.003, rev: 0.2 });
+        this._noise({ when: t + 0.03, dur: 0.16, type: 'highpass', freq: 2400, q: 0.6, gain: 0.045 });
+        this._tone({ when: t, dur: 0.13, type: 'triangle', freq: 128, gain: 0.06, sweep: 78 });
+    }
+    vault() {
+        if (!this.ready) return;
+        const t = this.now;
+        this._noise({ when: t, dur: 0.16, type: 'bandpass', freq: 900, q: 1.0, gain: 0.13, rev: 0.2 });
+        this._noise({ when: t + 0.05, dur: 0.22, type: 'highpass', freq: 1800, q: 0.5, gain: 0.06, sweep: 4200 });
+        this._tone({ when: t, dur: 0.18, type: 'triangle', freq: 165, gain: 0.075, sweep: 300 });
+    }
+    roll() {
+        if (!this.ready) return;
+        const t = this.now;
+        // שלוש חבטות רכות — הכתף, הגב והירך
+        for (let i = 0; i < 3; i++) {
+            this._noise({ when: t + i * 0.085, dur: 0.13, type: 'lowpass', freq: 620 - i * 90, q: 0.7,
+                gain: 0.14 - i * 0.03, atk: 0.004, rev: 0.18, pan: (i - 1) * 0.18 });
+            this._tone({ when: t + i * 0.085, dur: 0.12, type: 'sine', freq: 88 - i * 8, gain: 0.09 - i * 0.02, sweep: 52 });
+        }
+    }
+    launch() {
+        if (!this.ready) return;
+        const t = this.now;
+        this._tone({ when: t, dur: 0.42, type: 'triangle', freq: 180, gain: 0.19, sweep: 900, rev: 0.3 });
+        this._tone({ when: t, dur: 0.3, type: 'square', freq: 90, gain: 0.06, sweep: 380, lp: 1400 });
+        this._noise({ when: t, dur: 0.3, type: 'bandpass', freq: 700, q: 0.8, sweep: 3800, gain: 0.11, rev: 0.3 });
+    }
+    ladder() {
+        if (!this.ready) return;
+        const t = this.now;
+        this._noise({ when: t, dur: 0.09, type: 'bandpass', freq: 3000, q: 4, gain: 0.09, rev: 0.3 });
+        this._tone({ when: t, dur: 0.16, type: 'triangle', freq: rand(900, 1300), gain: 0.045, rev: 0.35 });
+    }
+
+    /* ---------------- אירועי משחק ---------------- */
+    _duck(amount, back) {
+        if (!this.ready) return;
+        const t = this.now;
+        this.musicDuck.gain.cancelScheduledValues(t);
+        this.musicDuck.gain.setValueAtTime(this.musicDuck.gain.value, t);
+        this.musicDuck.gain.linearRampToValueAtTime(amount, t + 0.08);
+        this.musicDuck.gain.linearRampToValueAtTime(1.0, t + 0.08 + (back || 1.2));
+    }
+
+    checkpoint() {
+        if (!this.ready) return;
+        const t = this.now;
+        this._duck(0.45, 1.4);
+        // צליל אישור נקי — קווינטה עולה עם זנב מהדהד
+        const notes = [587.33, 880.00, 1174.66];
+        notes.forEach((n, i) => {
+            const w = t + i * 0.075;
+            this._tone({ when: w, dur: 0.55 - i * 0.08, type: 'triangle', freq: n, gain: 0.13, rev: 0.5, pan: (i - 1) * 0.2 });
+            this._tone({ when: w, dur: 0.35, type: 'sine', freq: n * 2, gain: 0.035, rev: 0.4 });
+        });
+        this._noise({ when: t, dur: 0.5, type: 'highpass', freq: 5200, q: 0.6, gain: 0.05, atk: 0.02, rev: 0.5 });
+        this._tone({ when: t, dur: 0.7, type: 'sine', freq: 146.83, gain: 0.09, rev: 0.4 });
+    }
+
+    fall() {
+        if (!this.ready) return;
+        const t = this.now;
+        this._duck(0.25, 1.6);
+        // צניחת גובה + חבטה עמומה
+        this._tone({ when: t, dur: 0.85, type: 'sawtooth', freq: 300, gain: 0.10, sweep: 44, lp: 1400, rev: 0.4 });
+        this._tone({ when: t, dur: 0.9, type: 'sine', freq: 180, gain: 0.09, sweep: 32, rev: 0.35 });
+        this._noise({ when: t + 0.05, dur: 0.6, type: 'lowpass', freq: 900, q: 0.6, sweep: 200, gain: 0.10, rev: 0.4 });
+        this._noise({ when: t + 0.45, dur: 0.35, type: 'lowpass', freq: 320, q: 0.8, gain: 0.16, atk: 0.004, rev: 0.45 });
+    }
+
+    levelComplete() {
+        if (!this.ready) return;
+        const t = this.now;
+        this._duck(0.2, 2.6);
+        // פאנפרה קצרה — טריאדה עולה ואז אקורד מלא
+        const notes = [523.25, 659.25, 783.99, 1046.50];
+        notes.forEach((n, i) => {
+            const w = t + i * 0.105;
+            this._tone({ when: w, dur: 0.8, type: 'triangle', freq: n, gain: 0.15, rev: 0.5 });
+            this._tone({ when: w, dur: 0.9, type: 'sine', freq: n / 2, gain: 0.085, rev: 0.4 });
+        });
+        const chordAt = t + 0.52;
+        [261.63, 329.63, 392.00, 523.25, 659.25].forEach((n, i) => {
+            this._tone({ when: chordAt, dur: 2.2, type: 'triangle', freq: n, gain: 0.075, atk: 0.05, rev: 0.6, pan: (i - 2) * 0.14 });
+        });
+        this._noise({ when: chordAt, dur: 1.6, type: 'highpass', freq: 6000, q: 0.5, gain: 0.045, atk: 0.08, rev: 0.6 });
+    }
+
+    finish() {
+        if (!this.ready) return;
+        const t = this.now;
+        this._duck(0.15, 4.0);
+        const seq = [392.00, 523.25, 659.25, 783.99, 1046.50, 1318.51];
+        seq.forEach((n, i) => {
+            const w = t + i * 0.13;
+            this._tone({ when: w, dur: 1.0, type: 'triangle', freq: n, gain: 0.14, rev: 0.55 });
+            this._tone({ when: w, dur: 1.1, type: 'sine', freq: n / 2, gain: 0.08, rev: 0.45 });
+        });
+        const end = t + 0.86;
+        [130.81, 196.00, 261.63, 329.63, 392.00, 523.25].forEach((n, i) => {
+            this._tone({ when: end, dur: 3.4, type: 'triangle', freq: n, gain: 0.07, atk: 0.08, rev: 0.65, pan: (i - 2.5) * 0.12 });
+        });
+    }
+
+    /* ---------------- ממשק משתמש ---------------- */
+    click() {
+        if (!this.ready) return;
+        const t = this.now;
+        this._tone({ when: t, dur: 0.055, type: 'square', freq: 760, gain: 0.05, sweep: 1240, lp: 3600 });
+        this._noise({ when: t, dur: 0.035, type: 'highpass', freq: 4200, q: 0.7, gain: 0.035, atk: 0.002 });
+    }
+    hover() {
+        if (!this.ready) return;
+        this._tone({ when: this.now, dur: 0.05, type: 'sine', freq: 1560, gain: 0.022, sweep: 1760 });
+    }
+    back() {
+        if (!this.ready) return;
+        const t = this.now;
+        this._tone({ when: t, dur: 0.09, type: 'square', freq: 620, gain: 0.045, sweep: 330, lp: 2600 });
+    }
+    denied() {
+        if (!this.ready) return;
+        const t = this.now;
+        this._tone({ when: t, dur: 0.1, type: 'square', freq: 180, gain: 0.06, lp: 900 });
+        this._tone({ when: t + 0.11, dur: 0.14, type: 'square', freq: 132, gain: 0.06, lp: 800 });
+    }
+
+    /* ---------------- מנוע המוזיקה ----------------
+       פדים, בס וארפג'יו נבנים בזמן אמת על שעון השמע (ללא setTimeout),
+       והצפיפות שלהם עולה יחד עם מד הזרימה של השחקן.                       */
+    setIntensity(v) { this.intensity = clamp(v, 0, 1); }
+
+    updateMusic(dt) {
+        if (!this.ready) return;
+        // החלקה של עוצמת הנגינה
+        this._intensity += (this.intensity - this._intensity) * Math.min(1, (dt || 0.016) * 0.9);
+        if (!this.musicOn || this.muted) { this.beatTime = Math.max(this.beatTime, this.now + 0.2); return; }
+        const spb = 60 / this.bpm;
+        // אחרי השהיה או מעבר לשונית אחרת שעון השמע קופץ — מסנכרנים מחדש
+        // כדי שלא ינוגנו עשרות פעימות שהצטברו בבת אחת
+        if (this.beatTime < this.now - 0.25) { this.beatTime = this.now + 0.05; this.beatInBar = 0; }
+        const lookahead = this.now + 0.35;
+        let guard = 0;
+        while (this.beatTime < lookahead && guard++ < 16) {
+            this._scheduleBeat(this.beatTime, spb);
+            this.beatTime += spb;
+            this.beatInBar = (this.beatInBar + 1) % 4;
+            if (this.beatInBar === 0) this.bar++;
+        }
+    }
+
+    _scheduleBeat(t, spb) {
+        const K = MUSIC_KEYS[this.keyIndex];
+        const deg = K.prog[(this.bar >> 1) % K.prog.length];
+        const semi = K.mode[deg % K.mode.length] + 12 * Math.floor(deg / K.mode.length);
+        const root = K.root * Math.pow(2, semi / 12);
+        const I = this._intensity;
+
+        // פד — מתחדש בתחילת כל שני תיבות
+        if (this.beatInBar === 0 && (this.bar % 2) === 0) {
+            const dur = spb * 8;
+            const chord = [1, Math.pow(2, K.mode[2] / 12), Math.pow(2, K.mode[4] / 12) * 2];
+            chord.forEach((mul, i) => {
+                for (let d = 0; d < 2; d++) {
+                    const o = this.ctx.createOscillator();
+                    o.type = i === 0 ? 'sine' : 'triangle';
+                    o.frequency.value = root * mul * 2;
+                    o.detune.value = d === 0 ? -5 : 6;
+                    const g = this.ctx.createGain();
+                    const peak = (i === 0 ? 0.13 : 0.065) * (0.7 + I * 0.5);
+                    g.gain.setValueAtTime(0.0001, t);
+                    g.gain.linearRampToValueAtTime(peak, t + dur * 0.35);
+                    g.gain.linearRampToValueAtTime(0.0001, t + dur);
+                    const f = this.ctx.createBiquadFilter();
+                    f.type = 'lowpass';
+                    f.frequency.setValueAtTime(560 + i * 180, t);
+                    f.frequency.linearRampToValueAtTime(700 + i * 220 + I * 1400, t + dur * 0.5);
+                    f.Q.value = 0.7;
+                    o.connect(f); f.connect(g); g.connect(this.musicDuck);
+                    const rs = this.ctx.createGain(); rs.gain.value = 0.3;
+                    g.connect(rs); rs.connect(this.revSend);
+                    o.start(t); o.stop(t + dur + 0.1);
+                }
+            });
+        }
+
+        // בס — פעימות 1 ו-3, ובעוצמה גבוהה גם 4
+        if (this.beatInBar === 0 || this.beatInBar === 2 || (I > 0.55 && this.beatInBar === 3)) {
+            const o = this.ctx.createOscillator();
+            o.type = 'sine';
+            o.frequency.setValueAtTime(root * 1.5, t);
+            o.frequency.exponentialRampToValueAtTime(root, t + 0.06);
+            const g = this.ctx.createGain();
+            g.gain.setValueAtTime(0.0001, t);
+            g.gain.exponentialRampToValueAtTime(0.16 * (0.6 + I * 0.6), t + 0.02);
+            g.gain.exponentialRampToValueAtTime(0.0001, t + spb * 0.9);
+            o.connect(g); g.connect(this.musicDuck);
+            o.start(t); o.stop(t + spb + 0.05);
+        }
+
+        // ארפג'יו — נכנס רק כשהשחקן בזרימה
+        if (I > 0.28) {
+            const steps = I > 0.62 ? 4 : 2;
+            for (let s = 0; s < steps; s++) {
+                if (Math.random() > 0.35 + I * 0.55) continue;
+                const w = t + (spb / steps) * s;
+                const idx = (this.bar * 3 + this.beatInBar * 2 + s) % K.mode.length;
+                const f = K.root * Math.pow(2, (K.mode[idx] + 24) / 12);
+                const o = this.ctx.createOscillator();
+                o.type = 'triangle';
+                o.frequency.value = f;
+                const g = this.ctx.createGain();
+                const peak = 0.045 * (0.4 + I * 0.9);
+                g.gain.setValueAtTime(0.0001, w);
+                g.gain.exponentialRampToValueAtTime(peak, w + 0.01);
+                g.gain.exponentialRampToValueAtTime(0.0001, w + spb * 0.55);
+                const p = this._pan((s % 2 ? 0.35 : -0.35));
+                o.connect(g);
+                if (p) { g.connect(p); p.connect(this.musicDuck); } else g.connect(this.musicDuck);
+                const rs = this.ctx.createGain(); rs.gain.value = 0.45;
+                g.connect(rs); rs.connect(this.revSend);
+                o.start(w); o.stop(w + spb + 0.05);
+            }
+        }
+
+        // מקצב — הקשה רכה כשהמתח גבוה
+        if (I > 0.5) {
+            this._noise({ when: t, dur: 0.06, type: 'highpass', freq: 6800, q: 0.6,
+                gain: 0.028 * I, atk: 0.002, bus: 'music' });
+            if (this.beatInBar === 2) {
+                this._noise({ when: t, dur: 0.14, type: 'bandpass', freq: 1900, q: 0.8,
+                    gain: 0.05 * I, atk: 0.003, bus: 'music', rev: 0.3 });
+            }
+        }
+    }
+
+    /* ---------------- עדכון לכל פריים ---------------- */
+    update(dt, player, playing) {
+        if (!this.ready) return;
+        if (playing && player) {
+            const spd = Math.hypot(player.vel.x, player.vel.z);
+            const air = player.grounded ? 0 : 1;
+            const fall = clamp(-player.vel.y / 22, 0, 1);
+            const alt = clamp((player.pos.y - 6) / 55, 0, 1);
+            // הרוח מתחזקת עם המהירות, הנפילה והגובה
+            const w = clamp(this.windBase + spd / 16 * 0.42 + fall * 0.5 * air + alt * 0.3, 0, 1);
+            this.setWind(w, clamp(spd / 14 + fall * 0.5, 0, 1));
+            if (this.loops.slide && this.loops.slide.alive) this.slideUpdate(clamp(spd / 13, 0, 1));
+            if (this.loops.zip && this.loops.zip.alive) this.zipUpdate(clamp(spd / 18, 0, 1));
+            // עוצמת המוזיקה נגזרת ממד הזרימה וממהירות התנועה
+            const flow = clamp((player.flow - 1) / 0.6, 0, 1);
+            this.setIntensity(clamp(flow * 0.65 + clamp(spd / 12, 0, 1) * 0.45, 0, 1));
+        } else {
+            this.setWind(this.windBase * 0.35, 0.15);
+            this.setIntensity(this.intensity * 0.97);
+        }
+        this.updateMusic(dt);
     }
 }
 
@@ -1288,6 +2027,12 @@ class Input {
         this.padSprintLatch = false;
         this.padKind = 'xbox';        // xbox | playstation
         this.lookRamp = 0;            // האצה הדרגתית של המבט
+        // לא כל שלט מדווח על אותם צירים — מזהים את הג'ויסטיק הימני בזמן אמת
+        this.padAxisMode = 0;         // 0 = אוטומטי, 1 = 2/3, 2 = 3/4, 3 = 4/5
+        this.lookAx = 2;
+        this.lookAy = 3;
+        this.padAxes = [];
+        this._axRest = []; this._axLo = []; this._axHi = []; this._axSeeded = false;
         this.padLookX = 0;
         this.padLookY = 0;
         this.padMoveX = 0;
@@ -1336,6 +2081,7 @@ class Input {
             this.padId = e.gamepad.id;
             this.padConnected = true;
             this.lastDevice = 'pad';
+            this.resetAxisDetect();
             if (this.onPadChange) this.onPadChange(true, e.gamepad.id);
         });
         window.addEventListener('gamepaddisconnected', (e) => {
@@ -1388,8 +2134,12 @@ class Input {
         }
         if (!this.padConnected) {
             this.padConnected = true;
+            this.resetAxisDetect();
             if (this.onPadChange) this.onPadChange(true, gp.id);
         }
+        this.padAxes = gp.axes;
+        this.padMapping = gp.mapping || 'לא תקני';
+        this._pickLookAxes(gp);
 
         // אזור מת רדיאלי — מונע "זחילה" של הדמות ושומר על כיוון מדויק
         const dzm = clamp(this.padDeadzone, 0.05, 0.4);
@@ -1405,7 +2155,9 @@ class Input {
         this.padMoveY = ly;
         this.padMoveMag = Math.min(1, Math.hypot(lx, ly));
 
-        let rx = ax[2] || 0, ry = ax[3] || 0;
+        // קוראים את הצירים שזוהו, ומקזזים סטייה קבועה (הדק שנח בערך -1)
+        let rx = (ax[this.lookAx] || 0) - this._axOffset(this.lookAx);
+        let ry = (ax[this.lookAy] || 0) - this._axOffset(this.lookAy);
         const rm = Math.hypot(rx, ry);
         if (rm < dzm * 0.8) { rx = 0; ry = 0; }
         else {
@@ -1450,6 +2202,52 @@ class Input {
         this.nav.right = fire && nx > 0;
 
         if (this.padTap(PAD.START) && this.onEscape) this.onEscape();
+    }
+
+    /* מאפסים את זיהוי הצירים כשמתחלף שלט */
+    resetAxisDetect() {
+        this._axRest = []; this._axLo = []; this._axHi = []; this._axSeeded = false;
+        this.lookAx = 2; this.lookAy = 3;
+    }
+    /* סטייה קבועה של ציר במנוחה — רלוונטי רק לצירים שנחים רחוק מהאפס (הדקים) */
+    _axOffset(i) {
+        const r = this._axRest[i];
+        return (r !== undefined && Math.abs(r) > 0.5) ? r : 0;
+    }
+    /* בוחר את זוג הצירים של הג'ויסטיק הימני — ידנית או לפי תנועה שנצפתה */
+    _pickLookAxes(gp) {
+        const ax = gp.axes, n = ax.length;
+        if (this.padAxisMode > 0) {
+            const p = [[2, 3], [3, 4], [4, 5]][this.padAxisMode - 1];
+            if (p[1] < n) { this.lookAx = p[0]; this.lookAy = p[1]; }
+            else { this.lookAx = 2; this.lookAy = Math.min(3, n - 1); }
+            return;
+        }
+        // מעקב אחרי טווח התנועה של כל ציר מאז החיבור
+        for (let i = 0; i < n; i++) {
+            const v = ax[i] || 0;
+            if (this._axRest[i] === undefined) { this._axRest[i] = v; this._axLo[i] = 0; this._axHi[i] = 0; }
+            const d = v - this._axRest[i];
+            if (d < this._axLo[i]) this._axLo[i] = d;
+            if (d > this._axHi[i]) this._axHi[i] = d;
+        }
+        if (this.lookAy >= n) { this.lookAx = 2; this.lookAy = Math.min(3, n - 1); }
+        // ג'ויסטיק זז לשני הכיוונים; הדק זז רק לכיוון אחד — כך מבדילים ביניהם
+        const bidir = (i) => (this._axLo[i] || 0) < -0.4 && (this._axHi[i] || 0) > 0.4;
+        const act = (i) => (this._axHi[i] || 0) - (this._axLo[i] || 0);
+        if (bidir(this.lookAx) && bidir(this.lookAy)) return;
+        let best = -1, score = Math.min(act(this.lookAx), act(this.lookAy)) + 0.5;
+        for (let i = 2; i + 1 < n; i++) {
+            if (!bidir(i) || !bidir(i + 1)) continue;
+            const s = Math.min(act(i), act(i + 1));
+            if (s > score) { score = s; best = i; }
+        }
+        if (best >= 0) { this.lookAx = best; this.lookAy = best + 1; return; }
+        // ניחוש ראשוני לשלטים במיפוי לא תקני (למשל DualShock ישן: 3/4)
+        if (!this._axSeeded) {
+            this._axSeeded = true;
+            if (gp.mapping !== 'standard' && n >= 6) { this.lookAx = 3; this.lookAy = 4; }
+        }
     }
 
     rumble(strength, ms) {
@@ -1566,6 +2364,17 @@ function buildMaterials(aniso) {
     MAT.goal       = new THREE.MeshStandardMaterial({ color: 0xffd27a, emissive: 0xffb03a, emissiveIntensity: 2.1, roughness: .3, metalness: .2 });
     MAT.hazard     = new THREE.MeshStandardMaterial({ color: 0xff5544, emissive: 0xaa1200, emissiveIntensity: 1.1, roughness: .5, transparent: true, opacity: .38 });
     MAT.wallrun    = std('stripe', { color: 0x7fd0ff, roughness: .55, metalness: .2 });
+
+    /* שיוך חומר אקוסטי לכל משטח — קובע איך יישמעו הצעדים והנחיתות עליו */
+    const SURF_MAP = {
+        concrete: 'concrete', concreteD: 'concrete', asphalt: 'asphalt', brick: 'concrete',
+        metal: 'metal', metalDark: 'metal', rust: 'metal', wood: 'wood', window: 'glass',
+        stripe: 'concrete', grate: 'grate', roof: 'gravel', rubber: 'rubber', crane: 'metal',
+        red: 'metal', blue: 'metal', green: 'metal', tiles: 'tile', neonwall: 'tile',
+        dirt: 'dirt', wet: 'wet', glass: 'glass', lamp: 'metal', plainDark: 'concrete',
+        cpOff: 'metal', cpOn: 'metal', goal: 'metal', hazard: 'metal', wallrun: 'concrete',
+    };
+    for (const k in SURF_MAP) if (MAT[k]) MAT[k].userData.surface = SURF_MAP[k];
 }
 
 /* גאומטריות משותפות */
@@ -1597,6 +2406,7 @@ class Collider {
         this.noWallrun = !!opts.noWallrun;
         this.launch = opts.launch || 0;      // משטח שיגור
         this.slip = !!opts.slip;             // משטח חלק (גשם/קרח)
+        this.surface = opts.surface || 'concrete';   // חומר אקוסטי — משפיע על הסאונד
         this.min = new THREE.Vector3();
         this.max = new THREE.Vector3();
         this._mark = -1;
@@ -1713,6 +2523,10 @@ let SPR_CLOUD = null;
 /* כלי מיזוג גאומטריה (נטען מ-CDN; אם לא זמין, פשוט לא ממזגים) */
 let BGU = null;
 const _mv = new THREE.Vector3();
+/* שולף את החומר האקוסטי של חומר Three.js (ברירת מחדל: בטון) */
+function matSurface(mat) {
+    return (mat && mat.userData && mat.userData.surface) || 'concrete';
+}
 
 /* =========================================================================
    10. בונה שלבים — כל העולם נבנה מצורות Three.js בלבד
@@ -1739,6 +2553,7 @@ class LevelBuilder {
             skyTop: 0x2f74bb, skyBottom: 0xcfe1ee, sunColor: 0xfff3dd, sunInt: 2.5,
             sunDir: new THREE.Vector3(0.45, 0.8, 0.35), fog: 0xc3d4e0, fogNear: 45, fogFar: 340,
             ambSky: 0xbcd8f0, ambGround: 0x6a625a, ambInt: 0.85, expo: 1.05,
+            reverb: 'street', wind: 0.25, rain: 0, hum: 0,
         };
         this.time = 0;
     }
@@ -1758,7 +2573,7 @@ class LevelBuilder {
         const col = new Collider(x, y, z, sx / 2, sy / 2, sz / 2, o.yaw || 0, {
             solid: o.solid !== false, hazard: !!o.hazard, conveyor: o.conveyor || null,
             dynamic: !!o.dynamic, noWallrun: !!o.noWallrun, mesh: m,
-            launch: o.launch || 0, slip: !!o.slip,
+            launch: o.launch || 0, slip: !!o.slip, surface: o.surface || matSurface(mat),
         });
         this.world.add(col);
         return { mesh: m, col };
@@ -1821,7 +2636,7 @@ class LevelBuilder {
         if (axis === 'x') { hx = len / 2; hy = wv; hz = wh; }
         else if (axis === 'z') { hx = wh; hy = wv; hz = len / 2; }
         else { hx = wh; hy = len / 2; hz = wh; }
-        const col = new Collider(x, y, z, hx, hy, hz, 0, { mesh: m });
+        const col = new Collider(x, y, z, hx, hy, hz, 0, { mesh: m, surface: o.surface || matSurface(mat || MAT.metal) });
         this.world.add(col);
         return { mesh: m, col };
     }
@@ -1840,7 +2655,7 @@ class LevelBuilder {
         g.position.set(x, y, z); g.rotation.y = yaw;
         g.traverse(m => { m.castShadow = true; m.receiveShadow = true; });
         this.group.add(g);
-        const col = new Collider(x, y, z, len / 2, h / 2 + .05, w / 2, yaw, { mesh: g });
+        const col = new Collider(x, y, z, len / 2, h / 2 + .05, w / 2, yaw, { mesh: g, surface: o.surface || matSurface(material) });
         this.world.add(col);
         return { mesh: g, col };
     }
@@ -1866,7 +2681,7 @@ class LevelBuilder {
         g.traverse(m => { m.castShadow = true; m.receiveShadow = true; });
         this.group.add(g);
         const th = .14 + h;
-        const col = new Collider(x, y + th / 2, z, w / 2 + .15, th / 2, d / 2 + .15, yaw, { mesh: g });
+        const col = new Collider(x, y + th / 2, z, w / 2 + .15, th / 2, d / 2 + .15, yaw, { mesh: g, surface: 'metal' });
         this.world.add(col);
         this.pulses.push((t) => { blade.rotation.y = t * 5.5; });
         return { col, group: g, top: y + th };
@@ -2006,7 +2821,7 @@ class LevelBuilder {
             m.rotation.y = a;
             g.add(m);
             const col = new Collider(x + Math.cos(a) * len / 2, y, z - Math.sin(a) * len / 2,
-                len / 2, .28, .23, a, { dynamic: true, mesh: m, noWallrun: true });
+                len / 2, .28, .23, a, { dynamic: true, mesh: m, noWallrun: true, surface: 'metal' });
             this.world.add(col);
             cols.push({ col, a });
         }
@@ -2252,7 +3067,7 @@ class LevelBuilder {
         glow.scale.set(r * 3, r * 3, 1);
         glow.position.set(x, y + .5, z);
         this.group.add(glow);
-        const col = new Collider(x, y - .05, z, r * .8, .1, r * .8, 0, { launch: power, mesh: pad });
+        const col = new Collider(x, y - .05, z, r * .8, .1, r * .8, 0, { launch: power, mesh: pad, surface: 'rubber' });
         this.world.add(col);
         this.pulses.push((t) => {
             const p = (Math.sin(t * 4) * .5 + .5);
@@ -2363,7 +3178,7 @@ class LevelBuilder {
         m.position.set(x, y, z); m.rotation.y = yaw;
         m.castShadow = false; m.receiveShadow = false;
         this.group.add(m);
-        const col = new Collider(x, y, z, w / 2, h / 2, .05, yaw, { mesh: m });
+        const col = new Collider(x, y, z, w / 2, h / 2, .05, yaw, { mesh: m, surface: 'glass' });
         this.world.add(col);
         return col;
     }
@@ -2671,6 +3486,7 @@ class PlayerController {
         this.grounded = false;
         this.wasGrounded = false;
         this.groundCol = null;
+        this._lpSlide = false; this._lpWall = false; this._lpZip = false;   // מצב לולאות השמע
         this.state = 'normal';         // normal | slide | vault | mantle | hang | wallrun
         this.crouching = false;
 
@@ -2737,6 +3553,7 @@ class PlayerController {
         this.rollT = 0; this.rollBuf = 0; this.climbT = 0; this.climbUsed = false;
         this.flow = 1; this.onLadder = null; this.zip = null; this.zipCooldown = 0;
         this.stateLabel = '';
+        this.stopAudioLoops();
         this.updateCameraTransform(0);
     }
 
@@ -2828,8 +3645,43 @@ class PlayerController {
 
         this.speed = Math.hypot(this.vel.x, this.vel.z);
         this.checkHazards(world);
+        this._syncAudioLoops();
         this.updateCameraTransform(dt);
         this.input.consume();
+    }
+
+    /* שם החומר האקוסטי שמתחתינו — קובע איך יישמעו צעדים ונחיתות */
+    surfaceName() { return (this.groundCol && this.groundCol.surface) || 'concrete'; }
+    wallSurface() {
+        const c = this.wallCol || this.wallTouchCol || this.hangCol;
+        return (c && c.surface) || 'concrete';
+    }
+
+    /* מדליק ומכבה לולאות שמע מתמשכות לפי מצב התנועה — מקור אמת יחיד */
+    _syncAudioLoops() {
+        const wantSlide = this.state === 'slide';
+        const wantWall = this.state === 'wallrun' || this.state === 'wallclimb';
+        const wantZip = this.state === 'zip';
+        if (wantSlide !== this._lpSlide) {
+            this._lpSlide = wantSlide;
+            if (wantSlide) this.audio.slideStart(this.surfaceName()); else this.audio.slideStop();
+        }
+        if (wantWall !== this._lpWall) {
+            this._lpWall = wantWall;
+            if (wantWall) this.audio.wallrunStart(); else this.audio.wallrunStop();
+        }
+        if (wantZip !== this._lpZip) {
+            this._lpZip = wantZip;
+            if (wantZip) this.audio.zipStart(); else this.audio.zipStop();
+        }
+    }
+
+    /* משתיק את כל הלולאות — בעת איפוס, השהיה או מעבר שלב */
+    stopAudioLoops() {
+        this._lpSlide = this._lpWall = this._lpZip = false;
+        this.audio.slideStop();
+        this.audio.wallrunStop();
+        this.audio.zipStop();
     }
 
     applyLook(dt) {
@@ -2839,7 +3691,7 @@ class PlayerController {
             this.pitch -= inp.mouseDY;
         }
         if (inp.padConnected && (inp.padLookX || inp.padLookY)) {
-            const s = inp.padSens * 3.2 * dt;
+            const s = inp.padSens * 4.1 * dt;
             this.yaw -= inp.padLookX * s;
             this.pitch -= (inp.padInvertY ? -1 : 1) * inp.padLookY * s;
         }
@@ -2878,10 +3730,10 @@ class PlayerController {
                 this.vel.set(f.x * 4.5, CFG.JUMP_SPEED * .8, f.z * 4.5);
                 this.onLadder = null;
                 this.jumpBuf = 0;
-                this.audio.jump();
+                this.audio.jump('metal');
             } else {
                 this.stepPhase += Math.abs(this.vel.y) * dt;
-                if (this.stepPhase > 1.1) { this.stepPhase = 0; this.audio.footstep(false); }
+                if (this.stepPhase > 1.1) { this.stepPhase = 0; this.audio.ladder(); }
                 this.integrate(dt, world);
                 this.stateLabel = 'טיפוס על סולם';
                 this.fovTarget = -2;
@@ -3011,7 +3863,7 @@ class PlayerController {
             if (spd > 1.4) {
                 this.stepPhase += spd * dt;
                 const interval = sprinting ? 2.45 : 1.95;
-                if (this.stepPhase > interval) { this.stepPhase = 0; this.audio.footstep(sprinting); }
+                if (this.stepPhase > interval) { this.stepPhase = 0; this.audio.footstep(sprinting, this.surfaceName()); }
             } else this.stepPhase = Math.min(this.stepPhase, 1.2);
         }
 
@@ -3039,7 +3891,6 @@ class PlayerController {
                 this.vel.z += (this.vel.z / spd) * boost;
             }
         }
-        this.audio.slide();
         this.shake = Math.max(this.shake, 0.12);
     }
 
@@ -3070,7 +3921,7 @@ class PlayerController {
         this.landDip = Math.min(0.18, 0.06 + impact * 0.004);
         this.shake = Math.max(this.shake, 0.16);
         this.addFlow(CFG.FLOW_GAIN * 1.6);
-        this.audio.slide();
+        this.audio.roll();
     }
 
     updateRoll(dt, world) {
@@ -3133,7 +3984,7 @@ class PlayerController {
             this.climbNormal.copy(_v3b);
             this.wallCol = c;
             this.vel.set(-_v3b.x * 0.6, CFG.WALLCLIMB_SPEED, -_v3b.z * 0.6);
-            this.audio.wall();
+            this.audio.wall(this.wallSurface());
             this.addFlow(CFG.FLOW_GAIN);
             this.input.rumble(0.25, 90);
             return true;
@@ -3161,7 +4012,6 @@ class PlayerController {
         this.stateLabel = 'ריצה על קיר (אנכית)';
         this.fovTarget = 6;
         this.rollTarget = 0;
-        if (Math.random() < dt * 12) this.audio.footstep(true);
         // בסוף הריצה — ניסיון אוטומטי לתפוס את הקצה
         if (this.climbT > CFG.WALLCLIMB_TIME * 0.55) this.tryLedgeGrab(world);
     }
@@ -3190,6 +4040,7 @@ class PlayerController {
             this.jumpBuf = 0;
             this.audio.grab();
             this.input.rumble(0.35, 140);
+            this.shake = Math.max(this.shake, 0.1);
             this.addFlow(CFG.FLOW_GAIN);
             return true;
         }
@@ -3224,6 +4075,7 @@ class PlayerController {
             this.vel.y = done ? 3.0 : CFG.JUMP_SPEED * 0.7;
             this.addFlow(CFG.FLOW_GAIN);
             this.audio.jump();
+            this.audio.zipStop();
         }
     }
 
@@ -3258,7 +4110,7 @@ class PlayerController {
             this.addFlow(CFG.FLOW_GAIN * 1.4);
             this.state = 'normal'; this.targetHeight = CFG.HEIGHT; this.crouching = false;
         }
-        this.audio.jump();
+        this.audio.jump(this.surfaceName());
         this.landDip = Math.min(this.landDip + 0.035, 0.1);
     }
 
@@ -3277,7 +4129,7 @@ class PlayerController {
         this.wallCooldown = 0.22;
         this.jumpBuf = 0;
         this.wallT = 0;
-        this.audio.jump();
+        this.audio.jump(this.wallSurface());
         this.fovOffset = Math.max(this.fovOffset, 6);
         this.shake = Math.max(this.shake, 0.16);
     }
@@ -3347,7 +4199,7 @@ class PlayerController {
                 this.grounded = false;
                 this.landImpact = 0;
                 this.groundCol = null;
-                this.audio.jump();
+                this.audio.launch();
                 this.input.rumble(0.55, 200);
                 this.addFlow(CFG.FLOW_GAIN);
                 this.shake = Math.max(this.shake, 0.22);
@@ -3451,7 +4303,7 @@ class PlayerController {
             // גלגול: לוחצים התכופפות סמוך לנחיתה ומבטלים את מלוא ההשפעה
             if (impact > CFG.LAND_SOFT * 0.55 && (this.rollBuf > 0 || this.input.crouch) &&
                 this.state !== 'slide' && Math.hypot(this.vel.x, this.vel.z) > 2.5) {
-                this.audio.land(clamp((impact - CFG.LAND_SOFT) / 12, 0, 0.4));
+                this.audio.land(clamp((impact - CFG.LAND_SOFT) / 12, 0, 0.4), this.surfaceName());
                 this.input.rumble(0.4, 130);
                 this.startRoll(impact);
                 this.landImpact = 0;
@@ -3463,13 +4315,13 @@ class PlayerController {
                 this.landVel = 0;
                 this.shake = Math.max(this.shake, 0.1 + t * 0.35);
                 this.fovOffset = Math.min(this.fovOffset + 3 + t * 5, 12);
-                this.audio.land(t);
+                this.audio.land(t, this.surfaceName());
                 this.input.rumble(clamp(0.3 + t * 0.6, 0, 1), 120 + t * 120);
                 this.flow = Math.max(1, this.flow - 0.1);
                 if (this.onLand) this.onLand(t);
             } else if (impact > 3.5) {
                 this.landDip = Math.min(0.14, 0.05 + impact * 0.008);
-                this.audio.land(0.05);
+                this.audio.land(0.05, this.surfaceName());
             }
             this.wallCooldown = 0;
             this.lastWallJumpCol = null;
@@ -3525,7 +4377,7 @@ class PlayerController {
         this.vaultCooldown = 0.4;
         this.addFlow(CFG.FLOW_GAIN * 1.2);
         this.input.rumble(0.3, 90);
-        this.audio.grab();
+        this.audio.vault();
         this.shake = Math.max(this.shake, 0.13);
         this.stateLabel = 'קפיצה מעל מכשול';
         return true;
@@ -3657,7 +4509,7 @@ class PlayerController {
                 this.pos.x = nx; this.pos.z = nz;
                 this.mantleTo.x += tx * step; this.mantleTo.z += tz * step;
                 this.stepPhase += Math.abs(step);
-                if (this.stepPhase > 0.55) { this.stepPhase = 0; this.audio.footstep(false); }
+                if (this.stepPhase > 0.55) { this.stepPhase = 0; this.audio.scuff(this.wallSurface()); }
                 this.stateLabel = 'זחילה לאורך הקצה';
             }
         }
@@ -3669,7 +4521,7 @@ class PlayerController {
             this.jumpBuf = 0;
             this.vel.set(this.hangNormal.x * CFG.LEDGE_JUMP_OUT, CFG.LEDGE_JUMP_UP, this.hangNormal.z * CFG.LEDGE_JUMP_OUT);
             this.hangCol = null;
-            this.audio.jump();
+            this.audio.jump(this.wallSurface());
             this.addFlow(CFG.FLOW_GAIN);
             return;
         }
@@ -3690,7 +4542,7 @@ class PlayerController {
                 this.mantleFrom.copy(this.pos);
                 this.jumpBuf = 0;
                 this.addFlow(CFG.FLOW_GAIN);
-                this.audio.footstep(true);
+                this.audio.vault();
             } else {
                 this.state = 'normal';
                 this.grabCooldown = 0.5;
@@ -3723,7 +4575,7 @@ class PlayerController {
             }
             this.grounded = false;
             this.resolveVertical(world, dt);
-            this.audio.footstep(false);
+            this.audio.footstep(false, this.surfaceName());
         }
     }
 
@@ -3759,7 +4611,7 @@ class PlayerController {
                 const sgn = (this.vel.x * tx + this.vel.z * tz) >= 0 ? 1 : -1;
                 this.wallTangent.set(tx * sgn, 0, tz * sgn);
                 this.vel.y = Math.max(this.vel.y, 2.1);
-                this.audio.wall();
+                this.audio.wall(this.wallSurface());
                 this.addFlow(CFG.FLOW_GAIN);
                 this.input.rumble(0.22, 160);
                 return true;
@@ -3808,7 +4660,6 @@ class PlayerController {
         this.rollTarget = -this.wallSide * 0.17;
         this.fovTarget = 8;
         this.stateLabel = 'ריצה על קיר';
-        if (Math.random() < dt * 9) this.audio.footstep(true);
     }
 
     /* ---------- סכנות ---------- */
@@ -3941,7 +4792,7 @@ function waterTank(L, x, y, z) {
     cap.castShadow = true;
     g.add(tank, cap);
     L.group.add(g);
-    L.world.add(new Collider(x, y + 3.7, z, 1.5, 1.5, 1.5, 0, { mesh: tank }));
+    L.world.add(new Collider(x, y + 3.7, z, 1.5, 1.5, 1.5, 0, { mesh: tank, surface: 'metal' }));
 }
 
 /* אנטנה */
@@ -3963,6 +4814,7 @@ function buildLevel1() {
         skyTop: 0x1d5ea8, skyBottom: 0xcadeec, sunColor: 0xfff1d8, sunInt: 2.7,
         sunDir: new THREE.Vector3(0.55, 0.8, 0.3), fog: 0xc2d5e2, fogNear: 105, fogFar: 874,
         ambSky: 0xa9cce9, ambGround: 0x6f675d, ambInt: 0.95, expo: 1.02,
+        reverb: 'open',   wind: .38,
     };
     const Y = 30;
     L.killY = 8;
@@ -4046,6 +4898,7 @@ function buildLevel2() {
         skyTop: 0x2a72bd, skyBottom: 0xd6e6f0, sunColor: 0xfff6e6, sunInt: 2.9,
         sunDir: new THREE.Vector3(-0.4, 0.85, 0.35), fog: 0xc9d9e6, fogNear: 120, fogFar: 988,
         ambSky: 0xb2d2ee, ambGround: 0x746b60, ambInt: 0.95, expo: 1.05,
+        reverb: 'open',   wind: .34,
     };
     L.killY = 6;
     cityBackdrop(L, 0, 80, 0, { count: 170, inner: 80, outer: 570, minH: 24, tall: 110, cloudY: 130 });
@@ -4135,6 +4988,7 @@ function buildLevel3() {
         skyTop: 0x3a72a8, skyBottom: 0xe8dcc4, sunColor: 0xffe0b0, sunInt: 3.0,
         sunDir: new THREE.Vector3(0.7, 0.55, -0.35), fog: 0xd8cfbc, fogNear: 90, fogFar: 817,
         ambSky: 0xc8d8ea, ambGround: 0x8a7a62, ambInt: 0.9, expo: 1.06,
+        reverb: 'street', wind: .28,
     };
     L.killY = -4;
     // הקרקע הרחוקה מעט מתחת לרחבה — מונע Z-fighting עם משטח האתר
@@ -4226,6 +5080,7 @@ function buildLevel4() {
         skyTop: 0x4a6a92, skyBottom: 0xc2cbd4, sunColor: 0xffe2bc, sunInt: 2.7,
         sunDir: new THREE.Vector3(-0.55, 0.72, -0.35), fog: 0xa8b2bd, fogNear: 80, fogFar: 627,
         ambSky: 0xa8bed6, ambGround: 0x6d6555, ambInt: 1.25, expo: 1.08,
+        reverb: 'hall',   wind: .10, hum: .55,
     };
     L.killY = -16;
     cityBackdrop(L, 0, 90, -8, { count: 90, inner: 105, outer: 552, minH: 14, tall: 60, cloudY: 110 });
@@ -4307,6 +5162,7 @@ function buildLevel5() {
         skyTop: 0x1b3f77, skyBottom: 0xffb578, sunColor: 0xffb060, sunInt: 3.1,
         sunDir: new THREE.Vector3(-0.75, 0.34, 0.4), fog: 0xe0a678, fogNear: 135, fogFar: 1000,
         ambSky: 0xa9c2e6, ambGround: 0x8a6248, ambInt: 0.85, expo: 1.1, night: 0.35,
+        reverb: 'open',   wind: .45,
     };
     L.killY = 14;
     cityBackdrop(L, 0, 110, 0, { count: 190, inner: 81, outer: 644, minH: 30, tall: 140, cloudY: 165, clouds: 22 });
@@ -4473,6 +5329,7 @@ function buildLevel6() {
         skyTop: 0x2b6ea6, skyBottom: 0xdbe7ee, sunColor: 0xfff2d8, sunInt: 2.9,
         sunDir: new THREE.Vector3(0.62, 0.7, -0.35), fog: 0xc9d9e4, fogNear: 82, fogFar: 817,
         ambSky: 0xb4d0e8, ambGround: 0x6b6a60, ambInt: 1.05, expo: 1.05,
+        reverb: 'open',   wind: .32,
     };
     L.killY = -1.2;
     cityBackdrop(L, 0, 100, -6, { count: 90, inner: 130, outer: 589, minH: 12, tall: 55, cloudY: 120 });
@@ -4545,6 +5402,7 @@ function buildLevel7() {
         skyTop: 0x141d26, skyBottom: 0x27323d, sunColor: 0xffe0b0, sunInt: 1.0,
         sunDir: new THREE.Vector3(0.2, 0.9, 0.1), fog: 0x1e2831, fogNear: 24, fogFar: 150,
         ambSky: 0x7d94ab, ambGround: 0x4a453c, ambInt: 1.95, expo: 1.18,
+        reverb: 'tunnel', wind: .06, hum: .30,
     };
     L.killY = -12;
 
@@ -4634,6 +5492,7 @@ function buildLevel8() {
         skyTop: 0x1f5c9c, skyBottom: 0xe2d9c8, sunColor: 0xffe0b4, sunInt: 3.0,
         sunDir: new THREE.Vector3(-0.6, 0.5, 0.55), fog: 0xd2d8dc, fogNear: 105, fogFar: 988,
         ambSky: 0xb6cee6, ambGround: 0x6f6a60, ambInt: 1.0, expo: 1.06,
+        reverb: 'open',   wind: .60,
     };
     L.killY = 4;
     cityBackdrop(L, 0, 120, 0, { count: 110, inner: 161, outer: 644, minH: 18, tall: 80, cloudY: 140 });
@@ -4714,6 +5573,7 @@ function buildLevel9() {
         skyTop: 0x070c18, skyBottom: 0x2a2440, sunColor: 0x9fb4ff, sunInt: 0.75,
         sunDir: new THREE.Vector3(-0.3, 0.85, -0.4), fog: 0x171426, fogNear: 80, fogFar: 456,
         ambSky: 0x4a5a8a, ambGround: 0x3a2a3a, ambInt: 1.5, expo: 1.25, night: 1.0,
+        reverb: 'street', wind: .20, hum: .25,
     };
     L.killY = 6;
     cityBackdrop(L, 0, 90, 0, { count: 160, inner: 80, outer: 515, minH: 30, tall: 120, cloudY: 150, clouds: 10,
@@ -4792,6 +5652,7 @@ function buildLevel10() {
         skyTop: 0x4d6076, skyBottom: 0xbdb6a8, sunColor: 0xffe6c0, sunInt: 2.3,
         sunDir: new THREE.Vector3(0.4, 0.6, 0.5), fog: 0xaba79c, fogNear: 80, fogFar: 570,
         ambSky: 0xa8b4c4, ambGround: 0x6a6055, ambInt: 1.2, expo: 1.05,
+        reverb: 'hall',   wind: .12, hum: .70,
     };
     L.killY = -8;
     cityBackdrop(L, 0, 100, -0.4, { count: 70, inner: 136, outer: 552, minH: 12, tall: 50, cloudY: 110 });
@@ -4810,7 +5671,7 @@ function buildLevel10() {
         tower.position.set(tx, 15, tz);
         tower.castShadow = true; tower.receiveShadow = true;
         L.group.add(tower);
-        L.world.add(new Collider(tx, 15, tz, 8, 15, 8, 0, { mesh: tower }));
+        L.world.add(new Collider(tx, 15, tz, 8, 15, 8, 0, { mesh: tower, surface: 'concrete' }));
     }
 
     // --- מסלול צינורות ---
@@ -4863,6 +5724,7 @@ function buildLevel11() {
         skyTop: 0x2b3444, skyBottom: 0x6e7885, sunColor: 0xc9d6e6, sunInt: 1.2,
         sunDir: new THREE.Vector3(-0.4, 0.75, 0.3), fog: 0x6b7480, fogNear: 25, fogFar: 190,
         ambSky: 0x93a6bd, ambGround: 0x525250, ambInt: 1.75, expo: 1.16, night: 0.25,
+        reverb: 'open',   wind: .62, rain: .85,
     };
     L.killY = 5;
     cityBackdrop(L, 0, 90, 0, { count: 130, inner: 80, outer: 442, minH: 22, tall: 90, cloudY: 90, clouds: 26 });
@@ -4928,6 +5790,7 @@ function buildLevel12() {
         skyTop: 0x0a1014, skyBottom: 0x141c22, sunColor: 0xa8d4c0, sunInt: 0.6,
         sunDir: new THREE.Vector3(0.1, 0.95, 0.2), fog: 0x0e161c, fogNear: 12, fogFar: 95,
         ambSky: 0x6d8e8c, ambGround: 0x3e4840, ambInt: 1.95, expo: 1.22,
+        reverb: 'tunnel', wind: .05, hum: .20,
     };
     L.killY = -10;
 
@@ -5006,6 +5869,7 @@ function buildLevel13() {
         skyTop: 0x14264d, skyBottom: 0xffc98a, sunColor: 0xffb066, sunInt: 3.2,
         sunDir: new THREE.Vector3(-0.8, 0.28, 0.35), fog: 0xe8b487, fogNear: 150, fogFar: 1000,
         ambSky: 0xa8c0e8, ambGround: 0x8a6248, ambInt: 0.95, expo: 1.12, night: 0.3,
+        reverb: 'open',   wind: .55,
     };
     L.killY = 20;
     cityBackdrop(L, 0, 140, 0, { count: 210, inner: 87, outer: 699, minH: 40, tall: 170, cloudY: 200, clouds: 26,
@@ -5362,6 +6226,8 @@ class UIManager {
             if (!locked) {
                 b.addEventListener('click', () => { this.audio.click(); onPick(i); });
                 b.addEventListener('mouseenter', () => this.audio.hover());
+            } else {
+                b.addEventListener('click', () => this.audio.denied());
             }
             g.appendChild(b);
         });
@@ -5630,7 +6496,7 @@ class Game {
         click('b-help', () => this.ui.menuPage('help'));
         click('b-settings', () => this.ui.menuPage('settings'));
         document.querySelectorAll('.back').forEach(b => {
-            b.addEventListener('click', () => { this.audio.click(); this.ui.menuPage('main'); });
+            b.addEventListener('click', () => { this.audio.back(); this.ui.menuPage('main'); });
         });
 
         // איפוס התקדמות (אישור בשתי לחיצות)
@@ -5718,6 +6584,18 @@ class Game {
             });
         });
 
+        // בחירת צירי הג'ויסטיק הימני — פתרון לשלטים עם מיפוי חריג
+        $('s-paxis').querySelectorAll('button').forEach(b => {
+            b.addEventListener('click', () => {
+                this.audio.init(); this.audio.click();
+                this.settings.padAxis = +b.dataset.a;
+                this.input.padAxisMode = this.settings.padAxis;
+                this.input.resetAxisDetect();
+                this.applySettingsToUI();
+                Save.save();
+            });
+        });
+
         const bindToggle = (id, key, apply) => {
             const el = $(id);
             el.addEventListener('click', () => {
@@ -5754,6 +6632,7 @@ class Game {
         $('s-psens').value = s.padSens; $('v-psens').textContent = String(s.padSens);
         $('s-pdz').value = s.padDead; $('v-pdz').textContent = s.padDead + '%';
         $('s-qual').querySelectorAll('button').forEach(b => b.classList.toggle('on', b.dataset.q === s.quality));
+        $('s-paxis').querySelectorAll('button').forEach(b => b.classList.toggle('on', +b.dataset.a === (s.padAxis || 0)));
         $('s-shadow').classList.toggle('on', s.shadows);
         $('s-bob').classList.toggle('on', s.bob);
         $('s-music').classList.toggle('on', s.music);
@@ -5772,6 +6651,8 @@ class Game {
         this.input.padVibrate = s.padVibrate !== false;
         this.input.padDeadzone = (s.padDead || 18) / 100;
         this.input.padSprintToggle = !!s.padSprintToggle;
+        this.input.padAxisMode = s.padAxis || 0;
+        this.input.resetAxisDetect();
         this.audio.setVolume(s.vol / 100);
         this.audio.setMuted(s.muted);
         this.audio.setMusic(s.music);
@@ -5849,6 +6730,10 @@ class Game {
         this.sun.color.set(level.env.sunColor);
         this.sun.intensity = level.env.sunInt;
         this.renderer.toneMappingExposure = level.env.expo;
+        // פס הקול של השלב — הדהוד, רוח, גשם והמהום מכונות
+        this.audio.setAmbience(level.env);
+        this.audio.setMusicKey(index);
+        this.audio.setMuffle(false);
         this.fill.position.copy(level.env.sunDir).multiplyScalar(-1).setY(0.5);
 
         this.ui.setLoading(80, 'מתחיל…');
@@ -5884,6 +6769,9 @@ class Game {
 
     toMenu() {
         this.input.exitLock();
+        this.player.stopAudioLoops();
+        this.audio.silenceAmbience();
+        this.audio.setMuffle(false);
         this.state = 'menu';
         this.ui.screen('menu');
         this.ui.menuPage('main');
@@ -5895,6 +6783,8 @@ class Game {
         this.state = 'paused';
         this.input.exitLock();
         this.ui.screen('pause');
+        this.player.stopAudioLoops();
+        this.audio.setMuffle(true);
     }
 
     resume() {
@@ -5905,6 +6795,7 @@ class Game {
         this.input.consume();
         this.input.requestLock();
         this.audio.resume();
+        this.audio.setMuffle(false);
     }
 
     triggerFall(instant) {
@@ -5913,6 +6804,7 @@ class Game {
         this.falls++;
         this.ui.setFalls(this.falls);
         this.ui.screen('fall');
+        this.player.stopAudioLoops();
         this.audio.fall();
         this.fallTimer = instant ? 0.62 : 0.78;
     }
@@ -5921,6 +6813,7 @@ class Game {
         this.player.reset(this.respawnPos, this.respawnYaw);
         this.state = 'playing';
         this.ui.screen('hud');
+        this.audio.setMuffle(false);
         this.fadeIn = 0.45;
         if (!manual) this.ui.toast('חוזר לצ׳קפוינט', '#ff8b95', 1.2);
         if (!this.input.locked) this.input.requestLock();
@@ -5930,6 +6823,8 @@ class Game {
         if (this.state !== 'playing') return;
         this.state = 'complete';
         this.input.exitLock();
+        this.player.stopAudioLoops();
+        this.audio.silenceAmbience();
         this.audio.levelComplete();
         this.ui.flash('#ffd27a', .5);
 
@@ -5958,6 +6853,9 @@ class Game {
         $('fn-falls').textContent = String(this.falls);
         this.state = 'finished';
         this.input.exitLock();
+        this.player.stopAudioLoops();
+        this.audio.silenceAmbience();
+        this.audio.finish();
         this.ui.screen('finish');
     }
 
@@ -6007,7 +6905,21 @@ class Game {
             b.offsetParent !== null && !b.classList.contains('locked') && !b.disabled);
     }
 
+    /* תצוגת אבחון חיה למסך ההגדרות — מראה איזה צירים נקראים בפועל */
+    updatePadDiag() {
+        const el = $('v-ptest');
+        if (!el) return;
+        const pg = $('pg-settings');
+        if (!pg || pg.style.display === 'none') return;
+        const inp = this.input;
+        if (!inp.padConnected) { el.textContent = 'לא מחובר'; return; }
+        const a = inp.padAxes || [];
+        const f = (v) => (v === undefined ? '--' : (v >= 0 ? '+' : '') + v.toFixed(2));
+        el.textContent = `L ${f(a[0])},${f(a[1])} | R(${inp.lookAx}/${inp.lookAy}) ${f(a[inp.lookAx])},${f(a[inp.lookAy])}`;
+    }
+
     padNavigate() {
+        this.updatePadDiag();
         const inp = this.input;
         if (!inp.padConnected) return;
         const btns = this.padButtons();
@@ -6073,7 +6985,6 @@ class Game {
             this.input.consume();
         }
         this.ui.update(dt);
-        this.audio.updateMusic();
     }
 
     /* מדידת קצב פריימים והתאמת רזולוציה אוטומטית — מונע קטיעות במחשבים חלשים */
@@ -6126,6 +7037,7 @@ class Game {
 
         this.input.pollPad(dt);
         if (this.state !== 'playing' && this.state !== 'falling') this.padNavigate();
+        this.audio.update(dt, this.player, this.state === 'playing');
 
         this.trackPerformance(dt);
         if (this.state === 'playing' || this.state === 'falling') {
@@ -6144,7 +7056,6 @@ class Game {
             this.render();
         } else {
             this.ui.update(dt);
-            this.audio.updateMusic();
             // המשחק מושהה — מציירים תמונה סטטית בקצב נמוך כדי לחסוך במשאבים
             this.idleFrame = (this.idleFrame || 0) + 1;
             if ((this.state === 'paused' || this.state === 'complete') && this.idleFrame % 6 === 0) this.render();
@@ -6178,6 +7089,7 @@ async function boot() {
 
     const game = new Game();
     window.__urbanEdge = game;   // גישה לניפוי שגיאות מהקונסולה
+    window.__surfaces = SURFACES;  // טבלת החומרים האקוסטיים — לבדיקות ולניפוי
 
     setLoad(88, 'טוען ממשק…');
     await new Promise(r => setTimeout(r, 60));
