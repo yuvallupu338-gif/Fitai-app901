@@ -224,6 +224,9 @@
         background:rgba(77,214,255,.14);border:1px solid rgba(77,214,255,.35);
         font-size:11px;color:var(--acc);letter-spacing:.06em;
     }
+    #h-diag{position:absolute;top:104px;left:16px;font:11px/1.55 ui-monospace,SFMono-Regular,Menlo,monospace;
+      color:rgba(190,215,235,.72);background:rgba(6,12,20,.55);border:1px solid rgba(120,170,210,.16);
+      border-radius:8px;padding:7px 10px;white-space:pre;display:none;pointer-events:none;text-align:left}
     #h-fps{position:absolute;top:16px;left:calc(50% + 96px);font-size:11px;letter-spacing:.1em;
         color:rgba(190,215,235,.5);font-variant-numeric:tabular-nums;direction:ltr}
     #h-pad{position:absolute;top:62px;left:16px;display:none}
@@ -352,6 +355,7 @@
                 <div class="k"><kbd>START</kbd><span>תפריט עצירה</span></div>
                 <div class="k"><kbd>BACK</kbd><span>השתקת קול</span></div>
                 <div class="k"><kbd>D-Pad + A</kbd><span>ניווט בתפריטים</span></div>
+                <div class="k"><kbd>F3</kbd><span>לוח אבחון ביצועים</span></div>
             </div>
             <div class="tips" style="margin-top:10px">
                 <b>הג׳ויסטיק הימני לא מזיז את המבט?</b> חלק מהשלטים מדווחים על צירים אחרים.
@@ -423,6 +427,7 @@
     <div id="flow"><div class="lb"><span>FLOW</span><span id="flow-val">×1.00</span></div><div class="bar"><i id="flow-bar"></i></div></div>
     <div id="h-pad" class="hud-box"><span class="pad-badge">🎮 שלט מחובר</span></div>
     <div id="h-fps">60 FPS</div>
+    <div id="h-diag" dir="ltr">—</div>
     <div id="state-tag"></div>
     <div id="keys-hud">
         <kbd>WASD</kbd> תנועה · <kbd>SPACE</kbd> קפיצה · <kbd>SHIFT</kbd> ריצה<br>
@@ -604,11 +609,23 @@ const DEFAULT_SAVE = {
 /* =========================================================================
    2. שמירת התקדמות (LocalStorage)
    ========================================================================= */
+/* ניחוש דרגת איכות התחלתית — עדיף להתחיל חלק ולתת לשחקן להעלות */
+function guessQuality() {
+    const cores = navigator.hardwareConcurrency || 4;
+    const mem = navigator.deviceMemory || 4;
+    const mobile = /Android|iPhone|iPad|iPod/i.test(navigator.userAgent || '');
+    if (mobile || cores <= 3 || mem <= 2) return 'low';
+    if (cores <= 6 || mem <= 4) return 'med';
+    return 'high';
+}
+
 const Save = {
     data: JSON.parse(JSON.stringify(DEFAULT_SAVE)),
     load() {
         try {
             const raw = localStorage.getItem(SAVE_KEY);
+            // הפעלה ראשונה — בוחרים איכות התחלתית לפי עוצמת המחשב במקום להניח "גבוהה"
+            if (!raw) this.data.settings.quality = guessQuality();
             if (raw) {
                 const p = JSON.parse(raw);
                 if (p && typeof p === 'object') {
@@ -1087,23 +1104,23 @@ const SURFACES = {
     metal:    { fc: 2500, q: 3.4, dur: .17, gain: .120, body: 190, bodyG: .050, scuff: 5200, scuffG: .045, rev: .30, ring: [1180, 1870], ringG: .055 },
     grate:    { fc: 3200, q: 4.2, dur: .20, gain: .105, body: 240, bodyG: .035, scuff: 6400, scuffG: .055, rev: .34, ring: [1560, 2340, 3120], ringG: .060 },
     wood:     { fc: 1150, q: 2.1, dur: .13, gain: .145, body: 128, bodyG: .075, scuff: 3100, scuffG: .026, rev: .18, ring: [520, 780], ringG: .038 },
-    gravel:   { fc: 1750, q: 0.8, dur: .13, gain: .095, body: 58,  bodyG: .045, scuff: 4200, scuffG: .020, rev: .10, grains: 5 },
-    dirt:     { fc: 900,  q: 0.7, dur: .15, gain: .105, body: 62,  bodyG: .070, scuff: 2200, scuffG: .014, rev: .08, grains: 3 },
+    gravel:   { fc: 1750, q: 0.8, dur: .13, gain: .095, body: 58,  bodyG: .045, scuff: 4200, scuffG: .020, rev: .10, grains: 3 },
+    dirt:     { fc: 900,  q: 0.7, dur: .15, gain: .105, body: 62,  bodyG: .070, scuff: 2200, scuffG: .014, rev: .08, grains: 2 },
     tile:     { fc: 3000, q: 3.0, dur: .11, gain: .130, body: 210, bodyG: .040, scuff: 6800, scuffG: .050, rev: .38, ring: [2100, 3150], ringG: .048 },
     glass:    { fc: 4200, q: 5.0, dur: .10, gain: .110, body: 260, bodyG: .030, scuff: 7600, scuffG: .055, rev: .40, ring: [2640, 3960], ringG: .052 },
     rubber:   { fc: 380,  q: 1.4, dur: .12, gain: .120, body: 92,  bodyG: .060, scuff: 1200, scuffG: .012, rev: .05 },
     water:    { fc: 1400, q: 0.6, dur: .30, gain: .180, body: 150, bodyG: .030, scuff: 5200, scuffG: .060, rev: .26, splash: true },
-    wet:      { fc: 780,  q: 1.0, dur: .17, gain: .150, body: 70,  bodyG: .085, scuff: 4600, scuffG: .048, rev: .22, drops: 3 },
+    wet:      { fc: 780,  q: 1.0, dur: .17, gain: .150, body: 70,  bodyG: .085, scuff: 4600, scuffG: .048, rev: .22, drops: 2 },
     glassPane:{ fc: 4200, q: 5.0, dur: .10, gain: .110, body: 260, bodyG: .030, scuff: 7600, scuffG: .055, rev: .40, ring: [2640, 3960], ringG: .052 },
 };
 
 /* חללי הדהוד — לכל שלב אופי אקוסטי משלו */
 const REVERBS = {
-    open:   { sec: 1.1, decay: 4.2, wet: 0.16, damp: 5200 },
-    street: { sec: 1.8, decay: 3.0, wet: 0.24, damp: 4200 },
-    room:   { sec: 1.0, decay: 3.6, wet: 0.28, damp: 3200 },
-    hall:   { sec: 2.9, decay: 2.1, wet: 0.34, damp: 3800 },
-    tunnel: { sec: 2.2, decay: 2.4, wet: 0.44, damp: 2200, comb: true },
+    open:   { sec: 0.65, decay: 4.2, wet: 0.14, damp: 5200 },
+    street: { sec: 0.90, decay: 3.0, wet: 0.20, damp: 4200 },
+    room:   { sec: 0.75, decay: 3.6, wet: 0.24, damp: 3200 },
+    hall:   { sec: 1.45, decay: 2.1, wet: 0.30, damp: 3800 },
+    tunnel: { sec: 1.20, decay: 2.4, wet: 0.36, damp: 2200, comb: true },
 };
 
 /* סולמות לפי שלב — כל שלב מקבל טוניקה ואופי הרמוני משלו */
@@ -1139,7 +1156,29 @@ class AudioManager {
         this.keyIndex = 0;
         this.bpm = 96;
         this.musicLevel = 0.22;
-        this.lastStepAt = -1;
+        this._ends = [];              // זמני סיום של הצלילים הפעילים
+        this.maxVoices = 44;          // מעליו מדלגים על שכבות משנה
+        this._paramCache = new Map(); // ערכים אחרונים שנשלחו ל-AudioParam
+        this._ambAcc = 0;             // מצבר לעדכון אווירה בתדירות נמוכה
+    }
+
+    /* מעדכן AudioParam רק כשהערך באמת השתנה — קריאות מיותרות מעמיסות על פס השמע */
+    _ramp(param, key, value, time) {
+        const prev = this._paramCache.get(key);
+        if (prev !== undefined && Math.abs(prev - value) < Math.max(0.002, Math.abs(value) * 0.02)) return;
+        this._paramCache.set(key, value);
+        param.setTargetAtTime(value, this.now, time);
+    }
+    /* ספירת קולות פעילים לפי זמני סיום — מונע הצפה של מנוע השמע */
+    _voice(endAt) {
+        if (this._ends.length < 256) this._ends.push(endAt);
+    }
+    get busy() {
+        const t = this.now;
+        let n = 0;
+        for (let i = 0; i < this._ends.length; i++) if (this._ends[i] > t) this._ends[n++] = this._ends[i];
+        this._ends.length = n;
+        return n > this.maxVoices;
     }
 
     /* ---------------- אתחול ותשתית ---------------- */
@@ -1200,6 +1239,11 @@ class AudioManager {
 
         this.ready = true;
         this.beatTime = ctx.currentTime + 0.25;
+        // מכינים את שאר חללי ההדהוד בזמן פנוי, כדי שמעבר שלב לא ייתקע על החישוב
+        const rest = Object.keys(REVERBS).filter(k => k !== 'street');
+        const idle = window.requestIdleCallback || ((fn) => setTimeout(fn, 400));
+        const bake = (i) => { if (i >= rest.length) return; this._impulse(rest[i]); idle(() => bake(i + 1)); };
+        idle(() => bake(0));
         this._startWind();
         this._startRain();
         this._startHum();
@@ -1329,8 +1373,10 @@ class AudioManager {
     /* פרץ רעש מסונן */
     _noise(o) {
         if (!this.ready) return null;
+        if (o.minor && this.busy) return null;      // שכבת קישוט — מדלגים כשעמוס
         const t = o.when || this.now;
         const dur = o.dur || 0.15;
+        this._voice(t + dur);
         const src = this.ctx.createBufferSource();
         src.buffer = o.pink ? this.pinkBuf : this.noiseBuf;
         src.loop = true;
@@ -1357,8 +1403,10 @@ class AudioManager {
     /* צליל אוסצילטור עם מעטפת */
     _tone(o) {
         if (!this.ready) return null;
+        if (o.minor && this.busy) return null;
         const t = o.when || this.now;
         const dur = o.dur || 0.2;
+        this._voice(t + dur);
         const osc = this.ctx.createOscillator();
         osc.type = o.type || 'sine';
         osc.frequency.setValueAtTime(Math.max(8, o.freq), t);
@@ -1392,6 +1440,7 @@ class AudioManager {
         L = build();
         if (!L) return null;
         L.alive = true;
+        this._paramCache.clear();   // הצמתים חדשים — הערכים השמורים כבר לא רלוונטיים
         this.loops[name] = L;
         return L;
     }
@@ -1440,8 +1489,6 @@ class AudioManager {
             lfo.start();
             src.connect(bp); bp.connect(lp); lp.connect(g);
             g.connect(this.ambGain);
-            const rs = this.ctx.createGain(); rs.gain.value = 0.25;
-            g.connect(rs); rs.connect(this.revSend);
             src.start();
             return { src, src2: null, gain: g, filter: bp, lp, lfo };
         });
@@ -1458,8 +1505,6 @@ class AudioManager {
             const g = this.ctx.createGain(); g.gain.value = 0.0001;
             src.connect(hp); hp.connect(lp); lp.connect(g);
             g.connect(this.ambGain);
-            const rs = this.ctx.createGain(); rs.gain.value = 0.3;
-            g.connect(rs); rs.connect(this.revSend);
             src.start();
             return { src, gain: g, filter: hp, lp };
         });
@@ -1468,7 +1513,7 @@ class AudioManager {
         const L = this.loops.rain;
         if (!L || !L.alive) return;
         this.rainAmount = clamp(amount, 0, 1);
-        L.gain.gain.setTargetAtTime(Math.max(0.0001, this.rainAmount * 0.16), this.now, 0.6);
+        this._ramp(L.gain.gain, 'rg', Math.max(0.0001, this.rainAmount * 0.16), 0.6);
     }
 
     /* המהום תעשייתי — מנועים, טורבינות ותאורת ניאון */
@@ -1494,7 +1539,7 @@ class AudioManager {
     setHum(amount) {
         const L = this.loops.hum;
         if (!L || !L.alive) return;
-        L.gain.gain.setTargetAtTime(Math.max(0.0001, clamp(amount, 0, 1) * 0.10), this.now, 0.8);
+        this._ramp(L.gain.gain, 'hg', Math.max(0.0001, clamp(amount, 0, 1) * 0.10), 0.8);
     }
 
     /* מגדיר את פס הקול של השלב — הדהוד, רוח, גשם והמהום */
@@ -1512,8 +1557,8 @@ class AudioManager {
         const L = this.loops.wind;
         if (!L || !L.alive) return;
         const a = clamp(amount, 0, 1);
-        L.gain.gain.setTargetAtTime(Math.max(0.0001, a * 0.34), this.now, 0.25);
-        L.lp.frequency.setTargetAtTime(700 + clamp(sharpness, 0, 1) * 2600, this.now, 0.3);
+        this._ramp(L.gain.gain, 'wg', Math.max(0.0001, a * 0.30), 0.25);
+        this._ramp(L.lp.frequency, 'wf', 700 + clamp(sharpness, 0, 1) * 2600, 0.3);
     }
 
     /* ---------------- צעדים ומגע עם הקרקע ---------------- */
@@ -1537,19 +1582,19 @@ class AudioManager {
             freq: s.body * jit, gain: s.bodyG * heavy, sweep: s.body * 0.6, pan: side * 0.5 });
         // חיכוך הסוליה
         this._noise({ when: t + 0.012, dur: 0.05 + (running ? 0.02 : 0.05), type: 'highpass',
-            freq: s.scuff * jit, q: 0.6, gain: s.scuffG * heavy, rate: jit, pan: side });
+            freq: s.scuff * jit, q: 0.6, gain: s.scuffG * heavy, rate: jit, pan: side, minor: true });
 
         if (s.ring) {
             // צלצול מתכתי קצר
             const f = s.ring[(Math.random() * s.ring.length) | 0] * jit;
             this._tone({ when: t + 0.004, dur: 0.12 + Math.random() * 0.09, type: 'triangle',
-                freq: f, gain: s.ringG * heavy, rev: s.rev, pan: side });
+                freq: f, gain: s.ringG * heavy, rev: s.rev, pan: side, minor: true });
         }
         if (s.drops) {
             // משטח רטוב — כמה טיפות זעירות אחרי כל צעד
             for (let i = 0; i < s.drops; i++) {
                 this._tone({ when: t + rand(0.02, 0.11), dur: rand(0.03, 0.07), type: 'sine',
-                    freq: rand(1400, 3400), gain: rand(0.008, 0.022) * heavy,
+                    freq: rand(1400, 3400), gain: rand(0.008, 0.022) * heavy, minor: true,
                     sweep: rand(2200, 4800), pan: side + rand(-0.25, 0.25) });
             }
         }
@@ -1559,7 +1604,7 @@ class AudioManager {
             for (let i = 0; i < n; i++) {
                 this._noise({ when: t + rand(0.005, 0.075), dur: rand(0.018, 0.04), type: 'bandpass',
                     freq: rand(1800, 5200), q: 2.4, gain: s.gain * heavy * rand(0.18, 0.4),
-                    atk: 0.002, pan: side + rand(-0.15, 0.15) });
+                    atk: 0.002, pan: side + rand(-0.15, 0.15), minor: true });
             }
         }
     }
@@ -1570,10 +1615,10 @@ class AudioManager {
             sweep: 260, gain: s.gain * heavy, atk: 0.004, rev: s.rev, pan: side });
         this._noise({ when: t + 0.02, dur: 0.20, type: 'highpass', freq: 2600, q: 0.5,
             sweep: 6200, gain: 0.06 * heavy, atk: 0.01, rev: s.rev, pan: side });
-        for (let i = 0; i < 4; i++) {
+        for (let i = 0; i < 3; i++) {
             this._tone({ when: t + rand(0.02, 0.14), dur: rand(0.05, 0.11), type: 'sine',
                 freq: rand(900, 2400), gain: rand(0.012, 0.03) * heavy, sweep: rand(1400, 3600),
-                pan: side + rand(-0.3, 0.3) });
+                pan: side + rand(-0.3, 0.3), minor: true });
         }
     }
 
@@ -1608,18 +1653,18 @@ class AudioManager {
         if (s.splash) { this._splash(t, 1 + st, 0); return; }
         // מכה נמוכה בגוף
         this._tone({ when: t, dur: 0.24 + st * 0.20, type: 'sine',
-            freq: (s.body * 0.9) + 30 - st * 22, gain: 0.16 + st * 0.26, sweep: 38, atk: 0.004, rev: 0.25 });
+            freq: (s.body * 0.9) + 30 - st * 22, gain: 0.13 + st * 0.17, sweep: 38, atk: 0.004, rev: 0.22 });
         // הפריכה של המשטח
         this._noise({ when: t, dur: s.dur * (1.3 + st), type: 'bandpass', freq: s.fc * 0.85, q: s.q * 0.8,
-            gain: s.gain * (1.5 + st * 1.6), atk: 0.003, rev: s.rev * (0.9 + st) });
+            gain: s.gain * (1.3 + st * 1.1), atk: 0.003, rev: s.rev * (0.9 + st * 0.6) });
         // בגדים ונשימה
         this._noise({ when: t + 0.02, dur: 0.13 + st * 0.1, type: 'highpass', freq: 1800, q: 0.5,
-            gain: 0.05 + st * 0.09, atk: 0.01 });
+            gain: 0.04 + st * 0.06, atk: 0.01, minor: true });
         if (s.ring) this._tone({ when: t + 0.006, dur: 0.28 + st * 0.2, type: 'triangle',
-            freq: s.ring[0] * rand(0.95, 1.05), gain: s.ringG * (1.4 + st), rev: s.rev });
+            freq: s.ring[0] * rand(0.95, 1.05), gain: s.ringG * (1.2 + st * 0.6), rev: s.rev, minor: true });
         if (st > 0.45) {
             // נחיתה כבדה — הד תת-בסי
-            this._tone({ when: t, dur: 0.5, type: 'sine', freq: 52, gain: 0.16 * st, sweep: 28, rev: 0.3 });
+            this._tone({ when: t, dur: 0.5, type: 'sine', freq: 52, gain: 0.11 * st, sweep: 28, rev: 0.25 });
         }
     }
 
@@ -1653,9 +1698,8 @@ class AudioManager {
     slideUpdate(speed01) {
         const L = this.loops.slide;
         if (!L || !L.alive) return;
-        const t = this.now;
-        L.filter.frequency.setTargetAtTime(500 + speed01 * 1900, t, 0.08);
-        L.gain.gain.setTargetAtTime(0.05 + speed01 * 0.20, t, 0.08);
+        this._ramp(L.filter.frequency, 'sf', 500 + speed01 * 1900, 0.08);
+        this._ramp(L.gain.gain, 'sg', 0.05 + speed01 * 0.18, 0.08);
     }
     slideStop() { this._stopLoop('slide', 0.16); }
 
@@ -1706,10 +1750,9 @@ class AudioManager {
     zipUpdate(speed01) {
         const L = this.loops.zip;
         if (!L || !L.alive) return;
-        const t = this.now;
-        L.filter.frequency.setTargetAtTime(1600 + speed01 * 3200, t, 0.1);
-        L.osc.frequency.setTargetAtTime(180 + speed01 * 340, t, 0.1);
-        L.gain.gain.setTargetAtTime(0.06 + speed01 * 0.14, t, 0.1);
+        this._ramp(L.filter.frequency, 'zf', 1600 + speed01 * 3200, 0.1);
+        this._ramp(L.osc.frequency, 'zo', 180 + speed01 * 340, 0.1);
+        this._ramp(L.gain.gain, 'zg', 0.06 + speed01 * 0.14, 0.1);
     }
     zipStop() {
         if (this.loops.zip && this.loops.zip.alive) {
@@ -1973,6 +2016,12 @@ class AudioManager {
     /* ---------------- עדכון לכל פריים ---------------- */
     update(dt, player, playing) {
         if (!this.ready) return;
+        // תזמון המוזיקה זול ורץ בכל פריים; שאר האווירה מתעדכנת 20 פעמים בשנייה
+        this.updateMusic(dt);
+        this._ambAcc += dt;
+        if (this._ambAcc < 0.05) return;
+        const adt = this._ambAcc;
+        this._ambAcc = 0;
         if (playing && player) {
             const spd = Math.hypot(player.vel.x, player.vel.z);
             const air = player.grounded ? 0 : 1;
@@ -1988,9 +2037,8 @@ class AudioManager {
             this.setIntensity(clamp(flow * 0.65 + clamp(spd / 12, 0, 1) * 0.45, 0, 1));
         } else {
             this.setWind(this.windBase * 0.35, 0.15);
-            this.setIntensity(this.intensity * 0.97);
+            this.setIntensity(this.intensity * Math.pow(0.97, adt * 60));
         }
-        this.updateMusic(dt);
     }
 }
 
@@ -2032,7 +2080,8 @@ class Input {
         this.lookAx = 2;
         this.lookAy = 3;
         this.padAxes = [];
-        this._axRest = []; this._axLo = []; this._axHi = []; this._axSeeded = false;
+        this._axRest = []; this._axLo = []; this._axHi = []; this._axZero = [];
+        this._axSeeded = false;
         this.padLookX = 0;
         this.padLookY = 0;
         this.padMoveX = 0;
@@ -2048,7 +2097,7 @@ class Input {
         this._kd = (e) => {
             if (e.repeat) return;
             const c = e.code;
-            if (['Space', 'ArrowUp', 'ArrowDown', 'ArrowLeft', 'ArrowRight', 'Tab'].includes(c)) e.preventDefault();
+            if (['Space', 'ArrowUp', 'ArrowDown', 'ArrowLeft', 'ArrowRight', 'Tab', 'F3'].includes(c)) e.preventDefault();
             this.keys[c] = true;
             this.pressed[c] = true;
             this.lastDevice = 'kb';
@@ -2206,11 +2255,14 @@ class Input {
 
     /* מאפסים את זיהוי הצירים כשמתחלף שלט */
     resetAxisDetect() {
-        this._axRest = []; this._axLo = []; this._axHi = []; this._axSeeded = false;
+        this._axRest = []; this._axLo = []; this._axHi = []; this._axZero = [];
+        this._axSeeded = false;
         this.lookAx = 2; this.lookAy = 3;
     }
-    /* סטייה קבועה של ציר במנוחה — רלוונטי רק לצירים שנחים רחוק מהאפס (הדקים) */
+    /* סטייה קבועה של ציר במנוחה — רלוונטי רק להדקים שנחים רחוק מהאפס.
+       ברגע שראינו את הציר עובר ליד האפס ברור שהוא ג'ויסטיק ואין מה לקזז. */
     _axOffset(i) {
+        if (this._axZero[i]) return 0;
         const r = this._axRest[i];
         return (r !== undefined && Math.abs(r) > 0.5) ? r : 0;
     }
@@ -2230,6 +2282,7 @@ class Input {
             const d = v - this._axRest[i];
             if (d < this._axLo[i]) this._axLo[i] = d;
             if (d > this._axHi[i]) this._axHi[i] = d;
+            if (Math.abs(v) < 0.22) this._axZero[i] = true;
         }
         if (this.lookAy >= n) { this.lookAx = 2; this.lookAy = Math.min(3, n - 1); }
         // ג'ויסטיק זז לשני הכיוונים; הדק זז רק לכיוון אחד — כך מבדילים ביניהם
@@ -2309,6 +2362,7 @@ class Input {
     get jumpPressed() { return this.tap('Space') || this.padTap(PAD.A); }
     get respawnPressed() { return this.tap('KeyR') || this.padTap(PAD.Y); }
     get mutePressed() { return this.tap('KeyM') || this.padTap(PAD.BACK); }
+    get diagPressed() { return this.tap('F3'); }
     get interactHeld() { return this.down('KeyE') || this.padDown(PAD.X); }
 }
 
@@ -3475,6 +3529,7 @@ class PlayerController {
         this.audio = audio;
 
         this.pos = new THREE.Vector3(0, 2, 0);   // מיקום כפות הרגליים
+        this.prevPos = new THREE.Vector3(0, 2, 0); // המיקום בצעד הפיזיקה הקודם — לאינטרפולציה בציור
         this.vel = new THREE.Vector3();
         this.yaw = Math.PI;
         this.pitch = 0;
@@ -3553,6 +3608,7 @@ class PlayerController {
         this.rollT = 0; this.rollBuf = 0; this.climbT = 0; this.climbUsed = false;
         this.flow = 1; this.onLadder = null; this.zip = null; this.zipCooldown = 0;
         this.stateLabel = '';
+        this.prevPos.copy(this.pos);
         this.stopAudioLoops();
         this.updateCameraTransform(0);
     }
@@ -3618,6 +3674,7 @@ class PlayerController {
     update(dt, level) {
         const world = level.world;
         this.level = level;
+        this.prevPos.copy(this.pos);
         this.wasGrounded = this.grounded;
         this.applyLook(dt);
 
@@ -4677,7 +4734,9 @@ class PlayerController {
     }
 
     /* ---------- מצלמה ---------- */
-    updateCameraTransform(dt) {
+    /* alpha (0..1) — חלק הצעד שנותר במצבר הפיזיקה. אינטרפולציה בין שני צעדי
+       הפיזיקה האחרונים מבטלת את הרעד הקטן שנוצר כשקצב הציור אינו כפולה של קצב הפיזיקה. */
+    updateCameraTransform(dt, alpha) {
         // התאוששות מנחיתה (קפיץ)
         const k = 105, damping = 13;
         this.landVel += (-this.landDip * k - this.landVel * damping) * dt;
@@ -4714,10 +4773,18 @@ class PlayerController {
 
         const cam = this.cam;
         const right = this.rightVec(_v3a);
+        let px = this.pos.x, py = this.pos.y, pz = this.pos.z;
+        if (alpha !== undefined && alpha > 0 && alpha < 1) {
+            // לא מבצעים אינטרפולציה על קפיצות מיקום גדולות (respawn, שיגור, טלפורט)
+            const dx = px - this.prevPos.x, dy = py - this.prevPos.y, dz = pz - this.prevPos.z;
+            if (dx * dx + dy * dy + dz * dz < 1.0) {
+                px -= dx * (1 - alpha); py -= dy * (1 - alpha); pz -= dz * (1 - alpha);
+            }
+        }
         cam.position.set(
-            this.pos.x + right.x * this.bobX,
-            this.pos.y + this.eyeH + this.bobY + this.landDip + this.stepOffset,
-            this.pos.z + right.z * this.bobX
+            px + right.x * this.bobX,
+            py + this.eyeH + this.bobY + this.landDip + this.stepOffset,
+            pz + right.z * this.bobX
         );
         cam.rotation.order = 'YXZ';
         cam.rotation.y = this.yaw + shx;
@@ -6174,7 +6241,7 @@ class UIManager {
             htCur: $('ht-cur'), htBest: $('ht-best'), hFalls: $('h-falls'),
             hint: $('hint'), toast: $('toast'), cross: $('cross'),
             spdBar: $('spd-bar'), stateTag: $('state-tag'), mute: $('btn-mute'),
-            flow: $('flow'), flowBar: $('flow-bar'), flowVal: $('flow-val'), pad: $('h-pad'), fps: $('h-fps'),
+            flow: $('flow'), flowBar: $('flow-bar'), flowVal: $('flow-val'), pad: $('h-pad'), fps: $('h-fps'), diag: $('h-diag'),
             keys: $('keys-hud'),
             pages: {
                 main: $('pg-main'), levels: $('pg-levels'), help: $('pg-help'), settings: $('pg-settings'),
@@ -6418,6 +6485,12 @@ class Game {
         this.renderer.toneMappingExposure = 1.05;
         this.renderer.shadowMap.enabled = this.settings.shadows && q.shadow > 0;
         this.renderer.shadowMap.type = THREE.PCFSoftShadowMap;
+        // מציירים את מפת הצללים מחדש רק בחלק מהפריימים — חיסכון גדול, הבדל שלא נראה לעין
+        this.renderer.shadowMap.autoUpdate = false;
+        this.renderer.shadowMap.needsUpdate = true;
+        this.shadowTick = 0;
+        // מאפסים את המונים ידנית כדי שלוח האבחון יראה את סך כל הפריים ולא רק את המעבר האחרון
+        this.renderer.info.autoReset = false;
         this.composer = null;
         this.bloomPass = null;
     }
@@ -6609,6 +6682,7 @@ class Game {
         bindToggle('s-shadow', 'shadows', v => {
             const q = QUALITY[this.settings.quality] || QUALITY.high;
             this.renderer.shadowMap.enabled = v && q.shadow > 0;
+            this.renderer.shadowMap.needsUpdate = true;
             this.scene.traverse(o => { if (o.isMesh) o.material.needsUpdate = true; });
         });
         bindToggle('s-bob', 'bob', v => { this.player.bobEnabled = v; });
@@ -6674,6 +6748,7 @@ class Game {
         this.sun.shadow.camera.top = span; this.sun.shadow.camera.bottom = -span;
         this.sun.shadow.camera.updateProjectionMatrix();
         this.dynScale = 1;
+        this.renderer.shadowMap.needsUpdate = true;
         if (this.scene.fog && this.level) {
             this.scene.fog.far = Math.min(this.level.env.fogFar, q.fogFar);
         }
@@ -6737,6 +6812,8 @@ class Game {
         this.fill.position.copy(level.env.sunDir).multiplyScalar(-1).setY(0.5);
 
         this.ui.setLoading(80, 'מתחיל…');
+        // מאפסים את מצב ההתאמה האוטומטית לכל שלב
+        this.adaptCount = 0; this.goodWindows = 0; this.badWindows = 0; this.autoDropped = false;
         this.elapsed = 0;
         this.falls = 0;
         this.cpIndex = 0;
@@ -6905,6 +6982,30 @@ class Game {
             b.offsetParent !== null && !b.classList.contains('locked') && !b.disabled);
     }
 
+    /* לוח אבחון (F3) — נותן תמונה מדויקת של מקור הקטיעות */
+    toggleDiag() {
+        this.diagOn = !this.diagOn;
+        if (this.ui.el.diag) this.ui.el.diag.style.display = this.diagOn ? 'block' : 'none';
+        this.worstFrame = 0; this.longFrames = 0;
+        if (this.diagOn) this.updateDiag();
+        else this.ui.toast('לוח אבחון כבוי', '#8fb4d6', 1.0);
+    }
+    updateDiag() {
+        const el = this.ui.el.diag;
+        if (!el) return;
+        const r = this.renderer.info.render;
+        const q = this.settings.quality;
+        const A = this.audio;
+        el.textContent =
+            `FPS ${this.fpsValue.toFixed(0).padStart(3)}   worst ${(this.worstFrame || 0).toFixed(0)}ms   >33ms ${this.longFrames || 0}\n` +
+            `draws ${r.calls}   tris ${(r.triangles / 1000).toFixed(0)}k\n` +
+            `quality ${q}   scale ${(this.dynScale || 1).toFixed(2)}   dpr ${this.renderer.getPixelRatio().toFixed(2)}\n` +
+            `shadows ${this.renderer.shadowMap.enabled ? 'on' : 'off'}   bloom ${this.composer && this.settings.bloom && q !== 'low' ? 'on' : 'off'}\n` +
+            `audio ${A.ready ? A.ctx.state : 'off'}   voices ${A._ends ? A._ends.length : 0}   rev ${A.reverbKind || '-'}\n` +
+            `pad ${this.input.padConnected ? 'R' + this.input.lookAx + '/' + this.input.lookAy : 'none'}`;
+        this.worstFrame = 0; this.longFrames = 0;
+    }
+
     /* תצוגת אבחון חיה למסך ההגדרות — מראה איזה צירים נקראים בפועל */
     updatePadDiag() {
         const el = $('v-ptest');
@@ -6964,6 +7065,7 @@ class Game {
                 this.ui.toast('חזרה לצ׳קפוינט', '#4dd6ff', 1.1);
             }
             if (this.input.mutePressed) this.toggleMute();
+            if (this.input.diagPressed) this.toggleDiag();
 
             if (this.player.pos.y < this.level.killY) this.triggerFall(false);
             else this.checkTriggers();
@@ -6975,6 +7077,7 @@ class Game {
                 (n) => this.input.glyph(n));
         } else if (this.state === 'falling') {
             this.level.update(this.clock, this.player.pos);
+            this.player.prevPos.copy(this.player.pos);
             this.player.vel.y = Math.max(this.player.vel.y - CFG.GRAVITY * dt, CFG.MAX_FALL);
             this.player.pos.y += this.player.vel.y * dt;
             this.player.updateCameraTransform(dt);
@@ -6996,24 +7099,50 @@ class Game {
         this.fpsAcc = 0;
         this.fpsFrames = 0;
         this.ui.setFps(this.fpsValue);
+        if (this.diagOn) this.updateDiag();
         if (this.state !== 'playing') return;
         this.lastAdapt += 0.5;
-        if (this.lastAdapt < 2) return;
+        // ספירת חלונות רצופים של קצב גבוה — מעלים רזולוציה רק אחרי יציבות אמיתית
+        this.goodWindows = this.fpsValue > 58 ? (this.goodWindows || 0) + 1 : 0;
+        this.badWindows = this.fpsValue < 34 ? (this.badWindows || 0) + 1 : 0;
+
+        // אם המחשב פשוט לא עומד בקצב — יורדים בדרגת איכות, פעם אחת לכל כיוון
+        if (this.badWindows >= 4 && !this.autoDropped && this.settings.quality !== 'low') {
+            this.autoDropped = true;
+            this.badWindows = 0;
+            this.settings.quality = this.settings.quality === 'high' ? 'med' : 'low';
+            this.applyQuality();
+            this.applySettingsToUI();
+            Save.save();
+            this.ui.toast('האיכות הופחתה אוטומטית לשיפור החלקות', '#ffd27a', 2.6);
+            return;
+        }
+        if (this.lastAdapt < 2.5) return;
+        // אחרי שלוש התאמות בשלב אחד נועלים את הרזולוציה — עדיף קצב יציב מקפיצות
+        if ((this.adaptCount || 0) >= 3) return;
         const q = QUALITY[this.settings.quality] || QUALITY.high;
         let s = this.dynScale;
         if (this.fpsValue < 45 && s > 0.62) s = Math.max(0.62, s - 0.16);
-        else if (this.fpsValue > 58 && s < 1) s = Math.min(1, s + 0.12);
+        else if (this.goodWindows >= 3 && s < 1) s = Math.min(1, s + 0.12);
         if (Math.abs(s - this.dynScale) > 0.01) {
             this.dynScale = s;
             this.lastAdapt = 0;
+            this.goodWindows = 0;
+            this.adaptCount = (this.adaptCount || 0) + 1;
             const pr = Math.min(window.devicePixelRatio || 1, q.pr) * s;
             this.renderer.setPixelRatio(pr);
             if (this.composer) this.composer.setSize(window.innerWidth, window.innerHeight);
+            this.renderer.shadowMap.needsUpdate = true;
         }
     }
 
     render() {
         if (!this.level) return;
+        // כל שתי פריימים (ושלוש כשקצב הפריימים נמוך) — מספיק לצל שמש שזז לאט
+        this.renderer.info.reset();
+        const every = this.fpsValue < 45 ? 3 : 2;
+        this.shadowTick = (this.shadowTick + 1) % every;
+        this.renderer.shadowMap.needsUpdate = (this.shadowTick === 0);
         const p = this.player.pos;
         this.sky.follow(p);
         const d = this.level.env.sunDir;
@@ -7030,8 +7159,13 @@ class Game {
     loop(now) {
         requestAnimationFrame((t) => this.loop(t));
         if (!this.lastFrame) this.lastFrame = now;
-        let dt = (now - this.lastFrame) / 1000;
+        let raw = now - this.lastFrame;
+        let dt = raw / 1000;
         this.lastFrame = now;
+        if (this.diagOn) {
+            if (raw > (this.worstFrame || 0)) this.worstFrame = raw;
+            this.longFrames = (this.longFrames || 0) + (raw > 33 ? 1 : 0);
+        }
         if (dt > 0.1) dt = 0.1;
         if (dt <= 0) return;
 
@@ -7047,6 +7181,8 @@ class Game {
             const h = 1 / 120;
             while (this.acc >= h && guard < 12) { this.step(h); this.acc -= h; guard++; }
             if (guard >= 12) this.acc = 0;
+            // מיישרים את המצלמה לזמן הציור המדויק — מונע רעד עדין בתנועה
+            this.player.updateCameraTransform(0, this.acc / h);
             if (this.fadeIn > 0) {
                 this.fadeIn -= dt;
                 this.ui.el.flash.style.background = '#000';
