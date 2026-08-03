@@ -653,7 +653,7 @@ const INC_BASE = {
 
 const INC_LOCK = p(INC_BASE, {
   handL: { x: 54, y: 42, bend: -1 },
-  handR: { x: 55, y: 40, bend: -1 },
+  handR: { x: 55.5, y: 42.5, bend: -1 },
 });
 
 const INC_BOTTOM = p(INC_BASE, {
@@ -802,6 +802,1049 @@ const db_shoulder_press = {
   ],
 };
 
+/* ================================================================== *
+ * 6. HANGING / VERTICAL PULLING
+ * Bar at y=15, ground:false — the feet hang below the floor line and
+ * the ground rule would otherwise draw straight through the shins.
+ * ================================================================== */
+
+const BAR_PROP = { type: 'bar', x: 50, y: 15, w: 46, posts: true };
+
+const PU_HANG = HANG;
+const PU_HIGH = PULLUP_TOP;
+const PU_HOLD = p(PULLUP_TOP, { y: 50.6, head: 89 });
+const PU_MID = p(HANG, { y: 55.5, legL: [-86, -93], legR: [-94, -87] });
+
+const pullup = {
+  id: 'pullup',
+  duration: 2800,
+  ground: false,
+  hero: 0.4,
+  ease: 'inOut',
+  props: [BAR_PROP],
+  keys: [
+    { t: 0, pose: PU_HANG },
+    { t: 0.34, pose: PU_HIGH },
+    { t: 0.46, pose: PU_HOLD },
+    { t: 0.74, pose: PU_MID },
+    { t: 1, pose: PU_HANG },
+  ],
+};
+
+/* Chin-up: narrower, supinated grip — same path, elbows track forward. */
+
+const CH_HANG = p(HANG, {
+  handL: { x: 48.5, y: 15, bend: 1 },
+  handR: { x: 51.5, y: 15, bend: 1 },
+});
+
+const CH_TOP = p(CH_HANG, { y: 49, legL: [-84, -96], legR: [-96, -84] });
+const CH_HOLD = p(CH_TOP, { y: 49.6 });
+const CH_MID = p(CH_HANG, { y: 55, legL: [-86, -93], legR: [-94, -87] });
+
+const chinup = {
+  id: 'chinup',
+  duration: 2800,
+  ground: false,
+  hero: 0.4,
+  ease: 'inOut',
+  props: [BAR_PROP],
+  keys: [
+    { t: 0, pose: CH_HANG },
+    { t: 0.34, pose: CH_TOP },
+    { t: 0.46, pose: CH_HOLD },
+    { t: 0.74, pose: CH_MID },
+    { t: 1, pose: CH_HANG },
+  ],
+};
+
+/* Wide grip: the hands sit further out, so the same bar is "closer". */
+
+const WD_HANG = p(HANG, {
+  y: 59,
+  handL: { x: 43, y: 15, bend: 1 },
+  handR: { x: 57, y: 15, bend: 1 },
+});
+
+const WD_TOP = p(WD_HANG, { y: 48.5, legL: [-84, -96], legR: [-96, -84] });
+const WD_HOLD = p(WD_TOP, { y: 49.1 });
+const WD_MID = p(WD_HANG, { y: 53.5, legL: [-86, -93], legR: [-94, -87] });
+
+const wide_pullup = {
+  id: 'wide_pullup',
+  duration: 3000,
+  ground: false,
+  hero: 0.4,
+  ease: 'inOut',
+  props: [BAR_PROP],
+  keys: [
+    { t: 0, pose: WD_HANG },
+    { t: 0.34, pose: WD_TOP },
+    { t: 0.46, pose: WD_HOLD },
+    { t: 0.74, pose: WD_MID },
+    { t: 1, pose: WD_HANG },
+  ],
+};
+
+/* Archer: the body climbs toward the near hand, the far arm stays long. */
+
+const AP_HANG = p(HANG, {
+  x: 48, y: 59,
+  handL: { x: 41, y: 15, bend: 1 },
+  handR: { x: 55, y: 15, bend: 1 },
+});
+
+const AP_TOP = p(AP_HANG, {
+  x: 53, y: 51, spine: 84, head: 84,
+  legL: [-80, -94], legR: [-92, -82],
+});
+
+const AP_HOLD = p(AP_TOP, { y: 51.6 });
+
+const archer_pullup = {
+  id: 'archer_pullup',
+  duration: 3400,
+  ground: false,
+  hero: 0.42,
+  ease: 'inOut',
+  props: [BAR_PROP],
+  keys: [
+    { t: 0, pose: AP_HANG },
+    { t: 0.36, pose: AP_TOP },
+    { t: 0.5, pose: AP_HOLD },
+    { t: 1, pose: AP_HANG },
+  ],
+};
+
+/* Negative: start at the top, five slow seconds down, step back up. */
+
+const NEG_TOP = p(PULLUP_TOP, { y: 49.5 });
+const NEG_MID = p(HANG, { y: 55, legL: [-86, -93], legR: [-94, -87] });
+const NEG_LOW = HANG;
+const NEG_RESET = p(HANG, { y: 60, legL: [-70, -110], legR: [-74, -106], footL: -20, footR: -20 });
+
+const negative_pullup = {
+  id: 'negative_pullup',
+  duration: 4200,
+  ground: false,
+  hero: 0,
+  ease: 'inOut',
+  props: [BAR_PROP],
+  keys: [
+    { t: 0, pose: NEG_TOP },
+    { t: 0.34, pose: NEG_MID },
+    { t: 0.62, pose: NEG_LOW },
+    { t: 0.78, pose: NEG_RESET },
+    { t: 1, pose: NEG_TOP },
+  ],
+};
+
+/* Band assist: one knee hooks into the band, which takes the bottom third. */
+
+const BA_HANG = p(HANG, {
+  legR: [-50, -140], footR: -90,
+});
+
+const BA_TOP = p(BA_HANG, { y: 50, legL: [-84, -96], legR: [-48, -138] });
+const BA_HOLD = p(BA_TOP, { y: 50.6 });
+const BA_MID = p(BA_HANG, { y: 55.5, legR: [-49, -139] });
+
+const band_assisted_pullup = {
+  id: 'band_assisted_pullup',
+  duration: 2800,
+  ground: false,
+  hero: 0.4,
+  ease: 'inOut',
+  props: [
+    BAR_PROP,
+    { type: 'band', x0: 46, y0: 16, x1: 48.5, y1: 78, sag: 3 },
+  ],
+  keys: [
+    { t: 0, pose: BA_HANG },
+    { t: 0.34, pose: BA_TOP },
+    { t: 0.46, pose: BA_HOLD },
+    { t: 0.74, pose: BA_MID },
+    { t: 1, pose: BA_HANG },
+  ],
+};
+
+/* Muscle-up: pull, then the torso passes ABOVE the bar into support.
+   The bar sits lower than usual so both the hang and the catch fit on canvas. */
+
+const MU_BAR = { type: 'bar', x: 50, y: 26, w: 44, posts: true };
+
+const MU_HANG = {
+  x: 50, y: 71.8, spine: 90, head: 90,
+  handL: { x: 47, y: 26, bend: 1 },
+  handR: { x: 53, y: 26, bend: 1 },
+  legL: [-25, -105], legR: [-29, -101],
+  footL: -40, footR: -40,
+};
+
+const MU_PULL = p(MU_HANG, {
+  x: 49, y: 60, spine: 84, head: 84,
+  legL: [-15, -95], legR: [-19, -91],
+  footL: -30, footR: -30,
+});
+
+const MU_CATCH = p(MU_HANG, {
+  x: 36.47, y: 27.71, spine: 40, head: 34,
+  legL: [-75, -95], legR: [-79, -91],
+  footL: -10, footR: -10,
+});
+
+const MU_SUPPORT = p(MU_CATCH, { x: 36.9, y: 27.2, spine: 42, head: 36 });
+
+const muscle_up = {
+  id: 'muscle_up',
+  duration: 3000,
+  ground: false,
+  hero: 0.46,
+  ease: 'inOut',
+  props: [MU_BAR],
+  keys: [
+    { t: 0, pose: MU_HANG },
+    { t: 0.26, pose: MU_PULL },
+    { t: 0.46, pose: MU_CATCH },
+    { t: 0.58, pose: MU_SUPPORT },
+    { t: 1, pose: MU_HANG },
+  ],
+};
+
+/* Dead hang: nothing moves but the pendulum and the breath. */
+
+const DH_A = HANG;
+const DH_B = p(HANG, { x: 50.8, y: 60.7, spine: 92, head: 92, legL: [-86, -88], legR: [-90, -88] });
+const DH_C = p(HANG, { x: 49.2, y: 60.7, spine: 88, head: 88, legL: [-90, -92], legR: [-94, -92] });
+
+const dead_hang = {
+  id: 'dead_hang',
+  duration: 4200,
+  ground: false,
+  hero: 0,
+  ease: 'inOut',
+  props: [BAR_PROP],
+  keys: [
+    { t: 0, pose: DH_A },
+    { t: 0.3, pose: DH_B },
+    { t: 0.66, pose: DH_C },
+    { t: 1, pose: DH_A },
+  ],
+};
+
+/* Scapular pull: elbows stay long, only the shoulder blades work. */
+
+const SCAP_DOWN = HANG;
+const SCAP_UP = p(HANG, { y: 59, head: 88 });
+const SCAP_HOLD = p(SCAP_UP, { y: 59.4 });
+
+const scap_pull = {
+  id: 'scap_pull',
+  duration: 2400,
+  ground: false,
+  hero: 0.38,
+  ease: 'inOut',
+  props: [BAR_PROP],
+  keys: [
+    { t: 0, pose: SCAP_DOWN },
+    { t: 0.38, pose: SCAP_UP },
+    { t: 0.52, pose: SCAP_HOLD },
+    { t: 1, pose: SCAP_DOWN },
+  ],
+};
+
+/* Tuck front lever: hips rise until the back is horizontal under the bar. */
+
+const FL_HANG = HANG;
+
+const FL_MID = p(HANG, {
+  x: 38, y: 50, spine: 45, head: 45,
+  legL: [-40, -130], legR: [-44, -126],
+  footL: -30, footR: -30,
+});
+
+const FL_TUCK = p(HANG, {
+  x: 27.12, y: 38, spine: 0, head: 0,
+  legL: [10, -160], legR: [6, -164],
+  footL: -60, footR: -60,
+});
+
+const FL_HOLD = p(FL_TUCK, { x: 27.6, y: 38.6, spine: 2, head: 2 });
+
+const front_lever_tuck = {
+  id: 'front_lever_tuck',
+  duration: 4000,
+  ground: false,
+  hero: 0.5,
+  ease: 'inOut',
+  props: [BAR_PROP],
+  keys: [
+    { t: 0, pose: FL_HANG },
+    { t: 0.28, pose: FL_MID },
+    { t: 0.46, pose: FL_TUCK },
+    { t: 0.64, pose: FL_HOLD },
+    { t: 1, pose: FL_HANG },
+  ],
+};
+
+/* ================================================================== *
+ * 7. ROWING — horizontal pulling
+ * ================================================================== */
+
+/* Inverted row: body long and diagonal, heels planted, bar overhead. */
+
+const AR_BOTTOM = {
+  x: 34.5, y: 82.42, spine: 20, head: 24,
+  handL: { x: 56, y: 52, bend: 1 },
+  handR: { x: 60, y: 52, bend: 1 },
+  footPtL: { x: 5, y: 85, bend: -1 },
+  footPtR: { x: 6.5, y: 85, bend: -1 },
+  footL: 60, footR: 60,
+};
+
+const AR_TOP = p(AR_BOTTOM, { x: 33.62, y: 77.4, spine: 30, head: 34 });
+const AR_HOLD = p(AR_BOTTOM, { x: 33.8, y: 77.9, spine: 29, head: 33 });
+
+const aussie_row = {
+  id: 'aussie_row',
+  duration: 2800,
+  ground: true,
+  hero: 0.42,
+  ease: 'inOut',
+  props: [{ type: 'bar', x: 58, y: 52, w: 36, posts: true }],
+  keys: [
+    { t: 0, pose: AR_BOTTOM },
+    { t: 0.42, pose: AR_TOP },
+    { t: 0.54, pose: AR_HOLD },
+    { t: 1, pose: AR_BOTTOM },
+  ],
+};
+
+const RR_BOTTOM = p(AR_BOTTOM, {
+  handL: { x: 55, y: 52, bend: 1 },
+  handR: { x: 61, y: 52, bend: 1 },
+});
+
+const RR_TOP = p(RR_BOTTOM, { x: 33.62, y: 77.4, spine: 30, head: 34 });
+const RR_HOLD = p(RR_BOTTOM, { x: 33.9, y: 78.1, spine: 29, head: 33 });
+
+const ring_row = {
+  id: 'ring_row',
+  duration: 2900,
+  ground: true,
+  hero: 0.42,
+  ease: 'inOut',
+  props: [{ type: 'rings', x: 58, y: 52, w: 6, y0: 6 }],
+  keys: [
+    { t: 0, pose: RR_BOTTOM },
+    { t: 0.42, pose: RR_TOP },
+    { t: 0.54, pose: RR_HOLD },
+    { t: 1, pose: RR_BOTTOM },
+  ],
+};
+
+/* Bent-over rowing: hips back, spine long at ~30deg, elbows drive past the ribs. */
+
+const HINGED = {
+  x: 46, y: 62, spine: 32, head: 26,
+  footPtL: { x: 46, y: 87.5, bend: 1 },
+  footPtR: { x: 48, y: 87.5, bend: 1 },
+  footL: 2, footR: 2,
+};
+
+const BR_HANG = p(HINGED, {
+  load: 'barbell',
+  handL: { x: 64, y: 73, bend: -1 },
+  handR: { x: 66, y: 73, bend: -1 },
+});
+
+const BR_TOP = p(BR_HANG, {
+  handL: { x: 58.5, y: 63, bend: -1 },
+  handR: { x: 60.5, y: 63, bend: -1 },
+});
+
+const BR_HOLD = p(BR_HANG, {
+  handL: { x: 58.9, y: 63.6, bend: -1 },
+  handR: { x: 60.9, y: 63.6, bend: -1 },
+});
+
+const bent_row = {
+  id: 'bent_row',
+  duration: 2800,
+  ground: true,
+  hero: 0.42,
+  ease: 'inOut',
+  props: [],
+  keys: [
+    { t: 0, pose: BR_HANG },
+    { t: 0.42, pose: BR_TOP },
+    { t: 0.54, pose: BR_HOLD },
+    { t: 1, pose: BR_HANG },
+  ],
+};
+
+const DR_HANG = p(HINGED, {
+  load: 'dumbbell',
+  handL: { x: 64.5, y: 73, bend: -1 },
+  handR: { x: 66.5, y: 73, bend: -1 },
+});
+
+const DR_TOP = p(DR_HANG, {
+  handL: { x: 58.5, y: 63, bend: -1 },
+  handR: { x: 60.5, y: 62, bend: -1 },
+});
+
+const DR_HOLD = p(DR_HANG, {
+  handL: { x: 58.9, y: 63.6, bend: -1 },
+  handR: { x: 60.9, y: 62.6, bend: -1 },
+});
+
+const db_row = {
+  id: 'db_row',
+  duration: 2800,
+  ground: true,
+  hero: 0.42,
+  ease: 'inOut',
+  props: [],
+  keys: [
+    { t: 0, pose: DR_HANG },
+    { t: 0.42, pose: DR_TOP },
+    { t: 0.54, pose: DR_HOLD },
+    { t: 1, pose: DR_HANG },
+  ],
+};
+
+/* Seated cable row: reach long at the front, finish tall with elbows in. */
+
+const CR_STRETCH = p(SEATED, {
+  x: 47, y: 68, spine: 78, head: 74,
+  handL: { x: 70, y: 56, bend: -1 },
+  handR: { x: 72, y: 55.5, bend: -1 },
+});
+
+const CR_PULL = p(CR_STRETCH, {
+  spine: 95, head: 92,
+  handL: { x: 56, y: 58, bend: -1 },
+  handR: { x: 58, y: 57.5, bend: -1 },
+});
+
+const CR_HOLD = p(CR_STRETCH, {
+  spine: 94, head: 91,
+  handL: { x: 56.4, y: 58.4, bend: -1 },
+  handR: { x: 58.4, y: 57.9, bend: -1 },
+});
+
+const cable_row = {
+  id: 'cable_row',
+  duration: 2800,
+  ground: true,
+  hero: 0.44,
+  ease: 'inOut',
+  props: [
+    { type: 'machine', x: 80, y: 50, w: 14, h: 38 },
+    { type: 'band', x0: 73, y0: 57, x1: 64, y1: 56.5, sag: 0 },
+  ],
+  keys: [
+    { t: 0, pose: CR_STRETCH },
+    { t: 0.4, pose: CR_PULL },
+    { t: 0.52, pose: CR_HOLD },
+    { t: 1, pose: CR_STRETCH },
+  ],
+};
+
+/* Lat pulldown: seated, slight lean back, bar to the collarbone. */
+
+const LP_TOP = p(SEATED, {
+  x: 46, y: 70, spine: 86, head: 86,
+  load: 'barbell',
+  handL: { x: 50, y: 26, bend: -1 },
+  handR: { x: 56, y: 27, bend: -1 },
+});
+
+const LP_DOWN = p(LP_TOP, {
+  spine: 78, head: 78,
+  handL: { x: 57, y: 57, bend: -1 },
+  handR: { x: 61, y: 56.5, bend: -1 },
+});
+
+const LP_HOLD = p(LP_TOP, {
+  spine: 79, head: 79,
+  handL: { x: 56.6, y: 56.4, bend: -1 },
+  handR: { x: 60.6, y: 55.9, bend: -1 },
+});
+
+const lat_pulldown = {
+  id: 'lat_pulldown',
+  duration: 2800,
+  ground: true,
+  hero: 0.44,
+  ease: 'inOut',
+  props: [
+    { type: 'machine', x: 54, y: 6, w: 22, h: 16 },
+    { type: 'bench', x: 44, y: 74, w: 20, h: 5 },
+    { type: 'band', x0: 53, y0: 22, x1: 53, y1: 30, sag: 0 },
+  ],
+  keys: [
+    { t: 0, pose: LP_TOP },
+    { t: 0.42, pose: LP_DOWN },
+    { t: 0.54, pose: LP_HOLD },
+    { t: 1, pose: LP_TOP },
+  ],
+};
+
+/* Face pull: high cable to the forehead, elbows above the wrists. */
+
+const FP_OUT = p(STAND, {
+  x: 44,
+  handL: { x: 64, y: 38, bend: 1 },
+  handR: { x: 66, y: 38.5, bend: 1 },
+});
+
+const FP_IN = p(FP_OUT, {
+  handL: { x: 54, y: 30, bend: 1 },
+  handR: { x: 57, y: 29, bend: 1 },
+});
+
+const FP_HOLD = p(FP_OUT, {
+  handL: { x: 54.4, y: 30.4, bend: 1 },
+  handR: { x: 57.4, y: 29.4, bend: 1 },
+});
+
+const face_pull = {
+  id: 'face_pull',
+  duration: 2600,
+  ground: true,
+  hero: 0.44,
+  ease: 'inOut',
+  props: [
+    { type: 'machine', x: 88, y: 18, w: 14, h: 44 },
+    { type: 'band', x0: 81, y0: 36, x1: 65, y1: 38, sag: 1 },
+  ],
+  keys: [
+    { t: 0, pose: FP_OUT },
+    { t: 0.42, pose: FP_IN },
+    { t: 0.54, pose: FP_HOLD },
+    { t: 1, pose: FP_OUT },
+  ],
+};
+
+/* Band pull-apart: arms stay long and open in front of the chest. */
+
+const BPA_TOGETHER = p(STAND, {
+  handL: { x: 70, y: 28, bend: 1 },
+  handR: { x: 71, y: 38, bend: -1 },
+});
+
+const BPA_MID = p(BPA_TOGETHER, {
+  handL: { x: 68, y: 23, bend: 1 },
+  handR: { x: 70.5, y: 40, bend: -1 },
+});
+
+const BPA_APART = p(BPA_TOGETHER, {
+  handL: { x: 65, y: 19, bend: 1 },
+  handR: { x: 70, y: 42, bend: -1 },
+});
+
+const BPA_HOLD = p(BPA_TOGETHER, {
+  handL: { x: 65.4, y: 19.6, bend: 1 },
+  handR: { x: 70.2, y: 41.4, bend: -1 },
+});
+
+const band_pull_apart = {
+  id: 'band_pull_apart',
+  duration: 2400,
+  ground: true,
+  hero: 0.44,
+  ease: 'inOut',
+  props: [{ type: 'band', x0: 65, y0: 20, x1: 70, y1: 41, sag: -3 }],
+  keys: [
+    { t: 0, pose: BPA_TOGETHER },
+    { t: 0.24, pose: BPA_MID },
+    { t: 0.44, pose: BPA_APART },
+    { t: 0.56, pose: BPA_HOLD },
+    { t: 1, pose: BPA_TOGETHER },
+  ],
+};
+
+/* ================================================================== *
+ * 8. ARMS AND SHOULDERS — isolation
+ * The IK bend is what pins the elbow: bend -1 under the shoulder keeps a
+ * curl honest, bend +1 above it keeps a face pull / press honest.
+ * ================================================================== */
+
+const CURL_DOWN = p(STAND, {
+  load: 'dumbbell',
+  handL: { x: 49, y: 57.4, bend: -1 },
+  handR: { x: 51, y: 57.4, bend: -1 },
+});
+
+const CURL_MID = p(CURL_DOWN, {
+  handL: { x: 56.5, y: 46, bend: -1 },
+  handR: { x: 58, y: 45, bend: -1 },
+});
+
+const CURL_TOP = p(CURL_DOWN, {
+  handL: { x: 55, y: 36.5, bend: -1 },
+  handR: { x: 56.5, y: 35.5, bend: -1 },
+});
+
+const CURL_HOLD = p(CURL_DOWN, {
+  handL: { x: 55.2, y: 37.2, bend: -1 },
+  handR: { x: 56.7, y: 36.2, bend: -1 },
+});
+
+const biceps_curl = {
+  id: 'biceps_curl',
+  duration: 2600,
+  ground: true,
+  hero: 0.42,
+  ease: 'inOut',
+  props: [],
+  keys: [
+    { t: 0, pose: CURL_DOWN },
+    { t: 0.24, pose: CURL_MID },
+    { t: 0.42, pose: CURL_TOP },
+    { t: 0.52, pose: CURL_HOLD },
+    { t: 1, pose: CURL_DOWN },
+  ],
+};
+
+/* Hammer: neutral grip, finishes a touch lower and closer to the body. */
+
+const HAM_MID = p(CURL_DOWN, {
+  handL: { x: 56, y: 47, bend: -1 },
+  handR: { x: 57.5, y: 46, bend: -1 },
+});
+
+const HAM_TOP = p(CURL_DOWN, {
+  handL: { x: 56, y: 39, bend: -1 },
+  handR: { x: 57.5, y: 38, bend: -1 },
+});
+
+const HAM_HOLD = p(CURL_DOWN, {
+  handL: { x: 56.2, y: 39.6, bend: -1 },
+  handR: { x: 57.7, y: 38.6, bend: -1 },
+});
+
+const hammer_curl = {
+  id: 'hammer_curl',
+  duration: 2600,
+  ground: true,
+  hero: 0.42,
+  ease: 'inOut',
+  props: [],
+  keys: [
+    { t: 0, pose: CURL_DOWN },
+    { t: 0.24, pose: HAM_MID },
+    { t: 0.42, pose: HAM_TOP },
+    { t: 0.52, pose: HAM_HOLD },
+    { t: 1, pose: CURL_DOWN },
+  ],
+};
+
+/* Pushdown: the elbow never leaves the ribs, only the forearm travels. */
+
+const PD_TOP = p(STAND, {
+  x: 42,
+  handL: { x: 52, y: 44, bend: -1 },
+  handR: { x: 53.5, y: 45, bend: -1 },
+});
+
+const PD_LOCK = p(PD_TOP, {
+  handL: { x: 50, y: 55, bend: -1 },
+  handR: { x: 51.5, y: 55, bend: -1 },
+});
+
+const PD_HOLD = p(PD_TOP, {
+  handL: { x: 50, y: 54.4, bend: -1 },
+  handR: { x: 51.5, y: 54.4, bend: -1 },
+});
+
+const triceps_pushdown = {
+  id: 'triceps_pushdown',
+  duration: 2400,
+  ground: true,
+  hero: 0.44,
+  ease: 'inOut',
+  props: [
+    { type: 'machine', x: 56, y: 4, w: 10, h: 20 },
+    { type: 'band', x0: 56, y0: 24, x1: 52, y1: 43, sag: 1 },
+  ],
+  keys: [
+    { t: 0, pose: PD_TOP },
+    { t: 0.4, pose: PD_LOCK },
+    { t: 0.52, pose: PD_HOLD },
+    { t: 1, pose: PD_TOP },
+  ],
+};
+
+/* Shrug: the load rises, the neck shortens, the feet stay welded down. */
+
+const SHRUG_DOWN = p(STAND, {
+  load: 'dumbbell',
+  head: 90,
+  handL: { x: 48.5, y: 57.4, bend: -1 },
+  handR: { x: 51.5, y: 57.4, bend: -1 },
+});
+
+const SHRUG_UP = p(SHRUG_DOWN, {
+  head: 84,
+  handL: { x: 48.5, y: 55.2, bend: -1 },
+  handR: { x: 51.5, y: 55.2, bend: -1 },
+});
+
+const SHRUG_HOLD = p(SHRUG_DOWN, {
+  head: 85,
+  handL: { x: 48.5, y: 55.6, bend: -1 },
+  handR: { x: 51.5, y: 55.6, bend: -1 },
+});
+
+const shrug = {
+  id: 'shrug',
+  duration: 2200,
+  ground: true,
+  hero: 0.36,
+  ease: 'inOut',
+  props: [],
+  keys: [
+    { t: 0, pose: SHRUG_DOWN },
+    { t: 0.36, pose: SHRUG_UP },
+    { t: 0.48, pose: SHRUG_HOLD },
+    { t: 1, pose: SHRUG_DOWN },
+  ],
+};
+
+/* Lateral raise: the hands ride an arc at arm's length, never above the ears. */
+
+const LR_DOWN = p(STAND, {
+  load: 'dumbbell',
+  handL: { x: 49, y: 57.1, bend: 1 },
+  handR: { x: 51, y: 57.1, bend: -1 },
+});
+
+const LR_MID = p(LR_DOWN, {
+  handL: { x: 33.7, y: 50.4, bend: 1 },
+  handR: { x: 66.3, y: 50.4, bend: -1 },
+});
+
+const LR_TOP = p(LR_DOWN, {
+  handL: { x: 27, y: 35, bend: 1 },
+  handR: { x: 73, y: 35, bend: -1 },
+});
+
+const LR_HOLD = p(LR_DOWN, {
+  handL: { x: 27.6, y: 35.8, bend: 1 },
+  handR: { x: 72.4, y: 35.8, bend: -1 },
+});
+
+const lateral_raise = {
+  id: 'lateral_raise',
+  duration: 2800,
+  ground: true,
+  hero: 0.4,
+  ease: 'inOut',
+  props: [],
+  keys: [
+    { t: 0, pose: LR_DOWN },
+    { t: 0.22, pose: LR_MID },
+    { t: 0.4, pose: LR_TOP },
+    { t: 0.5, pose: LR_HOLD },
+    { t: 1, pose: LR_DOWN },
+  ],
+};
+
+/* Front raise: same arc, straight out in front to eye level. */
+
+const FR_DOWN = p(STAND, {
+  load: 'dumbbell',
+  handL: { x: 49, y: 57.1, bend: -1 },
+  handR: { x: 51, y: 57.1, bend: -1 },
+});
+
+const FR_MID = p(FR_DOWN, {
+  handL: { x: 64, y: 50.5, bend: -1 },
+  handR: { x: 65.5, y: 51, bend: -1 },
+});
+
+const FR_TOP = p(FR_DOWN, {
+  handL: { x: 72, y: 34, bend: -1 },
+  handR: { x: 73, y: 35.5, bend: -1 },
+});
+
+const FR_HOLD = p(FR_DOWN, {
+  handL: { x: 71.4, y: 34.6, bend: -1 },
+  handR: { x: 72.4, y: 36.1, bend: -1 },
+});
+
+const front_raise = {
+  id: 'front_raise',
+  duration: 2800,
+  ground: true,
+  hero: 0.4,
+  ease: 'inOut',
+  props: [],
+  keys: [
+    { t: 0, pose: FR_DOWN },
+    { t: 0.22, pose: FR_MID },
+    { t: 0.4, pose: FR_TOP },
+    { t: 0.5, pose: FR_HOLD },
+    { t: 1, pose: FR_DOWN },
+  ],
+};
+
+/* Rear fly: hinged over, the hands travel back past the hips, elbows high. */
+
+const RF_DOWN = p(HINGED, {
+  spine: 30, head: 24,
+  load: 'dumbbell',
+  handL: { x: 64, y: 73, bend: -1 },
+  handR: { x: 66, y: 73.5, bend: -1 },
+});
+
+const RF_MID = p(RF_DOWN, {
+  handL: { x: 54, y: 64.5, bend: -1 },
+  handR: { x: 57, y: 68, bend: -1 },
+});
+
+const RF_BACK = p(RF_DOWN, {
+  handL: { x: 45, y: 58, bend: -1 },
+  handR: { x: 48, y: 63, bend: -1 },
+});
+
+const RF_HOLD = p(RF_DOWN, {
+  handL: { x: 45.6, y: 58.8, bend: -1 },
+  handR: { x: 48.6, y: 63.6, bend: -1 },
+});
+
+const reverse_fly = {
+  id: 'reverse_fly',
+  duration: 2800,
+  ground: true,
+  hero: 0.44,
+  ease: 'inOut',
+  props: [],
+  keys: [
+    { t: 0, pose: RF_DOWN },
+    { t: 0.24, pose: RF_MID },
+    { t: 0.44, pose: RF_BACK },
+    { t: 0.56, pose: RF_HOLD },
+    { t: 1, pose: RF_DOWN },
+  ],
+};
+
+/* ================================================================== *
+ * 9. GENERIC PATTERN FALLBACKS
+ * clips.index.js resolves exercise.anim -> clip id -> pattern name, so
+ * these play for every upper-body exercise without a bespoke clip.
+ * Each one is the plainest honest representative of its pattern.
+ * ================================================================== */
+
+const horizontal_push = {
+  id: 'horizontal_push',
+  duration: 2600,
+  ground: true,
+  hero: 0.42,
+  ease: 'inOut',
+  props: [],
+  keys: [
+    { t: 0, pose: PU_TOP },
+    { t: 0.42, pose: PU_BOTTOM },
+    { t: 0.54, pose: PU_PAUSE },
+    { t: 1, pose: PU_TOP },
+  ],
+};
+
+const vertical_push = {
+  id: 'vertical_push',
+  duration: 2800,
+  ground: true,
+  hero: 0.44,
+  ease: 'inOut',
+  props: [],
+  keys: [
+    { t: 0, pose: PIKE_TOP },
+    { t: 0.44, pose: PIKE_BOTTOM },
+    { t: 0.58, pose: PIKE_PAUSE },
+    { t: 1, pose: PIKE_TOP },
+  ],
+};
+
+/* Unloaded bent-over row — no bar, no bench, just the pulling shape. */
+
+const GHP_HANG = p(HINGED, {
+  handL: { x: 64, y: 73, bend: -1 },
+  handR: { x: 66, y: 73, bend: -1 },
+});
+
+const GHP_TOP = p(GHP_HANG, {
+  handL: { x: 58.5, y: 63, bend: -1 },
+  handR: { x: 60.5, y: 63, bend: -1 },
+});
+
+const GHP_HOLD = p(GHP_HANG, {
+  handL: { x: 58.9, y: 63.6, bend: -1 },
+  handR: { x: 60.9, y: 63.6, bend: -1 },
+});
+
+const horizontal_pull = {
+  id: 'horizontal_pull',
+  duration: 2800,
+  ground: true,
+  hero: 0.42,
+  ease: 'inOut',
+  props: [],
+  keys: [
+    { t: 0, pose: GHP_HANG },
+    { t: 0.42, pose: GHP_TOP },
+    { t: 0.54, pose: GHP_HOLD },
+    { t: 1, pose: GHP_HANG },
+  ],
+};
+
+const vertical_pull = {
+  id: 'vertical_pull',
+  duration: 2800,
+  ground: false,
+  hero: 0.4,
+  ease: 'inOut',
+  props: [BAR_PROP],
+  keys: [
+    { t: 0, pose: PU_HANG },
+    { t: 0.34, pose: PU_HIGH },
+    { t: 0.46, pose: PU_HOLD },
+    { t: 0.74, pose: PU_MID },
+    { t: 1, pose: PU_HANG },
+  ],
+};
+
+/* Unloaded curl / extension / raise shapes for the arm and shoulder patterns. */
+
+const GB_DOWN = p(STAND, {
+  handL: { x: 49, y: 57.4, bend: -1 },
+  handR: { x: 51, y: 57.4, bend: -1 },
+});
+
+const GB_MID = p(GB_DOWN, {
+  handL: { x: 56.5, y: 46, bend: -1 },
+  handR: { x: 58, y: 45, bend: -1 },
+});
+
+const GB_TOP = p(GB_DOWN, {
+  handL: { x: 55, y: 36.5, bend: -1 },
+  handR: { x: 56.5, y: 35.5, bend: -1 },
+});
+
+const GB_HOLD = p(GB_DOWN, {
+  handL: { x: 55.2, y: 37.2, bend: -1 },
+  handR: { x: 56.7, y: 36.2, bend: -1 },
+});
+
+const arms_biceps = {
+  id: 'arms_biceps',
+  duration: 2600,
+  ground: true,
+  hero: 0.42,
+  ease: 'inOut',
+  props: [],
+  keys: [
+    { t: 0, pose: GB_DOWN },
+    { t: 0.24, pose: GB_MID },
+    { t: 0.42, pose: GB_TOP },
+    { t: 0.52, pose: GB_HOLD },
+    { t: 1, pose: GB_DOWN },
+  ],
+};
+
+/* Triceps: a narrow-hand push-up needs nothing but the floor. */
+
+const arms_triceps = {
+  id: 'arms_triceps',
+  duration: 2800,
+  ground: true,
+  hero: 0.44,
+  ease: 'inOut',
+  props: [],
+  keys: [
+    { t: 0, pose: DIA_TOP },
+    { t: 0.44, pose: DIA_BOTTOM },
+    { t: 0.58, pose: DIA_PAUSE },
+    { t: 1, pose: DIA_TOP },
+  ],
+};
+
+const GLR_DOWN = p(STAND, {
+  handL: { x: 49, y: 57.1, bend: 1 },
+  handR: { x: 51, y: 57.1, bend: -1 },
+});
+
+const GLR_MID = p(GLR_DOWN, {
+  handL: { x: 33.7, y: 50.4, bend: 1 },
+  handR: { x: 66.3, y: 50.4, bend: -1 },
+});
+
+const GLR_TOP = p(GLR_DOWN, {
+  handL: { x: 27, y: 35, bend: 1 },
+  handR: { x: 73, y: 35, bend: -1 },
+});
+
+const GLR_HOLD = p(GLR_DOWN, {
+  handL: { x: 27.6, y: 35.8, bend: 1 },
+  handR: { x: 72.4, y: 35.8, bend: -1 },
+});
+
+const shoulders_lateral = {
+  id: 'shoulders_lateral',
+  duration: 2800,
+  ground: true,
+  hero: 0.4,
+  ease: 'inOut',
+  props: [],
+  keys: [
+    { t: 0, pose: GLR_DOWN },
+    { t: 0.22, pose: GLR_MID },
+    { t: 0.4, pose: GLR_TOP },
+    { t: 0.5, pose: GLR_HOLD },
+    { t: 1, pose: GLR_DOWN },
+  ],
+};
+
+const GRF_DOWN = p(HINGED, {
+  spine: 30, head: 24,
+  handL: { x: 64, y: 73, bend: -1 },
+  handR: { x: 66, y: 73.5, bend: -1 },
+});
+
+const GRF_MID = p(GRF_DOWN, {
+  handL: { x: 54, y: 64.5, bend: -1 },
+  handR: { x: 57, y: 68, bend: -1 },
+});
+
+const GRF_BACK = p(GRF_DOWN, {
+  handL: { x: 45, y: 58, bend: -1 },
+  handR: { x: 48, y: 63, bend: -1 },
+});
+
+const GRF_HOLD = p(GRF_DOWN, {
+  handL: { x: 45.6, y: 58.8, bend: -1 },
+  handR: { x: 48.6, y: 63.6, bend: -1 },
+});
+
+const shoulders_rear = {
+  id: 'shoulders_rear',
+  duration: 2800,
+  ground: true,
+  hero: 0.44,
+  ease: 'inOut',
+  props: [],
+  keys: [
+    { t: 0, pose: GRF_DOWN },
+    { t: 0.24, pose: GRF_MID },
+    { t: 0.44, pose: GRF_BACK },
+    { t: 0.56, pose: GRF_HOLD },
+    { t: 1, pose: GRF_DOWN },
+  ],
+};
+
 export const UPPER_CLIPS = Object.assign({}, {
   pushup,
   knee_pushup,
@@ -827,5 +1870,37 @@ export const UPPER_CLIPS = Object.assign({}, {
   machine_chest_press,
   overhead_press,
   db_shoulder_press,
+  pullup,
+  chinup,
+  wide_pullup,
+  archer_pullup,
+  negative_pullup,
+  band_assisted_pullup,
+  muscle_up,
+  dead_hang,
+  scap_pull,
+  front_lever_tuck,
+  aussie_row,
+  ring_row,
+  bent_row,
+  db_row,
+  cable_row,
+  lat_pulldown,
+  face_pull,
+  band_pull_apart,
+  biceps_curl,
+  hammer_curl,
+  triceps_pushdown,
+  shrug,
+  lateral_raise,
+  front_raise,
+  reverse_fly,
+  horizontal_push,
+  vertical_push,
+  horizontal_pull,
+  vertical_pull,
+  arms_biceps,
+  arms_triceps,
+  shoulders_lateral,
+  shoulders_rear,
 });
-/* __TAIL__ */
