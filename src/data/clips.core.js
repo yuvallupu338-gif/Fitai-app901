@@ -50,15 +50,20 @@ function shoulderOf(pose) {
   return solve(pose).shoulder;
 }
 
-/** Hands folded on the chest, placed in the torso's own frame (crunch, sit-up). */
-function chestHands(pose, bend) {
-  const [sx, sy] = shoulderOf(pose);
+/**
+ * Hands cradling the back of the head, placed in the torso's own frame so they
+ * travel with the skull through a crunch or sit-up. Elbows end up flared and
+ * clear of the floor, which hands-on-chest never manages lying down.
+ */
+function headHands(pose) {
+  const j = solve(pose);
+  const [hx, hy] = j.head;
   const r = ((pose.spine === undefined ? 90 : pose.spine) * Math.PI) / 180;
-  const bx = -Math.cos(r); const by = Math.sin(r);   // shoulder -> pelvis
-  const fx = -Math.sin(r); const fy = -Math.cos(r);  // straight out of the chest
+  const ux = Math.cos(r); const uy = -Math.sin(r);   // along the spine, pelvis -> head
+  const bx = Math.sin(r); const by = Math.cos(r);    // behind the body
   return p(pose, {
-    handL: { x: sx + 6.6 * bx + 4.0 * fx, y: sy + 6.6 * by + 4.0 * fy, bend },
-    handR: { x: sx + 5.4 * bx + 5.4 * fx, y: sy + 5.4 * by + 5.4 * fy, bend },
+    handL: { x: hx + 3.5 * ux + 1.2 * bx, y: hy + 3.5 * uy + 1.2 * by, bend: 1 },
+    handR: { x: hx + 3.2 * ux + 2.4 * bx, y: hy + 3.2 * uy + 2.4 * by, bend: 1 },
   });
 }
 
@@ -268,9 +273,9 @@ const FEET_PLANTED = {
 };
 
 function crunchPose(spine, tuck) {
-  return chestHands(p(SUPINE, Object.assign({
+  return headHands(p(SUPINE, Object.assign({
     x: 42, y: 85.2, spine, head: spine + tuck,
-  }, FEET_PLANTED)), 1);
+  }, FEET_PLANTED)));
 }
 
 const CR_DOWN = crunchPose(10, 12);
@@ -293,9 +298,9 @@ const crunch = clip({
 /* Sit-up — same anchor, but the torso keeps rotating past vertical until the
    chest is over the knees. Spine climbs 10 -> 100, never wrapping. */
 function situpPose(spine, tuck) {
-  return chestHands(p(SUPINE, Object.assign({
+  return headHands(p(SUPINE, Object.assign({
     x: 42, y: 85.4, spine, head: spine + tuck,
-  }, FEET_PLANTED)), 1);
+  }, FEET_PLANTED)));
 }
 
 const SU_DOWN = situpPose(10, 12);
@@ -708,8 +713,8 @@ const bird_dog = clip({
 
 /* Cat-cow. One spine segment cannot round, so the wave is carried by the head
    plus a small hip rise and fall; the range stays honest instead of pretty. */
-const CC_COW = quadPose(22.5, 45);   // belly drops, eyes up
-const CC_CAT = quadPose(17.5, -25);  // hips tuck, chin to chest
+const CC_COW = quadPose(22.5, 55);   // belly drops, eyes up
+const CC_CAT = quadPose(17.5, -40);  // hips tuck, chin to chest
 
 const cat_cow = clip({
   id: 'cat_cow',
@@ -738,15 +743,18 @@ function climberPose(spine, rLeg, lLeg) {
     head: spine - 8,
     handL: { x: 56.4, y: FLOOR, bend: -1 },
     handR: { x: 58.4, y: FLOOR, bend: -1 },
-    legL: lLeg, legR: rLeg,
-    footL: -30, footR: -30,
+    legL: [lLeg[0], lLeg[1]], legR: [rLeg[0], rLeg[1]],
+    footL: lLeg[2], footR: rLeg[2],
   }));
 }
 
-const MC_R = climberPose(23, [-40, -175], [-157, -157]);
-const MC_SWAP_A = climberPose(13.9, [-90, -176], [-120, -170]);
-const MC_L = climberPose(23, [-157, -157], [-40, -175]);
-const MC_SWAP_B = climberPose(13.9, [-120, -170], [-90, -176]);
+/* Angles run in a 150..330 band rather than crossing -180: the swing shin has
+   to point UP-and-back (150) to fold the heel under the seat, and mixing that
+   with -157 would spin the leg the long way round. */
+const MC_R = climberPose(23, [320, 168, 330], [203, 203, 330]);
+const MC_SWAP_A = climberPose(13.9, [260, 150, 320], [237, 176, 325]);
+const MC_L = climberPose(23, [203, 203, 330], [320, 168, 330]);
+const MC_SWAP_B = climberPose(13.9, [237, 176, 325], [260, 150, 320]);
 
 const mountain_climber = clip({
   id: 'mountain_climber',
@@ -851,8 +859,8 @@ const jumping_jack = clip({
 /* Jump rope. Wrists stay parked at the hips all clip long so the rope — drawn
    as a band arc from the far hand to the near hand — keeps its ends. */
 const ROPE_HANDS = {
-  handL: { x: 41, y: 52, bend: -1 },
-  handR: { x: 60, y: 50, bend: -1 },
+  handL: { x: 41, y: 52, bend: 1 },   // far hand parked behind the hip
+  handR: { x: 60, y: 50, bend: -1 },  // near hand out in front of it
 };
 
 function ropePose(py, feet, footAng) {
@@ -893,12 +901,15 @@ function runPose(py, spine, rLeg, lLeg, rArm, lArm, feet) {
 
 const ARM_FWD = [-55, 20];
 const ARM_BACK = [-125, -95];
-const ARM_MID = [-90, -37];
+/* Two different mid-swing arms, so the two arms never sit on top of each other
+   in the passing frames — one is on its way up, the other on its way down. */
+const ARM_MID_UP = [-80, -20];
+const ARM_MID_DOWN = [-100, -55];
 
 const HK_R = runPose(57, 88, [-12, -78], [-93, -91], ARM_BACK, ARM_FWD, [2, -50]);
-const HK_PASS_A = runPose(55.8, 88, [-62, -95], [-40, -75], ARM_MID, ARM_MID, [-20, -40]);
+const HK_PASS_A = runPose(55.8, 88, [-62, -95], [-40, -75], ARM_MID_UP, ARM_MID_DOWN, [-20, -18]);
 const HK_L = runPose(57, 88, [-93, -91], [-12, -78], ARM_FWD, ARM_BACK, [-50, 2]);
-const HK_PASS_B = runPose(55.8, 88, [-40, -75], [-62, -95], ARM_MID, ARM_MID, [-40, -20]);
+const HK_PASS_B = runPose(55.8, 88, [-40, -75], [-62, -95], ARM_MID_DOWN, ARM_MID_UP, [-18, -20]);
 
 const high_knees = clip({
   id: 'high_knees',
@@ -915,10 +926,13 @@ const high_knees = clip({
   ],
 });
 
-const JOG_R = runPose(57.6, 88, [-80, -100], [-45, -110], ARM_BACK, ARM_FWD, [2, -35]);
-const JOG_AIR_A = runPose(55.6, 88, [-115, -95], [-72, -85], ARM_MID, ARM_MID, [-25, -10]);
-const JOG_L = runPose(57.6, 88, [-45, -110], [-80, -100], ARM_FWD, ARM_BACK, [-35, 2]);
-const JOG_AIR_B = runPose(55.6, 88, [-72, -85], [-115, -95], ARM_MID, ARM_MID, [-10, -25]);
+/* One running leg cycle: stance -> toe-off -> heel tucked under the seat at
+   mid-swing -> reaching for the next contact. Folding the shin at mid-swing is
+   what keeps the foot off the floor while the thigh swings through vertical. */
+const JOG_R = runPose(57.6, 88, [-80, -100], [-45, -170], ARM_BACK, ARM_FWD, [-50, 2]);
+const JOG_AIR_A = runPose(55.6, 88, [-115, -140], [-72, -95], ARM_MID_UP, ARM_MID_DOWN, [-8, -20]);
+const JOG_L = runPose(57.6, 88, [-45, -170], [-80, -100], ARM_FWD, ARM_BACK, [2, -50]);
+const JOG_AIR_B = runPose(55.6, 88, [-72, -95], [-115, -140], ARM_MID_DOWN, ARM_MID_UP, [-20, -8]);
 
 const jog = clip({
   id: 'jog',
@@ -938,9 +952,9 @@ const jog = clip({
 /* Generic conditioning fallback — hard running in place: more forward lean,
    higher knee, bigger arm drive than the steady jog. */
 const CON_R = runPose(56.8, 84, [-28, -80], [-96, -92], ARM_BACK, ARM_FWD, [2, -46]);
-const CON_A = runPose(55.2, 84, [-70, -96], [-48, -78], ARM_MID, ARM_MID, [-22, -42]);
+const CON_A = runPose(55.2, 84, [-70, -96], [-48, -78], ARM_MID_UP, ARM_MID_DOWN, [-22, -16]);
 const CON_L = runPose(56.8, 84, [-96, -92], [-28, -80], ARM_FWD, ARM_BACK, [-46, 2]);
-const CON_B = runPose(55.2, 84, [-48, -78], [-70, -96], ARM_MID, ARM_MID, [-42, -22]);
+const CON_B = runPose(55.2, 84, [-48, -78], [-70, -96], ARM_MID_DOWN, ARM_MID_UP, [-16, -22]);
 
 const conditioning = clip({
   id: 'conditioning',
