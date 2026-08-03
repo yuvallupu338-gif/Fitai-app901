@@ -13,14 +13,15 @@
  *
  * Ladders wired here:
  *   squat      sit-to-stand -> high box squat -> bodyweight squat ->
- *              tempo squat -> goblet -> front squat -> back squat
+ *              tempo squat -> goblet -> back squat -> front squat
  *   pistol     single-leg box squat -> assisted pistol -> pistol
  *   hinge      dowel hinge drill -> band pull-through -> kettlebell deadlift ->
  *              dumbbell RDL -> barbell RDL -> conventional deadlift
  *   bridge     glute bridge -> single-leg bridge -> bodyweight hip thrust ->
  *              dumbbell hip thrust -> barbell hip thrust
- *   hamstring  band leg curl -> machine leg curl -> slider curl ->
- *              nordic lean -> band-assisted nordic -> nordic negative -> nordic
+ *   hamstring  band leg curl -> machine leg curl -> nordic lean ->
+ *              band-assisted nordic -> nordic negative -> full nordic
+ *              (the slider curl feeds in at the band-assisted rung)
  *   split      supported split squat -> split squat -> DB split squat -> bulgarian
  *   lunge      reverse lunge -> forward lunge -> walking lunge -> DB walking lunge
  *   step-up    low step-up -> knee-height step-up -> DB step-up
@@ -183,8 +184,8 @@ export const LEGS = [
     contraindications: ['knee'],
     cues: ['המשקולת צמודה לחזה, מרפקים למטה', 'עקבים מודבקים לרצפה', 'מרפקים בין הברכיים בתחתית'],
     anim: 'goblet_squat',
-    regressionOf: 'front_squat',
-    progressionTo: 'front_squat',
+    regressionOf: 'back_squat',
+    progressionTo: 'back_squat',
     tags: ['compound'],
   },
   {
@@ -200,8 +201,8 @@ export const LEGS = [
     contraindications: ['knee'],
     cues: ['אחוז בקרניים של הקטלבל מתחת לסנטר', 'ירידה איטית, עלייה נחרצת', 'גב ניטרלי לכל האורך'],
     anim: 'goblet_squat',
-    regressionOf: 'front_squat',
-    progressionTo: 'front_squat',
+    regressionOf: 'back_squat',
+    progressionTo: 'back_squat',
     tags: ['compound'],
   },
   {
@@ -234,8 +235,8 @@ export const LEGS = [
     contraindications: ['knee'],
     cues: ['מרפקים גבוהים לכל אורך התנועה', 'המוט מונח על קדמת הכתפיים', 'פלג גוף עליון זקוף'],
     anim: 'front_squat',
-    regressionOf: 'back_squat',
-    progressionTo: 'back_squat',
+    regressionOf: null,
+    progressionTo: null,
     tags: ['compound'],
   },
   {
@@ -252,7 +253,7 @@ export const LEGS = [
     cues: ['המוט על שרירי הגב ולא על הצוואר', 'שאף וכווץ בטן לפני הירידה', 'ברכיים החוצה בקו האצבעות'],
     anim: 'back_squat',
     regressionOf: null,
-    progressionTo: null,
+    progressionTo: 'front_squat',
     tags: ['compound'],
   },
   {
@@ -549,7 +550,7 @@ export const LEGS = [
     cues: ['מגבת מתחת לעקבים על רצפה חלקה', 'שמור על גשר ישבן לכל אורך התנועה', 'החלק החוצה לאט וחזור'],
     anim: 'leg_curl',
     regressionOf: 'nordic_curl',
-    progressionTo: 'nordic_lean',
+    progressionTo: 'band_assisted_nordic',
     tags: ['isolation'],
   },
 
