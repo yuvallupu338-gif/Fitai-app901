@@ -1,0 +1,53 @@
+/* tokens.css — design tokens, carried over from the reference program document. */
+
+:root {
+  /* surfaces */
+  --night: #0E1520;
+  --steel: #182435;
+  --steel-2: #212F44;
+  --steel-3: #28374F;
+  --line: #2C3D57;
+  --line-soft: #223047;
+
+  /* ink */
+  --chalk: #EAF0F8;
+  --dim: #8298B4;
+  --dimmer: #5A6E8A;
+
+  /* accents */
+  --amber: #FFB13C;
+  --amber-deep: #8A5F1E;
+  --amber-wash: rgba(255, 177, 60, .11);
+  --cyan: #56D9CE;
+  --cyan-deep: #1E5A56;
+  --cyan-wash: rgba(86, 217, 206, .10);
+  --rose: #FF7A85;
+  --rose-deep: #7A2B33;
+
+  /* type */
+  --display: "Secular One", system-ui, sans-serif;
+  --body: "Assistant", system-ui, sans-serif;
+  --mono: "IBM Plex Mono", ui-monospace, monospace;
+
+  /* geometry */
+  --r: 14px;
+  --r-sm: 9px;
+  --r-pill: 999px;
+  --wrap: 760px;
+  --gap: 9px;
+
+  /* motion */
+  --ease: cubic-bezier(.2, .8, .3, 1);
+  --fast: .18s;
+  --mid: .28s;
+}
+
+/* The rig renders into these. Kept next to the tokens so the figure and the
+   chrome never drift apart. */
+:root {
+  --rig-bone: var(--chalk);
+  --rig-far: #4A5F7E;
+  --rig-prop: #3A4F6E;
+  --rig-ground: #2C3D57;
+  --rig-load: var(--amber);
+}
