@@ -364,6 +364,444 @@ const handstand_pushup = {
   ],
 };
 
+/* ================================================================== *
+ * 3. DIPS
+ * Hands pinned on the bars, knees tucked back — the whole body hangs
+ * between the hands, so the feet never reach the floor.
+ * ================================================================== */
+
+const DIP_A = p(DIP_TOP, {
+  x: 48.4, y: 56.33, spine: 86, head: 84,
+  handL: { x: 46, y: 56, bend: -1 },
+  handR: { x: 54, y: 56, bend: -1 },
+});
+
+const DIP_B = p(DIP_A, {
+  x: 45.74, y: 63.38, spine: 78, head: 74,
+  legL: [-40, 170], legR: [-44, 166],
+});
+
+const DIP_C = p(DIP_B, { x: 46.1, y: 62.6, spine: 79, head: 75 });
+
+const dip_bars = {
+  id: 'dip_bars',
+  duration: 2800,
+  ground: true,
+  hero: 0.44,
+  ease: 'inOut',
+  props: [{ type: 'dipbars', x: 50, y: 56, w: 26, gap: 6 }],
+  keys: [
+    { t: 0, pose: DIP_A },
+    { t: 0.44, pose: DIP_B },
+    { t: 0.56, pose: DIP_C },
+    { t: 1, pose: DIP_A },
+  ],
+};
+
+/* Rings add a little wobble: the hands drift apart under load. */
+
+const RDIP_A = p(DIP_TOP, {
+  x: 48.4, y: 56.33, spine: 86, head: 84,
+  handL: { x: 46.5, y: 56, bend: -1 },
+  handR: { x: 53.5, y: 56, bend: -1 },
+});
+
+const RDIP_B = p(RDIP_A, {
+  x: 47.6, y: 60, spine: 82, head: 79,
+  handL: { x: 46, y: 56.2, bend: -1 },
+  handR: { x: 54, y: 56.2, bend: -1 },
+});
+
+const RDIP_C = p(RDIP_A, {
+  x: 45.9, y: 63.38, spine: 78, head: 74,
+  handL: { x: 45.6, y: 56.5, bend: -1 },
+  handR: { x: 54.4, y: 56.5, bend: -1 },
+  legL: [-40, 170], legR: [-44, 166],
+});
+
+const RDIP_D = p(RDIP_C, { x: 46.4, y: 62.5, spine: 79, head: 75 });
+
+const ring_dip = {
+  id: 'ring_dip',
+  duration: 3000,
+  ground: true,
+  hero: 0.46,
+  ease: 'inOut',
+  props: [{ type: 'rings', x: 50, y: 56, w: 7, y0: 6 }],
+  keys: [
+    { t: 0, pose: RDIP_A },
+    { t: 0.24, pose: RDIP_B },
+    { t: 0.46, pose: RDIP_C },
+    { t: 0.58, pose: RDIP_D },
+    { t: 1, pose: RDIP_A },
+  ],
+};
+
+/* Bench dip: hands behind on the bench, heels out in front on the floor. */
+
+const BDIP_A = {
+  x: 36.61, y: 70.25, spine: 84, head: 82,
+  handL: { x: 33, y: 69, bend: -1 },
+  handR: { x: 35, y: 69, bend: -1 },
+  footPtL: { x: 60, y: 84.5, bend: 1 },
+  footPtR: { x: 62, y: 84.5, bend: 1 },
+  footL: 20, footR: 20,
+};
+
+const BDIP_B = p(BDIP_A, { x: 36.03, y: 77.53, spine: 80, head: 78 });
+const BDIP_C = p(BDIP_B, { x: 36.2, y: 76.8, spine: 80.5, head: 78.5 });
+
+const bench_dip = {
+  id: 'bench_dip',
+  duration: 2600,
+  ground: true,
+  hero: 0.44,
+  ease: 'inOut',
+  props: [{ type: 'bench', x: 24, y: 70, w: 26, h: 6 }],
+  keys: [
+    { t: 0, pose: BDIP_A },
+    { t: 0.44, pose: BDIP_B },
+    { t: 0.56, pose: BDIP_C },
+    { t: 1, pose: BDIP_A },
+  ],
+};
+
+/* ================================================================== *
+ * 4. SUPINE PRESSING — figure lies along the bench, head to the right.
+ * The load lives on the pose (`load`), never in the props.
+ * ================================================================== */
+
+const BENCH_PROP = { type: 'bench', x: 54, y: 74, w: 44, h: 6 };
+
+/* Shared supine chassis: back on the pad, both feet planted on the floor. */
+const SUPINE_BENCH = {
+  x: 40, y: 72, spine: 8, head: 14,
+  footPtL: { x: 26, y: 87.5, bend: -1 },
+  footPtR: { x: 28, y: 87.5, bend: -1 },
+  footL: 2, footR: 2,
+};
+
+const BP_LOCK = p(SUPINE_BENCH, {
+  load: 'barbell',
+  handL: { x: 61, y: 46, bend: 1 },
+  handR: { x: 63, y: 46, bend: 1 },
+});
+
+const BP_CHEST = p(BP_LOCK, {
+  handL: { x: 57, y: 58, bend: 1 },
+  handR: { x: 59, y: 58, bend: 1 },
+});
+
+const BP_PAUSE = p(BP_LOCK, {
+  handL: { x: 57.4, y: 57.4, bend: 1 },
+  handR: { x: 59.4, y: 57.4, bend: 1 },
+});
+
+const bench_press = {
+  id: 'bench_press',
+  duration: 3200,
+  ground: true,
+  hero: 0.44,
+  ease: 'inOut',
+  props: [BENCH_PROP],
+  keys: [
+    { t: 0, pose: BP_LOCK },
+    { t: 0.44, pose: BP_CHEST },
+    { t: 0.56, pose: BP_PAUSE },
+    { t: 1, pose: BP_LOCK },
+  ],
+};
+
+const CG_LOCK = p(SUPINE_BENCH, {
+  load: 'barbell',
+  handL: { x: 61, y: 47, bend: 1 },
+  handR: { x: 62.5, y: 47, bend: 1 },
+});
+
+const CG_CHEST = p(CG_LOCK, {
+  handL: { x: 56, y: 60, bend: 1 },
+  handR: { x: 57.5, y: 60, bend: 1 },
+});
+
+const CG_PAUSE = p(CG_LOCK, {
+  handL: { x: 56.4, y: 59.4, bend: 1 },
+  handR: { x: 57.9, y: 59.4, bend: 1 },
+});
+
+const close_grip_bench = {
+  id: 'close_grip_bench',
+  duration: 3000,
+  ground: true,
+  hero: 0.44,
+  ease: 'inOut',
+  props: [BENCH_PROP],
+  keys: [
+    { t: 0, pose: CG_LOCK },
+    { t: 0.44, pose: CG_CHEST },
+    { t: 0.56, pose: CG_PAUSE },
+    { t: 1, pose: CG_LOCK },
+  ],
+};
+
+const DBP_LOCK = p(SUPINE_BENCH, {
+  load: 'dumbbell',
+  handL: { x: 60, y: 47, bend: 1 },
+  handR: { x: 63, y: 46, bend: 1 },
+});
+
+const DBP_CHEST = p(DBP_LOCK, {
+  handL: { x: 55, y: 59, bend: 1 },
+  handR: { x: 58, y: 58, bend: 1 },
+});
+
+const DBP_PAUSE = p(DBP_LOCK, {
+  handL: { x: 55.4, y: 58.4, bend: 1 },
+  handR: { x: 58.4, y: 57.4, bend: 1 },
+});
+
+const db_bench_press = {
+  id: 'db_bench_press',
+  duration: 3200,
+  ground: true,
+  hero: 0.44,
+  ease: 'inOut',
+  props: [BENCH_PROP],
+  keys: [
+    { t: 0, pose: DBP_LOCK },
+    { t: 0.44, pose: DBP_CHEST },
+    { t: 0.56, pose: DBP_PAUSE },
+    { t: 1, pose: DBP_LOCK },
+  ],
+};
+
+/* Fly: elbows stay softly bent, the arms sweep wide instead of pressing. */
+
+const FLY_TOP = p(SUPINE_BENCH, {
+  load: 'dumbbell',
+  handL: { x: 60, y: 48, bend: 1 },
+  handR: { x: 62, y: 47, bend: 1 },
+});
+
+const FLY_MID = p(FLY_TOP, {
+  handL: { x: 52, y: 57, bend: 1 },
+  handR: { x: 69, y: 55, bend: 1 },
+});
+
+const FLY_WIDE = p(FLY_TOP, {
+  handL: { x: 44, y: 65, bend: 1 },
+  handR: { x: 78, y: 62, bend: 1 },
+});
+
+const db_fly = {
+  id: 'db_fly',
+  duration: 3000,
+  ground: true,
+  hero: 0.46,
+  ease: 'inOut',
+  props: [BENCH_PROP],
+  keys: [
+    { t: 0, pose: FLY_TOP },
+    { t: 0.26, pose: FLY_MID },
+    { t: 0.5, pose: FLY_WIDE },
+    { t: 0.74, pose: FLY_MID },
+    { t: 1, pose: FLY_TOP },
+  ],
+};
+
+/* Skullcrusher: the upper arm stays vertical, only the forearm moves. */
+
+const SKULL_LOCK = p(SUPINE_BENCH, {
+  load: 'barbell',
+  handL: { x: 61, y: 46, bend: 1 },
+  handR: { x: 63, y: 46, bend: 1 },
+});
+
+const SKULL_DOWN = p(SKULL_LOCK, {
+  handL: { x: 70, y: 54, bend: 1 },
+  handR: { x: 72, y: 54, bend: 1 },
+});
+
+const SKULL_PAUSE = p(SKULL_LOCK, {
+  handL: { x: 69.4, y: 53.4, bend: 1 },
+  handR: { x: 71.4, y: 53.4, bend: 1 },
+});
+
+const skullcrusher = {
+  id: 'skullcrusher',
+  duration: 2800,
+  ground: true,
+  hero: 0.44,
+  ease: 'inOut',
+  props: [BENCH_PROP],
+  keys: [
+    { t: 0, pose: SKULL_LOCK },
+    { t: 0.44, pose: SKULL_DOWN },
+    { t: 0.56, pose: SKULL_PAUSE },
+    { t: 1, pose: SKULL_LOCK },
+  ],
+};
+
+/* Incline press: reclined ~50deg, head up-back, chest facing up-forward. */
+
+const INC_BASE = {
+  x: 52, y: 74, spine: 130, head: 124,
+  footPtL: { x: 70, y: 87.5, bend: 1 },
+  footPtR: { x: 72, y: 87.5, bend: 1 },
+  footL: 2, footR: 2,
+  load: 'dumbbell',
+};
+
+const INC_LOCK = p(INC_BASE, {
+  handL: { x: 54, y: 42, bend: -1 },
+  handR: { x: 55, y: 40, bend: -1 },
+});
+
+const INC_BOTTOM = p(INC_BASE, {
+  handL: { x: 48, y: 50, bend: -1 },
+  handR: { x: 50, y: 49, bend: -1 },
+});
+
+const INC_PAUSE = p(INC_BASE, {
+  handL: { x: 48.4, y: 49.4, bend: -1 },
+  handR: { x: 50.4, y: 48.4, bend: -1 },
+});
+
+const incline_db_press = {
+  id: 'incline_db_press',
+  duration: 3200,
+  ground: true,
+  hero: 0.44,
+  ease: 'inOut',
+  props: [
+    { type: 'bench', x: 60, y: 76, w: 26, h: 5 },
+    { type: 'box', x: 36, y: 68, w: 16, h: 20 },
+  ],
+  keys: [
+    { t: 0, pose: INC_LOCK },
+    { t: 0.44, pose: INC_BOTTOM },
+    { t: 0.56, pose: INC_PAUSE },
+    { t: 1, pose: INC_LOCK },
+  ],
+};
+
+/* Seated machine press: back supported, handles travel straight forward. */
+
+const MCP_BACK = p(SEATED, {
+  x: 44, y: 70,
+  handL: { x: 56, y: 50, bend: -1 },
+  handR: { x: 58, y: 49, bend: -1 },
+});
+
+const MCP_OUT = p(MCP_BACK, {
+  handL: { x: 66, y: 48, bend: -1 },
+  handR: { x: 68, y: 47.5, bend: -1 },
+});
+
+const MCP_HOLD = p(MCP_BACK, {
+  handL: { x: 65.4, y: 48.2, bend: -1 },
+  handR: { x: 67.4, y: 47.7, bend: -1 },
+});
+
+const machine_chest_press = {
+  id: 'machine_chest_press',
+  duration: 2800,
+  ground: true,
+  hero: 0.5,
+  ease: 'inOut',
+  props: [
+    { type: 'machine', x: 78, y: 36, w: 18, h: 36 },
+    { type: 'bench', x: 44, y: 72, w: 22, h: 5 },
+  ],
+  keys: [
+    { t: 0, pose: MCP_BACK },
+    { t: 0.4, pose: MCP_OUT },
+    { t: 0.52, pose: MCP_HOLD },
+    { t: 1, pose: MCP_BACK },
+  ],
+};
+
+/* ================================================================== *
+ * 5. OVERHEAD PRESSING
+ * ================================================================== */
+
+const OHP_RACK = p(STAND, {
+  load: 'barbell',
+  handL: { x: 52, y: 42, bend: 1 },
+  handR: { x: 54, y: 42, bend: 1 },
+  head: 90,
+});
+
+const OHP_MID = p(OHP_RACK, {
+  handL: { x: 51, y: 24, bend: 1 },
+  handR: { x: 53, y: 24, bend: 1 },
+  head: 98,
+});
+
+const OHP_LOCK = p(OHP_RACK, {
+  handL: { x: 49, y: 12, bend: 1 },
+  handR: { x: 51, y: 12, bend: 1 },
+  head: 88,
+});
+
+const OHP_HOLD = p(OHP_LOCK, {
+  handL: { x: 49, y: 12.6, bend: 1 },
+  handR: { x: 51, y: 12.6, bend: 1 },
+});
+
+const overhead_press = {
+  id: 'overhead_press',
+  duration: 3000,
+  ground: true,
+  hero: 0.42,
+  ease: 'inOut',
+  props: [],
+  keys: [
+    { t: 0, pose: OHP_RACK },
+    { t: 0.24, pose: OHP_MID },
+    { t: 0.42, pose: OHP_LOCK },
+    { t: 0.54, pose: OHP_HOLD },
+    { t: 1, pose: OHP_RACK },
+  ],
+};
+
+const DBSP_RACK = p(STAND, {
+  load: 'dumbbell',
+  handL: { x: 54, y: 44, bend: 1 },
+  handR: { x: 56, y: 43, bend: 1 },
+  head: 90,
+});
+
+const DBSP_MID = p(DBSP_RACK, {
+  handL: { x: 53, y: 25, bend: 1 },
+  handR: { x: 55, y: 24, bend: 1 },
+});
+
+const DBSP_LOCK = p(DBSP_RACK, {
+  handL: { x: 48, y: 14, bend: 1 },
+  handR: { x: 52, y: 13, bend: 1 },
+});
+
+const DBSP_HOLD = p(DBSP_LOCK, {
+  handL: { x: 48, y: 14.6, bend: 1 },
+  handR: { x: 52, y: 13.6, bend: 1 },
+});
+
+const db_shoulder_press = {
+  id: 'db_shoulder_press',
+  duration: 3000,
+  ground: true,
+  hero: 0.42,
+  ease: 'inOut',
+  props: [],
+  keys: [
+    { t: 0, pose: DBSP_RACK },
+    { t: 0.24, pose: DBSP_MID },
+    { t: 0.42, pose: DBSP_LOCK },
+    { t: 0.54, pose: DBSP_HOLD },
+    { t: 1, pose: DBSP_RACK },
+  ],
+};
+
 export const UPPER_CLIPS = Object.assign({}, {
   pushup,
   knee_pushup,
@@ -377,5 +815,17 @@ export const UPPER_CLIPS = Object.assign({}, {
   handstand_hold,
   wall_handstand,
   handstand_pushup,
+  dip_bars,
+  ring_dip,
+  bench_dip,
+  bench_press,
+  close_grip_bench,
+  db_bench_press,
+  db_fly,
+  skullcrusher,
+  incline_db_press,
+  machine_chest_press,
+  overhead_press,
+  db_shoulder_press,
 });
 /* __TAIL__ */
