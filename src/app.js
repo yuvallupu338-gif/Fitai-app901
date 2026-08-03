@@ -184,7 +184,7 @@ function renderApp() {
         onclick: () => show(t.id),
       }, t.label));
     }
-    tabBar.appendChild(h('button.btn.ghost', {
+    tabBar.appendChild(h('button.btn.ghost' + (animsPaused ? '.on' : ''), {
       type: 'button',
       title: 'עצור או הפעל אנימציות',
       onclick: (e) => {
@@ -193,7 +193,7 @@ function renderApp() {
         e.currentTarget.classList.toggle('on', animsPaused);
         e.currentTarget.lastChild.textContent = animsPaused ? 'הפעל תנועה' : 'עצור תנועה';
       },
-    }, h('span.ico', '❙❙'), h('span', 'עצור תנועה')));
+    }, h('span.ico', '❙❙'), h('span', animsPaused ? 'הפעל תנועה' : 'עצור תנועה')));
   }
 
   function show(tab) {

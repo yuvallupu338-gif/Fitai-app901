@@ -7,7 +7,7 @@
  */
 
 import { h, clear, modal, announce } from '../core/dom.js';
-import { mountClip, staticFrame, reduceMotion } from '../core/anim.js';
+import { mountClip } from '../core/anim.js';
 import { clipFor } from '../data/clips.index.js';
 import { byId } from '../data/exercises.index.js';
 import * as store from '../core/store.js';
@@ -163,16 +163,19 @@ export function openDetail(day, slot, pick, onChange) {
     slot.variants.length > 1 ? variantSwitcher(day, slot, pick, onChange) : null,
   );
 
+  let ctl = null;
   const close = modal(h('div', body, h('div.modal-actions',
     h('button.btn', { type: 'button', onclick: () => close() }, 'סגור'),
-  )), { label: v.name });
+  )), {
+    label: v.name,
+    onClose: () => {
+      // Stop the sheet's figure rather than leaving it ticking on a detached node.
+      if (ctl) { ctl.destroy(); players.delete(ctl); }
+    },
+  });
 
-  const ctl = mountClip(figure, clipFor(ex), { label: `הדגמה: ${v.name}` });
+  ctl = mountClip(figure, clipFor(ex), { label: `הדגמה: ${v.name}` });
   players.add(ctl);
-  if (reduceMotion.matches) {
-    clear(figure);
-    figure.appendChild(staticFrame(clipFor(ex)));
-  }
   return close;
 }
 

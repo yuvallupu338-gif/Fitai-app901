@@ -88,7 +88,12 @@ export function modal(content, opts) {
   document.body.appendChild(back);
   document.body.style.overflow = 'hidden';
   const target = qs('button,input,select,textarea', box);
-  if (target) target.focus(); else box.setAttribute('tabindex', '-1'), box.focus();
+  if (target) {
+    target.focus();
+  } else {
+    box.setAttribute('tabindex', '-1');
+    box.focus();
+  }
   return close;
 }
 
