@@ -126,7 +126,7 @@ const FSQ_PAR = frontRack(SQ_PAR);
 const FSQ_BOT = frontRack(SQ_BOT);
 
 /* Box squat: sit back onto the box, feet further forward than a free squat. */
-const BOX_PROP = { type: 'box', x: 40, y: 74, w: 20, h: 14 };
+const BOX_PROP = { type: 'box', x: 40, y: 74, w: 22, h: 14 };
 const BOX_FEET = {
   footPtL: { x: 52, y: 87.5, bend: 1 },
   footPtR: { x: 54, y: 87.5, bend: 1 },
@@ -147,14 +147,14 @@ const BOXSQ_SIT = p(SQUAT_PARALLEL, Object.assign({
 /* Wall sit: back flat on the wall, thighs horizontal, shins vertical. */
 const WALL_PROP = { type: 'wall', x: 30, y0: 28, y1: 88 };
 const WALLSIT = {
-  x: 33, y: 72, spine: 88, head: 86,
+  x: 33, y: 72, spine: 88, head: 72,
   armL: [-70, -80], armR: [-76, -86],
   footPtL: { x: 47.5, y: 87.5, bend: 1 },
   footPtR: { x: 49.5, y: 87.5, bend: 1 },
   footL: 2, footR: 2,
 };
 /* Holds still need to breathe — one unit of drift, nothing more. */
-const WALLSIT_BREATHE = p(WALLSIT, { y: 73, spine: 87, head: 85, armL: [-68, -78], armR: [-74, -84] });
+const WALLSIT_BREATHE = p(WALLSIT, { y: 73, spine: 87, head: 71, armL: [-68, -78], armR: [-74, -84] });
 
 const SQUAT_CLIPS = {
   /* Pattern fallback for `squat` as well as the bodyweight squat itself. */
@@ -240,8 +240,6 @@ const SQUAT_CLIPS = {
       { t: 1, pose: WALLSIT },
     ],
   }),
-
-  /* __APPEND__ */
 };
 
 /* ------------------------------------------------------------------ *
@@ -267,7 +265,7 @@ const SS_BOT = p(LUNGE_BOTTOM, {
 });
 
 /* Bulgarian — rear instep on the bench, front foot does the work. */
-const BULG_BENCH = { type: 'bench', x: 30, y: 78, w: 18, h: 4, legs: true };
+const BULG_BENCH = { type: 'bench', x: 30, y: 78, w: 22, h: 5, legs: true };
 const BULG_REAR = { x: 33, y: 75.5, bend: 1 };
 const BULG_FRONT = { x: 60, y: 87.5, bend: 1 };
 const BULG_TOP = p(LUNGE_TOP, {
@@ -595,7 +593,7 @@ const SLGB_UP = p(GB_UP, { footPtL: { x: 82, y: 70, bend: 1 }, footL: 10 });
 
 /* Hip thrust: shoulder blades parked on the bench at a fixed point while the
    pelvis swings up around them. Hands ride the bar just above the hip. */
-const HT_BENCH = { type: 'bench', x: 20, y: 73, w: 26, h: 5, legs: true };
+const HT_BENCH = { type: 'bench', x: 22, y: 73, w: 20, h: 5, legs: true };
 const HT_FEET = {
   footPtL: { x: 72, y: 87.5, bend: 1 },
   footPtR: { x: 74, y: 87.5, bend: 1 },
@@ -704,19 +702,25 @@ const NORDIC_CLIPS = {
  * stay still is the KNEE (leg extension, leg curl): IK would drag it.
  * ------------------------------------------------------------------ */
 
-/* Leg press: reclined against the seat, legs driving up and to the right. */
-const LP_SEAT = { type: 'machine', x: 20, y: 62, w: 16, h: 26 };
-const LP_BOTTOM = {
-  x: 44, y: 74, spine: 150, head: 140,
-  handL: { x: 38, y: 70, bend: -1 }, handR: { x: 39, y: 71, bend: -1 },
-  footPtL: { x: 62, y: 62, bend: 1 }, footPtR: { x: 64, y: 61, bend: 1 },
+/* Leg press: feet stay on the platform, the seat carriage slides the whole
+   body away from it as the legs lock out. */
+const LP_PLATE = { type: 'machine', x: 75, y: 44, w: 10, h: 28 };
+const LP_RAIL = { type: 'bench', x: 38, y: 74, w: 34, h: 4, legs: true };
+const LP_FEET = {
+  footPtL: { x: 67, y: 60, bend: 1 }, footPtR: { x: 69, y: 59, bend: 1 },
   footL: 80, footR: 80,
 };
+const LP_BOTTOM = Object.assign({
+  x: 50, y: 72, spine: 150, head: 140,
+  handL: { x: 44, y: 68, bend: -1 }, handR: { x: 45, y: 69, bend: -1 },
+}, LP_FEET);
 const LP_MID = p(LP_BOTTOM, {
-  footPtL: { x: 65, y: 59, bend: 1 }, footPtR: { x: 67, y: 58, bend: 1 },
+  x: 46,
+  handL: { x: 40, y: 68, bend: -1 }, handR: { x: 41, y: 69, bend: -1 },
 });
 const LP_TOP = p(LP_BOTTOM, {
-  footPtL: { x: 67, y: 57, bend: 1 }, footPtR: { x: 69, y: 56, bend: 1 },
+  x: 42,
+  handL: { x: 36, y: 68, bend: -1 }, handR: { x: 37, y: 69, bend: -1 },
 });
 
 /* Leg extension: thigh angle frozen, only the shin swings. */
@@ -744,7 +748,7 @@ const MACHINE_CLIPS = {
     id: 'leg_press',
     duration: 3000,
     hero: 0.5,
-    props: [LP_SEAT],
+    props: [LP_RAIL, LP_PLATE],
     keys: [
       { t: 0, pose: LP_BOTTOM },
       { t: 0.2, pose: LP_MID },
@@ -799,20 +803,20 @@ const CR_DOWN = {
   footL: 2, footR: 2,
 };
 const CR_MID = p(CR_DOWN, {
-  y: 55.75,
-  footPtL: { x: 49, y: 85.75, bend: 1 }, footPtR: { x: 51, y: 85.75, bend: 1 },
-  footL: -14, footR: -14,
+  y: 55.25,
+  footPtL: { x: 49, y: 85.25, bend: 1 }, footPtR: { x: 51, y: 85.25, bend: 1 },
+  footL: -20, footR: -20,
 });
 const CR_UP = p(CR_DOWN, {
-  y: 54,
-  footPtL: { x: 49, y: 84, bend: 1 }, footPtR: { x: 51, y: 84, bend: 1 },
-  footL: -30, footR: -30,
+  y: 53,
+  footPtL: { x: 49, y: 83, bend: 1 }, footPtR: { x: 51, y: 83, bend: 1 },
+  footL: -42, footR: -42,
 });
 
 /* Seated: knees pinned by the pad, ball of the foot on a block, heel drops
    below the block at the bottom. */
 const SCR_BENCH = { type: 'bench', x: 38, y: 72, w: 26, h: 5, legs: true };
-const SCR_BLOCK = { type: 'box', x: 70, y: 84, w: 12, h: 4 };
+const SCR_BLOCK = { type: 'box', x: 72, y: 84, w: 12, h: 4 };
 const SCR_DOWN = {
   x: 47, y: 70.5, spine: 88, head: 88,
   handL: { x: 58.5, y: 66.5, bend: -1 }, handR: { x: 59.5, y: 67.5, bend: -1 },
