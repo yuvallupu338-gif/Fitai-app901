@@ -56,7 +56,10 @@ export const CORE = [
     level: 1,
     unit: 'reps',
     unilateral: true,
-    contraindications: ['hernia'],
+    // Deliberately untagged: upright, unloaded, no lumbar flexion under
+    // compression and no bearing-down. This is the one flexion entry point that
+    // stays available to lower_back / hernia / pregnancy profiles.
+    contraindications: [],
     cues: ['הבא את הברך אל המרפק הנגדי', 'כווץ את הבטן בסוף הטווח', 'עמוד זקוף — אל תתכופף אל הברך'],
     anim: 'core_flexion',
     regressionOf: 'situp',
@@ -353,24 +356,7 @@ export const CORE = [
     cues: ['מרפקים מתחת לכתפיים', 'ישבן מכווץ ואגן מגולגל פנימה', 'עדיף 30 שניות מושלמות מדקה עם גב שקוע'],
     anim: 'forearm_plank',
     regressionOf: null,
-    progressionTo: 'body_saw',
-    tags: ['isolation'],
-  },
-  {
-    id: 'body_saw',
-    name: 'מסור גוף בפלאנק',
-    nameEn: 'Body Saw',
-    pattern: 'core_antiextension',
-    muscles: { primary: ['core'], secondary: ['shoulders', 'glutes'] },
-    equipment: ['none'],
-    level: 3,
-    unit: 'reps',
-    unilateral: false,
-    contraindications: ['lower_back'],
-    cues: ['החלק את הגוף אחורה מהאמות וחזור', 'האגן לא נופל אף רגע', 'טווח קטן ואיטי — לא כמה שאפשר'],
-    anim: 'forearm_plank',
-    regressionOf: null,
-    progressionTo: null,
+    progressionTo: 'hollow_hold',
     tags: ['isolation'],
   },
   {
@@ -496,23 +482,6 @@ export const CORE = [
   /* ================================================================ *
    * CORE ROTATION — obliques, anti-rotation, side planks
    * ================================================================ */
-  {
-    id: 'lying_heel_taps',
-    name: 'נגיעות בעקבים בשכיבה',
-    nameEn: 'Lying Heel Taps',
-    pattern: 'core_rotation',
-    muscles: { primary: ['obliques'], secondary: ['core'] },
-    equipment: ['none'],
-    level: 1,
-    unit: 'reps',
-    unilateral: false,
-    contraindications: ['pregnancy'],
-    cues: ['שכמות מעט מהרצפה לאורך הסט', 'הטה לצד וגע בעקב עם קצות האצבעות', 'תנועה מהצלעות, לא מהזרועות'],
-    anim: 'core_rotation',
-    regressionOf: 'russian_twist',
-    progressionTo: 'russian_twist',
-    tags: ['isolation'],
-  },
   {
     id: 'side_plank_knees',
     name: 'פלאנק צד על הברך',
