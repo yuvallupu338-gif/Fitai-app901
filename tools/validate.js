@@ -90,6 +90,30 @@ for (const e of allEx.values()) {
   }
 }
 
+// Every pattern the split can ask for must actually be fillable, including for
+// someone with no equipment at all.
+const OWNER = 'push file owns horizontal_push/vertical_push/arms_triceps/shoulders_lateral/shoulders_rear; '
+  + 'pull file owns horizontal_pull/vertical_pull/arms_biceps; '
+  + 'legs file owns squat/hinge/lunge/calf/plyo; '
+  + 'core file owns core_flexion/core_antiextension/core_rotation/carry/conditioning/mobility';
+
+if (allEx.size) {
+  for (const pat of PATTERNS) {
+    const inPattern = Array.from(allEx.values()).filter((e) => e.pattern === pat);
+    if (!inPattern.length) {
+      err(`no exercises for pattern "${pat}" — the split can request it and the generator will starve (${OWNER})`);
+      continue;
+    }
+    if (inPattern.length < 3) warn(`only ${inPattern.length} exercise(s) for pattern "${pat}"`);
+    const bodyweight = inPattern.filter((e) => e.equipment.every((q) => q === 'none' || q === 'mat'));
+    if (!bodyweight.length && pat !== 'carry') {
+      warn(`pattern "${pat}" has no equipment-free option — home_bodyweight profiles cannot train it`);
+    }
+  }
+  const warmup = Array.from(allEx.values()).filter((e) => (e.tags || []).includes('warmup'));
+  if (warmup.length < 10) err(`only ${warmup.length} exercises tagged 'warmup' — the generator needs at least 10 to build warm-ups (core file owns mobility)`);
+}
+
 /* ---------------- clips ---------------- */
 
 const clipFiles = existsSync(resolve(ROOT, 'src/data'))
