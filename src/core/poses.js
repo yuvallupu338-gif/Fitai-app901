@@ -98,9 +98,10 @@ export const LUNGE_TOP = {
 export const LUNGE_BOTTOM = {
   x: 48, y: 68, spine: 86, head: 86,
   armL: [-84, -86], armR: [-96, -94],
-  footPtL: { x: 34, y: 87.5, bend: 1 },
+  // Rear foot is up on the toes, so its ankle sits above the floor.
+  footPtL: { x: 34, y: 83.5, bend: 1 },
   footPtR: { x: 62, y: 87.5, bend: 1 },
-  footL: -40, footR: 2,
+  footL: -45, footR: 2,
 };
 
 /* ------------------------------------------------------------------ *
@@ -115,11 +116,16 @@ export const PLANK_TOP = {
   footL: -30, footR: -30,
 };
 
+/* The toes stay planted through a push-up — the body pivots about them — so the
+   bottom position pins the feet with IK instead of letting the legs swing down. */
 export const PLANK_BOTTOM = p(PLANK_TOP, {
   x: 34, y: 79.5, spine: 21, head: 13,
   handL: { x: 56.5, y: 87.5, bend: -1 },
   handR: { x: 58.5, y: 87.5, bend: -1 },
-  legL: [-159, -159], legR: [-159, -159],
+  legL: undefined, legR: undefined,
+  footPtL: { x: 8.3, y: 84.9, bend: -1 },
+  footPtR: { x: 9.3, y: 84.9, bend: -1 },
+  footL: -30, footR: -30,
 });
 
 /** Forearm plank / hollow-adjacent hold. */
@@ -127,6 +133,10 @@ export const FOREARM_PLANK = p(PLANK_TOP, {
   x: 35, y: 76, spine: 20, head: 12,
   handL: { x: 62, y: 87.5, bend: -1 },
   handR: { x: 63, y: 87.5, bend: -1 },
+  legL: undefined, legR: undefined,
+  footPtL: { x: 8.3, y: 84.4, bend: -1 },
+  footPtR: { x: 9.3, y: 84.4, bend: -1 },
+  footL: -28, footR: -28,
 });
 
 /* ------------------------------------------------------------------ *
@@ -140,26 +150,28 @@ export const SUPINE = {
   footL: 70, footR: 70,
 };
 
-/** Hollow body hold. */
+/** Hollow body hold — shoulders and legs both off the floor, lower back pressed down. */
 export const HOLLOW = {
   x: 46, y: 84, spine: 26, head: 32,
   armL: [46, 44], armR: [40, 38],
-  legL: [-160, -172], legR: [-162, -174],
-  footL: 100, footR: 100,
+  legL: [171, 174], legR: [169, 172],
+  footL: 150, footR: 150,
 };
 
+/* Head to the LEFT, knees up on the RIGHT, shoulders staying on the floor as
+   the pelvis rises. Spine swings 176 -> 203 so the shoulders hold their height. */
 export const GLUTE_BRIDGE_DOWN = {
-  x: 40, y: 85.5, spine: 4, head: 16,
-  armL: [-4, -2], armR: [0, 2],
-  footPtL: { x: 62, y: 87.5, bend: -1 },
-  footPtR: { x: 64, y: 87.5, bend: -1 },
-  footL: -60, footR: -60,
+  x: 48, y: 85.5, spine: 176, head: 150,
+  armL: [184, 179], armR: [188, 183],
+  footPtL: { x: 66, y: 87.5, bend: 1 },
+  footPtR: { x: 68, y: 87.5, bend: 1 },
+  footL: 0, footR: 0,
 };
 
 export const GLUTE_BRIDGE_UP = p(GLUTE_BRIDGE_DOWN, {
-  x: 38, y: 76, spine: 12, head: 24,
-  footPtL: { x: 62, y: 87.5, bend: -1 },
-  footPtR: { x: 64, y: 87.5, bend: -1 },
+  x: 48, y: 76, spine: 203, head: 150,
+  footPtL: { x: 66, y: 87.5, bend: 1 },
+  footPtR: { x: 68, y: 87.5, bend: 1 },
 });
 
 /* ------------------------------------------------------------------ *
@@ -198,18 +210,21 @@ export const HANG_LRAISE = p(HANG, {
  * Dips / support
  * ------------------------------------------------------------------ */
 
+/* Knees bent with the feet tucked up behind, which is how dips are actually
+   held and what keeps the legs on canvas at the bottom. */
 export const DIP_TOP = {
   x: 50, y: 62, spine: 86, head: 84,
   handL: { x: 47, y: 40, bend: -1 },
   handR: { x: 53, y: 40, bend: -1 },
-  legL: [-70, -120], legR: [-74, -124],
-  footL: -40, footR: -40,
+  legL: [-45, 165], legR: [-49, 161],
+  footL: -120, footR: -120,
 };
 
 export const DIP_BOTTOM = p(DIP_TOP, {
   x: 51, y: 73, spine: 80, head: 76,
   handL: { x: 47, y: 40, bend: -1 },
   handR: { x: 53, y: 40, bend: -1 },
+  legL: [-40, 170], legR: [-44, 166],
 });
 
 /* ------------------------------------------------------------------ *
@@ -244,11 +259,13 @@ export const SEATED = {
   footL: 2, footR: 2,
 };
 
+/* Knees on the floor, shins flat, toes pointing back — the start of a
+   nordic curl and the base for every kneeling drill. */
 export const KNEELING = {
-  x: 50, y: 66, spine: 90, head: 90,
+  x: 50, y: 72, spine: 90, head: 90,
   armL: [-84, -86], armR: [-96, -94],
-  legL: [-90, -172], legR: [-94, -176],
-  footL: -100, footR: -100,
+  legL: [-90, 180], legR: [-94, 176],
+  footL: 170, footR: 170,
 };
 
 /* ------------------------------------------------------------------ *
