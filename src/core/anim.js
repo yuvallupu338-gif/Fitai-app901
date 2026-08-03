@@ -10,8 +10,8 @@
  *   { id, duration, ground, props, hero, keys:[{t, pose, ease}] }
  */
 
-import { makeSvg, renderScene } from './rig.js';
-import { lerpPose, EASE } from './poses.js';
+import { makeSvg, renderScene, lerpPose } from './rig.js';
+import { EASE } from './poses.js';
 
 const players = new Set();
 let rafId = 0;
