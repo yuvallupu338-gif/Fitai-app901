@@ -16,7 +16,7 @@ import { resolve, dirname, relative } from 'node:path';
 import { fileURLToPath } from 'node:url';
 
 const ROOT = resolve(dirname(fileURLToPath(import.meta.url)), '..');
-const ENTRY = 'src/app.js';
+const ENTRY = process.argv[2] || 'src/app.js';
 
 const seen = new Map();
 const order = [];
