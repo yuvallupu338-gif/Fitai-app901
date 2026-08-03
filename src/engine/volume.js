@@ -204,7 +204,7 @@ function volumeNote(profile, vol, ctx) {
 
   let why;
   if (ctx.timeBound) {
-    why = `זה מה שנכנס בזמן שיש — קיצור המנוחות מעבר לזה כבר פוגע באיכות הסטים`;
+    why = 'זה מה שבאמת נכנס בזמן שיש, וקיצור מנוחות מעבר לזה כבר פוגע באיכות של כל סט';
   } else if (ctx.factors.rest < 1) {
     why = `הורדתי נפח כי ${Math.round(num(profile.sleepHours, 7))} שעות שינה לא מספיקות להתאושש מיותר`;
   } else if (ctx.factors.load < 1) {
@@ -336,7 +336,8 @@ function shape(d, goal, index, total) {
     if (at >= 0 && pats.length > 5) pats.splice(at, 1);
     pats.push('conditioning');
   } else if (goal === 'fatloss' || goal === 'fitness') {
-    if (hasLegs && goal === 'fitness') pats.splice(Math.max(0, pats.length - 1), 0, 'carry');
+    // A loaded carry is the cheapest full-body finisher there is.
+    if (hasLegs && goal === 'fitness') pats.push('carry');
     pats.push('conditioning');
   } else if (index === total - 1) {
     // Strength and hypertrophy still get one conditioning slot a week.
