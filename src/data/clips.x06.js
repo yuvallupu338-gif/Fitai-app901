@@ -318,8 +318,8 @@ const weighted_pullup = clip({
   hero: 0,
   props: [
     BAR_PROP,
-    { type: 'band', x0: 50, y0: 64, x1: 52, y1: 82, sag: 1 },
-    { type: 'box', x: 52, y: 82, w: 9, h: 3.4 },
+    { type: 'band', x0: 49, y0: 63, x1: 42.5, y1: 73, sag: 1 },
+    { type: 'box', x: 41, y: 73, w: 11, h: 4 },
   ],
   keys: [
     { t: 0, pose: WP_HANG },
@@ -607,7 +607,7 @@ const assisted_pullup_machine = clip({
     { type: 'wall', x: 76, y0: 10, y1: 88 },
     { type: 'bar', x: 53, y: 10, w: 46, posts: false },
     { type: 'bar', x: 50, y: 18, w: 14, posts: false },
-    { type: 'box', x: 63, y: 64.6, w: 15, h: 4 },
+    { type: 'box', x: 64, y: 67, w: 16, h: 4.5 },
   ],
   keys: [
     { t: 0, pose: AST_BASE },
