@@ -10640,7 +10640,7 @@ __m["src/data/clips.x12.js"] = (function () {
  *    to a nearest-key pick and the limb teleports at the halfway mark.
  */
 
-const { p, STAND, GLUTE_BRIDGE_DOWN, GLUTE_BRIDGE_UP, HANG } = __m["src/core/poses.js"];
+const { p, STAND, HANG } = __m["src/core/poses.js"];
 
 const clip = (o) => Object.assign({ duration: 4200, hero: 0.25, ease: 'inOut', props: [] }, o);
 
@@ -10715,7 +10715,8 @@ const ankleRock = (px, py, spine) => ({
   footL: 2, footR: 2,
 });
 const ANKLE_BACK = ankleRock(50, 64, 86);
-const ANKLE_FWD = ankleRock(58, 65.5, 80);
+const ANKLE_MID = ankleRock(55, 65, 83);
+const ANKLE_FWD = ankleRock(60, 65.5, 80);
 
 /* Wrist prep: on all fours, rocking the shoulders over planted hands. The knee
    is the fixed point and the pelvis is derived from the thigh angle, so the
@@ -10735,16 +10736,27 @@ const wristRock = (thigh, spine, head) => {
     footL: 168, footR: 166,
   };
 };
+/* The hip travels an ARC about the knee, but lerpPose walks the straight line
+   between two keys, so a single 35-degree step would cut the corner and drag
+   the planted shin three quarters of a unit across the mat. Halving the step
+   puts the sag back under two tenths. */
 const WRIST_BACK = wristRock(-100, 14, 2);
-const WRIST_FWD = wristRock(-135, 8, -4);
+const WRIST_MID = wristRock(-122.5, 9, -3);
+const WRIST_FWD = wristRock(-145, 4, -8);
 
-/* Toy soldier: a straight-leg kick up to the opposite hand, walking. */
-const SOLDIER_DOWN = p(STAND, { x: 44, armL: [-60, -50], armR: [-120, -130] });
-const SOLDIER_KICK = p(STAND, {
-  x: 44, spine: 84, head: 80,
+/* Toy soldier: a straight-leg kick up to the opposite hand. The standing hip
+   never moves and the SUPPORT LEG KEEPS EXACTLY THE ANGLES IT HAD in every key
+   — STAND's own [-87, -89] against the kick key's [-92, -90] was enough to walk
+   the planted foot 1.6 units across the floor each rep. */
+const SOLDIER_PLANT = { x: 44, y: 57, legL: [-90, -90], footL: 2 };
+const SOLDIER_DOWN = p(STAND, Object.assign({
+  armL: [-60, -50], armR: [-120, -130],
+}, SOLDIER_PLANT));
+const SOLDIER_KICK = p(STAND, Object.assign({
+  spine: 84, head: 80,
   armL: [-20, -14], armR: [-26, -20],
-  legL: [-92, -90], legR: [-14, -10], footL: 2, footR: 62,
-});
+  legR: [-14, -10], footR: 62,
+}, SOLDIER_PLANT));
 
 /* Kneeling hip flexor stretch. Same trick as the wrist rock: the rear KNEE is
    the fixed point and the pelvis is solved from the rear thigh angle, so the
@@ -10770,7 +10782,10 @@ const halfKneel = (thigh, spine, hip, reach) => {
     footL: 172, footR: 2,
   };
 };
+/* Stepped in halves for the same reason as the wrist rock: one 33-degree jump
+   across the hip's arc chords the corner and slides the planted shin. */
 const HIPFLEX_TALL = halfKneel(-95, 90, [42, 68], [44, 69]);
+const HIPFLEX_MID = halfKneel(-111.5, 94, [46, 69.5], [45, 49]);
 const HIPFLEX_PRESS = halfKneel(-128, 98, [50, 71], [46, 30]);
 
 /* Child's pose. The shins stay flat and the hips stay parked on the heels for
@@ -10813,6 +10828,25 @@ const WGS_OPEN = Object.assign({}, WGS_BASE, {
   handR: { x: 64, y: 43, bend: 1 },
 });
 
+/* Glute bridge activation. The shared GLUTE_BRIDGE_* poses cannot carry this
+   one: they lift the pelvis nine units, which on a warm-up card reads as lying
+   still and breathing, and their arms are posed by ANGLE, so the hands skate two
+   units along the mat as the torso rolls. Here the hands are pinned to the mat
+   beside the hips like everything else touching the floor, and the pelvis lifts
+   half again as far, the spine unrolling underneath it so the shoulders stay
+   down where a bridge keeps them. */
+const bridge = (py, spine) => ({
+  x: 48, y: py, spine, head: 150,
+  /* bend +1: the other elbow solution buries the forearm seven units under the
+     mat. The hands sit out towards the feet so the arm lies nearly straight. */
+  handL: { x: 44, y: 87.5, bend: 1 }, handR: { x: 47, y: 87.5, bend: 1 },
+  footPtL: { x: 66, y: 87.5, bend: 1 }, footPtR: { x: 68, y: 87.5, bend: 1 },
+  footL: 0, footR: 0,
+});
+const BRIDGE_DOWN = bridge(85.5, 176);
+const BRIDGE_MID = bridge(79.5, 192);
+const BRIDGE_UP = bridge(73, 208.5);
+
 /* Band pull-down for the scapulae. The arms sweep from overhead DOWN and forward
    to the hips, elbows locked straight the whole way — the forearm angle equals
    the upper-arm angle in every key, so no amount of interpolation can bend them.
@@ -10837,8 +10871,13 @@ const passiveHang = (px, py, spine, head, ll, lr) => p(HANG, {
   legL: ll, legR: lr, footL: 0, footR: 0,
 });
 const HANG_GRIP = passiveHang(50, 56.5, 90, 90, [-89, -90], [-93, -90]);
-const HANG_SINK = passiveHang(48, 60.5, 92, 82, [-94, -92], [-98, -92]);
-const HANG_SWAY = passiveHang(52, 60.5, 88, 98, [-86, -88], [-90, -88]);
+const HANG_SINK = passiveHang(50, 60.5, 90, 84, [-88, -90], [-92, -90]);
+/* The sway has to be worth drawing or the clip is a photograph: a two-unit
+   shuffle was the whole motion before. Twelve units of pelvis carries the feet
+   through twenty-one, with the spine and the trailing legs leaning into the
+   swing so the body reads as one pendulum instead of a wobbling plank. */
+const HANG_FWD = passiveHang(56, 59.5, 100, 94, [-78, -80], [-82, -80]);
+const HANG_BACK = passiveHang(44, 59.5, 80, 74, [-98, -100], [-102, -100]);
 
 const X12_CLIPS = {
   torso_twist_standing: clip({
@@ -10872,8 +10911,9 @@ const X12_CLIPS = {
     id: 'ankle_rocks', duration: 3200, hero: 0.5,
     props: [{ type: 'wall', x: 74, y0: 28, y1: 88 }],
     keys: [
-      { t: 0, pose: ANKLE_BACK }, { t: 0.42, pose: ANKLE_FWD },
-      { t: 0.62, pose: ANKLE_FWD }, { t: 1, pose: ANKLE_BACK },
+      { t: 0, pose: ANKLE_BACK }, { t: 0.24, pose: ANKLE_MID },
+      { t: 0.42, pose: ANKLE_FWD }, { t: 0.62, pose: ANKLE_FWD },
+      { t: 0.82, pose: ANKLE_MID }, { t: 1, pose: ANKLE_BACK },
     ],
   }),
 
@@ -10881,8 +10921,9 @@ const X12_CLIPS = {
     id: 'wrist_prep', duration: 3600, hero: 0.5,
     props: [{ type: 'mat', x: 42, w: 68 }],
     keys: [
-      { t: 0, pose: WRIST_BACK }, { t: 0.42, pose: WRIST_FWD },
-      { t: 0.62, pose: WRIST_FWD }, { t: 1, pose: WRIST_BACK },
+      { t: 0, pose: WRIST_BACK }, { t: 0.22, pose: WRIST_MID },
+      { t: 0.42, pose: WRIST_FWD }, { t: 0.62, pose: WRIST_FWD },
+      { t: 0.8, pose: WRIST_MID }, { t: 1, pose: WRIST_BACK },
     ],
   }),
 
@@ -10898,8 +10939,9 @@ const X12_CLIPS = {
     id: 'glute_bridge_activation', duration: 3600,
     props: [{ type: 'mat', x: 44, w: 62 }],
     keys: [
-      { t: 0, pose: GLUTE_BRIDGE_DOWN }, { t: 0.4, pose: GLUTE_BRIDGE_UP },
-      { t: 0.64, pose: GLUTE_BRIDGE_UP }, { t: 1, pose: GLUTE_BRIDGE_DOWN },
+      { t: 0, pose: BRIDGE_DOWN }, { t: 0.22, pose: BRIDGE_MID },
+      { t: 0.42, pose: BRIDGE_UP }, { t: 0.64, pose: BRIDGE_UP },
+      { t: 0.82, pose: BRIDGE_MID }, { t: 1, pose: BRIDGE_DOWN },
     ],
   }),
 
@@ -10907,8 +10949,9 @@ const X12_CLIPS = {
     id: 'hip_flexor_stretch_kneeling', duration: 4600, hero: 0.5,
     props: [{ type: 'mat', x: 40, w: 60 }],
     keys: [
-      { t: 0, pose: HIPFLEX_TALL }, { t: 0.42, pose: HIPFLEX_PRESS },
-      { t: 0.68, pose: HIPFLEX_PRESS }, { t: 1, pose: HIPFLEX_TALL },
+      { t: 0, pose: HIPFLEX_TALL }, { t: 0.22, pose: HIPFLEX_MID },
+      { t: 0.42, pose: HIPFLEX_PRESS }, { t: 0.68, pose: HIPFLEX_PRESS },
+      { t: 0.84, pose: HIPFLEX_MID }, { t: 1, pose: HIPFLEX_TALL },
     ],
   }),
 
@@ -10943,8 +10986,10 @@ const X12_CLIPS = {
     id: 'passive_bar_hang', duration: 5000, hero: 0.5, ground: false,
     props: [{ type: 'bar', x: 50, y: 15, w: 44 }],
     keys: [
-      { t: 0, pose: HANG_GRIP }, { t: 0.28, pose: HANG_SINK },
-      { t: 0.62, pose: HANG_SWAY }, { t: 1, pose: HANG_GRIP },
+      { t: 0, pose: HANG_GRIP }, { t: 0.14, pose: HANG_SINK },
+      { t: 0.36, pose: HANG_FWD }, { t: 0.5, pose: HANG_SINK },
+      { t: 0.72, pose: HANG_BACK }, { t: 0.86, pose: HANG_SINK },
+      { t: 1, pose: HANG_GRIP },
     ],
   }),
 };
@@ -11092,15 +11137,15 @@ const KPIKE_TOP = {
   // hands. Drawn with a shallow spine the whole thing lay flat and read as a
   // plank, which is the one shape a pike push-up must not look like.
   x: 34, y: 72.5, spine: -14, head: -8,
-  handL: { x: 72, y: 87.5, bend: -1 },
-  handR: { x: 74, y: 87.5, bend: -1 },
+  handL: { x: 72, y: 87.5, bend: 1 },
+  handR: { x: 74, y: 87.5, bend: 1 },
   legL: [-91, 180], legR: [-95, 176],
   footL: 168, footR: 168,
 };
 const KPIKE_BOTTOM = p(KPIKE_TOP, {
   x: 33, y: 72.5, spine: -30, head: 0,
-  handL: { x: 72, y: 87.5, bend: -1 },
-  handR: { x: 74, y: 87.5, bend: -1 },
+  handL: { x: 72, y: 87.5, bend: 1 },
+  handR: { x: 74, y: 87.5, bend: 1 },
   legL: [-91, 180], legR: [-95, 176],
 });
 
@@ -11703,13 +11748,13 @@ const TREAD_C = {
    the shoulders, then roll up onto the feet. A sit-up never leaves the mat. */
 const CANDLE_SIT = {
   x: 48, y: 78, spine: 62, head: 56,
-  handL: { x: 70, y: 86, bend: -1 }, handR: { x: 72, y: 86.5, bend: -1 },
+  handL: { x: 70, y: 86, bend: 1 }, handR: { x: 72, y: 86.5, bend: 1 },
   legL: [20, -95], legR: [16, -99],
   footL: 2, footR: 2,
 };
 const CANDLE_ROLL = {
   x: 46, y: 72, spine: 4, head: 0,
-  handL: { x: 72, y: 87.5, bend: -1 }, handR: { x: 74, y: 87.5, bend: -1 },
+  handL: { x: 72, y: 87.5, bend: 1 }, handR: { x: 74, y: 87.5, bend: 1 },
   legL: [128, 140], legR: [124, 136],
   footL: 160, footR: 160,
 };
@@ -11717,7 +11762,7 @@ const CANDLE_ROLL = {
    That stack is the whole exercise and the reason it is not a sit-up. */
 const CANDLE_UP = {
   x: 44, y: 62, spine: -60, head: -28,
-  handL: { x: 72, y: 87.5, bend: -1 }, handR: { x: 74, y: 87.5, bend: -1 },
+  handL: { x: 72, y: 87.5, bend: 1 }, handR: { x: 74, y: 87.5, bend: 1 },
   legL: [92, 90], legR: [88, 86],
   footL: 178, footR: 178,
 };

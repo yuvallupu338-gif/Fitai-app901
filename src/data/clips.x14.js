@@ -247,13 +247,13 @@ const TREAD_C = {
    the shoulders, then roll up onto the feet. A sit-up never leaves the mat. */
 const CANDLE_SIT = {
   x: 48, y: 78, spine: 62, head: 56,
-  handL: { x: 70, y: 86, bend: -1 }, handR: { x: 72, y: 86.5, bend: -1 },
+  handL: { x: 70, y: 86, bend: 1 }, handR: { x: 72, y: 86.5, bend: 1 },
   legL: [20, -95], legR: [16, -99],
   footL: 2, footR: 2,
 };
 const CANDLE_ROLL = {
   x: 46, y: 72, spine: 4, head: 0,
-  handL: { x: 72, y: 87.5, bend: -1 }, handR: { x: 74, y: 87.5, bend: -1 },
+  handL: { x: 72, y: 87.5, bend: 1 }, handR: { x: 74, y: 87.5, bend: 1 },
   legL: [128, 140], legR: [124, 136],
   footL: 160, footR: 160,
 };
@@ -261,7 +261,7 @@ const CANDLE_ROLL = {
    That stack is the whole exercise and the reason it is not a sit-up. */
 const CANDLE_UP = {
   x: 44, y: 62, spine: -60, head: -28,
-  handL: { x: 72, y: 87.5, bend: -1 }, handR: { x: 74, y: 87.5, bend: -1 },
+  handL: { x: 72, y: 87.5, bend: 1 }, handR: { x: 74, y: 87.5, bend: 1 },
   legL: [92, 90], legR: [88, 86],
   footL: 178, footR: 178,
 };

@@ -104,9 +104,15 @@ function checkRepresentation(clip) {
 function checkGeometry(id, clip) {
   for (let i = 0; i < 20; i++) {
     const j = solve(sampleClip(clip, i / 20));
+    // Elbows and knees are here because leaving them out let a glute bridge
+    // ship with both forearms six units under the mat: every endpoint was on
+    // the floor exactly where it belonged, and the joint between them was not.
+    // IK has two solutions and the wrong one bends the limb straight down.
     const pts = {
-      head: j.head, pelvis: j.pelvis,
+      head: j.head, pelvis: j.pelvis, neck: j.neck,
       handL: j.arms.L.hand, handR: j.arms.R.hand,
+      elbowL: j.arms.L.elbow, elbowR: j.arms.R.elbow,
+      kneeL: j.legs.L.knee, kneeR: j.legs.R.knee,
       ankleL: j.legs.L.ankle, ankleR: j.legs.R.ankle,
       toeL: j.legs.L.toe, toeR: j.legs.R.toe,
     };

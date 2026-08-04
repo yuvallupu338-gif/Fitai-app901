@@ -137,15 +137,15 @@ const KPIKE_TOP = {
   // hands. Drawn with a shallow spine the whole thing lay flat and read as a
   // plank, which is the one shape a pike push-up must not look like.
   x: 34, y: 72.5, spine: -14, head: -8,
-  handL: { x: 72, y: 87.5, bend: -1 },
-  handR: { x: 74, y: 87.5, bend: -1 },
+  handL: { x: 72, y: 87.5, bend: 1 },
+  handR: { x: 74, y: 87.5, bend: 1 },
   legL: [-91, 180], legR: [-95, 176],
   footL: 168, footR: 168,
 };
 const KPIKE_BOTTOM = p(KPIKE_TOP, {
   x: 33, y: 72.5, spine: -30, head: 0,
-  handL: { x: 72, y: 87.5, bend: -1 },
-  handR: { x: 74, y: 87.5, bend: -1 },
+  handL: { x: 72, y: 87.5, bend: 1 },
+  handR: { x: 74, y: 87.5, bend: 1 },
   legL: [-91, 180], legR: [-95, 176],
 });
 

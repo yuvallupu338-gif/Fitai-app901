@@ -124,8 +124,8 @@ const wristRock = (thigh, spine, head) => {
    the planted shin three quarters of a unit across the mat. Halving the step
    puts the sag back under two tenths. */
 const WRIST_BACK = wristRock(-100, 14, 2);
-const WRIST_MID = wristRock(-117.5, 11, -1);
-const WRIST_FWD = wristRock(-135, 8, -4);
+const WRIST_MID = wristRock(-122.5, 9, -3);
+const WRIST_FWD = wristRock(-145, 4, -8);
 
 /* Toy soldier: a straight-leg kick up to the opposite hand. The standing hip
    never moves and the SUPPORT LEG KEEPS EXACTLY THE ANGLES IT HAD in every key
@@ -220,7 +220,9 @@ const WGS_OPEN = Object.assign({}, WGS_BASE, {
    down where a bridge keeps them. */
 const bridge = (py, spine) => ({
   x: 48, y: py, spine, head: 150,
-  handL: { x: 38, y: 87.5, bend: -1 }, handR: { x: 41, y: 87.5, bend: -1 },
+  /* bend +1: the other elbow solution buries the forearm seven units under the
+     mat. The hands sit out towards the feet so the arm lies nearly straight. */
+  handL: { x: 44, y: 87.5, bend: 1 }, handR: { x: 47, y: 87.5, bend: 1 },
   footPtL: { x: 66, y: 87.5, bend: 1 }, footPtR: { x: 68, y: 87.5, bend: 1 },
   footL: 0, footR: 0,
 });
