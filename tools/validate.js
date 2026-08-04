@@ -247,7 +247,25 @@ if (schema && gen && typeof schema.defaults === 'function' && typeof gen.generat
 
 /* ---------------- report ---------------- */
 
+// Animation coverage: how many exercises have a clip of their own versus one
+// borrowed from a sibling or the generic pattern fallback.
+let ownClip = 0;
+let borrowed = 0;
+try {
+  const idx = await load('src/data/clips.index.js');
+  if (idx && idx.BY_EXERCISE) {
+    for (const e of allEx.values()) {
+      if (idx.BY_EXERCISE[e.id]) ownClip++;
+      else borrowed++;
+    }
+  }
+} catch (e) { /* index not loadable yet */ }
+
 console.log(`exercises: ${allEx.size}   clips: ${allClips.size}`);
+if (ownClip + borrowed) {
+  const pct = Math.round((ownClip / (ownClip + borrowed)) * 100);
+  console.log(`animation coverage: ${ownClip} own, ${borrowed} borrowed (${pct}% bespoke)`);
+}
 for (const w of warnings) console.log(`  warn  ${w}`);
 for (const e of errors) console.log(`  ERROR ${e}`);
 console.log(errors.length ? `\n${errors.length} error(s)` : '\nOK');
