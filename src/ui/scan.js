@@ -12,7 +12,7 @@
  */
 
 import { h, clear, announce, shrinkImage } from '../core/dom.js';
-import { analyze, VisionError } from '../vision/analyze.js';
+import { analyze, VisionError, scanEligibility } from '../vision/analyze.js';
 import { hasKey, keyLooksValid, loadKey, choiceFor } from '../ai/client.js';
 import { settingsRows } from './aisettings.js';
 import {
@@ -25,14 +25,19 @@ import {
  * Result rendering
  * ------------------------------------------------------------------ */
 
-function scoreDial(score) {
+function scoreDial(score, honestMonths) {
   const pct = Math.max(0, Math.min(10, score)) / 10;
   const tone = score >= 8 ? 'good' : score >= 5 ? 'warn' : 'bad';
   return h(`div.dial.${tone}`,
     h('div.dialnum', String(score), h('span', '/10')),
     h('div.dialbar', { 'aria-hidden': 'true' },
       h('i', { style: { width: `${Math.round(pct * 100)}%` } })),
-    h('div.diallabel', 'רמת היגיון'),
+    // Without a referent, a red 3/10 beside your own photograph reads as a
+    // score of you. It is a score of the goal against the date.
+    h('div.diallabel', 'היעד מול התאריך'),
+    Number.isFinite(honestMonths) && honestMonths !== null
+      ? h('div.dialsub', `${honestMonths} חודשים`)
+      : null,
   );
 }
 
@@ -46,9 +51,15 @@ export function renderRead(read, profile, opts) {
   const box = h('div.scanresult');
 
   if (!read.usable) {
-    box.appendChild(h('div.warnbox',
-      h('h4', 'לא הצלחתי לקרוא את התמונות'),
+    // A refusal for a minor or for sexual content is not a quality problem, and
+    // saying "try other photos" is telling someone how to get around it.
+    const safety = read.safetyRefusal === true;
+    box.appendChild(h('div.warnbox' + (safety ? '.hot' : ''),
+      h('h4', safety ? 'הסריקה נעצרה' : 'לא הצלחתי לקרוא את התמונות'),
       h('p', read.refusal || 'נסה תמונות אחרות.'),
+      safety
+        ? h('p', 'זו לא בעיה של איכות התמונה, ותמונה אחרת לא תשנה את זה.')
+        : null,
       h('p', { style: { color: 'var(--dimmer)', fontSize: '12.5px' } },
         'התוכנית נבנית בלי הסריקה, מהמספרים ומהתשובות שנתת. היא עדיין תוכנית מלאה.'),
     ));
@@ -59,13 +70,20 @@ export function renderRead(read, profile, opts) {
   const band = bandHe(r.band);
 
   box.appendChild(h('div.scanhead',
-    scoreDial(r.score || 5),
+    scoreDial(r.score || 5, r.honestMonths),
     h('div.scanheadtext',
       h('div.eyebrow', `${band.label} · ${confidenceHe(read.confidence)}`),
       h('h3', 'מה שתי התמונות אומרות'),
       read.confidenceNote ? h('p.sub', read.confidenceNote) : null,
     ),
   ));
+
+  /* Adjacent to the number it qualifies. Below the verdict, below the goal
+     button and four screens down, it was a legal artefact rather than a
+     disclaimer — the user who most needs it is the one least likely to scroll. */
+  box.appendChild(h('p.disclaimer', { style: { marginTop: '0', marginBottom: '16px' } },
+    'זו קריאה משתי תמונות, לא מדידה. תמונה לא מודדת אחוז שומן ולא מודדת בריאות, '
+    + 'והיא משתנה לפי תאורה וזווית. הציון הוא על היעד מול התאריך — לא עליך.'));
 
   if (r.verdict) {
     box.appendChild(h(`div.verdict.${band.tone}`, paras(r.verdict)));
@@ -144,8 +162,7 @@ export function renderRead(read, profile, opts) {
   }
 
   box.appendChild(h('p.disclaimer',
-    'הקריאה הזאת נעשתה משתי תמונות ומהמספרים שנתת. תמונה לא מודדת אחוז שומן, לא מודדת בריאות, '
-    + 'והיא משתנה לפי תאורה וזווית. השתמש בה ככיוון, לא כאבחנה.'));
+    'השתמש בזה ככיוון, לא כאבחנה. אם יש חשש בריאותי — זו שיחה עם רופא, לא עם אפליקציה.'));
 
   return box;
 }
@@ -176,6 +193,18 @@ export function renderScan(host, profile, opts) {
   function draw() {
     clear(body);
 
+    /* Refused before the photos are chosen, not after they are uploaded. The
+       age is already in the profile; asking someone to photograph themselves
+       and only then declining is the worst possible order. */
+    const eligible = scanEligibility(profile);
+    if (!eligible.ok) {
+      body.appendChild(h('div.warnbox',
+        h('h4', 'הסריקה לא זמינה'),
+        h('p', eligible.he),
+      ));
+      return;
+    }
+
     const ready = !!profile.photoNow && !!profile.photoTarget;
     const { provider, model } = choiceFor('vision');
     const keyed = hasKey(provider.id);
@@ -185,7 +214,11 @@ export function renderScan(host, profile, opts) {
         h('h4', 'מה קורה כשאתה לוחץ'),
         h('ul',
           h('li', `שתי התמונות נשלחות ל־${provider.label}, יחד עם הגיל, הגובה, המשקל, הוותק, המטרה והתאריך שנתת.`),
-          h('li', 'לא נשלחים: השם שלך, המצב הרפואי, האלרגיות והמפתח לא נשמר אצל אף אחד חוץ ממך.'),
+          h('li', 'נשלחות גם המגבלות הפיזיות שסימנת — כולל לב, אסתמה או הריון אם סימנת אותן — '
+            + 'כי המלצה שלא יודעת עליהן מסוכנת יותר מהמלצה שיודעת.'),
+          h('li', 'לא נשלחים: השם שלך, הטקסט החופשי על מצב רפואי ותרופות, והאלרגיות. '
+            + 'המפתח לא נשמר אצל אף אחד חוץ ממך.'),
+          h('li', 'הציון הוא שיפוט של היעד מול התאריך משתי תמונות. הוא לא מדידה של הגוף ולא של הבריאות.'),
           h('li', 'התשובה חוזרת אליך בלבד ונשמרת במכשיר. שום שרת של האפליקציה הזאת לא רואה אותה — אין כזה.'),
           h('li', 'אפשר לדלג. בלי סריקה התוכנית נבנית מהתשובות בשאלון, כמו תמיד.'),
         )));

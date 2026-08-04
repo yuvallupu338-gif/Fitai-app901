@@ -576,3 +576,4 @@ input::placeholder, textarea::placeholder { color: var(--dimmer); }
 .qshead h4 { font-size: 15px; color: var(--chalk); }
 .qspanel .help { margin: 6px 0 10px; }
 .qspanel textarea { min-height: 108px; }
+.dialsub { font-family: var(--mono); font-size: 10px; color: var(--dimmer); margin-top: 3px; }

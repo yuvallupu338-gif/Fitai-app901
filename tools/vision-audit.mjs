@@ -24,7 +24,7 @@ import { fileURLToPath, pathToFileURL } from 'node:url';
 const ROOT = resolve(dirname(fileURLToPath(import.meta.url)), '..');
 const load = (rel) => import(pathToFileURL(resolve(ROOT, rel)).href);
 
-const { normalizeRead } = await load('src/vision/analyze.js');
+const { normalizeRead, scanEligibility, fatLossBlocked } = await load('src/vision/analyze.js');
 const { emphasisFrom, emphasisSummary, timelineGap, goalConflict, GROUPS } = await load('src/vision/apply.js');
 const { profileBrief, PATTERNS } = await load('src/vision/prompt.js');
 const { normalizeProfile, defaults } = await load('src/intake/schema.js');
@@ -333,6 +333,144 @@ for (const base of BASES) {
   // knee it cannot see is worse than one that knows.
   const injured = profileBrief(normalizeProfile({ age: 30, heightCm: 175, weightKg: 70, injuries: ['knee'] }));
   ok(injured.indexOf('knee') >= 0, 'profileBrief dropped the injuries the read needs');
+}
+
+/* ------------------------------------------------------------------ *
+ * 5b. Who may run this at all, and what it may say to them
+ * ------------------------------------------------------------------ */
+
+{
+  const at = (age, over) => normalizeProfile(Object.assign(
+    { age, heightCm: 170, weightKg: 65 }, over || {}));
+
+  // The scan asks for a photograph of a body and sends it to a third party.
+  // The questionnaire accepts ages from 10.
+  for (const age of [10, 12, 15, 17]) {
+    const e = scanEligibility(at(age));
+    ok(e.ok === false && e.kind === 'underage', `scan is open to a ${age}-year-old`);
+    ok(/\S/.test(e.he), `the ${age} refusal has no explanation`);
+  }
+  for (const age of [18, 30, 70]) {
+    ok(scanEligibility(at(age)).ok === true, `scan wrongly refused at ${age}`);
+  }
+
+  // Fat loss must not be carried for a minor or an underweight profile,
+  // whichever of the two applies.
+  ok(fatLossBlocked(at(15)) === true, 'fat loss allowed for a 15-year-old');
+  ok(fatLossBlocked(at(30, { heightCm: 170, weightKg: 46 })) === true,
+    'fat loss allowed at BMI 15.9');
+  ok(fatLossBlocked(at(30, { heightCm: 170, weightKg: 65 })) === false,
+    'fat loss wrongly blocked at BMI 22.5');
+
+  const steerFatLoss = (profile) => normalizeRead({
+    usable: true, confidence: 'high', confidenceNote: 'x',
+    startPoint: { build: 'average', trainingAge: 'untrained', notes: 'x' },
+    targetPhysique: { leanness: 'much_leaner', mass: 'similar', standsOut: [], notes: 'x' },
+    realism: { score: 5, band: 'tight', honestMonths: 12, verdict: 'x', firstMilestone: 'x' },
+    steer: {
+      goal: 'fatloss', goalNote: 'x', emphasise: [], deemphasise: [],
+      conditioning: 'high', note: 'x',
+    },
+    posture: [],
+  }, {}, profile);
+
+  const minor = at(15, { goal: 'muscle' });
+  const readMinor = steerFatLoss(minor);
+  ok(readMinor.steer.goal === null, 'a fat-loss steer reached a 15-year-old');
+  ok(goalConflict(readMinor, minor) === null, 'the goal-change button was offered to a minor');
+
+  const thin = at(30, { heightCm: 170, weightKg: 46, goal: 'muscle' });
+  const readThin = steerFatLoss(thin);
+  ok(readThin.steer.goal === null, 'a fat-loss steer reached an underweight profile');
+  ok(goalConflict(readThin, thin) === null, 'the goal-change button was offered at BMI 15.9');
+
+  // And it still works for someone it should work for.
+  const adult = at(30, { heightCm: 178, weightKg: 95, goal: 'muscle' });
+  ok(steerFatLoss(adult).steer.goal === 'fatloss', 'a legitimate fat-loss steer was dropped');
+  ok(goalConflict(steerFatLoss(adult), adult) !== null, 'a legitimate conflict was suppressed');
+
+  /*
+   * goalConflict's own guard, exercised DIRECTLY.
+   *
+   * Driving it through normalizeRead cannot test it: the first layer nulls the
+   * goal, so the second never sees one, and removing the second layer entirely
+   * left this audit green. A backstop that is only reachable when the layer in
+   * front of it has already failed has to be tested the same way — by handing it
+   * the value that layer is supposed to stop.
+   */
+  const forged = (profile) => Object.assign(steerFatLoss(adult), {}, {
+    steer: Object.assign({}, steerFatLoss(adult).steer, { goal: 'fatloss' }),
+  });
+  ok(goalConflict(forged(), at(15, { goal: 'muscle' })) === null,
+    'goalConflict offered fat loss to a minor when handed it directly');
+  ok(goalConflict(forged(), at(30, { heightCm: 170, weightKg: 46, goal: 'muscle' })) === null,
+    'goalConflict offered fat loss at BMI 15.9 when handed it directly');
+  ok(goalConflict(forged(), at(30, { heightCm: 178, weightKg: 95, goal: 'muscle' })) !== null,
+    'goalConflict suppressed a legitimate fat-loss conflict');
+}
+
+/* Numbers a photograph cannot measure must not reach the screen, whoever put
+   them there — and photo 2 is by design a picture pulled from elsewhere. */
+{
+  const adult = normalizeProfile({ age: 30, heightCm: 178, weightKg: 88 });
+  const withNumbers = (field, value) => {
+    const base = {
+      usable: true, confidence: 'high', confidenceNote: 'ברור',
+      startPoint: { build: 'average', trainingAge: 'untrained', notes: 'תקין' },
+      targetPhysique: { leanness: 'similar', mass: 'similar', standsOut: [], notes: 'תקין' },
+      realism: { score: 5, band: 'tight', honestMonths: 12, verdict: 'תקין', firstMilestone: 'תקין' },
+      steer: { goal: null, goalNote: null, emphasise: [], deemphasise: [], conditioning: 'light', note: 'תקין' },
+      posture: [],
+    };
+    const path = field.split('.');
+    let node = base;
+    while (path.length > 1) node = node[path.shift()];
+    node[path[0]] = value;
+    return normalizeRead(base, {}, adult);
+  };
+
+  const CASES = [
+    ['startPoint.notes', 'אחוז השומן שלך הוא בערך 31%. הכתפיים רחבות.'],
+    ['targetPhysique.notes', 'הגוף הזה הוא בערך 12% שומן. גב רחב.'],
+    ['realism.verdict', 'תצטרך לרדת 9 ק״ג. הכיוון נכון.'],
+    ['realism.firstMilestone', 'תרד 2 קילו בחודש הראשון.'],
+    ['steer.note', 'הדגש עובר לגב. אתה בערך 28 אחוז שומן.'],
+  ];
+  for (const [field, value] of CASES) {
+    const read = withNumbers(field, value);
+    const flat = JSON.stringify(read);
+    ok(!/\d+(?:[.,]\d+)?\s*(?:%|אחוז|ק״ג|קילו)/.test(flat),
+      `a forbidden number survived in ${field}: ${flat.slice(0, 160)}`);
+    ok(read.confidence === 'low', `confidence not lowered after scrubbing ${field}`);
+  }
+
+  // The honest sentence beside the offending one is kept.
+  const kept = withNumbers('startPoint.notes', 'אחוז השומן שלך הוא בערך 31%. הכתפיים רחבות.');
+  ok(kept.startPoint.notes.includes('הכתפיים'), 'the clean sentence was dropped with the dirty one');
+
+  // A report with no numbers is untouched.
+  const clean = withNumbers('startPoint.notes', 'יש בסיס. הגב פחות מפותח.');
+  ok(clean.confidence === 'high', 'a clean report had its confidence lowered');
+  ok(clean.startPoint.notes === 'יש בסיס. הגב פחות מפותח.', 'a clean report was altered');
+}
+
+/* A safety refusal must not be dressed as a photo-quality problem. */
+{
+  for (const kind of ['minor', 'sexual']) {
+    const r = normalizeRead({ usable: false, refusalKind: kind }, {}, {});
+    ok(r.safetyRefusal === true, `${kind} refusal not flagged as a safety refusal`);
+    ok(!/נסה תמונות אחרות/.test(r.refusal), `${kind} refusal invites a retry: ${r.refusal}`);
+  }
+  for (const kind of ['unreadable', 'not_a_body']) {
+    const r = normalizeRead({ usable: false, refusalKind: kind }, {}, {});
+    ok(r.safetyRefusal === false, `${kind} wrongly treated as a safety refusal`);
+  }
+  // An absent or bogus kind must not silently become a safety refusal, nor
+  // silently become a retry invitation for something that was one.
+  ok(normalizeRead({ usable: false }, {}, {}).refusalKind === 'unreadable',
+    'a missing refusalKind did not fall back');
+  ok(normalizeRead({ usable: false, refusalKind: 'whatever' }, {}, {}).safetyRefusal === false,
+    'a bogus refusalKind became a safety refusal');
 }
 
 /* ------------------------------------------------------------------ *

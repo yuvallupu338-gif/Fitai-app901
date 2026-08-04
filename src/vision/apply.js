@@ -195,8 +195,12 @@ export function confidenceHe(confidence) {
   return CONFIDENCE_HE[confidence] || CONFIDENCE_HE.low;
 }
 
+/* "carrying_weight" is a neutral structural bucket in the schema, and the system
+   prompt spends a rule on not commenting how someone looks. Rendering it as
+   "נושא משקל עודף" — carrying EXCESS weight — added that judgement downstream of
+   the model, where no amount of prompt work could remove it. */
 const BUILD_HE = {
-  lean: 'רזה', average: 'ממוצע', carrying_weight: 'נושא משקל עודף',
+  lean: 'רזה', average: 'ממוצע', carrying_weight: 'מבנה מלא יותר',
   muscular: 'שרירי', unclear: 'לא ברור מהתמונה',
 };
 const TRAINING_AGE_HE = {
@@ -253,6 +257,18 @@ const GOAL_HE = {
   fatloss: 'ירידה בשומן', muscle: 'עלייה במסה', strength: 'כוח', fitness: 'כושר כללי',
 };
 
+/* Duplicated rather than imported: apply.js is the pure layer the engine and the
+   audits load, and it must not pull in the network client's dependency chain to
+   answer a question about two numbers. */
+function fatLossDisallowed(profile) {
+  const age = Number(profile && profile.age);
+  if (Number.isFinite(age) && age < 18) return true;
+  const h = Number(profile && profile.heightCm);
+  const w = Number(profile && profile.weightKg);
+  if (!Number.isFinite(h) || !Number.isFinite(w) || h <= 0) return false;
+  return w / ((h / 100) ** 2) < 18.5;
+}
+
 /**
  * When the photos point at a different goal than the one chosen, this is the
  * suggestion the UI offers. It is only ever a suggestion: the goal is not
@@ -267,6 +283,13 @@ export function goalConflict(read, profile) {
   // A sport goal is a fact about the user's life, not a physique read. The
   // photos have no standing to argue with it.
   if (p.goal === 'sport') return null;
+  /*
+   * Second layer. normalizeRead already refuses to carry a fat-loss steer for a
+   * minor or an underweight profile, so this should never fire — which is the
+   * point of having it. The failure it guards against is an app assembling
+   * restriction and cardio for someone already under the line, in two taps.
+   */
+  if (read.steer.goal === 'fatloss' && fatLossDisallowed(p)) return null;
   return {
     from: p.goal,
     to: read.steer.goal,

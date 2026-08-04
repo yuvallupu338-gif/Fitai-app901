@@ -25,6 +25,57 @@ const PATTERN_SET = new Set(PATTERNS);
    profile cannot try to push ten megabytes through a phone connection. */
 const MAX_IMAGE_BYTES = 3 * 1024 * 1024;
 
+/*
+ * Who may run this at all.
+ *
+ * The scan asks for a photograph of a body in tight clothing and sends it to a
+ * third party. The questionnaire accepts ages from 10. Those two facts together
+ * are the whole argument for this gate — and the app already KNOWS the age, so
+ * leaving the decision to a model guessing from the picture was choosing the
+ * least reliable instrument available over the answer sitting in the profile.
+ */
+const MIN_SCAN_AGE = 18;
+
+/*
+ * Below this the app will not carry a fat-loss recommendation, whatever the
+ * model returns. 18.5 is the conventional underweight threshold; the point is
+ * not diagnostic precision but that an app must never assemble restriction plus
+ * cardio for someone already under it.
+ */
+const UNDERWEIGHT_BMI = 18.5;
+
+function bmiOf(profile) {
+  const h = Number(profile && profile.heightCm);
+  const w = Number(profile && profile.weightKg);
+  if (!Number.isFinite(h) || !Number.isFinite(w) || h <= 0) return null;
+  return w / ((h / 100) ** 2);
+}
+
+/** True when a fat-loss steer must not be shown, whoever suggested it. */
+export function fatLossBlocked(profile) {
+  const age = Number(profile && profile.age);
+  if (Number.isFinite(age) && age < 18) return true;
+  const bmi = bmiOf(profile);
+  return bmi !== null && bmi < UNDERWEIGHT_BMI;
+}
+
+/**
+ * Whether the scan may run for this profile. Exported so the UI can say no
+ * before the photos are even chosen, rather than after they are uploaded.
+ */
+export function scanEligibility(profile) {
+  const age = Number(profile && profile.age);
+  if (Number.isFinite(age) && age < MIN_SCAN_AGE) {
+    return {
+      ok: false,
+      kind: 'underage',
+      he: `סריקת התמונות פתוחה מגיל ${MIN_SCAN_AGE}. `
+        + 'זה לא קשור לתוכנית — היא נבנית לך במלואה בלי הסריקה, בדיוק כמו לכל אחד אחר.',
+    };
+  }
+  return { ok: true, kind: null, he: '' };
+}
+
 const BUILDS = ['lean', 'average', 'carrying_weight', 'muscular', 'unclear'];
 const TRAINING_AGES = ['untrained', 'some_training', 'clearly_trained', 'unclear'];
 const LEANNESS = ['much_leaner', 'somewhat_leaner', 'similar', 'less_lean', 'unclear'];
@@ -33,6 +84,11 @@ const BANDS = ['realistic', 'tight', 'needs_more_time', 'not_reachable_naturally
 const GOALS = ['fatloss', 'muscle', 'strength', 'fitness'];
 const CONDITIONING = ['none', 'light', 'moderate', 'high'];
 const AREAS = ['shoulders', 'upper_back', 'lower_back', 'hips', 'knees', 'ankles', 'neck'];
+/* Why a read was refused. 'unreadable' and 'not_a_body' are quality problems and
+   retrying with better photos is the right advice. 'minor' and 'sexual' are
+   safety refusals, and telling someone to try other photos is telling them how
+   to get around one. */
+const REFUSAL_KINDS = ['unreadable', 'not_a_body', 'minor', 'sexual'];
 const CONFIDENCE = ['high', 'medium', 'low'];
 
 /* ------------------------------------------------------------------ *
@@ -53,6 +109,30 @@ function text(value, max) {
     .replace(CONTROL_RE, '')
     .trim();
   return s.length > max ? `${s.slice(0, max - 1)}…` : s;
+}
+
+/*
+ * The prompt forbids stating a body-fat percentage or a weight as though it were
+ * measured. That was a request to the model with nothing behind it, and it is
+ * the single output class the prompt itself calls out as harmful — so it is also
+ * the one worth enforcing rather than asking for.
+ *
+ * A sentence carrying such a number is dropped rather than edited: a half-fixed
+ * sentence reads as authored, and a response that broke a hard rule deserves
+ * less trust, not quiet repair. `scrub` reports whether it fired so the caller
+ * can lower confidence.
+ */
+const FORBIDDEN_NUMBER = /\d+(?:[.,]\d+)?\s*(?:%|אחוז|ק״ג|קילו|kg|kilo)/i;
+
+function scrub(value, max) {
+  const raw = text(value, max);
+  if (!raw || !FORBIDDEN_NUMBER.test(raw)) return { text: raw, hit: false };
+  const kept = raw
+    .split(/(?<=[.!?])\s+|\n+/)
+    .filter((sentence) => !FORBIDDEN_NUMBER.test(sentence))
+    .join(' ')
+    .trim();
+  return { text: kept, hit: true };
 }
 
 function intIn(value, lo, hi, fallback) {
@@ -80,8 +160,15 @@ function patternList(value, max) {
  * Exported because it is pure, and the tests drive it directly with hostile
  * input rather than through a network call.
  */
-export function normalizeRead(raw, meta) {
+export function normalizeRead(raw, meta, profile) {
   const r = raw && typeof raw === 'object' ? raw : {};
+  const noFatLoss = fatLossBlocked(profile);
+  let scrubbed = false;
+  const clean = (v, max) => {
+    const got = scrub(v, max);
+    if (got.hit) scrubbed = true;
+    return got.text;
+  };
 
   const out = {
     v: 1,
@@ -89,6 +176,10 @@ export function normalizeRead(raw, meta) {
     model: (meta && meta.model) || '',
     usable: r.usable === true,
     refusal: text(r.refusal, 400) || null,
+    refusalKind: oneOf(r.refusalKind, REFUSAL_KINDS, 'unreadable'),
+    // A safety refusal must not be presented as a photo-quality problem, and
+    // must not leave the same two pictures one retry away from passing.
+    safetyRefusal: false,
     confidence: oneOf(r.confidence, CONFIDENCE, 'low'),
     confidenceNote: text(r.confidenceNote, 400),
     startPoint: null,
@@ -99,7 +190,12 @@ export function normalizeRead(raw, meta) {
   };
 
   if (!out.usable) {
-    if (!out.refusal) out.refusal = 'לא הצלחתי לקרוא את התמונות האלה. נסה תמונות אחרות.';
+    out.safetyRefusal = out.refusalKind === 'minor' || out.refusalKind === 'sexual';
+    if (!out.refusal) {
+      out.refusal = out.safetyRefusal
+        ? 'לא אנתח את התמונות האלה.'
+        : 'לא הצלחתי לקרוא את התמונות האלה. נסה תמונות אחרות.';
+    }
     return out;
   }
 
@@ -107,7 +203,7 @@ export function normalizeRead(raw, meta) {
   out.startPoint = {
     build: oneOf(sp.build, BUILDS, 'unclear'),
     trainingAge: oneOf(sp.trainingAge, TRAINING_AGES, 'unclear'),
-    notes: text(sp.notes, 700),
+    notes: clean(sp.notes, 700),
   };
 
   const tp = r.targetPhysique && typeof r.targetPhysique === 'object' ? r.targetPhysique : {};
@@ -115,7 +211,7 @@ export function normalizeRead(raw, meta) {
     leanness: oneOf(tp.leanness, LEANNESS, 'unclear'),
     mass: oneOf(tp.mass, MASS, 'unclear'),
     standsOut: patternList(tp.standsOut, 5),
-    notes: text(tp.notes, 700),
+    notes: clean(tp.notes, 700),
   };
 
   const re = r.realism && typeof r.realism === 'object' ? r.realism : {};
@@ -127,20 +223,22 @@ export function normalizeRead(raw, meta) {
     // the model sends both, the band wins — the whole point of that band is
     // that there is no honest date to give.
     honestMonths: band === 'not_reachable_naturally' ? null : intIn(re.honestMonths, 1, 240, null),
-    verdict: text(re.verdict, 1200),
-    firstMilestone: text(re.firstMilestone, 300),
+    verdict: clean(re.verdict, 1200),
+    firstMilestone: clean(re.firstMilestone, 300),
   };
 
   const st = r.steer && typeof r.steer === 'object' ? r.steer : {};
   const emphasise = patternList(st.emphasise, 5);
   out.steer = {
-    goal: oneOf(st.goal, GOALS, null),
+    // A fat-loss steer is dropped here rather than hidden later, so the value
+    // never exists to be rendered, stored or acted on.
+    goal: noFatLoss && st.goal === 'fatloss' ? null : oneOf(st.goal, GOALS, null),
     goalNote: text(st.goalNote, 400) || null,
     emphasise,
     // A pattern cannot be both emphasised and trimmed; emphasis wins.
     deemphasise: patternList(st.deemphasise, 2).filter((x) => emphasise.indexOf(x) < 0),
     conditioning: oneOf(st.conditioning, CONDITIONING, 'light'),
-    note: text(st.note, 700),
+    note: clean(st.note, 700),
   };
   if (!out.steer.goal) out.steer.goalNote = null;
 
@@ -148,7 +246,7 @@ export function normalizeRead(raw, meta) {
     for (const item of r.posture.slice(0, 3)) {
       if (!item || typeof item !== 'object') continue;
       const area = oneOf(item.area, AREAS, null);
-      const observation = text(item.observation, 300);
+      const observation = clean(item.observation, 300);
       if (!area || !observation) continue;
       out.posture.push({
         area,
@@ -158,6 +256,11 @@ export function normalizeRead(raw, meta) {
     }
   }
 
+  if (scrubbed) {
+    out.confidence = 'low';
+    out.confidenceNote = (`${out.confidenceNote} `
+      + 'חלק מהתשובה כלל מספרים שתמונה לא יכולה למדוד, והוסר.').trim();
+  }
   return out;
 }
 
@@ -184,6 +287,10 @@ export async function analyze(profile, opts) {
       'לא נבחר מודל ראייה. הסריקה קוראת תמונות ודורשת ספק שמקבל אותן.');
   }
 
+  // Before the photos are packed, let alone sent.
+  const eligible = scanEligibility(p);
+  if (!eligible.ok) throw new AiError(eligible.kind, eligible.he);
+
   const now = imageBlock(p.photoNow, provider);
   const target = imageBlock(p.photoTarget, provider);
   if (!now || !target) {
@@ -208,7 +315,7 @@ export async function analyze(profile, opts) {
     signal: o.signal,
   });
 
-  return normalizeRead(input, { model, at: new Date().toISOString() });
+  return normalizeRead(input, { model, at: new Date().toISOString() }, p);
 }
 
 export { AiError };
