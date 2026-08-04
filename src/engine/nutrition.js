@@ -13,20 +13,20 @@
 /* ------------------------------------------------------------------ *
  * Food bank
  *
- * tags: meat | fish | dairy | egg | gluten | nuts | legume | soy | honey
+ * tags: meat | fish | dairy | egg | gluten | nuts | sesame | legume | soy | honey
  * Every variant is tagged honestly so the diet filters actually bite.
  * ------------------------------------------------------------------ */
 
 const BANK = {
   breakfast: [
-    { n: 'חביתה, לחם וטחינה', i: '3 ביצים · 2 פרוסות לחם מלא · כף טחינה · בננה', tags: ['egg', 'gluten'] },
+    { n: 'חביתה, לחם וטחינה', i: '3 ביצים · 2 פרוסות לחם מלא · כף טחינה · בננה', tags: ['egg', 'gluten', 'sesame'] },
     { n: 'שיבולת שועל חמה', i: 'חצי כוס שיבולת שועל בחלב · כף חמאת בוטנים · כף דבש · בננה', tags: ['dairy', 'gluten', 'nuts', 'honey'] },
     { n: 'קערת יוגורט', i: 'יוגורט יווני גדול · גרנולה · חופן שקדים · 3 תמרים', tags: ['dairy', 'gluten', 'nuts'] },
     { n: 'פיתה וקוטג׳', i: '2 פיתות · קוטג׳ 5% · ביצה קשה · מלפפון · כוס שוקו', tags: ['dairy', 'egg', 'gluten'] },
     { n: 'שקשוקה', i: '2 ביצים ברוטב עגבניות · פרוסת לחם לניגוב · סלט', tags: ['egg', 'gluten'] },
-    { n: 'שיבולת שועל במים', i: 'חצי כוס שיבולת שועל במים · כף טחינה גולמית · בננה · תמרים', tags: ['gluten'] },
+    { n: 'שיבולת שועל במים', i: 'חצי כוס שיבולת שועל במים · כף טחינה גולמית · בננה · תמרים', tags: ['gluten', 'sesame'] },
     { n: 'טופו מקושקש', i: 'טופו מפורר עם כורכום וירקות · 2 פרוסות לחם · אבוקדו', tags: ['soy', 'gluten'] },
-    { n: 'קערת פירות ואגוזים', i: 'בננה · תפוח · חופן אגוזים · 2 כפות טחינה · תמרים', tags: ['nuts'] },
+    { n: 'קערת פירות ואגוזים', i: 'בננה · תפוח · חופן אגוזים · 2 כפות טחינה · תמרים', tags: ['nuts', 'sesame'] },
     { n: 'ביצים ואורז', i: '3 ביצים · כוס אורז מאתמול · סלט עם שמן זית', tags: ['egg'] },
     { n: 'שייק בוקר', i: 'כוס משקה שקדים · בננה · 2 כפות שיבולת שועל · כף חמאת בוטנים', tags: ['gluten', 'nuts'] },
     { n: 'קערת אורז וטחינה', i: 'כוס אורז חם · 2 כפות טחינה גולמית · בננה · תמרים', tags: ['sesame'] },
@@ -43,7 +43,7 @@ const BANK = {
     { n: 'אגוזים ופירות יבשים', i: 'חופן שקדים · 3 תמרים · תפוח', tags: ['nuts'] },
     { n: 'טונה על קרקרים', i: 'קופסת טונה · 6 קרקרים · מלפפון', tags: ['fish', 'gluten'] },
     { n: 'חומוס וירקות', i: 'חצי גביע חומוס · גזר וקולורבי חתוכים · פיתה קטנה', tags: ['legume', 'gluten'] },
-    { n: 'פירות וטחינה', i: 'בננה · תפוח · 2 כפות טחינה גולמית', tags: [] },
+    { n: 'פירות וטחינה', i: 'בננה · תפוח · 2 כפות טחינה גולמית', tags: ['sesame'] },
     { n: 'אדממה', i: 'קערת אדממה · חופן שקדים · תפוז', tags: ['soy', 'nuts'] },
     { n: 'קוטג׳ ופרי', i: 'גביע קוטג׳ · אפרסק או תפוח · כף דבש', tags: ['dairy', 'honey'] },
     { n: 'תמרים ואגוזי מלך', i: '4 תמרים · חופן אגוזי מלך · כוס תה', tags: ['nuts'] },
@@ -57,10 +57,10 @@ const BANK = {
     { n: 'עוף ואורז', i: 'חזה עוף · כוס וחצי אורז · סלט עם שמן זית', tags: ['meat'] },
     { n: 'פסטה בולונז', i: 'פסטה · בשר טחון ברוטב עגבניות · פרוסת לחם', tags: ['meat', 'gluten'] },
     { n: 'שניצל ופירה', i: '2 שניצלים · פירה · סלט', tags: ['meat', 'gluten'] },
-    { n: 'מג׳דרה', i: 'אורז עם עדשים · ביצה קשה · טחינה · סלט', tags: ['legume', 'egg'] },
+    { n: 'מג׳דרה', i: 'אורז עם עדשים · ביצה קשה · טחינה · סלט', tags: ['legume', 'egg', 'sesame'] },
     { n: 'טורטייה גדולה', i: 'טורטייה · טונה · ביצה · אבוקדו · ירקות', tags: ['fish', 'egg', 'gluten'] },
-    { n: 'תבשיל עדשים', i: 'עדשים כתומות · אורז מלא · טחינה · סלט ירקות', tags: ['legume'] },
-    { n: 'קדרת חומוס וירקות', i: 'חומוס גרגרים · בטטה · אורז · טחינה · לימון', tags: ['legume'] },
+    { n: 'תבשיל עדשים', i: 'עדשים כתומות · אורז מלא · טחינה · סלט ירקות', tags: ['legume', 'sesame'] },
+    { n: 'קדרת חומוס וירקות', i: 'חומוס גרגרים · בטטה · אורז · טחינה · לימון', tags: ['legume', 'sesame'] },
     { n: 'דג ואורז', i: 'פילה דג בתנור · אורז · ירקות אפויים', tags: ['fish'] },
     { n: 'תבשיל שעועית', i: 'שעועית לבנה ברוטב · אורז · סלט · כף שמן זית', tags: ['legume'] },
     { n: 'קציצות עוף ובורגול', i: 'קציצות עוף · בורגול · סלט ירקות', tags: ['meat', 'gluten'] },
@@ -85,15 +85,15 @@ const BANK = {
   ],
 
   dinner: [
-    { n: 'על האש', i: 'פרגית או כנפיים · אורז · פיתה · סלט עם טחינה', tags: ['meat', 'gluten'] },
+    { n: 'על האש', i: 'פרגית או כנפיים · אורז · פיתה · סלט עם טחינה', tags: ['meat', 'gluten', 'sesame'] },
     { n: 'המבורגר ביתי', i: '2 קציצות · לחמנייה · תפוחי אדמה בתנור · סלט', tags: ['meat', 'gluten'] },
     { n: 'דג ותפוח אדמה', i: 'פילה סלמון או בורי · 2 תפוחי אדמה · ירקות בתנור', tags: ['fish'] },
     { n: 'פסטה גדולה', i: 'פסטה עם בשר טחון · סלט · לחם שום', tags: ['meat', 'gluten'] },
-    { n: 'שווארמה בצלחת', i: 'שווארמה · אורז · חומוס · טחינה · סלט', tags: ['meat', 'legume'] },
-    { n: 'מוקפץ ירקות וטופו', i: 'טופו · ירקות מוקפצים · אורז · שומשום', tags: ['soy'] },
-    { n: 'תבשיל גרגרי חומוס', i: 'חומוס ברוטב עגבניות · קוסקוס · סלט · טחינה', tags: ['legume', 'gluten'] },
+    { n: 'שווארמה בצלחת', i: 'שווארמה · אורז · חומוס · טחינה · סלט', tags: ['meat', 'legume', 'sesame'] },
+    { n: 'מוקפץ ירקות וטופו', i: 'טופו · ירקות מוקפצים · אורז · שומשום', tags: ['soy', 'sesame'] },
+    { n: 'תבשיל גרגרי חומוס', i: 'חומוס ברוטב עגבניות · קוסקוס · סלט · טחינה', tags: ['legume', 'gluten', 'sesame'] },
     { n: 'עוף בתנור וירקות', i: 'ירכיים בתנור · בטטה · ברוקולי · אורז', tags: ['meat'] },
-    { n: 'סלט קטניות גדול', i: 'עדשים ושעועית · ירקות · אבוקדו · טחינה · לחם מלא', tags: ['legume', 'gluten'] },
+    { n: 'סלט קטניות גדול', i: 'עדשים ושעועית · ירקות · אבוקדו · טחינה · לחם מלא', tags: ['legume', 'gluten', 'sesame'] },
     { n: 'חביתת ירקות ואורז', i: '3 ביצים · ירקות מוקפצים · אורז · סלט', tags: ['egg'] },
     { n: 'אורז, קטניות וטחינה', i: 'אורז · עדשים · טחינה · סלט ירקות גדול · לימון', tags: ['legume','sesame'] },
     { n: 'תפוחי אדמה בתנור וטופו', i: 'טופו צלוי · תפוחי אדמה · ברוקולי · שמן זית', tags: ['soy'] },
@@ -107,7 +107,7 @@ const BANK = {
     { n: 'חלב ולחם', i: 'כוס חלב · 2 פרוסות לחם עם ריבה', tags: ['dairy', 'gluten'] },
     { n: 'שייק לילה', i: 'כוס משקה שקדים · בננה · כף חמאת בוטנים', tags: ['nuts'] },
     { n: 'ביצים קשות', i: '2 ביצים קשות · מלפפון · מלח', tags: ['egg'] },
-    { n: 'טחינה ותמרים', i: '2 כפות טחינה גולמית · 4 תמרים · תה', tags: [] },
+    { n: 'טחינה ותמרים', i: '2 כפות טחינה גולמית · 4 תמרים · תה', tags: ['sesame'] },
     { n: 'אדממה וקערת פירות', i: 'אדממה · תפוח · חופן שקדים', tags: ['soy', 'nuts'] },
     { n: 'חומוס וגזר', i: 'חצי גביע חומוס · גזר חתוך · כף שמן זית', tags: ['legume'] },
     { n: 'אורז וטחינה', i: 'חצי כוס אורז · כף טחינה גולמית · מלח', tags: ['sesame'] },
@@ -138,17 +138,68 @@ function passesDiet(variant, diet) {
   return true;
 }
 
-function passesAllergies(variant, allergyTerms) {
-  if (!allergyTerms.length) return true;
+/*
+ * Hebrew words people actually type, mapped to the tags the bank already carries.
+ *
+ * Matching the typed text against the dish text was the bug, and it failed in
+ * the worst possible direction: someone writes "שומשום" — sesame — and every
+ * tahini dish sails through, because the word "שומשום" does not appear in
+ * "כף טחינה". Someone writes "אגוזים" and misses "חמאת בוטנים". The user is
+ * shown a plan built "for them" and reasonably assumes the food they declared
+ * was taken out. Silent non-filtering is worse than no filter at all, because
+ * being asked the question is what creates the trust.
+ *
+ * These are prefixes, matched against the typed word in both directions, so
+ * "אגוז", "אגוזים" and "אגוזי מלך" all reach the nuts tag.
+ */
+const ALLERGEN_TERMS = {
+  nuts: ['אגוז', 'בוטנ', 'שקד', 'פיסטוק', 'קשיו', 'לוז', 'פקאן', 'מקדמי'],
+  sesame: ['שומשום', 'טחינ', 'חלווה', 'חומוס טחינה'],
+  egg: ['ביצ', 'חלבון ביצה'],
+  dairy: ['חלב', 'יוגורט', 'קוטג', 'גבינ', 'לקטוז', 'שוקו', 'חמאה', 'מוצרי חלב'],
+  fish: ['דג', 'דגים', 'טונה', 'סלמון', 'בורי', 'פירות ים'],
+  soy: ['סויה', 'טופו', 'אדממה'],
+  legume: ['קטני', 'חומוס', 'עדש', 'שעוע', 'אפונ', 'פול'],
+  gluten: ['גלוטן', 'חיט', 'קמח', 'לחם', 'שעור'],
+};
+
+/** The tags a typed allergy list implicates. */
+function allergyTags(terms) {
+  const tags = new Set();
+  for (const typed of terms) {
+    for (const [tag, words] of Object.entries(ALLERGEN_TERMS)) {
+      for (const w of words) {
+        // Either direction: the typed word may be shorter than the canonical
+        // one ("אגוז" vs "אגוזים") or longer ("אגוזי מלך").
+        if (typed.includes(w) || w.includes(typed)) { tags.add(tag); break; }
+      }
+    }
+  }
+  return tags;
+}
+
+function passesAllergies(variant, terms, tags) {
+  if (!terms.length) return true;
+  // Tags first, because they are the reliable half: a dish is excluded whether
+  // or not the user happened to type the word that appears in its ingredients.
+  for (const t of (variant.tags || [])) if (tags.has(t)) return false;
+  // Then the literal text as well, for anything the tag vocabulary does not
+  // cover — a specific fruit, a spice, a brand.
   const hay = `${variant.n} ${variant.i}`;
-  return !allergyTerms.some((t) => hay.includes(t));
+  return !terms.some((t) => hay.includes(t));
 }
 
 function allergyTerms(profile) {
   return String(profile.allergies || '')
-    .split(/[,،;\n]/)
-    .map((s) => s.trim())
-    .filter((s) => s.length >= 2);
+    // Punctuation only. Splitting on the letter ו — meaning "and" — shatters
+    // the words it is inside: "שומשום" contains two of them and comes apart
+    // into fragments that match nothing.
+    .split(/[,،;\n/]|\s+ו(?=[א-ת])/)
+    .map((t) => t.trim())
+    // A leading ו is the conjunction only when a real word follows it. Stripping
+    // ל or מ as well would maul "מלח" into "לח".
+    .map((t) => (t.length >= 4 && t.startsWith('ו') ? t.slice(1) : t))
+    .filter((t) => t.length >= 2);
 }
 
 /**
@@ -164,7 +215,8 @@ function variantsFor(slot, profile, count) {
   const diet = profile.diet || [];
   const terms = allergyTerms(profile);
   const bank = BANK[slot] || [];
-  const list = bank.filter((v) => passesDiet(v, diet) && passesAllergies(v, terms));
+  const tags = allergyTags(terms);
+  const list = bank.filter((v) => passesDiet(v, diet) && passesAllergies(v, terms, tags));
   return list.slice(0, Math.max(count, 4)).map(({ n, i }) => ({ n, i }));
 }
 

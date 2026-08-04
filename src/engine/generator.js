@@ -767,14 +767,54 @@ const SIBLING_PATTERNS = {
   mobility: ['core_antiextension'],
 };
 
-function poolFor(profile, pattern, primaryInDay) {
+const isWarmup = (e) => (e.tags || []).indexOf('warmup') >= 0;
+
+/*
+ * A working slot is not a warm-up slot, and a main lift is not an isolation.
+ *
+ * Both used to be soft penalties on the anchor score, which meant both were
+ * routinely overruled: every warm-up drill is level 1, so it sorted to the front
+ * of the level-ordered family and got prescribed as a working set with sets,
+ * reps and rest beside real exercises. And nothing at all stopped a cable fly
+ * being chosen as the opening lift of a strength day, at 3-6 reps and three
+ * minutes rest — a near-maximal load at end-range abduction, the most injurious
+ * thing this generator could print.
+ *
+ * They are hard filters now. Each relaxes only if it would otherwise leave the
+ * pattern with nothing, because an empty slot is worse than an imperfect one —
+ * and the caller re-roles the slot when the compound filter has to give way, so
+ * an isolation never inherits a main lift's rep range.
+ */
+function restrictPool(pool, role) {
+  const working = pool.filter((e) => !isWarmup(e));
+  // No working movement covers this pattern for this user — a bar-less home
+  // trainee has almost no vertical pull. Taking the drill beats an empty slot,
+  // but it must be labelled: the user should not read a lat-pull slide as their
+  // pulling work without being told that is what happened.
+  const onlyWarmups = !working.length;
+  let out = working.length ? working : pool;
+  if (role === 'main' || role === 'secondary') {
+    const compound = out.filter((e) => !isIsolation(e));
+    if (compound.length) return { pool: compound, demoted: false, onlyWarmups };
+    // Nothing compound covers this pattern for this user. Take the isolation,
+    // but tell the caller so the prescription is written for what it is.
+    return { pool: out, demoted: true, onlyWarmups };
+  }
+  return { pool: out, demoted: false, onlyWarmups };
+}
+
+function poolFor(profile, pattern, primaryInDay, role) {
   const tried = [pattern].concat(SIBLING_PATTERNS[pattern] || []);
   for (const pat of tried) {
     const res = candidatesOrFallback(profile, { pattern: pat });
     const pool = res.list.filter((e) => !primaryInDay.has(e.id));
-    if (pool.length) return { pool, risky: res.risky };
+    if (!pool.length) continue;
+    const restricted = restrictPool(pool, role);
+    if (restricted.pool.length) {
+      return { pool: restricted.pool, risky: res.risky, demoted: restricted.demoted, thin: restricted.onlyWarmups };
+    }
   }
-  return { pool: [], risky: false };
+  return { pool: [], risky: false, demoted: false, thin: false };
 }
 
 function pickFamily(profile, slot, ctx) {
@@ -782,14 +822,14 @@ function pickFamily(profile, slot, ctx) {
   // outright — two cards with the same exercise is the most visible defect the
   // generator can produce. Exercises merely offered as a swap alternative
   // elsewhere are only penalised below, so the pool does not starve.
-  const res = poolFor(profile, slot.pattern, ctx.primaryInDay);
+  const res = poolFor(profile, slot.pattern, ctx.primaryInDay, slot.role);
   const pool = res.pool;
-  if (!pool.length) return { family: [], risky: false };
+  if (!pool.length) return { family: [], risky: false, demoted: false, thin: false };
 
   if (res.risky) {
     // Nothing clean exists for this pattern: take the gentlest options only.
     const gentle = pool.slice().sort((a, b) => a.level - b.level || a.id.localeCompare(b.id));
-    return { family: gentle.slice(0, Math.min(3, gentle.length)), risky: true };
+    return { family: gentle.slice(0, Math.min(3, gentle.length)), risky: true, demoted: res.demoted, thin: res.thin };
   }
 
   const want = desiredLevel(profile, slot.role);
@@ -802,7 +842,7 @@ function pickFamily(profile, slot, ctx) {
     const score = Math.abs(e.level - want) * 2
       + (ctx.usedInDay.has(e.id) ? 3.0 : 0)
       + (ctx.usedInProgram.has(e.id) ? 1.6 : 0)
-      + ((e.tags || []).indexOf('warmup') >= 0 && slot.role !== 'core' ? 1.2 : 0);
+      + (isWarmup(e) && slot.role !== 'core' ? 1.2 : 0);
     if (score < best) { best = score; anchor = e; }
   }
 
@@ -813,7 +853,26 @@ function pickFamily(profile, slot, ctx) {
   const size = Math.min(family.length, family.length >= 4 && slot.role === 'main' ? 4 : 3);
   const at = Math.max(0, family.findIndex((e) => e.id === anchor.id));
   const start = Math.max(0, Math.min(at - 1, family.length - size));
-  return { family: family.slice(start, start + size), risky: false };
+  const window = family.slice(start, start + size);
+
+  /*
+   * THE ANCHOR LEADS.
+   *
+   * The window is chosen to bracket the anchor, and it was then handed over
+   * still sorted easy-to-hard — so generateProgram's family[0], the card the
+   * user actually reads, and the default swap index all took the EASIEST
+   * movement in the window instead of the one that was selected. Measured over
+   * 84,096 slots, the prescribed exercise was harder than the anchor exactly
+   * zero times; an advanced lifter with a full gym was handed goblet squats and
+   * an assisted pull-up machine as his heavy work. Every input to desiredLevel —
+   * experience, age, injury, role — was computed and then discarded.
+   *
+   * Putting the anchor first fixes it at the source: family[0] is now what the
+   * engine chose, and the alternates read as easier and harder versions of the
+   * plan rather than as the plan itself.
+   */
+  const ordered = [anchor].concat(window.filter((e) => e.id !== anchor.id));
+  return { family: ordered, risky: false, demoted: res.demoted, thin: res.thin };
 }
 
 /* ------------------------------------------------------------------ *
@@ -902,6 +961,10 @@ function baseNote(profile, ex, slot) {
 }
 
 function noteFor(profile, ex, slot, risky) {
+  if (slot.thin) {
+    return `⚠︎ עם הציוד שיש לך זה הכי קרוב לתנועה הזאת שאפשר — זה תרגיל הכנה, לא עבודה כבדה. `
+      + 'מוט מתח או גומייה יפתחו כאן משהו אמיתי.';
+  }
   const injuries = profile.injuries || [];
   const hits = (ex.contraindications || []).filter((c) => injuries.indexOf(c) >= 0);
   if (hits.length || (risky && conflictsInjury(profile, ex))) {
@@ -1150,6 +1213,11 @@ export function generateProgram(profile) {
         hash, usedInDay, primaryInDay, usedInProgram, dayId: def.id,
       });
       if (!picked.family.length) continue;
+      // Only an isolation was available for a compound slot. It gets accessory
+      // reps and rest rather than a main lift's, because the rep range is the
+      // dangerous half of the mistake.
+      if (picked.demoted) slot.role = 'accessory';
+      if (picked.thin) slot.thin = true;
 
       const variants = picked.family.map((ex) => {
         const rx = prescribe(p, ex, slot);

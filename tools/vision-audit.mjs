@@ -30,6 +30,7 @@ const { profileBrief, PATTERNS } = await load('src/vision/prompt.js');
 const { normalizeProfile, defaults } = await load('src/intake/schema.js');
 const { weeklyVolume } = await load('src/engine/volume.js');
 const { generateProgram } = await load('src/engine/generator.js');
+const { nutritionPlan } = await load('src/engine/nutrition.js');
 const { byId } = await load('src/data/exercises.index.js');
 
 const problems = [];
@@ -471,6 +472,61 @@ for (const base of BASES) {
     'a missing refusalKind did not fall back');
   ok(normalizeRead({ usable: false, refusalKind: 'whatever' }, {}, {}).safetyRefusal === false,
     'a bogus refusalKind became a safety refusal');
+}
+
+/* ------------------------------------------------------------------ *
+ * 5c. The allergy filter, in the words people actually type
+ * ------------------------------------------------------------------ */
+
+/*
+ * This filter used to match the typed text against the dish text, which failed
+ * in the worst direction: "שומשום" never appears in "כף טחינה", so every tahini
+ * dish sailed through for someone who had declared a sesame allergy — in a
+ * Hebrew app whose food bank puts tahini in more than a dozen meals. Being
+ * asked the question is what creates the trust, so silent non-filtering is
+ * worse than no filter.
+ */
+{
+  const CASES = [
+    ['שומשום', /טחינה|שומשום|חלווה/],
+    ['טחינה', /טחינה|שומשום|חלווה/],
+    ['אגוזים', /אגוז|בוטנ|שקד|פיסטוק|קשיו/],
+    ['בוטנים', /אגוז|בוטנ|שקד/],
+    ['אגוזי מלך', /אגוז|בוטנ|שקד/],
+    ['ביצים', /ביצ/],
+    ['ביצה', /ביצ/],
+    ['חלב', /חלב|גבינ|יוגורט|קוטג|שוקו/],
+    ['לקטוז', /חלב|גבינ|יוגורט|קוטג/],
+    ['דגים', /טונה|סלמון|דג /],
+    ['סויה', /סויה|טופו|אדממה/],
+    // Compound answers, which is how the field is actually filled in.
+    ['שומשום ואגוזים', /טחינה|שומשום|אגוז|בוטנ|שקד/],
+    ['בוטנים, שומשום', /בוטנ|אגוז|טחינה|שומשום/],
+    ['חלב וביצים', /חלב|גבינ|יוגורט|קוטג|ביצ/],
+  ];
+  for (const [typed, forbidden] of CASES) {
+    const p = normalizeProfile({
+      age: 30, heightCm: 175, weightKg: 75, allergies: typed, wantsNutrition: true,
+    });
+    let plan;
+    try {
+      plan = nutritionPlan(p);
+    } catch (e) {
+      fail(`nutritionPlan threw for allergy "${typed}": ${e.message}`);
+      continue;
+    }
+    let variants = 0;
+    let leaked = '';
+    for (const meal of plan.meals || []) {
+      for (const v of meal.variants || []) {
+        variants++;
+        if (!leaked && forbidden.test(`${v.n || ''} ${v.i || ''}`)) leaked = v.n;
+      }
+    }
+    ok(!leaked, `allergy "${typed}" leaked: ${leaked}`);
+    // A filter that empties the plan is its own failure.
+    ok(variants >= 12, `allergy "${typed}" left only ${variants} meal variants`);
+  }
 }
 
 /* ------------------------------------------------------------------ *

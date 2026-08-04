@@ -24557,14 +24557,54 @@ const SIBLING_PATTERNS = {
   mobility: ['core_antiextension'],
 };
 
-function poolFor(profile, pattern, primaryInDay) {
+const isWarmup = (e) => (e.tags || []).indexOf('warmup') >= 0;
+
+/*
+ * A working slot is not a warm-up slot, and a main lift is not an isolation.
+ *
+ * Both used to be soft penalties on the anchor score, which meant both were
+ * routinely overruled: every warm-up drill is level 1, so it sorted to the front
+ * of the level-ordered family and got prescribed as a working set with sets,
+ * reps and rest beside real exercises. And nothing at all stopped a cable fly
+ * being chosen as the opening lift of a strength day, at 3-6 reps and three
+ * minutes rest — a near-maximal load at end-range abduction, the most injurious
+ * thing this generator could print.
+ *
+ * They are hard filters now. Each relaxes only if it would otherwise leave the
+ * pattern with nothing, because an empty slot is worse than an imperfect one —
+ * and the caller re-roles the slot when the compound filter has to give way, so
+ * an isolation never inherits a main lift's rep range.
+ */
+function restrictPool(pool, role) {
+  const working = pool.filter((e) => !isWarmup(e));
+  // No working movement covers this pattern for this user — a bar-less home
+  // trainee has almost no vertical pull. Taking the drill beats an empty slot,
+  // but it must be labelled: the user should not read a lat-pull slide as their
+  // pulling work without being told that is what happened.
+  const onlyWarmups = !working.length;
+  let out = working.length ? working : pool;
+  if (role === 'main' || role === 'secondary') {
+    const compound = out.filter((e) => !isIsolation(e));
+    if (compound.length) return { pool: compound, demoted: false, onlyWarmups };
+    // Nothing compound covers this pattern for this user. Take the isolation,
+    // but tell the caller so the prescription is written for what it is.
+    return { pool: out, demoted: true, onlyWarmups };
+  }
+  return { pool: out, demoted: false, onlyWarmups };
+}
+
+function poolFor(profile, pattern, primaryInDay, role) {
   const tried = [pattern].concat(SIBLING_PATTERNS[pattern] || []);
   for (const pat of tried) {
     const res = candidatesOrFallback(profile, { pattern: pat });
     const pool = res.list.filter((e) => !primaryInDay.has(e.id));
-    if (pool.length) return { pool, risky: res.risky };
+    if (!pool.length) continue;
+    const restricted = restrictPool(pool, role);
+    if (restricted.pool.length) {
+      return { pool: restricted.pool, risky: res.risky, demoted: restricted.demoted, thin: restricted.onlyWarmups };
+    }
   }
-  return { pool: [], risky: false };
+  return { pool: [], risky: false, demoted: false, thin: false };
 }
 
 function pickFamily(profile, slot, ctx) {
@@ -24572,14 +24612,14 @@ function pickFamily(profile, slot, ctx) {
   // outright — two cards with the same exercise is the most visible defect the
   // generator can produce. Exercises merely offered as a swap alternative
   // elsewhere are only penalised below, so the pool does not starve.
-  const res = poolFor(profile, slot.pattern, ctx.primaryInDay);
+  const res = poolFor(profile, slot.pattern, ctx.primaryInDay, slot.role);
   const pool = res.pool;
-  if (!pool.length) return { family: [], risky: false };
+  if (!pool.length) return { family: [], risky: false, demoted: false, thin: false };
 
   if (res.risky) {
     // Nothing clean exists for this pattern: take the gentlest options only.
     const gentle = pool.slice().sort((a, b) => a.level - b.level || a.id.localeCompare(b.id));
-    return { family: gentle.slice(0, Math.min(3, gentle.length)), risky: true };
+    return { family: gentle.slice(0, Math.min(3, gentle.length)), risky: true, demoted: res.demoted, thin: res.thin };
   }
 
   const want = desiredLevel(profile, slot.role);
@@ -24592,7 +24632,7 @@ function pickFamily(profile, slot, ctx) {
     const score = Math.abs(e.level - want) * 2
       + (ctx.usedInDay.has(e.id) ? 3.0 : 0)
       + (ctx.usedInProgram.has(e.id) ? 1.6 : 0)
-      + ((e.tags || []).indexOf('warmup') >= 0 && slot.role !== 'core' ? 1.2 : 0);
+      + (isWarmup(e) && slot.role !== 'core' ? 1.2 : 0);
     if (score < best) { best = score; anchor = e; }
   }
 
@@ -24603,7 +24643,26 @@ function pickFamily(profile, slot, ctx) {
   const size = Math.min(family.length, family.length >= 4 && slot.role === 'main' ? 4 : 3);
   const at = Math.max(0, family.findIndex((e) => e.id === anchor.id));
   const start = Math.max(0, Math.min(at - 1, family.length - size));
-  return { family: family.slice(start, start + size), risky: false };
+  const window = family.slice(start, start + size);
+
+  /*
+   * THE ANCHOR LEADS.
+   *
+   * The window is chosen to bracket the anchor, and it was then handed over
+   * still sorted easy-to-hard — so generateProgram's family[0], the card the
+   * user actually reads, and the default swap index all took the EASIEST
+   * movement in the window instead of the one that was selected. Measured over
+   * 84,096 slots, the prescribed exercise was harder than the anchor exactly
+   * zero times; an advanced lifter with a full gym was handed goblet squats and
+   * an assisted pull-up machine as his heavy work. Every input to desiredLevel —
+   * experience, age, injury, role — was computed and then discarded.
+   *
+   * Putting the anchor first fixes it at the source: family[0] is now what the
+   * engine chose, and the alternates read as easier and harder versions of the
+   * plan rather than as the plan itself.
+   */
+  const ordered = [anchor].concat(window.filter((e) => e.id !== anchor.id));
+  return { family: ordered, risky: false, demoted: res.demoted, thin: res.thin };
 }
 
 /* ------------------------------------------------------------------ *
@@ -24692,6 +24751,10 @@ function baseNote(profile, ex, slot) {
 }
 
 function noteFor(profile, ex, slot, risky) {
+  if (slot.thin) {
+    return `⚠︎ עם הציוד שיש לך זה הכי קרוב לתנועה הזאת שאפשר — זה תרגיל הכנה, לא עבודה כבדה. `
+      + 'מוט מתח או גומייה יפתחו כאן משהו אמיתי.';
+  }
   const injuries = profile.injuries || [];
   const hits = (ex.contraindications || []).filter((c) => injuries.indexOf(c) >= 0);
   if (hits.length || (risky && conflictsInjury(profile, ex))) {
@@ -24940,6 +25003,11 @@ function generateProgram(profile) {
         hash, usedInDay, primaryInDay, usedInProgram, dayId: def.id,
       });
       if (!picked.family.length) continue;
+      // Only an isolation was available for a compound slot. It gets accessory
+      // reps and rest rather than a main lift's, because the rep range is the
+      // dangerous half of the mistake.
+      if (picked.demoted) slot.role = 'accessory';
+      if (picked.thin) slot.thin = true;
 
       const variants = picked.family.map((ex) => {
         const rx = prescribe(p, ex, slot);
@@ -25096,20 +25164,20 @@ __m["src/engine/nutrition.js"] = (function () {
 /* ------------------------------------------------------------------ *
  * Food bank
  *
- * tags: meat | fish | dairy | egg | gluten | nuts | legume | soy | honey
+ * tags: meat | fish | dairy | egg | gluten | nuts | sesame | legume | soy | honey
  * Every variant is tagged honestly so the diet filters actually bite.
  * ------------------------------------------------------------------ */
 
 const BANK = {
   breakfast: [
-    { n: 'חביתה, לחם וטחינה', i: '3 ביצים · 2 פרוסות לחם מלא · כף טחינה · בננה', tags: ['egg', 'gluten'] },
+    { n: 'חביתה, לחם וטחינה', i: '3 ביצים · 2 פרוסות לחם מלא · כף טחינה · בננה', tags: ['egg', 'gluten', 'sesame'] },
     { n: 'שיבולת שועל חמה', i: 'חצי כוס שיבולת שועל בחלב · כף חמאת בוטנים · כף דבש · בננה', tags: ['dairy', 'gluten', 'nuts', 'honey'] },
     { n: 'קערת יוגורט', i: 'יוגורט יווני גדול · גרנולה · חופן שקדים · 3 תמרים', tags: ['dairy', 'gluten', 'nuts'] },
     { n: 'פיתה וקוטג׳', i: '2 פיתות · קוטג׳ 5% · ביצה קשה · מלפפון · כוס שוקו', tags: ['dairy', 'egg', 'gluten'] },
     { n: 'שקשוקה', i: '2 ביצים ברוטב עגבניות · פרוסת לחם לניגוב · סלט', tags: ['egg', 'gluten'] },
-    { n: 'שיבולת שועל במים', i: 'חצי כוס שיבולת שועל במים · כף טחינה גולמית · בננה · תמרים', tags: ['gluten'] },
+    { n: 'שיבולת שועל במים', i: 'חצי כוס שיבולת שועל במים · כף טחינה גולמית · בננה · תמרים', tags: ['gluten', 'sesame'] },
     { n: 'טופו מקושקש', i: 'טופו מפורר עם כורכום וירקות · 2 פרוסות לחם · אבוקדו', tags: ['soy', 'gluten'] },
-    { n: 'קערת פירות ואגוזים', i: 'בננה · תפוח · חופן אגוזים · 2 כפות טחינה · תמרים', tags: ['nuts'] },
+    { n: 'קערת פירות ואגוזים', i: 'בננה · תפוח · חופן אגוזים · 2 כפות טחינה · תמרים', tags: ['nuts', 'sesame'] },
     { n: 'ביצים ואורז', i: '3 ביצים · כוס אורז מאתמול · סלט עם שמן זית', tags: ['egg'] },
     { n: 'שייק בוקר', i: 'כוס משקה שקדים · בננה · 2 כפות שיבולת שועל · כף חמאת בוטנים', tags: ['gluten', 'nuts'] },
     { n: 'קערת אורז וטחינה', i: 'כוס אורז חם · 2 כפות טחינה גולמית · בננה · תמרים', tags: ['sesame'] },
@@ -25126,7 +25194,7 @@ const BANK = {
     { n: 'אגוזים ופירות יבשים', i: 'חופן שקדים · 3 תמרים · תפוח', tags: ['nuts'] },
     { n: 'טונה על קרקרים', i: 'קופסת טונה · 6 קרקרים · מלפפון', tags: ['fish', 'gluten'] },
     { n: 'חומוס וירקות', i: 'חצי גביע חומוס · גזר וקולורבי חתוכים · פיתה קטנה', tags: ['legume', 'gluten'] },
-    { n: 'פירות וטחינה', i: 'בננה · תפוח · 2 כפות טחינה גולמית', tags: [] },
+    { n: 'פירות וטחינה', i: 'בננה · תפוח · 2 כפות טחינה גולמית', tags: ['sesame'] },
     { n: 'אדממה', i: 'קערת אדממה · חופן שקדים · תפוז', tags: ['soy', 'nuts'] },
     { n: 'קוטג׳ ופרי', i: 'גביע קוטג׳ · אפרסק או תפוח · כף דבש', tags: ['dairy', 'honey'] },
     { n: 'תמרים ואגוזי מלך', i: '4 תמרים · חופן אגוזי מלך · כוס תה', tags: ['nuts'] },
@@ -25140,10 +25208,10 @@ const BANK = {
     { n: 'עוף ואורז', i: 'חזה עוף · כוס וחצי אורז · סלט עם שמן זית', tags: ['meat'] },
     { n: 'פסטה בולונז', i: 'פסטה · בשר טחון ברוטב עגבניות · פרוסת לחם', tags: ['meat', 'gluten'] },
     { n: 'שניצל ופירה', i: '2 שניצלים · פירה · סלט', tags: ['meat', 'gluten'] },
-    { n: 'מג׳דרה', i: 'אורז עם עדשים · ביצה קשה · טחינה · סלט', tags: ['legume', 'egg'] },
+    { n: 'מג׳דרה', i: 'אורז עם עדשים · ביצה קשה · טחינה · סלט', tags: ['legume', 'egg', 'sesame'] },
     { n: 'טורטייה גדולה', i: 'טורטייה · טונה · ביצה · אבוקדו · ירקות', tags: ['fish', 'egg', 'gluten'] },
-    { n: 'תבשיל עדשים', i: 'עדשים כתומות · אורז מלא · טחינה · סלט ירקות', tags: ['legume'] },
-    { n: 'קדרת חומוס וירקות', i: 'חומוס גרגרים · בטטה · אורז · טחינה · לימון', tags: ['legume'] },
+    { n: 'תבשיל עדשים', i: 'עדשים כתומות · אורז מלא · טחינה · סלט ירקות', tags: ['legume', 'sesame'] },
+    { n: 'קדרת חומוס וירקות', i: 'חומוס גרגרים · בטטה · אורז · טחינה · לימון', tags: ['legume', 'sesame'] },
     { n: 'דג ואורז', i: 'פילה דג בתנור · אורז · ירקות אפויים', tags: ['fish'] },
     { n: 'תבשיל שעועית', i: 'שעועית לבנה ברוטב · אורז · סלט · כף שמן זית', tags: ['legume'] },
     { n: 'קציצות עוף ובורגול', i: 'קציצות עוף · בורגול · סלט ירקות', tags: ['meat', 'gluten'] },
@@ -25168,15 +25236,15 @@ const BANK = {
   ],
 
   dinner: [
-    { n: 'על האש', i: 'פרגית או כנפיים · אורז · פיתה · סלט עם טחינה', tags: ['meat', 'gluten'] },
+    { n: 'על האש', i: 'פרגית או כנפיים · אורז · פיתה · סלט עם טחינה', tags: ['meat', 'gluten', 'sesame'] },
     { n: 'המבורגר ביתי', i: '2 קציצות · לחמנייה · תפוחי אדמה בתנור · סלט', tags: ['meat', 'gluten'] },
     { n: 'דג ותפוח אדמה', i: 'פילה סלמון או בורי · 2 תפוחי אדמה · ירקות בתנור', tags: ['fish'] },
     { n: 'פסטה גדולה', i: 'פסטה עם בשר טחון · סלט · לחם שום', tags: ['meat', 'gluten'] },
-    { n: 'שווארמה בצלחת', i: 'שווארמה · אורז · חומוס · טחינה · סלט', tags: ['meat', 'legume'] },
-    { n: 'מוקפץ ירקות וטופו', i: 'טופו · ירקות מוקפצים · אורז · שומשום', tags: ['soy'] },
-    { n: 'תבשיל גרגרי חומוס', i: 'חומוס ברוטב עגבניות · קוסקוס · סלט · טחינה', tags: ['legume', 'gluten'] },
+    { n: 'שווארמה בצלחת', i: 'שווארמה · אורז · חומוס · טחינה · סלט', tags: ['meat', 'legume', 'sesame'] },
+    { n: 'מוקפץ ירקות וטופו', i: 'טופו · ירקות מוקפצים · אורז · שומשום', tags: ['soy', 'sesame'] },
+    { n: 'תבשיל גרגרי חומוס', i: 'חומוס ברוטב עגבניות · קוסקוס · סלט · טחינה', tags: ['legume', 'gluten', 'sesame'] },
     { n: 'עוף בתנור וירקות', i: 'ירכיים בתנור · בטטה · ברוקולי · אורז', tags: ['meat'] },
-    { n: 'סלט קטניות גדול', i: 'עדשים ושעועית · ירקות · אבוקדו · טחינה · לחם מלא', tags: ['legume', 'gluten'] },
+    { n: 'סלט קטניות גדול', i: 'עדשים ושעועית · ירקות · אבוקדו · טחינה · לחם מלא', tags: ['legume', 'gluten', 'sesame'] },
     { n: 'חביתת ירקות ואורז', i: '3 ביצים · ירקות מוקפצים · אורז · סלט', tags: ['egg'] },
     { n: 'אורז, קטניות וטחינה', i: 'אורז · עדשים · טחינה · סלט ירקות גדול · לימון', tags: ['legume','sesame'] },
     { n: 'תפוחי אדמה בתנור וטופו', i: 'טופו צלוי · תפוחי אדמה · ברוקולי · שמן זית', tags: ['soy'] },
@@ -25190,7 +25258,7 @@ const BANK = {
     { n: 'חלב ולחם', i: 'כוס חלב · 2 פרוסות לחם עם ריבה', tags: ['dairy', 'gluten'] },
     { n: 'שייק לילה', i: 'כוס משקה שקדים · בננה · כף חמאת בוטנים', tags: ['nuts'] },
     { n: 'ביצים קשות', i: '2 ביצים קשות · מלפפון · מלח', tags: ['egg'] },
-    { n: 'טחינה ותמרים', i: '2 כפות טחינה גולמית · 4 תמרים · תה', tags: [] },
+    { n: 'טחינה ותמרים', i: '2 כפות טחינה גולמית · 4 תמרים · תה', tags: ['sesame'] },
     { n: 'אדממה וקערת פירות', i: 'אדממה · תפוח · חופן שקדים', tags: ['soy', 'nuts'] },
     { n: 'חומוס וגזר', i: 'חצי גביע חומוס · גזר חתוך · כף שמן זית', tags: ['legume'] },
     { n: 'אורז וטחינה', i: 'חצי כוס אורז · כף טחינה גולמית · מלח', tags: ['sesame'] },
@@ -25221,17 +25289,68 @@ function passesDiet(variant, diet) {
   return true;
 }
 
-function passesAllergies(variant, allergyTerms) {
-  if (!allergyTerms.length) return true;
+/*
+ * Hebrew words people actually type, mapped to the tags the bank already carries.
+ *
+ * Matching the typed text against the dish text was the bug, and it failed in
+ * the worst possible direction: someone writes "שומשום" — sesame — and every
+ * tahini dish sails through, because the word "שומשום" does not appear in
+ * "כף טחינה". Someone writes "אגוזים" and misses "חמאת בוטנים". The user is
+ * shown a plan built "for them" and reasonably assumes the food they declared
+ * was taken out. Silent non-filtering is worse than no filter at all, because
+ * being asked the question is what creates the trust.
+ *
+ * These are prefixes, matched against the typed word in both directions, so
+ * "אגוז", "אגוזים" and "אגוזי מלך" all reach the nuts tag.
+ */
+const ALLERGEN_TERMS = {
+  nuts: ['אגוז', 'בוטנ', 'שקד', 'פיסטוק', 'קשיו', 'לוז', 'פקאן', 'מקדמי'],
+  sesame: ['שומשום', 'טחינ', 'חלווה', 'חומוס טחינה'],
+  egg: ['ביצ', 'חלבון ביצה'],
+  dairy: ['חלב', 'יוגורט', 'קוטג', 'גבינ', 'לקטוז', 'שוקו', 'חמאה', 'מוצרי חלב'],
+  fish: ['דג', 'דגים', 'טונה', 'סלמון', 'בורי', 'פירות ים'],
+  soy: ['סויה', 'טופו', 'אדממה'],
+  legume: ['קטני', 'חומוס', 'עדש', 'שעוע', 'אפונ', 'פול'],
+  gluten: ['גלוטן', 'חיט', 'קמח', 'לחם', 'שעור'],
+};
+
+/** The tags a typed allergy list implicates. */
+function allergyTags(terms) {
+  const tags = new Set();
+  for (const typed of terms) {
+    for (const [tag, words] of Object.entries(ALLERGEN_TERMS)) {
+      for (const w of words) {
+        // Either direction: the typed word may be shorter than the canonical
+        // one ("אגוז" vs "אגוזים") or longer ("אגוזי מלך").
+        if (typed.includes(w) || w.includes(typed)) { tags.add(tag); break; }
+      }
+    }
+  }
+  return tags;
+}
+
+function passesAllergies(variant, terms, tags) {
+  if (!terms.length) return true;
+  // Tags first, because they are the reliable half: a dish is excluded whether
+  // or not the user happened to type the word that appears in its ingredients.
+  for (const t of (variant.tags || [])) if (tags.has(t)) return false;
+  // Then the literal text as well, for anything the tag vocabulary does not
+  // cover — a specific fruit, a spice, a brand.
   const hay = `${variant.n} ${variant.i}`;
-  return !allergyTerms.some((t) => hay.includes(t));
+  return !terms.some((t) => hay.includes(t));
 }
 
 function allergyTerms(profile) {
   return String(profile.allergies || '')
-    .split(/[,،;\n]/)
-    .map((s) => s.trim())
-    .filter((s) => s.length >= 2);
+    // Punctuation only. Splitting on the letter ו — meaning "and" — shatters
+    // the words it is inside: "שומשום" contains two of them and comes apart
+    // into fragments that match nothing.
+    .split(/[,،;\n/]|\s+ו(?=[א-ת])/)
+    .map((t) => t.trim())
+    // A leading ו is the conjunction only when a real word follows it. Stripping
+    // ל or מ as well would maul "מלח" into "לח".
+    .map((t) => (t.length >= 4 && t.startsWith('ו') ? t.slice(1) : t))
+    .filter((t) => t.length >= 2);
 }
 
 /**
@@ -25247,7 +25366,8 @@ function variantsFor(slot, profile, count) {
   const diet = profile.diet || [];
   const terms = allergyTerms(profile);
   const bank = BANK[slot] || [];
-  const list = bank.filter((v) => passesDiet(v, diet) && passesAllergies(v, terms));
+  const tags = allergyTags(terms);
+  const list = bank.filter((v) => passesDiet(v, diet) && passesAllergies(v, terms, tags));
   return list.slice(0, Math.max(count, 4)).map(({ n, i }) => ({ n, i }));
 }
 
