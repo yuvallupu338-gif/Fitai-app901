@@ -23,7 +23,7 @@
  *    to a nearest-key pick and the limb teleports at the halfway mark.
  */
 
-import { p, STAND, GLUTE_BRIDGE_DOWN, GLUTE_BRIDGE_UP, HANG } from '../core/poses.js';
+import { p, STAND, HANG } from '../core/poses.js';
 
 const clip = (o) => Object.assign({ duration: 4200, hero: 0.25, ease: 'inOut', props: [] }, o);
 
@@ -98,7 +98,8 @@ const ankleRock = (px, py, spine) => ({
   footL: 2, footR: 2,
 });
 const ANKLE_BACK = ankleRock(50, 64, 86);
-const ANKLE_FWD = ankleRock(58, 65.5, 80);
+const ANKLE_MID = ankleRock(55, 65, 83);
+const ANKLE_FWD = ankleRock(60, 65.5, 80);
 
 /* Wrist prep: on all fours, rocking the shoulders over planted hands. The knee
    is the fixed point and the pelvis is derived from the thigh angle, so the
@@ -210,6 +211,23 @@ const WGS_OPEN = Object.assign({}, WGS_BASE, {
   handR: { x: 64, y: 43, bend: 1 },
 });
 
+/* Glute bridge activation. The shared GLUTE_BRIDGE_* poses cannot carry this
+   one: they lift the pelvis nine units, which on a warm-up card reads as lying
+   still and breathing, and their arms are posed by ANGLE, so the hands skate two
+   units along the mat as the torso rolls. Here the hands are pinned to the mat
+   beside the hips like everything else touching the floor, and the pelvis lifts
+   half again as far, the spine unrolling underneath it so the shoulders stay
+   down where a bridge keeps them. */
+const bridge = (py, spine) => ({
+  x: 48, y: py, spine, head: 150,
+  handL: { x: 38, y: 87.5, bend: -1 }, handR: { x: 41, y: 87.5, bend: -1 },
+  footPtL: { x: 66, y: 87.5, bend: 1 }, footPtR: { x: 68, y: 87.5, bend: 1 },
+  footL: 0, footR: 0,
+});
+const BRIDGE_DOWN = bridge(85.5, 176);
+const BRIDGE_MID = bridge(79.5, 192);
+const BRIDGE_UP = bridge(73, 208.5);
+
 /* Band pull-down for the scapulae. The arms sweep from overhead DOWN and forward
    to the hips, elbows locked straight the whole way — the forearm angle equals
    the upper-arm angle in every key, so no amount of interpolation can bend them.
@@ -234,8 +252,13 @@ const passiveHang = (px, py, spine, head, ll, lr) => p(HANG, {
   legL: ll, legR: lr, footL: 0, footR: 0,
 });
 const HANG_GRIP = passiveHang(50, 56.5, 90, 90, [-89, -90], [-93, -90]);
-const HANG_SINK = passiveHang(48, 60.5, 92, 82, [-94, -92], [-98, -92]);
-const HANG_SWAY = passiveHang(52, 60.5, 88, 98, [-86, -88], [-90, -88]);
+const HANG_SINK = passiveHang(50, 60.5, 90, 84, [-88, -90], [-92, -90]);
+/* The sway has to be worth drawing or the clip is a photograph: a two-unit
+   shuffle was the whole motion before. Twelve units of pelvis carries the feet
+   through twenty-one, with the spine and the trailing legs leaning into the
+   swing so the body reads as one pendulum instead of a wobbling plank. */
+const HANG_FWD = passiveHang(56, 59.5, 100, 94, [-78, -80], [-82, -80]);
+const HANG_BACK = passiveHang(44, 59.5, 80, 74, [-98, -100], [-102, -100]);
 
 export const X12_CLIPS = {
   torso_twist_standing: clip({
@@ -269,8 +292,9 @@ export const X12_CLIPS = {
     id: 'ankle_rocks', duration: 3200, hero: 0.5,
     props: [{ type: 'wall', x: 74, y0: 28, y1: 88 }],
     keys: [
-      { t: 0, pose: ANKLE_BACK }, { t: 0.42, pose: ANKLE_FWD },
-      { t: 0.62, pose: ANKLE_FWD }, { t: 1, pose: ANKLE_BACK },
+      { t: 0, pose: ANKLE_BACK }, { t: 0.24, pose: ANKLE_MID },
+      { t: 0.42, pose: ANKLE_FWD }, { t: 0.62, pose: ANKLE_FWD },
+      { t: 0.82, pose: ANKLE_MID }, { t: 1, pose: ANKLE_BACK },
     ],
   }),
 
@@ -296,8 +320,9 @@ export const X12_CLIPS = {
     id: 'glute_bridge_activation', duration: 3600,
     props: [{ type: 'mat', x: 44, w: 62 }],
     keys: [
-      { t: 0, pose: GLUTE_BRIDGE_DOWN }, { t: 0.4, pose: GLUTE_BRIDGE_UP },
-      { t: 0.64, pose: GLUTE_BRIDGE_UP }, { t: 1, pose: GLUTE_BRIDGE_DOWN },
+      { t: 0, pose: BRIDGE_DOWN }, { t: 0.22, pose: BRIDGE_MID },
+      { t: 0.42, pose: BRIDGE_UP }, { t: 0.64, pose: BRIDGE_UP },
+      { t: 0.82, pose: BRIDGE_MID }, { t: 1, pose: BRIDGE_DOWN },
     ],
   }),
 
@@ -305,8 +330,9 @@ export const X12_CLIPS = {
     id: 'hip_flexor_stretch_kneeling', duration: 4600, hero: 0.5,
     props: [{ type: 'mat', x: 40, w: 60 }],
     keys: [
-      { t: 0, pose: HIPFLEX_TALL }, { t: 0.42, pose: HIPFLEX_PRESS },
-      { t: 0.68, pose: HIPFLEX_PRESS }, { t: 1, pose: HIPFLEX_TALL },
+      { t: 0, pose: HIPFLEX_TALL }, { t: 0.22, pose: HIPFLEX_MID },
+      { t: 0.42, pose: HIPFLEX_PRESS }, { t: 0.68, pose: HIPFLEX_PRESS },
+      { t: 0.84, pose: HIPFLEX_MID }, { t: 1, pose: HIPFLEX_TALL },
     ],
   }),
 
@@ -341,8 +367,10 @@ export const X12_CLIPS = {
     id: 'passive_bar_hang', duration: 5000, hero: 0.5, ground: false,
     props: [{ type: 'bar', x: 50, y: 15, w: 44 }],
     keys: [
-      { t: 0, pose: HANG_GRIP }, { t: 0.28, pose: HANG_SINK },
-      { t: 0.62, pose: HANG_SWAY }, { t: 1, pose: HANG_GRIP },
+      { t: 0, pose: HANG_GRIP }, { t: 0.14, pose: HANG_SINK },
+      { t: 0.36, pose: HANG_FWD }, { t: 0.5, pose: HANG_SINK },
+      { t: 0.72, pose: HANG_BACK }, { t: 0.86, pose: HANG_SINK },
+      { t: 1, pose: HANG_GRIP },
     ],
   }),
 };
