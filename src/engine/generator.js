@@ -660,6 +660,30 @@ function layout(profile, vol, budget, split) {
     d.picks.sort((a, b) => a.order - b.order || a.occurrence - b.occurrence);
   }
 
+  // A session with one or two exercises is not a session. When the week's
+  // volume is small — short slots on a busy schedule — spread the same sets
+  // over more movements instead of piling them onto two. distributeSets below
+  // then thins the sets automatically, so total weekly volume is unchanged.
+  const slotFloor = Math.min(4, budget.maxSlots);
+  for (const d of days) {
+    if (d.picks.length >= slotFloor) continue;
+    let pats = d.def.patterns.filter((pat) => numOr(vol[PATTERN_GROUP[pat]], 0) >= 2);
+    if (!pats.length) pats = d.def.patterns.slice();
+    let guard = 0;
+    while (d.picks.length < slotFloor && d.picks.length < budget.maxSlots && pats.length && guard++ < 12) {
+      const unused = pats.filter((pat) => !d.picks.some((s) => s.pattern === pat));
+      const pattern = unused.length ? unused[0] : pats[d.picks.length % pats.length];
+      d.picks.push({
+        group: PATTERN_GROUP[pattern] || 'core',
+        pattern,
+        occurrence: d.picks.filter((s) => s.pattern === pattern).length,
+        order: d.def.patterns.indexOf(pattern),
+        seq: d.picks.length,
+      });
+    }
+    d.picks.sort((a, b) => a.order - b.order || a.occurrence - b.occurrence);
+  }
+
   // Sets per slot: the group's weekly total, spread over the slots it earned,
   // first occurrences (the heavy ones) getting the bigger share.
   const byGroup = new Map();
@@ -717,12 +741,50 @@ function sameJob(a, b) {
   return pa.some((m) => pb.indexOf(m) >= 0);
 }
 
-function pickFamily(profile, slot, ctx) {
-  const res = candidatesOrFallback(profile, { pattern: slot.pattern });
-  if (!res.list.length) return { family: [], risky: false };
 
-  let pool = res.list.filter((e) => !ctx.usedInDay.has(e.id));
-  if (pool.length < 2) pool = res.list.slice();
+/* When a pattern's pool is exhausted because everything in it is already a
+   primary in this session, borrow from the nearest related pattern rather than
+   dropping the slot. A second pressing movement beats an empty gap. */
+const SIBLING_PATTERNS = {
+  horizontal_push: ['vertical_push', 'arms_triceps'],
+  vertical_push: ['horizontal_push', 'shoulders_lateral', 'arms_triceps'],
+  horizontal_pull: ['vertical_pull', 'shoulders_rear', 'arms_biceps'],
+  vertical_pull: ['horizontal_pull', 'arms_biceps'],
+  squat: ['lunge', 'hinge'],
+  hinge: ['squat', 'lunge'],
+  lunge: ['squat', 'hinge'],
+  calf: ['plyo', 'lunge'],
+  plyo: ['conditioning', 'squat'],
+  arms_biceps: ['horizontal_pull', 'vertical_pull'],
+  arms_triceps: ['horizontal_push', 'vertical_push'],
+  shoulders_lateral: ['vertical_push', 'shoulders_rear'],
+  shoulders_rear: ['horizontal_pull', 'shoulders_lateral'],
+  core_flexion: ['core_antiextension', 'core_rotation'],
+  core_antiextension: ['core_flexion', 'core_rotation'],
+  core_rotation: ['core_antiextension', 'core_flexion'],
+  carry: ['core_antiextension', 'conditioning'],
+  conditioning: ['plyo', 'carry'],
+  mobility: ['core_antiextension'],
+};
+
+function poolFor(profile, pattern, primaryInDay) {
+  const tried = [pattern].concat(SIBLING_PATTERNS[pattern] || []);
+  for (const pat of tried) {
+    const res = candidatesOrFallback(profile, { pattern: pat });
+    const pool = res.list.filter((e) => !primaryInDay.has(e.id));
+    if (pool.length) return { pool, risky: res.risky };
+  }
+  return { pool: [], risky: false };
+}
+
+function pickFamily(profile, slot, ctx) {
+  // Anything already shown as a slot's primary in this session is excluded
+  // outright — two cards with the same exercise is the most visible defect the
+  // generator can produce. Exercises merely offered as a swap alternative
+  // elsewhere are only penalised below, so the pool does not starve.
+  const res = poolFor(profile, slot.pattern, ctx.primaryInDay);
+  const pool = res.pool;
+  if (!pool.length) return { family: [], risky: false };
 
   if (res.risky) {
     // Nothing clean exists for this pattern: take the gentlest options only.
@@ -738,6 +800,7 @@ function pickFamily(profile, slot, ctx) {
   let best = Infinity;
   for (const e of spun) {
     const score = Math.abs(e.level - want) * 2
+      + (ctx.usedInDay.has(e.id) ? 3.0 : 0)
       + (ctx.usedInProgram.has(e.id) ? 1.6 : 0)
       + ((e.tags || []).indexOf('warmup') >= 0 && slot.role !== 'core' ? 1.2 : 0);
     if (score < best) { best = score; anchor = e; }
@@ -1007,6 +1070,7 @@ export function generateProgram(profile) {
   const days = laid.map((entry, dayNo) => {
     const def = entry.def;
     const usedInDay = new Set();
+    const primaryInDay = new Set();
     const slots = [];
     let compoundIndex = 0;
     let minutes = budget.warmupMin;
@@ -1021,7 +1085,7 @@ export function generateProgram(profile) {
       if (COMPOUND_PATTERNS.indexOf(raw.pattern) >= 0) compoundIndex += 1;
 
       const picked = pickFamily(p, slot, {
-        hash, usedInDay, usedInProgram, dayId: def.id,
+        hash, usedInDay, primaryInDay, usedInProgram, dayId: def.id,
       });
       if (!picked.family.length) continue;
 
@@ -1046,6 +1110,7 @@ export function generateProgram(profile) {
         };
       });
 
+      primaryInDay.add(picked.family[0].id);
       for (const ex of picked.family) { usedInDay.add(ex.id); usedInProgram.add(ex.id); }
 
       const lead = prescribe(p, picked.family[0], slot);
