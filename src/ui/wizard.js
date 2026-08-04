@@ -56,8 +56,10 @@ export function renderWizard(root, onDone) {
     go(prev);
   }
 
-  function setValue(key, value) {
+  function setValue(key, value, field) {
     profile[key] = value;
+    // A field may derive other answers — picking a location refills equipment.
+    if (field && typeof field.onSet === 'function') field.onSet(profile, value);
     delete errors[key];
     persist();
   }
@@ -139,7 +141,7 @@ export function renderWizard(root, onDone) {
       case 'choice':
         return h('div.opts' + (f.options.length > 4 ? '.two' : ''),
           f.options.map((o) => optionBtn(o, val === o.value, () => {
-            setValue(f.key, o.value);
+            setValue(f.key, o.value, f);
             draw();
           })),
         );
@@ -200,6 +202,44 @@ export function renderWizard(root, onDone) {
           f.options && f.options.length >= 2
             ? h('div.scale-ends', h('span', f.options[0].label), h('span', f.options[f.options.length - 1].label))
             : null,
+        );
+      }
+
+      case 'photo': {
+        const preview = h('div.photoslot');
+        const paint = () => {
+          clear(preview);
+          const cur = profile[f.key];
+          if (cur) {
+            preview.appendChild(h('img', { src: cur, alt: f.label }));
+            preview.appendChild(h('button.fbtn.reset', {
+              type: 'button',
+              onclick: () => { setValue(f.key, ''); draw(); },
+            }, 'הסר'));
+          } else {
+            preview.appendChild(h('span.photohint', 'אין תמונה'));
+          }
+        };
+        const input = h('input', {
+          type: 'file', accept: 'image/*', style: { display: 'none' },
+          onchange: (e) => {
+            const file = e.target.files && e.target.files[0];
+            if (!file) return;
+            // Downscale before storing: a phone photo is several megabytes and
+            // localStorage is not, so anything full-size would blow the quota.
+            shrinkImage(file, 480, 0.72).then((dataUrl) => {
+              setValue(f.key, dataUrl);
+              paint();
+              announce('התמונה נשמרה במכשיר');
+            }).catch(() => announce('לא הצלחתי לקרוא את התמונה'));
+          },
+        });
+        paint();
+        return h('div',
+          preview,
+          input,
+          h('button.btn', { type: 'button', onclick: () => input.click() },
+            h('span.ico', '＋'), profile[f.key] ? 'החלף תמונה' : 'בחר תמונה'),
         );
       }
 
@@ -279,3 +319,32 @@ function stepVisible(stepDef, profile) {
 }
 
 export { DAY_LETTERS, DAY_NAMES };
+
+
+/**
+ * Reads an image file and returns a downscaled JPEG data URL. Phone photos are
+ * several megabytes; localStorage holds about five in total, so storing the
+ * original would break the app on the second picture.
+ */
+function shrinkImage(file, maxPx, quality) {
+  return new Promise((resolve, reject) => {
+    const url = URL.createObjectURL(file);
+    const img = new Image();
+    img.onload = () => {
+      try {
+        const scale = Math.min(1, maxPx / Math.max(img.width, img.height));
+        const canvas = document.createElement('canvas');
+        canvas.width = Math.max(1, Math.round(img.width * scale));
+        canvas.height = Math.max(1, Math.round(img.height * scale));
+        canvas.getContext('2d').drawImage(img, 0, 0, canvas.width, canvas.height);
+        URL.revokeObjectURL(url);
+        resolve(canvas.toDataURL('image/jpeg', quality));
+      } catch (e) {
+        URL.revokeObjectURL(url);
+        reject(e);
+      }
+    };
+    img.onerror = () => { URL.revokeObjectURL(url); reject(new Error('unreadable image')); };
+    img.src = url;
+  });
+}

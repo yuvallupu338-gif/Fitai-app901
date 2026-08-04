@@ -153,7 +153,9 @@ async function runWizard(page, answers) {
       if (err) {
         notes.push(`wizard stuck on a validation error: "${err}" — retrying once`);
         await fillStep(page, answers);
-        await next.click();
+        // fillStep can trigger a re-render, which detaches the handle we hold.
+        const again = await page.$('.wiznav .btn.primary');
+        if (again) await again.click();
         await page.waitForTimeout(260);
       }
     }

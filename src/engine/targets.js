@@ -29,6 +29,32 @@ const GAIN_COMFORTABLE = {
   advanced: 0.0008,
 };
 
+/*
+ * How much of the achievable rate a person actually realises, by how strictly
+ * they follow the plan. This is the single biggest determinant of the timeline
+ * and it is the one thing the user controls directly — so it belongs in the
+ * arithmetic, not in a motivational sentence.
+ */
+const COMMITMENT_FACTOR = { 1: 0.35, 2: 0.55, 3: 0.75, 4: 0.9, 5: 1.0 };
+
+export function commitmentFactor(profile) {
+  const c = Math.round(Number(profile && profile.commitment));
+  return COMMITMENT_FACTOR[c] || COMMITMENT_FACTOR[3];
+}
+
+const COMMITMENT_HE = {
+  1: 'ברמת ההתמסרות שסימנת — אימון כשמתאים — הקצב הריאלי הוא כשליש מהמקסימום.',
+  2: 'ברמת ההתמסרות שסימנת הקצב יהיה כחצי מהמקסימלי. זה עדיין קדימה, רק לאט יותר.',
+  3: 'ברמת ההתמסרות שסימנת — רוב האימונים, אוכל סביר — תגיע לכשלושה רבעים מהקצב המקסימלי.',
+  4: 'ברמת ההתמסרות שסימנת אתה קרוב מאוד לקצב המלא.',
+  5: 'סימנת התמסרות מלאה, אז החישוב הוא לפי הקצב המקסימלי שהגוף מסוגל לו. זה גם אומר שאין הרבה מקום לשבועות חלשים.',
+};
+
+export function commitmentNote(profile) {
+  const c = Math.round(Number(profile && profile.commitment)) || 3;
+  return COMMITMENT_HE[c] || COMMITMENT_HE[3];
+}
+
 function weeksBetween(from, to) {
   const a = from instanceof Date ? from : new Date(from);
   const b = to instanceof Date ? to : new Date(to);
@@ -90,8 +116,9 @@ export function assessGoal(profile) {
   const losing = delta < 0;
   const perWeekFrac = Math.abs(delta) / weeks / start;
 
-  const ceiling = losing ? LOSS_CEILING : (GAIN_CEILING[p.experience] || GAIN_CEILING.beginner);
-  const comfy = losing ? LOSS_COMFORTABLE : (GAIN_COMFORTABLE[p.experience] || GAIN_COMFORTABLE.beginner);
+  const factor = commitmentFactor(p);
+  const ceiling = (losing ? LOSS_CEILING : (GAIN_CEILING[p.experience] || GAIN_CEILING.beginner)) * factor;
+  const comfy = (losing ? LOSS_COMFORTABLE : (GAIN_COMFORTABLE[p.experience] || GAIN_COMFORTABLE.beginner)) * factor;
 
   const minor = Number(p.age) < 18;
 
@@ -146,7 +173,8 @@ export function assessGoal(profile) {
       ? `${kg(Math.abs(delta))} בקצב שהגוף שלך באמת מסוגל לו זה עניין של ${Math.round(weeksNeeded / 52)} שנים, לא של חודשים. `
         + `בזמן שנתת היעד הוא ${kg(reachable)} — וזה יעד טוב. `
       : `בזמן שנתת אפשר להגיע ל־${kg(reachable)}, או להגיע ל־${kg(target)} עד ${formatHe(base.suggestedDate)}. `)
-    + 'שתי האפשרויות טובות. זו שלא תעבוד היא לנסות את שתיהן יחד.';
+    + 'שתי האפשרויות טובות. זו שלא תעבוד היא לנסות את שתיהן יחד. '
+    + commitmentNote(p);
   base.milestones = monthlyMilestones(now, weeks, start, reachable, p);
   return base;
 }
@@ -233,6 +261,7 @@ export function facts(profile) {
 
   const weeks = Math.max(1, Math.round(weeksBetween(new Date(), p.targetDate)));
   out.push({ label: 'לאורך', value: `${weeks} שבועות` });
+  out.push({ label: 'התמסרות', value: `${p.commitment || 3}/5` });
   return out;
 }
 

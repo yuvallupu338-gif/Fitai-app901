@@ -423,3 +423,29 @@ input::placeholder, textarea::placeholder { color: var(--dimmer); }
 .fbtn:hover { border-color: var(--cyan); color: var(--cyan); background: var(--cyan-wash); }
 .fbtn:active { transform: scale(.96); }
 .fbtn.reset:hover { border-color: var(--amber); color: var(--amber); background: var(--amber-wash); }
+
+/* ---------------- photos ---------------- */
+.photoslot {
+  display: flex; align-items: center; gap: 10px; margin-bottom: 10px;
+  min-height: 92px;
+}
+.photoslot img {
+  width: 78px; height: 92px; object-fit: cover; border-radius: var(--r-sm);
+  border: 1px solid var(--line); background: var(--steel);
+}
+.photohint {
+  width: 78px; height: 92px; border-radius: var(--r-sm);
+  border: 1px dashed var(--line); display: grid; place-items: center;
+  color: var(--dimmer); font-size: 11.5px; text-align: center;
+}
+.visionpair { display: flex; gap: 12px; align-items: stretch; margin: 12px 0 4px; }
+.visionpair figure { flex: 1; margin: 0; }
+.visionpair img {
+  width: 100%; aspect-ratio: 3/4; object-fit: cover;
+  border-radius: var(--r); border: 1px solid var(--line); display: block;
+}
+.visionpair figcaption {
+  font-family: var(--mono); font-size: 10.5px; letter-spacing: .08em;
+  color: var(--dim); margin-top: 6px; text-align: center;
+}
+.visionpair .arrow { align-self: center; color: var(--amber); font-family: var(--mono); }

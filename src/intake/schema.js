@@ -46,7 +46,10 @@ export function defaults() {
 
     location: 'home_bodyweight',
     gymMachines: true,
-    equipment: [],
+    // Seeded from the default location. onSet refills this whenever the user
+    // picks a different one; without the seed, accepting the default location
+    // rather than clicking it left the list empty.
+    equipment: EQUIPMENT_BY_LOCATION.home_bodyweight.slice(),
 
     injuries: [],
     surgeries: '',
@@ -67,6 +70,10 @@ export function defaults() {
     diet: [],
     allergies: '',
     supplements: '',
+
+    commitment: 3,
+    photoNow: '',
+    photoTarget: '',
 
     withPartner: false,
     partnerMode: 'together',
@@ -251,6 +258,29 @@ export const STEPS = [
   },
 
   {
+    id: 'vision',
+    title: 'לאן אתה מכוון',
+    subtitle: 'שתי תמונות והחלטה אחת. התמונות נשמרות במכשיר שלך בלבד ולא נשלחות לשום מקום — הן שם בשבילך, לא בשביל המערכת.',
+    fields: [
+      {
+        key: 'commitment', label: 'כמה אתה מוכן להתמסר לתהליך', type: 'scale', min: 1, max: 5,
+        help: 'זה הדבר שקובע את לוח הזמנים יותר מכל דבר אחר. 5 = מקפיד על האימונים, על האוכל ועל השינה גם כשלא בא לי. '
+          + '3 = עושה את רוב האימונים ואוכל בסדר רוב הזמן. תענה כנה — יעד שמבוסס על שקר לא יקרה.',
+        options: [{ label: 'כשמתאים לי' }, { label: 'בלי פשרות' }],
+      },
+      {
+        key: 'photoNow', label: 'תמונה שלך היום', type: 'photo', required: false,
+        help: 'נקודת ההתחלה. בעוד שלושה חודשים היא תהיה ההוכחה הכי טובה שמשהו קרה.',
+      },
+      {
+        key: 'photoTarget', label: 'תמונה של הגוף שאתה מכוון אליו', type: 'photo', required: false,
+        help: 'המערכת לא מנתחת את התמונה — אין לה מודל ראייה, והיא עובדת אופליין. '
+          + 'התמונה היא התזכורת שלך; לוח הזמנים מחושב מהמספרים שנתת ומרמת ההתמסרות.',
+      },
+    ],
+  },
+
+  {
     id: 'availability',
     title: 'כמה זמן באמת יש לך',
     subtitle: 'התשובה הכי חשובה בשאלון. תוכנית שלא עומדים בה שווה אפס.',
@@ -299,6 +329,9 @@ export const STEPS = [
     fields: [
       {
         key: 'location', label: 'המקום', type: 'choice',
+        // Choosing a location refills the equipment list, so the checklist is
+        // edited from a real baseline instead of starting empty.
+        onSet: (p, value) => { p.equipment = (EQUIPMENT_BY_LOCATION[value] || []).slice(); },
         options: [
           { value: 'full_gym', label: 'חדר כושר מלא', desc: 'משקולות חופשיות, מכונות, פולי' },
           { value: 'building_gym', label: 'חדר כושר בבניין', desc: 'בסיסי — כמה משקולות, אולי הליכון' },
@@ -316,6 +349,9 @@ export const STEPS = [
       },
       {
         key: 'equipment', label: 'מה יש לך בפועל', type: 'chips',
+        // A full gym has everything; asking is noise. Every other location
+        // genuinely varies, so the checklist earns its place there.
+        showIf: (p) => p.location !== 'full_gym',
         help: 'סימנתי מה שבדרך כלל יש במקום שבחרת. הוסף או הורד לפי המציאות.',
         options: EQUIPMENT_OPTIONS,
       },
@@ -613,6 +649,12 @@ export function normalizeProfile(input) {
   p.sleepHours = clamp(p.sleepHours, 4, 12, 7);
   p.stress = clamp(Math.round(p.stress), 1, 5, 3);
 
+  p.commitment = clamp(Math.round(p.commitment), 1, 5, 3);
+  // Photos are data URLs held on the device. Anything else is dropped.
+  for (const k of ['photoNow', 'photoTarget']) {
+    p[k] = typeof p[k] === 'string' && p[k].startsWith('data:image/') ? p[k] : '';
+  }
+
   p.withPartner = p.withPartner === true;
   p.partnerMode = p.withPartner && p.partnerMode === 'separate' ? 'separate' : 'together';
   p.partnerName = String(p.partnerName || '').trim();
@@ -713,6 +755,14 @@ export function summarize(profile) {
   if (bm.deadliftKg) bmParts.push(`דדליפט ${bm.deadliftKg} ק״ג`);
   if (bmParts.length) rows.push({ label: 'מספרים היום', value: bmParts.join(' · ') });
 
+  const COMMIT_HE = ['', 'כשמתאים לי', 'כשאני זוכר', 'רוב הזמן', 'מקפיד', 'בלי פשרות'];
+  rows.push({ label: 'רמת התמסרות', value: `${p.commitment}/5 · ${COMMIT_HE[p.commitment] || ''}` });
+  if (p.photoNow || p.photoTarget) {
+    rows.push({
+      label: 'תמונות',
+      value: [p.photoNow ? 'היום' : null, p.photoTarget ? 'יעד' : null].filter(Boolean).join(' + '),
+    });
+  }
   rows.push({
     label: 'אימון משותף',
     value: p.withPartner

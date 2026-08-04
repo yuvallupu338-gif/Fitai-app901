@@ -6,7 +6,7 @@
 
 import { h } from '../core/dom.js';
 import { buildPhases, progressionModel, projectTargets } from '../engine/progression.js';
-import { assessGoal } from '../engine/targets.js';
+import { assessGoal, commitmentNote } from '../engine/targets.js';
 import * as store from '../core/store.js';
 
 const GROUP_HE = {
@@ -21,6 +21,20 @@ export function renderGuide(root, program, profile) {
   const goal = safe(() => assessGoal(profile), null);
   if (goal) {
     view.appendChild(h('h3', 'היעד שלך'));
+
+    if (profile.photoNow || profile.photoTarget) {
+      view.appendChild(h('div.visionpair',
+        profile.photoNow ? h('figure',
+          h('img', { src: profile.photoNow, alt: 'התמונה שלך היום' }),
+          h('figcaption', 'היום')) : null,
+        profile.photoNow && profile.photoTarget ? h('span.arrow', '←') : null,
+        profile.photoTarget ? h('figure',
+          h('img', { src: profile.photoTarget, alt: 'הגוף שאתה מכוון אליו' }),
+          h('figcaption', goal.suggestedDate ? formatDate(goal.suggestedDate) : `בעוד ${goal.weeks} שבועות`)) : null,
+      ));
+      view.appendChild(h('p.lead', { style: { fontSize: '12.5px' } },
+        'התמונות נשמרות במכשיר הזה בלבד. המערכת לא מנתחת אותן — לוח הזמנים למטה מחושב מהמספרים שנתת ומרמת ההתמסרות שסימנת.'));
+    }
     view.appendChild(h('div.warnbox' + (goal.realistic ? '' : '.hot'), { style: { marginTop: '10px' } },
       h('h4', goal.realistic ? 'היעד ריאלי' : 'היעד שאפתני מדי לזמן הזה'),
       h('p', { style: { color: 'var(--dim)', fontSize: '13.5px' } }, goal.verdict),
@@ -31,7 +45,10 @@ export function renderGuide(root, program, profile) {
         Number.isFinite(goal.ratePerWeekKg) && goal.ratePerWeekKg !== 0
           ? h('span.fact', 'קצב ', h('b', `${round2(goal.ratePerWeekKg)} ק״ג/שבוע`)) : null,
         goal.suggestedTargetKg ? h('span.fact', 'ריאלי יותר ', h('b', `${round1(goal.suggestedTargetKg)} ק״ג`)) : null,
+        h('span.fact', 'התמסרות ', h('b', `${profile.commitment || 3}/5`)),
       ),
+      goal.realistic ? h('p', { style: { color: 'var(--dim)', fontSize: '12.5px', marginTop: '10px' } },
+        safe(() => commitmentNote(profile), '')) : null,
     ));
 
     if (goal.milestones && goal.milestones.length) {
