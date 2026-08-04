@@ -66,18 +66,22 @@ const SWING_F_BACK = swingBase({ legR: [-130, -128], footR: -46 });
 const SWING_F_MID = swingBase({ legR: [-92, -90], footR: 2 });
 const SWING_F_FWD = swingBase({ legR: [-40, -36], footR: 54 });
 
-/* Head-on: a straight swinging leg (thigh and shin share one angle), fixed
-   symmetric arms, and a torso that counter-leans a couple of degrees. */
-const sideSwing = (thigh, foot, spine) => p(STAND, {
+/* Head-on: a straight swinging leg (thigh and shin share one angle), arms held
+   wide and level in a symmetric T, and a SUPPORT LEG THAT STAYS SPLAYED so that
+   at the midpoint the two feet sit apart, side by side. A profile view can never
+   show two feet apart like that — in profile they stack — so the splayed stance
+   plus the level T is what tells the eye this camera is in front of the figure
+   and the leg is crossing the body rather than kicking forward. */
+const sideSwing = (thigh, spine) => p(STAND, {
   x: 50, y: 57, spine, head: spine,
-  armL: [-142, -152], armR: [-38, -28],
-  legL: [-90, -90], footL: 2,
-  legR: [thigh, thigh], footR: foot,
+  armL: [190, 178], armR: [-10, 2],
+  legL: [-100, -100], footL: -10,
+  legR: [thigh, thigh], footR: thigh + 90,
 });
 
-const SWING_S_OUT = sideSwing(-48, -14, 86);
-const SWING_S_MID = sideSwing(-88, 0, 90);
-const SWING_S_IN = sideSwing(-132, 176, 94);
+const SWING_S_OUT = sideSwing(-40, 87);
+const SWING_S_MID = sideSwing(-80, 90);
+const SWING_S_IN = sideSwing(-140, 93);
 
 /* Ankle rocks to the wall — the Hebrew name says "to the wall", and the wall is
    what makes the drill legible, because a knee travelling towards it is the
@@ -114,16 +118,27 @@ const wristRock = (thigh, spine, head) => {
     footL: 168, footR: 166,
   };
 };
+/* The hip travels an ARC about the knee, but lerpPose walks the straight line
+   between two keys, so a single 35-degree step would cut the corner and drag
+   the planted shin three quarters of a unit across the mat. Halving the step
+   puts the sag back under two tenths. */
 const WRIST_BACK = wristRock(-100, 14, 2);
-const WRIST_FWD = wristRock(-135, 4, -8);
+const WRIST_MID = wristRock(-117.5, 11, -1);
+const WRIST_FWD = wristRock(-135, 8, -4);
 
-/* Toy soldier: a straight-leg kick up to the opposite hand, walking. */
-const SOLDIER_DOWN = p(STAND, { x: 44, armL: [-60, -50], armR: [-120, -130] });
-const SOLDIER_KICK = p(STAND, {
-  x: 44, spine: 84, head: 80,
+/* Toy soldier: a straight-leg kick up to the opposite hand. The standing hip
+   never moves and the SUPPORT LEG KEEPS EXACTLY THE ANGLES IT HAD in every key
+   — STAND's own [-87, -89] against the kick key's [-92, -90] was enough to walk
+   the planted foot 1.6 units across the floor each rep. */
+const SOLDIER_PLANT = { x: 44, y: 57, legL: [-90, -90], footL: 2 };
+const SOLDIER_DOWN = p(STAND, Object.assign({
+  armL: [-60, -50], armR: [-120, -130],
+}, SOLDIER_PLANT));
+const SOLDIER_KICK = p(STAND, Object.assign({
+  spine: 84, head: 80,
   armL: [-20, -14], armR: [-26, -20],
-  legL: [-92, -90], legR: [-14, -10], footL: 2, footR: 62,
-});
+  legR: [-14, -10], footR: 62,
+}, SOLDIER_PLANT));
 
 /* Kneeling hip flexor stretch. Same trick as the wrist rock: the rear KNEE is
    the fixed point and the pelvis is solved from the rear thigh angle, so the
@@ -131,24 +146,29 @@ const SOLDIER_KICK = p(STAND, {
    rear thigh swings from vertical to trailing well behind the body. That travel
    IS the stretch — the previous version moved the hips four units and read as a
    held photograph. The front foot is pinned, the torso stays tall and finishes
-   leaning back, and the hands ride the hips so that nothing competes with the
-   long line down the front of the rear leg. */
+   leaning back, and the NEAR arm sweeps overhead as the hips arrive — one arm,
+   not two, because the drill loads one hip and a matched pair would read as the
+   two-legged parent. The far hand rides the hip so that nothing competes with
+   the long line down the front of the rear leg. */
 const HF_KNEE = [38, 86.6];
-const halfKneel = (thigh, spine, hx, hy) => {
+const halfKneel = (thigh, spine, hip, reach) => {
   const r = (thigh * Math.PI) / 180;
   return {
     x: HF_KNEE[0] - 15.5 * Math.cos(r),
     y: HF_KNEE[1] + 15.5 * Math.sin(r),
     spine, head: spine + 2,
-    handL: { x: hx, y: hy, bend: 1 },
-    handR: { x: hx + 2, y: hy + 1, bend: 1 },
+    handL: { x: hip[0], y: hip[1], bend: 1 },
+    handR: { x: reach[0], y: reach[1], bend: 1 },
     legL: [thigh, 178],
     footPtR: { x: 60, y: 87.5, bend: 1 },
     footL: 172, footR: 2,
   };
 };
-const HIPFLEX_TALL = halfKneel(-95, 90, 42, 68);
-const HIPFLEX_PRESS = halfKneel(-128, 98, 50, 71);
+/* Stepped in halves for the same reason as the wrist rock: one 33-degree jump
+   across the hip's arc chords the corner and slides the planted shin. */
+const HIPFLEX_TALL = halfKneel(-95, 90, [42, 68], [44, 69]);
+const HIPFLEX_MID = halfKneel(-111.5, 94, [46, 69.5], [45, 49]);
+const HIPFLEX_PRESS = halfKneel(-128, 98, [50, 71], [46, 30]);
 
 /* Child's pose. The shins stay flat and the hips stay parked on the heels for
    the whole clip — they are the one thing that never moves — and the drill is
@@ -213,7 +233,7 @@ const passiveHang = (px, py, spine, head, ll, lr) => p(HANG, {
   handR: { x: 51.5, y: 15, bend: 1 },
   legL: ll, legR: lr, footL: 0, footR: 0,
 });
-const HANG_GRIP = passiveHang(50, 57.6, 90, 90, [-89, -90], [-93, -90]);
+const HANG_GRIP = passiveHang(50, 56.5, 90, 90, [-89, -90], [-93, -90]);
 const HANG_SINK = passiveHang(48, 60.5, 92, 82, [-94, -92], [-98, -92]);
 const HANG_SWAY = passiveHang(52, 60.5, 88, 98, [-86, -88], [-90, -88]);
 
@@ -258,8 +278,9 @@ export const X12_CLIPS = {
     id: 'wrist_prep', duration: 3600, hero: 0.5,
     props: [{ type: 'mat', x: 42, w: 68 }],
     keys: [
-      { t: 0, pose: WRIST_BACK }, { t: 0.42, pose: WRIST_FWD },
-      { t: 0.62, pose: WRIST_FWD }, { t: 1, pose: WRIST_BACK },
+      { t: 0, pose: WRIST_BACK }, { t: 0.22, pose: WRIST_MID },
+      { t: 0.42, pose: WRIST_FWD }, { t: 0.62, pose: WRIST_FWD },
+      { t: 0.8, pose: WRIST_MID }, { t: 1, pose: WRIST_BACK },
     ],
   }),
 

@@ -50,6 +50,20 @@ function propSignature(clip) {
 
 const meanDiff = (a, b) => Math.sqrt(a.reduce((s, v, i) => s + (v - b[i]) ** 2, 0) / a.length);
 
+/** Largest distance any tracked joint moves between two solved frames. */
+function loopDrift(a, b) {
+  const pick = (j) => [j.head, j.pelvis, j.neck, j.arms.L.hand, j.arms.R.hand,
+    j.arms.L.elbow, j.arms.R.elbow, j.legs.L.knee, j.legs.R.knee,
+    j.legs.L.ankle, j.legs.R.ankle, j.legs.L.toe, j.legs.R.toe];
+  const pa = pick(a);
+  const pb = pick(b);
+  let worst = 0;
+  for (let i = 0; i < pa.length; i++) {
+    worst = Math.max(worst, Math.hypot(pa[i][0] - pb[i][0], pa[i][1] - pb[i][1]));
+  }
+  return worst;
+}
+
 /*
  * A limb can be posed two ways: by joint angles (armL, legR) or by an IK target
  * for its end point (handL, footPtR). lerpPose can only interpolate a key it
@@ -132,9 +146,17 @@ for (const f of files) {
     }
 
     if (clip.keys.length < 3) problems.push(`${f}:${id} has only ${clip.keys.length} keys`);
-    const first = JSON.stringify(clip.keys[0].pose);
-    const last = JSON.stringify(clip.keys[clip.keys.length - 1].pose);
-    if (first !== last) problems.push(`${f}:${id} loop jumps — first and last pose differ`);
+    // Compare where the loop RENDERS, not how it is written. A full arm circle
+    // ends at 276 degrees where it started at -84: the same picture, a different
+    // number, and no way to write it as one object without the arm unwinding
+    // three quarters of the way back. Solved joint positions answer the question
+    // the check is actually asking, and still catch a real jump.
+    const first = solve(clip.keys[0].pose);
+    const last = solve(clip.keys[clip.keys.length - 1].pose);
+    const drift = loopDrift(first, last);
+    if (drift > 0.25) {
+      problems.push(`${f}:${id} loop jumps — first and last frame differ by ${drift.toFixed(1)} units`);
+    }
 
     const family = CLIPS[ex.anim] || CLIPS[ex.pattern];
     if (family) {

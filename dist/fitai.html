@@ -10625,23 +10625,53 @@ __m["src/data/clips.x12.js"] = (function () {
  * So every clip here commits to one large, unmistakable range of motion, and
  * runs slow. A stretch that looks like standing still has failed at its job,
  * which is to be copied from the picture without reading the name.
+ *
+ * Two rules earned the hard way in this file:
+ *
+ *  - Anything resting on the floor or gripping the bar is pinned with IK to the
+ *    SAME coordinates in every key. It is not enough to write the target down:
+ *    the arm is only 23.5 long and the leg 30.5, so a target further than that
+ *    from the shoulder or hip is silently clamped and the limb hangs in mid-air
+ *    near the floor instead of on it. Every pinned target below has been checked
+ *    against the reach it actually needs.
+ *
+ *  - A key may not swap a limb between IK and FK. lerpPose can blend two IK
+ *    targets or two angle pairs, but an object against `undefined` falls through
+ *    to a nearest-key pick and the limb teleports at the halfway mark.
  */
 
 const { p, STAND, GLUTE_BRIDGE_DOWN, GLUTE_BRIDGE_UP, HANG } = __m["src/core/poses.js"];
 
 const clip = (o) => Object.assign({ duration: 4200, hero: 0.25, ease: 'inOut', props: [] }, o);
 
-/* Standing rotation: the arms swing right across the body, feet planted. */
-const TWIST_L = p(STAND, { spine: 92, head: 96, armL: [10, 20], armR: [4, 14] });
-const TWIST_MID = p(STAND, { spine: 90, head: 90, armL: [-30, -20], armR: [-36, -26] });
-const TWIST_R = p(STAND, { spine: 88, head: 84, armL: [-160, -170], armR: [-166, -176] });
+/* Standing rotation. Seen side-on, a twist turns about the vertical axis — which
+   is very nearly the axis the camera looks along — so it only reads if the two
+   arms go OPPOSITE ways: the near arm wraps to the front while the far arm
+   travels behind, then they trade. Both arms sweeping together is an arm swing,
+   and that is what this used to look like. The hands are IK targets at chest
+   height so they foreshorten, passing close to the shoulder mid-sweep, which is
+   the honest projection of a hand coming towards the camera. */
+const twist = (rx, ry, lx, ly, head) => p(STAND, {
+  spine: 90, head,
+  handR: { x: rx, y: ry, bend: -1 },
+  handL: { x: lx, y: ly, bend: -1 },
+});
+const TWIST_OPEN = twist(67, 40, 37, 44, 86);
+const TWIST_CROSS = twist(37, 44, 67, 40, 94);
 
 /*
- * Leg swings. Both keep one leg planted and move only the other, so the two
- * must not be the same clip: the FRONT version swings the leg forward and back
- * through a big arc, and the SIDE version sweeps it across the body while the
- * torso stays square. Drawn side-on, "across" reads as a much shorter arc with
- * the knee tucking in, which is the honest projection of that movement.
+ * Leg swings. Both keep one leg planted and move only the other, and the two
+ * must not read as the same drill — so they are drawn from DIFFERENT camera
+ * angles, which is the only thing that can separate a front-to-back swing from
+ * a side-to-side one in a flat rig.
+ *
+ * FRONT is side-on: the torso is in profile, the arms counter-swing, and the leg
+ * arcs forward and back past a support leg it never crosses.
+ *
+ * SIDE is head-on: the arms hang out symmetrically in an A, both legs are
+ * vertical at the midpoint, and the swinging leg abducts wide and then crosses
+ * IN FRONT OF the support leg. That crossing is the read. It cannot happen in
+ * the front swing, and no amount of tucking the knee ever said it.
  */
 const swingBase = (over) => p(STAND, Object.assign({
   x: 44,
@@ -10653,35 +10683,60 @@ const SWING_F_BACK = swingBase({ legR: [-130, -128], footR: -46 });
 const SWING_F_MID = swingBase({ legR: [-92, -90], footR: 2 });
 const SWING_F_FWD = swingBase({ legR: [-40, -36], footR: 54 });
 
-const SWING_S_IN = swingBase({ legR: [-46, -96], footR: 30, spine: 95, armL: [-10, -4], armR: [-170, -176] });
-const SWING_S_MID = swingBase({ legR: [-92, -90], footR: 2, spine: 90 });
-const SWING_S_OUT = swingBase({ legR: [-134, -84], footR: -26, spine: 85, armL: [-50, -46], armR: [-130, -134] });
+/* Head-on: a straight swinging leg (thigh and shin share one angle), arms held
+   wide and level in a symmetric T, and a SUPPORT LEG THAT STAYS SPLAYED so that
+   at the midpoint the two feet sit apart, side by side. A profile view can never
+   show two feet apart like that — in profile they stack — so the splayed stance
+   plus the level T is what tells the eye this camera is in front of the figure
+   and the leg is crossing the body rather than kicking forward. */
+const sideSwing = (thigh, spine) => p(STAND, {
+  x: 50, y: 57, spine, head: spine,
+  armL: [190, 178], armR: [-10, 2],
+  legL: [-100, -100], footL: -10,
+  legR: [thigh, thigh], footR: thigh + 90,
+});
 
-/* Ankle rocks: the knee drives forward over a planted foot and comes back. */
-const ANKLE_BACK = {
-  x: 46, y: 60, spine: 84, head: 84,
-  armL: [-40, -30], armR: [-46, -36],
-  footPtL: { x: 34, y: 87.5, bend: 1 }, footPtR: { x: 56, y: 87.5, bend: 1 },
-  footL: 2, footR: 2,
-};
-const ANKLE_FWD = {
-  x: 50, y: 66, spine: 78, head: 78,
-  armL: [-30, -20], armR: [-36, -26],
-  footPtL: { x: 34, y: 87.5, bend: 1 }, footPtR: { x: 56, y: 87.5, bend: 1 },
-  footL: 2, footR: 2,
-};
+const SWING_S_OUT = sideSwing(-40, 87);
+const SWING_S_MID = sideSwing(-80, 90);
+const SWING_S_IN = sideSwing(-140, 93);
 
-/* Wrist prep: on all fours, rocking the shoulders over planted hands. */
-const WRIST_BACK = {
-  x: 34, y: 68, spine: 26, head: 20,
-  handL: { x: 60, y: 87.5, bend: -1 }, handR: { x: 63, y: 87.5, bend: -1 },
-  legL: [-108, 176], legR: [-112, 172], footL: 170, footR: 170,
+/* Ankle rocks to the wall — the Hebrew name says "to the wall", and the wall is
+   what makes the drill legible, because a knee travelling towards it is the
+   whole movement. The hips go FORWARD, not down: a pelvis that sinks is a lunge,
+   which is exactly what this clip used to be. Both feet stay pinned, the rear leg
+   straightens instead of its knee dropping, and only the front knee travels —
+   from behind the toes to well past them, a hand's width off the wall. */
+const ankleRock = (px, py, spine) => ({
+  x: px, y: py, spine, head: spine - 2,
+  handL: { x: 71.5, y: 47, bend: -1 },
+  handR: { x: 71.5, y: 50, bend: -1 },
+  footPtL: { x: 42, y: 87.5, bend: 1 },
+  footPtR: { x: 62, y: 87.5, bend: 1 },
+  footL: 2, footR: 2,
+});
+const ANKLE_BACK = ankleRock(50, 64, 86);
+const ANKLE_FWD = ankleRock(58, 65.5, 80);
+
+/* Wrist prep: on all fours, rocking the shoulders over planted hands. The knee
+   is the fixed point and the pelvis is derived from the thigh angle, so the
+   knees never slide and the hips can travel far enough to carry the shoulders
+   from BEHIND the hands to well past them. That change in wrist angle is the
+   entire drill; a shoulder parked over the wrist shows nothing at all. */
+const WRIST_KNEE = [30.5, 86.6];
+const wristRock = (thigh, spine, head) => {
+  const r = (thigh * Math.PI) / 180;
+  return {
+    x: WRIST_KNEE[0] - 15.5 * Math.cos(r),
+    y: WRIST_KNEE[1] + 15.5 * Math.sin(r),
+    spine, head,
+    handL: { x: 60, y: 87.5, bend: -1 },
+    handR: { x: 63, y: 87.5, bend: -1 },
+    legL: [thigh, 178], legR: [thigh, 175],
+    footL: 168, footR: 166,
+  };
 };
-const WRIST_FWD = {
-  x: 40, y: 68, spine: 22, head: 16,
-  handL: { x: 60, y: 87.5, bend: -1 }, handR: { x: 63, y: 87.5, bend: -1 },
-  legL: [-112, 174], legR: [-116, 170], footL: 170, footR: 170,
-};
+const WRIST_BACK = wristRock(-100, 14, 2);
+const WRIST_FWD = wristRock(-135, 8, -4);
 
 /* Toy soldier: a straight-leg kick up to the opposite hand, walking. */
 const SOLDIER_DOWN = p(STAND, { x: 44, armL: [-60, -50], armR: [-120, -130] });
@@ -10691,70 +10746,107 @@ const SOLDIER_KICK = p(STAND, {
   legL: [-92, -90], legR: [-14, -10], footL: 2, footR: 62,
 });
 
-/* Kneeling hip flexor stretch: front foot planted, rear knee down, hips press
-   forward. The tall torso and the long line from rear knee to shoulder are what
-   make it a stretch rather than a lunge. */
-const HIPFLEX_A = {
-  x: 48, y: 66, spine: 92, head: 92,
-  armL: [-70, -60], armR: [-76, -66],
-  footPtL: { x: 66, y: 87.5, bend: 1 },
-  legR: [-150, 178], footL: 2, footR: 168,
+/* Kneeling hip flexor stretch. Same trick as the wrist rock: the rear KNEE is
+   the fixed point and the pelvis is solved from the rear thigh angle, so the
+   knee stays welded to the mat while the hips press a long way forward and the
+   rear thigh swings from vertical to trailing well behind the body. That travel
+   IS the stretch — the previous version moved the hips four units and read as a
+   held photograph. The front foot is pinned, the torso stays tall and finishes
+   leaning back, and the NEAR arm sweeps overhead as the hips arrive — one arm,
+   not two, because the drill loads one hip and a matched pair would read as the
+   two-legged parent. The far hand rides the hip so that nothing competes with
+   the long line down the front of the rear leg. */
+const HF_KNEE = [38, 86.6];
+const halfKneel = (thigh, spine, hip, reach) => {
+  const r = (thigh * Math.PI) / 180;
+  return {
+    x: HF_KNEE[0] - 15.5 * Math.cos(r),
+    y: HF_KNEE[1] + 15.5 * Math.sin(r),
+    spine, head: spine + 2,
+    handL: { x: hip[0], y: hip[1], bend: 1 },
+    handR: { x: reach[0], y: reach[1], bend: 1 },
+    legL: [thigh, 178],
+    footPtR: { x: 60, y: 87.5, bend: 1 },
+    footL: 172, footR: 2,
+  };
 };
-const HIPFLEX_B = {
-  x: 52, y: 68, spine: 96, head: 98,
-  armL: [-60, -46], armR: [-66, -52],
-  footPtL: { x: 66, y: 87.5, bend: 1 },
-  legR: [-156, 174], footL: 2, footR: 168,
-};
+const HIPFLEX_TALL = halfKneel(-95, 90, [42, 68], [44, 69]);
+const HIPFLEX_PRESS = halfKneel(-128, 98, [50, 71], [46, 30]);
 
-/* Child's pose: hips back to the heels, arms long on the floor ahead. */
-const CHILD_A = {
-  x: 30, y: 68, spine: -22, head: -30,
-  handL: { x: 78, y: 87, bend: -1 }, handR: { x: 81, y: 87, bend: -1 },
-  legL: [-104, 172], legR: [-108, 168], footL: 168, footR: 168,
-};
-const CHILD_B = {
-  x: 27, y: 70, spine: -26, head: -34,
-  handL: { x: 84, y: 87, bend: -1 }, handR: { x: 87, y: 87, bend: -1 },
-  legL: [-100, 174], legR: [-104, 170], footL: 168, footR: 168,
-};
+/* Child's pose. The shins stay flat and the hips stay parked on the heels for
+   the whole clip — they are the one thing that never moves — and the drill is
+   the FOLD onto them: from a tall kneeling sit the chest travels twenty-odd
+   units down and forward until the head rests on the mat and the arms are long
+   in front. Starting already folded leaves nothing to show, and hips riding high
+   above the heels is a downward dog, not this. */
+const childSit = (spine, head, lx, ly, rx, ry) => ({
+  x: 33.5, y: 77.9, spine, head,
+  handL: { x: lx, y: ly, bend: -1 },
+  handR: { x: rx, y: ry, bend: -1 },
+  legL: [-36, 178], legR: [-36, 175],
+  footL: 172, footR: 170,
+});
+const CHILD_SIT = childSit(55, 62, 56, 76, 58, 78);
+const CHILD_FOLD = childSit(-5, -1, 74, 87, 76, 87);
+const CHILD_REACH = childSit(-8, -4, 76.5, 87, 78.5, 87);
 
-/* World's greatest stretch: a deep lunge, then the torso opens upward. */
-const WGS_LUNGE = {
-  x: 44, y: 70, spine: 34, head: 26,
-  handL: { x: 62, y: 87, bend: -1 }, handR: { x: 66, y: 87, bend: -1 },
-  footPtL: { x: 70, y: 87.5, bend: 1 },
-  legR: [-152, 176], footL: 2, footR: 168,
+/* World's greatest stretch: a deep lunge, then the torso opens and one arm winds
+   up to the ceiling. The down hand stays welded to the mat throughout and the
+   head turns up to follow the reaching hand — that pairing is the rotation. The
+   torso itself barely rises, because it cannot: lift the shoulder and the planted
+   hand can no longer reach the floor, which is how this clip previously ended up
+   doing an overhead lunge with both hands in the air. Both arms are IK in both
+   keys, so neither teleports at the halfway mark. */
+const WGS_BASE = {
+  x: 44, y: 76,
+  footPtR: { x: 66, y: 87.5, bend: 1 },
+  legL: [-152, -166], footL: 175, footR: 2,
 };
-const WGS_OPEN = {
-  x: 44, y: 70, spine: 62, head: 70,
-  // The reaching arm stays an IK TARGET rather than switching to angles: with a
-  // target in one key and angles in the next, the hand teleports off the floor
-  // at the midpoint instead of sweeping up off it.
-  handL: { x: 62, y: 87, bend: -1 }, handR: { x: 56, y: 34, bend: 1 },
-  footPtL: { x: 70, y: 87.5, bend: 1 },
-  legR: [-152, 176], footL: 2, footR: 168,
-};
+const WGS_LUNGE = Object.assign({}, WGS_BASE, {
+  spine: 28, head: 16,
+  handL: { x: 58, y: 87, bend: -1 },
+  handR: { x: 63, y: 87, bend: -1 },
+});
+const WGS_OPEN = Object.assign({}, WGS_BASE, {
+  spine: 30, head: 62,
+  handL: { x: 58, y: 87, bend: -1 },
+  handR: { x: 64, y: 43, bend: 1 },
+});
 
-/* Band pull-down for the scapulae: arms overhead, then pulled down and wide. */
-const SCAP_UP = p(STAND, { armL: [96, 98], armR: [84, 86] });
-const SCAP_DOWN = p(STAND, { spine: 92, armL: [140, 156], armR: [136, 152] });
+/* Band pull-down for the scapulae. The arms sweep from overhead DOWN and forward
+   to the hips, elbows locked straight the whole way — the forearm angle equals
+   the upper-arm angle in every key, so no amount of interpolation can bend them.
+   Sweeping the arms backwards over the head instead, which is where this
+   started, is shoulder extension and reads as a backstroke. */
+const SCAP_OVERHEAD = p(STAND, { spine: 90, head: 90, armL: [93, 93], armR: [87, 87] });
+const SCAP_PULLED = p(STAND, { spine: 92, head: 92, armL: [-55, -55], armR: [-61, -61] });
 
-/* Passive hang. The difference from a dead hang is real and worth drawing: here
-   the shoulders are allowed to SHRUG up by the ears and the body hangs longer,
-   where an active hang pulls the scapulae down and rides higher. So this figure
-   sits noticeably lower under the same bar, with the head down between the arms,
-   and sways slowly instead of holding a position. */
-const HANG_A = p(HANG, { y: 65, head: 84 });
-const HANG_B = p(HANG, { y: 65.5, head: 84, legL: [-82, -86], legR: [-98, -94] });
+/* Passive hang. The difference from a dead hang is real and worth drawing: the
+   shoulders are allowed to shrug up by the ears and the body hangs longer. So
+   the clip starts on a gripped bar with the elbows still slightly bent and then
+   SINKS — arms going dead straight, body dropping, head drifting down between
+   them — and then sways, legs trailing wider than the hips the way a pendulum
+   does. The hands never leave their two points on the bar, and the pelvis stays
+   close enough underneath them that the arms can still reach: drop it and the
+   IK clamps, which left the old version floating four units below a bar it was
+   not actually holding. */
+const passiveHang = (px, py, spine, head, ll, lr) => p(HANG, {
+  x: px, y: py, spine, head,
+  handL: { x: 48.5, y: 15, bend: 1 },
+  handR: { x: 51.5, y: 15, bend: 1 },
+  legL: ll, legR: lr, footL: 0, footR: 0,
+});
+const HANG_GRIP = passiveHang(50, 56.5, 90, 90, [-89, -90], [-93, -90]);
+const HANG_SINK = passiveHang(48, 60.5, 92, 82, [-94, -92], [-98, -92]);
+const HANG_SWAY = passiveHang(52, 60.5, 88, 98, [-86, -88], [-90, -88]);
 
 const X12_CLIPS = {
   torso_twist_standing: clip({
-    id: 'torso_twist_standing', duration: 4000,
+    id: 'torso_twist_standing', duration: 4000, hero: 0,
     keys: [
-      { t: 0, pose: TWIST_L }, { t: 0.28, pose: TWIST_MID },
-      { t: 0.52, pose: TWIST_R }, { t: 0.78, pose: TWIST_MID },
-      { t: 1, pose: TWIST_L },
+      { t: 0, pose: TWIST_OPEN }, { t: 0.14, pose: TWIST_OPEN },
+      { t: 0.5, pose: TWIST_CROSS }, { t: 0.64, pose: TWIST_CROSS },
+      { t: 1, pose: TWIST_OPEN },
     ],
   }),
 
@@ -10770,14 +10862,15 @@ const X12_CLIPS = {
   leg_swings_side: clip({
     id: 'leg_swings_side', duration: 3400,
     keys: [
-      { t: 0, pose: SWING_S_IN }, { t: 0.3, pose: SWING_S_MID },
-      { t: 0.55, pose: SWING_S_OUT }, { t: 0.8, pose: SWING_S_MID },
-      { t: 1, pose: SWING_S_IN },
+      { t: 0, pose: SWING_S_OUT }, { t: 0.3, pose: SWING_S_MID },
+      { t: 0.55, pose: SWING_S_IN }, { t: 0.8, pose: SWING_S_MID },
+      { t: 1, pose: SWING_S_OUT },
     ],
   }),
 
   ankle_rocks: clip({
-    id: 'ankle_rocks', duration: 3200,
+    id: 'ankle_rocks', duration: 3200, hero: 0.5,
+    props: [{ type: 'wall', x: 74, y0: 28, y1: 88 }],
     keys: [
       { t: 0, pose: ANKLE_BACK }, { t: 0.42, pose: ANKLE_FWD },
       { t: 0.62, pose: ANKLE_FWD }, { t: 1, pose: ANKLE_BACK },
@@ -10785,8 +10878,8 @@ const X12_CLIPS = {
   }),
 
   wrist_prep: clip({
-    id: 'wrist_prep', duration: 3600,
-    props: [{ type: 'mat', x: 50, w: 60 }],
+    id: 'wrist_prep', duration: 3600, hero: 0.5,
+    props: [{ type: 'mat', x: 42, w: 68 }],
     keys: [
       { t: 0, pose: WRIST_BACK }, { t: 0.42, pose: WRIST_FWD },
       { t: 0.62, pose: WRIST_FWD }, { t: 1, pose: WRIST_BACK },
@@ -10812,9 +10905,10 @@ const X12_CLIPS = {
 
   hip_flexor_stretch_kneeling: clip({
     id: 'hip_flexor_stretch_kneeling', duration: 4600, hero: 0.5,
-    props: [{ type: 'mat', x: 48, w: 60 }],
+    props: [{ type: 'mat', x: 40, w: 60 }],
     keys: [
-      { t: 0, pose: HIPFLEX_A }, { t: 0.5, pose: HIPFLEX_B }, { t: 1, pose: HIPFLEX_A },
+      { t: 0, pose: HIPFLEX_TALL }, { t: 0.42, pose: HIPFLEX_PRESS },
+      { t: 0.68, pose: HIPFLEX_PRESS }, { t: 1, pose: HIPFLEX_TALL },
     ],
   }),
 
@@ -10822,13 +10916,14 @@ const X12_CLIPS = {
     id: 'childs_pose_reach', duration: 4800, hero: 0.5,
     props: [{ type: 'mat', x: 50, w: 64 }],
     keys: [
-      { t: 0, pose: CHILD_A }, { t: 0.5, pose: CHILD_B }, { t: 1, pose: CHILD_A },
+      { t: 0, pose: CHILD_SIT }, { t: 0.38, pose: CHILD_FOLD },
+      { t: 0.72, pose: CHILD_REACH }, { t: 1, pose: CHILD_SIT },
     ],
   }),
 
   worlds_greatest_stretch: clip({
-    id: 'worlds_greatest_stretch', duration: 4600,
-    props: [{ type: 'mat', x: 50, w: 62 }],
+    id: 'worlds_greatest_stretch', duration: 4600, hero: 0.5,
+    props: [{ type: 'mat', x: 44, w: 66 }],
     keys: [
       { t: 0, pose: WGS_LUNGE }, { t: 0.44, pose: WGS_OPEN },
       { t: 0.68, pose: WGS_OPEN }, { t: 1, pose: WGS_LUNGE },
@@ -10836,11 +10931,11 @@ const X12_CLIPS = {
   }),
 
   band_scap_pulldown: clip({
-    id: 'band_scap_pulldown', duration: 3200,
-    props: [{ type: 'band', x0: 40, y0: 20, x1: 60, y1: 20, sag: 3 }],
+    id: 'band_scap_pulldown', duration: 3200, hero: 0.5,
+    props: [{ type: 'band', x0: 53, y0: 6, x1: 62, y1: 53, sag: 2 }],
     keys: [
-      { t: 0, pose: SCAP_UP }, { t: 0.42, pose: SCAP_DOWN },
-      { t: 0.62, pose: SCAP_DOWN }, { t: 1, pose: SCAP_UP },
+      { t: 0, pose: SCAP_OVERHEAD }, { t: 0.42, pose: SCAP_PULLED },
+      { t: 0.62, pose: SCAP_PULLED }, { t: 1, pose: SCAP_OVERHEAD },
     ],
   }),
 
@@ -10848,11 +10943,11 @@ const X12_CLIPS = {
     id: 'passive_bar_hang', duration: 5000, hero: 0.5, ground: false,
     props: [{ type: 'bar', x: 50, y: 15, w: 44 }],
     keys: [
-      { t: 0, pose: HANG_A }, { t: 0.5, pose: HANG_B }, { t: 1, pose: HANG_A },
+      { t: 0, pose: HANG_GRIP }, { t: 0.28, pose: HANG_SINK },
+      { t: 0.62, pose: HANG_SWAY }, { t: 1, pose: HANG_GRIP },
     ],
   }),
 };
-
 
   return {
     "X12_CLIPS": X12_CLIPS,
@@ -11360,6 +11455,465 @@ const X13_CLIPS = {
   };
 })();
 
+__m["src/data/clips.x14.js"] = (function () {
+/* clips.x14.js — bespoke per-exercise animations. Keys are EXERCISE IDS.
+ *
+ * The equipment variants: the body was already doing the right thing, and the
+ * wrong thing was in its hands.
+ *
+ * A band overhead press drawn with a barbell tells someone who owns one band
+ * and no barbell that they cannot do the exercise the app just prescribed them.
+ * A dumbbell RDL drawn with a bar says the same to someone training in a
+ * bedroom. These are quieter failures than a regression drawn as its harder
+ * parent — the movement pattern is right — but they undo the one promise the
+ * whole equipment filter exists to keep, which is that everything in the plan
+ * is something you can actually pick up.
+ *
+ * A note on bands: props are fixed for a whole clip while the hands move
+ * through it, so a band is drawn where it sits at the working end of the rep
+ * rather than tracking the hand. Better a band anchored a little loosely than
+ * no band at all, which is what these had.
+ */
+
+const { p, STAND, STAND_PLANTED, HINGE_TOP, HINGE_BOTTOM, SUPINE, SEATED, DIP_TOP, DIP_BOTTOM, } = __m["src/core/poses.js"];
+
+const clip = (o) => Object.assign({ duration: 3000, hero: 0, ease: 'inOut', props: [] }, o);
+
+/* ------------------------------------------------------------------ *
+ * Hinges with something other than a barbell
+ * ------------------------------------------------------------------ */
+
+/* Dumbbell RDL: the weights hang at arm's length either side of the leg, so
+   they track down the thigh instead of along one bar across the shins. */
+const DB_RDL_TOP = p(HINGE_TOP, { load: 'dumbbell', armL: [-86, -88], armR: [-94, -92] });
+const DB_RDL_MID = p(HINGE_BOTTOM, {
+  x: 47, y: 60, spine: 52, head: 42, load: 'dumbbell',
+  armL: [-86, -88], armR: [-94, -92],
+});
+const DB_RDL_BOTTOM = p(HINGE_BOTTOM, {
+  x: 46, y: 62, spine: 24, head: 14, load: 'dumbbell',
+  armL: [-86, -88], armR: [-94, -92],
+});
+
+/* Kettlebell deadlift: the bell starts BETWEEN the feet, not in front of the
+   shins, so the pull is more vertical and the stance is wider. */
+const KB_DL_TOP = p(HINGE_TOP, {
+  load: 'kettlebell', armL: [-86, -88], armR: [-94, -92],
+  footPtL: { x: 55, y: 87.5, bend: 1 }, footPtR: { x: 45, y: 87.5, bend: 1 },
+});
+const KB_DL_BOTTOM = {
+  x: 47, y: 66, spine: 40, head: 30, load: 'kettlebell',
+  armL: [-86, -88], armR: [-94, -92],
+  footPtL: { x: 55, y: 87.5, bend: 1 }, footPtR: { x: 45, y: 87.5, bend: 1 },
+  footL: 2, footR: 2,
+};
+
+/* Bodyweight hip thrust: shoulders on the bench, nothing across the hips. The
+   loaded version is the same shape with a bar on the lap, and the bar is the
+   only thing that says which one you are being asked for. */
+const BWT_DOWN = {
+  x: 56, y: 84, spine: 135, head: 128,
+  armL: [150, 142], armR: [156, 148],
+  footPtL: { x: 70, y: 87.5, bend: 1 }, footPtR: { x: 74, y: 87.5, bend: 1 },
+  footL: 0, footR: 0,
+};
+const BWT_UP = p(BWT_DOWN, {
+  x: 62, y: 72, spine: 170, head: 163,
+  armL: [176, 168], armR: [182, 174],
+  footPtL: { x: 70, y: 87.5, bend: 1 }, footPtR: { x: 74, y: 87.5, bend: 1 },
+});
+
+/* ------------------------------------------------------------------ *
+ * Pressing without a bench, or without a bar
+ * ------------------------------------------------------------------ */
+
+/* Dumbbell floor press: lying on the FLOOR, so the elbows stop when they touch
+   it. That short bottom half is the whole reason the exercise exists — it is
+   the bench press for someone with no bench and a cranky shoulder. */
+const FLOOR_PRESS_DOWN = {
+  x: 40, y: 84, spine: 6, head: 18, load: 'dumbbell',
+  armL: [64, 4], armR: [58, -2],
+  legL: [176, 118], legR: [178, 120],
+  footL: 40, footR: 40,
+};
+const FLOOR_PRESS_UP = p(FLOOR_PRESS_DOWN, {
+  armL: [82, 84], armR: [76, 78],
+});
+
+/* Seated dumbbell shoulder press: back against an upright bench, which is what
+   makes it the seated version — the standing one has no support and the whole
+   body braces instead. */
+const SEATED_PRESS_DOWN = p(SEATED, {
+  x: 44, y: 66, spine: 92, head: 92, load: 'dumbbell',
+  armL: [26, 62], armR: [20, 56],
+  legL: [-4, -84], legR: [-8, -88],
+});
+const SEATED_PRESS_UP = p(SEATED_PRESS_DOWN, {
+  armL: [92, 94], armR: [86, 88],
+});
+
+/* Band overhead press: the band runs from under the foot to the hand, so the
+   resistance grows as the arm finishes — the opposite of a dumbbell, which is
+   heaviest at the bottom. */
+const BAND_OHP_DOWN = p(STAND_PLANTED, { armL: [26, 66], armR: [20, 60] });
+const BAND_OHP_UP = p(STAND_PLANTED, { armL: [92, 94], armR: [86, 88] });
+
+/* Chest dip: the torso leans FORWARD, which moves the work from the triceps to
+   the chest. Upright is the triceps version and is a different exercise. */
+const CHEST_DIP_TOP = p(DIP_TOP, { x: 50, y: 62, spine: 66, head: 62 });
+const CHEST_DIP_BOTTOM = p(DIP_BOTTOM, { x: 52, y: 73, spine: 56, head: 50 });
+
+/* Floor triceps dip: hands on the floor BEHIND the hips, which are held off it.
+   The bench version starts with the hands up on a bench and the hips lower. */
+const FLOOR_DIP_UP = {
+  x: 52, y: 77, spine: 148, head: 136,
+  handL: { x: 26, y: 87.5, bend: 1 }, handR: { x: 28, y: 87.5, bend: 1 },
+  footPtL: { x: 74, y: 87.5, bend: 1 }, footPtR: { x: 76, y: 87.5, bend: 1 },
+  footL: 30, footR: 30,
+};
+const FLOOR_DIP_DOWN = p(FLOOR_DIP_UP, {
+  x: 52, y: 84, spine: 152, head: 140,
+  handL: { x: 26, y: 87.5, bend: 1 }, handR: { x: 28, y: 87.5, bend: 1 },
+  footPtL: { x: 74, y: 87.5, bend: 1 }, footPtR: { x: 76, y: 87.5, bend: 1 },
+});
+
+/* ------------------------------------------------------------------ *
+ * Pulling on a band, a towel, or a cable
+ * ------------------------------------------------------------------ */
+
+/* Band lat pulldown: kneeling under a high anchor, elbows driving down and back
+   past the ribs. Kneeling matters — standing, you just pull yourself up. */
+const BAND_PD_UP = {
+  x: 48, y: 72, spine: 88, head: 88,
+  armL: [84, 88], armR: [78, 82],
+  legL: [-90, 180], legR: [-94, 176],
+  footL: 170, footR: 170,
+};
+const BAND_PD_DOWN = p(BAND_PD_UP, {
+  spine: 84, head: 84,
+  armL: [-46, -62], armR: [-52, -68],
+});
+
+/* Doorframe towel row: feet close to the frame, body leaning back on straight
+   arms, then pulled in. The hands stay exactly where the towel is, so they are
+   pinned and the BODY is what moves — which is the honest way round for any
+   row you do against your own weight. */
+const TOWEL_BACK = {
+  x: 44, y: 64, spine: 82, head: 80,
+  handL: { x: 70, y: 56, bend: -1 }, handR: { x: 71, y: 57, bend: -1 },
+  footPtL: { x: 62, y: 87.5, bend: 1 }, footPtR: { x: 64, y: 87.5, bend: 1 },
+  footL: 2, footR: 2,
+};
+const TOWEL_IN = p(TOWEL_BACK, {
+  x: 52, y: 61, spine: 86, head: 86,
+  handL: { x: 70, y: 56, bend: -1 }, handR: { x: 71, y: 57, bend: -1 },
+  footPtL: { x: 62, y: 87.5, bend: 1 }, footPtR: { x: 64, y: 87.5, bend: 1 },
+});
+
+/* Band seated row: sitting on the floor, legs out, band around the feet. The
+   cable version sits on a machine with a pad; this one has neither. */
+const BAND_ROW_OUT = {
+  x: 40, y: 78, spine: 74, head: 72,
+  handL: { x: 68, y: 58, bend: -1 }, handR: { x: 69, y: 59, bend: -1 },
+  legL: [-2, -4], legR: [-6, -8],
+  footL: 70, footR: 70,
+};
+const BAND_ROW_IN = p(BAND_ROW_OUT, {
+  spine: 84, head: 84,
+  handL: { x: 51, y: 60, bend: -1 }, handR: { x: 52, y: 61, bend: -1 },
+});
+
+/* Cable face pull: the hands finish either side of the head with the elbows
+   HIGH, which is what separates it from a row to the ribs. */
+const FACE_PULL_OUT = p(STAND_PLANTED, {
+  x: 42, armL: [4, 2], armR: [-2, -4],
+});
+const FACE_PULL_IN = p(STAND_PLANTED, {
+  x: 42, armL: [24, 140], armR: [18, 134],
+});
+
+/* ------------------------------------------------------------------ *
+ * Arms, with what is actually to hand
+ * ------------------------------------------------------------------ */
+
+/* Backpack curl: a bag held in both hands in front, so the grip is close
+   together and the elbows stay pinned to the ribs. */
+const PACK_DOWN = p(STAND_PLANTED, {
+  load: 'plate', armL: [-80, -84], armR: [-88, -90],
+});
+const PACK_UP = p(STAND_PLANTED, {
+  load: 'plate', armL: [-78, 46], armR: [-86, 40],
+});
+
+/* Band hammer curl: band under the feet, neutral grip. */
+const BAND_CURL_DOWN = p(STAND_PLANTED, { armL: [-82, -86], armR: [-90, -92] });
+const BAND_CURL_UP = p(STAND_PLANTED, { armL: [-80, 52], armR: [-88, 46] });
+
+/* Band triceps pushdown: the elbows are pinned at the ribs and only the
+   forearm moves, which is the whole difference between this and a press. */
+const PUSHDOWN_UP = p(STAND_PLANTED, { armL: [-78, 30], armR: [-86, 24] });
+const PUSHDOWN_DOWN = p(STAND_PLANTED, { armL: [-80, -86], armR: [-88, -92] });
+
+/* Dumbbell front raise: the arm travels FORWARD and up to eye level, where a
+   lateral raise goes out to the side. Side-on, forward is the one that reads,
+   so this clip commits to it fully. */
+const FRONT_RAISE_DOWN = p(STAND_PLANTED, {
+  load: 'dumbbell', armL: [-82, -86], armR: [-90, -94],
+});
+const FRONT_RAISE_UP = p(STAND_PLANTED, {
+  load: 'dumbbell', armL: [-4, 0], armR: [-10, -6],
+});
+
+/* Arm circles: both arms sweep a full circle. Four keys around the clock, and
+   because interpolation is linear the angles must keep climbing rather than
+   wrapping, or the arms unwind the long way at the seam. */
+const circle = (deg) => p(STAND, { armL: [deg, deg - 4], armR: [deg - 8, deg - 12] });
+const CIRCLE_0 = circle(-84);
+const CIRCLE_1 = circle(6);
+const CIRCLE_2 = circle(96);
+const CIRCLE_3 = circle(186);
+const CIRCLE_4 = circle(276);
+
+/* ------------------------------------------------------------------ *
+ * The rest
+ * ------------------------------------------------------------------ */
+
+/* Treadmill intervals: a running gait on a deck, with the console in front. A
+   jog outdoors has the same gait and no machine, so the machine is the clip. */
+const TREAD_A = {
+  x: 46, y: 56, spine: 84, head: 82,
+  armL: [-24, -84], armR: [-150, -96],
+  legL: [-42, -128], legR: [-126, -74],
+  footL: -20, footR: 30,
+};
+const TREAD_B = {
+  x: 46, y: 54, spine: 86, head: 84,
+  armL: [-88, -70], armR: [-92, -110],
+  legL: [-84, -96], legR: [-96, -84],
+  footL: 2, footR: 2,
+};
+const TREAD_C = {
+  x: 46, y: 56, spine: 84, head: 82,
+  armL: [-150, -96], armR: [-24, -84],
+  legL: [-126, -74], legR: [-42, -128],
+  footL: 30, footR: -20,
+};
+
+/* Candlestick roll: from sitting, roll back until the legs are vertical over
+   the shoulders, then roll up onto the feet. A sit-up never leaves the mat. */
+const CANDLE_SIT = {
+  x: 48, y: 78, spine: 62, head: 56,
+  handL: { x: 70, y: 86, bend: -1 }, handR: { x: 72, y: 86.5, bend: -1 },
+  legL: [20, -95], legR: [16, -99],
+  footL: 2, footR: 2,
+};
+const CANDLE_ROLL = {
+  x: 46, y: 72, spine: 4, head: 0,
+  handL: { x: 72, y: 87.5, bend: -1 }, handR: { x: 74, y: 87.5, bend: -1 },
+  legL: [128, 140], legR: [124, 136],
+  footL: 160, footR: 160,
+};
+/* Shoulders and head on the floor, hips stacked above them, legs vertical.
+   That stack is the whole exercise and the reason it is not a sit-up. */
+const CANDLE_UP = {
+  x: 44, y: 62, spine: -60, head: -28,
+  handL: { x: 72, y: 87.5, bend: -1 }, handR: { x: 74, y: 87.5, bend: -1 },
+  legL: [92, 90], legR: [88, 86],
+  footL: 178, footR: 178,
+};
+
+const X14_CLIPS = {
+  db_rdl: clip({
+    id: 'db_rdl', duration: 3200,
+    keys: [
+      { t: 0, pose: DB_RDL_TOP }, { t: 0.3, pose: DB_RDL_MID },
+      { t: 0.5, pose: DB_RDL_BOTTOM }, { t: 0.72, pose: DB_RDL_MID },
+      { t: 1, pose: DB_RDL_TOP },
+    ],
+  }),
+
+  kb_deadlift: clip({
+    id: 'kb_deadlift', duration: 3200,
+    keys: [
+      { t: 0, pose: KB_DL_BOTTOM }, { t: 0.4, pose: KB_DL_TOP },
+      { t: 0.6, pose: KB_DL_TOP }, { t: 1, pose: KB_DL_BOTTOM },
+    ],
+  }),
+
+  bw_hip_thrust: clip({
+    id: 'bw_hip_thrust', duration: 3200,
+    props: [{ type: 'bench', x: 42, y: 76, w: 26, h: 5 }],
+    keys: [
+      { t: 0, pose: BWT_DOWN }, { t: 0.42, pose: BWT_UP },
+      { t: 0.62, pose: BWT_UP }, { t: 1, pose: BWT_DOWN },
+    ],
+  }),
+
+  db_floor_press: clip({
+    id: 'db_floor_press', duration: 3000,
+    props: [{ type: 'mat', x: 44, w: 58 }],
+    keys: [
+      { t: 0, pose: FLOOR_PRESS_DOWN }, { t: 0.42, pose: FLOOR_PRESS_UP },
+      { t: 0.6, pose: FLOOR_PRESS_UP }, { t: 1, pose: FLOOR_PRESS_DOWN },
+    ],
+  }),
+
+  seated_db_shoulder_press: clip({
+    id: 'seated_db_shoulder_press', duration: 3200,
+    props: [
+      { type: 'bench', x: 44, y: 76, w: 24, h: 5 },
+      { type: 'wall', x: 32, y0: 52, y1: 78 },
+    ],
+    keys: [
+      { t: 0, pose: SEATED_PRESS_DOWN }, { t: 0.42, pose: SEATED_PRESS_UP },
+      { t: 0.6, pose: SEATED_PRESS_UP }, { t: 1, pose: SEATED_PRESS_DOWN },
+    ],
+  }),
+
+  band_overhead_press: clip({
+    id: 'band_overhead_press', duration: 3200,
+    props: [{ type: 'band', x0: 50, y0: 87, x1: 56, y1: 40, sag: 3 }],
+    keys: [
+      { t: 0, pose: BAND_OHP_DOWN }, { t: 0.42, pose: BAND_OHP_UP },
+      { t: 0.6, pose: BAND_OHP_UP }, { t: 1, pose: BAND_OHP_DOWN },
+    ],
+  }),
+
+  bar_dip: clip({
+    id: 'bar_dip', duration: 3000, ground: false,
+    props: [{ type: 'dipbars', x: 50, y: 40, w: 26, gap: 7 }],
+    keys: [
+      { t: 0, pose: CHEST_DIP_TOP }, { t: 0.42, pose: CHEST_DIP_BOTTOM },
+      { t: 0.58, pose: CHEST_DIP_BOTTOM }, { t: 1, pose: CHEST_DIP_TOP },
+    ],
+  }),
+
+  floor_triceps_dip: clip({
+    id: 'floor_triceps_dip', duration: 3000,
+    props: [{ type: 'mat', x: 52, w: 62 }],
+    keys: [
+      { t: 0, pose: FLOOR_DIP_UP }, { t: 0.42, pose: FLOOR_DIP_DOWN },
+      { t: 0.58, pose: FLOOR_DIP_DOWN }, { t: 1, pose: FLOOR_DIP_UP },
+    ],
+  }),
+
+  band_lat_pulldown: clip({
+    id: 'band_lat_pulldown', duration: 3200,
+    props: [
+      { type: 'mat', x: 46, w: 50 },
+      { type: 'band', x0: 54, y0: 12, x1: 56, y1: 52, sag: 2 },
+    ],
+    keys: [
+      { t: 0, pose: BAND_PD_UP }, { t: 0.42, pose: BAND_PD_DOWN },
+      { t: 0.6, pose: BAND_PD_DOWN }, { t: 1, pose: BAND_PD_UP },
+    ],
+  }),
+
+  doorframe_towel_row: clip({
+    id: 'doorframe_towel_row', duration: 3200,
+    props: [{ type: 'wall', x: 74, y0: 10, y1: 88 }],
+    keys: [
+      { t: 0, pose: TOWEL_BACK }, { t: 0.42, pose: TOWEL_IN },
+      { t: 0.6, pose: TOWEL_IN }, { t: 1, pose: TOWEL_BACK },
+    ],
+  }),
+
+  band_seated_row: clip({
+    id: 'band_seated_row', duration: 3200,
+    props: [
+      { type: 'mat', x: 46, w: 56 },
+      { type: 'band', x0: 76, y0: 84, x1: 60, y1: 59, sag: 2 },
+    ],
+    keys: [
+      { t: 0, pose: BAND_ROW_OUT }, { t: 0.42, pose: BAND_ROW_IN },
+      { t: 0.6, pose: BAND_ROW_IN }, { t: 1, pose: BAND_ROW_OUT },
+    ],
+  }),
+
+  cable_face_pull: clip({
+    id: 'cable_face_pull', duration: 3000,
+    props: [
+      { type: 'machine', x: 82, y: 22, w: 16, h: 60 },
+      { type: 'band', x0: 74, y0: 26, x1: 58, y1: 44, sag: 2 },
+    ],
+    keys: [
+      { t: 0, pose: FACE_PULL_OUT }, { t: 0.42, pose: FACE_PULL_IN },
+      { t: 0.6, pose: FACE_PULL_IN }, { t: 1, pose: FACE_PULL_OUT },
+    ],
+  }),
+
+  backpack_curl: clip({
+    id: 'backpack_curl', duration: 3000,
+    keys: [
+      { t: 0, pose: PACK_DOWN }, { t: 0.42, pose: PACK_UP },
+      { t: 0.6, pose: PACK_UP }, { t: 1, pose: PACK_DOWN },
+    ],
+  }),
+
+  band_hammer_curl: clip({
+    id: 'band_hammer_curl', duration: 3000,
+    props: [{ type: 'band', x0: 50, y0: 87, x1: 56, y1: 62, sag: 2 }],
+    keys: [
+      { t: 0, pose: BAND_CURL_DOWN }, { t: 0.42, pose: BAND_CURL_UP },
+      { t: 0.6, pose: BAND_CURL_UP }, { t: 1, pose: BAND_CURL_DOWN },
+    ],
+  }),
+
+  band_triceps_pushdown: clip({
+    id: 'band_triceps_pushdown', duration: 3000,
+    props: [{ type: 'band', x0: 56, y0: 14, x1: 57, y1: 60, sag: 2 }],
+    keys: [
+      { t: 0, pose: PUSHDOWN_UP }, { t: 0.42, pose: PUSHDOWN_DOWN },
+      { t: 0.6, pose: PUSHDOWN_DOWN }, { t: 1, pose: PUSHDOWN_UP },
+    ],
+  }),
+
+  db_front_raise: clip({
+    id: 'db_front_raise', duration: 3200,
+    keys: [
+      { t: 0, pose: FRONT_RAISE_DOWN }, { t: 0.42, pose: FRONT_RAISE_UP },
+      { t: 0.6, pose: FRONT_RAISE_UP }, { t: 1, pose: FRONT_RAISE_DOWN },
+    ],
+  }),
+
+  arm_circles: clip({
+    id: 'arm_circles', duration: 3600, ease: 'linear',
+    keys: [
+      { t: 0, pose: CIRCLE_0 }, { t: 0.25, pose: CIRCLE_1 },
+      { t: 0.5, pose: CIRCLE_2 }, { t: 0.75, pose: CIRCLE_3 },
+      { t: 1, pose: CIRCLE_4 },
+    ],
+  }),
+
+  treadmill_intervals: clip({
+    id: 'treadmill_intervals', duration: 1400, ease: 'linear',
+    props: [
+      { type: 'box', x: 44, y: 85.6, w: 48, h: 2.4 },
+      { type: 'machine', x: 74, y: 34, w: 9, h: 52 },
+    ],
+    keys: [
+      { t: 0, pose: TREAD_A }, { t: 0.25, pose: TREAD_B },
+      { t: 0.5, pose: TREAD_C }, { t: 0.75, pose: TREAD_B },
+      { t: 1, pose: TREAD_A },
+    ],
+  }),
+
+  candlestick: clip({
+    id: 'candlestick', duration: 3200,
+    props: [{ type: 'mat', x: 44, w: 60 }],
+    keys: [
+      { t: 0, pose: CANDLE_SIT }, { t: 0.3, pose: CANDLE_ROLL },
+      { t: 0.5, pose: CANDLE_UP }, { t: 0.72, pose: CANDLE_ROLL },
+      { t: 1, pose: CANDLE_SIT },
+    ],
+  }),
+};
+
+  return {
+    "X14_CLIPS": X14_CLIPS,
+  };
+})();
+
 __m["src/data/clips.index.js"] = (function () {
 /*
  * clips.index.js — clip registry with per-exercise and pattern-level fallback.
@@ -11390,6 +11944,7 @@ const { X10_CLIPS } = __m["src/data/clips.x10.js"];
 const { X11_CLIPS } = __m["src/data/clips.x11.js"];
 const { X12_CLIPS } = __m["src/data/clips.x12.js"];
 const { X13_CLIPS } = __m["src/data/clips.x13.js"];
+const { X14_CLIPS } = __m["src/data/clips.x14.js"];
 const { STAND, SQUAT_PARALLEL } = __m["src/core/poses.js"];
 
 const CLIPS = Object.assign({}, UPPER_CLIPS, LOWER_CLIPS, CORE_CLIPS);
@@ -11398,7 +11953,7 @@ const CLIPS = Object.assign({}, UPPER_CLIPS, LOWER_CLIPS, CORE_CLIPS);
 const BY_EXERCISE = Object.assign({},
   X01_CLIPS, X02_CLIPS, X03_CLIPS, X04_CLIPS, X05_CLIPS, X06_CLIPS,
   X07_CLIPS, X08_CLIPS, X09_CLIPS, X10_CLIPS, X11_CLIPS, X12_CLIPS,
-  X13_CLIPS);
+  X13_CLIPS, X14_CLIPS);
 
 const LAST_RESORT = {
   id: 'generic',

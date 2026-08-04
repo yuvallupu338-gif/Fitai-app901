@@ -30,6 +30,10 @@ const EQUIPMENT = new Set(['none', 'pullup_bar', 'dip_bars', 'rings', 'bands', '
   'barbell', 'kettlebell', 'bench', 'box', 'machines', 'cable', 'trx', 'jump_rope', 'mat',
   'sled', 'treadmill', 'bike', 'rower']);
 
+/* Pose fields measured in degrees, where a difference of a full turn is the
+   same frame. Positions are not — 50 and 410 are two different places. */
+const ANGLE_KEYS = new Set(['spine', 'head', 'footL', 'footR']);
+
 const INJURIES = new Set(['lower_back', 'upper_back', 'neck', 'shoulder', 'elbow', 'wrist',
   'hip', 'knee', 'ankle', 'hernia', 'pregnancy', 'heart', 'asthma']);
 
@@ -157,9 +161,33 @@ for (const f of clipFiles) {
           }
         }
       }
-      const first = JSON.stringify(c.keys[0].pose);
-      const last = JSON.stringify(c.keys[c.keys.length - 1].pose);
-      if (c.loop !== false && first !== last) warn(`${at}: t:0 and t:1 poses differ — loop will jump`);
+      // Compared as WRITTEN this is wrong: a full arm circle ends at 276 degrees
+      // where it began at -84 — the same frame, a different number, and no way
+      // to express it as one object without the arm unwinding on the seam.
+      // clip-audit.mjs solves both frames and compares joints; here, without the
+      // rig loaded, an angle difference that is a whole number of turns is the
+      // cheap version of the same test.
+      const sameFrame = (a, b) => {
+        const ka = Object.keys(a);
+        const kb = Object.keys(b);
+        if (ka.length !== kb.length) return false;
+        for (const k of ka) {
+          const va = a[k];
+          const vb = b[k];
+          if (typeof va === 'number' && typeof vb === 'number') {
+            if (ANGLE_KEYS.has(k) ? (va - vb) % 360 !== 0 : va !== vb) return false;
+          } else if (Array.isArray(va) && Array.isArray(vb)) {
+            if (va.length !== vb.length) return false;
+            if (va.some((v, i) => (v - vb[i]) % 360 !== 0)) return false;
+          } else if (JSON.stringify(va) !== JSON.stringify(vb)) {
+            return false;
+          }
+        }
+        return true;
+      };
+      if (c.loop !== false && !sameFrame(c.keys[0].pose, c.keys[c.keys.length - 1].pose)) {
+        warn(`${at}: t:0 and t:1 poses differ — loop will jump`);
+      }
       bucket.set(id, c);
     }
   }
