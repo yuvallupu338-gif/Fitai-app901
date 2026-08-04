@@ -186,35 +186,39 @@ const tempo_squat = clip({
 
 /* --- high box squat --------------------------------------------------
  * Level 1. The box is deliberately tall (top at y=70, 18 units of it), so
- * the pelvis only drops 10 and stops well above parallel — that is the whole
+ * the pelvis only drops 11 and stops well above parallel — that is the whole
  * regression: the higher the box, the less knee. The feet sit further
  * forward than a free squat so the figure can sit BACK to reach it, and the
  * touch is a kiss: one short key, then straight back up.
  * ------------------------------------------------------------------ */
 
+/* Sitting back puts the hip almost directly behind the ankle, which stacks the
+   two knees on top of each other. The far foot is therefore set 5 units behind
+   the near one and a touch lower, which is what pulls the far knee clear of the
+   near one for the whole descent. */
 const HB_FEET = {
-  footPtL: { x: 55.0, y: ANKLE, bend: 1 },
-  footPtR: { x: 58.6, y: ANKLE, bend: 1 },
+  footPtL: { x: 51.8, y: 88.0, bend: 1 },
+  footPtR: { x: 56.8, y: ANKLE, bend: 1 },
   footL: 2, footR: 2,
 };
 
 const HB_TOP = p(HB_FEET, {
-  x: 56.2, y: 57.4, spine: 87, head: 88,
+  x: 54.2, y: 57.4, spine: 87, head: 88,
   armL: [-84, -86], armR: [-96, -94],
 });
 
 const HB_BACK = p(HB_FEET, {
-  x: 51.0, y: 62.8, spine: 76, head: 84,
+  x: 50.0, y: 62.6, spine: 76, head: 84,
   armL: [-40, -30], armR: [-50, -40],
 });
 
 const HB_SIT = p(HB_FEET, {
-  x: 45.0, y: 68.2, spine: 64, head: 78,
+  x: 45.4, y: 68.8, spine: 64, head: 78,
   armL: [-2, 8], armR: [-12, -2],
 });
 
 const HB_KISS = p(HB_FEET, {
-  x: 45.4, y: 67.5, spine: 65, head: 79,
+  x: 45.8, y: 68.1, spine: 65, head: 79,
   armL: [-3, 7], armR: [-13, -3],
 });
 
@@ -235,22 +239,22 @@ const box_squat_high = clip({
 
 /* --- barbell box squat -----------------------------------------------
  * Same idea, twice the commitment. Lower box (top at y=75), the pelvis
- * travels 12.4 units BACK so the shin ends up dead vertical, and the torso
+ * travels 11.4 units BACK so the shin ends up dead vertical, and the torso
  * has to lean to 59 degrees to keep the bar over the midfoot. The pause on
  * the box is a real key and the figure does not slump into it — HOLD is a
  * hair MORE upright than SIT, which is what "keep the tension" looks like.
  * ------------------------------------------------------------------ */
 
 const BB_FEET = {
-  footPtL: { x: 57.0, y: ANKLE, bend: 1 },
+  footPtL: { x: 55.4, y: 88.0, bend: 1 },
   footPtR: { x: 60.4, y: ANKLE, bend: 1 },
   footL: 2, footR: 2,
 };
 
-const BB_TOP = backRack(p(BB_FEET, { x: 58.0, y: 57.2, spine: 88, head: 89 }));
-const BB_MID = backRack(p(BB_FEET, { x: 52.0, y: 63.6, spine: 74, head: 84 }));
-const BB_SIT = backRack(p(BB_FEET, { x: 45.6, y: 71.0, spine: 59, head: 76 }));
-const BB_TENSE = backRack(p(BB_FEET, { x: 45.9, y: 70.6, spine: 60, head: 77 }));
+const BB_TOP = backRack(p(BB_FEET, { x: 57.0, y: 57.2, spine: 88, head: 89 }));
+const BB_MID = backRack(p(BB_FEET, { x: 51.6, y: 63.8, spine: 74, head: 84 }));
+const BB_SIT = backRack(p(BB_FEET, { x: 45.6, y: 71.6, spine: 59, head: 76 }));
+const BB_TENSE = backRack(p(BB_FEET, { x: 45.9, y: 71.2, spine: 60, head: 77 }));
 
 const bb_box_squat = clip({
   id: 'bb_box_squat',
@@ -310,8 +314,8 @@ const band_squat = clip({
 
 /* --- kettlebell goblet squat -----------------------------------------
  * The bell rides under the chin the whole way, which is what lets the torso
- * stay at 74 degrees — the most upright bottom position in this file — and
- * the stance is the widest. Tempo is asymmetric on purpose: the descent
+ * stay at 74 degrees — the most upright bottom of any loaded squat here —
+ * and the stance is the widest. Tempo is asymmetric on purpose: the descent
  * takes half the loop, the drive out of the hole takes a fifth of it.
  * ------------------------------------------------------------------ */
 

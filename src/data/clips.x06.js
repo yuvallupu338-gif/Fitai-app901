@@ -319,7 +319,7 @@ const weighted_pullup = clip({
   props: [
     BAR_PROP,
     { type: 'band', x0: 49, y0: 63, x1: 42.5, y1: 73, sag: 1 },
-    { type: 'box', x: 41, y: 73, w: 11, h: 4 },
+    { type: 'box', x: 40, y: 72, w: 13, h: 5 },
   ],
   keys: [
     { t: 0, pose: WP_HANG },
