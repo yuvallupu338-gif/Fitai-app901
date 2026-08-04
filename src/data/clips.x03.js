@@ -98,23 +98,23 @@ const lateral_raise_hold = clip({
    presses down the whole way. Only one side works — the far arm is the brake. */
 
 const SRL_DOWN = p(TALL, {
-  handR: { x: 56, y: 55.5, bend: -1 },
-  handL: { x: 53.6, y: 50.4, bend: -1 },
+  handR: { x: 56, y: 55.5, bend: 1 },
+  handL: { x: 56.3, y: 50.3, bend: -1 },
 });
 
 const SRL_MID = p(TALL, {
   handR: { x: 64.5, y: 45.5, bend: 1 },
-  handL: { x: 59.4, y: 41.6, bend: -1 },
+  handL: { x: 63.4, y: 40.4, bend: -1 },
 });
 
 const SRL_TOP = p(TALL, {
   handR: { x: 70, y: 36.5, bend: 1 },
-  handL: { x: 65.2, y: 33.4, bend: -1 },
+  handL: { x: 66.0, y: 33.3, bend: -1 },
 });
 
 const SRL_HOLD = p(TALL, {
   handR: { x: 69.4, y: 37.2, bend: 1 },
-  handL: { x: 64.7, y: 34.0, bend: -1 },
+  handL: { x: 65.6, y: 33.7, bend: -1 },
 });
 
 const self_resisted_lateral_raise = clip({
@@ -214,22 +214,22 @@ const db_lateral_raise = clip({
 
 const SCP_DOWN = p(TALL, {
   load: 'dumbbell',
-  handL: { x: 53.4, y: 56.0, bend: -1 },
+  handL: { x: 53.4, y: 56.0, bend: 1 },
   handR: { x: 56.4, y: 56.6, bend: 1 },
 });
 
 const SCP_MID = p(SCP_DOWN, {
-  handL: { x: 64.0, y: 44.0, bend: -1 },
+  handL: { x: 64.0, y: 44.0, bend: 1 },
   handR: { x: 65.8, y: 48.5, bend: 1 },
 });
 
 const SCP_TOP = p(SCP_DOWN, {
-  handL: { x: 71.0, y: 30.5, bend: -1 },
+  handL: { x: 71.0, y: 30.5, bend: 1 },
   handR: { x: 71.5, y: 38.6, bend: 1 },
 });
 
 const SCP_HOLD = p(SCP_DOWN, {
-  handL: { x: 70.5, y: 31.1, bend: -1 },
+  handL: { x: 70.5, y: 31.1, bend: 1 },
   handR: { x: 71.1, y: 39.2, bend: 1 },
 });
 
@@ -291,8 +291,8 @@ const bb_upright_row = clip({
    thigh — the stack keeps pulling, so the bottom of every rep still has load. */
 
 const CLR_LOW = p(TALL, {
-  handR: { x: 48.0, y: 53.0, bend: 1 },
-  handL: { x: 46.2, y: 54.6, bend: -1 },
+  handR: { x: 53.5, y: 54.0, bend: 1 },
+  handL: { x: 46.0, y: 56.0, bend: -1 },
 });
 
 const CLR_MID = p(CLR_LOW, {
@@ -470,8 +470,8 @@ const wall_angel = clip({
 
 const PRONE = {
   x: 44, y: 84.2, spine: 6, head: 4,
-  legL: [182, 180], legR: [185, 183],
-  footL: 200, footR: 200,
+  legL: [181, 178], legR: [186, 184],
+  footL: 198, footR: 202,
 };
 
 const PRONE_SX = 66.76;
@@ -592,9 +592,9 @@ const db_reverse_fly = clip({
 
 const CSF_BASE = {
   x: 36, y: 60.5, spine: 5, head: 3,
-  footPtL: { x: 24.0, y: 87.2, bend: -1 },
-  footPtR: { x: 26.6, y: 87.4, bend: -1 },
-  footL: 40, footR: 40,
+  footPtL: { x: 23.5, y: 86.6, bend: -1 },
+  footPtR: { x: 27.5, y: 87.4, bend: -1 },
+  footL: 34, footR: 42,
   load: 'dumbbell',
 };
 
@@ -638,9 +638,8 @@ const chest_supported_db_reverse_fly = clip({
 
 const MRF_SEAT = p(SEATED, {
   x: 47, y: 68, spine: 88, head: 88,
-  footPtL: { x: 61.0, y: ANKLE, bend: 1 },
-  footPtR: { x: 63.4, y: ANKLE, bend: 1 },
-  footL: 2, footR: 2,
+  legL: [-8, -88], legR: [-16, -98],
+  footL: 2, footR: 4,
 });
 
 const MRF_IN = p(MRF_SEAT, {
