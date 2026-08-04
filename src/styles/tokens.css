@@ -12,7 +12,9 @@
   /* ink */
   --chalk: #EAF0F8;
   --dim: #8298B4;
-  --dimmer: #5A6E8A;
+  /* Lightened to clear WCAG AA (4.5:1) for body text on the card surface;
+     the old #5A6E8A measured 3.0:1 there and 3.5:1 on the page. */
+  --dimmer: #788CA8;
 
   /* accents */
   --amber: #FFB13C;
