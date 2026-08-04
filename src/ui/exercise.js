@@ -10,6 +10,7 @@ import { h, clear, modal, announce } from '../core/dom.js';
 import { mountClip } from '../core/anim.js';
 import { clipFor } from '../data/clips.index.js';
 import { byId } from '../data/exercises.index.js';
+import { stepDifficulty, prescribeSwap } from '../engine/adjust.js';
 import * as store from '../core/store.js';
 
 const players = new Set();
@@ -36,7 +37,8 @@ function mount(host, ex, label) {
  */
 export function exerciseCard(day, slot, index, onChange) {
   const pick = store.pickOf(day.id, slot.key) % slot.variants.length;
-  const v = slot.variants[pick];
+  const override = store.overrideOf(day.id, slot.key);
+  const v = override || slot.variants[pick];
   const ex = byId(v.exId);
   const done = store.isDone(day.id, slot.key);
   const logs = store.logsFor(day.id, slot.key);
@@ -67,7 +69,8 @@ export function exerciseCard(day, slot, index, onChange) {
       h('span.pbadge', slot.partner.spot ? 'שמירה' : slot.partner.alternating ? 'לסירוגין' : 'מנוחה מלאה'),
       slot.partner.note) : null,
     ex && ex.cues && ex.cues.length ? h('div.cues', ex.cues.slice(0, 3).map((c) => h('span.cue', c))) : null,
-    levelRow(v.level, pick, slot.variants.length),
+    levelRow(v.level, pick, slot.variants.length, !!override),
+    feedbackRow(day, slot, v, index, onChange),
   );
   card.appendChild(body);
 
@@ -101,14 +104,69 @@ export function exerciseCard(day, slot, index, onChange) {
   return card;
 }
 
-function levelRow(level, pick, total) {
+function levelRow(level, pick, total, adjusted) {
   const rungs = h('span.rungs');
   for (let i = 1; i <= 5; i++) rungs.appendChild(h('span.rung' + (i <= level ? '.f' : '')));
   return h('div.lev',
     h('span.lbl', 'קושי'),
     rungs,
-    total > 1 ? h('span.of', `${pick + 1}/${total}`) : null,
+    adjusted ? h('span.of', { style: { color: 'var(--cyan)' } }, 'מותאם') : null,
+    !adjusted && total > 1 ? h('span.of', `${pick + 1}/${total}`) : null,
   );
+}
+
+/* Autoregulation. The generator guesses a starting difficulty; only the person
+   doing the set knows whether it was actually hard. */
+function feedbackRow(day, slot, v, index, onChange) {
+  const profile = store.get().profile;
+  if (!profile) return null;
+
+  const move = (dir) => {
+    const next = stepDifficulty(profile, slot, v.exId, dir);
+    if (!next) {
+      announce(dir > 0 ? 'זה כבר הקשה ביותר שמתאים לך' : 'זה כבר הקל ביותר בתרגיל הזה');
+      return;
+    }
+    store.setOverride(day.id, slot.key, prescribeSwap(v, next, dir, v.level));
+    const fresh = exerciseCard(day, slot, index, onChange);
+    fresh.classList.add('flash');
+    const host = document.activeElement && document.activeElement.closest('.ex');
+    (host || fresh).replaceWith(fresh);
+    setTimeout(() => fresh.classList.remove('flash'), 550);
+    announce(`${dir > 0 ? 'הועלה' : 'הורד'} ל־${next.name}`);
+    if (onChange) onChange();
+  };
+
+  const canUp = !!stepDifficulty(profile, slot, v.exId, 1);
+  const canDown = !!stepDifficulty(profile, slot, v.exId, -1);
+  const adjusted = !!store.overrideOf(day.id, slot.key);
+  if (!canUp && !canDown && !adjusted) return null;
+
+  return h('div.feedback',
+    canUp ? h('button.fbtn', {
+      type: 'button', title: 'החלף לתרגיל קשה יותר',
+      onclick: () => move(1),
+    }, 'קל לי ↑') : null,
+    canDown ? h('button.fbtn', {
+      type: 'button', title: 'החלף לתרגיל קל יותר',
+      onclick: () => move(-1),
+    }, 'קשה לי ↓') : null,
+    adjusted ? h('button.fbtn.reset', {
+      type: 'button', title: 'חזור לתרגיל המקורי',
+      onclick: () => {
+        store.setOverride(day.id, slot.key, null);
+        const fresh = exerciseCard(day, slot, index, onChange);
+        card_replace(fresh);
+        announce('חזרה לתרגיל המקורי');
+        if (onChange) onChange();
+      },
+    }, '↺ מקורי') : null,
+  );
+
+  function card_replace(fresh) {
+    const host = document.activeElement && document.activeElement.closest('.ex');
+    if (host) host.replaceWith(fresh);
+  }
 }
 
 /* ------------------------------------------------------------------ *

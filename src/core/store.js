@@ -41,6 +41,7 @@ const EMPTY = {
     tab: 'plan',         // 'plan' | 'nutrition' | 'progress' | 'guide'
   },
   picks: {},             // "dayId:slotKey" -> variant index
+  overrides: {},         // "dayId:slotKey" -> Prescription, from "too easy"/"too hard"
   done: {},              // "YYYY-Www:dayId:slotKey" -> 1
   logs: {},              // "YYYY-MM-DD:dayId:slotKey" -> [{reps, weight, rpe}]
   weights: [],           // [{date:'YYYY-MM-DD', kg:Number}]
@@ -53,7 +54,7 @@ const subs = new Set();
 function normalize(raw) {
   const s = Object.assign({}, EMPTY, raw || {});
   s.ui = Object.assign({}, EMPTY.ui, s.ui);
-  for (const k of ['picks', 'done', 'logs']) if (!s[k] || typeof s[k] !== 'object') s[k] = {};
+  for (const k of ['picks', 'done', 'logs', 'overrides']) if (!s[k] || typeof s[k] !== 'object') s[k] = {};
   if (!Array.isArray(s.weights)) s.weights = [];
   return s;
 }
@@ -134,6 +135,18 @@ export function pickOf(dayId, slotKey) {
 
 export function setPick(dayId, slotKey, v) {
   update((s) => { s.picks[`${dayId}:${slotKey}`] = v; });
+}
+
+export function overrideOf(dayId, slotKey) {
+  return state.overrides[`${dayId}:${slotKey}`] || null;
+}
+
+export function setOverride(dayId, slotKey, prescription) {
+  update((s) => {
+    const k = `${dayId}:${slotKey}`;
+    if (prescription) s.overrides[k] = prescription;
+    else delete s.overrides[k];
+  });
 }
 
 export function isDone(dayId, slotKey) {

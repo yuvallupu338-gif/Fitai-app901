@@ -83,6 +83,7 @@ export function renderPlan(root, program, profile) {
           store.update((s) => {
             for (const slot of day.slots) {
               delete s.picks[`${day.id}:${slot.key}`];
+              delete s.overrides[`${day.id}:${slot.key}`];
               delete s.done[`${store.weekKey()}:${day.id}:${slot.key}`];
             }
           });
