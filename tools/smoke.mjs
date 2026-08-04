@@ -308,6 +308,17 @@ async function main() {
     await page.waitForTimeout(350);
     check(!!(await page.$('.modal-box')), 'clicking a figure did not open the detail sheet');
     check(!!(await page.$('.modal-box .anim.big svg')), 'detail sheet has no large figure');
+    const vid = await page.$('.modal-box a.videolink');
+    check(!!vid, 'detail sheet has no video link');
+    if (vid) {
+      const href = await vid.getAttribute('href');
+      const rel = await vid.getAttribute('rel');
+      const target = await vid.getAttribute('target');
+      check(/^https:\/\/www\.youtube\.com\/results\?search_query=.+/.test(href || ''),
+        `video link href looks wrong: ${href}`);
+      check(target === '_blank' && /noopener/.test(rel || ''),
+        'video link must open in a new tab with rel=noopener');
+    }
     if (SHOTS) await page.screenshot({ path: join(SHOT_DIR, '4-detail.png') });
     await page.keyboard.press('Escape');
     await page.waitForTimeout(220);

@@ -449,3 +449,9 @@ input::placeholder, textarea::placeholder { color: var(--dimmer); }
   color: var(--dim); margin-top: 6px; text-align: center;
 }
 .visionpair .arrow { align-self: center; color: var(--amber); font-family: var(--mono); }
+
+/* ---------------- video link ---------------- */
+.btn.videolink { text-decoration: none; color: var(--chalk); }
+.btn.videolink:hover { border-color: var(--rose); color: var(--rose); }
+.btn.videolink:hover .ico { color: var(--rose); }
+.btn.videolink .ico { color: var(--rose); }

@@ -189,6 +189,26 @@ const EQUIP_HE = {
   bike: 'אופניים', rower: 'חתירה',
 };
 
+/**
+ * A YouTube search for the movement. Deliberately a search rather than a fixed
+ * video id: nobody here owns or vets the footage, ids rot, and a search keeps
+ * the choice with the user. The English name pulls far better technique
+ * results than the Hebrew one. Needs a connection — everything else does not.
+ */
+export function videoSearchUrl(ex, fallbackName) {
+  const term = (ex && ex.nameEn) || fallbackName || '';
+  return `https://www.youtube.com/results?search_query=${encodeURIComponent(`${term} proper form`)}`;
+}
+
+function videoLink(ex, name) {
+  return h('a.btn.videolink', {
+    href: videoSearchUrl(ex, name),
+    target: '_blank',
+    rel: 'noopener noreferrer',
+    title: 'נפתח ביוטיוב בלשונית חדשה — דורש אינטרנט',
+  }, h('span.ico', '▶'), 'הדגמות בוידאו');
+}
+
 export function openDetail(day, slot, pick, onChange) {
   const v = slot.variants[pick];
   const ex = byId(v.exId);
@@ -211,6 +231,10 @@ export function openDetail(day, slot, pick, onChange) {
         h('ul', { style: { paddingInlineStart: '18px', color: 'var(--dim)', fontSize: '13.5px' } },
           ex.cues.map((c) => h('li', { style: { margin: '4px 0' } }, c))))
       : null,
+    h('div', { style: { marginTop: '14px' } },
+      videoLink(ex, v.name),
+      h('p', { style: { color: 'var(--dimmer)', fontSize: '11.5px', marginTop: '6px' } },
+        'חיפוש ביוטיוב בשם התרגיל. הסרטונים אינם שלנו ולא נבדקו — דורש חיבור לאינטרנט.')),
     ex ? h('div', { style: { marginTop: '14px' } },
       h('div.slotlbl', 'שרירים'),
       h('div.chipset', { style: { marginTop: '5px' } },
