@@ -347,8 +347,8 @@ function leaner(deg) {
 /* Y-raise: from arms hanging straight up the strap to a wide Y past the ears,
    the body rising a few degrees as the delts take over. */
 
-const RYR_LOW = leaner(30);
-const RYR_HIGH = leaner(41);
+const RYR_LOW = leaner(28);
+const RYR_HIGH = leaner(44);
 
 const RYR_HANG = p(RYR_LOW.base, {
   handL: reach(RYR_LOW.sx, RYR_LOW.sy, 96, 20.9, -1),
@@ -356,20 +356,20 @@ const RYR_HANG = p(RYR_LOW.base, {
 });
 
 const RYR_Y = p(RYR_HIGH.base, {
-  handL: reach(RYR_HIGH.sx, RYR_HIGH.sy, 80, 21, -1),
-  handR: reach(RYR_HIGH.sx, RYR_HIGH.sy, 50, 21, 1),
+  handL: reach(RYR_HIGH.sx, RYR_HIGH.sy, 95, 21, -1),
+  handR: reach(RYR_HIGH.sx, RYR_HIGH.sy, 42, 21, 1),
 });
 
 const RYR_HOLD = p(RYR_HIGH.base, {
-  handL: reach(RYR_HIGH.sx, RYR_HIGH.sy, 79, 20.8, -1),
-  handR: reach(RYR_HIGH.sx, RYR_HIGH.sy, 51, 20.8, 1),
+  handL: reach(RYR_HIGH.sx, RYR_HIGH.sy, 94, 20.8, -1),
+  handR: reach(RYR_HIGH.sx, RYR_HIGH.sy, 43, 20.8, 1),
 });
 
 const ring_y_raise = clip({
   id: 'ring_y_raise',
   duration: 3200,
   hero: 0.44,
-  props: [{ type: 'rings', x: 58, y: 38.5, w: 7, y0: 5 }],
+  props: [{ type: 'rings', x: 57, y: 38.5, w: 11, y0: 5 }],
   keys: [
     { t: 0, pose: RYR_HANG },
     { t: 0.4, pose: RYR_Y },
@@ -382,8 +382,8 @@ const ring_y_raise = clip({
    instead of sweeping past the head. The body only rises a few degrees —
    the further back you start, the harder it gets. */
 
-const RRF_LOW = leaner(27);
-const RRF_HIGH = leaner(34);
+const RRF_LOW = leaner(26);
+const RRF_HIGH = leaner(36);
 
 const RRF_HANG = p(RRF_LOW.base, {
   handL: reach(RRF_LOW.sx, RRF_LOW.sy, 96, 20.8, -1),
@@ -391,20 +391,20 @@ const RRF_HANG = p(RRF_LOW.base, {
 });
 
 const RRF_OPEN = p(RRF_HIGH.base, {
-  handL: reach(RRF_HIGH.sx, RRF_HIGH.sy, 150, 19, -1),
-  handR: reach(RRF_HIGH.sx, RRF_HIGH.sy, 31, 18.6, 1),
+  handL: reach(RRF_HIGH.sx, RRF_HIGH.sy, 158, 18.6, -1),
+  handR: reach(RRF_HIGH.sx, RRF_HIGH.sy, 24, 19, 1),
 });
 
 const RRF_HOLD = p(RRF_HIGH.base, {
-  handL: reach(RRF_HIGH.sx, RRF_HIGH.sy, 148, 18.8, -1),
-  handR: reach(RRF_HIGH.sx, RRF_HIGH.sy, 33, 18.4, 1),
+  handL: reach(RRF_HIGH.sx, RRF_HIGH.sy, 156, 18.4, -1),
+  handR: reach(RRF_HIGH.sx, RRF_HIGH.sy, 26, 18.8, 1),
 });
 
 const ring_reverse_fly = clip({
   id: 'ring_reverse_fly',
   duration: 3000,
   hero: 0.44,
-  props: [{ type: 'rings', x: 56.4, y: 46.4, w: 17.6, y0: 5 }],
+  props: [{ type: 'rings', x: 56.5, y: 45.5, w: 15, y0: 5 }],
   keys: [
     { t: 0, pose: RRF_HANG },
     { t: 0.4, pose: RRF_OPEN },

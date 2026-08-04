@@ -27,8 +27,8 @@ import { p } from '../core/poses.js';
  * ------------------------------------------------------------------ */
 
 const INC_FEET = {
-  footPtL: { x: 12, y: 86, bend: -1 },
-  footPtR: { x: 13.5, y: 86, bend: -1 },
+  footPtL: { x: 11.1, y: 86, bend: 1 },
+  footPtR: { x: 11.8, y: 86.6, bend: 1 },
   footL: -28, footR: -28,
 };
 
@@ -62,8 +62,8 @@ const incline_pushup = {
  * ------------------------------------------------------------------ */
 
 const PU_FEET = {
-  footPtL: { x: 9, y: 85, bend: -1 },
-  footPtR: { x: 10.5, y: 85, bend: -1 },
+  footPtL: { x: 8.5, y: 85, bend: 1 },
+  footPtR: { x: 9, y: 86, bend: 1 },
   footL: -30, footR: -30,
 };
 
@@ -233,10 +233,10 @@ const cable_chest_fly = {
   hero: 0.44,
   ease: 'inOut',
   props: [
-    { type: 'machine', x: 10, y: 14, w: 12, h: 54 },
-    { type: 'machine', x: 90, y: 14, w: 12, h: 54 },
-    { type: 'band', x0: 13, y0: 26, x1: 43, y1: 46, sag: 2 },
-    { type: 'band', x0: 87, y0: 26, x1: 63, y1: 44.5, sag: 2 },
+    { type: 'machine', x: 6, y: 16, w: 8, h: 52 },
+    { type: 'machine', x: 94, y: 16, w: 8, h: 52 },
+    { type: 'band', x0: 8, y0: 26, x1: 43, y1: 46, sag: 2 },
+    { type: 'band', x0: 92, y0: 26, x1: 63, y1: 44.5, sag: 2 },
   ],
   keys: [
     { t: 0, pose: CFLY_OPEN },
@@ -293,8 +293,8 @@ const wall_slide = {
  * ------------------------------------------------------------------ */
 
 const IPK_FEET = {
-  footPtL: { x: 24, y: 86.5, bend: -1 },
-  footPtR: { x: 28.5, y: 86.5, bend: -1 },
+  footPtL: { x: 21.2, y: 86.5, bend: 1 },
+  footPtR: { x: 22.5, y: 86.8, bend: 1 },
   footL: -22, footR: -22,
 };
 
@@ -328,8 +328,8 @@ const incline_pike_pushup = {
  * ------------------------------------------------------------------ */
 
 const PK_FEET = {
-  footPtL: { x: 28, y: 87.5, bend: -1 },
-  footPtR: { x: 32.5, y: 87.5, bend: -1 },
+  footPtL: { x: 28, y: 87.5, bend: 1 },
+  footPtR: { x: 32.5, y: 87.5, bend: 1 },
   footL: -12, footR: -12,
 };
 
@@ -398,7 +398,7 @@ const machine_shoulder_press = {
   props: [
     { type: 'machine', x: 28, y: 26, w: 12, h: 46 },
     { type: 'bench', x: 44, y: 70, w: 26, h: 5 },
-    { type: 'machine', x: 42, y: 14, w: 22, h: 10 },
+    { type: 'machine', x: 40, y: 6, w: 26, h: 8 },
   ],
   keys: [
     { t: 0, pose: MSP_LOW },

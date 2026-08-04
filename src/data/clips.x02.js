@@ -23,8 +23,8 @@ import { p } from '../core/poses.js';
  * ------------------------------------------------------------------ */
 
 const WTX_BASE = {
-  handL: { x: 72, y: 39, bend: 1 },
-  handR: { x: 72, y: 36, bend: 1 },
+  handL: { x: 70, y: 39, bend: 1 },
+  handR: { x: 70, y: 36, bend: 1 },
   footPtL: { x: 41, y: 87.5, bend: 1 },
   footPtR: { x: 46, y: 87.5, bend: 1 },
   footL: 2, footR: 2,
@@ -41,7 +41,7 @@ const wall_triceps_extension = {
   ground: true,
   hero: 0.44,
   ease: 'inOut',
-  props: [{ type: 'wall', x: 74, y0: 8, y1: 88 }],
+  props: [{ type: 'wall', x: 71, y0: 8, y1: 88 }],
   keys: [
     { t: 0, pose: WTX_LONG },
     { t: 0.24, pose: WTX_MID },
@@ -60,8 +60,8 @@ const wall_triceps_extension = {
 const SPX_BASE = {
   handL: { x: 70, y: 87.5, bend: -1 },
   handR: { x: 72, y: 87.5, bend: -1 },
-  footPtL: { x: 7, y: 84.5, bend: -1 },
-  footPtR: { x: 10, y: 85.5, bend: -1 },
+  footPtL: { x: 6, y: 84.3, bend: 1 },
+  footPtR: { x: 6.5, y: 84.8, bend: 1 },
   footL: -30, footR: -30,
 };
 
@@ -93,16 +93,16 @@ const sphinx_pushup = {
  * ------------------------------------------------------------------ */
 
 const CGP_BASE = {
-  handL: { x: 57.5, y: 87.5, bend: -1 },
-  handR: { x: 58.8, y: 87.5, bend: -1 },
-  footPtL: { x: 10, y: 85, bend: -1 },
-  footPtR: { x: 13, y: 85, bend: -1 },
+  handL: { x: 57.4, y: 87.5, bend: -1 },
+  handR: { x: 59.2, y: 87.5, bend: -1 },
+  footPtL: { x: 9.4, y: 85, bend: 1 },
+  footPtR: { x: 10, y: 86, bend: 1 },
   footL: -30, footR: -30,
 };
 
 const CGP_TOP = p(CGP_BASE, { x: 36.94, y: 73.44, spine: 23, head: 15 });
-const CGP_BOTTOM = p(CGP_BASE, { x: 39.74, y: 83.07, spine: 18, head: 10 });
-const CGP_PAUSE = p(CGP_BASE, { x: 39.4, y: 82.3, spine: 18.6, head: 10.6 });
+const CGP_BOTTOM = p(CGP_BASE, { x: 39.6, y: 82.3, spine: 18.5, head: 10.5 });
+const CGP_PAUSE = p(CGP_BASE, { x: 39.3, y: 81.6, spine: 19, head: 11 });
 
 const close_grip_pushup = {
   id: 'close_grip_pushup',
@@ -168,9 +168,9 @@ const BOX_BASE = {
 };
 
 const BOX_LOCK = p(BOX_BASE, { armL: [55, 106], armR: [64, 94] });
-const BOX_MID = p(BOX_BASE, { armL: [55, 165], armR: [64, 153] });
-const BOX_STRETCH = p(BOX_BASE, { armL: [55, 224], armR: [64, 212] });
-const BOX_HOLD = p(BOX_BASE, { armL: [55, 218], armR: [64, 206] });
+const BOX_MID = p(BOX_BASE, { armL: [55, 150], armR: [64, 140] });
+const BOX_STRETCH = p(BOX_BASE, { armL: [55, 195], armR: [64, 185] });
+const BOX_HOLD = p(BOX_BASE, { armL: [55, 190], armR: [64, 180] });
 
 const band_overhead_triceps_ext = {
   id: 'band_overhead_triceps_ext',
@@ -178,7 +178,7 @@ const band_overhead_triceps_ext = {
   ground: true,
   hero: 0,
   ease: 'inOut',
-  props: [{ type: 'band', x0: 36, y0: 87.5, x1: 41.5, y1: 33, sag: 3 }],
+  props: [{ type: 'band', x0: 36, y0: 87.5, x1: 40, y1: 30, sag: 3 }],
   keys: [
     { t: 0, pose: BOX_LOCK },
     { t: 0.24, pose: BOX_MID },
@@ -205,8 +205,8 @@ const KB_BASE = {
 
 const KB_BENT = p(KB_BASE, { armR: [-178, -90] });
 const KB_MID = p(KB_BASE, { armR: [-178, -134] });
-const KB_LONG = p(KB_BASE, { x: 36.4, spine: 27, head: 17, armR: [-178, -178] });
-const KB_HOLD = p(KB_BASE, { x: 36.3, spine: 27.3, head: 17.3, armR: [-178, -172] });
+const KB_LONG = p(KB_BASE, { x: 36.4, spine: 27, head: 17, armR: [-178, -165] });
+const KB_HOLD = p(KB_BASE, { x: 36.3, spine: 27.3, head: 17.3, armR: [-178, -160] });
 
 const db_kickback = {
   id: 'db_kickback',
@@ -238,10 +238,10 @@ const DOX_SEAT = {
   load: 'dumbbell',
 };
 
-const DOX_LOCK = p(DOX_SEAT, { armL: [64, 105], armR: [69, 95] });
-const DOX_MID = p(DOX_SEAT, { armL: [64, 152], armR: [69, 142] });
-const DOX_STRETCH = p(DOX_SEAT, { armL: [64, 205], armR: [69, 195] });
-const DOX_HOLD = p(DOX_SEAT, { armL: [64, 199], armR: [69, 189] });
+const DOX_LOCK = p(DOX_SEAT, { armL: [58, 111], armR: [72, 91] });
+const DOX_MID = p(DOX_SEAT, { armL: [58, 155], armR: [72, 140] });
+const DOX_STRETCH = p(DOX_SEAT, { armL: [58, 199], armR: [72, 189] });
+const DOX_HOLD = p(DOX_SEAT, { armL: [58, 193], armR: [72, 183] });
 
 const db_overhead_triceps_ext = {
   id: 'db_overhead_triceps_ext',
@@ -272,10 +272,10 @@ const PD_BASE = {
   footL: 2, footR: 2,
 };
 
-const PD_UP = p(PD_BASE, { armL: [-97, 65], armR: [-90, 55] });
-const PD_HALF = p(PD_BASE, { armL: [-97, 6], armR: [-90, -4] });
-const PD_LOCK = p(PD_BASE, { armL: [-97, -80], armR: [-90, -90] });
-const PD_HOLD = p(PD_BASE, { armL: [-97, -77], armR: [-90, -87] });
+const PD_UP = p(PD_BASE, { armL: [-80, 45], armR: [-68, 38] });
+const PD_HALF = p(PD_BASE, { armL: [-80, -18], armR: [-68, -24] });
+const PD_LOCK = p(PD_BASE, { armL: [-80, -76], armR: [-68, -64] });
+const PD_HOLD = p(PD_BASE, { armL: [-80, -73], armR: [-68, -61] });
 
 const triceps_pushdown = {
   id: 'triceps_pushdown',
@@ -284,8 +284,8 @@ const triceps_pushdown = {
   hero: 0.46,
   ease: 'inOut',
   props: [
-    { type: 'machine', x: 36, y: 6, w: 12, h: 18 },
-    { type: 'band', x0: 36, y0: 24, x1: 47, y1: 44, sag: 1 },
+    { type: 'machine', x: 52, y: 6, w: 14, h: 16 },
+    { type: 'band', x0: 52, y0: 22, x1: 55.5, y1: 40, sag: 1 },
   ],
   keys: [
     { t: 0, pose: PD_UP },
@@ -303,16 +303,16 @@ const triceps_pushdown = {
  * ------------------------------------------------------------------ */
 
 const TD_BASE = {
-  handL: { x: 47, y: 55.5, bend: -1 },
-  handR: { x: 51, y: 58.5, bend: -1 },
+  handL: { x: 46.5, y: 54.5, bend: -1 },
+  handR: { x: 52.5, y: 59.5, bend: -1 },
   legL: [-50, 160], legR: [-58, 152],
   footL: -120, footR: -120,
 };
 
-const TD_TOP = p(TD_BASE, { x: 49, y: 58.9, spine: 90, head: 90 });
-const TD_MID = p(TD_BASE, { x: 49, y: 61.9, spine: 90, head: 90 });
-const TD_BOTTOM = p(TD_BASE, { x: 49, y: 64.9, spine: 90, head: 90 });
-const TD_HOLD = p(TD_BASE, { x: 49, y: 64.4, spine: 90, head: 90 });
+const TD_TOP = p(TD_BASE, { x: 49, y: 59.8, spine: 90, head: 90 });
+const TD_MID = p(TD_BASE, { x: 49, y: 63.4, spine: 90, head: 90 });
+const TD_BOTTOM = p(TD_BASE, { x: 49, y: 67, spine: 90, head: 90 });
+const TD_HOLD = p(TD_BASE, { x: 49, y: 66.4, spine: 90, head: 90 });
 
 const triceps_dip_bars = {
   id: 'triceps_dip_bars',
@@ -320,7 +320,7 @@ const triceps_dip_bars = {
   ground: true,
   hero: 0.46,
   ease: 'inOut',
-  props: [{ type: 'dipbars', x: 50, y: 57, w: 26, gap: 3 }],
+  props: [{ type: 'dipbars', x: 50, y: 57, w: 26, gap: 5 }],
   keys: [
     { t: 0, pose: TD_TOP },
     { t: 0.24, pose: TD_MID },
