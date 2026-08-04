@@ -44,12 +44,14 @@ export function defaults() {
     trainingDays: [0, 2, 4],
     timeOfDay: 'evening',
 
+    track: 'mixed',
     location: 'home_bodyweight',
     gymMachines: true,
-    // Seeded from the default location. onSet refills this whenever the user
-    // picks a different one; without the seed, accepting the default location
-    // rather than clicking it left the list empty.
-    equipment: EQUIPMENT_BY_LOCATION.home_bodyweight.slice(),
+    // Deliberately empty: normalizeProfile fills it from the location when it
+    // is, which is what makes a programmatically-built or imported profile
+    // correct. Seeding it here instead made every non-default location inherit
+    // the default's kit — a full gym came out with nothing but a mat.
+    equipment: [],
 
     injuries: [],
     surgeries: '',
@@ -340,6 +342,27 @@ export const STEPS = [
         ],
       },
       {
+        key: 'track', label: 'איך אתה רוצה להתאמן', type: 'choice',
+        // Only worth asking when the equipment allows both. On a bare floor
+        // calisthenics is not a preference, it is the only option.
+        showIf: (p) => p.location !== 'home_bodyweight',
+        help: 'שני אנשים באותו חדר כושר ועם אותה מטרה יכולים לרצות אימון אחר לגמרי. זו העדפה, לא הגבלה — אפשר לשנות בכל רגע.',
+        options: [
+          {
+            value: 'calisthenics', label: 'קליסטניקס',
+            desc: 'שליטה במשקל הגוף — מתח, מקבילים, טבעות, עמידת ידיים. התקדמות במנוף ולא במשקל',
+          },
+          {
+            value: 'weights', label: 'מכונות ומשקולות',
+            desc: 'ברזל — מוט, משקולות, מכונות ופולי. התקדמות בעומס',
+          },
+          {
+            value: 'mixed', label: 'משולב',
+            desc: 'הטוב משני העולמות — הכלי שמתאים לכל תרגיל',
+          },
+        ],
+      },
+      {
         key: 'gymMachines', label: 'יש מכונות, או רק משקולות חופשיות?', type: 'choice',
         showIf: (p) => p.location === 'full_gym' || p.location === 'building_gym',
         options: [
@@ -612,6 +635,9 @@ export function normalizeProfile(input) {
 
   p.location = ['full_gym', 'building_gym', 'home_weights', 'home_bodyweight'].includes(p.location)
     ? p.location : 'home_bodyweight';
+  p.track = ['calisthenics', 'weights', 'mixed'].includes(p.track) ? p.track : 'mixed';
+  // Training on a bare floor IS calisthenics — the question was never asked.
+  if (p.location === 'home_bodyweight') p.track = 'calisthenics';
   p.gymMachines = p.gymMachines !== false;
 
   const known = new Set(EQUIPMENT_OPTIONS.map((o) => o.value));
@@ -715,6 +741,7 @@ const LOC_HE = {
   home_weights: 'בית עם משקולות', home_bodyweight: 'בית בלי ציוד',
 };
 const TIME_HE = { morning: 'בוקר', noon: 'צהריים', evening: 'ערב' };
+const TRACK_HE = { calisthenics: 'קליסטניקס', weights: 'מכונות ומשקולות', mixed: 'משולב' };
 const DAY_HE = ['ראשון', 'שני', 'שלישי', 'רביעי', 'חמישי', 'שישי', 'שבת'];
 
 export function summarize(profile) {
@@ -740,6 +767,7 @@ export function summarize(profile) {
     { label: 'תדירות', value: `${p.daysPerWeek} אימונים · ${p.minutesPerSession} דק׳ · ${TIME_HE[p.timeOfDay]}` },
     { label: 'ימים', value: (p.trainingDays || []).map((d) => DAY_HE[d]).join(', ') || '—' },
     { label: 'מקום', value: LOC_HE[p.location] },
+    { label: 'מסלול', value: TRACK_HE[p.track] || TRACK_HE.mixed },
     { label: 'ציוד', value: eqLabels.length ? eqLabels.join(', ') : 'משקל גוף בלבד' },
     { label: 'מגבלות', value: injLabels.length ? injLabels.join(', ') : 'אין' },
   );

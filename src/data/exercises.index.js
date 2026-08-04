@@ -40,6 +40,32 @@ export function isAvoided(profile, ex) {
   return list.some((a) => hay.includes(a) || a.includes(ex.nameEn.toLowerCase()));
 }
 
+/*
+ * Training track. Two people with the same gym and the same goal often want
+ * completely different sessions: one wants to master their own bodyweight, the
+ * other wants to move iron. This is a preference about HOW to train, separate
+ * from what equipment happens to be available.
+ */
+const CALISTHENIC_EQUIPMENT = new Set([
+  'none', 'pullup_bar', 'dip_bars', 'rings', 'bands', 'box', 'bench', 'mat', 'trx', 'jump_rope',
+]);
+const LOADED_EQUIPMENT = new Set(['dumbbells', 'barbell', 'kettlebell', 'machines', 'cable']);
+
+/* Core, mobility and conditioning stay bodyweight on either track — nobody
+   wants a machine substitute for a plank. */
+const TRACK_NEUTRAL_PATTERNS = new Set([
+  'core_flexion', 'core_antiextension', 'core_rotation', 'mobility', 'conditioning', 'plyo', 'carry',
+]);
+
+export function matchesTrack(ex, track) {
+  if (!track || track === 'mixed') return true;
+  if (TRACK_NEUTRAL_PATTERNS.has(ex.pattern)) return true;
+  const eq = ex.equipment || [];
+  if (track === 'calisthenics') return eq.every((q) => CALISTHENIC_EQUIPMENT.has(q));
+  if (track === 'weights') return eq.some((q) => LOADED_EQUIPMENT.has(q));
+  return true;
+}
+
 /** Difficulty ceiling implied by experience — keeps novices off level 5 skills. */
 export function levelCap(profile) {
   switch (profile.experience) {
@@ -71,6 +97,7 @@ export function candidates(profile, opts) {
     .filter((e) => (!o.muscle || e.muscles.primary.includes(o.muscle)))
     .filter((e) => (!o.tag || (e.tags || []).includes(o.tag)))
     .filter((e) => hasEquipment(profile, e.equipment))
+    .filter((e) => (o.ignoreTrack ? true : matchesTrack(e, profile.track)))
     .filter((e) => !isAvoided(profile, e))
     .filter((e) => e.level <= cap)
     .filter((e) => (o.allowInjuryRisk ? true : !conflictsInjury(profile, e)))
@@ -86,9 +113,13 @@ export function candidates(profile, opts) {
 export function candidatesOrFallback(profile, opts) {
   let list = candidates(profile, opts);
   if (list.length) return { list, risky: false };
-  list = candidates(profile, Object.assign({}, opts, { maxLevel: 5 }));
+  // Relax the track preference before anything else — a preference should
+  // yield long before a level ceiling, and far before an injury rule.
+  list = candidates(profile, Object.assign({}, opts, { ignoreTrack: true }));
   if (list.length) return { list, risky: false };
-  list = candidates(profile, Object.assign({}, opts, { maxLevel: 5, allowInjuryRisk: true }));
+  list = candidates(profile, Object.assign({}, opts, { ignoreTrack: true, maxLevel: 5 }));
+  if (list.length) return { list, risky: false };
+  list = candidates(profile, Object.assign({}, opts, { ignoreTrack: true, maxLevel: 5, allowInjuryRisk: true }));
   return { list, risky: list.length > 0 };
 }
 
