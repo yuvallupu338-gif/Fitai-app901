@@ -34,7 +34,9 @@ function jointSignature(clip) {
   for (let i = 0; i < 10; i++) {
     const j = solve(sampleClip(clip, i / 10));
     out.push(j.head[0], j.head[1], j.arms.R.hand[0], j.arms.R.hand[1],
-      j.arms.L.hand[0], j.arms.L.hand[1], j.legs.R.knee[0], j.legs.R.knee[1],
+      j.arms.L.hand[0], j.arms.L.hand[1],
+      j.legs.R.knee[0], j.legs.R.knee[1], j.legs.L.knee[0], j.legs.L.knee[1],
+      j.legs.R.ankle[0], j.legs.R.ankle[1], j.legs.L.ankle[0], j.legs.L.ankle[1],
       j.pelvis[0], j.pelvis[1]);
   }
   return out;
@@ -73,7 +75,11 @@ const files = existsSync(resolve(ROOT, 'src/data'))
 let total = 0;
 for (const f of files) {
   const mod = await import(pathToFileURL(resolve(ROOT, 'src/data', f)).href);
-  const map = Object.values(mod).find((v) => v && typeof v === 'object' && !Array.isArray(v)) || {};
+  // Select the clip map by NAME. Picking "the first object export" let a stray
+  // export shadow it, and a whole batch went unchecked without a word.
+  const key = Object.keys(mod).find((k) => /_CLIPS$/.test(k));
+  const map = (key && mod[key]) || {};
+  if (!key) problems.push(`${f} exports no *_CLIPS map`);
   for (const [id, clip] of Object.entries(map)) {
     if (!clip || !Array.isArray(clip.keys)) continue;
     total++;

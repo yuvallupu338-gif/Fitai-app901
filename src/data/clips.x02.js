@@ -369,7 +369,6 @@ export const X02_CLIPS = {
   wall_triceps_extension,
   sphinx_pushup,
   close_grip_pushup,
-  bench_dip,
   band_overhead_triceps_ext,
   db_kickback,
   db_overhead_triceps_ext,
