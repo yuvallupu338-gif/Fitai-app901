@@ -60,6 +60,35 @@ const SETS_PER_SLOT = { strength: 4.0, muscle: 3.4, fatloss: 3.0, fitness: 3.0, 
 const COMPOUND_PATTERNS = ['horizontal_push', 'vertical_push', 'horizontal_pull',
   'vertical_pull', 'squat', 'hinge', 'lunge'];
 
+/*
+ * When a pattern has nothing left to offer — a bad shoulder wipes out every
+ * overhead press, say — the slot moves to a neighbouring pattern in the SAME
+ * volume group. More horizontal pressing beats a lonely, painful overhead press.
+ */
+const SIBLING_PATTERN = {
+  vertical_push: ['horizontal_push'], horizontal_push: ['vertical_push'],
+  vertical_pull: ['horizontal_pull'], horizontal_pull: ['vertical_pull'],
+  squat: ['lunge', 'hinge'], hinge: ['squat', 'lunge'], lunge: ['squat', 'hinge'],
+  plyo: ['squat', 'lunge'],
+  core_flexion: ['core_antiextension', 'core_rotation'],
+  core_antiextension: ['core_flexion', 'core_rotation'],
+  core_rotation: ['core_antiextension', 'core_flexion'],
+  carry: ['core_antiextension', 'core_rotation'],
+  arms_biceps: ['arms_triceps'], arms_triceps: ['arms_biceps'],
+  shoulders_lateral: ['shoulders_rear'], shoulders_rear: ['shoulders_lateral'],
+  calf: [], conditioning: [], mobility: [],
+};
+
+/** Equipment that adds external resistance, and equipment that only holds you. */
+const LOADING_EQUIP = ['dumbbells', 'barbell', 'kettlebell', 'machines', 'cable'];
+const APPARATUS_EQUIP = ['pullup_bar', 'dip_bars', 'rings', 'trx', 'bench', 'box',
+  'jump_rope', 'treadmill', 'bike', 'rower', 'sled'];
+
+/** Warm-up drills are picked in this order, so the session opens general and ends specific. */
+const WARMUP_PATTERN_ORDER = ['squat', 'hinge', 'lunge', 'plyo', 'horizontal_push', 'vertical_push',
+  'horizontal_pull', 'vertical_pull', 'core_antiextension', 'core_flexion', 'core_rotation',
+  'shoulders_lateral', 'shoulders_rear', 'calf', 'carry', 'arms_biceps', 'arms_triceps', 'conditioning'];
+
 /** [reps, restSeconds] by goal and role. Reps are for unit:'reps' work. */
 const SCHEME = {
   strength: {

@@ -95,12 +95,12 @@ export function renderGuide(root, program, profile) {
     const week = store.currentWeek();
     view.appendChild(h('div.rule'));
     view.appendChild(h('h3', 'מפת התוכנית'));
-    view.appendChild(phases.map((ph) => {
+    view.appendChild(h('div', phases.map((ph) => {
       const now = week >= ph.weeks[0] && week <= ph.weeks[1];
       return h('div.phase' + (now ? '.now' : ''),
         h('span.w', `שבוע ${ph.weeks[0]}–${ph.weeks[1]}`),
         h('span.t', h('b', ph.title), h('span', ph.desc)));
-    }));
+    })));
   }
 
   /* ---- targets ---- */

@@ -108,7 +108,7 @@ const bundle = [
   '})();',
 ].join('\n\n');
 
-const css = ['tokens', 'base', 'components']
+const css = ['fonts', 'tokens', 'base', 'components']
   .map((n) => readFileSync(resolve(ROOT, `src/styles/${n}.css`), 'utf8'))
   .join('\n\n');
 
