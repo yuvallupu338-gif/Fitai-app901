@@ -150,8 +150,8 @@ const band_chest_press = {
 
 const DB_BENCH = {
   x: 38, y: 72, spine: 8, head: 14,
-  footPtL: { x: 22, y: 87.5, bend: -1 },
-  footPtR: { x: 27, y: 87.5, bend: -1 },
+  footPtL: { x: 20, y: 87.5, bend: -1 },
+  footPtR: { x: 30, y: 87.5, bend: -1 },
   footL: 2, footR: 2,
   load: 'dumbbell',
 };
@@ -182,7 +182,7 @@ const db_bench_press = {
   ground: true,
   hero: 0.46,
   ease: 'inOut',
-  props: [{ type: 'bench', x: 52, y: 74, w: 46, h: 6 }],
+  props: [{ type: 'bench', x: 54, y: 74, w: 44, h: 6 }],
   keys: [
     { t: 0, pose: DBB_LOCK },
     { t: 0.26, pose: DBB_MID },
@@ -364,9 +364,9 @@ const pike_pushup = {
 
 const MSP_SEAT = {
   x: 40, y: 66, spine: 92, head: 90,
-  footPtL: { x: 52, y: 87.5, bend: 1 },
-  footPtR: { x: 54.5, y: 87.5, bend: 1 },
-  footL: 2, footR: 2,
+  footPtL: { x: 46, y: 87.5, bend: 1 },
+  footPtR: { x: 56, y: 86, bend: 1 },
+  footL: 2, footR: -25,
 };
 
 const MSP_LOW = p(MSP_SEAT, {
