@@ -442,13 +442,21 @@ details.warm li b { color: var(--chalk); font-weight: 600; }
 }
 .anim:hover { border-color: var(--amber-deep); }
 .rig-svg { display: block; width: 100%; height: 100%; }
+/* The figure is filled shapes, not strokes — a thin darker outline keeps it
+   legible against the card background at 66px without muddying the silhouette. */
+.rig-body {
+  fill: var(--rig-bone);
+  stroke: #0B121C;
+  stroke-width: .55;
+  stroke-linejoin: round;
+}
+.rig-torso { fill: #DCE6F2; }
+.rig-head { fill: #F2F6FC; }
+.rig-far .rig-body { fill: var(--rig-far); stroke: #0A1017; stroke-width: .4; }
+.rig-far .rig-torso, .rig-far .rig-head { fill: var(--rig-far); }
+/* kept so any older clip or prop referencing the stroke classes still draws */
 .rig-bone { stroke: var(--rig-bone); stroke-linecap: round; fill: none; }
 .rig-joint { fill: var(--rig-bone); }
-.rig-head { fill: none; stroke: var(--rig-bone); stroke-width: 2.2; }
-.rig-spine { stroke: var(--rig-bone); }
-.rig-far { opacity: .42; }
-.rig-far .rig-bone, .rig-far .rig-joint, .rig-far .rig-head { stroke: var(--rig-far); fill: none; }
-.rig-far .rig-joint { fill: var(--rig-far); }
 .rig-ground { stroke: var(--rig-ground); stroke-linecap: round; }
 .rig-prop { stroke: var(--rig-prop); stroke-linecap: round; fill: none; }
 .rig-prop-thin { stroke: var(--rig-prop); opacity: .55; fill: none; }
@@ -1094,33 +1102,136 @@ function handProp(kind, hand, otherHand) {
 /**
  * Draws the figure. Far limbs first (dim), then torso, then near limbs.
  */
+/* ------------------------------------------------------------------ *
+ * Body shape
+ *
+ * The skeleton is still lines and angles, but the figure drawn over it has
+ * volume: every segment is a tapered capsule, thick at the proximal joint and
+ * narrower at the distal one, which is what makes a limb read as an arm rather
+ * than a stick. Widths are in the same 0..100 units as the segments.
+ * ------------------------------------------------------------------ */
+
+const GIRTH = {
+  neck: 3.4,
+  shoulder: 10.4,      // full width across the deltoids
+  chest: 9.6,
+  waist: 6.8,
+  hip: 8.2,
+  upperArm: 3.9, elbow: 2.9, wrist: 2.2,
+  thigh: 6.2, knee: 4.2, ankle: 2.8,
+  foot: 2.6,
+  headRx: 4.1, headRy: 4.9,
+  deltoid: 5.0,
+};
+
+/** A tapered capsule from A to B: straight sides, round caps at both ends. */
+function capsule(ax, ay, bx, by, wa, wb) {
+  const dx = bx - ax;
+  const dy = by - ay;
+  const len = Math.hypot(dx, dy) || 0.0001;
+  const ux = dx / len;
+  const uy = dy / len;
+  const nx = -uy;
+  const ny = ux;
+  const ra = Math.max(0.15, wa / 2);
+  const rb = Math.max(0.15, wb / 2);
+  const p = (x, y) => `${x.toFixed(2)} ${y.toFixed(2)}`;
+  // Both caps sweep the same way (0) because we travel down one side and back
+  // up the other; see the note in the commit that introduced this.
+  return `M ${p(ax + nx * ra, ay + ny * ra)}`
+    + ` L ${p(bx + nx * rb, by + ny * rb)}`
+    + ` A ${rb.toFixed(2)} ${rb.toFixed(2)} 0 0 0 ${p(bx - nx * rb, by - ny * rb)}`
+    + ` L ${p(ax - nx * ra, ay - ny * ra)}`
+    + ` A ${ra.toFixed(2)} ${ra.toFixed(2)} 0 0 0 ${p(ax + nx * ra, ay + ny * ra)} Z`;
+}
+
+/** Torso: hips to shoulders, pinched at the waist. */
+function torsoPath(pelvis, shoulder) {
+  const [px, py] = pelvis;
+  const [sx, sy] = shoulder;
+  const dx = sx - px;
+  const dy = sy - py;
+  const len = Math.hypot(dx, dy) || 0.0001;
+  const nx = -(dy / len);
+  const ny = dx / len;
+
+  const at = (t, w) => {
+    const cx = px + dx * t;
+    const cy = py + dy * t;
+    return [[cx + nx * w / 2, cy + ny * w / 2], [cx - nx * w / 2, cy - ny * w / 2]];
+  };
+  const hip = at(0, GIRTH.hip);
+  const waist = at(0.42, GIRTH.waist);
+  const chest = at(0.78, GIRTH.chest);
+  const top = at(1, GIRTH.shoulder);
+  const p = (q) => `${q[0].toFixed(2)} ${q[1].toFixed(2)}`;
+
+  return `M ${p(hip[0])}`
+    + ` Q ${p(waist[0])} ${p(chest[0])}`
+    + ` L ${p(top[0])}`
+    + ` A ${(GIRTH.shoulder / 2).toFixed(2)} ${(GIRTH.shoulder / 2).toFixed(2)} 0 0 0 ${p(top[1])}`
+    + ` L ${p(chest[1])}`
+    + ` Q ${p(waist[1])} ${p(hip[1])}`
+    + ` A ${(GIRTH.hip / 2).toFixed(2)} ${(GIRTH.hip / 2).toFixed(2)} 0 0 0 ${p(hip[0])} Z`;
+}
+
+function path(d, cls) {
+  return el('path', { d, class: cls });
+}
+
+/**
+ * Draws the figure. Far limbs first in a recessed tone, then the torso and
+ * head, then the near limbs — so the body reads with depth instead of as a
+ * flat tangle of lines.
+ */
 function renderFigure(pose) {
   const j = solve(pose);
   const g = el('g', { class: 'rig-figure' });
-  const LW = 3.1;
 
-  const limb = (set, cls) => {
+  const arm = (s, cls) => {
+    const a = j.arms[s];
     const sub = el('g', { class: cls });
-    sub.appendChild(line(...set.a, ...set.b, 'rig-bone', LW));
-    sub.appendChild(line(...set.b, ...set.c, 'rig-bone', LW));
-    if (set.d) sub.appendChild(line(...set.c, ...set.d, 'rig-bone', LW * 0.72));
-    sub.appendChild(el('circle', { cx: set.b[0], cy: set.b[1], r: 1.35, class: 'rig-joint' }));
+    // A deltoid cap where the arm meets the torso. Without it the upper arm
+    // appears to sprout from the middle of the chest.
+    sub.appendChild(el('circle', {
+      cx: a.shoulder[0], cy: a.shoulder[1], r: GIRTH.deltoid / 2, class: 'rig-body',
+    }));
+    sub.appendChild(path(capsule(...a.shoulder, ...a.elbow, GIRTH.upperArm, GIRTH.elbow), 'rig-body'));
+    // Joint cap: fills the notch the two capsules leave when the limb is
+    // sharply bent, so the elbow reads as a hinge rather than a break.
+    sub.appendChild(el('circle', { cx: a.elbow[0], cy: a.elbow[1], r: GIRTH.elbow / 2, class: 'rig-body' }));
+    sub.appendChild(path(capsule(...a.elbow, ...a.hand, GIRTH.elbow, GIRTH.wrist), 'rig-body'));
+    sub.appendChild(el('circle', { cx: a.hand[0], cy: a.hand[1], r: GIRTH.wrist * 0.72, class: 'rig-body' }));
     return sub;
   };
 
-  const armSet = (s) => ({ a: j.arms[s].shoulder, b: j.arms[s].elbow, c: j.arms[s].hand });
-  const legSet = (s) => ({ a: j.legs[s].hip, b: j.legs[s].knee, c: j.legs[s].ankle, d: j.legs[s].toe });
+  const leg = (s, cls) => {
+    const l = j.legs[s];
+    const sub = el('g', { class: cls });
+    sub.appendChild(path(capsule(...l.hip, ...l.knee, GIRTH.thigh, GIRTH.knee), 'rig-body'));
+    sub.appendChild(el('circle', { cx: l.knee[0], cy: l.knee[1], r: GIRTH.knee / 2, class: 'rig-body' }));
+    sub.appendChild(path(capsule(...l.knee, ...l.ankle, GIRTH.knee, GIRTH.ankle), 'rig-body'));
+    sub.appendChild(el('circle', { cx: l.ankle[0], cy: l.ankle[1], r: GIRTH.ankle / 2, class: 'rig-body' }));
+    sub.appendChild(path(capsule(...l.ankle, ...l.toe, GIRTH.ankle * 0.9, GIRTH.foot * 0.7), 'rig-body'));
+    return sub;
+  };
 
-  g.appendChild(limb(legSet('L'), 'rig-far'));
-  g.appendChild(limb(armSet('L'), 'rig-far'));
+  g.appendChild(leg('L', 'rig-far'));
+  g.appendChild(arm('L', 'rig-far'));
 
   const torso = el('g', { class: 'rig-near' });
-  torso.appendChild(line(j.pelvis[0], j.pelvis[1], j.neck[0], j.neck[1], 'rig-bone rig-spine', LW * 1.25));
-  torso.appendChild(el('circle', { cx: j.head[0], cy: j.head[1], r: SEG.headR, class: 'rig-head' }));
+  torso.appendChild(path(capsule(j.shoulder[0], j.shoulder[1], j.neck[0], j.neck[1], GIRTH.neck * 1.3, GIRTH.neck), 'rig-body'));
+  torso.appendChild(path(torsoPath(j.pelvis, j.shoulder), 'rig-body rig-torso'));
+  const headAngle = 90 - angleOf(j.neck[0], j.neck[1], j.head[0], j.head[1]);
+  torso.appendChild(el('ellipse', {
+    cx: j.head[0], cy: j.head[1], rx: GIRTH.headRx, ry: GIRTH.headRy,
+    transform: `rotate(${headAngle.toFixed(1)} ${j.head[0].toFixed(2)} ${j.head[1].toFixed(2)})`,
+    class: 'rig-body rig-head',
+  }));
   g.appendChild(torso);
 
-  g.appendChild(limb(legSet('R'), 'rig-near'));
-  g.appendChild(limb(armSet('R'), 'rig-near'));
+  g.appendChild(leg('R', 'rig-near'));
+  g.appendChild(arm('R', 'rig-near'));
 
   if (pose.load) {
     const l = handProp(pose.load, j.arms.R.hand, j.arms.L.hand);
@@ -1165,6 +1276,7 @@ function makeSvg(cls) {
     "solve": solve,
     "lerpPose": lerpPose,
     "renderProps": renderProps,
+    "GIRTH": GIRTH,
     "renderFigure": renderFigure,
     "renderScene": renderScene,
     "makeSvg": makeSvg,

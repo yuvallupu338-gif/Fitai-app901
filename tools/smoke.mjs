@@ -248,12 +248,22 @@ async function main() {
   const geom = await page.evaluate(() => {
     const bad = [];
     let lines = 0;
-    document.querySelectorAll('.rig-svg line, .rig-svg circle').forEach((n) => {
+    document.querySelectorAll('.rig-svg line, .rig-svg circle, .rig-svg ellipse').forEach((n) => {
       lines++;
-      const nums = ['x1', 'y1', 'x2', 'y2', 'cx', 'cy', 'r']
+      const nums = ['x1', 'y1', 'x2', 'y2', 'cx', 'cy', 'r', 'rx', 'ry']
         .map((a) => n.getAttribute(a)).filter((v) => v !== null).map(Number);
       if (nums.some((v) => !isFinite(v))) bad.push(`${n.tagName} has NaN`);
       if (nums.some((v) => v < -30 || v > 130)) bad.push(`${n.tagName} off canvas: ${nums.join(',')}`);
+    });
+    // The body is filled paths; check every coordinate in their `d` data.
+    document.querySelectorAll('.rig-svg path').forEach((n) => {
+      lines++;
+      const d = n.getAttribute('d') || '';
+      const nums = (d.match(/-?\d+(\.\d+)?/g) || []).map(Number);
+      if (!nums.length) bad.push('path has no coordinates');
+      if (nums.some((v) => !isFinite(v))) bad.push('path has NaN');
+      if (nums.some((v) => v < -30 || v > 130)) bad.push(`path off canvas`);
+      if (/NaN|Infinity|undefined/.test(d)) bad.push('path d contains a non-number token');
     });
     return { lines, bad: bad.slice(0, 6) };
   });

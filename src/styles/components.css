@@ -204,13 +204,21 @@ details.warm li b { color: var(--chalk); font-weight: 600; }
 }
 .anim:hover { border-color: var(--amber-deep); }
 .rig-svg { display: block; width: 100%; height: 100%; }
+/* The figure is filled shapes, not strokes — a thin darker outline keeps it
+   legible against the card background at 66px without muddying the silhouette. */
+.rig-body {
+  fill: var(--rig-bone);
+  stroke: #0B121C;
+  stroke-width: .55;
+  stroke-linejoin: round;
+}
+.rig-torso { fill: #DCE6F2; }
+.rig-head { fill: #F2F6FC; }
+.rig-far .rig-body { fill: var(--rig-far); stroke: #0A1017; stroke-width: .4; }
+.rig-far .rig-torso, .rig-far .rig-head { fill: var(--rig-far); }
+/* kept so any older clip or prop referencing the stroke classes still draws */
 .rig-bone { stroke: var(--rig-bone); stroke-linecap: round; fill: none; }
 .rig-joint { fill: var(--rig-bone); }
-.rig-head { fill: none; stroke: var(--rig-bone); stroke-width: 2.2; }
-.rig-spine { stroke: var(--rig-bone); }
-.rig-far { opacity: .42; }
-.rig-far .rig-bone, .rig-far .rig-joint, .rig-far .rig-head { stroke: var(--rig-far); fill: none; }
-.rig-far .rig-joint { fill: var(--rig-far); }
 .rig-ground { stroke: var(--rig-ground); stroke-linecap: round; }
 .rig-prop { stroke: var(--rig-prop); stroke-linecap: round; fill: none; }
 .rig-prop-thin { stroke: var(--rig-prop); opacity: .55; fill: none; }
