@@ -79,8 +79,14 @@ export function ik(rootX, rootY, targetX, targetY, l1, l2, bend) {
  *   footPtL/footPtR {x, y, bend} -> overrides legL/legR (IK)
  *   footL/footR ankle -> toe angle
  *   flip        mirror the whole scene horizontally
+ *   spread      0 = profile (default). Above 0 the figure turns to FACE the
+ *               viewer: shoulders and hips separate horizontally and the limb
+ *               angles are read in the frontal plane. Use it for movements the
+ *               profile view collapses — lateral raises, reverse flyes, upright
+ *               rows, grip width. Around 13 is a natural shoulder width.
  *
  * "L" is the far side (drawn dimmer, behind the torso), "R" is the near side.
+ * At spread > 1 neither is further away, so both draw in the near tone.
  */
 export function solve(pose) {
   const p = pose;
@@ -92,47 +98,78 @@ export function solve(pose) {
   const sy = y + (ny - y) * SEG.shoulderFrac;
   const [hx, hy] = project(nx, ny, SEG.neck, num(p.head, spine));
 
+  /*
+   * spread — how far apart the two sides sit, measured across the spine.
+   *
+   * At 0 the shoulders coincide and the hips coincide, which is what a body
+   * looks like in profile and is what every clip written before this assumed.
+   * Above 0 the figure turns to face the viewer: the sides separate and the
+   * limbs swing in the FRONTAL plane instead of the sagittal one.
+   *
+   * That second camera is not decoration. Side-on, a lateral raise and a front
+   * raise trace the same arc, both arms of a reverse fly overlap into one, and
+   * a wide grip is indistinguishable from a narrow one — the differences that
+   * define those exercises all live in the plane the profile view collapses.
+   */
+  const spread = Math.max(0, num(p.spread, 0));
+  /*
+   * The separation is HORIZONTAL ON SCREEN, not perpendicular to the spine.
+   * Bending forward rotates the body in the sagittal plane — the plane the
+   * camera is looking down — so on screen the two shoulders stay side by side.
+   * Rotating the offset with the spine instead made a bent-over reverse fly
+   * separate diagonally, which is a body twisting, not a body hinging.
+   */
+  const offX = spread / 2;
+  const sgn = (side) => (side === 'R' ? 1 : -1);
+
   const out = {
     pelvis: [x, y],
     neck: [nx, ny],
     shoulder: [sx, sy],
     head: [hx, hy],
+    spread,
     arms: {},
     legs: {},
   };
 
   for (const side of ['L', 'R']) {
+    const rx = sx + offX * sgn(side);
+    const ry = sy;
     const target = p['hand' + side];
     let a1;
     let a2;
     if (target) {
-      [a1, a2] = ik(sx, sy, num(target.x, sx), num(target.y, sy), SEG.upperArm, SEG.forearm, num(target.bend, 1));
+      [a1, a2] = ik(rx, ry, num(target.x, rx), num(target.y, ry), SEG.upperArm, SEG.forearm, num(target.bend, 1));
     } else {
       const fk = p['arm' + side] || (side === 'L' ? [-84, -86] : [-96, -94]);
       a1 = fk[0];
       a2 = fk[1];
     }
-    const [ex, ey] = project(sx, sy, SEG.upperArm, a1);
+    const [ex, ey] = project(rx, ry, SEG.upperArm, a1);
     const [wx, wy] = project(ex, ey, SEG.forearm, a2);
-    out.arms[side] = { shoulder: [sx, sy], elbow: [ex, ey], hand: [wx, wy] };
+    out.arms[side] = { shoulder: [rx, ry], elbow: [ex, ey], hand: [wx, wy] };
   }
 
   for (const side of ['L', 'R']) {
+    // Hips separate less than the shoulders, which is what makes a torso a
+    // torso rather than a rectangle.
+    const hipX = x + offX * sgn(side) * 0.62;
+    const hipY = y;
     const target = p['footPt' + side];
     let a1;
     let a2;
     if (target) {
-      [a1, a2] = ik(x, y, num(target.x, x), num(target.y, y), SEG.thigh, SEG.shin, num(target.bend, -1));
+      [a1, a2] = ik(hipX, hipY, num(target.x, hipX), num(target.y, hipY), SEG.thigh, SEG.shin, num(target.bend, -1));
     } else {
       const fk = p['leg' + side] || (side === 'L' ? [-87, -89] : [-93, -91]);
       a1 = fk[0];
       a2 = fk[1];
     }
-    const [kx, ky] = project(x, y, SEG.thigh, a1);
+    const [kx, ky] = project(hipX, hipY, SEG.thigh, a1);
     const [ax, ay] = project(kx, ky, SEG.shin, a2);
     const footAngle = num(p['foot' + side], defaultFoot(a2));
     const [tx, ty] = project(ax, ay, SEG.foot, footAngle);
-    out.legs[side] = { hip: [x, y], knee: [kx, ky], ankle: [ax, ay], toe: [tx, ty] };
+    out.legs[side] = { hip: [hipX, hipY], knee: [kx, ky], ankle: [ax, ay], toe: [tx, ty] };
   }
 
   return out;
@@ -351,8 +388,9 @@ function capsule(ax, ay, bx, by, wa, wb) {
     + ` A ${ra.toFixed(2)} ${ra.toFixed(2)} 0 0 0 ${p(ax + nx * ra, ay + ny * ra)} Z`;
 }
 
-/** Torso: hips to shoulders, pinched at the waist. */
-function torsoPath(pelvis, shoulder) {
+/** Torso: hips to shoulders, pinched at the waist. `spread` widens it, because
+    a chest seen head-on is broader than the same chest seen edge-on. */
+function torsoPath(pelvis, shoulder, spread) {
   const [px, py] = pelvis;
   const [sx, sy] = shoulder;
   const dx = sx - px;
@@ -366,19 +404,22 @@ function torsoPath(pelvis, shoulder) {
     const cy = py + dy * t;
     return [[cx + nx * w / 2, cy + ny * w / 2], [cx - nx * w / 2, cy - ny * w / 2]];
   };
-  const hip = at(0, GIRTH.hip);
-  const waist = at(0.42, GIRTH.waist);
-  const chest = at(0.78, GIRTH.chest);
-  const top = at(1, GIRTH.shoulder);
+  const w = Math.max(0, spread || 0);
+  const hipW = GIRTH.hip + w * 0.45;
+  const shoulderW = GIRTH.shoulder + w * 0.6;
+  const hip = at(0, hipW);
+  const waist = at(0.42, GIRTH.waist + w * 0.3);
+  const chest = at(0.78, GIRTH.chest + w * 0.5);
+  const top = at(1, shoulderW);
   const p = (q) => `${q[0].toFixed(2)} ${q[1].toFixed(2)}`;
 
   return `M ${p(hip[0])}`
     + ` Q ${p(waist[0])} ${p(chest[0])}`
     + ` L ${p(top[0])}`
-    + ` A ${(GIRTH.shoulder / 2).toFixed(2)} ${(GIRTH.shoulder / 2).toFixed(2)} 0 0 0 ${p(top[1])}`
+    + ` A ${(shoulderW / 2).toFixed(2)} ${(shoulderW / 2).toFixed(2)} 0 0 0 ${p(top[1])}`
     + ` L ${p(chest[1])}`
     + ` Q ${p(waist[1])} ${p(hip[1])}`
-    + ` A ${(GIRTH.hip / 2).toFixed(2)} ${(GIRTH.hip / 2).toFixed(2)} 0 0 0 ${p(hip[0])} Z`;
+    + ` A ${(hipW / 2).toFixed(2)} ${(hipW / 2).toFixed(2)} 0 0 0 ${p(hip[0])} Z`;
 }
 
 function path(d, cls) {
@@ -422,12 +463,16 @@ export function renderFigure(pose) {
     return sub;
   };
 
-  g.appendChild(leg('L', 'rig-far'));
-  g.appendChild(arm('L', 'rig-far'));
+  // Facing the viewer, the far side is not further away — it is the other half
+  // of a symmetrical body, and dimming it would say the lateral raise is being
+  // done with one arm. The outline stroke still separates overlapping limbs.
+  const farClass = j.spread > 1 ? 'rig-near' : 'rig-far';
+  g.appendChild(leg('L', farClass));
+  g.appendChild(arm('L', farClass));
 
   const torso = el('g', { class: 'rig-near' });
   torso.appendChild(path(capsule(j.shoulder[0], j.shoulder[1], j.neck[0], j.neck[1], GIRTH.neck * 1.3, GIRTH.neck), 'rig-body'));
-  torso.appendChild(path(torsoPath(j.pelvis, j.shoulder), 'rig-body rig-torso'));
+  torso.appendChild(path(torsoPath(j.pelvis, j.shoulder, j.spread), 'rig-body rig-torso'));
   const headAngle = 90 - angleOf(j.neck[0], j.neck[1], j.head[0], j.head[1]);
   torso.appendChild(el('ellipse', {
     cx: j.head[0], cy: j.head[1], rx: GIRTH.headRx, ry: GIRTH.headRy,

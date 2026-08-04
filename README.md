@@ -80,6 +80,14 @@ a new exercise animates sensibly before anyone draws it a bespoke one. Run
 `node tools/validate.js` for the current split between exercises with an
 animation of their own and those borrowing a family clip.
 
+The rig draws from two cameras. Profile is the default and suits most things,
+but a movement that happens across the frontal plane is exactly the movement a
+profile view cannot show: side-on, a lateral raise and a front raise trace the
+same arc, both arms of a reverse fly overlap into one, and a wide grip looks
+like a narrow one. Setting `spread` on a pose turns the figure to face the
+viewer — shoulders and hips separate, and the limb angles read in the frontal
+plane instead.
+
 Counting exercises understates how visible a gap is. What matters is how often a
 borrowed clip actually leads a slot in a generated program, and — worse — how
 often the clip it borrows is named after a *different* movement. That was 28% of

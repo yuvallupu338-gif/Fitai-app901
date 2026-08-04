@@ -57,6 +57,26 @@ const PLANTED = {
 /** Standing, feet welded to the floor. Shoulder lands at (50, 34.12). */
 const TALL = p(STAND, Object.assign({ x: 50, y: 57 }, PLANTED));
 
+/*
+ * The same figure turned to FACE the viewer.
+ *
+ * The clips below already placed their hands symmetrically about x = 50, which
+ * is what a frontal-plane movement looks like — but the rig solved both arms
+ * from a single shoulder point at the centre of the chest, so the pair sprouted
+ * from one spot and the raise read as one thick limb splitting in two. `spread`
+ * separates the shoulders and the hips, and the existing targets suddenly draw
+ * the exercise they were always describing.
+ *
+ * Feet turn out slightly, because two feet both pointing the same way is the
+ * one detail that still says "profile" no matter how the arms are drawn.
+ */
+const FACING = p(TALL, {
+  spread: 13,
+  footPtL: { x: 44.6, y: ANKLE, bend: 1 },
+  footPtR: { x: 55.4, y: ANKLE, bend: 1 },
+  footL: 172, footR: 8,
+});
+
 /* ================================================================== *
  * 1. LATERAL — the frontal-plane raises
  * ================================================================== */
@@ -64,21 +84,21 @@ const TALL = p(STAND, Object.assign({ x: 50, y: 57 }, PLANTED));
 /* Isometric hold: nothing travels. The arms hang on at shoulder height while
    the ribcage breathes, the elbows sag a hair and get pulled back up. */
 
-const LRH_HOLD = p(TALL, {
-  handL: { x: 27.2, y: 34.4, bend: -1 },
-  handR: { x: 72.8, y: 35.0, bend: 1 },
+const LRH_HOLD = p(FACING, {
+  handL: { x: 22.6, y: 34.4, bend: -1 },
+  handR: { x: 77.4, y: 35.0, bend: 1 },
 });
 
-const LRH_SAG = p(TALL, {
+const LRH_SAG = p(FACING, {
   spine: 89.2, head: 88.6,
-  handL: { x: 27.4, y: 35.3, bend: -1 },
-  handR: { x: 72.6, y: 35.9, bend: 1 },
+  handL: { x: 23.0, y: 36.6, bend: -1 },
+  handR: { x: 77.0, y: 37.2, bend: 1 },
 });
 
-const LRH_LIFT = p(TALL, {
+const LRH_LIFT = p(FACING, {
   spine: 90.4, head: 90.6,
-  handL: { x: 27.1, y: 34.1, bend: -1 },
-  handR: { x: 72.9, y: 34.7, bend: 1 },
+  handL: { x: 22.4, y: 33.6, bend: -1 },
+  handR: { x: 77.6, y: 34.2, bend: 1 },
 });
 
 const lateral_raise_hold = clip({
@@ -133,22 +153,22 @@ const self_resisted_lateral_raise = clip({
 /* Band: standing on the middle of the band, so the resistance grows as the
    hands rise. Elbows stay softly bent — the band never lets them lock. */
 
-const BLR_DOWN = p(TALL, {
-  handL: { x: 48.4, y: 55.6, bend: -1 },
-  handR: { x: 51.6, y: 55.6, bend: 1 },
+const BLR_DOWN = p(FACING, {
+  handL: { x: 42.6, y: 56.4, bend: -1 },
+  handR: { x: 57.4, y: 56.4, bend: 1 },
 });
 
-const BLR_MID = p(TALL, {
+const BLR_MID = p(FACING, {
   handL: { x: 35.5, y: 46.5, bend: -1 },
   handR: { x: 64.5, y: 47.2, bend: 1 },
 });
 
-const BLR_TOP = p(TALL, {
+const BLR_TOP = p(FACING, {
   handL: { x: 30.2, y: 37.0, bend: -1 },
   handR: { x: 69.8, y: 38.0, bend: 1 },
 });
 
-const BLR_HOLD = p(TALL, {
+const BLR_HOLD = p(FACING, {
   handL: { x: 30.6, y: 37.6, bend: -1 },
   handR: { x: 69.4, y: 38.6, bend: 1 },
 });
@@ -174,10 +194,10 @@ const band_lateral_raise = clip({
    BELOW its own elbow — the body never sways, and the eccentric is the long
    half of the clip. */
 
-const DLR_DOWN = p(TALL, {
+const DLR_DOWN = p(FACING, {
   load: 'dumbbell',
-  handL: { x: 48.6, y: 56.9, bend: -1 },
-  handR: { x: 51.4, y: 56.9, bend: 1 },
+  handL: { x: 42.4, y: 57.2, bend: -1 },
+  handR: { x: 57.6, y: 57.2, bend: 1 },
 });
 
 const DLR_MID = p(DLR_DOWN, {
@@ -250,7 +270,7 @@ const db_scaption_raise = clip({
    what travels is the ELBOWS, which flare out past the shoulders and finish
    above the wrists. The bar stops at the chest, not the chin. */
 
-const UPR_DOWN = p(TALL, {
+const UPR_DOWN = p(FACING, {
   load: 'barbell',
   handL: { x: 48.2, y: 56.5, bend: -1 },
   handR: { x: 51.8, y: 56.5, bend: 1 },

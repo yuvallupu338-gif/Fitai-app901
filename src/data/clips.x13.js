@@ -316,9 +316,24 @@ const PRONE_W_UP = p(PRONE_W_DOWN, {
 
 /* Bodyweight lateral raise: the arms sweep out and up with nothing in the
    hands, so the tempo is slow and the top is held. Drawing it with a dumbbell
-   would be drawing the exercise the user does not have the kit for. */
-const BWLAT_DOWN = p(STAND, { armL: [-80, -84], armR: [-100, -96] });
-const BWLAT_UP = p(STAND, { armL: [-6, -2], armR: [-14, -10] });
+   would be drawing the exercise the user does not have the kit for.
+ *
+ * Drawn FACING the viewer. Side-on, this arc is identical to a front raise —
+ * the two exercises differ only in the plane the profile camera collapses — and
+ * this is the single most-shown frontal-plane movement in the whole app. */
+const BWLAT_FACE = {
+  x: 50, y: 57, spine: 90, head: 90, spread: 13,
+  footPtL: { x: 44.6, y: 87.5, bend: 1 }, footPtR: { x: 55.4, y: 87.5, bend: 1 },
+  footL: 172, footR: 8,
+};
+/* The far arm is written above +180 rather than below -90 — 256 instead of the
+   equivalent -104. Interpolation is linear on the raw numbers, so from a top of
+   176 the negative form sweeps -280 degrees down through the FRONT of the body
+   while the near arm travels a clean -80 down its side, and the two arms of a
+   symmetrical exercise come apart. */
+const BWLAT_DOWN = p(BWLAT_FACE, { armL: [256, 260], armR: [-76, -80] });
+const BWLAT_MID = p(BWLAT_FACE, { armL: [220, 216], armR: [-40, -36] });
+const BWLAT_UP = p(BWLAT_FACE, { armL: [176, 178], armR: [4, 2] });
 
 /* March in place: one knee at a time, slow, foot returning flat to the floor.
    High knees is the same shape run three times faster with both feet leaving
@@ -480,8 +495,9 @@ export const X13_CLIPS = {
   bw_lateral_raise: clip({
     id: 'bw_lateral_raise', duration: 3600,
     keys: [
-      { t: 0, pose: BWLAT_DOWN }, { t: 0.4, pose: BWLAT_UP },
-      { t: 0.62, pose: BWLAT_UP }, { t: 1, pose: BWLAT_DOWN },
+      { t: 0, pose: BWLAT_DOWN }, { t: 0.22, pose: BWLAT_MID },
+      { t: 0.4, pose: BWLAT_UP }, { t: 0.62, pose: BWLAT_UP },
+      { t: 1, pose: BWLAT_DOWN },
     ],
   }),
 
