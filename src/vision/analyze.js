@@ -16,7 +16,7 @@
  * inside the ceilings volume.js already enforces.
  */
 
-import { callTool, imageBlock, dataUrlBytes, VisionError, loadModel } from './client.js';
+import { callTool, imageBlock, dataUrlBytes, AiError, choiceFor } from '../ai/client.js';
 import { SYSTEM, TOOL, PATTERNS, buildMessage } from './prompt.js';
 
 const PATTERN_SET = new Set(PATTERNS);
@@ -175,24 +175,35 @@ export async function analyze(profile, opts) {
   const p = profile || {};
   const o = opts || {};
 
-  const now = imageBlock(p.photoNow);
-  const target = imageBlock(p.photoTarget);
+  // The image block is provider-shaped, so the provider has to be resolved
+  // before the photos can even be packed.
+  const chosen = choiceFor('vision');
+  const provider = chosen.provider;
+  if (!provider || !provider.vision) {
+    throw new AiError('no_vision',
+      'לא נבחר מודל ראייה. הסריקה קוראת תמונות ודורשת ספק שמקבל אותן.');
+  }
+
+  const now = imageBlock(p.photoNow, provider);
+  const target = imageBlock(p.photoTarget, provider);
   if (!now || !target) {
-    throw new VisionError('missing_photos',
+    throw new AiError('missing_photos',
       'צריך שתי תמונות — אחת שלך היום ואחת של הגוף שאתה מכוון אליו.');
   }
 
   const bytes = dataUrlBytes(p.photoNow) + dataUrlBytes(p.photoTarget);
   if (bytes > MAX_IMAGE_BYTES) {
-    throw new VisionError('too_big', 'התמונות כבדות מדי. בחר תמונות קטנות יותר.');
+    throw new AiError('too_big', 'התמונות כבדות מדי. בחר תמונות קטנות יותר.');
   }
 
-  const model = o.model || loadModel();
+  const model = o.model || chosen.model;
   const input = await callTool({
+    job: 'vision',
     system: SYSTEM,
     messages: buildMessage(p, now, target),
-    tool: TOOL,
+    tool: { name: TOOL.name, description: TOOL.description, schema: TOOL.input_schema },
     maxTokens: 2500,
+    provider: provider.id,
     model,
     signal: o.signal,
   });
@@ -200,4 +211,6 @@ export async function analyze(profile, opts) {
   return normalizeRead(input, { model, at: new Date().toISOString() });
 }
 
-export { VisionError };
+export { AiError };
+/* Kept as an alias: scan.js and the audits have always caught VisionError. */
+export { AiError as VisionError };

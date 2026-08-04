@@ -6,6 +6,7 @@
 import { h, clear, announce, shrinkImage } from '../core/dom.js';
 import { STEPS, defaults, validateStep, normalizeProfile, summarize } from '../intake/schema.js';
 import { renderScan } from './scan.js';
+import { renderQuickstart } from './quickstart.js';
 import * as store from '../core/store.js';
 
 const DAY_LETTERS = ['א', 'ב', 'ג', 'ד', 'ה', 'ו', 'ש'];
@@ -18,6 +19,8 @@ export function renderWizard(root, onDone) {
   let profile = st.profile ? Object.assign(defaults(), st.profile) : defaults();
   let step = Math.min(st.step || 0, REVIEW_STEP);
   let errors = {};
+  // Survives redraws so the quickstart report is not lost the moment it lands.
+  const quickstart = {};
 
   function persist() {
     store.set({ profile, step, stage: 'intake' });
@@ -99,12 +102,26 @@ export function renderWizard(root, onDone) {
 
   function stepView(stepDef, idx) {
     const visible = stepDef.fields.filter((f) => !f.showIf || f.showIf(profile));
-    return h('section',
+    const section = h('section',
       h('div.stepmeta', `שלב ${idx + 1} מתוך ${REVIEW_STEP + 1}`),
       h('h2', stepDef.title),
       stepDef.subtitle ? h('p.sub', { style: { marginBottom: '26px' } }, stepDef.subtitle) : h('div', { style: { height: '20px' } }),
-      visible.map((f) => field(f)),
     );
+    // The free-text shortcut only makes sense on the first step, where nothing
+    // has been answered yet — offering it later would ask the user to describe
+    // themselves again to overwrite work they have already done.
+    if (idx === 0) {
+      renderQuickstart(section, {
+        state: quickstart,
+        onFill: (patch) => {
+          Object.assign(profile, patch);
+          persist();
+          draw();
+        },
+      });
+    }
+    for (const f of visible) section.appendChild(field(f));
+    return section;
   }
 
   function field(f) {

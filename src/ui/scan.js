@@ -13,69 +13,13 @@
 
 import { h, clear, announce, shrinkImage } from '../core/dom.js';
 import { analyze, VisionError } from '../vision/analyze.js';
-import {
-  loadKey, saveKey, hasKey, keyLooksValid, loadModel, saveModel, MODELS,
-} from '../vision/client.js';
+import { hasKey, keyLooksValid, loadKey, choiceFor } from '../ai/client.js';
+import { settingsRows } from './aisettings.js';
 import {
   emphasisFrom, emphasisSummary, bandHe, confidenceHe, buildHe, trainingAgeHe,
   patternHe, timelineGap, goalConflict,
 } from '../vision/apply.js';
 
-/* ------------------------------------------------------------------ *
- * Key row
- * ------------------------------------------------------------------ */
-
-function keyRow(onChange) {
-  const input = h('input', {
-    type: 'password', value: loadKey(), placeholder: 'sk-ant-…',
-    autocomplete: 'off', spellcheck: 'false', dir: 'ltr',
-    'aria-label': 'מפתח API של Anthropic',
-    oninput: (e) => { saveKey(e.target.value); onChange(); },
-  });
-
-  const reveal = h('button.fbtn', {
-    type: 'button', 'aria-pressed': 'false',
-    title: 'הצג או הסתר את המפתח',
-    onclick: (e) => {
-      const shown = input.type === 'text';
-      input.type = shown ? 'password' : 'text';
-      e.currentTarget.setAttribute('aria-pressed', shown ? 'false' : 'true');
-      e.currentTarget.textContent = shown ? 'הצג' : 'הסתר';
-    },
-  }, 'הצג');
-
-  return h('div.field',
-    h('label', 'מפתח API'),
-    h('div.keyrow', input, reveal),
-    h('p.help',
-      'הסריקה רצה מול Anthropic ודורשת מפתח משלך מ־console.anthropic.com. '
-      + 'המפתח נשמר במכשיר שלך בלבד, לא נכלל בייצוא הנתונים, ונשלח רק לכתובת אחת — api.anthropic.com. '
-      + 'שאר האפליקציה עובדת גם בלעדיו.'),
-  );
-}
-
-function modelRow() {
-  const current = loadModel();
-  return h('div.field',
-    h('label', 'עומק הקריאה'),
-    h('div.opts.two', MODELS.map((m) => h('button.opt' + (m.value === current ? '.on' : ''), {
-      type: 'button', 'aria-pressed': m.value === current ? 'true' : 'false',
-      onclick: (e) => {
-        saveModel(m.value);
-        const box = e.currentTarget.parentNode;
-        for (const b of box.children) {
-          const on = b === e.currentTarget;
-          b.classList.toggle('on', on);
-          b.setAttribute('aria-pressed', on ? 'true' : 'false');
-          const tick = b.querySelector('.tick');
-          if (tick) tick.textContent = on ? '✓' : '';
-        }
-      },
-    },
-    h('span.tick', m.value === current ? '✓' : ''),
-    h('span.otext', h('span.otitle', m.label), h('span.odesc', m.desc))))),
-  );
-}
 
 /* ------------------------------------------------------------------ *
  * Result rendering
@@ -233,30 +177,34 @@ export function renderScan(host, profile, opts) {
     clear(body);
 
     const ready = !!profile.photoNow && !!profile.photoTarget;
-    const keyed = hasKey();
+    const { provider, model } = choiceFor('vision');
+    const keyed = hasKey(provider.id);
 
     if (!o.compact) {
       body.appendChild(h('div.scanintro',
         h('h4', 'מה קורה כשאתה לוחץ'),
         h('ul',
-          h('li', 'שתי התמונות נשלחות ל־Anthropic, יחד עם הגיל, הגובה, המשקל, הוותק, המטרה והתאריך שנתת.'),
+          h('li', `שתי התמונות נשלחות ל־${provider.label}, יחד עם הגיל, הגובה, המשקל, הוותק, המטרה והתאריך שנתת.`),
           h('li', 'לא נשלחים: השם שלך, המצב הרפואי, האלרגיות והמפתח לא נשמר אצל אף אחד חוץ ממך.'),
           h('li', 'התשובה חוזרת אליך בלבד ונשמרת במכשיר. שום שרת של האפליקציה הזאת לא רואה אותה — אין כזה.'),
           h('li', 'אפשר לדלג. בלי סריקה התוכנית נבנית מהתשובות בשאלון, כמו תמיד.'),
         )));
     }
 
-    body.appendChild(keyRow(() => {
-      // Redrawing on every keystroke would steal focus from the field, so only
-      // the button's enabled state is refreshed while typing.
-      const btn = body.querySelector('.scanrun');
-      if (btn) btn.disabled = running || !ready || !keyLooksValid(loadKey());
-    }));
-    body.appendChild(modelRow());
+    for (const row of settingsRows('vision', { provider, model }, {
+      modelLabel: 'עומק הקריאה',
+      onRedraw: draw,
+      onKeyInput: () => {
+        // Redrawing on every keystroke would steal focus from the field, so only
+        // the button's enabled state is refreshed while typing.
+        const btn = body.querySelector('.scanrun');
+        if (btn) btn.disabled = running || !ready || !keyLooksValid(loadKey(provider.id));
+      },
+    })) body.appendChild(row);
 
     const run = h('button.btn.primary.scanrun', {
       type: 'button',
-      disabled: running || !ready || !keyLooksValid(loadKey()),
+      disabled: running || !ready || !keyLooksValid(loadKey(provider.id)),
       onclick: () => start(),
     }, h('span.ico', '◉'), running ? 'סורק…' : 'סרוק את שתי התמונות');
 

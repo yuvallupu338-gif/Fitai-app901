@@ -557,3 +557,22 @@ input::placeholder, textarea::placeholder { color: var(--dimmer); }
   background: var(--steel); transition: border-color var(--fast), color var(--fast);
 }
 .photodrop:hover { border-color: var(--amber); color: var(--amber); }
+
+/* ---------------- free-text intake ---------------- */
+.quickstart { margin-bottom: 26px; }
+.qsteaser {
+  display: flex; gap: 12px; align-items: center; flex-wrap: wrap;
+  border: 1px solid var(--cyan-deep); border-radius: var(--r);
+  background: rgba(86, 217, 206, .05); padding: 14px 16px;
+}
+.qsteaser .qstext { flex: 1 1 220px; min-width: 0; }
+.qsteaser h4 { font-size: 15px; color: var(--cyan); margin-bottom: 4px; }
+.qsteaser p { font-size: 13px; color: var(--dim); line-height: 1.55; }
+.qspanel {
+  border: 1px solid var(--line); border-radius: var(--r);
+  background: var(--steel); padding: 14px 16px; margin-bottom: 18px;
+}
+.qshead { display: flex; align-items: baseline; justify-content: space-between; gap: 10px; }
+.qshead h4 { font-size: 15px; color: var(--chalk); }
+.qspanel .help { margin: 6px 0 10px; }
+.qspanel textarea { min-height: 108px; }

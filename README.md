@@ -49,7 +49,19 @@ says so. Verified across a 1500-profile sweep: no session repeats an exercise,
 none comes out under four movements, and the same answers always produce the
 same plan.
 
-**Photo scan** — the one part of the app that opens a network connection. Give
+**Free-text intake** — nine steps is the main reason someone opens this app and
+does not finish, and most people can describe their situation in four sentences.
+Type a paragraph and a text model fills in what you actually said: age, where
+you train, what equipment you named, what hurts, how many sessions you will
+really do. What it could not extract stays at its default and is listed by name,
+so nothing is silently assumed.
+
+It fills the form and then gets out of the way — it does not submit, does not
+skip a step, and shows every field it wrote. You walk the same nine steps
+afterwards with most of them already answered, which is where a wrong reading
+gets caught.
+
+**Photo scan** — the other part of the app that opens a network connection. Give
 it two pictures, you today and the physique you are aiming at, and a vision
 model reads the gap: how reasonable that aim is in the time you gave it (the app
 shows this as a score out of ten), what is already built and what is not, and
@@ -64,9 +76,27 @@ built for a bare floor. Every field coming back is re-checked against closed
 enums before it is used; `node tools/vision-audit.mjs` drives that with hostile
 responses and asserts the engine's rules hold.
 
-It needs your own Anthropic API key, which is held under its own storage key so
-exporting a profile never carries it, and goes to exactly one host. Skipping the
-scan costs nothing — the plan is built from the questionnaire either way.
+**Providers** — `src/ai/providers.js` describes each vendor and the shape it
+wants its request in; they differ in more than a hostname. Anthropic takes the
+system prompt as a top-level field and returns a tool call as a parsed object.
+The OpenAI-compatible ones — DeepSeek among them — take system as the first
+message and return the tool arguments as a JSON *string*, which means a
+perfectly good HTTP 200 can still carry unparseable content.
+
+Vision is a capability, not a preference. The photo scan reads two photographs,
+and a text-only model cannot do that — not slowly, not badly, not at all — so
+text-only providers are excluded from that job by the code rather than offered
+with a warning someone can click past. They serve the text jobs instead.
+
+Keys are per vendor, each under its own storage key, so exporting a profile
+never carries one and adding a second vendor never overwrites the first. Each
+key goes to exactly one host. Skipping all of it costs nothing — the plan is
+built from the questionnaire either way.
+
+A caveat worth knowing before you pick: Anthropic documents calling its API
+straight from a browser. Most others do not, and a browser may refuse the
+request before it leaves the machine. There is no server here to proxy through,
+so if that happens the app says so rather than pretending the key is wrong.
 
 **Animation** — every exercise animates. The figures are not images or video:
 `src/core/rig.js` is a humanoid skeleton with two-link inverse kinematics, each
@@ -113,10 +143,12 @@ each slot says whether to alternate sets or take full rest, and who spots.
 target date and says plainly when the ask is not achievable, along with the
 version that is.
 
-Everything is stored in `localStorage` on the device. Nothing is sent anywhere
-except the two photos and the basic numbers, and only when you press the scan
-button yourself — no name, no medical notes, no allergies, and never in the
-background.
+Everything is stored in `localStorage` on the device. Two things leave it, both
+only when you press a button yourself: the paragraph you typed, if you use the
+free-text intake, and the two photos plus the basic numbers, if you run the
+scan. The scan deliberately does not send your name, medical notes or
+allergies — they do not help read a photograph. Nothing is sent in the
+background, and there is no server of ours in the path.
 
 ## Layout
 
@@ -127,13 +159,15 @@ src/
   data/      exercise database and animation clips, plus their registries
   engine/    volume, generator, progression, targets, nutrition
   intake/    question schema and validation
-  vision/    photo-scan client, prompt, response normaliser, plan translation
-  ui/        wizard, plan, exercise cards, nutrition, guide, progress, scan
+  ai/        provider table, the network client, and the free-text intake reader
+  vision/    photo-scan prompt, response normaliser, plan translation
+  ui/        wizard, quickstart, plan, exercise cards, nutrition, guide, scan
   styles/    design tokens and components
 tools/
   validate.js       cross-checks the data and engine layers
   clip-audit.mjs    geometry, loops and distinctiveness of the animations
   vision-audit.mjs  proves a photo scan cannot break the engine's rules
+  ai-audit.mjs      provider request shapes, and that a filled form stays legal
   smoke.mjs         drives the real app in Chromium
   build-single.js   bundles everything into dist/fitai.html
   fetch-fonts.js    regenerates the embedded font subsets
@@ -147,6 +181,7 @@ docs/
 node tools/validate.js                                  # data + engine contracts
 node tools/clip-audit.mjs                               # animation quality
 node tools/vision-audit.mjs                             # photo-scan containment
+node tools/ai-audit.mjs                                 # providers + intake containment
 node tools/build-single.js                              # single-file bundle
 NODE_PATH=/opt/node22/lib/node_modules node tools/smoke.mjs --shots
 ```
@@ -170,6 +205,12 @@ fifteen clips.
 and injection attempts, then asserts that the most aggressive read the schema
 allows still cannot add equipment, undo an injury filter, change the training
 track or push weekly volume past its ceiling.
+
+`ai-audit.mjs` covers the second vendor: that each request is built in its own
+vendor's shape, that malformed tool arguments are caught rather than read as an
+empty answer, that a text-only provider can never be selected into a job that
+needs eyes, and that a hostile intake patch still yields a program with no
+equipment the user lacks and nothing contraindicated for a declared injury.
 
 `smoke.mjs` walks the intake wizard in a real browser, then checks that the plan
 renders, that the rig draws finite on-canvas geometry, that the figures actually

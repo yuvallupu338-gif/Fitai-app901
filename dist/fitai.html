@@ -798,6 +798,25 @@ input::placeholder, textarea::placeholder { color: var(--dimmer); }
 }
 .photodrop:hover { border-color: var(--amber); color: var(--amber); }
 
+/* ---------------- free-text intake ---------------- */
+.quickstart { margin-bottom: 26px; }
+.qsteaser {
+  display: flex; gap: 12px; align-items: center; flex-wrap: wrap;
+  border: 1px solid var(--cyan-deep); border-radius: var(--r);
+  background: rgba(86, 217, 206, .05); padding: 14px 16px;
+}
+.qsteaser .qstext { flex: 1 1 220px; min-width: 0; }
+.qsteaser h4 { font-size: 15px; color: var(--cyan); margin-bottom: 4px; }
+.qsteaser p { font-size: 13px; color: var(--dim); line-height: 1.55; }
+.qspanel {
+  border: 1px solid var(--line); border-radius: var(--r);
+  background: var(--steel); padding: 14px 16px; margin-bottom: 18px;
+}
+.qshead { display: flex; align-items: baseline; justify-content: space-between; gap: 10px; }
+.qshead h4 { font-size: 15px; color: var(--chalk); }
+.qspanel .help { margin: 6px 0 10px; }
+.qspanel textarea { min-height: 108px; }
+
 </style>
 </head>
 <body>
@@ -13512,69 +13531,242 @@ function formatHeDate(d) {
   };
 })();
 
-__m["src/vision/client.js"] = (function () {
+__m["src/ai/providers.js"] = (function () {
 /*
- * client.js — the only module in this app that opens a network connection.
+ * providers.js — the model vendors this app can talk to, and the shape each one
+ * wants its request in.
  *
- * Everything else runs on the device. This one calls the Anthropic Messages API
- * directly from the browser, which needs three things the server side would not:
+ * Two vendors so far, and they differ in more than a hostname: Anthropic takes
+ * the system prompt as a top-level field and returns a tool call as a content
+ * block with a parsed object; the OpenAI-compatible ones take system as the
+ * first message and return the tool arguments as a JSON *string* that has to be
+ * parsed and can therefore be malformed. Both shapes live here so the rest of
+ * the app can ask for "a structured answer" without knowing which.
  *
- *   1. the anthropic-dangerous-direct-browser-access header, without which the
- *      API refuses the request outright;
- *   2. the user's own key, held in localStorage under a key of its own so that
- *      exporting the profile never carries it along;
- *   3. an error path for every way a fetch from a browser can fail, because a
- *      thrown TypeError with no message is what CORS and an offline machine both
- *      look like from here, and "לא הצלחתי" helps nobody.
+ * VISION IS A CAPABILITY, NOT A PREFERENCE.
  *
- * The key belongs to the user and goes nowhere except api.anthropic.com.
+ * The photo scan reads two photographs. A text-only model cannot do it — not
+ * slowly, not badly, not at all — so `vision: false` providers are excluded
+ * from that job by the code rather than by a warning someone can click past.
+ * They are perfectly good at the text jobs, and get those instead.
  */
 
-const ENDPOINT = 'https://api.anthropic.com/v1/messages';
-const API_VERSION = '2023-06-01';
-const KEY_STORAGE = 'fitai.key.v1';
-const MODEL_STORAGE = 'fitai.model.v1';
+/* ------------------------------------------------------------------ *
+ * Request builders
+ * ------------------------------------------------------------------ */
 
-const MODELS = [
+function anthropicHeaders(key) {
+  return {
+    'content-type': 'application/json',
+    'x-api-key': key,
+    'anthropic-version': '2023-06-01',
+    // Without this the API rejects any request whose Origin is a browser.
+    'anthropic-dangerous-direct-browser-access': 'true',
+  };
+}
+
+function anthropicBody(req) {
+  return {
+    model: req.model,
+    max_tokens: req.maxTokens,
+    system: req.system,
+    messages: req.messages,
+    tools: [{
+      name: req.tool.name,
+      description: req.tool.description,
+      input_schema: req.tool.schema,
+    }],
+    tool_choice: { type: 'tool', name: req.tool.name },
+  };
+}
+
+function anthropicExtract(data, toolName) {
+  const block = (data.content || []).find((c) => c && c.type === 'tool_use' && c.name === toolName);
+  if (block && block.input && typeof block.input === 'object') return { ok: true, input: block.input };
+  return { ok: false, stop: data.stop_reason };
+}
+
+function bearerHeaders(key) {
+  return { 'content-type': 'application/json', authorization: `Bearer ${key}` };
+}
+
+function openaiBody(req) {
+  // system is a message here, not a field.
+  const messages = req.system
+    ? [{ role: 'system', content: req.system }].concat(req.messages)
+    : req.messages.slice();
+  return {
+    model: req.model,
+    max_tokens: req.maxTokens,
+    messages,
+    tools: [{
+      type: 'function',
+      function: {
+        name: req.tool.name,
+        description: req.tool.description,
+        parameters: req.tool.schema,
+      },
+    }],
+    tool_choice: { type: 'function', function: { name: req.tool.name } },
+  };
+}
+
+function openaiExtract(data, toolName) {
+  const msg = ((data.choices || [])[0] || {}).message || {};
+  const call = (msg.tool_calls || []).find((c) => c && c.function && c.function.name === toolName);
+  if (!call) return { ok: false, stop: ((data.choices || [])[0] || {}).finish_reason };
+  try {
+    // The arguments arrive as a STRING, so this is the one place a well-formed
+    // HTTP 200 can still carry unparseable content.
+    const input = JSON.parse(call.function.arguments);
+    if (input && typeof input === 'object') return { ok: true, input };
+  } catch (e) { /* fall through to the same "no usable tool call" path */ }
+  return { ok: false, stop: 'bad_arguments' };
+}
+
+/* ------------------------------------------------------------------ *
+ * The table
+ * ------------------------------------------------------------------ */
+
+const PROVIDERS = [
   {
-    value: 'claude-sonnet-5',
-    label: 'מהיר',
-    desc: 'קריאה טובה של שתי התמונות בכמה שניות. ברירת המחדל.',
+    id: 'anthropic',
+    label: 'Anthropic',
+    endpoint: 'https://api.anthropic.com/v1/messages',
+    consoleHost: 'console.anthropic.com',
+    keyHint: 'sk-ant-…',
+    vision: true,
+    // Anthropic documents and supports calls straight from a browser.
+    browserOk: true,
+    headers: anthropicHeaders,
+    body: anthropicBody,
+    extract: anthropicExtract,
+    image: (mediaType, data) => ({
+      type: 'image',
+      source: { type: 'base64', media_type: mediaType, data },
+    }),
+    models: [
+      {
+        value: 'claude-sonnet-5', label: 'מהיר', vision: true,
+        desc: 'קריאה טובה של שתי התמונות בכמה שניות. ברירת המחדל.',
+      },
+      {
+        value: 'claude-opus-5', label: 'מעמיק', vision: true,
+        desc: 'איטי ויקר יותר, מדייק יותר כשהתמונה קשה או שהיעד גבולי.',
+      },
+    ],
   },
   {
-    value: 'claude-opus-5',
-    label: 'מעמיק',
-    desc: 'איטי ויקר יותר, מדייק יותר כשהתמונה קשה או שהיעד גבולי.',
+    id: 'deepseek',
+    label: 'DeepSeek',
+    endpoint: 'https://api.deepseek.com/chat/completions',
+    consoleHost: 'platform.deepseek.com',
+    keyHint: 'sk-…',
+    // Text only. Both hosted models take text in and text out; there is no
+    // image content type to send them, so the scan never offers this provider.
+    vision: false,
+    // Not documented as browser-callable. The request may be refused by the
+    // browser before it leaves the machine, and the error path says so.
+    browserOk: false,
+    headers: bearerHeaders,
+    body: openaiBody,
+    extract: openaiExtract,
+    image: null,
+    models: [
+      {
+        value: 'deepseek-v4-flash', label: 'מהיר', vision: false,
+        desc: 'זול ומהיר. מתאים לניסוח ולהבנת טקסט חופשי.',
+      },
+      {
+        value: 'deepseek-v4-pro', label: 'מעמיק', vision: false,
+        desc: 'איטי ויקר יותר, מדייק יותר בטקסט מורכב.',
+      },
+    ],
   },
 ];
 
-const MODEL_VALUES = MODELS.map((m) => m.value);
+const BY_ID = new Map(PROVIDERS.map((p) => [p.id, p]));
+
+function providerById(id) {
+  return BY_ID.get(id) || null;
+}
+
+/** Providers able to do a given job. `vision` jobs exclude the text-only ones. */
+function providersFor(job) {
+  return job === 'vision' ? PROVIDERS.filter((p) => p.vision) : PROVIDERS.slice();
+}
+
+/** The models of one provider that can do the job. */
+function modelsFor(provider, job) {
+  if (!provider) return [];
+  return job === 'vision' ? provider.models.filter((m) => m.vision) : provider.models.slice();
+}
+
+function defaultProviderFor(job) {
+  const list = providersFor(job);
+  return list.length ? list[0] : null;
+}
+
+  return {
+    "PROVIDERS": PROVIDERS,
+    "providerById": providerById,
+    "providersFor": providersFor,
+    "modelsFor": modelsFor,
+    "defaultProviderFor": defaultProviderFor,
+  };
+})();
+
+__m["src/ai/client.js"] = (function () {
+/*
+ * client.js — the only module in this app that opens a network connection.
+ *
+ * Everything else runs on the device. This one asks a model for a STRUCTURED
+ * answer — never free prose — and hands back the object it produced. Which
+ * vendor answers is a setting; the shape of the question and the shape of the
+ * reply are not.
+ *
+ * Keys are stored per vendor, under their own storage keys, so exporting a
+ * profile never carries one along and adding a second vendor never overwrites
+ * the first one's key. Each key goes to exactly one host: the endpoint of the
+ * provider it belongs to.
+ *
+ * Jobs, not models, are what the app asks for. 'vision' means the request
+ * carries photographs and only a vision-capable provider can serve it; 'text'
+ * means it does not. The distinction is enforced here rather than in the UI,
+ * because a text-only model pointed at the photo scan does not degrade — it
+ * fails, and it fails after the user has already uploaded their pictures.
+ */
+
+const { PROVIDERS, providerById, providersFor, modelsFor, defaultProviderFor } = __m["src/ai/providers.js"];
+
+const KEY_PREFIX = 'fitai.key.';
+const CHOICE_PREFIX = 'fitai.ai.';
 
 /* ------------------------------------------------------------------ *
- * The key
+ * Keys
  * ------------------------------------------------------------------ */
 
-function loadKey() {
+function loadKey(providerId) {
   try {
-    return window.localStorage.getItem(KEY_STORAGE) || '';
+    return window.localStorage.getItem(KEY_PREFIX + providerId) || '';
   } catch (e) {
     return '';
   }
 }
 
-function saveKey(key) {
+function saveKey(providerId, key) {
   const clean = String(key || '').trim();
   try {
-    if (clean) window.localStorage.setItem(KEY_STORAGE, clean);
-    else window.localStorage.removeItem(KEY_STORAGE);
+    if (clean) window.localStorage.setItem(KEY_PREFIX + providerId, clean);
+    else window.localStorage.removeItem(KEY_PREFIX + providerId);
     return true;
   } catch (e) {
     return false;
   }
 }
 
-function hasKey() {
-  return !!loadKey();
+function hasKey(providerId) {
+  return !!loadKey(providerId);
 }
 
 /** A key is a long opaque string; catching the obvious paste error is worth it. */
@@ -13583,19 +13775,47 @@ function keyLooksValid(key) {
   return k.length >= 20 && !/\s/.test(k);
 }
 
-function loadModel() {
+/* ------------------------------------------------------------------ *
+ * Which provider and model serve which job
+ * ------------------------------------------------------------------ */
+
+/**
+ * Returns { provider, model } for a job, falling back to the first provider
+ * that can actually do it. A stored choice that has become invalid — a text-only
+ * provider saved against the vision job, a model removed from the table — is
+ * discarded rather than trusted.
+ */
+function choiceFor(job) {
+  let stored = null;
   try {
-    const m = window.localStorage.getItem(MODEL_STORAGE);
-    return MODEL_VALUES.indexOf(m) >= 0 ? m : MODEL_VALUES[0];
-  } catch (e) {
-    return MODEL_VALUES[0];
-  }
+    stored = JSON.parse(window.localStorage.getItem(CHOICE_PREFIX + job) || 'null');
+  } catch (e) { /* a corrupt choice is the same as no choice */ }
+
+  const allowed = providersFor(job);
+  let provider = stored && allowed.some((p) => p.id === stored.provider)
+    ? providerById(stored.provider)
+    : defaultProviderFor(job);
+  if (!provider) provider = defaultProviderFor(job);
+
+  const models = modelsFor(provider, job);
+  const model = stored && models.some((m) => m.value === stored.model)
+    ? stored.model
+    : (models[0] && models[0].value) || '';
+
+  return { provider, model };
 }
 
-function saveModel(model) {
+function saveChoice(job, providerId, model) {
+  const allowed = providersFor(job);
+  if (!allowed.some((p) => p.id === providerId)) return false;
+  const provider = providerById(providerId);
+  if (!modelsFor(provider, job).some((m) => m.value === model)) return false;
   try {
-    if (MODEL_VALUES.indexOf(model) >= 0) window.localStorage.setItem(MODEL_STORAGE, model);
-  } catch (e) { /* the default still works */ }
+    window.localStorage.setItem(CHOICE_PREFIX + job, JSON.stringify({ provider: providerId, model }));
+    return true;
+  } catch (e) {
+    return false;
+  }
 }
 
 /* ------------------------------------------------------------------ *
@@ -13606,7 +13826,7 @@ function saveModel(model) {
  * An error carrying a Hebrew sentence the UI can show as-is, plus a `kind` the
  * caller can branch on. Everything thrown from this module is one of these.
  */
-class VisionError extends Error {
+class AiError extends Error {
   constructor(kind, he, detail) {
     super(he);
     this.kind = kind;
@@ -13616,13 +13836,16 @@ class VisionError extends Error {
 }
 
 const STATUS_HE = {
-  400: 'הבקשה נדחתה. לרוב זה אומר שהתמונה גדולה או פגומה — נסה תמונה אחרת.',
+  400: 'הבקשה נדחתה. לרוב זה אומר שהתמונה גדולה או פגומה, או שהמודל לא תומך במה שנשלח.',
   401: 'המפתח לא התקבל. בדוק שהעתקת אותו במלואו, ושהוא עדיין פעיל בחשבון שלך.',
-  403: 'למפתח הזה אין הרשאה למודל שנבחר. נסה את המסלול המהיר, או בדוק את החשבון.',
-  404: 'המודל שנבחר לא נמצא בחשבון שלך. נסה את המסלול השני.',
-  413: 'התמונות כבדות מדי לשליחה. בחר תמונות קטנות יותר.',
+  402: 'אין יתרה בחשבון של הספק. טען אותו ונסה שוב.',
+  403: 'למפתח הזה אין הרשאה למודל שנבחר.',
+  404: 'המודל שנבחר לא נמצא בחשבון שלך. נסה מודל אחר.',
+  413: 'הבקשה כבדה מדי לשליחה. בחר תמונות קטנות יותר.',
+  422: 'הספק דחה את מבנה הבקשה. נסה מודל אחר.',
   429: 'חרגת ממכסת הבקשות. חכה דקה ונסה שוב.',
   500: 'תקלה בצד של השרת. נסה שוב עוד רגע.',
+  503: 'השירות לא זמין כרגע. נסה שוב עוד דקה.',
   529: 'השרת עמוס כרגע. נסה שוב עוד דקה.',
 };
 
@@ -13633,80 +13856,90 @@ const STATUS_HE = {
 /**
  * Sends one structured request and returns the tool input the model produced.
  *
- * @param {Object} req  { system, messages, tool, maxTokens, model, signal }
- * @returns {Promise<Object>} the validated-by-the-API tool input object
+ * @param {Object} req  { job, system, messages, tool: {name, description, schema},
+ *                        maxTokens, provider, model, signal }
+ * @returns {Promise<Object>} the tool input object, unvalidated by this app
  */
 async function callTool(req) {
-  const key = loadKey();
-  if (!key) {
-    throw new VisionError('no_key', 'אין מפתח API. הזן מפתח כדי להפעיל את הסריקה.');
+  const job = req.job || 'text';
+  const chosen = choiceFor(job);
+  const provider = req.provider ? providerById(req.provider) : chosen.provider;
+  const model = req.model || chosen.model;
+
+  if (!provider) {
+    throw new AiError('no_provider', 'אין ספק מודל שמתאים למשימה הזאת.');
+  }
+  if (job === 'vision' && !provider.vision) {
+    // Reachable only from a bug or a hand-edited setting; the UI never offers
+    // a text-only provider for this job.
+    throw new AiError('no_vision',
+      `${provider.label} הוא מודל טקסט בלבד ולא מקבל תמונות. בחר ספק עם ראייה.`);
   }
 
-  const body = {
-    model: req.model || loadModel(),
-    max_tokens: req.maxTokens || 2000,
-    system: req.system,
-    messages: req.messages,
-    tools: [req.tool],
-    tool_choice: { type: 'tool', name: req.tool.name },
-  };
+  const key = loadKey(provider.id);
+  if (!key) {
+    throw new AiError('no_key', `אין מפתח API ל־${provider.label}. הזן מפתח כדי להפעיל.`);
+  }
 
   let res;
   try {
-    res = await fetch(ENDPOINT, {
+    res = await fetch(provider.endpoint, {
       method: 'POST',
-      headers: {
-        'content-type': 'application/json',
-        'x-api-key': key,
-        'anthropic-version': API_VERSION,
-        // Without this the API rejects any request whose Origin is a browser.
-        'anthropic-dangerous-direct-browser-access': 'true',
-      },
-      body: JSON.stringify(body),
+      headers: provider.headers(key),
+      body: JSON.stringify(provider.body({
+        model,
+        maxTokens: req.maxTokens || 2000,
+        system: req.system,
+        messages: req.messages,
+        tool: req.tool,
+      })),
       signal: req.signal,
     });
   } catch (e) {
-    if (e && e.name === 'AbortError') throw new VisionError('aborted', 'הסריקה בוטלה.');
-    // A browser reports CORS failures, DNS failures and a dead connection with
-    // the same contentless TypeError, so name all three.
-    throw new VisionError('network',
+    if (e && e.name === 'AbortError') throw new AiError('aborted', 'הפעולה בוטלה.');
+    // A browser reports CORS refusals, DNS failures and a dead connection with
+    // the same contentless TypeError, so name all three — and name the one that
+    // is specific to this provider.
+    throw new AiError('network',
       'לא הצלחתי להגיע לשרת. בדוק את החיבור לאינטרנט. '
-      + 'אם פתחת את הקובץ ישירות מהדיסק, חלק מהדפדפנים חוסמים את הבקשה — נסה מדפדפן אחר או משרת מקומי.',
-      String(e && e.message || e));
+      + (provider.browserOk
+        ? 'אם פתחת את הקובץ ישירות מהדיסק, חלק מהדפדפנים חוסמים את הבקשה — נסה מדפדפן אחר או משרת מקומי.'
+        : `${provider.label} לא מצהיר על תמיכה בקריאה ישירה מדפדפן, ולכן ייתכן שהדפדפן חסם את הבקשה `
+          + 'לפני שיצאה. במקרה כזה צריך שרת ביניים, וזה לא משהו שהאפליקציה הזאת מריצה.'),
+      String((e && e.message) || e));
   }
 
   if (!res.ok) {
     let detail = '';
     try {
       const err = await res.json();
-      detail = (err && err.error && err.error.message) || '';
+      detail = (err && ((err.error && err.error.message) || err.message)) || '';
     } catch (e) { /* a non-JSON error body is still an error */ }
-    const he = STATUS_HE[res.status] || `השרת החזיר שגיאה ${res.status}.`;
-    throw new VisionError(`http_${res.status}`, he, detail);
+    throw new AiError(`http_${res.status}`, STATUS_HE[res.status] || `השרת החזיר שגיאה ${res.status}.`, detail);
   }
 
   let data;
   try {
     data = await res.json();
   } catch (e) {
-    throw new VisionError('bad_json', 'התשובה מהשרת לא הייתה קריאה. נסה שוב.');
+    throw new AiError('bad_json', 'התשובה מהשרת לא הייתה קריאה. נסה שוב.');
   }
 
-  const block = (data.content || []).find((c) => c && c.type === 'tool_use' && c.name === req.tool.name);
-  if (!block || !block.input || typeof block.input !== 'object') {
-    // Refusals and max_tokens stops both land here, and they mean different things.
-    const stop = data.stop_reason;
-    if (stop === 'max_tokens') {
-      throw new VisionError('truncated', 'התשובה נקטעה באמצע. נסה שוב.');
+  const got = provider.extract(data, req.tool.name);
+  if (!got.ok) {
+    if (got.stop === 'max_tokens' || got.stop === 'length') {
+      throw new AiError('truncated', 'התשובה נקטעה באמצע. נסה שוב.');
     }
-    if (stop === 'refusal') {
-      throw new VisionError('refused',
-        'המודל סירב לנתח את התמונות האלה. בחר תמונות אחרות — צילום גוף רגיל, לבוש ספורט.');
+    if (got.stop === 'refusal') {
+      throw new AiError('refused',
+        'המודל סירב לענות על הבקשה הזאת. נסה קלט אחר.');
     }
-    throw new VisionError('no_tool', 'המודל לא החזיר תשובה בפורמט שביקשתי. נסה שוב.');
+    if (got.stop === 'bad_arguments') {
+      throw new AiError('bad_tool', 'המודל החזיר תשובה פגומה. נסה שוב.');
+    }
+    throw new AiError('no_tool', 'המודל לא החזיר תשובה בפורמט שביקשתי. נסה שוב, או מודל אחר.');
   }
-
-  return block.input;
+  return got.input;
 }
 
 /* ------------------------------------------------------------------ *
@@ -13716,37 +13949,40 @@ async function callTool(req) {
 const DATA_URL_RE = /^data:image\/(jpeg|jpg|png|webp|gif);base64,([A-Za-z0-9+/=]+)$/;
 
 /**
- * Turns a stored data URL into the API's image block. Returns null for anything
- * that is not one, so a corrupted profile cannot put garbage on the wire.
+ * Turns a stored data URL into the image block the given provider wants.
+ * Returns null for anything that is not one, so a corrupted profile cannot put
+ * garbage on the wire, and null for a provider with no image format at all.
  */
-function imageBlock(dataUrl) {
+function imageBlock(dataUrl, provider) {
   const m = DATA_URL_RE.exec(String(dataUrl || ''));
-  if (!m) return null;
+  if (!m || !provider || !provider.image) return null;
   const type = m[1] === 'jpg' ? 'jpeg' : m[1];
-  return {
-    type: 'image',
-    source: { type: 'base64', media_type: `image/${type}`, data: m[2] },
-  };
+  return provider.image(`image/${type}`, m[2]);
 }
 
 /** Rough byte size of a base64 payload, for the "too big" check before sending. */
 function dataUrlBytes(dataUrl) {
   const m = DATA_URL_RE.exec(String(dataUrl || ''));
-  return m ? Math.floor(m[2].length * 3 / 4) : 0;
+  return m ? Math.floor((m[2].length * 3) / 4) : 0;
 }
 
+
+
   return {
-    "MODELS": MODELS,
     "loadKey": loadKey,
     "saveKey": saveKey,
     "hasKey": hasKey,
     "keyLooksValid": keyLooksValid,
-    "loadModel": loadModel,
-    "saveModel": saveModel,
-    "VisionError": VisionError,
+    "choiceFor": choiceFor,
+    "saveChoice": saveChoice,
+    "AiError": AiError,
     "callTool": callTool,
     "imageBlock": imageBlock,
     "dataUrlBytes": dataUrlBytes,
+    "PROVIDERS": PROVIDERS,
+    "providerById": providerById,
+    "providersFor": providersFor,
+    "modelsFor": modelsFor,
   };
 })();
 
@@ -14119,7 +14355,7 @@ __m["src/vision/analyze.js"] = (function () {
  * inside the ceilings volume.js already enforces.
  */
 
-const { callTool, imageBlock, dataUrlBytes, VisionError, loadModel } = __m["src/vision/client.js"];
+const { callTool, imageBlock, dataUrlBytes, AiError, choiceFor } = __m["src/ai/client.js"];
 const { SYSTEM, TOOL, PATTERNS, buildMessage } = __m["src/vision/prompt.js"];
 
 const PATTERN_SET = new Set(PATTERNS);
@@ -14278,24 +14514,35 @@ async function analyze(profile, opts) {
   const p = profile || {};
   const o = opts || {};
 
-  const now = imageBlock(p.photoNow);
-  const target = imageBlock(p.photoTarget);
+  // The image block is provider-shaped, so the provider has to be resolved
+  // before the photos can even be packed.
+  const chosen = choiceFor('vision');
+  const provider = chosen.provider;
+  if (!provider || !provider.vision) {
+    throw new AiError('no_vision',
+      'לא נבחר מודל ראייה. הסריקה קוראת תמונות ודורשת ספק שמקבל אותן.');
+  }
+
+  const now = imageBlock(p.photoNow, provider);
+  const target = imageBlock(p.photoTarget, provider);
   if (!now || !target) {
-    throw new VisionError('missing_photos',
+    throw new AiError('missing_photos',
       'צריך שתי תמונות — אחת שלך היום ואחת של הגוף שאתה מכוון אליו.');
   }
 
   const bytes = dataUrlBytes(p.photoNow) + dataUrlBytes(p.photoTarget);
   if (bytes > MAX_IMAGE_BYTES) {
-    throw new VisionError('too_big', 'התמונות כבדות מדי. בחר תמונות קטנות יותר.');
+    throw new AiError('too_big', 'התמונות כבדות מדי. בחר תמונות קטנות יותר.');
   }
 
-  const model = o.model || loadModel();
+  const model = o.model || chosen.model;
   const input = await callTool({
+    job: 'vision',
     system: SYSTEM,
     messages: buildMessage(p, now, target),
-    tool: TOOL,
+    tool: { name: TOOL.name, description: TOOL.description, schema: TOOL.input_schema },
     maxTokens: 2500,
+    provider: provider.id,
     model,
     signal: o.signal,
   });
@@ -14304,11 +14551,140 @@ async function analyze(profile, opts) {
 }
 
 
+/* Kept as an alias: scan.js and the audits have always caught VisionError. */
+
 
   return {
     "normalizeRead": normalizeRead,
     "analyze": analyze,
-    "VisionError": VisionError,
+    "AiError": AiError,
+    "VisionError": AiError,
+  };
+})();
+
+__m["src/ui/aisettings.js"] = (function () {
+/*
+ * aisettings.js — the provider, key and model rows, shared by every screen that
+ * calls a model.
+ *
+ * There are two such screens now and they need the same three controls with
+ * different answers, because the jobs have different requirements: the photo
+ * scan needs a provider that can see, and the intake reader does not. Passing
+ * the job through means the vision-only filter is applied once, here, instead
+ * of being remembered separately at each call site.
+ */
+
+const { h } = __m["src/core/dom.js"];
+const { loadKey, saveKey, keyLooksValid, saveChoice, providersFor, modelsFor, providerById, } = __m["src/ai/client.js"];
+
+/**
+ * The key field for one provider. Typing does NOT redraw — that would steal
+ * focus mid-word — so `onChange` is expected to refresh only what depends on
+ * whether a key is present.
+ */
+function keyRow(provider, onChange) {
+  const input = h('input', {
+    type: 'password', value: loadKey(provider.id), placeholder: provider.keyHint,
+    autocomplete: 'off', spellcheck: 'false', dir: 'ltr',
+    'aria-label': `מפתח API של ${provider.label}`,
+    oninput: (e) => { saveKey(provider.id, e.target.value); onChange(); },
+  });
+
+  const reveal = h('button.fbtn', {
+    type: 'button', 'aria-pressed': 'false',
+    title: 'הצג או הסתר את המפתח',
+    onclick: (e) => {
+      const shown = input.type === 'text';
+      input.type = shown ? 'password' : 'text';
+      e.currentTarget.setAttribute('aria-pressed', shown ? 'false' : 'true');
+      e.currentTarget.textContent = shown ? 'הצג' : 'הסתר';
+    },
+  }, 'הצג');
+
+  return h('div.field',
+    h('label', `מפתח API · ${provider.label}`),
+    h('div.keyrow', input, reveal),
+    h('p.help',
+      `מפתח משלך מ־${provider.consoleHost}. נשמר במכשיר שלך בלבד, לא נכלל בייצוא הנתונים, `
+      + `ונשלח רק לכתובת אחת — ${hostOf(provider.endpoint)}. `
+      + 'לכל ספק מפתח נפרד, והוספת אחד לא דורסת את השני.'),
+  );
+}
+
+function hostOf(url) {
+  try {
+    return new URL(url).host;
+  } catch (e) {
+    return url;
+  }
+}
+
+/**
+ * The provider picker. Hidden when the job has only one candidate — a choice of
+ * one is not a choice. For a vision job the text-only providers are absent
+ * rather than disabled: they cannot do the work at all, so offering them with a
+ * warning would just be a slower way to reach the same error.
+ */
+function providerRow(job, current, onPick) {
+  const options = providersFor(job);
+  if (options.length < 2) return null;
+  return h('div.field',
+    h('label', 'ספק'),
+    h('div.opts.two', options.map((pv) => h('button.opt' + (pv.id === current.id ? '.on' : ''), {
+      type: 'button', 'aria-pressed': pv.id === current.id ? 'true' : 'false',
+      onclick: () => onPick(pv.id),
+    },
+    h('span.tick', pv.id === current.id ? '✓' : ''),
+    h('span.otext',
+      h('span.otitle', pv.label),
+      h('span.odesc', pv.vision ? 'טקסט ותמונות' : 'טקסט בלבד')))),
+    ),
+  );
+}
+
+function modelRow(job, provider, current, label, onPick) {
+  const models = modelsFor(provider, job);
+  return h('div.field',
+    h('label', label || 'מודל'),
+    h('div.opts.two', models.map((m) => h('button.opt' + (m.value === current ? '.on' : ''), {
+      type: 'button', 'aria-pressed': m.value === current ? 'true' : 'false',
+      onclick: () => onPick(m.value),
+    },
+    h('span.tick', m.value === current ? '✓' : ''),
+    h('span.otext', h('span.otitle', m.label), h('span.odesc', m.desc))))),
+  );
+}
+
+/**
+ * All three rows for a job, wired to persist and redraw. Returns an array so
+ * the caller can place them among its own fields.
+ */
+function settingsRows(job, choice, opts) {
+  const o = opts || {};
+  const rows = [];
+  const pRow = providerRow(job, choice.provider, (id) => {
+    const first = modelsFor(providerById(id), job)[0];
+    saveChoice(job, id, first ? first.value : '');
+    if (o.onRedraw) o.onRedraw();
+  });
+  if (pRow) rows.push(pRow);
+  rows.push(keyRow(choice.provider, o.onKeyInput || (() => {})));
+  rows.push(modelRow(job, choice.provider, choice.model, o.modelLabel, (value) => {
+    saveChoice(job, choice.provider.id, value);
+    if (o.onRedraw) o.onRedraw();
+  }));
+  return rows;
+}
+
+
+
+  return {
+    "keyRow": keyRow,
+    "providerRow": providerRow,
+    "modelRow": modelRow,
+    "settingsRows": settingsRows,
+    "keyLooksValid": keyLooksValid,
+    "loadKey": loadKey,
   };
 })();
 
@@ -14328,64 +14704,10 @@ __m["src/ui/scan.js"] = (function () {
 
 const { h, clear, announce, shrinkImage } = __m["src/core/dom.js"];
 const { analyze, VisionError } = __m["src/vision/analyze.js"];
-const { loadKey, saveKey, hasKey, keyLooksValid, loadModel, saveModel, MODELS, } = __m["src/vision/client.js"];
+const { hasKey, keyLooksValid, loadKey, choiceFor } = __m["src/ai/client.js"];
+const { settingsRows } = __m["src/ui/aisettings.js"];
 const { emphasisFrom, emphasisSummary, bandHe, confidenceHe, buildHe, trainingAgeHe, patternHe, timelineGap, goalConflict, } = __m["src/vision/apply.js"];
 
-/* ------------------------------------------------------------------ *
- * Key row
- * ------------------------------------------------------------------ */
-
-function keyRow(onChange) {
-  const input = h('input', {
-    type: 'password', value: loadKey(), placeholder: 'sk-ant-…',
-    autocomplete: 'off', spellcheck: 'false', dir: 'ltr',
-    'aria-label': 'מפתח API של Anthropic',
-    oninput: (e) => { saveKey(e.target.value); onChange(); },
-  });
-
-  const reveal = h('button.fbtn', {
-    type: 'button', 'aria-pressed': 'false',
-    title: 'הצג או הסתר את המפתח',
-    onclick: (e) => {
-      const shown = input.type === 'text';
-      input.type = shown ? 'password' : 'text';
-      e.currentTarget.setAttribute('aria-pressed', shown ? 'false' : 'true');
-      e.currentTarget.textContent = shown ? 'הצג' : 'הסתר';
-    },
-  }, 'הצג');
-
-  return h('div.field',
-    h('label', 'מפתח API'),
-    h('div.keyrow', input, reveal),
-    h('p.help',
-      'הסריקה רצה מול Anthropic ודורשת מפתח משלך מ־console.anthropic.com. '
-      + 'המפתח נשמר במכשיר שלך בלבד, לא נכלל בייצוא הנתונים, ונשלח רק לכתובת אחת — api.anthropic.com. '
-      + 'שאר האפליקציה עובדת גם בלעדיו.'),
-  );
-}
-
-function modelRow() {
-  const current = loadModel();
-  return h('div.field',
-    h('label', 'עומק הקריאה'),
-    h('div.opts.two', MODELS.map((m) => h('button.opt' + (m.value === current ? '.on' : ''), {
-      type: 'button', 'aria-pressed': m.value === current ? 'true' : 'false',
-      onclick: (e) => {
-        saveModel(m.value);
-        const box = e.currentTarget.parentNode;
-        for (const b of box.children) {
-          const on = b === e.currentTarget;
-          b.classList.toggle('on', on);
-          b.setAttribute('aria-pressed', on ? 'true' : 'false');
-          const tick = b.querySelector('.tick');
-          if (tick) tick.textContent = on ? '✓' : '';
-        }
-      },
-    },
-    h('span.tick', m.value === current ? '✓' : ''),
-    h('span.otext', h('span.otitle', m.label), h('span.odesc', m.desc))))),
-  );
-}
 
 /* ------------------------------------------------------------------ *
  * Result rendering
@@ -14543,30 +14865,34 @@ function renderScan(host, profile, opts) {
     clear(body);
 
     const ready = !!profile.photoNow && !!profile.photoTarget;
-    const keyed = hasKey();
+    const { provider, model } = choiceFor('vision');
+    const keyed = hasKey(provider.id);
 
     if (!o.compact) {
       body.appendChild(h('div.scanintro',
         h('h4', 'מה קורה כשאתה לוחץ'),
         h('ul',
-          h('li', 'שתי התמונות נשלחות ל־Anthropic, יחד עם הגיל, הגובה, המשקל, הוותק, המטרה והתאריך שנתת.'),
+          h('li', `שתי התמונות נשלחות ל־${provider.label}, יחד עם הגיל, הגובה, המשקל, הוותק, המטרה והתאריך שנתת.`),
           h('li', 'לא נשלחים: השם שלך, המצב הרפואי, האלרגיות והמפתח לא נשמר אצל אף אחד חוץ ממך.'),
           h('li', 'התשובה חוזרת אליך בלבד ונשמרת במכשיר. שום שרת של האפליקציה הזאת לא רואה אותה — אין כזה.'),
           h('li', 'אפשר לדלג. בלי סריקה התוכנית נבנית מהתשובות בשאלון, כמו תמיד.'),
         )));
     }
 
-    body.appendChild(keyRow(() => {
-      // Redrawing on every keystroke would steal focus from the field, so only
-      // the button's enabled state is refreshed while typing.
-      const btn = body.querySelector('.scanrun');
-      if (btn) btn.disabled = running || !ready || !keyLooksValid(loadKey());
-    }));
-    body.appendChild(modelRow());
+    for (const row of settingsRows('vision', { provider, model }, {
+      modelLabel: 'עומק הקריאה',
+      onRedraw: draw,
+      onKeyInput: () => {
+        // Redrawing on every keystroke would steal focus from the field, so only
+        // the button's enabled state is refreshed while typing.
+        const btn = body.querySelector('.scanrun');
+        if (btn) btn.disabled = running || !ready || !keyLooksValid(loadKey(provider.id));
+      },
+    })) body.appendChild(row);
 
     const run = h('button.btn.primary.scanrun', {
       type: 'button',
-      disabled: running || !ready || !keyLooksValid(loadKey()),
+      disabled: running || !ready || !keyLooksValid(loadKey(provider.id)),
       onclick: () => start(),
     }, h('span.ico', '◉'), running ? 'סורק…' : 'סרוק את שתי התמונות');
 
@@ -14757,6 +15083,501 @@ function renderScanTab(host, profile, opts) {
   };
 })();
 
+__m["src/ai/intake.js"] = (function () {
+/*
+ * intake.js — turn a paragraph into answers.
+ *
+ * The questionnaire is nine steps, and nine steps is the single biggest reason
+ * someone opens this app and does not finish. Most people can describe their
+ * situation in four sentences — "I'm 34, I have dumbbells at home, my left
+ * shoulder hurts on overhead stuff, three evenings a week, want to lose the
+ * belly by summer" — and every one of those clauses is an answer to a question
+ * further down the form.
+ *
+ * This is the job a text model is genuinely good at, and it is a job that needs
+ * no eyes, which matters because the vendors are not interchangeable: the photo
+ * scan needs a model that can see, and this one does not.
+ *
+ * WHAT COMES BACK IS A PATCH, NOT A PROFILE.
+ *
+ * The model proposes values for fields it actually heard. Everything else is
+ * left alone. The patch is then filtered here against the same closed enums the
+ * questionnaire uses, and handed to normalizeProfile, which clamps every number
+ * and drops every unknown token — the same path a hand-typed answer takes. So
+ * the worst a wrong or hostile response can do is fill the form with a legal
+ * answer the user can see and correct, which is exactly what the review step
+ * exists for. It cannot write a field the form does not have, and it cannot put
+ * a value in one that the form would reject.
+ */
+
+const { callTool, AiError } = __m["src/ai/client.js"];
+const { EQUIPMENT_OPTIONS, INJURY_OPTIONS, DIET_OPTIONS } = __m["src/intake/schema.js"];
+
+const EQUIPMENT = EQUIPMENT_OPTIONS.map((o) => o.value);
+const INJURIES = INJURY_OPTIONS.map((o) => o.value);
+const DIETS = DIET_OPTIONS.map((o) => o.value);
+
+const GOALS = ['fatloss', 'muscle', 'strength', 'fitness', 'sport'];
+const EXPERIENCE = ['beginner', 'returning', 'intermediate', 'advanced'];
+const LOCATIONS = ['full_gym', 'building_gym', 'home_weights', 'home_bodyweight'];
+const TRACKS = ['calisthenics', 'weights', 'mixed'];
+const SEXES = ['male', 'female', 'other'];
+const TIMES = ['morning', 'noon', 'evening'];
+
+const SYSTEM = `You read a person's own description of their training situation and fill
+in the questionnaire they were about to answer by hand. The app is Hebrew and
+so is the user's text.
+
+Fill ONLY what they actually said or clearly implied. Leaving a field out is
+always correct and always safe — the questionnaire will ask for it, with its
+own default, exactly as it would have anyway. Guessing is not safe: a wrong
+answer looks identical to a right one on the review screen, so the user will
+scroll past it.
+
+Some specifics that decide most cases:
+
+  * "I train at home with dumbbells" is location home_weights, not a full gym.
+    A gym in an apartment building is building_gym: a few dumbbells, maybe a
+    treadmill, not a rack. Nothing at all is home_bodyweight.
+  * Equipment they NAME goes in the equipment list even if the location already
+    implies it. Equipment they do not name does not.
+  * Any pain, injury, surgery or "I have to be careful with X" maps to the
+    injuries list if there is a matching area. If they describe a limitation
+    with no matching area, put it in the notes field instead of forcing it.
+  * Exercises they refuse — "I don't do burpees", "running is out" — go in
+    avoid, as the plain Hebrew word they used.
+  * Days per week is what they say they will REALLY do, not an aspiration. If
+    they give a range, take the lower number.
+  * Do not infer sex from grammar alone unless it is unambiguous, and never
+    infer age, height or weight from anything other than a number they gave.
+  * A target weight is only a target weight if they named one. "I want to lose
+    weight" is a goal, not a number.
+
+Never invent a medical detail, an allergy, or a number. If they mention a
+medical condition, copy what they said into medical rather than interpreting
+it. You are transcribing into a form, not diagnosing.`;
+
+const TOOL = {
+  name: 'fill_intake',
+  description:
+    'Fill in the fields the user actually described. Omit every field they did not mention.',
+  schema: {
+    type: 'object',
+    properties: {
+      age: { type: 'integer', minimum: 10, maximum: 90 },
+      sex: { type: 'string', enum: SEXES },
+      heightCm: { type: 'integer', minimum: 120, maximum: 220 },
+      weightKg: { type: 'number', minimum: 25, maximum: 250 },
+
+      experience: { type: 'string', enum: EXPERIENCE },
+      goal: { type: 'string', enum: GOALS },
+      sport: { type: 'string', description: 'Only when goal is sport: the sport, in Hebrew.' },
+      targetWeightKg: {
+        type: 'number', minimum: 25, maximum: 250,
+        description: 'Only when they named a target weight.',
+      },
+
+      daysPerWeek: { type: 'integer', minimum: 2, maximum: 6 },
+      minutesPerSession: { type: 'integer', enum: [30, 45, 60, 75, 90] },
+      timeOfDay: { type: 'string', enum: TIMES },
+
+      location: { type: 'string', enum: LOCATIONS },
+      track: { type: 'string', enum: TRACKS },
+      equipment: {
+        type: 'array', items: { type: 'string', enum: EQUIPMENT },
+        description: 'Only equipment they named.',
+      },
+
+      injuries: {
+        type: 'array', items: { type: 'string', enum: INJURIES },
+        description: 'Areas they said hurt, are injured, or need care.',
+      },
+      avoid: {
+        type: 'array', items: { type: 'string' },
+        description: 'Exercises they refuse, in the Hebrew words they used.',
+      },
+      medical: { type: 'string', description: 'Their own words about a condition or medication.' },
+
+      sleepHours: { type: 'number', minimum: 4, maximum: 12 },
+      stress: { type: 'integer', minimum: 1, maximum: 5 },
+      commitment: { type: 'integer', minimum: 1, maximum: 5 },
+
+      withPartner: { type: 'boolean' },
+      wantsNutrition: { type: 'boolean' },
+      mealsPerDay: { type: 'integer', minimum: 3, maximum: 6 },
+      diet: { type: 'array', items: { type: 'string', enum: DIETS } },
+      allergies: { type: 'string', description: 'Their own words. Never inferred.' },
+
+      understood: {
+        type: 'string',
+        description:
+          'One or two Hebrew sentences saying what you took from their text. Shown to the '
+          + 'user so they can see what was filled in before they review the form.',
+      },
+      missing: {
+        type: 'array', items: { type: 'string' },
+        description:
+          'Up to four short Hebrew phrases naming what they did NOT say and the form still '
+          + 'needs — so they know what to look for rather than being surprised by a default.',
+      },
+    },
+    required: ['understood'],
+  },
+};
+
+/* ------------------------------------------------------------------ *
+ * Filtering
+ * ------------------------------------------------------------------ */
+
+const CONTROL_RE = /[\u0000-\u0008\u000b\u000c\u000e-\u001f\u007f]/g;
+
+function text(value, max) {
+  const s = String(value === null || value === undefined ? '' : value)
+    .replace(CONTROL_RE, '')
+    .trim();
+  return s.length > max ? `${s.slice(0, max - 1)}…` : s;
+}
+
+function numIn(value, lo, hi) {
+  const n = Number(value);
+  if (!Number.isFinite(n)) return undefined;
+  return n < lo || n > hi ? undefined : n;
+}
+
+function intIn(value, lo, hi) {
+  const n = numIn(value, lo, hi);
+  return n === undefined ? undefined : Math.round(n);
+}
+
+function oneOf(value, allowed) {
+  return allowed.indexOf(value) >= 0 ? value : undefined;
+}
+
+function subsetOf(value, allowed, max) {
+  if (!Array.isArray(value)) return undefined;
+  const out = [];
+  for (const v of value) {
+    if (allowed.indexOf(v) >= 0 && out.indexOf(v) < 0) out.push(v);
+    if (out.length >= max) break;
+  }
+  return out.length ? out : undefined;
+}
+
+/**
+ * The proposed patch, with every field either legal or absent.
+ *
+ * Pure, and exported so the audit can drive it with hostile input rather than
+ * through a network call. `set` records which keys survived, which is what the
+ * UI highlights — a field the model claimed but that did not survive filtering
+ * must not be shown as filled.
+ */
+function normalizePatch(raw) {
+  const r = raw && typeof raw === 'object' ? raw : {};
+  const patch = {};
+  const put = (k, v) => { if (v !== undefined && v !== '') patch[k] = v; };
+
+  put('age', intIn(r.age, 10, 90));
+  put('sex', oneOf(r.sex, SEXES));
+  put('heightCm', intIn(r.heightCm, 120, 220));
+  put('weightKg', numIn(r.weightKg, 25, 250));
+
+  put('experience', oneOf(r.experience, EXPERIENCE));
+  put('goal', oneOf(r.goal, GOALS));
+  // A sport name without the sport goal would be dropped by normalizeProfile
+  // anyway; keeping them together stops the review screen showing a stray value.
+  if (patch.goal === 'sport') put('sport', text(r.sport, 60));
+  put('targetWeightKg', numIn(r.targetWeightKg, 25, 250));
+
+  put('daysPerWeek', intIn(r.daysPerWeek, 2, 6));
+  put('minutesPerSession', oneOf(intIn(r.minutesPerSession, 20, 120), [30, 45, 60, 75, 90]));
+  put('timeOfDay', oneOf(r.timeOfDay, TIMES));
+
+  put('location', oneOf(r.location, LOCATIONS));
+  put('track', oneOf(r.track, TRACKS));
+  put('equipment', subsetOf(r.equipment, EQUIPMENT, EQUIPMENT.length));
+
+  put('injuries', subsetOf(r.injuries, INJURIES, INJURIES.length));
+  if (Array.isArray(r.avoid)) {
+    const avoid = r.avoid.map((v) => text(v, 40)).filter(Boolean).slice(0, 10);
+    if (avoid.length) patch.avoid = avoid;
+  }
+  put('medical', text(r.medical, 400));
+
+  put('sleepHours', numIn(r.sleepHours, 4, 12));
+  put('stress', intIn(r.stress, 1, 5));
+  put('commitment', intIn(r.commitment, 1, 5));
+
+  if (typeof r.withPartner === 'boolean') patch.withPartner = r.withPartner;
+  if (typeof r.wantsNutrition === 'boolean') patch.wantsNutrition = r.wantsNutrition;
+  put('mealsPerDay', intIn(r.mealsPerDay, 3, 6));
+  put('diet', subsetOf(r.diet, DIETS, DIETS.length));
+  put('allergies', text(r.allergies, 200));
+
+  const missing = Array.isArray(r.missing)
+    ? r.missing.map((m) => text(m, 60)).filter(Boolean).slice(0, 4)
+    : [];
+
+  return {
+    patch,
+    set: Object.keys(patch),
+    understood: text(r.understood, 400),
+    missing,
+  };
+}
+
+/* ------------------------------------------------------------------ *
+ * The call
+ * ------------------------------------------------------------------ */
+
+const MAX_INPUT = 4000;
+
+/**
+ * Reads a free-text description and returns { patch, set, understood, missing }.
+ *
+ * @param {string} description  the user's own words
+ * @param {Object} [opts]       { signal }
+ */
+async function readIntake(description, opts) {
+  const o = opts || {};
+  const body = text(description, MAX_INPUT);
+  if (body.length < 12) {
+    throw new AiError('too_short',
+      'כתוב קצת יותר — גיל, איפה אתה מתאמן, כמה פעמים בשבוע, ומה המטרה.');
+  }
+
+  const input = await callTool({
+    job: 'text',
+    system: SYSTEM,
+    messages: [{
+      role: 'user',
+      content: `זה מה שהמשתמש כתב על עצמו:\n\n${body}\n\n`
+        + 'מלא את השאלון לפי מה שהוא באמת אמר. מה שהוא לא אמר — אל תמלא.',
+    }],
+    tool: TOOL,
+    maxTokens: 1500,
+    signal: o.signal,
+  });
+
+  return normalizePatch(input);
+}
+
+
+
+  return {
+    "SYSTEM": SYSTEM,
+    "TOOL": TOOL,
+    "normalizePatch": normalizePatch,
+    "readIntake": readIntake,
+    "AiError": AiError,
+  };
+})();
+
+__m["src/ui/quickstart.js"] = (function () {
+/*
+ * quickstart.js — "tell me in your own words", at the top of the questionnaire.
+ *
+ * The panel fills the form and then gets out of the way. It does not submit, it
+ * does not skip a step, and it does not hide what it did: the fields it wrote
+ * are named, the ones it could not are named too, and the user walks the same
+ * nine steps afterwards with most of them already answered.
+ *
+ * That ordering is deliberate. A model that fills a form the user never sees is
+ * a model whose mistakes ship. Every value here lands in a control the user is
+ * about to scroll past anyway.
+ */
+
+const { h, clear, announce } = __m["src/core/dom.js"];
+const { readIntake, AiError } = __m["src/ai/intake.js"];
+const { choiceFor, hasKey, keyLooksValid, loadKey } = __m["src/ai/client.js"];
+const { settingsRows } = __m["src/ui/aisettings.js"];
+
+const FIELD_HE = {
+  age: 'גיל', sex: 'מין', heightCm: 'גובה', weightKg: 'משקל',
+  experience: 'ותק', goal: 'מטרה', sport: 'ענף', targetWeightKg: 'משקל יעד',
+  daysPerWeek: 'אימונים בשבוע', minutesPerSession: 'דקות לאימון', timeOfDay: 'שעה',
+  location: 'מקום', track: 'מסלול', equipment: 'ציוד',
+  injuries: 'מגבלות', avoid: 'לא לכלול', medical: 'מצב רפואי',
+  sleepHours: 'שינה', stress: 'עומס', commitment: 'התמסרות',
+  withPartner: 'אימון משותף', wantsNutrition: 'תזונה', mealsPerDay: 'ארוחות',
+  diet: 'העדפות תזונה', allergies: 'אלרגיות',
+};
+
+const PLACEHOLDER = 'למשל: בן 34, 178 ומשקל 88. מתאמן בבית עם משקולות יד וגומיות, '
+  + 'שלוש פעמים בשבוע בערב. הכתף השמאלית כואבת בכל מה שמעל הראש. '
+  + 'רוצה להוריד בטן עד הקיץ, ישן בערך 6 שעות.';
+
+/**
+ * Mounts the panel into `host`.
+ *
+ * @param {HTMLElement} host
+ * @param {Object} opts   { onFill(patch), onSkip() }
+ */
+function renderQuickstart(host, opts) {
+  const o = opts || {};
+  /*
+   * State lives in an object the CALLER owns, because filling the form redraws
+   * the whole step — that is how the new answers reach the controls — and a
+   * redraw builds this panel again from nothing. Held locally, the report of
+   * what was just filled disappeared at the exact moment it became useful.
+   */
+  const st = o.state || {};
+  if (st.open === undefined) st.open = false;
+  if (st.draftText === undefined) st.draftText = '';
+  let running = false;
+  let controller = null;
+  let error = st.error || null;
+  let result = st.result || null;
+
+  const box = h('div.quickstart');
+  host.appendChild(box);
+
+  function draw() {
+    clear(box);
+
+    if (!st.open) {
+      box.appendChild(h('div.qsteaser',
+        h('div.qstext',
+          h('h4', 'לא בא לך למלא טופס?'),
+          h('p', 'כתוב על עצמך פסקה אחת חופשית ואמלא את מה שאפשר. '
+            + 'תעבור על הכול אחר כך בכל מקרה — זה רק חוסך הקלדה.')),
+        h('button.btn', {
+          type: 'button',
+          onclick: () => { st.open = true; draw(); },
+        }, h('span.ico', '✎'), 'כתוב במילים שלך'),
+      ));
+      return;
+    }
+
+    const { provider, model } = choiceFor('text');
+    const keyed = hasKey(provider.id) && keyLooksValid(loadKey(provider.id));
+    const draftText = st.draftText;
+
+    const area = h('textarea', {
+      rows: 5, placeholder: PLACEHOLDER,
+      'aria-label': 'תיאור חופשי',
+      text: draftText,
+      oninput: (e) => {
+        st.draftText = e.target.value;
+        const btn = box.querySelector('.qsrun');
+        if (btn) btn.disabled = running || !keyed || st.draftText.trim().length < 12;
+      },
+    });
+
+    box.appendChild(h('div.qspanel',
+      h('div.qshead',
+        h('h4', 'ספר לי על עצמך'),
+        h('button.fbtn', {
+          type: 'button',
+          onclick: () => { st.open = false; st.result = null; result = null; draw(); if (o.onSkip) o.onSkip(); },
+        }, 'סגור'),
+      ),
+      h('p.help',
+        'הטקסט הזה נשלח לספק שבחרת ולא לשום מקום אחר. '
+        + 'הוא לא נשמר בשרת — אין כזה — והתוצאה נכנסת לשאלון שלמטה כדי שתעבור עליה.'),
+      area,
+    ));
+
+    for (const row of settingsRows('text', { provider, model }, {
+      modelLabel: 'מודל',
+      onRedraw: draw,
+      onKeyInput: () => {
+        const btn = box.querySelector('.qsrun');
+        const ok = hasKey(provider.id) && keyLooksValid(loadKey(provider.id));
+        if (btn) btn.disabled = running || !ok || st.draftText.trim().length < 12;
+      },
+    })) box.appendChild(row);
+
+    const bar = h('div.toolbar',
+      h('button.btn.primary.qsrun', {
+        type: 'button',
+        disabled: running || !keyed || draftText.trim().length < 12,
+        onclick: () => start(),
+      }, h('span.ico', '✦'), running ? 'קורא…' : 'מלא לי את השאלון'),
+    );
+    if (running) {
+      bar.appendChild(h('button.btn.ghost', {
+        type: 'button', onclick: () => { if (controller) controller.abort(); },
+      }, 'בטל'));
+    }
+    box.appendChild(bar);
+
+    if (!keyed) box.appendChild(h('p.help', 'הזן מפתח API כדי להפעיל.'));
+
+    if (running) {
+      box.appendChild(h('div.scanbusy',
+        h('span.spin', { 'aria-hidden': 'true' }),
+        h('span', 'קורא את מה שכתבת.')));
+    }
+
+    if (error) {
+      box.appendChild(h('div.warnbox',
+        h('h4', 'לא הצלחתי לקרוא'),
+        h('p', error.he || 'משהו השתבש. נסה שוב.'),
+        error.detail ? h('p', {
+          style: { color: 'var(--dimmer)', fontSize: '12px', fontFamily: 'var(--mono)' },
+        }, error.detail) : null));
+    }
+
+    if (result && !running) {
+      const filled = result.set.map((k) => FIELD_HE[k]).filter(Boolean);
+      box.appendChild(h('div.callout.good',
+        h('h4', 'מה מילאתי'),
+        result.understood ? h('p', result.understood) : null,
+        filled.length
+          ? h('div.scantags', filled.map((f) => h('span.fact', f)))
+          : h('p', 'לא הצלחתי לחלץ שדה אחד בוודאות. תמלא ידנית — זה בסדר.'),
+        result.missing.length
+          ? h('p', { style: { color: 'var(--dim)', fontSize: '13px' } },
+            `לא אמרת, ולכן נשאר בברירת מחדל: ${result.missing.join(', ')}.`)
+          : null,
+        h('p', { style: { color: 'var(--dimmer)', fontSize: '12.5px' } },
+          'הכול למטה ניתן לשינוי. עבור על השאלון — אני יכול לטעות, והמקום לתפוס את זה הוא עכשיו.'),
+      ));
+    }
+  }
+
+  async function start() {
+    running = true;
+    error = null;
+    result = null;
+    controller = new AbortController();
+    draw();
+    announce('קורא את התיאור');
+
+    try {
+      const read = await readIntake(st.draftText, { signal: controller.signal });
+      running = false;
+      controller = null;
+      result = read;
+      st.result = read;
+      st.error = null;
+      // onFill redraws the step so the new answers reach the controls; the
+      // panel is rebuilt from `st`, so the report below survives that redraw.
+      if (o.onFill) o.onFill(read.patch);
+      else draw();
+      announce(read.set.length ? `מולאו ${read.set.length} שדות` : 'לא מולא שדה');
+    } catch (e) {
+      running = false;
+      controller = null;
+      error = e instanceof AiError
+        ? e
+        : { he: 'משהו השתבש. נסה שוב.', detail: String((e && e.message) || e) };
+      if (e && e.kind === 'aborted') error = null;
+      st.error = error;
+      draw();
+      if (error) announce('הקריאה נכשלה');
+    }
+  }
+
+  draw();
+  return { redraw: draw };
+}
+
+  return {
+    "renderQuickstart": renderQuickstart,
+  };
+})();
+
 __m["src/ui/wizard.js"] = (function () {
 /*
  * wizard.js — the intake flow. Renders whatever src/intake/schema.js declares,
@@ -14766,6 +15587,7 @@ __m["src/ui/wizard.js"] = (function () {
 const { h, clear, announce, shrinkImage } = __m["src/core/dom.js"];
 const { STEPS, defaults, validateStep, normalizeProfile, summarize } = __m["src/intake/schema.js"];
 const { renderScan } = __m["src/ui/scan.js"];
+const { renderQuickstart } = __m["src/ui/quickstart.js"];
 const store = __m["src/core/store.js"];
 
 const DAY_LETTERS = ['א', 'ב', 'ג', 'ד', 'ה', 'ו', 'ש'];
@@ -14778,6 +15600,8 @@ function renderWizard(root, onDone) {
   let profile = st.profile ? Object.assign(defaults(), st.profile) : defaults();
   let step = Math.min(st.step || 0, REVIEW_STEP);
   let errors = {};
+  // Survives redraws so the quickstart report is not lost the moment it lands.
+  const quickstart = {};
 
   function persist() {
     store.set({ profile, step, stage: 'intake' });
@@ -14859,12 +15683,26 @@ function renderWizard(root, onDone) {
 
   function stepView(stepDef, idx) {
     const visible = stepDef.fields.filter((f) => !f.showIf || f.showIf(profile));
-    return h('section',
+    const section = h('section',
       h('div.stepmeta', `שלב ${idx + 1} מתוך ${REVIEW_STEP + 1}`),
       h('h2', stepDef.title),
       stepDef.subtitle ? h('p.sub', { style: { marginBottom: '26px' } }, stepDef.subtitle) : h('div', { style: { height: '20px' } }),
-      visible.map((f) => field(f)),
     );
+    // The free-text shortcut only makes sense on the first step, where nothing
+    // has been answered yet — offering it later would ask the user to describe
+    // themselves again to overwrite work they have already done.
+    if (idx === 0) {
+      renderQuickstart(section, {
+        state: quickstart,
+        onFill: (patch) => {
+          Object.assign(profile, patch);
+          persist();
+          draw();
+        },
+      });
+    }
+    for (const f of visible) section.appendChild(field(f));
+    return section;
   }
 
   function field(f) {
