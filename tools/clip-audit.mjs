@@ -50,6 +50,43 @@ function propSignature(clip) {
 
 const meanDiff = (a, b) => Math.sqrt(a.reduce((s, v, i) => s + (v - b[i]) ** 2, 0) / a.length);
 
+/*
+ * A limb can be posed two ways: by joint angles (armL, legR) or by an IK target
+ * for its end point (handL, footPtR). lerpPose can only interpolate a key it
+ * finds in BOTH poses; where one pose pins a limb and the next leaves it free,
+ * it falls back to a hard swap at t=0.5 and the limb teleports.
+ *
+ * Nothing else catches this. The geometry is legal on both sides of the swap,
+ * the loop still closes, and the clip is measurably different from its family —
+ * it just visibly snaps halfway through, which is only findable by watching it.
+ * Two clips shipped with it before this check existed.
+ */
+const LIMB_PAIRS = [
+  ['armL', 'handL'], ['armR', 'handR'],
+  ['legL', 'footPtL'], ['legR', 'footPtR'],
+];
+
+function checkRepresentation(clip) {
+  const bad = [];
+  for (let i = 0; i < clip.keys.length - 1; i++) {
+    const a = clip.keys[i].pose;
+    const b = clip.keys[i + 1].pose;
+    for (const [angleKey, ikKey] of LIMB_PAIRS) {
+      const aPinned = a[ikKey] !== undefined;
+      const bPinned = b[ikKey] !== undefined;
+      if (aPinned === bPinned) continue;
+      // Only a problem when the other side actually poses the limb: a limb left
+      // entirely alone in one key inherits nothing to snap between.
+      const aFree = a[angleKey] !== undefined;
+      const bFree = b[angleKey] !== undefined;
+      if ((aPinned && bFree) || (bPinned && aFree)) {
+        bad.push(`${angleKey}/${ikKey} between key ${i} and ${i + 1}`);
+      }
+    }
+  }
+  return bad;
+}
+
 function checkGeometry(id, clip) {
   for (let i = 0; i < 20; i++) {
     const j = solve(sampleClip(clip, i / 20));
@@ -89,6 +126,10 @@ for (const f of files) {
 
     const geo = checkGeometry(id, clip);
     if (geo) problems.push(`${f}:${id} ${geo}`);
+
+    for (const swap of checkRepresentation(clip)) {
+      problems.push(`${f}:${id} limb snaps mid-clip — ${swap} mixes an IK target with free angles`);
+    }
 
     if (clip.keys.length < 3) problems.push(`${f}:${id} has only ${clip.keys.length} keys`);
     const first = JSON.stringify(clip.keys[0].pose);

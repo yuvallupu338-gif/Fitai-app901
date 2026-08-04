@@ -12,7 +12,7 @@
  * extension, so the clips lean on the foot angle and on how far the body rises.
  */
 
-import { p, STAND } from '../core/poses.js';
+import { p, STAND, STAND_PLANTED } from '../core/poses.js';
 
 const clip = (o) => Object.assign({ duration: 3000, hero: 0, ease: 'inOut', props: [] }, o);
 
@@ -34,12 +34,12 @@ const SPLIT_DB_TOP = split(60, 36, 0, { load: 'dumbbell', armL: [-88, -90], armR
 const SPLIT_DB_LOW = split(60, 36, 11, { load: 'dumbbell', armL: [-88, -90], armR: [-92, -90] });
 
 /* Forward lunge: starts feet together, the front foot STEPS OUT and comes back. */
-const FWD_STAND = p(STAND, { x: 44 });
+const FWD_STAND = p(STAND_PLANTED, { x: 44, footPtL: { x: 45, y: 87.5, bend: 1 }, footPtR: { x: 43, y: 87.5, bend: 1 } });
 const FWD_STEP = split(62, 40, 6);
 const FWD_LOW = split(64, 40, 12);
 
 /* Reverse lunge: starts together, the REAR foot travels backward instead. */
-const REV_STAND = p(STAND, { x: 52, load: 'dumbbell', armL: [-88, -90], armR: [-92, -90] });
+const REV_STAND = p(STAND_PLANTED, { x: 52, load: 'dumbbell', armL: [-88, -90], armR: [-92, -90], footPtL: { x: 53, y: 87.5, bend: 1 }, footPtR: { x: 51, y: 87.5, bend: 1 } });
 const REV_STEP = split(58, 36, 6, { load: 'dumbbell', armL: [-88, -90], armR: [-92, -90] });
 const REV_LOW = split(58, 32, 12, { load: 'dumbbell', armL: [-88, -90], armR: [-92, -90] });
 

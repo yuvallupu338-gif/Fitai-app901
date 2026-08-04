@@ -8,7 +8,7 @@
  * SQUAT_BOTTOM in poses.js and the difference is the whole point.
  */
 
-import { p, STAND, HINGE_TOP, HINGE_BOTTOM } from '../core/poses.js';
+import { p, STAND, STAND_PLANTED, HINGE_TOP, HINGE_BOTTOM } from '../core/poses.js';
 
 const clip = (o) => Object.assign({ duration: 3000, hero: 0, ease: 'inOut', props: [] }, o);
 
@@ -48,15 +48,30 @@ const nordic = (deg, over) => {
     footL: 170, footR: 170,
   }, over || {});
 };
-const NORDIC_UP = nordic(90);
-const NORDIC_MID = nordic(52);
+/* Hands expressed as IK targets in EVERY key, not just the one that reaches the
+   floor. With angles above and a target below, the arms snapped to the floor at
+   the midpoint instead of reaching for it. */
+const nordicHands = (deg) => {
+  const r = (deg * Math.PI) / 180;
+  const px = 50 + 15.5 * Math.cos(r);
+  const py = 87.5 - 15.5 * Math.sin(r);
+  // Roughly where a hanging arm would put the hand, in front of the chest.
+  const sx = px + 20 * Math.cos(r);
+  const sy = py - 20 * Math.sin(r);
+  return {
+    handL: { x: sx + 12, y: Math.min(87.5, sy + 16), bend: -1 },
+    handR: { x: sx + 14, y: Math.min(87.5, sy + 17), bend: -1 },
+  };
+};
+const NORDIC_UP = nordic(90, nordicHands(90));
+const NORDIC_MID = nordic(52, nordicHands(52));
 /* At the bottom you catch yourself, so the hands are planted on the floor
    rather than swinging free — which is also what keeps them above it. */
 const NORDIC_LOW = nordic(24, {
   handL: { x: 86, y: 87.5, bend: -1 },
   handR: { x: 89, y: 87.5, bend: -1 },
 });
-const NORDIC_ASSIST = nordic(38);
+const NORDIC_ASSIST = nordic(38, nordicHands(38));
 
 /* ---- lying leg curl: pelvis pinned, only the knee moves ---- */
 
@@ -75,7 +90,11 @@ const PRONE_CURLED = Object.assign({}, PRONE_STRAIGHT, {
 const SL_TOP = p(STAND, {
   x: 50, y: 57, spine: 88,
   armL: [-84, -88], armR: [-96, -92], load: 'dumbbell',
-  legL: [-90, -90], legR: [-70, -110], footL: 2, footR: -20,
+  // Standing leg pinned, matching SL_BOTTOM — a free angle here and a pinned
+  // foot there makes the support leg jump halfway through the rep.
+  legL: undefined,
+  footPtL: { x: 50, y: 87.5, bend: 1 },
+  legR: [-70, -110], footL: 2, footR: -20,
 });
 const SL_BOTTOM = {
   x: 48, y: 60, spine: 18, head: 10,
@@ -87,8 +106,8 @@ const SL_BOTTOM = {
 /* ---- kettlebell swing: hinge, then a hard snap to horizontal ---- */
 
 const SWING_BACK = hinge(30, 46, 62, { armL: [-40, -34], armR: [-46, -40], load: 'kettlebell' });
-const SWING_STAND = p(STAND, { armL: [-70, -66], armR: [-76, -72], load: 'kettlebell' });
-const SWING_FLOAT = p(STAND, { spine: 93, armL: [-6, -2], armR: [-12, -8], load: 'kettlebell' });
+const SWING_STAND = p(STAND_PLANTED, { armL: [-70, -66], armR: [-76, -72], load: 'kettlebell' });
+const SWING_FLOAT = p(STAND_PLANTED, { spine: 93, armL: [-6, -2], armR: [-12, -8], load: 'kettlebell' });
 
 export const X09_CLIPS = {
   hip_hinge_drill: clip({
@@ -119,9 +138,12 @@ export const X09_CLIPS = {
     keys: [
       {
         t: 0,
+        // Arms as ANGLES, not hand targets: in a deadlift they hang straight
+        // the whole way up, and the keys above use angles, so pinning only this
+        // one made the arms snap at the midpoint of every rep.
         pose: {
           x: 45, y: 68, spine: 26, head: 18,
-          handL: { x: 55, y: 84, bend: -1 }, handR: { x: 58, y: 84, bend: -1 },
+          armL: [-88, -90], armR: [-92, -90],
           footPtL: { x: 49, y: 87.5, bend: 1 }, footPtR: { x: 52, y: 87.5, bend: 1 },
           footL: 2, footR: 2, load: 'barbell',
         },
@@ -131,9 +153,12 @@ export const X09_CLIPS = {
       { t: 0.72, pose: MID({ load: 'barbell', armL: [-88, -90], armR: [-92, -90] }) },
       {
         t: 1,
+        // Arms as ANGLES, not hand targets: in a deadlift they hang straight
+        // the whole way up, and the keys above use angles, so pinning only this
+        // one made the arms snap at the midpoint of every rep.
         pose: {
           x: 45, y: 68, spine: 26, head: 18,
-          handL: { x: 55, y: 84, bend: -1 }, handR: { x: 58, y: 84, bend: -1 },
+          armL: [-88, -90], armR: [-92, -90],
           footPtL: { x: 49, y: 87.5, bend: 1 }, footPtR: { x: 52, y: 87.5, bend: 1 },
           footL: 2, footR: 2, load: 'barbell',
         },

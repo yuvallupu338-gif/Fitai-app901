@@ -47,6 +47,22 @@ export const REACH_UP = p(STAND, {
   armL: [96, 92], armR: [84, 88],
 });
 
+/*
+ * STAND with the feet pinned instead of posed by angle. Identical on screen —
+ * these targets are exactly where STAND's legs already put the feet.
+ *
+ * Reach for this whenever a clip's standing key sits next to a key that pins
+ * its feet, which is most of them: squats, hinges, lunges and anything that
+ * drives out of the floor. Mixing the two representations makes lerpPose swap
+ * the limb at t=0.5 instead of interpolating it, and the leg teleports.
+ */
+export const STAND_PLANTED = p(STAND, {
+  legL: undefined, legR: undefined,
+  footPtL: { x: 51, y: 87.5, bend: 1 },
+  footPtR: { x: 49, y: 87.5, bend: 1 },
+  footL: 2, footR: 2,
+});
+
 /* ------------------------------------------------------------------ *
  * Squat family
  * ------------------------------------------------------------------ */
@@ -73,7 +89,24 @@ export const SQUAT_PARALLEL = {
  * Hinge family (deadlift / RDL / good morning)
  * ------------------------------------------------------------------ */
 
-export const HINGE_TOP = p(STAND, { y: 57, spine: 88, armL: [-84, -88], armR: [-96, -92] });
+/*
+ * Standing tall, but with the feet PINNED rather than posed by angle.
+ *
+ * That matters because HINGE_BOTTOM pins its feet, and lerpPose can only
+ * interpolate a key present in both poses: where one pose pins a limb and the
+ * other leaves it free, it falls back to a hard swap at t=0.5 and the leg
+ * teleports. Every clip in the hinge family goes TOP -> BOTTOM, so posing this
+ * one by angle made all of them snap. The targets below are where STAND's legs
+ * already put the feet, so nothing about the pose changes — only how it blends.
+ */
+export const HINGE_TOP = p(STAND, {
+  y: 57, spine: 88,
+  armL: [-84, -88], armR: [-96, -92],
+  legL: undefined, legR: undefined,
+  footPtL: { x: 49, y: 87.5, bend: 1 },
+  footPtR: { x: 51, y: 87.5, bend: 1 },
+  footL: 2, footR: 2,
+});
 
 export const HINGE_BOTTOM = {
   x: 46, y: 62, spine: 22, head: 12,

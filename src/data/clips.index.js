@@ -26,6 +26,7 @@ import { X09_CLIPS } from './clips.x09.js';
 import { X10_CLIPS } from './clips.x10.js';
 import { X11_CLIPS } from './clips.x11.js';
 import { X12_CLIPS } from './clips.x12.js';
+import { X13_CLIPS } from './clips.x13.js';
 import { STAND, SQUAT_PARALLEL } from '../core/poses.js';
 
 export const CLIPS = Object.assign({}, UPPER_CLIPS, LOWER_CLIPS, CORE_CLIPS);
@@ -33,7 +34,8 @@ export const CLIPS = Object.assign({}, UPPER_CLIPS, LOWER_CLIPS, CORE_CLIPS);
 /** Bespoke per-exercise clips, keyed by exercise id. These win over CLIPS. */
 export const BY_EXERCISE = Object.assign({},
   X01_CLIPS, X02_CLIPS, X03_CLIPS, X04_CLIPS, X05_CLIPS, X06_CLIPS,
-  X07_CLIPS, X08_CLIPS, X09_CLIPS, X10_CLIPS, X11_CLIPS, X12_CLIPS);
+  X07_CLIPS, X08_CLIPS, X09_CLIPS, X10_CLIPS, X11_CLIPS, X12_CLIPS,
+  X13_CLIPS);
 
 const LAST_RESORT = {
   id: 'generic',
