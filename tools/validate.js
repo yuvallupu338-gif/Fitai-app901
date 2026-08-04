@@ -120,17 +120,24 @@ const clipFiles = existsSync(resolve(ROOT, 'src/data'))
   ? readdirSync(resolve(ROOT, 'src/data')).filter((f) => /^clips\..+\.js$/.test(f) && f !== 'clips.index.js')
   : [];
 
-const allClips = new Map();
+const allClips = new Map();   // the shared library, keyed by clip id
+const exClips = new Map();    // clips.x*.js — the per-exercise overrides, keyed by EXERCISE id
 
 for (const f of clipFiles) {
   const mod = await load(`src/data/${f}`);
   if (!mod) continue;
+  // The x-batches live in their own namespace: a clip keyed by an exercise id
+  // is MEANT to shadow the shared clip of the same name, so a collision across
+  // the two namespaces is the feature, not a duplicate.
+  const perExercise = /^clips\.x\d+\.js$/.test(f);
+  const bucket = perExercise ? exClips : allClips;
   for (const val of Object.values(mod)) {
     if (!val || typeof val !== 'object' || Array.isArray(val)) continue;
     for (const [id, c] of Object.entries(val)) {
       if (!c || typeof c !== 'object' || !Array.isArray(c.keys)) continue;
       const at = `${f}:${id}`;
-      if (allClips.has(id)) err(`${at}: duplicate clip id`);
+      if (bucket.has(id)) err(`${at}: duplicate clip id within ${perExercise ? 'the per-exercise batches' : 'the shared library'}`);
+      if (perExercise && !allEx.has(id)) err(`${at}: per-exercise clip keyed "${id}", which is not an exercise id`);
       if (!(c.duration > 200)) err(`${at}: duration must be > 200ms`);
       if (!c.keys.length) { err(`${at}: no keys`); continue; }
       if (c.keys[0].t !== 0) err(`${at}: first key must be t:0`);
@@ -153,7 +160,7 @@ for (const f of clipFiles) {
       const first = JSON.stringify(c.keys[0].pose);
       const last = JSON.stringify(c.keys[c.keys.length - 1].pose);
       if (c.loop !== false && first !== last) warn(`${at}: t:0 and t:1 poses differ — loop will jump`);
-      allClips.set(id, c);
+      bucket.set(id, c);
     }
   }
 }

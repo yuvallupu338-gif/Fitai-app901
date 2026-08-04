@@ -416,7 +416,7 @@ const machine_shoulder_press = {
 
 const LM_STANCE = {
   x: 40, y: 59.5, spine: 88, head: 86,
-  armL: [-105, -100],
+  armL: [-100, -80],
   footPtL: { x: 33, y: 87.5, bend: -1 },
   footPtR: { x: 47, y: 87.5, bend: -1 },
   footL: 2, footR: 2,
