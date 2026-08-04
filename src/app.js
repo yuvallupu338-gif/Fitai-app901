@@ -15,7 +15,9 @@ import { renderPlan } from './ui/plan.js';
 import { renderNutrition } from './ui/nutrition.js';
 import { renderGuide } from './ui/guide.js';
 import { renderProgress } from './ui/progress.js';
+import { renderScanTab } from './ui/scan.js';
 import { releaseAll } from './ui/exercise.js';
+import { normalizeProfile } from './intake/schema.js';
 
 import { generateProgram } from './engine/generator.js';
 import { nutritionPlan } from './engine/nutrition.js';
@@ -26,6 +28,7 @@ const root = qs('#app');
 const TABS = [
   { id: 'plan', label: 'אימונים' },
   { id: 'nutrition', label: 'תזונה' },
+  { id: 'scan', label: 'סריקה' },
   { id: 'guide', label: 'איך זה בנוי' },
   { id: 'progress', label: 'מעקב' },
 ];
@@ -63,13 +66,15 @@ function renderWelcome() {
     h('h1', 'התוכנית נבנית ', h('em', 'ממך'), '.', h('br'), 'לא מתבנית.'),
     h('p.sub',
       'כמה שאלות על הגוף, המטרה, הזמן והציוד שיש לך — ואתה מקבל תוכנית אימונים מלאה, '
-      + 'תזונה שמתאימה לך, ואנימציה לכל תרגיל כדי שתדע בדיוק איך הוא נראה.'),
+      + 'תזונה שמתאימה לך, ואנימציה לכל תרגיל כדי שתדע בדיוק איך הוא נראה. '
+      + 'ואם תיתן שתי תמונות — אתה היום והגוף שאתה מכוון אליו — מודל ראייה יקרא את שתיהן, '
+      + 'ייתן ליעד שלך רמת היגיון, ויכוון את התוכנית לפער ביניהן.'),
     demos,
     h('div.facts', { style: { marginTop: '26px' } },
       h('span.fact', 'שאלון של ', h('b', '3 דק׳')),
       h('span.fact', 'תוכנית מלאה ', h('b', 'מיידית')),
       h('span.fact', 'נשמר ', h('b', 'במכשיר')),
-      h('span.fact', 'עובד ', h('b', 'אופליין')),
+      h('span.fact', 'סריקת תמונות ', h('b', 'עם AI')),
     ),
     h('div.toolbar', { style: { marginTop: '30px' } },
       h('button.btn.primary.lg', {
@@ -126,6 +131,30 @@ function build(profile) {
       renderFailure(e, profile);
     }
   }, 30);
+}
+
+/**
+ * Regenerates the program from an edited profile, in place. Unlike build() this
+ * keeps startedAt, the completion ticks, the logged sets and the weight history:
+ * the person did that work, and a change of emphasis is not a reason to erase it.
+ */
+function rebuild(profile) {
+  const p = normalizeProfile(profile);
+  try {
+    const program = generateProgram(p);
+    const nutrition = p.wantsNutrition ? nutritionPlan(p) : null;
+    store.set({
+      profile: p,
+      program,
+      nutrition,
+      ui: Object.assign({}, store.get().ui, { tab: 'plan', activeDay: 0 }),
+    });
+    renderApp();
+    announce('התוכנית נבנתה מחדש');
+  } catch (e) {
+    console.error(e);
+    renderFailure(e, p);
+  }
 }
 
 function renderFailure(e, profile) {
@@ -205,7 +234,15 @@ function renderApp() {
     try {
       if (tab === 'plan') renderPlan(body, program, profile);
       else if (tab === 'nutrition' && nutrition) renderNutrition(body, nutrition, profile);
-      else if (tab === 'guide') renderGuide(body, program, profile);
+      else if (tab === 'scan') {
+        renderScanTab(body, Object.assign({}, profile), {
+          // Photos and the read persist immediately; the program deliberately
+          // does not, so a scan never silently rewrites the week someone is
+          // halfway through.
+          onProfileChange: (next) => store.set({ profile: normalizeProfile(next) }),
+          onRebuild: (next) => rebuild(next),
+        });
+      } else if (tab === 'guide') renderGuide(body, program, profile);
       else if (tab === 'progress') renderProgress(body, program, profile);
     } catch (e) {
       console.error(e);

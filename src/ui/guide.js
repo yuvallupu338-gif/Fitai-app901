@@ -32,8 +32,17 @@ export function renderGuide(root, program, profile) {
           h('img', { src: profile.photoTarget, alt: 'הגוף שאתה מכוון אליו' }),
           h('figcaption', goal.suggestedDate ? formatDate(goal.suggestedDate) : `בעוד ${goal.weeks} שבועות`)) : null,
       ));
+      const read = profile.visionRead;
       view.appendChild(h('p.lead', { style: { fontSize: '12.5px' } },
-        'התמונות נשמרות במכשיר הזה בלבד. המערכת לא מנתחת אותן — לוח הזמנים למטה מחושב מהמספרים שנתת ומרמת ההתמסרות שסימנת.'));
+        read && read.usable && read.realism
+          ? `הסריקה נתנה ליעד הזה רמת היגיון ${read.realism.score}/10. `
+            + 'לוח הזמנים למטה מחושב מהמספרים ומרמת ההתמסרות; מסך "סריקה" מחזיק את הקריאה המלאה.'
+          : 'התמונות נשמרות במכשיר הזה בלבד. לוח הזמנים למטה מחושב מהמספרים שנתת ומרמת ההתמסרות שסימנת — '
+            + 'במסך "סריקה" אפשר לתת למודל ראייה לקרוא את שתי התמונות ולתת ליעד רמת היגיון.'));
+      if (read && read.usable && read.realism && read.realism.verdict) {
+        view.appendChild(h('div.verdict', { style: { marginTop: '10px' } },
+          h('p', read.realism.verdict)));
+      }
     }
     view.appendChild(h('div.warnbox' + (goal.realistic ? '' : '.hot'), { style: { marginTop: '10px' } },
       h('h4', goal.realistic ? 'היעד ריאלי' : 'היעד שאפתני מדי לזמן הזה'),

@@ -328,7 +328,7 @@ async function main() {
   /* ---- tabs ---- */
   const tabLabels = await page.$$eval('.tabs .btn', (ns) => ns.map((n) => n.textContent.trim()));
   notes.push(`tabs: ${tabLabels.join(' | ')}`);
-  for (const label of ['תזונה', 'איך זה בנוי', 'מעקב']) {
+  for (const label of ['תזונה', 'סריקה', 'איך זה בנוי', 'מעקב']) {
     const btn = await page.$(`.tabs .btn:text-is("${label}")`).catch(() => null);
     const byText = btn || (await page.$$('.tabs .btn').then(async (ns) => {
       for (const n of ns) if ((await n.textContent()).trim() === label) return n;
@@ -341,6 +341,54 @@ async function main() {
     check(text.length > 400, `tab "${label}" rendered almost nothing`);
     check(!text.includes('לא הצלחתי להציג'), `tab "${label}" threw and showed the error fallback`);
     if (SHOTS) await page.screenshot({ path: join(SHOT_DIR, `5-${label}.png`), fullPage: true });
+  }
+
+  /* ---- the scan tab, without ever making a network call ---- */
+  {
+    const scanBtn = await page.$$('.tabs .btn').then(async (ns) => {
+      for (const n of ns) if ((await n.textContent()).trim() === 'סריקה') return n;
+      return null;
+    });
+    if (!scanBtn) {
+      failures.push('the scan tab is missing');
+    } else {
+      await scanBtn.click();
+      await page.waitForTimeout(400);
+
+      const keyInput = await page.$('.keyrow input');
+      check(!!keyInput, 'the scan tab has no API key field');
+      check(await page.$('.scanrun') !== null, 'the scan tab has no run button');
+
+      // With no key the run button must be disabled: pressing it would produce
+      // an error dialog rather than an explanation, and the explanation is the
+      // whole point of the empty state.
+      const disabledBefore = await page.$eval('.scanrun', (n) => n.disabled);
+      check(disabledBefore === true, 'the scan button is enabled with no key and no photos');
+
+      // A key alone is not enough — the photos are still missing.
+      if (keyInput) {
+        await keyInput.fill('sk-ant-smoke-test-key-not-real-0000000000');
+        await page.waitForTimeout(120);
+        const stillDisabled = await page.$eval('.scanrun', (n) => n.disabled);
+        check(stillDisabled === true, 'the scan button enabled itself without photos');
+      }
+
+      const bodyText = await page.$eval('#app', (n) => n.textContent);
+      check(bodyText.includes('api.anthropic.com'),
+        'the scan tab never says where the photos are sent');
+      check(/שתי התמונות/.test(bodyText), 'the scan tab does not explain what it sends');
+
+      // The key must live outside the exported app state, or exporting a profile
+      // would hand someone else's key to whoever receives the file.
+      const leak = await page.evaluate(() => {
+        const raw = window.localStorage.getItem('fitai.v1') || '';
+        return raw.includes('sk-ant-smoke-test-key');
+      });
+      check(leak === false, 'the API key leaked into the exported app state');
+
+      await page.evaluate(() => window.localStorage.removeItem('fitai.key.v1'));
+      if (SHOTS) await page.screenshot({ path: join(SHOT_DIR, '6-scan.png'), fullPage: true });
+    }
   }
 
   /* ---- horizontal overflow ---- */

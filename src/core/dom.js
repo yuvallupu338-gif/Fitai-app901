@@ -97,6 +97,37 @@ export function modal(content, opts) {
   return close;
 }
 
+/**
+ * Reads an image file and returns a downscaled JPEG data URL.
+ *
+ * Phone photos are several megabytes and localStorage holds about five in
+ * total, so storing an original would break the app on the second picture.
+ * Lives here rather than in the wizard because the scan screen picks photos too,
+ * and two copies of a resize routine drift.
+ */
+export function shrinkImage(file, maxPx, quality) {
+  return new Promise((resolve, reject) => {
+    const url = URL.createObjectURL(file);
+    const img = new Image();
+    img.onload = () => {
+      try {
+        const scale = Math.min(1, maxPx / Math.max(img.width, img.height));
+        const canvas = document.createElement('canvas');
+        canvas.width = Math.max(1, Math.round(img.width * scale));
+        canvas.height = Math.max(1, Math.round(img.height * scale));
+        canvas.getContext('2d').drawImage(img, 0, 0, canvas.width, canvas.height);
+        URL.revokeObjectURL(url);
+        resolve(canvas.toDataURL('image/jpeg', quality));
+      } catch (e) {
+        URL.revokeObjectURL(url);
+        reject(e);
+      }
+    };
+    img.onerror = () => { URL.revokeObjectURL(url); reject(new Error('unreadable image')); };
+    img.src = url;
+  });
+}
+
 let liveRegion = null;
 /** Announce a message to screen readers without moving focus. */
 export function announce(msg) {

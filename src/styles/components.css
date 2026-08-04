@@ -284,8 +284,10 @@ input::placeholder, textarea::placeholder { color: var(--dimmer); }
 }
 .opt.on .tick { background: var(--amber); border-color: var(--amber); }
 .opt .otext { min-width: 0; }
-.opt .otitle { font-size: 15px; font-weight: 600; }
-.opt .odesc { font-size: 12.5px; color: var(--dim); margin-top: 2px; line-height: 1.45; }
+/* Both are spans, so without an explicit block they run onto one line and the
+   description reads as a continuation of the title. */
+.opt .otitle { display: block; font-size: 15px; font-weight: 600; }
+.opt .odesc { display: block; font-size: 12.5px; color: var(--dim); margin-top: 2px; line-height: 1.45; }
 
 .chipset { display: flex; flex-wrap: wrap; gap: 7px; }
 .chipset .btn { font-weight: 500; }
@@ -439,7 +441,9 @@ input::placeholder, textarea::placeholder { color: var(--dimmer); }
   color: var(--dimmer); font-size: 11.5px; text-align: center;
 }
 .visionpair { display: flex; gap: 12px; align-items: stretch; margin: 12px 0 4px; }
-.visionpair figure { flex: 1; margin: 0; }
+/* min-width:0 matters: with the default auto minimum the longer caption makes
+   its column wider, and two photos meant to be compared come out different sizes. */
+.visionpair figure { flex: 1 1 0; min-width: 0; margin: 0; }
 .visionpair img {
   width: 100%; aspect-ratio: 3/4; object-fit: cover;
   border-radius: var(--r); border: 1px solid var(--line); display: block;
@@ -455,3 +459,101 @@ input::placeholder, textarea::placeholder { color: var(--dimmer); }
 .btn.videolink:hover { border-color: var(--rose); color: var(--rose); }
 .btn.videolink:hover .ico { color: var(--rose); }
 .btn.videolink .ico { color: var(--rose); }
+
+/* ---------------- photo scan ---------------- */
+.scanpanel { margin-top: 4px; }
+.scanintro {
+  border: 1px solid var(--cyan-deep); border-radius: var(--r);
+  background: rgba(86, 217, 206, .05);
+  padding: 14px 16px; margin-bottom: 20px;
+}
+.scanintro h4 { font-size: 14.5px; color: var(--cyan); margin-bottom: 8px; }
+.scanintro ul { padding-inline-start: 18px; color: var(--dim); font-size: 13px; line-height: 1.6; }
+.scanintro li { margin: 4px 0; }
+
+.keyrow { display: flex; gap: 8px; align-items: stretch; }
+.keyrow input { flex: 1; min-width: 0; font-family: var(--mono); font-size: 12.5px; }
+.keyrow .fbtn { flex: 0 0 auto; padding-inline: 12px; }
+
+.scanbusy {
+  display: flex; align-items: center; gap: 10px;
+  color: var(--dim); font-size: 13.5px; margin-top: 12px;
+}
+.spin {
+  width: 15px; height: 15px; flex: 0 0 auto; border-radius: 50%;
+  border: 2px solid var(--line); border-top-color: var(--amber);
+  animation: scanspin .9s linear infinite;
+}
+@keyframes scanspin { to { transform: rotate(360deg); } }
+@media (prefers-reduced-motion: reduce) {
+  .spin { animation: none; border-top-color: var(--amber); }
+}
+
+.scanresult { margin-top: 22px; }
+.scanhead { display: flex; gap: 16px; align-items: center; flex-wrap: wrap; margin-bottom: 16px; }
+.scanheadtext { flex: 1 1 220px; min-width: 0; }
+.scanheadtext h3 { font-family: var(--display); font-size: 20px; margin: 2px 0 4px; }
+.scanheadtext .sub { font-size: 13.5px; color: var(--dim); margin: 0; }
+
+.dial {
+  flex: 0 0 auto; width: 128px; padding: 12px 14px;
+  border: 1px solid var(--line); border-radius: var(--r); background: var(--steel);
+}
+.dialnum { font-family: var(--mono); font-size: 30px; font-weight: 600; line-height: 1; color: var(--chalk); }
+.dialnum span { font-size: 14px; color: var(--dimmer); }
+.dialbar { height: 5px; border-radius: var(--r-pill); background: var(--line-soft); margin: 9px 0 7px; overflow: hidden; }
+.dialbar i { display: block; height: 100%; border-radius: var(--r-pill); background: var(--amber); }
+.diallabel { font-family: var(--mono); font-size: 10px; letter-spacing: .08em; color: var(--dim); }
+.dial.good { border-color: var(--cyan-deep); }
+.dial.good .dialbar i { background: var(--cyan); }
+.dial.bad { border-color: var(--rose-deep); }
+.dial.bad .dialbar i { background: var(--rose); }
+
+.verdict {
+  border-inline-start: 3px solid var(--amber); border-radius: var(--r-sm);
+  background: var(--steel); padding: 14px 16px; margin-bottom: 14px;
+  font-size: 14.5px; line-height: 1.7; color: var(--chalk);
+}
+.verdict p + p { margin-top: 9px; }
+.verdict.good { border-inline-start-color: var(--cyan); }
+.verdict.bad { border-inline-start-color: var(--rose); }
+
+.callout {
+  border: 1px solid var(--line); border-radius: var(--r);
+  padding: 12px 14px; margin-bottom: 12px; background: var(--steel);
+}
+.callout h4 { font-size: 14px; color: var(--chalk); margin-bottom: 5px; }
+.callout p { font-size: 13.5px; color: var(--dim); line-height: 1.6; }
+.callout p + p { margin-top: 7px; }
+.callout.good { border-color: var(--cyan-deep); background: rgba(86, 217, 206, .05); }
+.callout.good h4 { color: var(--cyan); }
+.callout.warn { border-color: var(--amber-deep); background: var(--amber-wash); }
+.callout.warn h4 { color: var(--amber); }
+
+.scangrid { display: grid; gap: 12px; grid-template-columns: repeat(auto-fit, minmax(230px, 1fr)); margin-bottom: 12px; }
+.scancard {
+  border: 1px solid var(--line); border-radius: var(--r);
+  background: var(--steel); padding: 13px 15px; margin-bottom: 12px;
+}
+.scangrid .scancard { margin-bottom: 0; }
+.scancard p { font-size: 13.5px; color: var(--dim); line-height: 1.65; margin-top: 8px; }
+.scancard ul { padding-inline-start: 18px; color: var(--dim); font-size: 13.5px; line-height: 1.6; margin-top: 8px; }
+.scancard li { margin: 4px 0; }
+.scantags { display: flex; flex-wrap: wrap; gap: 6px; margin-top: 8px; }
+
+.disclaimer {
+  font-size: 12.5px; color: var(--dimmer); line-height: 1.6;
+  border-top: 1px solid var(--line-soft); padding-top: 12px; margin-top: 6px;
+}
+
+@media (max-width: 420px) {
+  .scanhead { gap: 12px; }
+  .dial { width: 100%; }
+}
+.photodrop {
+  width: 100%; aspect-ratio: 3/4; border-radius: var(--r);
+  border: 1px dashed var(--line); display: grid; place-items: center;
+  color: var(--dimmer); font-size: 12.5px; cursor: pointer;
+  background: var(--steel); transition: border-color var(--fast), color var(--fast);
+}
+.photodrop:hover { border-color: var(--amber); color: var(--amber); }

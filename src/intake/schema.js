@@ -6,6 +6,8 @@
  * declared here; adding a question needs no UI change.
  */
 
+import { emphasisFrom, confidenceHe } from '../vision/apply.js';
+
 const TODAY = () => new Date();
 
 function iso(d) {
@@ -76,6 +78,13 @@ export function defaults() {
     commitment: 3,
     photoNow: '',
     photoTarget: '',
+    // The photo read, once it has run. Null means it never ran — which is a
+    // perfectly good state: everything downstream treats it as "no opinion".
+    visionRead: null,
+    // Per-group volume multipliers derived from visionRead. Kept on the profile
+    // rather than recomputed in the engine so that a profile is a complete
+    // description of the program it produces.
+    emphasis: null,
 
     withPartner: false,
     partnerMode: 'together',
@@ -262,7 +271,8 @@ export const STEPS = [
   {
     id: 'vision',
     title: 'לאן אתה מכוון',
-    subtitle: 'שתי תמונות והחלטה אחת. התמונות נשמרות במכשיר שלך בלבד ולא נשלחות לשום מקום — הן שם בשבילך, לא בשביל המערכת.',
+    subtitle: 'שתי תמונות. אחת שלך היום, אחת של הגוף שאתה מכוון אליו — '
+      + 'ומודל ראייה קורא את שתיהן, נותן רמת היגיון ליעד שלך, ומכוון את התוכנית לפער ביניהן.',
     fields: [
       {
         key: 'commitment', label: 'כמה אתה מוכן להתמסר לתהליך', type: 'scale', min: 1, max: 5,
@@ -272,12 +282,16 @@ export const STEPS = [
       },
       {
         key: 'photoNow', label: 'תמונה שלך היום', type: 'photo', required: false,
-        help: 'נקודת ההתחלה. בעוד שלושה חודשים היא תהיה ההוכחה הכי טובה שמשהו קרה.',
+        help: 'עמידה זקופה, מול המצלמה, בגדים צמודים או בגד ים. '
+          + 'זו גם נקודת ההתחלה שלך — בעוד שלושה חודשים היא ההוכחה הכי טובה שמשהו קרה.',
       },
       {
         key: 'photoTarget', label: 'תמונה של הגוף שאתה מכוון אליו', type: 'photo', required: false,
-        help: 'המערכת לא מנתחת את התמונה — אין לה מודל ראייה, והיא עובדת אופליין. '
-          + 'התמונה היא התזכורת שלך; לוח הזמנים מחושב מהמספרים שנתת ומרמת ההתמסרות.',
+        help: 'בדרך כלל זה מישהו אחר, וזה בסדר גמור. הפער בין שתי התמונות הוא בדיוק מה שנמדד.',
+      },
+      {
+        key: 'visionRead', label: 'סריקת התמונות', type: 'scan', required: false,
+        showIf: (p) => !!p.photoNow && !!p.photoTarget,
       },
     ],
   },
@@ -681,6 +695,15 @@ export function normalizeProfile(input) {
     p[k] = typeof p[k] === 'string' && p[k].startsWith('data:image/') ? p[k] : '';
   }
 
+  // A read without the photos it was taken from is a claim about pictures that
+  // are no longer here. Drop it rather than keep steering the plan with it.
+  if (!p.photoNow || !p.photoTarget) p.visionRead = null;
+  if (p.visionRead && typeof p.visionRead !== 'object') p.visionRead = null;
+  // emphasisFrom is total: any read, including a corrupt one, yields a complete
+  // and clamped multiplier set, and no read at all yields a neutral one. So this
+  // is safe to run unconditionally, and normalising twice gives the same answer.
+  p.emphasis = emphasisFrom(p.visionRead);
+
   p.withPartner = p.withPartner === true;
   p.partnerMode = p.withPartner && p.partnerMode === 'separate' ? 'separate' : 'together';
   p.partnerName = String(p.partnerName || '').trim();
@@ -789,6 +812,14 @@ export function summarize(profile) {
     rows.push({
       label: 'תמונות',
       value: [p.photoNow ? 'היום' : null, p.photoTarget ? 'יעד' : null].filter(Boolean).join(' + '),
+    });
+  }
+  if (p.visionRead) {
+    rows.push({
+      label: 'סריקת תמונות',
+      value: p.visionRead.usable && p.visionRead.realism
+        ? `רמת היגיון ${p.visionRead.realism.score}/10 · ${confidenceHe(p.visionRead.confidence)}`
+        : 'לא ניתן לקריאה',
     });
   }
   rows.push({

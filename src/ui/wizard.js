@@ -3,8 +3,9 @@
  * one step at a time, and hands a finished profile back to the app.
  */
 
-import { h, clear, announce } from '../core/dom.js';
+import { h, clear, announce, shrinkImage } from '../core/dom.js';
 import { STEPS, defaults, validateStep, normalizeProfile, summarize } from '../intake/schema.js';
+import { renderScan } from './scan.js';
 import * as store from '../core/store.js';
 
 const DAY_LETTERS = ['א', 'ב', 'ג', 'ד', 'ה', 'ו', 'ש'];
@@ -62,6 +63,17 @@ export function renderWizard(root, onDone) {
     if (field && typeof field.onSet === 'function') field.onSet(profile, value);
     delete errors[key];
     persist();
+  }
+
+  /**
+   * Changing either photo invalidates the read taken from the old pair. Keeping
+   * it would leave a verdict on screen that describes a picture no longer there,
+   * still steering the program — the worst kind of stale, because it looks fine.
+   */
+  function setPhoto(field, dataUrl) {
+    profile.visionRead = null;
+    profile.emphasis = null;
+    setValue(field.key, dataUrl, field);
   }
 
   function draw() {
@@ -214,7 +226,7 @@ export function renderWizard(root, onDone) {
             preview.appendChild(h('img', { src: cur, alt: f.label }));
             preview.appendChild(h('button.fbtn.reset', {
               type: 'button',
-              onclick: () => { setValue(f.key, ''); draw(); },
+              onclick: () => { setPhoto(f, ''); draw(); },
             }, 'הסר'));
           } else {
             preview.appendChild(h('span.photohint', 'אין תמונה'));
@@ -227,9 +239,11 @@ export function renderWizard(root, onDone) {
             if (!file) return;
             // Downscale before storing: a phone photo is several megabytes and
             // localStorage is not, so anything full-size would blow the quota.
-            shrinkImage(file, 480, 0.72).then((dataUrl) => {
-              setValue(f.key, dataUrl);
-              paint();
+            // 768px is the compromise — small enough that two fit in storage
+            // alongside the program, large enough for the scan to read a body.
+            shrinkImage(file, 768, 0.82).then((dataUrl) => {
+              setPhoto(f, dataUrl);
+              draw();
               announce('התמונה נשמרה במכשיר');
             }).catch(() => announce('לא הצלחתי לקרוא את התמונה'));
           },
@@ -241,6 +255,18 @@ export function renderWizard(root, onDone) {
           h('button.btn', { type: 'button', onclick: () => input.click() },
             h('span.ico', '＋'), profile[f.key] ? 'החלף תמונה' : 'בחר תמונה'),
         );
+      }
+
+      case 'scan': {
+        const host = h('div.scanpanel');
+        renderScan(host, profile, {
+          // The scan writes onto the same profile object the wizard is editing,
+          // so persisting is all that is left — no redraw, which would tear down
+          // the result the user is reading.
+          onRead: () => persist(),
+          onGoalChange: (goal) => { setValue('goal', goal); draw(); },
+        });
+        return host;
       }
 
       case 'toggle':
@@ -319,32 +345,3 @@ function stepVisible(stepDef, profile) {
 }
 
 export { DAY_LETTERS, DAY_NAMES };
-
-
-/**
- * Reads an image file and returns a downscaled JPEG data URL. Phone photos are
- * several megabytes; localStorage holds about five in total, so storing the
- * original would break the app on the second picture.
- */
-function shrinkImage(file, maxPx, quality) {
-  return new Promise((resolve, reject) => {
-    const url = URL.createObjectURL(file);
-    const img = new Image();
-    img.onload = () => {
-      try {
-        const scale = Math.min(1, maxPx / Math.max(img.width, img.height));
-        const canvas = document.createElement('canvas');
-        canvas.width = Math.max(1, Math.round(img.width * scale));
-        canvas.height = Math.max(1, Math.round(img.height * scale));
-        canvas.getContext('2d').drawImage(img, 0, 0, canvas.width, canvas.height);
-        URL.revokeObjectURL(url);
-        resolve(canvas.toDataURL('image/jpeg', quality));
-      } catch (e) {
-        URL.revokeObjectURL(url);
-        reject(e);
-      }
-    };
-    img.onerror = () => { URL.revokeObjectURL(url); reject(new Error('unreadable image')); };
-    img.src = url;
-  });
-}

@@ -69,11 +69,17 @@ function transform(k, mod) {
 
   const exported = new Set();
 
-  // export const/let/function/class -> plain declaration, remembered
-  out = out.replace(/^[ \t]*export\s+(const|let|var|function|class)\s+([\w$]+)/gm, (whole, kind, name) => {
-    exported.add(name);
-    return whole.replace(/export\s+/, '');
-  });
+  // export [async] const/let/function/class -> plain declaration, remembered.
+  // `async` matters: the vision client is the one module here that awaits a
+  // network call, and without it the bundler silently left the keyword behind
+  // and then failed on its own leftover-export check.
+  out = out.replace(
+    /^[ \t]*export\s+(?:async\s+)?(const|let|var|function|class)\s*\*?\s*([\w$]+)/gm,
+    (whole, kind, name) => {
+      exported.add(name);
+      return whole.replace(/export\s+/, '');
+    },
+  );
 
   // export { a, b as c }
   out = out.replace(/^[ \t]*export\s*\{([^}]*)\};?[ \t]*$/gm, (whole, body) => {

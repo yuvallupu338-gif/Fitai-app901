@@ -65,6 +65,29 @@ function experienceOf(profile) {
   return CEILING[e] ? e : 'beginner';
 }
 
+/*
+ * Per-group multipliers from the photo scan, if there was one.
+ *
+ * Read defensively and inline rather than imported, so this file keeps its one
+ * real property: arithmetic over a plain object, with nothing else in scope.
+ * The values were already clamped where they were produced; they are clamped
+ * again here because a profile can also arrive from an imported JSON file.
+ */
+function emphasisOf(profile) {
+  const src = profile && profile.emphasis;
+  const out = {};
+  for (const g of GROUPS) {
+    const v = src ? Number(src[g]) : 1;
+    out[g] = Number.isFinite(v) ? Math.max(0.6, Math.min(1.5, v)) : 1;
+  }
+  return out;
+}
+
+/** True when the scan actually moved something, worth a sentence in the note. */
+function emphasisActive(emph) {
+  return GROUPS.some((g) => Math.abs(emph[g] - 1) > 0.05);
+}
+
 /* ------------------------------------------------------------------ *
  * sessionBudget
  * ------------------------------------------------------------------ */
@@ -138,8 +161,13 @@ export function weeklyVolume(profile) {
   const budget = sessionBudget(p);
   const f = factors(p, days, minutes);
 
+  // The scan biases the DISTRIBUTION only. It is applied before the ceilings and
+  // before the time budget on purpose: a photo can argue about where the week's
+  // sets go, and it has no standing to argue about how many a body recovers from
+  // or how many fit in forty minutes.
+  const emph = emphasisOf(p);
   const raw = {};
-  for (const g of GROUPS) raw[g] = GOAL_BASE[goal][g] * f.total;
+  for (const g of GROUPS) raw[g] = GOAL_BASE[goal][g] * f.total * emph[g];
 
   // Physiological ceilings. Accessory work never outgrows the compounds.
   const ceiling = CEILING[exp];
@@ -192,8 +220,9 @@ export function weeklyVolume(profile) {
   for (const g of SMALL) vol[g] = out[g] >= 2.5 ? Math.round(out[g]) : 0;
 
   vol.total = GROUPS.reduce((n, g) => n + vol[g], 0);
+  vol.emphasised = emphasisActive(emph);
   vol.note = volumeNote(p, vol, {
-    goal, exp, days, minutes, timeBound, factors: f,
+    goal, exp, days, minutes, timeBound, factors: f, emphasised: vol.emphasised,
   });
   return vol;
 }
@@ -203,7 +232,11 @@ function volumeNote(profile, vol, ctx) {
     + `${vol.total} סטים עובדים בשבוע, ${vol.push} לדחיפה, ${vol.pull} למשיכה ו־${vol.legs} לרגליים`;
 
   let why;
-  if (ctx.timeBound) {
+  if (ctx.emphasised) {
+    // Say it first when it applies: the user pressed a button and expects to see
+    // where it landed, and a distribution change is invisible without a sentence.
+    why = 'החלוקה בין הקבוצות הוזזה לפי הפער שהסריקה מצאה בין שתי התמונות — הסכום השבועי נשאר בתוך אותם גבולות';
+  } else if (ctx.timeBound) {
     why = 'זה מה שבאמת נכנס בזמן שיש, וקיצור מנוחות מעבר לזה כבר פוגע באיכות של כל סט';
   } else if (ctx.factors.rest < 1) {
     why = `הורדתי נפח כי ${Math.round(num(profile.sleepHours, 7))} שעות שינה לא מספיקות להתאושש מיותר`;
