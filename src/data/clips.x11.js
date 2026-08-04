@@ -172,7 +172,10 @@ const FRONT_RACK = { armL: [-46, 44], armR: [-52, 38], load: 'kettlebell' };
 const OVERHEAD = { armL: [92, 90], armR: [88, 90], load: 'dumbbell' };
 /* Suitcase: ONE side is loaded and the torso resists the lean. Mirroring the
    arms here would draw a farmer carry and lose the entire point. */
-const SUITCASE = { spine: 94, head: 94, armL: [-84, -88], armR: [-98, -94], load: 'dumbbell' };
+const SUITCASE = {
+  spine: 94, head: 94, armL: [-84, -88], armR: [-98, -94],
+  load: 'dumbbell', loadSide: 'R',
+};
 
 /* ---- machine intervals: seated, legs cycling, but clearly different rigs ---- */
 

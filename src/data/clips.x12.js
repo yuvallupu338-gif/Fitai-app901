@@ -36,9 +36,9 @@ const SWING_F_BACK = swingBase({ legR: [-130, -128], footR: -46 });
 const SWING_F_MID = swingBase({ legR: [-92, -90], footR: 2 });
 const SWING_F_FWD = swingBase({ legR: [-40, -36], footR: 54 });
 
-const SWING_S_IN = swingBase({ legR: [-74, -104], footR: -14, spine: 92 });
+const SWING_S_IN = swingBase({ legR: [-46, -96], footR: 30, spine: 95, armL: [-10, -4], armR: [-170, -176] });
 const SWING_S_MID = swingBase({ legR: [-92, -90], footR: 2, spine: 90 });
-const SWING_S_OUT = swingBase({ legR: [-108, -76], footR: 18, spine: 88 });
+const SWING_S_OUT = swingBase({ legR: [-134, -84], footR: -26, spine: 85, armL: [-50, -46], armR: [-130, -134] });
 
 /* Ankle rocks: the knee drives forward over a planted foot and comes back. */
 const ANKLE_BACK = {
@@ -92,14 +92,14 @@ const HIPFLEX_B = {
 
 /* Child's pose: hips back to the heels, arms long on the floor ahead. */
 const CHILD_A = {
-  x: 40, y: 76, spine: 14, head: 8,
-  handL: { x: 82, y: 87, bend: -1 }, handR: { x: 85, y: 87, bend: -1 },
-  legL: [-150, 178], legR: [-154, 174], footL: 170, footR: 170,
+  x: 30, y: 68, spine: -22, head: -30,
+  handL: { x: 78, y: 87, bend: -1 }, handR: { x: 81, y: 87, bend: -1 },
+  legL: [-104, 172], legR: [-108, 168], footL: 168, footR: 168,
 };
 const CHILD_B = {
-  x: 36, y: 78, spine: 10, head: 4,
-  handL: { x: 86, y: 87, bend: -1 }, handR: { x: 89, y: 87, bend: -1 },
-  legL: [-154, 176], legR: [-158, 172], footL: 170, footR: 170,
+  x: 27, y: 70, spine: -26, head: -34,
+  handL: { x: 84, y: 87, bend: -1 }, handR: { x: 87, y: 87, bend: -1 },
+  legL: [-100, 174], legR: [-104, 170], footL: 168, footR: 168,
 };
 
 /* World's greatest stretch: a deep lunge, then the torso opens upward. */

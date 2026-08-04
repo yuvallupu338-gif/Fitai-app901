@@ -440,9 +440,15 @@ export function renderFigure(pose) {
   g.appendChild(arm('R', 'rig-near'));
 
   if (pose.load) {
-    const l = handProp(pose.load, j.arms.R.hand, j.arms.L.hand);
-    if (l) g.appendChild(l);
-    if (pose.load !== 'barbell') {
+    // loadSide: 'R' | 'L' puts the implement in ONE hand. A suitcase carry
+    // loaded on both sides is a farmer carry, and the asymmetry the exercise
+    // exists to train is gone.
+    const side = pose.loadSide;
+    if (side !== 'L') {
+      const l = handProp(pose.load, j.arms.R.hand, j.arms.L.hand);
+      if (l) g.appendChild(l);
+    }
+    if (pose.load !== 'barbell' && side !== 'R') {
       const l2 = handProp(pose.load, j.arms.L.hand, j.arms.R.hand);
       if (l2) {
         l2.setAttribute('class', 'rig-load rig-far');
