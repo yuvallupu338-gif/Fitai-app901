@@ -53,9 +53,9 @@ const PRONE_Y = Object.assign({}, PRONE_DOWN, { y: 83, spine: 12, head: 24, armL
 const PRONE_T = Object.assign({}, PRONE_DOWN, { y: 83, spine: 12, head: 24, armL: [-2, 2], armR: [-8, -4] });
 const PRONE_W = Object.assign({}, PRONE_DOWN, { y: 83, spine: 12, head: 24, armL: [-40, 60], armR: [-46, 54] });
 
-const SUPER_DOWN = Object.assign({}, PRONE_DOWN, { armL: [-8, -12], armR: [-14, -18] });
+const SUPER_DOWN = Object.assign({}, PRONE_DOWN, { y: 85, spine: 2, head: 10, armL: [2, -2], armR: [-4, -8] });
 const SUPER_UP = Object.assign({}, PRONE_DOWN, {
-  y: 82.5, spine: 14, head: 26, armL: [178, 14], armR: [172, 8],
+  y: 80.5, spine: 22, head: 34, armL: [176, 26], armR: [170, 20],
 });
 
 /* Bent-over band row: a hinge held still while only the arms work. */

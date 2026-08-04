@@ -84,7 +84,7 @@ const SL_CALF_DOWN = p(STAND, {
   legL: [-60, -120], legR: [-92, -90], footL: -60, footR: 2,
 });
 const SL_CALF_UP = p(STAND, {
-  y: 52.5, legL: [-60, -120], legR: [-92, -90], footL: -60, footR: -34,
+  y: 49.5, legL: [-58, -118], legR: [-92, -90], footL: -60, footR: -46,
 });
 
 /* Deficit: standing on a box edge, the heel drops BELOW the forefoot. */

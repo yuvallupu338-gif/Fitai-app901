@@ -25,14 +25,15 @@ const BOTTOM = (over) => hinge(22, 46, 62, over);
 /* ---- hip thrust: shoulders parked on a bench, pelvis is what moves ---- */
 
 const THRUST_DOWN = {
-  x: 50, y: 80, spine: 149, head: 143,
-  armL: [166, 160], armR: [172, 166],
-  footPtL: { x: 70, y: 87.5, bend: 1 }, footPtR: { x: 73, y: 87.5, bend: 1 },
+  x: 56, y: 84, spine: 135, head: 128,
+  armL: [150, 142], armR: [156, 148],
+  footPtL: { x: 70, y: 87.5, bend: 1 }, footPtR: { x: 74, y: 87.5, bend: 1 },
   footL: 0, footR: 0,
 };
 const THRUST_UP = Object.assign({}, THRUST_DOWN, {
-  x: 52, y: 70, spine: 175, head: 169,
-  footPtL: { x: 70, y: 87.5, bend: 1 }, footPtR: { x: 73, y: 87.5, bend: 1 },
+  x: 62, y: 72, spine: 170, head: 163,
+  armL: [176, 168], armR: [182, 174],
+  footPtL: { x: 70, y: 87.5, bend: 1 }, footPtR: { x: 74, y: 87.5, bend: 1 },
 });
 
 /* ---- nordic: the body is rigid and pivots about the knee ---- */
