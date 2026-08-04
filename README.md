@@ -39,16 +39,25 @@ current benchmarks, and optionally nutrition. Answers are validated as you go
 and stored on the device.
 
 **Generation** — the engine picks a split from your weekly availability,
-allocates weekly set volume per muscle group inside the 10–20 effective-sets
-window, and fills each session from an exercise database of ~240 movements. It
-never prescribes equipment you do not have and never prescribes a movement that
-loads an injury you declared, unless nothing else covers that pattern — in which
-case it drops to the easiest option and says so.
+allocates weekly set volume per muscle group, and fills each session from a
+database of 267 movements. It never prescribes equipment you do not have and
+never prescribes a movement that loads an injury you declared, unless nothing
+else covers that pattern — in which case it drops to the easiest option and
+says so. Verified across a 1500-profile sweep: no session repeats an exercise,
+none comes out under four movements, and the same answers always produce the
+same plan.
 
 **Animation** — every exercise animates. The figures are not images or video:
 `src/core/rig.js` is a humanoid skeleton with two-link inverse kinematics, and
-each clip is a handful of keyframed poses. The whole library adds no download
-weight and works offline.
+each of the 123 clips is a handful of keyframed poses. The whole library adds no
+download weight and works offline. Fonts are embedded too, so the single-file
+build renders identically with no network at all.
+
+Clips resolve per exercise first, then per movement family, then per pattern.
+Today 267 exercises share 123 clips by family — a hammer curl plays the curl
+clip. `docs/clip-assignments.json` lists the 147 exercises that would benefit
+from an animation of their own, and dropping a `clips.x*.js` batch in gives
+them one without touching the exercise database.
 
 **Honesty** — `src/engine/targets.js` checks the target weight against the
 target date and says plainly when the ask is not achievable, along with the

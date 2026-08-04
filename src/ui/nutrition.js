@@ -24,8 +24,10 @@ export function renderNutrition(root, plan, profile) {
         h('span.fact', 'חלבון ', h('b', `${plan.strategy.proteinG} ג׳`)),
         h('span.fact', 'פחמימה ', h('b', `${plan.strategy.carbsG} ג׳`)),
         h('span.fact', 'שומן ', h('b', `${plan.strategy.fatG} ג׳`)),
-        h('span.fact', plan.strategy.deltaKcal >= 0 ? 'עודף ' : 'גירעון ',
-          h('b', `${Math.abs(plan.strategy.deltaKcal)} קק״ל`)),
+        plan.strategy.deltaKcal === 0
+          ? h('span.fact', h('b', 'אחזקה'))
+          : h('span.fact', plan.strategy.deltaKcal > 0 ? 'עודף ' : 'גירעון ',
+            h('b', `${Math.abs(plan.strategy.deltaKcal)} קק״ל`)),
       ));
     } else {
       view.appendChild(h('p.lead',
