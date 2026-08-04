@@ -454,7 +454,9 @@ const landmine_press = {
 
 /* --- standing dumbbell shoulder press --------------------------------
  * Ribs down, glutes tight — the spine angle never changes. The bells start
- * wide at shoulder height and finish stacked over the middle of the head.
+ * racked wide in front of the shoulders, arc OUT past the ears (which is
+ * what keeps the near and far arm apart on screen) and finish stacked over
+ * the middle of the head.
  * ------------------------------------------------------------------ */
 
 const DSP_STANCE = {
@@ -466,23 +468,28 @@ const DSP_STANCE = {
 };
 
 const DSP_RACK = p(DSP_STANCE, {
-  handL: { x: 44.5, y: 44, bend: 1 },
-  handR: { x: 52.5, y: 43, bend: 1 },
+  handL: { x: 52, y: 47, bend: 1 },
+  handR: { x: 57, y: 46, bend: 1 },
 });
 
-const DSP_MID = p(DSP_STANCE, {
-  handL: { x: 45, y: 30, bend: 1 },
-  handR: { x: 53, y: 29, bend: 1 },
+const DSP_OUT = p(DSP_STANCE, {
+  handL: { x: 56, y: 34, bend: 1 },
+  handR: { x: 60, y: 33, bend: 1 },
 });
 
 const DSP_LOCK = p(DSP_STANCE, {
-  handL: { x: 46.5, y: 15.5, bend: 1 },
-  handR: { x: 50.5, y: 14.5, bend: 1 },
+  handL: { x: 48.5, y: 15.5, bend: 1 },
+  handR: { x: 52.5, y: 14.5, bend: 1 },
 });
 
 const DSP_HOLD = p(DSP_STANCE, {
-  handL: { x: 46.4, y: 16.3, bend: 1 },
-  handR: { x: 50.4, y: 15.3, bend: 1 },
+  handL: { x: 48.4, y: 16.3, bend: 1 },
+  handR: { x: 52.4, y: 15.3, bend: 1 },
+});
+
+const DSP_DOWN = p(DSP_STANCE, {
+  handL: { x: 55, y: 33, bend: 1 },
+  handR: { x: 59, y: 32, bend: 1 },
 });
 
 const db_shoulder_press = {
@@ -494,9 +501,10 @@ const db_shoulder_press = {
   props: [],
   keys: [
     { t: 0, pose: DSP_RACK },
-    { t: 0.24, pose: DSP_MID },
+    { t: 0.2, pose: DSP_OUT },
     { t: 0.42, pose: DSP_LOCK },
     { t: 0.54, pose: DSP_HOLD },
+    { t: 0.78, pose: DSP_DOWN },
     { t: 1, pose: DSP_RACK },
   ],
 };
@@ -517,26 +525,26 @@ const OHP_STANCE = {
 
 const OHP_RACK = p(OHP_STANCE, {
   head: 101,
-  handL: { x: 52, y: 41.5, bend: 1 },
-  handR: { x: 54.5, y: 41, bend: 1 },
+  handL: { x: 54, y: 42, bend: 1 },
+  handR: { x: 56.5, y: 41.5, bend: 1 },
 });
 
 const OHP_PAST = p(OHP_STANCE, {
   head: 103,
-  handL: { x: 51, y: 27, bend: 1 },
-  handR: { x: 53.5, y: 26.5, bend: 1 },
+  handL: { x: 53.5, y: 28.5, bend: 1 },
+  handR: { x: 56, y: 28, bend: 1 },
 });
 
 const OHP_LOCK = p(OHP_STANCE, {
   head: 86,
-  handL: { x: 48.5, y: 14, bend: 1 },
-  handR: { x: 51, y: 13.5, bend: 1 },
+  handL: { x: 49.5, y: 14, bend: 1 },
+  handR: { x: 52, y: 13.5, bend: 1 },
 });
 
 const OHP_HOLD = p(OHP_STANCE, {
   head: 87,
-  handL: { x: 48.5, y: 14.8, bend: 1 },
-  handR: { x: 51, y: 14.3, bend: 1 },
+  handL: { x: 49.5, y: 14.8, bend: 1 },
+  handR: { x: 52, y: 14.3, bend: 1 },
 });
 
 const overhead_press = {
@@ -576,33 +584,33 @@ const PP_TOE = {
 };
 
 const PP_RACK = p(PP_FLAT, {
-  x: 48, y: 58, spine: 89, head: 96,
-  handL: { x: 52, y: 41.5, bend: 1 },
-  handR: { x: 54.5, y: 41, bend: 1 },
+  x: 48, y: 58, spine: 89, head: 98,
+  handL: { x: 55, y: 42, bend: 1 },
+  handR: { x: 57.5, y: 41.5, bend: 1 },
 });
 
 const PP_DIP = p(PP_FLAT, {
-  x: 48, y: 64, spine: 90, head: 96,
-  handL: { x: 52, y: 47.5, bend: 1 },
-  handR: { x: 54.5, y: 47, bend: 1 },
+  x: 48, y: 64, spine: 90, head: 98,
+  handL: { x: 55, y: 48, bend: 1 },
+  handR: { x: 57.5, y: 47.5, bend: 1 },
 });
 
 const PP_DRIVE = p(PP_TOE, {
-  x: 48, y: 56.5, spine: 91, head: 98,
-  handL: { x: 51, y: 33, bend: 1 },
-  handR: { x: 53.5, y: 32.5, bend: 1 },
+  x: 48, y: 56.5, spine: 91, head: 100,
+  handL: { x: 54, y: 31, bend: 1 },
+  handR: { x: 56.5, y: 30.5, bend: 1 },
 });
 
 const PP_LOCK = p(PP_FLAT, {
   x: 48, y: 58, spine: 89, head: 87,
-  handL: { x: 48.5, y: 14, bend: 1 },
-  handR: { x: 51, y: 13.5, bend: 1 },
+  handL: { x: 50, y: 14, bend: 1 },
+  handR: { x: 52.5, y: 13.5, bend: 1 },
 });
 
 const PP_HOLD = p(PP_FLAT, {
   x: 48, y: 58.4, spine: 89, head: 88,
-  handL: { x: 48.5, y: 14.8, bend: 1 },
-  handR: { x: 51, y: 14.3, bend: 1 },
+  handL: { x: 50, y: 14.8, bend: 1 },
+  handR: { x: 52.5, y: 14.3, bend: 1 },
 });
 
 const push_press = {
