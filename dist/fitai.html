@@ -625,6 +625,22 @@ input::placeholder, textarea::placeholder { color: var(--dimmer); }
   .ex, .card { break-inside: avoid; border-color: #ccc; }
 }
 
+/* ---------------- partner training ---------------- */
+.pbadge {
+  font-family: var(--mono); font-size: 10px; letter-spacing: .08em;
+  color: var(--cyan); background: var(--cyan-wash);
+  border: 1px solid rgba(86, 217, 206, .28); border-radius: 5px;
+  padding: 2px 7px; margin-inline-end: 7px; white-space: nowrap;
+}
+.note.partner { color: var(--dim); display: flex; align-items: baseline; flex-wrap: wrap; gap: 2px; }
+.partnerbar {
+  display: flex; align-items: baseline; flex-wrap: wrap; gap: 4px;
+  border: 1px solid var(--cyan-deep); border-radius: var(--r);
+  background: rgba(86, 217, 206, .05);
+  padding: 12px 14px; margin: 0 0 20px;
+  font-size: 13.5px; color: var(--dim); line-height: 1.55;
+}
+
 </style>
 </head>
 <body>
@@ -6297,6 +6313,12 @@ function defaults() {
     diet: [],
     allergies: '',
     supplements: '',
+
+    withPartner: false,
+    partnerMode: 'together',
+    partnerName: '',
+    partnerExperience: 'beginner',
+    partnerInjuries: [],
   };
 }
 
@@ -6617,6 +6639,58 @@ const STEPS = [
   },
 
   {
+    id: 'partner',
+    title: 'מתאמנים לבד או ביחד',
+    subtitle: 'זה משנה את מבנה האימון לגמרי, לא רק את האווירה. אימון בזוג מאפשר סטים לסירוגין ושמירה הדדית.',
+    fields: [
+      {
+        key: 'withPartner', label: 'יש מישהו שמתאמן איתך?', type: 'choice',
+        options: [
+          { value: false, label: 'מתאמן לבד' },
+          { value: true, label: 'יש שותף לאימון' },
+        ],
+      },
+      {
+        key: 'partnerMode', label: 'איך זה עובד בפועל?', type: 'choice',
+        showIf: (p) => p.withPartner,
+        help: 'ביחד באותו זמן = סטים לסירוגין, אחד עובד והשני סופר ושומר. כל אחד לחוד = אותה תוכנית, זמנים שונים.',
+        options: [
+          {
+            value: 'together', label: 'ביחד, באותו זמן',
+            desc: 'עוברים את האימון כזוג — סט לסירוגין, שמירה הדדית, אותה תחנה',
+          },
+          {
+            value: 'separate', label: 'כל אחד לחוד',
+            desc: 'אותה תוכנית אבל לא באותו זמן — בלי שמירה ובלי תלות',
+          },
+        ],
+      },
+      {
+        key: 'partnerName', label: 'איך קוראים לו?', type: 'text', required: false,
+        showIf: (p) => p.withPartner, placeholder: 'לא חובה',
+      },
+      {
+        key: 'partnerExperience', label: 'הוותק שלו', type: 'choice',
+        showIf: (p) => p.withPartner && p.partnerMode === 'together',
+        help: 'כשמתאמנים על אותה תחנה, רמת הקושי נקבעת לפי המתחיל מביניכם — ואז כל אחד מכוון את העומס לעצמו.',
+        options: [
+          { value: 'beginner', label: 'מתחיל' },
+          { value: 'returning', label: 'חוזר אחרי הפסקה' },
+          { value: 'intermediate', label: 'שנה+ ברצף' },
+          { value: 'advanced', label: 'ותיק' },
+        ],
+      },
+      {
+        key: 'partnerInjuries', label: 'פציעות או מגבלות שלו', type: 'chips',
+        showIf: (p) => p.withPartner && p.partnerMode === 'together',
+        required: false,
+        help: 'תרגיל שמעמיס על פציעה של אחד מכם לא ייכנס לאימון המשותף.',
+        options: INJURY_OPTIONS,
+      },
+    ],
+  },
+
+  {
     id: 'nutrition',
     title: 'תזונה',
     subtitle: 'אופציונלי. אם תרצה, אבנה גם את הצד הזה — ארוחות, חלופות, ואיך לאכול בחוץ.',
@@ -6785,6 +6859,15 @@ function normalizeProfile(input) {
   p.sleepHours = clamp(p.sleepHours, 4, 12, 7);
   p.stress = clamp(Math.round(p.stress), 1, 5, 3);
 
+  p.withPartner = p.withPartner === true;
+  p.partnerMode = p.withPartner && p.partnerMode === 'separate' ? 'separate' : 'together';
+  p.partnerName = String(p.partnerName || '').trim();
+  p.partnerExperience = ['beginner', 'returning', 'intermediate', 'advanced'].includes(p.partnerExperience)
+    ? p.partnerExperience : 'beginner';
+  p.partnerInjuries = p.withPartner && Array.isArray(p.partnerInjuries)
+    ? Array.from(new Set(p.partnerInjuries.filter((i) => injuries.has(i)))).sort() : [];
+  if (!p.withPartner) { p.partnerName = ''; p.partnerInjuries = []; }
+
   p.wantsNutrition = p.wantsNutrition !== false;
   p.mealsPerDay = clamp(Math.round(p.mealsPerDay), 3, 6, 4);
   p.whoCooks = ['self', 'family', 'partner', 'outside'].includes(p.whoCooks) ? p.whoCooks : 'family';
@@ -6876,6 +6959,14 @@ function summarize(profile) {
   if (bm.deadliftKg) bmParts.push(`דדליפט ${bm.deadliftKg} ק״ג`);
   if (bmParts.length) rows.push({ label: 'מספרים היום', value: bmParts.join(' · ') });
 
+  rows.push({
+    label: 'אימון משותף',
+    value: p.withPartner
+      ? (p.partnerMode === 'together'
+        ? `ביחד${p.partnerName ? ` עם ${p.partnerName}` : ''} · סטים לסירוגין`
+        : `אותה תוכנית${p.partnerName ? `, ${p.partnerName}` : ''} · כל אחד לחוד`)
+      : 'לבד',
+  });
   rows.push({
     label: 'תזונה',
     value: p.wantsNutrition
@@ -12228,6 +12319,9 @@ function exerciseCard(day, slot, index, onChange) {
       logs.length ? h('span.setpill', `${logs.length} סטים נרשמו`) : null,
     ),
     v.note ? h('p.note' + (String(v.note).startsWith('⚠︎') ? '.caution' : ''), v.note) : null,
+    slot.partner ? h('p.note.partner',
+      h('span.pbadge', slot.partner.spot ? 'שמירה' : slot.partner.alternating ? 'לסירוגין' : 'מנוחה מלאה'),
+      slot.partner.note) : null,
     ex && ex.cues && ex.cues.length ? h('div.cues', ex.cues.slice(0, 3).map((c) => h('span.cue', c))) : null,
     levelRow(v.level, pick, slot.variants.length),
   );
@@ -12449,6 +12543,15 @@ function renderPlan(root, program, profile) {
       ].filter(Boolean).join(' · ')),
     ));
     if (day.focus) view.appendChild(h('p.focus', day.focus));
+
+    const partner = program.meta && program.meta.partner;
+    if (partner) {
+      view.appendChild(h('div.partnerbar',
+        h('span.pbadge', partner.together
+          ? `ביחד${partner.name ? ` עם ${partner.name}` : ''}`
+          : 'כל אחד לחוד'),
+        h('span', partner.note)));
+    }
 
     if (program.warmup && program.warmup.length) {
       view.appendChild(h('details.warm',
@@ -15558,8 +15661,70 @@ function buildNotes(profile, ctx) {
  * Turns a profile into a full Program. Pure and deterministic: same profile in,
  * byte-identical program out (apart from meta.generatedAt, which is today).
  */
+
+/* ------------------------------------------------------------------ *
+ * Partner training
+ *
+ * Training together at the same time is a structural change, not a label.
+ * Both people share a station, so an exercise has to be safe for both and
+ * pitched at whoever is less experienced — each then loads it for themselves.
+ * ------------------------------------------------------------------ */
+
+const EXPERIENCE_RANK = { beginner: 0, returning: 1, intermediate: 2, advanced: 3 };
+
+function trainsTogether(p) {
+  return p.withPartner === true && p.partnerMode === 'together';
+}
+
+/** Selection profile for a shared session: both injury lists, the lower ceiling. */
+function partnerAdjusted(p) {
+  if (!trainsTogether(p)) return p;
+  const injuries = Array.from(new Set([].concat(p.injuries || [], p.partnerInjuries || []))).sort();
+  const mine = EXPERIENCE_RANK[p.experience] === undefined ? 0 : EXPERIENCE_RANK[p.experience];
+  const theirs = EXPERIENCE_RANK[p.partnerExperience] === undefined ? 0 : EXPERIENCE_RANK[p.partnerExperience];
+  const lower = mine <= theirs ? p.experience : p.partnerExperience;
+  return Object.assign({}, p, { injuries, experience: lower });
+}
+
+/* Movements where a second pair of hands genuinely changes what is possible —
+   either the exercise is unsafe alone under load, or it simply cannot be done
+   without a partner (someone has to hold the ankles for a nordic curl). */
+function spotRole(ex) {
+  const id = ex.id || '';
+  if (/nordic|glute_ham|partner/.test(id)) return 'hold';
+  if (/negative|assisted|eccentric/.test(id)) return 'assist';
+  const eq = ex.equipment || [];
+  const heavy = eq.indexOf('barbell') >= 0 || eq.indexOf('dumbbells') >= 0;
+  if (!heavy) return null;
+  if (ex.pattern === 'horizontal_push' && eq.indexOf('bench') >= 0) return 'spot';
+  if (ex.pattern === 'squat' && eq.indexOf('barbell') >= 0) return 'spot';
+  if (ex.pattern === 'vertical_push' && eq.indexOf('barbell') >= 0) return 'spot';
+  return null;
+}
+
+/* Alternating sets only work when one partner's working time covers a useful
+   share of the other's rest. Past roughly two minutes of prescribed rest it
+   does not, and pretending otherwise would quietly cut their recovery. */
+function alternatingFits(restSec, role) {
+  if (role === 'finisher') return false;
+  return restSec > 0 && restSec <= 120;
+}
+
+function partnerNote(ex, restSec, role, name) {
+  const who = name ? name : 'השותף';
+  const spot = spotRole(ex);
+  if (spot === 'hold') return `${who} מחזיק את הקרסוליים — בלי זה אי אפשר לבצע את התרגיל.`;
+  if (spot === 'assist') return `${who} נותן עזרה מינימלית רק כשהחזרה נתקעת.`;
+  if (spot === 'spot') return `${who} שומר. יד מתחת למוט, בלי לגעת כל עוד החזרה נקייה.`;
+  if (alternatingFits(restSec, role)) return `סט לסירוגין — אחד עובד, השני סופר. המנוחה שלך היא הסט שלו.`;
+  return `מנוחה מלאה לשניכם. אל תקצרו אותה רק כי מישהו מחכה.`;
+}
+
 function generateProgram(profile) {
-  const p = profile || {};
+  const input = profile || {};
+  // Everything downstream selects and prescribes against the shared-session
+  // profile, so a joint plan is automatically safe for both people.
+  const p = partnerAdjusted(input);
   const goal = goalOf(p);
   const hash = hashProfile(p);
   const vol = weeklyVolume(p);
@@ -15622,7 +15787,16 @@ function generateProgram(profile) {
       const lead = prescribe(p, picked.family[0], slot);
       minutes += (slot.sets * (lead.workSec + lead.restSec)) / 60;
 
-      slots.push({ key: `s${slots.length + 1}`, role: slot.role, variants });
+      const slotEntry = { key: `s${slots.length + 1}`, role: slot.role, variants };
+      if (trainsTogether(input)) {
+        const head = picked.family[0];
+        slotEntry.partner = {
+          alternating: alternatingFits(lead.restSec, slot.role),
+          spot: spotRole(head),
+          note: partnerNote(head, lead.restSec, slot.role, input.partnerName),
+        };
+      }
+      slots.push(slotEntry);
     }
 
     // A session is never allowed to come out empty.
@@ -15676,6 +15850,15 @@ function generateProgram(profile) {
 
   return {
     meta: {
+      partner: input.withPartner ? {
+        mode: input.partnerMode,
+        name: input.partnerName || '',
+        together: trainsTogether(input),
+        note: trainsTogether(input)
+          ? 'אתם עוברים את האימון כזוג — סט לסירוגין על אותה תחנה, ושמירה הדדית בתרגילים הכבדים. '
+            + 'רמת הקושי נקבעה לפי המתחיל מביניכם, והעומס עצמו הוא עניין אישי: אותו תרגיל, לא אותו משקל.'
+          : 'אותה תוכנית, אבל כל אחד בזמן שלו. אין תרגילים שדורשים שמירה או עזרה של שותף.',
+      } : null,
       splitName: split.name,
       rationale: split.rationale,
       daysPerWeek,

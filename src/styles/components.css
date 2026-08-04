@@ -386,3 +386,19 @@ input::placeholder, textarea::placeholder { color: var(--dimmer); }
   .tabs, .toolbar, .acts, .wiznav, .btn { display: none !important; }
   .ex, .card { break-inside: avoid; border-color: #ccc; }
 }
+
+/* ---------------- partner training ---------------- */
+.pbadge {
+  font-family: var(--mono); font-size: 10px; letter-spacing: .08em;
+  color: var(--cyan); background: var(--cyan-wash);
+  border: 1px solid rgba(86, 217, 206, .28); border-radius: 5px;
+  padding: 2px 7px; margin-inline-end: 7px; white-space: nowrap;
+}
+.note.partner { color: var(--dim); display: flex; align-items: baseline; flex-wrap: wrap; gap: 2px; }
+.partnerbar {
+  display: flex; align-items: baseline; flex-wrap: wrap; gap: 4px;
+  border: 1px solid var(--cyan-deep); border-radius: var(--r);
+  background: rgba(86, 217, 206, .05);
+  padding: 12px 14px; margin: 0 0 20px;
+  font-size: 13.5px; color: var(--dim); line-height: 1.55;
+}

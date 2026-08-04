@@ -1052,8 +1052,70 @@ function buildNotes(profile, ctx) {
  * Turns a profile into a full Program. Pure and deterministic: same profile in,
  * byte-identical program out (apart from meta.generatedAt, which is today).
  */
+
+/* ------------------------------------------------------------------ *
+ * Partner training
+ *
+ * Training together at the same time is a structural change, not a label.
+ * Both people share a station, so an exercise has to be safe for both and
+ * pitched at whoever is less experienced — each then loads it for themselves.
+ * ------------------------------------------------------------------ */
+
+const EXPERIENCE_RANK = { beginner: 0, returning: 1, intermediate: 2, advanced: 3 };
+
+function trainsTogether(p) {
+  return p.withPartner === true && p.partnerMode === 'together';
+}
+
+/** Selection profile for a shared session: both injury lists, the lower ceiling. */
+function partnerAdjusted(p) {
+  if (!trainsTogether(p)) return p;
+  const injuries = Array.from(new Set([].concat(p.injuries || [], p.partnerInjuries || []))).sort();
+  const mine = EXPERIENCE_RANK[p.experience] === undefined ? 0 : EXPERIENCE_RANK[p.experience];
+  const theirs = EXPERIENCE_RANK[p.partnerExperience] === undefined ? 0 : EXPERIENCE_RANK[p.partnerExperience];
+  const lower = mine <= theirs ? p.experience : p.partnerExperience;
+  return Object.assign({}, p, { injuries, experience: lower });
+}
+
+/* Movements where a second pair of hands genuinely changes what is possible —
+   either the exercise is unsafe alone under load, or it simply cannot be done
+   without a partner (someone has to hold the ankles for a nordic curl). */
+function spotRole(ex) {
+  const id = ex.id || '';
+  if (/nordic|glute_ham|partner/.test(id)) return 'hold';
+  if (/negative|assisted|eccentric/.test(id)) return 'assist';
+  const eq = ex.equipment || [];
+  const heavy = eq.indexOf('barbell') >= 0 || eq.indexOf('dumbbells') >= 0;
+  if (!heavy) return null;
+  if (ex.pattern === 'horizontal_push' && eq.indexOf('bench') >= 0) return 'spot';
+  if (ex.pattern === 'squat' && eq.indexOf('barbell') >= 0) return 'spot';
+  if (ex.pattern === 'vertical_push' && eq.indexOf('barbell') >= 0) return 'spot';
+  return null;
+}
+
+/* Alternating sets only work when one partner's working time covers a useful
+   share of the other's rest. Past roughly two minutes of prescribed rest it
+   does not, and pretending otherwise would quietly cut their recovery. */
+function alternatingFits(restSec, role) {
+  if (role === 'finisher') return false;
+  return restSec > 0 && restSec <= 120;
+}
+
+function partnerNote(ex, restSec, role, name) {
+  const who = name ? name : 'השותף';
+  const spot = spotRole(ex);
+  if (spot === 'hold') return `${who} מחזיק את הקרסוליים — בלי זה אי אפשר לבצע את התרגיל.`;
+  if (spot === 'assist') return `${who} נותן עזרה מינימלית רק כשהחזרה נתקעת.`;
+  if (spot === 'spot') return `${who} שומר. יד מתחת למוט, בלי לגעת כל עוד החזרה נקייה.`;
+  if (alternatingFits(restSec, role)) return `סט לסירוגין — אחד עובד, השני סופר. המנוחה שלך היא הסט שלו.`;
+  return `מנוחה מלאה לשניכם. אל תקצרו אותה רק כי מישהו מחכה.`;
+}
+
 export function generateProgram(profile) {
-  const p = profile || {};
+  const input = profile || {};
+  // Everything downstream selects and prescribes against the shared-session
+  // profile, so a joint plan is automatically safe for both people.
+  const p = partnerAdjusted(input);
   const goal = goalOf(p);
   const hash = hashProfile(p);
   const vol = weeklyVolume(p);
@@ -1116,7 +1178,16 @@ export function generateProgram(profile) {
       const lead = prescribe(p, picked.family[0], slot);
       minutes += (slot.sets * (lead.workSec + lead.restSec)) / 60;
 
-      slots.push({ key: `s${slots.length + 1}`, role: slot.role, variants });
+      const slotEntry = { key: `s${slots.length + 1}`, role: slot.role, variants };
+      if (trainsTogether(input)) {
+        const head = picked.family[0];
+        slotEntry.partner = {
+          alternating: alternatingFits(lead.restSec, slot.role),
+          spot: spotRole(head),
+          note: partnerNote(head, lead.restSec, slot.role, input.partnerName),
+        };
+      }
+      slots.push(slotEntry);
     }
 
     // A session is never allowed to come out empty.
@@ -1170,6 +1241,15 @@ export function generateProgram(profile) {
 
   return {
     meta: {
+      partner: input.withPartner ? {
+        mode: input.partnerMode,
+        name: input.partnerName || '',
+        together: trainsTogether(input),
+        note: trainsTogether(input)
+          ? 'אתם עוברים את האימון כזוג — סט לסירוגין על אותה תחנה, ושמירה הדדית בתרגילים הכבדים. '
+            + 'רמת הקושי נקבעה לפי המתחיל מביניכם, והעומס עצמו הוא עניין אישי: אותו תרגיל, לא אותו משקל.'
+          : 'אותה תוכנית, אבל כל אחד בזמן שלו. אין תרגילים שדורשים שמירה או עזרה של שותף.',
+      } : null,
       splitName: split.name,
       rationale: split.rationale,
       daysPerWeek,

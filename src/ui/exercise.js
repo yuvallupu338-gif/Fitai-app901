@@ -63,6 +63,9 @@ export function exerciseCard(day, slot, index, onChange) {
       logs.length ? h('span.setpill', `${logs.length} סטים נרשמו`) : null,
     ),
     v.note ? h('p.note' + (String(v.note).startsWith('⚠︎') ? '.caution' : ''), v.note) : null,
+    slot.partner ? h('p.note.partner',
+      h('span.pbadge', slot.partner.spot ? 'שמירה' : slot.partner.alternating ? 'לסירוגין' : 'מנוחה מלאה'),
+      slot.partner.note) : null,
     ex && ex.cues && ex.cues.length ? h('div.cues', ex.cues.slice(0, 3).map((c) => h('span.cue', c))) : null,
     levelRow(v.level, pick, slot.variants.length),
   );

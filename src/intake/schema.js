@@ -67,6 +67,12 @@ export function defaults() {
     diet: [],
     allergies: '',
     supplements: '',
+
+    withPartner: false,
+    partnerMode: 'together',
+    partnerName: '',
+    partnerExperience: 'beginner',
+    partnerInjuries: [],
   };
 }
 
@@ -387,6 +393,58 @@ export const STEPS = [
   },
 
   {
+    id: 'partner',
+    title: 'מתאמנים לבד או ביחד',
+    subtitle: 'זה משנה את מבנה האימון לגמרי, לא רק את האווירה. אימון בזוג מאפשר סטים לסירוגין ושמירה הדדית.',
+    fields: [
+      {
+        key: 'withPartner', label: 'יש מישהו שמתאמן איתך?', type: 'choice',
+        options: [
+          { value: false, label: 'מתאמן לבד' },
+          { value: true, label: 'יש שותף לאימון' },
+        ],
+      },
+      {
+        key: 'partnerMode', label: 'איך זה עובד בפועל?', type: 'choice',
+        showIf: (p) => p.withPartner,
+        help: 'ביחד באותו זמן = סטים לסירוגין, אחד עובד והשני סופר ושומר. כל אחד לחוד = אותה תוכנית, זמנים שונים.',
+        options: [
+          {
+            value: 'together', label: 'ביחד, באותו זמן',
+            desc: 'עוברים את האימון כזוג — סט לסירוגין, שמירה הדדית, אותה תחנה',
+          },
+          {
+            value: 'separate', label: 'כל אחד לחוד',
+            desc: 'אותה תוכנית אבל לא באותו זמן — בלי שמירה ובלי תלות',
+          },
+        ],
+      },
+      {
+        key: 'partnerName', label: 'איך קוראים לו?', type: 'text', required: false,
+        showIf: (p) => p.withPartner, placeholder: 'לא חובה',
+      },
+      {
+        key: 'partnerExperience', label: 'הוותק שלו', type: 'choice',
+        showIf: (p) => p.withPartner && p.partnerMode === 'together',
+        help: 'כשמתאמנים על אותה תחנה, רמת הקושי נקבעת לפי המתחיל מביניכם — ואז כל אחד מכוון את העומס לעצמו.',
+        options: [
+          { value: 'beginner', label: 'מתחיל' },
+          { value: 'returning', label: 'חוזר אחרי הפסקה' },
+          { value: 'intermediate', label: 'שנה+ ברצף' },
+          { value: 'advanced', label: 'ותיק' },
+        ],
+      },
+      {
+        key: 'partnerInjuries', label: 'פציעות או מגבלות שלו', type: 'chips',
+        showIf: (p) => p.withPartner && p.partnerMode === 'together',
+        required: false,
+        help: 'תרגיל שמעמיס על פציעה של אחד מכם לא ייכנס לאימון המשותף.',
+        options: INJURY_OPTIONS,
+      },
+    ],
+  },
+
+  {
     id: 'nutrition',
     title: 'תזונה',
     subtitle: 'אופציונלי. אם תרצה, אבנה גם את הצד הזה — ארוחות, חלופות, ואיך לאכול בחוץ.',
@@ -555,6 +613,15 @@ export function normalizeProfile(input) {
   p.sleepHours = clamp(p.sleepHours, 4, 12, 7);
   p.stress = clamp(Math.round(p.stress), 1, 5, 3);
 
+  p.withPartner = p.withPartner === true;
+  p.partnerMode = p.withPartner && p.partnerMode === 'separate' ? 'separate' : 'together';
+  p.partnerName = String(p.partnerName || '').trim();
+  p.partnerExperience = ['beginner', 'returning', 'intermediate', 'advanced'].includes(p.partnerExperience)
+    ? p.partnerExperience : 'beginner';
+  p.partnerInjuries = p.withPartner && Array.isArray(p.partnerInjuries)
+    ? Array.from(new Set(p.partnerInjuries.filter((i) => injuries.has(i)))).sort() : [];
+  if (!p.withPartner) { p.partnerName = ''; p.partnerInjuries = []; }
+
   p.wantsNutrition = p.wantsNutrition !== false;
   p.mealsPerDay = clamp(Math.round(p.mealsPerDay), 3, 6, 4);
   p.whoCooks = ['self', 'family', 'partner', 'outside'].includes(p.whoCooks) ? p.whoCooks : 'family';
@@ -646,6 +713,14 @@ export function summarize(profile) {
   if (bm.deadliftKg) bmParts.push(`דדליפט ${bm.deadliftKg} ק״ג`);
   if (bmParts.length) rows.push({ label: 'מספרים היום', value: bmParts.join(' · ') });
 
+  rows.push({
+    label: 'אימון משותף',
+    value: p.withPartner
+      ? (p.partnerMode === 'together'
+        ? `ביחד${p.partnerName ? ` עם ${p.partnerName}` : ''} · סטים לסירוגין`
+        : `אותה תוכנית${p.partnerName ? `, ${p.partnerName}` : ''} · כל אחד לחוד`)
+      : 'לבד',
+  });
   rows.push({
     label: 'תזונה',
     value: p.wantsNutrition

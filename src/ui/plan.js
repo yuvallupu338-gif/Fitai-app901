@@ -41,6 +41,15 @@ export function renderPlan(root, program, profile) {
     ));
     if (day.focus) view.appendChild(h('p.focus', day.focus));
 
+    const partner = program.meta && program.meta.partner;
+    if (partner) {
+      view.appendChild(h('div.partnerbar',
+        h('span.pbadge', partner.together
+          ? `ביחד${partner.name ? ` עם ${partner.name}` : ''}`
+          : 'כל אחד לחוד'),
+        h('span', partner.note)));
+    }
+
     if (program.warmup && program.warmup.length) {
       view.appendChild(h('details.warm',
         h('summary', 'חימום — לפני כל אימון', h('span', `${Math.round(program.warmup.length * 1.4)} דק׳`)),
