@@ -1035,8 +1035,8 @@ const dead_hang = {
 /* Scapular pull: elbows stay long, only the shoulder blades work. */
 
 const SCAP_DOWN = HANG;
-const SCAP_UP = p(HANG, { y: 59, head: 88 });
-const SCAP_HOLD = p(SCAP_UP, { y: 59.4 });
+const SCAP_UP = p(HANG, { y: 56, head: 88 });
+const SCAP_HOLD = p(SCAP_UP, { y: 56.6 });
 
 const scap_pull = {
   id: 'scap_pull',
@@ -1341,8 +1341,8 @@ const BPA_MID = p(BPA_TOGETHER, {
 });
 
 const BPA_APART = p(BPA_TOGETHER, {
-  handL: { x: 65, y: 19, bend: 1 },
-  handR: { x: 70, y: 42, bend: -1 },
+  handL: { x: 62, y: 20, bend: 1 },
+  handR: { x: 68, y: 48, bend: -1 },
 });
 
 const BPA_HOLD = p(BPA_TOGETHER, {
