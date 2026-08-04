@@ -99,29 +99,29 @@ const pushup = {
 
 const BCP_STANCE = {
   x: 44, y: 59.5, spine: 88, head: 88,
-  footPtL: { x: 35, y: 87.5, bend: -1 },
-  footPtR: { x: 52, y: 87.5, bend: -1 },
+  footPtL: { x: 35, y: 87.5, bend: 1 },
+  footPtR: { x: 52, y: 87.5, bend: 1 },
   footL: 2, footR: 2,
 };
 
 const BCP_BACK = p(BCP_STANCE, {
-  handL: { x: 41, y: 46, bend: -1 },
-  handR: { x: 43.5, y: 45, bend: -1 },
+  handL: { x: 46, y: 47, bend: -1 },
+  handR: { x: 48.5, y: 46, bend: -1 },
 });
 
 const BCP_MID = p(BCP_STANCE, {
-  handL: { x: 52, y: 43.5, bend: -1 },
-  handR: { x: 54.5, y: 42.5, bend: -1 },
+  handL: { x: 56, y: 44, bend: -1 },
+  handR: { x: 58.5, y: 43, bend: -1 },
 });
 
 const BCP_LONG = p(BCP_STANCE, {
-  handL: { x: 62.5, y: 41.5, bend: -1 },
-  handR: { x: 65, y: 40.5, bend: -1 },
+  handL: { x: 63, y: 42.5, bend: -1 },
+  handR: { x: 65.5, y: 41.5, bend: -1 },
 });
 
 const BCP_HOLD = p(BCP_STANCE, {
-  handL: { x: 62, y: 41.9, bend: -1 },
-  handR: { x: 64.5, y: 40.9, bend: -1 },
+  handL: { x: 62.5, y: 42.9, bend: -1 },
+  handR: { x: 65, y: 41.9, bend: -1 },
 });
 
 const band_chest_press = {
@@ -132,7 +132,7 @@ const band_chest_press = {
   ease: 'inOut',
   props: [
     { type: 'wall', x: 12, y0: 20, y1: 88 },
-    { type: 'band', x0: 12, y0: 44, x1: 42, y1: 45.5, sag: 3 },
+    { type: 'band', x0: 12, y0: 45, x1: 41, y1: 46.5, sag: 2.5 },
   ],
   keys: [
     { t: 0, pose: BCP_BACK },
@@ -150,8 +150,8 @@ const band_chest_press = {
 
 const DB_BENCH = {
   x: 38, y: 72, spine: 8, head: 14,
-  footPtL: { x: 24, y: 87.5, bend: -1 },
-  footPtR: { x: 26.5, y: 87.5, bend: -1 },
+  footPtL: { x: 22, y: 87.5, bend: -1 },
+  footPtR: { x: 27, y: 87.5, bend: -1 },
   footL: 2, footR: 2,
   load: 'dumbbell',
 };
@@ -193,36 +193,37 @@ const db_bench_press = {
 };
 
 /* --- cable chest fly -------------------------------------------------
- * Standing between two stacks, one small step forward so the cables never
- * go slack. The elbows keep one soft angle the whole way; the hands sweep
- * from wide open to touching in front of the sternum.
+ * Standing between two stacks with one small step forward, so the cables
+ * never go slack. The elbow angle barely changes — the arms SWEEP rather
+ * than press, from fully spread to the knuckles meeting in front of the
+ * sternum, which is what separates a fly from the band press above.
  * ------------------------------------------------------------------ */
 
 const FLY_STANCE = {
   x: 46, y: 59.5, spine: 82, head: 84,
-  footPtL: { x: 37, y: 87.5, bend: -1 },
-  footPtR: { x: 55, y: 87.5, bend: -1 },
+  footPtL: { x: 37, y: 87.5, bend: 1 },
+  footPtR: { x: 55, y: 87.5, bend: 1 },
   footL: 2, footR: 2,
 };
 
 const CFLY_OPEN = p(FLY_STANCE, {
-  handL: { x: 34, y: 44, bend: 1 },
+  handL: { x: 34, y: 45, bend: -1 },
   handR: { x: 68, y: 44, bend: -1 },
 });
 
 const CFLY_MID = p(FLY_STANCE, {
-  handL: { x: 48, y: 43, bend: 1 },
-  handR: { x: 66, y: 42, bend: -1 },
+  handL: { x: 43, y: 46, bend: -1 },
+  handR: { x: 63, y: 44.5, bend: -1 },
 });
 
 const CFLY_TOUCH = p(FLY_STANCE, {
-  handL: { x: 61, y: 41, bend: 1 },
-  handR: { x: 64, y: 40, bend: -1 },
+  handL: { x: 52, y: 47, bend: -1 },
+  handR: { x: 57, y: 45, bend: -1 },
 });
 
 const CFLY_HOLD = p(FLY_STANCE, {
-  handL: { x: 60.6, y: 41.4, bend: 1 },
-  handR: { x: 63.6, y: 40.4, bend: -1 },
+  handL: { x: 51.6, y: 46.7, bend: -1 },
+  handR: { x: 57.4, y: 45.3, bend: -1 },
 });
 
 const cable_chest_fly = {
@@ -232,10 +233,10 @@ const cable_chest_fly = {
   hero: 0.44,
   ease: 'inOut',
   props: [
-    { type: 'machine', x: 8, y: 12, w: 10, h: 56 },
-    { type: 'machine', x: 92, y: 12, w: 10, h: 56 },
-    { type: 'band', x0: 10, y0: 26, x1: 34, y1: 44, sag: 2 },
-    { type: 'band', x0: 90, y0: 26, x1: 68, y1: 44, sag: 2 },
+    { type: 'machine', x: 10, y: 14, w: 12, h: 54 },
+    { type: 'machine', x: 90, y: 14, w: 12, h: 54 },
+    { type: 'band', x0: 13, y0: 26, x1: 43, y1: 46, sag: 2 },
+    { type: 'band', x0: 87, y0: 26, x1: 63, y1: 44.5, sag: 2 },
   ],
   keys: [
     { t: 0, pose: CFLY_OPEN },
@@ -258,15 +259,15 @@ const cable_chest_fly = {
 
 const WS_BODY = {
   x: 50, y: 58, spine: 90, head: 90,
-  footPtL: { x: 48, y: 87.5, bend: -1 },
-  footPtR: { x: 51.5, y: 87.5, bend: -1 },
+  footPtL: { x: 48, y: 87.5, bend: 1 },
+  footPtR: { x: 51.5, y: 87.5, bend: 1 },
   footL: 2, footR: 2,
 };
 
-const WS_LOW = p(WS_BODY, { armL: [-41, 81.6], armR: [-35, 76.6] });
-const WS_MID = p(WS_BODY, { armL: [-6, 92.5], armR: [0, 87.5] });
-const WS_HIGH = p(WS_BODY, { armL: [29, 81.6], armR: [35, 76.6] });
-const WS_HOLD = p(WS_BODY, { armL: [27, 82.6], armR: [33, 77.6] });
+const WS_LOW = p(WS_BODY, { armL: [-47, 80], armR: [-35, 76.4] });
+const WS_MID = p(WS_BODY, { armL: [-12, 91], armR: [0, 87.5] });
+const WS_HIGH = p(WS_BODY, { armL: [23, 80], armR: [35, 76.4] });
+const WS_HOLD = p(WS_BODY, { armL: [21, 81], armR: [33, 77.4] });
 
 const wall_slide = {
   id: 'wall_slide',
@@ -292,19 +293,19 @@ const wall_slide = {
  * ------------------------------------------------------------------ */
 
 const IPK_FEET = {
-  footPtL: { x: 22, y: 86.5, bend: -1 },
-  footPtR: { x: 23.5, y: 86.5, bend: -1 },
+  footPtL: { x: 24, y: 86.5, bend: -1 },
+  footPtR: { x: 28.5, y: 86.5, bend: -1 },
   footL: -22, footR: -22,
 };
 
 const IPK_TOP = p(IPK_FEET, {
-  x: 30.5, y: 58.2, spine: -20, head: -30,
-  handL: { x: 68, y: 76.5, bend: -1 },
-  handR: { x: 70, y: 76.5, bend: -1 },
+  x: 31.5, y: 58, spine: -20, head: -30,
+  handL: { x: 70, y: 79.5, bend: -1 },
+  handR: { x: 72, y: 79.5, bend: -1 },
 });
 
-const IPK_BOTTOM = p(IPK_TOP, { x: 37.3, y: 61.3, spine: -25, head: -58 });
-const IPK_PAUSE = p(IPK_TOP, { x: 36.7, y: 61, spine: -24.4, head: -55 });
+const IPK_BOTTOM = p(IPK_TOP, { x: 39.3, y: 62.3, spine: -25, head: -58 });
+const IPK_PAUSE = p(IPK_TOP, { x: 38.6, y: 62, spine: -24.4, head: -55 });
 
 const incline_pike_pushup = {
   id: 'incline_pike_pushup',
@@ -312,7 +313,7 @@ const incline_pike_pushup = {
   ground: true,
   hero: 0.44,
   ease: 'inOut',
-  props: [{ type: 'bench', x: 78, y: 77, w: 24, h: 5 }],
+  props: [{ type: 'bench', x: 82, y: 80, w: 24, h: 5 }],
   keys: [
     { t: 0, pose: IPK_TOP },
     { t: 0.42, pose: IPK_BOTTOM },
@@ -327,8 +328,8 @@ const incline_pike_pushup = {
  * ------------------------------------------------------------------ */
 
 const PK_FEET = {
-  footPtL: { x: 26, y: 87.5, bend: -1 },
-  footPtR: { x: 27.5, y: 87.5, bend: -1 },
+  footPtL: { x: 28, y: 87.5, bend: -1 },
+  footPtR: { x: 32.5, y: 87.5, bend: -1 },
   footL: -12, footR: -12,
 };
 
@@ -338,8 +339,8 @@ const PK_TOP = p(PK_FEET, {
   handR: { x: 68, y: 87.5, bend: -1 },
 });
 
-const PK_BOTTOM = p(PK_TOP, { x: 40.2, y: 64.6, spine: -30, head: -56 });
-const PK_PAUSE = p(PK_TOP, { x: 39.6, y: 64.1, spine: -29, head: -54 });
+const PK_BOTTOM = p(PK_TOP, { x: 43.2, y: 61.6, spine: -30, head: -60 });
+const PK_PAUSE = p(PK_TOP, { x: 42.4, y: 61.4, spine: -29, head: -57 });
 
 const pike_pushup = {
   id: 'pike_pushup',
@@ -363,8 +364,8 @@ const pike_pushup = {
 
 const MSP_SEAT = {
   x: 40, y: 66, spine: 92, head: 90,
-  footPtL: { x: 52, y: 87.5, bend: -1 },
-  footPtR: { x: 54.5, y: 87.5, bend: -1 },
+  footPtL: { x: 52, y: 87.5, bend: 1 },
+  footPtR: { x: 54.5, y: 87.5, bend: 1 },
   footL: 2, footR: 2,
 };
 
@@ -416,9 +417,9 @@ const machine_shoulder_press = {
 
 const LM_STANCE = {
   x: 40, y: 59.5, spine: 88, head: 86,
-  armL: [-100, -80],
-  footPtL: { x: 33, y: 87.5, bend: -1 },
-  footPtR: { x: 47, y: 87.5, bend: -1 },
+  armL: [-115, -95],
+  footPtL: { x: 33, y: 87.5, bend: 1 },
+  footPtR: { x: 47, y: 87.5, bend: 1 },
   footL: 2, footR: 2,
 };
 
@@ -461,8 +462,8 @@ const landmine_press = {
 
 const DSP_STANCE = {
   x: 48, y: 58, spine: 89, head: 90,
-  footPtL: { x: 46, y: 87.5, bend: -1 },
-  footPtR: { x: 50.5, y: 87.5, bend: -1 },
+  footPtL: { x: 46, y: 87.5, bend: 1 },
+  footPtR: { x: 50.5, y: 87.5, bend: 1 },
   footL: 2, footR: 2,
   load: 'dumbbell',
 };
@@ -517,8 +518,8 @@ const db_shoulder_press = {
 
 const OHP_STANCE = {
   x: 48, y: 58, spine: 89,
-  footPtL: { x: 46, y: 87.5, bend: -1 },
-  footPtR: { x: 50.5, y: 87.5, bend: -1 },
+  footPtL: { x: 46, y: 87.5, bend: 1 },
+  footPtR: { x: 50.5, y: 87.5, bend: 1 },
   footL: 2, footR: 2,
   load: 'barbell',
 };
@@ -570,15 +571,15 @@ const overhead_press = {
  * ------------------------------------------------------------------ */
 
 const PP_FLAT = {
-  footPtL: { x: 46, y: 87.5, bend: -1 },
-  footPtR: { x: 50.5, y: 87.5, bend: -1 },
+  footPtL: { x: 46, y: 87.5, bend: 1 },
+  footPtR: { x: 50.5, y: 87.5, bend: 1 },
   footL: 2, footR: 2,
   load: 'barbell',
 };
 
 const PP_TOE = {
-  footPtL: { x: 46, y: 86, bend: -1 },
-  footPtR: { x: 50.5, y: 86, bend: -1 },
+  footPtL: { x: 46, y: 86, bend: 1 },
+  footPtR: { x: 50.5, y: 86, bend: 1 },
   footL: -20, footR: -20,
   load: 'barbell',
 };
