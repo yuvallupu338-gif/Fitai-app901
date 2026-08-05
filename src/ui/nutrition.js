@@ -30,8 +30,13 @@ export function renderNutrition(root, plan, profile) {
             h('b', `${Math.abs(plan.strategy.deltaKcal)} קק״ל`)),
       ));
     } else {
-      view.appendChild(h('p.lead',
-        'בלי ספירת קלוריות ובלי מאקרו. בגיל הזה המטרה היא הרגלים, לא מספרים — הגוף עוד גדל, והוא צריך חומר גלם קבוע.'));
+      // A missing strategy has meant "under 16" for as long as there has been
+      // one, but the engine also withholds it when the profile is missing the
+      // numbers to compute from — an imported backup, a half-filled intake.
+      // Telling those people it is because of their age would be a lie.
+      view.appendChild(h('p.lead', Number(profile && profile.age) < 16
+        ? 'בלי ספירת קלוריות ובלי מאקרו. בגיל הזה המטרה היא הרגלים, לא מספרים — הגוף עוד גדל, והוא צריך חומר גלם קבוע.'
+        : 'אין כאן יעד קלורי — חסרים הגיל, הגובה או המשקל שצריך כדי לחשב אותו. כלל הצלחת והארוחות למטה עומדים בפני עצמם.'));
     }
 
     if (plan.plate && plan.plate.length) {
@@ -60,6 +65,7 @@ export function renderNutrition(root, plan, profile) {
         onclick: () => {
           store.update((s) => {
             plan.meals.forEach((m, i) => {
+              if (!m.variants || !m.variants.length) return;
               s.picks[`meal:${i}`] = ((s.picks[`meal:${i}`] || 0) + 1) % m.variants.length;
             });
           });
@@ -70,8 +76,17 @@ export function renderNutrition(root, plan, profile) {
     ));
 
     const list = h('div.list');
+    /*
+     * The engine no longer emits a meal with no options, but plans are kept in
+     * localStorage: anyone who generated one before that fix still has a slot
+     * that a long allergy list emptied, and rendering it divides by zero in the
+     * swap counter and takes the whole tab down. Skipping the index rather than
+     * filtering the array keeps every other meal's stored pick pointing at the
+     * same food it did yesterday.
+     */
     plan.meals.forEach((m, i) => {
       if (rest && m.trainingOnly) return;
+      if (!m.variants || !m.variants.length) return;
       list.appendChild(mealCard(m, i, draw));
     });
     view.appendChild(list);
@@ -95,7 +110,7 @@ export function renderNutrition(root, plan, profile) {
 
     if (plan.warnings && plan.warnings.length) {
       view.appendChild(h('div.warnbox', { style: { marginTop: '22px' } },
-        h('h4', profile.age < 18 ? 'דברים שלא מתפשרים עליהם' : 'שווה לדעת'),
+        h('h4', Number(profile && profile.age) < 18 ? 'דברים שלא מתפשרים עליהם' : 'שווה לדעת'),
         h('ul', plan.warnings.map((w) => h('li', w)))));
     }
   }
@@ -110,7 +125,8 @@ function setRest(v) {
 
 function mealCard(meal, index, redraw) {
   const key = `meal:${index}`;
-  const pick = (store.get().picks[key] || 0) % meal.variants.length;
+  const count = meal.variants.length;
+  const pick = (store.get().picks[key] || 0) % count;
   const o = meal.variants[pick];
 
   const card = h('div.ex.meal',
@@ -122,19 +138,25 @@ function mealCard(meal, index, redraw) {
       meal.job ? h('p.note', meal.job) : null,
       h('div.lev',
         h('span.lbl', 'אופציה'),
-        h('span.of.big', `${pick + 1} מתוך ${meal.variants.length}`)),
+        h('span.of.big', `${pick + 1} מתוך ${count}`)),
     ),
     h('div.acts',
-      h('button.iconbtn.swap', {
-        type: 'button', title: 'החלף ארוחה', 'aria-label': `החלף ארוחה: ${o.n}`,
-        onclick: () => {
-          store.update((s) => { s.picks[key] = (pick + 1) % meal.variants.length; });
-          const fresh = mealCard(meal, index, redraw);
-          fresh.classList.add('flash');
-          card.replaceWith(fresh);
-          setTimeout(() => fresh.classList.remove('flash'), 550);
-        },
-      }, '⇄'),
+      // A swap button over a single option does nothing when pressed, which is
+      // worse than not being there. Same rule the exercise cards follow.
+      count > 1
+        ? h('button.iconbtn.swap', {
+          type: 'button', title: 'החלף ארוחה', 'aria-label': `החלף ארוחה: ${o.n}`,
+          onclick: () => {
+            const next = (pick + 1) % count;
+            store.update((s) => { s.picks[key] = next; });
+            const fresh = mealCard(meal, index, redraw);
+            fresh.classList.add('flash');
+            card.replaceWith(fresh);
+            setTimeout(() => fresh.classList.remove('flash'), 550);
+            announce(`הוחלף ל־${meal.variants[next].n}`);
+          },
+        }, '⇄')
+        : null,
     ),
   );
   return card;

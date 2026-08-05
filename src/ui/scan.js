@@ -3,9 +3,18 @@
  *
  * Two jobs, and the order matters. First, tell the user exactly what is about
  * to happen before anything leaves the device: which two pictures, to which
- * company, under whose key. Second, run it and show what came back — including
- * when what came back is "I can't read these", which is a real answer and is
- * displayed as one rather than as an error.
+ * company, under whose key — and the list of fields in that notice is the list
+ * profileBrief actually sends, checked against it rather than remembered.
+ * Second, run it and show what came back — including when what came back is
+ * "I can't read these", which is a real answer and is displayed as one rather
+ * than as an error.
+ *
+ * Refusals are not one thing. A blurry photograph and a photograph of a child
+ * both come back as usable=false, and the only honest advice for the first
+ * ("try other photos") is, for the second, instructions for getting past a
+ * safety refusal by re-rolling a non-deterministic call. So the panel branches
+ * on refusalKind: quality problems keep the retry affordance, and the two
+ * safety kinds take the photographs away and switch the button off.
  *
  * The panel never changes the program by itself. It writes the read onto the
  * profile; the caller decides when to rebuild.
@@ -46,6 +55,35 @@ function paras(str) {
   return String(str || '').split(/\n{2,}/).filter(Boolean).map((t) => h('p', t));
 }
 
+/* What the app says happened, in its own words, next to the model's sentence.
+   The model's Hebrew is one line and is written for the person in front of it;
+   this is the part that has to name the mechanism, because the panel is about
+   to take the photos away and switch the button off. */
+const STOP_HE = {
+  minor: 'המודל קרא את אחת התמונות כתמונה של מי שאינו בן 18. הסריקה הזאת שולחת צילום גוף '
+    + 'לספק חיצוני, ועל תמונה של קטין היא לא רצה.',
+  sexual: 'המודל קרא את אחת התמונות כתמונה בעלת אופי מיני. הסריקה קוראת גוף בעמידה בבגדי '
+    + 'אימון, ולא את זה.',
+};
+
+/**
+ * Which refusals stop the feature rather than ask for better photos. Returns
+ * the kind, or null when retrying is the honest advice.
+ *
+ * Two signals, because src/vision is landing refusalKind while this panel is
+ * being written and the wrong direction to fail is open: a refusal that arrives
+ * without the field must not fall through to "try other photos", which is how
+ * you tell someone to keep pressing until a non-deterministic call lets them
+ * past. So the older boolean still counts, and an unrecognised kind on an
+ * unusable read counts as unreadable — that one IS a quality problem by default.
+ */
+function refusalStop(read) {
+  if (!read || read.usable === true) return null;
+  if (read.refusalKind === 'minor' || read.refusalKind === 'sexual') return read.refusalKind;
+  if (read.refusalKind === 'unreadable' || read.refusalKind === 'not_a_body') return null;
+  return read.safetyRefusal === true ? 'safety' : null;
+}
+
 export function renderRead(read, profile, opts) {
   const o = opts || {};
   const box = h('div.scanresult');
@@ -53,12 +91,19 @@ export function renderRead(read, profile, opts) {
   if (!read.usable) {
     // A refusal for a minor or for sexual content is not a quality problem, and
     // saying "try other photos" is telling someone how to get around it.
-    const safety = read.safetyRefusal === true;
-    box.appendChild(h('div.warnbox' + (safety ? '.hot' : ''),
-      h('h4', safety ? 'הסריקה נעצרה' : 'לא הצלחתי לקרוא את התמונות'),
+    const stop = refusalStop(read);
+    // Read off the profile rather than assumed: a stop reached through a read
+    // restored from storage has not cleared anything, and a panel that says it
+    // removed two photographs still visible above it has told its second lie of
+    // the screen.
+    const cleared = !!profile && !profile.photoNow && !profile.photoTarget;
+    box.appendChild(h('div.warnbox' + (stop ? '.hot' : ''),
+      h('h4', stop ? 'הסריקה נעצרה' : 'לא הצלחתי לקרוא את התמונות'),
       h('p', read.refusal || 'נסה תמונות אחרות.'),
-      safety
-        ? h('p', 'זו לא בעיה של איכות התמונה, ותמונה אחרת לא תשנה את זה.')
+      STOP_HE[stop] ? h('p', STOP_HE[stop]) : null,
+      stop
+        ? h('p', (cleared ? 'הסרתי את שתי התמונות והכפתור כבוי. ' : 'הכפתור כבוי. ')
+          + 'זו לא בעיה של איכות התמונה, ותמונה אחרת של אותו אדם לא תשנה את זה.')
         : null,
       h('p', { style: { color: 'var(--dimmer)', fontSize: '12.5px' } },
         'התוכנית נבנית בלי הסריקה, מהמספרים ומהתשובות שנתת. היא עדיין תוכנית מלאה.'),
@@ -78,12 +123,16 @@ export function renderRead(read, profile, opts) {
     ),
   ));
 
-  /* Adjacent to the number it qualifies. Below the verdict, below the goal
-     button and four screens down, it was a legal artefact rather than a
-     disclaimer — the user who most needs it is the one least likely to scroll. */
+  /* Adjacent to the number it qualifies, and it carries the medical half too.
+     That half used to sit at the very bottom, eighty-eight pixels BELOW the
+     button that changes the user's goal — which makes it a legal artefact and
+     not a disclaimer, because the person who most needs it is the one least
+     likely to still be scrolling after they have decided. The posture card in
+     this file is the pattern: the caveat lives inside the thing it qualifies. */
   box.appendChild(h('p.disclaimer', { style: { marginTop: '0', marginBottom: '16px' } },
     'זו קריאה משתי תמונות, לא מדידה. תמונה לא מודדת אחוז שומן ולא מודדת בריאות, '
-    + 'והיא משתנה לפי תאורה וזווית. הציון הוא על היעד מול התאריך — לא עליך.'));
+    + 'והיא משתנה לפי תאורה וזווית. הציון הוא על היעד מול התאריך — לא עליך. '
+    + 'השתמש בזה ככיוון, לא כאבחנה — אם יש חשש בריאותי, זו שיחה עם רופא ולא עם אפליקציה.'));
 
   if (r.verdict) {
     box.appendChild(h(`div.verdict.${band.tone}`, paras(r.verdict)));
@@ -153,6 +202,12 @@ export function renderRead(read, profile, opts) {
       h('h4', `הסריקה מצביעה על ${conflict.toHe}, ואתה בחרת ${conflict.fromHe}`),
       conflict.note ? h('p', conflict.note) : null,
       h('p', 'המטרה שלך לא משתנה מעצמה. אם זה נשמע נכון — החלף, ואם לא — התעלם, זו רק תמונה.'),
+      /* The half of the disclaimer that bears on THIS decision, repeated where
+         the decision is made. This button is the one place in the panel where a
+         judgement about two photographs is a single tap from rewriting the
+         plan, and a caveat four screens up is a caveat that was not read. */
+      h('p', { style: { color: 'var(--dimmer)', fontSize: '12.5px' } },
+        'לפני שאתה מחליף: זו קריאה משתי תמונות, לא מדידה — לא של הגוף ולא של הבריאות.'),
       h('div.toolbar',
         h('button.btn', {
           type: 'button',
@@ -160,9 +215,6 @@ export function renderRead(read, profile, opts) {
         }, `החלף ל${conflict.toHe}`)),
     ));
   }
-
-  box.appendChild(h('p.disclaimer',
-    'השתמש בזה ככיוון, לא כאבחנה. אם יש חשש בריאותי — זו שיחה עם רופא, לא עם אפליקציה.'));
 
   return box;
 }
@@ -179,6 +231,7 @@ export function renderRead(read, profile, opts) {
  * @param {Object} [opts]
  *   onRead(read)        after a successful scan — the caller persists
  *   onGoalChange(goal)  when the user accepts a suggested goal change
+ *   stopped             a safety refusal from earlier in this session
  *   compact             hide the explainer, for the plan screen
  */
 export function renderScan(host, profile, opts) {
@@ -186,6 +239,18 @@ export function renderScan(host, profile, opts) {
   let running = false;
   let controller = null;
   let error = null;
+  /* The safety refusal lives here rather than on the profile because clearing
+     the photos is half of what the stop DOES, and normalizeProfile drops any
+     read whose photos are gone — so the profile is structurally incapable of
+     carrying it. A caller that tears the panel down and rebuilds it hands the
+     refusal back through opts.stopped; otherwise the button would come back
+     live, which is the whole defect.
+
+     A safety refusal read back off the profile counts too. That state can only
+     have been written by a build that stored one without clearing the photos,
+     and the photos are what make it dangerous: a live button beside them is the
+     retry loop, whoever left it there. */
+  let stopped = o.stopped || (refusalStop(profile.visionRead) ? profile.visionRead : null);
 
   const body = h('div');
   host.appendChild(body);
@@ -208,16 +273,34 @@ export function renderScan(host, profile, opts) {
     const ready = !!profile.photoNow && !!profile.photoTarget;
     const { provider, model } = choiceFor('vision');
     const keyed = hasKey(provider.id);
+    /* One rule in one place, because it is read twice: once when the button is
+       built and again on every keystroke in the key field. The two drifting
+       apart is how a stopped scan gets a live button back. */
+    const buttonOff = () => running || !!stopped || !ready || !keyLooksValid(loadKey(provider.id));
 
-    if (!o.compact) {
+    /* A stopped scan says so first and drops the explainer. Left in its usual
+       place — under the button, under a paragraph describing a scan that is not
+       going to run — the explanation reads as a footnote to a live control. */
+    if (stopped) body.appendChild(renderRead(stopped, profile, {}));
+    else if (!o.compact) {
+      /* The first two bullets are the complete field list profileBrief actually
+         builds, in its order, which is what lets the third say "that is all".
+         The injuries line is not a disclosure of extra generosity: INJURY_OPTIONS
+         carries הריון, לב / לחץ דם and אסתמה, so a bullet promising that "your
+         medical condition" stays on the device was telling a pregnant user
+         something untrue about her own data. The medical FREE TEXT and the
+         allergies genuinely never leave — those are the ones to name. */
       body.appendChild(h('div.scanintro',
         h('h4', 'מה קורה כשאתה לוחץ'),
         h('ul',
-          h('li', `שתי התמונות נשלחות ל־${provider.label}, יחד עם הגיל, הגובה, המשקל, הוותק, המטרה והתאריך שנתת.`),
+          h('li', `שתי התמונות נשלחות ל־${provider.label}, ואיתן המספרים והתשובות שנתת: `
+            + 'גיל, מין, גובה, משקל ומשקל יעד, ותק, המטרה (וענף הספורט אם ציינת), '
+            + 'כמה זמן נשאר עד תאריך היעד, ימי האימון ואורך האימון, המקום והציוד, המסלול, '
+            + 'שעות השינה, העומס היומיומי ורמת ההתמסרות.'),
           h('li', 'נשלחות גם המגבלות הפיזיות שסימנת — כולל לב, אסתמה או הריון אם סימנת אותן — '
             + 'כי המלצה שלא יודעת עליהן מסוכנת יותר מהמלצה שיודעת.'),
-          h('li', 'לא נשלחים: השם שלך, הטקסט החופשי על מצב רפואי ותרופות, והאלרגיות. '
-            + 'המפתח לא נשמר אצל אף אחד חוץ ממך.'),
+          h('li', 'זה הכל. לא נשלחים: השם שלך, הטקסט החופשי על מצב רפואי, תרופות וניתוחים, '
+            + 'האלרגיות והעדפות התזונה. המפתח לא נשמר אצל אף אחד חוץ ממך.'),
           h('li', 'הציון הוא שיפוט של היעד מול התאריך משתי תמונות. הוא לא מדידה של הגוף ולא של הבריאות.'),
           h('li', 'התשובה חוזרת אליך בלבד ונשמרת במכשיר. שום שרת של האפליקציה הזאת לא רואה אותה — אין כזה.'),
           h('li', 'אפשר לדלג. בלי סריקה התוכנית נבנית מהתשובות בשאלון, כמו תמיד.'),
@@ -231,13 +314,13 @@ export function renderScan(host, profile, opts) {
         // Redrawing on every keystroke would steal focus from the field, so only
         // the button's enabled state is refreshed while typing.
         const btn = body.querySelector('.scanrun');
-        if (btn) btn.disabled = running || !ready || !keyLooksValid(loadKey(provider.id));
+        if (btn) btn.disabled = buttonOff();
       },
     })) body.appendChild(row);
 
     const run = h('button.btn.primary.scanrun', {
       type: 'button',
-      disabled: running || !ready || !keyLooksValid(loadKey(provider.id)),
+      disabled: buttonOff(),
       onclick: () => start(),
     }, h('span.ico', '◉'), running ? 'סורק…' : 'סרוק את שתי התמונות');
 
@@ -250,7 +333,11 @@ export function renderScan(host, profile, opts) {
     }
     body.appendChild(bar);
 
-    if (!ready) {
+    if (stopped) {
+      // Not "you need two photos" — after a stop that is an instruction to
+      // upload two more and press again, which is the thing being prevented.
+      body.appendChild(h('p.help', 'הכפתור כבוי בגלל מה שכתוב למעלה.'));
+    } else if (!ready) {
       body.appendChild(h('p.help', 'צריך את שתי התמונות — אחת שלך היום, אחת של היעד.'));
     } else if (!keyed) {
       body.appendChild(h('p.help', 'הזן מפתח API כדי להפעיל את הסריקה.'));
@@ -271,7 +358,7 @@ export function renderScan(host, profile, opts) {
     }
 
     const read = profile.visionRead;
-    if (read && !running) {
+    if (read && !running && !stopped) {
       body.appendChild(renderRead(read, profile, {
         onGoalChange: o.onGoalChange,
       }));
@@ -287,12 +374,25 @@ export function renderScan(host, profile, opts) {
 
     try {
       const read = await analyze(profile, { signal: controller.signal });
+      const stop = refusalStop(read);
       profile.visionRead = read;
       profile.emphasis = emphasisFrom(read);
+      if (stop) {
+        /* The pictures go with the refusal. Leaving them loaded next to a live
+           button is an invitation to press again until a differently-rolled
+           call lets them through, and one of these two kinds is a child. The
+           read goes too: it describes photographs that are no longer here, and
+           normalizeProfile would drop it on the next save regardless. */
+        stopped = read;
+        profile.photoNow = '';
+        profile.photoTarget = '';
+        profile.visionRead = null;
+        profile.emphasis = emphasisFrom(null);
+      }
       running = false;
       controller = null;
       draw();
-      announce(read.usable ? 'הסריקה הסתיימה' : 'התמונות לא ניתנות לקריאה');
+      announce(stop ? 'הסריקה נעצרה' : read.usable ? 'הסריקה הסתיימה' : 'התמונות לא ניתנות לקריאה');
       if (o.onRead) o.onRead(read);
     } catch (e) {
       running = false;
@@ -362,6 +462,10 @@ export function renderScanTab(host, profile, opts) {
   const o = opts || {};
   const working = profile;
   let dirty = false;
+  /* Held at this level because every redraw here builds a NEW panel, and a
+     stop that only lived inside the panel would be thrown away by the very
+     redraw that shows the cleared photo slots. */
+  let stopped = null;
 
   const wrap = h('div');
   host.appendChild(wrap);
@@ -400,20 +504,32 @@ export function renderScanTab(host, profile, opts) {
     const panel = h('div');
     wrap.appendChild(panel);
     renderScan(panel, working, {
-      onRead: () => { dirty = true; commit(); draw(); },
+      stopped,
+      onRead: (read) => {
+        if (refusalStop(read)) stopped = read;
+        dirty = true;
+        commit();
+        draw();
+      },
       onGoalChange: (goal) => { working.goal = goal; dirty = true; commit(); draw(); },
     });
 
+    /* After a stop there is no scan to fold in, so the same callout has to say
+       something else. Offering "rebuild WITH the scan" under a refusal is the
+       panel contradicting itself on the same screen. */
     if (dirty && o.onRebuild) {
       wrap.appendChild(h('div.callout.warn',
-        h('h4', 'התוכנית שמוצגת עדיין לא כוללת את זה'),
-        h('p', 'הסריקה משנה את חלוקת הנפח, וזה נכנס לתוקף רק כשהתוכנית נבנית מחדש. '
-          + 'הסימונים, הרישומים והמשקלים שרשמת נשמרים.'),
+        h('h4', stopped ? 'התוכנית שמוצגת עדיין לא מעודכנת' : 'התוכנית שמוצגת עדיין לא כוללת את זה'),
+        h('p', stopped
+          ? 'הסריקה לא רצה, והתוכנית שמוצגת עדיין נשענת על מה שהיה כאן קודם. '
+            + 'בנייה מחדש תבנה אותה מהתשובות בשאלון בלבד. הסימונים, הרישומים והמשקלים שרשמת נשמרים.'
+          : 'הסריקה משנה את חלוקת הנפח, וזה נכנס לתוקף רק כשהתוכנית נבנית מחדש. '
+            + 'הסימונים, הרישומים והמשקלים שרשמת נשמרים.'),
         h('div.toolbar',
           h('button.btn.primary', {
             type: 'button',
             onclick: () => { dirty = false; o.onRebuild(working); },
-          }, h('span.ico', '✦'), 'בנה מחדש עם הסריקה')),
+          }, h('span.ico', '✦'), stopped ? 'בנה מחדש בלי הסריקה' : 'בנה מחדש עם הסריקה')),
       ));
     }
   }
