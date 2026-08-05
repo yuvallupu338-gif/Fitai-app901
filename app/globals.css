@@ -1,0 +1,229 @@
+@tailwind base;
+@tailwind components;
+@tailwind utilities;
+
+@layer base {
+  :root {
+    /* מצב בהיר – לבן חמים עם ורוד עמוק כצבע מוביל */
+    --background: 30 40% 99%;
+    --foreground: 320 14% 12%;
+
+    --card: 0 0% 100%;
+    --card-foreground: 320 14% 12%;
+
+    --popover: 0 0% 100%;
+    --popover-foreground: 320 14% 12%;
+
+    --primary: 338 66% 48%;
+    --primary-foreground: 0 0% 100%;
+
+    --secondary: 330 30% 96%;
+    --secondary-foreground: 330 24% 26%;
+
+    --muted: 320 16% 96%;
+    --muted-foreground: 320 8% 45%;
+
+    --accent: 28 82% 94%;
+    --accent-foreground: 24 40% 28%;
+
+    --destructive: 0 72% 48%;
+    --destructive-foreground: 0 0% 100%;
+
+    --success: 152 56% 36%;
+    --success-foreground: 0 0% 100%;
+
+    --warning: 38 92% 46%;
+    --warning-foreground: 30 40% 12%;
+
+    --border: 320 14% 90%;
+    --input: 320 14% 88%;
+    --ring: 338 66% 48%;
+
+    --shadow-color: 320 30% 30%;
+    --radius: 0.9rem;
+  }
+
+  .dark {
+    --background: 315 14% 7%;
+    --foreground: 320 12% 94%;
+
+    --card: 315 12% 10%;
+    --card-foreground: 320 12% 94%;
+
+    --popover: 315 14% 11%;
+    --popover-foreground: 320 12% 94%;
+
+    --primary: 338 74% 62%;
+    --primary-foreground: 315 20% 8%;
+
+    --secondary: 315 10% 17%;
+    --secondary-foreground: 320 12% 92%;
+
+    --muted: 315 10% 16%;
+    --muted-foreground: 320 8% 62%;
+
+    --accent: 315 12% 20%;
+    --accent-foreground: 28 60% 86%;
+
+    --destructive: 0 64% 55%;
+    --destructive-foreground: 0 0% 100%;
+
+    --success: 152 46% 46%;
+    --success-foreground: 0 0% 100%;
+
+    --warning: 38 84% 58%;
+    --warning-foreground: 30 40% 10%;
+
+    --border: 315 8% 22%;
+    --input: 315 8% 24%;
+    --ring: 338 74% 62%;
+
+    --shadow-color: 315 40% 2%;
+  }
+}
+
+@layer base {
+  * {
+    @apply border-border;
+  }
+
+  html {
+    -webkit-tap-highlight-color: transparent;
+    scroll-behavior: smooth;
+  }
+
+  body {
+    @apply bg-background text-foreground antialiased;
+    font-feature-settings: 'kern' 1;
+    overscroll-behavior-y: none;
+  }
+
+  /* טיפוגרפיה עברית: כותרות מעט צפופות יותר */
+  h1, h2, h3, h4 {
+    @apply font-semibold tracking-tight;
+    line-height: 1.25;
+  }
+
+  /* מיקוד נגיש וברור בכל רכיב אינטראקטיבי */
+  :focus-visible {
+    @apply outline-none ring-2 ring-ring ring-offset-2 ring-offset-background;
+  }
+
+  /* מספרים תמיד משמאל לימין גם בתוך טקסט עברי */
+  .ltr-nums {
+    direction: ltr;
+    unicode-bidi: isolate;
+    display: inline-block;
+  }
+
+  input[type='number']::-webkit-outer-spin-button,
+  input[type='number']::-webkit-inner-spin-button {
+    -webkit-appearance: none;
+    margin: 0;
+  }
+
+  ::-webkit-scrollbar {
+    width: 10px;
+    height: 10px;
+  }
+
+  ::-webkit-scrollbar-track {
+    background: transparent;
+  }
+
+  ::-webkit-scrollbar-thumb {
+    @apply rounded-full bg-border;
+  }
+
+  ::-webkit-scrollbar-thumb:hover {
+    @apply bg-muted-foreground/40;
+  }
+}
+
+@layer components {
+  /* כרטיס בסיסי – פינות מעוגלות וצל עדין */
+  .surface {
+    @apply rounded-2xl border border-border/70 bg-card shadow-soft;
+  }
+
+  .surface-hover {
+    @apply transition-all duration-200 hover:-translate-y-0.5 hover:shadow-card;
+  }
+
+  /* אזור גלילה אופקי ללא פס גלילה נראה */
+  .scroll-x {
+    @apply flex gap-3 overflow-x-auto pb-1;
+    scrollbar-width: none;
+    -ms-overflow-style: none;
+    scroll-snap-type: x proximity;
+  }
+
+  .scroll-x::-webkit-scrollbar {
+    display: none;
+  }
+
+  /* אפקט זוהר לסטטוס "זמין עכשיו" */
+  .live-dot {
+    @apply relative inline-flex h-2 w-2 rounded-full bg-success;
+  }
+
+  .live-dot::after {
+    content: '';
+    @apply absolute inset-0 rounded-full bg-success animate-pulse-ring;
+  }
+
+  /* טקסט שנחתך אחרי מספר שורות */
+  .line-clamp-2-rtl {
+    display: -webkit-box;
+    -webkit-line-clamp: 2;
+    -webkit-box-orient: vertical;
+    overflow: hidden;
+  }
+
+  /* בטיחות אזור תחתון במכשירים עם מחוות (iPhone) */
+  .safe-bottom {
+    padding-bottom: env(safe-area-inset-bottom, 0px);
+  }
+
+  .safe-top {
+    padding-top: env(safe-area-inset-top, 0px);
+  }
+}
+
+@layer utilities {
+  /* היפוך אייקונים כיווניים ב־RTL (חצים) */
+  [dir='rtl'] .flip-rtl {
+    transform: scaleX(-1);
+  }
+
+  .shimmer {
+    position: relative;
+    overflow: hidden;
+  }
+
+  .shimmer::after {
+    content: '';
+    position: absolute;
+    inset: 0;
+    transform: translateX(100%);
+    background: linear-gradient(
+      90deg,
+      transparent,
+      hsl(var(--foreground) / 0.06),
+      transparent
+    );
+    animation: shimmer 1.6s infinite;
+  }
+}
+
+/* כיבוד העדפת "פחות תנועה" */
+@media (prefers-reduced-motion: reduce) {
+  *,
+  *::before,
+  *::after {
+    animation-duration: 0.01ms !important;
+    animation-iteration-count: 1 !important;
+    transition-duration: 0.01ms !important;
+    scroll-behavior: auto !important;
+  }
+}

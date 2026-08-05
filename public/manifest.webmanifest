@@ -1,0 +1,26 @@
+{
+  "name": "יופי – רשת חברתית לבעלי מקצוע בתחום היופי",
+  "short_name": "יופי",
+  "description": "גלו בעלי מקצוע בתחום היופי והטיפוח, עקבו אחרי העבודות שלהם, שלחו הודעה והזמינו טיפול עד הבית או מפגש קבוע.",
+  "start_url": "/",
+  "scope": "/",
+  "display": "standalone",
+  "orientation": "portrait",
+  "background_color": "#fdfbfb",
+  "theme_color": "#c2185b",
+  "lang": "he",
+  "dir": "rtl",
+  "categories": ["lifestyle", "social", "beauty"],
+  "icons": [
+    { "src": "/icons/icon.svg", "sizes": "any", "type": "image/svg+xml", "purpose": "any" },
+    { "src": "/icons/icon-192.png", "sizes": "192x192", "type": "image/png", "purpose": "any" },
+    { "src": "/icons/icon-512.png", "sizes": "512x512", "type": "image/png", "purpose": "any" },
+    { "src": "/icons/icon-maskable-512.png", "sizes": "512x512", "type": "image/png", "purpose": "maskable" }
+  ],
+  "shortcuts": [
+    { "name": "חיפוש בעלי מקצוע", "url": "/search", "description": "מציאת בעל מקצוע לפי עיר ומקצוע" },
+    { "name": "ההזמנות שלי", "url": "/dashboard/bookings" },
+    { "name": "הודעות", "url": "/messages" },
+    { "name": "פרסום עבודה", "url": "/create" }
+  ]
+}
