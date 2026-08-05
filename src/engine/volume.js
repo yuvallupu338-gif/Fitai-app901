@@ -215,10 +215,10 @@ function distribute(weights, total, caps, floors) {
     let pinned = 0;
     for (const g of open) {
       const share = left * (weights[g] / wSum);
-      if (share > caps[g]) { out[g] = caps[g]; pinned += out[g]; } else if (share < floors[g]) {
-        out[g] = Math.min(floors[g], caps[g]);
-        pinned += out[g];
-      } else { out[g] = share; next.push(g); }
+      const lo = Math.min(floors[g], caps[g]);
+      // Pinned to a bound leaves the pool; the rest re-share what it gave back.
+      const at = share > caps[g] ? caps[g] : share < lo ? lo : null;
+      if (at === null) { out[g] = share; next.push(g); } else { out[g] = at; pinned += at; }
     }
     if (next.length === open.length) break;   // nothing hit a bound: settled
     left -= pinned;
@@ -253,8 +253,12 @@ function roundToTotal(vals, total, caps, floors) {
     let moved = false;
     for (const g of order) {
       if (left === 0) break;
-      if (left > 0 && out[g] < caps[g]) { out[g] += 1; left -= 1; moved = true; }
-      if (left < 0 && out[g] > floors[g]) { out[g] -= 1; left += 1; moved = true; }
+      const room = left > 0 ? out[g] < caps[g] : out[g] > floors[g];
+      if (!room) continue;
+      const step = left > 0 ? 1 : -1;
+      out[g] += step;
+      left -= step;
+      moved = true;
     }
     // Floors and ceilings outrank the total: if the week cannot be made to add
     // up without breaking one, it stops trying rather than breaking one.
@@ -345,7 +349,7 @@ export function weeklyVolume(profile) {
    *
    * So the multipliers are weights inside a fixed pool, not a scale on the way
    * in. Scaling first was self-defeating: a group already on its ceiling could
-   * not rise however hard the photo pushed, but its inflated number still swole
+   * not rise however hard the photo pushed, but its inflated number still swelled
    * the sum, and the fill-to-capacity factor that followed shrank every other
    * group to pay for sets nobody ever received. Redistributing spends the
    * neutral week's own sum instead, and whatever a ceiling refuses spills onto
@@ -370,9 +374,13 @@ export function weeklyVolume(profile) {
   let vol;
   let moved = false;
   if (emphasised) {
-    const flat = survivors(base, base);
-    const neutral = roundSets(distribute(flat.weights, sum, caps, flat.floors), caps, flat.floors);
-    vol = roundToTotal(out, GROUPS.reduce((n, g) => n + neutral[g], 0), caps, kept.floors);
+    // Both rounds run on `kept.floors` because they ARE the same floors: the
+    // keep list is read off the neutral week either way, so the two weeks
+    // differ in where the sets went and never in how many there are to place.
+    const flat = survivors(base, base).weights;
+    const neutral = roundSets(distribute(flat, sum, caps, kept.floors), caps, kept.floors);
+    const target = GROUPS.reduce((n, g) => n + neutral[g], 0);
+    vol = roundToTotal(out, target, caps, kept.floors);
     // A scan that leans on a group already sitting on its ceiling, in a week
     // where the groups it would take from are on theirs too, has nowhere to
     // move sets to and correctly changes nothing. The note is keyed on this
