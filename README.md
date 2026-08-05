@@ -9,6 +9,25 @@
 
 ---
 
+## שני לקוחות, מסד נתונים אחד
+
+| | אפליקציית Next.js | `index.html` |
+|---|---|---|
+| מה זה | אפליקציה מלאה עם שרת | **קובץ HTML יחיד** |
+| הרצה | `npm run dev` / `npm start` | פתיחה בדפדפן או העלאה ל‑GitHub Pages |
+| דורש Node? | כן | **לא** |
+| שלב בנייה? | כן | **לא** |
+| מסד נתונים | אותו Supabase | אותו Supabase |
+| משתמשים וסיסמאות | משותפים | משותפים |
+
+שני היישומים מדברים עם אותו מסד, אותן טבלאות ואותו RLS. משתמש שנרשם באחד
+מתחבר גם בשני, עם אותה סיסמה בדיוק.
+
+**להתחלה מהירה עם `index.html`:** פתחו את הקובץ בדפדפן, הזינו את
+`Project URL` ואת מפתח ה‑`anon` (שניהם מ‑Supabase → Settings → API) — וזהו.
+
+---
+
 ## תוכן העניינים
 
 1. [מה נבנה](#מה-נבנה)
@@ -243,14 +262,22 @@ types/database.ts    טיפוסים שנוצרים מהסכמה האמיתית
 
 ### איך אימות בשם משתמש מתחבר ל־RLS
 
-Supabase Auth דורש אימייל, והדרישה כאן היא **שם משתמש וסיסמה בלבד**. לכן:
+Supabase Auth דורש אימייל, והדרישה כאן היא **שם משתמש וסיסמה בלבד**. לכן האימות
+נעשה אצלנו — **בתוך מסד הנתונים**:
 
-1. האימות עצמו נעשה אצלנו (טבלת `profiles` + `auth_sessions`).
-2. השרת **חותם JWT בעצמו** (HS256) עם `SUPABASE_JWT_SECRET` של הפרויקט, כשה־`sub` הוא מזהה הפרופיל.
-3. כל שאילתה — מהשרת ומהדפדפן כאחד — נשלחת עם האסימון הזה, ולכן **RLS ו־Realtime אוכפים הרשאות
-   בדיוק כמו ב־Supabase Auth**, בלי לוותר על אימייל־less.
+1. הסיסמה נשלחת פעם אחת דרך TLS אל `auth_login()` — פונקציית `SECURITY DEFINER`.
+2. הפונקציה מאמתת אותה מול **bcrypt** (`pgcrypto`), אוכפת הגבלת קצב ונעילה זמנית,
+   ומחזירה **אסימון JWT חתום**.
+3. **החתימה מתבצעת בתוך המסד** (`sign_jwt()`, HS256 מעל `hmac()`), עם מפתח שיושב
+   בטבלה `app_secrets` שאין עליה שום הרשאה ל‑`anon` או ל‑`authenticated`.
+4. `current_profile_id()` קוראת את `sub` מתוך ה־JWT, וכל מדיניות RLS נשענת עליה.
 
-הפונקציה `current_profile_id()` שבמסד קוראת את `sub` מתוך ה־JWT, וכל מדיניות RLS נשענת עליה.
+**למה זה חשוב:** זה מה שמאפשר ללקוח שרץ כולו בדפדפן (`index.html`) לעבוד בבטחה.
+הדפדפן לעולם אינו מחזיק את מפתח החתימה, אינו גוזר סיסמאות ואינו רואה אף `hash` —
+הוא מקבל רק אסימון חתום, ו־RLS ו‑Realtime אוכפים עליו הרשאות בדיוק כמו על השרת.
+
+אפליקציית Next.js משתמשת באותן פונקציות (`hash_password` / `verify_password`),
+ולכן לשני היישומים יש אותם משתמשים ואותן סיסמאות.
 
 ---
 
@@ -306,6 +333,26 @@ Supabase Auth דורש אימייל, והדרישה כאן היא **שם משת�
 
 ## התקנה והרצה
 
+### מסלול א׳ — רק `index.html` (בלי Node כלל)
+
+1. הריצו את המיגרציות פעם אחת מול Supabase (ראו *הגדרת Supabase מאפס*).
+2. פתחו את `index.html` בדפדפן — או העלו אותו לכל אחסון סטטי / GitHub Pages.
+3. הזינו במסך הפתיחה את `Project URL` ואת מפתח ה‑`anon`.
+
+הערכים נשמרים ב‑`localStorage` של הדפדפן. אפשר גם לקבע אותם מראש בקוד:
+
+```html
+<script>
+  window.YOFI_SUPABASE_URL = 'https://xxxx.supabase.co';
+  window.YOFI_SUPABASE_ANON_KEY = 'eyJhbGciOi…';
+</script>
+```
+
+> **אל תזינו כאן את `service_role`.** רק `anon` — הוא היחיד שמיועד לדפדפן,
+> והוא מוגן במלואו על ידי RLS.
+
+### מסלול ב׳ — אפליקציית Next.js המלאה
+
 ```bash
 # 1. תלויות
 npm install
@@ -348,8 +395,16 @@ npm run db:types    # יצירת types/database.ts מהסכמה האמיתית
 3. **Project Settings → Database → Connection string (URI)** → `SUPABASE_DB_URL`
    (החליפו `[YOUR-PASSWORD]` בסיסמה האמיתית).
 4. `npm run db:push` — יוצר את כל הטבלאות, הפונקציות, הטריגרים, מדיניות ה־RLS,
-   דלי האחסון והפרסום ל־Realtime. הסקריפט **אידמפוטנטי** — אפשר להריץ שוב.
+   דלי האחסון והפרסום ל־Realtime, וגם **מעביר את מפתח החתימה אל המסד**
+   (נדרש כדי ש־`index.html` יוכל להתחבר). הסקריפט **אידמפוטנטי** — אפשר להריץ שוב.
 5. `npm run db:seed` — נתוני הדגמה.
+
+> אם אתם משתמשים רק ב‑`index.html` ואין לכם Node, אפשר להריץ את קובצי
+> `supabase/migrations/*.sql` לפי הסדר ב‑SQL Editor של Supabase, ואז פעם אחת:
+> ```sql
+> select set_app_secret('jwt_secret', '<SUPABASE_JWT_SECRET שלכם>');
+> ```
+> בלי השורה הזו ההתחברות מהדפדפן תיכשל עם הודעה מפורשת.
 6. ודאו ב־**Database → Replication** שהפרסום `supabase_realtime` כולל את
    `messages`, `conversations`, `notifications`, `bookings`, `booking_status_history`,
    `recurring_booking_series`, `post_likes`, `post_comments`, `professional_posts`,
@@ -496,6 +551,11 @@ update public.profiles set role = 'admin' where username = 'my_admin';
 6. **`datetime-local` תמיד נבנה ומומר דרך `lib/format.ts`** — ערבוב אזורי זמן בין חלקי המחרוזת
    יצר בעבר טווחים לא תקינים; שתי הפונקציות `toDateTimeLocalValue` / `fromDateTimeLocalValue` מונעות זאת.
 7. **Realtime + רענון בחזרה למסך** — ה־socket הוא שיפור, לא תנאי לנכונות המידע.
+8. **`index.html` כתוב ב‑CSS ידני ולא ב‑Tailwind CDN** — Play CDN מקמפל בדפדפן,
+   מוסיף השהיית טעינה ואינו מיועד לייצור. ה‑CSS כאן משתמש **באותם משתני צבע** של
+   אפליקציית Next.js, כך ששני היישומים נראים זהים ומצב כהה עובד בשניהם.
+9. **הלקוח בדפדפן לא מנחש שגיאות** — `errorMessage()` מתרגם שגיאות Postgres מוכרות
+   (חפיפת הזמנות, הפרת RLS, אסימון שפג) להודעות בעברית, במקום להציג טקסט טכני.
 
 ---
 

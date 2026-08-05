@@ -46,6 +46,25 @@ export type Database = {
           },
         ];
       };
+      app_secrets: {
+        Row: {
+          key: string;
+          value: string;
+          updated_at: string;
+        };
+        Insert: {
+          key: string;
+          value: string;
+          updated_at?: string;
+        };
+        Update: {
+          key?: string;
+          value?: string;
+          updated_at?: string;
+        };
+        Relationships: [
+        ];
+      };
       auth_sessions: {
         Row: {
           id: string;
@@ -2679,7 +2698,14 @@ export type Database = {
     Views: Record<string, never>;
     Functions: {
       admin_stats: { Args: Record<string, unknown>; Returns: unknown };
+      auth_change_password: { Args: Record<string, unknown>; Returns: unknown };
+      auth_login: { Args: Record<string, unknown>; Returns: unknown };
+      auth_me: { Args: Record<string, unknown>; Returns: unknown };
+      auth_register: { Args: Record<string, unknown>; Returns: unknown };
+      auth_reset_password: { Args: Record<string, unknown>; Returns: unknown };
+      auth_rotate_recovery_code: { Args: Record<string, unknown>; Returns: unknown };
       available_slots: { Args: Record<string, unknown>; Returns: unknown };
+      b64url: { Args: Record<string, unknown>; Returns: unknown };
       can_view_address: { Args: Record<string, unknown>; Returns: unknown };
       can_view_post: { Args: Record<string, unknown>; Returns: unknown };
       check_booking_slot: { Args: Record<string, unknown>; Returns: unknown };
@@ -2689,6 +2715,7 @@ export type Database = {
       direct_pair_key: { Args: Record<string, unknown>; Returns: unknown };
       display_name: { Args: Record<string, unknown>; Returns: unknown };
       feed_posts: { Args: Record<string, unknown>; Returns: unknown };
+      generate_recovery_code: { Args: Record<string, unknown>; Returns: unknown };
       generate_series_occurrences: { Args: Record<string, unknown>; Returns: unknown };
       get_or_create_direct_conversation: { Args: Record<string, unknown>; Returns: unknown };
       guard_booking_update: { Args: Record<string, unknown>; Returns: unknown };
@@ -2707,12 +2734,14 @@ export type Database = {
       handle_review_change: { Args: Record<string, unknown>; Returns: unknown };
       handle_review_reply: { Args: Record<string, unknown>; Returns: unknown };
       handle_saved_post_change: { Args: Record<string, unknown>; Returns: unknown };
+      hash_password: { Args: Record<string, unknown>; Returns: unknown };
       haversine_km: { Args: Record<string, unknown>; Returns: unknown };
       is_admin: { Args: Record<string, unknown>; Returns: unknown };
       is_blocked_between: { Args: Record<string, unknown>; Returns: unknown };
       is_booking_party: { Args: Record<string, unknown>; Returns: unknown };
       is_conversation_member: { Args: Record<string, unknown>; Returns: unknown };
       is_super_admin: { Args: Record<string, unknown>; Returns: unknown };
+      issue_recovery_code: { Args: Record<string, unknown>; Returns: unknown };
       log_search: { Args: Record<string, unknown>; Returns: unknown };
       materialize_series_bookings: { Args: Record<string, unknown>; Returns: unknown };
       normalize_profession_name: { Args: Record<string, unknown>; Returns: unknown };
@@ -2732,14 +2761,18 @@ export type Database = {
       search_professionals: { Args: Record<string, unknown>; Returns: unknown };
       search_suggestions: { Args: Record<string, unknown>; Returns: unknown };
       series_interval_weeks: { Args: Record<string, unknown>; Returns: unknown };
+      set_app_secret: { Args: Record<string, unknown>; Returns: unknown };
       set_booking_blocked_until: { Args: Record<string, unknown>; Returns: unknown };
       set_updated_at: { Args: Record<string, unknown>; Returns: unknown };
+      sign_jwt: { Args: Record<string, unknown>; Returns: unknown };
       similar_professionals: { Args: Record<string, unknown>; Returns: unknown };
       stamp_post_published_at: { Args: Record<string, unknown>; Returns: unknown };
       sync_is_professional: { Args: Record<string, unknown>; Returns: unknown };
       sync_occurrence_from_booking: { Args: Record<string, unknown>; Returns: unknown };
       sync_username_reservation: { Args: Record<string, unknown>; Returns: unknown };
       touch_conversation_on_message: { Args: Record<string, unknown>; Returns: unknown };
+      username_available: { Args: Record<string, unknown>; Returns: unknown };
+      verify_password: { Args: Record<string, unknown>; Returns: unknown };
     };
     Enums: {
       account_role: "user" | "moderator" | "admin";

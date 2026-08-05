@@ -51,6 +51,15 @@ for (const file of files) {
   }
 }
 
+// מעביר את מפתח החתימה אל המסד. הוא נדרש כדי שפונקציות ההתחברות יוכלו
+// לחתום אסימוני גישה בעצמן – כך לקוח שרץ בדפדפן לעולם אינו מחזיק את הסוד.
+if (process.env.SUPABASE_JWT_SECRET) {
+  await client.query('select public.set_app_secret($1, $2)', ['jwt_secret', process.env.SUPABASE_JWT_SECRET]);
+  console.log('▶ מפתח החתימה הוגדר במסד');
+} else {
+  console.warn('⚠ חסר SUPABASE_JWT_SECRET – התחברות מהדפדפן (index.html) לא תעבוד.');
+}
+
 if (withSeed) {
   const seed = join(root, 'supabase', 'seed.sql');
   if (existsSync(seed)) {

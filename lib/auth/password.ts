@@ -1,5 +1,6 @@
 import 'server-only';
-import { randomBytes, scrypt as scryptCallback, timingSafeEqual, type ScryptOptions } from 'node:crypto';
+import { scrypt as scryptCallback, timingSafeEqual, type ScryptOptions } from 'node:crypto';
+import { createAdminClient } from '@/lib/supabase/admin';
 
 function scrypt(password: string, salt: Buffer, keylen: number, options: ScryptOptions): Promise<Buffer> {
   return new Promise((resolve, reject) => {
@@ -10,33 +11,54 @@ function scrypt(password: string, salt: Buffer, keylen: number, options: ScryptO
   });
 }
 
-/**
- * פרמטרים לגזירת המפתח. ערכים אלו מאוזנים בין אבטחה לזמן תגובה בשרת.
- * שינוי הפרמטרים אינו שובר סיסמאות קיימות – הם נשמרים בתוך ה־hash עצמו.
- */
-const PARAMS = { N: 16_384, r: 8, p: 1, keylen: 64 } as const;
+/** תקרת זיכרון לאימות סיסמאות בפורמט הישן. */
 const MAX_MEM = 256 * 1024 * 1024;
 
 /**
- * יוצר hash לסיסמה בפורמט: scrypt$N$r$p$salt$hash
+ * יוצר hash לסיסמה.
+ *
+ * ה־hash נוצר בתוך מסד הנתונים (bcrypt דרך pgcrypto) ולא כאן, כדי
+ * שאותם משתמשים יוכלו להתחבר גם מאפליקציית Next.js וגם מהלקוח שרץ
+ * רק בדפדפן (‎index.html‎). לדפדפן אין דרך לגזור סיסמה בבטחה, ולכן
+ * מסד הנתונים הוא המקום היחיד שבו הלוגיקה הזו חיה.
+ *
  * הסיסמה עצמה לעולם אינה נשמרת.
  */
 export async function hashPassword(password: string): Promise<string> {
-  const salt = randomBytes(16);
-  const derived = await scrypt(password.normalize('NFKC'), salt, PARAMS.keylen, {
-    N: PARAMS.N,
-    r: PARAMS.r,
-    p: PARAMS.p,
-    maxmem: MAX_MEM,
-  });
+  const admin = createAdminClient();
+  const { data, error } = await admin.rpc('hash_password', { p_password: password });
 
-  return ['scrypt', PARAMS.N, PARAMS.r, PARAMS.p, salt.toString('base64'), derived.toString('base64')].join('$');
+  if (error || typeof data !== 'string') {
+    throw new Error(error?.message ?? 'יצירת ה־hash של הסיסמה נכשלה');
+  }
+
+  return data;
 }
 
 /**
- * משווה סיסמה מול hash שמור. ההשוואה מתבצעת בזמן קבוע כדי למנוע דליפת מידע.
+ * משווה סיסמה מול hash שמור.
+ *
+ * תומך בשני הפורמטים: bcrypt (הפורמט הנוכחי, נבדק במסד) ו־scrypt
+ * (הפורמט הישן, נבדק כאן). כך חשבונות ותיקים ממשיכים לעבוד גם אחרי
+ * המעבר, בלי לאלץ אף אחד לאפס סיסמה.
  */
 export async function verifyPassword(password: string, stored: string): Promise<boolean> {
+  if (!stored) return false;
+
+  if (stored.startsWith('$2')) {
+    const admin = createAdminClient();
+    const { data, error } = await admin.rpc('verify_password', {
+      p_password: password,
+      p_stored: stored,
+    });
+    return !error && data === true;
+  }
+
+  return verifyLegacyScrypt(password, stored);
+}
+
+/** אימות סיסמאות בפורמט הישן: scrypt$N$r$p$salt$hash */
+async function verifyLegacyScrypt(password: string, stored: string): Promise<boolean> {
   try {
     const [scheme, n, r, p, saltB64, hashB64] = stored.split('$');
     if (scheme !== 'scrypt' || !saltB64 || !hashB64) return false;
