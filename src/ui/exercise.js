@@ -11,6 +11,7 @@ import { mountClip } from '../core/anim.js';
 import { clipFor } from '../data/clips.index.js';
 import { byId } from '../data/exercises.index.js';
 import { stepDifficulty, prescribeSwap } from '../engine/adjust.js';
+import { startRest, parseRest } from './timer.js';
 import * as store from '../core/store.js';
 
 const players = new Set();
@@ -60,7 +61,7 @@ export function exerciseCard(day, slot, index, onChange) {
     h('div.prescr',
       h('span.chip', String(v.sets)),
       h('span.chip' + (v.unit === 'time' ? '.time' : ''), v.reps),
-      v.rest ? h('span.chip.rest', `מנוחה ${v.rest}`) : null,
+      restChip(v),
       v.tempo ? h('span.chip.rest', `טמפו ${v.tempo}`) : null,
       logs.length ? h('span.setpill', `${logs.length} סטים נרשמו`) : null,
     ),
@@ -102,6 +103,27 @@ export function exerciseCard(day, slot, index, onChange) {
   ));
 
   return card;
+}
+
+/*
+ * The rest chip doubles as the timer's trigger. Rest is the one number on the
+ * card the user has to act on, and hanging a separate button off it would be a
+ * second thing to find between sets — with a phone in one hand. A prescription
+ * whose rest text holds no readable interval falls back to the plain chip it
+ * always was.
+ */
+function restChip(v) {
+  if (!v.rest) return null;
+  if (!parseRest(v.rest)) return h('span.chip.rest', `מנוחה ${v.rest}`);
+  return h('button.chip.rest.resttrigger', {
+    type: 'button',
+    title: 'הפעל טיימר מנוחה',
+    'aria-label': `הפעל טיימר מנוחה של ${v.rest} — ${v.name}`,
+    onclick: () => {
+      startRest(v.rest, v.name);
+      announce(`טיימר מנוחה ${v.rest}`);
+    },
+  }, h('span.ico', '◷'), `מנוחה ${v.rest}`);
 }
 
 function levelRow(level, pick, total, adjusted) {
@@ -221,7 +243,7 @@ export function openDetail(day, slot, pick, onChange) {
     h('div.prescr',
       h('span.chip', String(v.sets)),
       h('span.chip' + (v.unit === 'time' ? '.time' : ''), v.reps),
-      v.rest ? h('span.chip.rest', `מנוחה ${v.rest}`) : null,
+      restChip(v),
       v.tempo ? h('span.chip.rest', `טמפו ${v.tempo}`) : null,
     ),
     v.note ? h('p.note' + (String(v.note).startsWith('⚠︎') ? '.caution' : ''), v.note) : null,
@@ -244,7 +266,7 @@ export function openDetail(day, slot, pick, onChange) {
       h('div.slotlbl', 'ציוד'),
       h('div.chipset', { style: { marginTop: '5px' } },
         ex.equipment.map((q) => h('span.chip.rest', EQUIP_HE[q] || q)))) : null,
-    logger(day, slot),
+    logger(day, slot, v),
     slot.variants.length > 1 ? variantSwitcher(day, slot, pick, onChange) : null,
   );
 
@@ -283,7 +305,7 @@ function variantSwitcher(day, slot, pick, onChange) {
     ));
 }
 
-function logger(day, slot) {
+function logger(day, slot, v) {
   const wrap = h('div', { style: { marginTop: '18px' } });
   const list = h('div.chipset', { style: { marginTop: '6px' } });
 
@@ -311,7 +333,11 @@ function logger(day, slot) {
         store.logSet(day.id, slot.key, { reps: r, weight: weight.value ? Number(weight.value) : null });
         reps.value = '';
         paint();
-        announce('הסט נרשם');
+        // Logging a set IS finishing one, and the rest starts the moment it
+        // ends — not when someone remembers to press a second button. One
+        // announcement for both, because announce() only holds the last one.
+        const timed = startRest(v && v.rest, v && v.name);
+        announce(timed ? `הסט נרשם · מנוחה ${v.rest}` : 'הסט נרשם');
       },
     }, h('span.ico', '+'), 'הוסף סט')));
   wrap.appendChild(list);

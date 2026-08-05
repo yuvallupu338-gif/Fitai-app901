@@ -577,3 +577,80 @@ input::placeholder, textarea::placeholder { color: var(--dimmer); }
 .qspanel .help { margin: 6px 0 10px; }
 .qspanel textarea { min-height: 108px; }
 .dialsub { font-family: var(--mono); font-size: 10px; color: var(--dimmer); margin-top: 3px; }
+
+/* ---------------- rest timer ---------------- */
+
+/* The rest chip is a button wherever the interval could be read back. It keeps
+   the chip's exact metrics so a row of prescriptions stays one row. */
+.resttrigger {
+  display: inline-flex; align-items: center; gap: 5px;
+  cursor: pointer; line-height: 1.45;
+  transition: border-color var(--fast), color var(--fast), background var(--fast), transform .1s;
+}
+.resttrigger:hover { border-color: var(--amber); color: var(--amber); background: var(--amber-wash); }
+.resttrigger:active { transform: scale(.96); }
+.resttrigger .ico { font-size: 11px; line-height: 1; opacity: .8; }
+
+/* Pinned to the viewport and above the detail sheet: a running rest interval
+   outranks whatever is behind it, and the bar is useless if you have to
+   remember which card you started it from. */
+.restbar {
+  position: fixed; inset-inline: 0; bottom: 0; z-index: 120;
+  background: rgba(14, 21, 32, .94);
+  backdrop-filter: blur(8px);
+  border-top: 1px solid var(--amber-deep);
+  padding: 9px 0 max(9px, env(safe-area-inset-bottom));
+  animation: restrise .22s var(--ease);
+}
+@keyframes restrise { from { transform: translateY(100%); } }
+
+.restinner {
+  max-width: var(--wrap); margin: 0 auto; padding: 0 18px;
+  display: flex; align-items: center; gap: 12px;
+}
+.restring { width: 44px; height: 44px; flex: none; display: block; }
+.restring .track { fill: none; stroke: var(--line); stroke-width: 4; }
+.restring .arc {
+  fill: none; stroke: var(--amber); stroke-width: 4; stroke-linecap: round;
+  transition: stroke-dashoffset .25s linear, stroke var(--fast);
+}
+.resttext { flex: 1 1 auto; min-width: 0; }
+.restlabel {
+  font-size: 12px; color: var(--dim);
+  white-space: nowrap; overflow: hidden; text-overflow: ellipsis;
+}
+/* Tabular figures: without them the minute digit shifts the whole readout every
+   time it changes width, and this is a number read from arm's length. The
+   element carries dir="ltr" so the digits keep their order; right-aligned to
+   land on the RTL page's inline start, under its own label. */
+.resttime {
+  font-family: var(--mono); font-size: 27px; font-weight: 600; line-height: 1.15;
+  color: var(--chalk); font-variant-numeric: tabular-nums; text-align: right;
+}
+.restacts { display: flex; gap: 6px; flex: none; }
+.restacts .wide { width: auto; padding: 0 9px; font-size: 12px; }
+
+.restbar.done { border-top-color: var(--cyan); }
+.restbar.done .arc { stroke: var(--cyan); }
+.restbar.done .resttime { color: var(--cyan); }
+.restbar.done .restlabel { color: var(--cyan); }
+.restbar.late { border-top-color: var(--rose-deep); }
+.restbar.late .arc { stroke: var(--rose); }
+.restbar.late .restlabel { color: var(--rose); }
+
+/* Keep the last card, and the sheet's own buttons, clear of the bar. */
+body.resting { padding-bottom: 104px; }
+body.resting .modal-back { padding-bottom: 96px; }
+
+@media (max-width: 420px) {
+  .restinner { gap: 9px; padding: 0 12px; }
+  .resttime { font-size: 24px; }
+  .restacts { gap: 4px; }
+  .restacts .iconbtn { width: 30px; height: 30px; }
+  .restacts .wide { width: auto; padding: 0 7px; }
+}
+
+@media print {
+  .restbar { display: none !important; }
+  body.resting { padding-bottom: 0; }
+}
