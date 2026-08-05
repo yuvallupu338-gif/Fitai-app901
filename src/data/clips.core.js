@@ -190,6 +190,35 @@ const SPL_MID = sidePlank(11, 0, 0);
 const SPL_UP = sidePlank(9.8, 1.5, 0.8);
 const SPL_DOWN = sidePlank(12.2, -1.5, -0.8);
 
+/*
+ * Side plank WITH a reach-through. It is prescribed in reps, and it used to
+ * borrow the hold above — so an exercise whose entire content is threading the
+ * top arm under the body played a static side plank with a tremor on it.
+ *
+ * The reach is the movement: the raised arm travels from overhead down and
+ * under the ribs, the spine rotating a few degrees to let it through, then back
+ * up. The supporting arm and both feet stay exactly where the hold puts them,
+ * because that is what makes it hard.
+ */
+const SPR_OPEN = sidePlank(10.5, 4, 0);
+const SPR_MID = sidePlank(13, -60, 0);
+const SPR_THREAD = sidePlank(16, -120, 0);
+
+const side_plank_reach = clip({
+  id: 'side_plank_reach',
+  duration: 3400,
+  hero: 0,
+  props: [{ type: 'mat', x: 38, w: 68 }],
+  keys: [
+    { t: 0, pose: SPR_OPEN },
+    { t: 0.22, pose: SPR_MID },
+    { t: 0.42, pose: SPR_THREAD, ease: 'out' },
+    { t: 0.54, pose: SPR_THREAD },
+    { t: 0.76, pose: SPR_MID },
+    { t: 1, pose: SPR_OPEN },
+  ],
+});
+
 const side_plank = clip({
   id: 'side_plank',
   duration: 4400,
@@ -1218,6 +1247,7 @@ export const CORE_CLIPS = {
   plank,
   forearm_plank,
   side_plank,
+  side_plank_reach,
   core_antiextension,
   // hollow body
   hollow_hold,

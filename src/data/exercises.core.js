@@ -579,7 +579,7 @@ export const CORE = [
     unilateral: true,
     contraindications: ['shoulder'],
     cues: ['השחל את היד העליונה מתחת לגוף', 'האגן נשאר גבוה בכל התנועה', 'החזר את היד עד לפתיחת חזה מלאה'],
-    anim: 'side_plank',
+    anim: 'side_plank_reach',
     regressionOf: null,
     progressionTo: null,
     tags: ['compound'],

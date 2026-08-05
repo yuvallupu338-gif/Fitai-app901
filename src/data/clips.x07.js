@@ -47,6 +47,20 @@ const ISO_TOWEL_B = p(STAND, { y: 57.6, spine: 89, armL: [-83, -2], armR: [-95, 
 const ISO_DOOR_A = p(STAND, { armL: [-52, 8], armR: [-58, 12] });
 const ISO_DOOR_B = p(STAND, { spine: 88, armL: [-50, 12], armR: [-56, 16] });
 
+/*
+ * The door-handle curl is prescribed in REPS, not seconds — the app writes
+ * "10-15 חזרות" on the card — but it was animated with the isometrics above,
+ * so the figure strained in place while the prescription asked for repetitions.
+ * Its neighbour towel_curl_iso is unit: time and is correctly a hold; this one
+ * is not, and the two had been given the same treatment.
+ *
+ * The upper arm stays pinned to the ribs (that is what the doorframe enforces)
+ * and only the forearm travels, which is the whole point of the exercise.
+ */
+const DOOR_CURL_DOWN = p(STAND, { armL: [-86, -66], armR: [-92, -62] });
+const DOOR_CURL_UP = p(STAND, { armL: [-86, 42], armR: [-92, 46] });
+const DOOR_CURL_SQUEEZE = p(STAND, { spine: 89, armL: [-84, 50], armR: [-90, 54] });
+
 const BAR_LOW = leanBack(38, 66, 36, 50, 52, 74);
 const BAR_HIGH = leanBack(44, 60, 40, 50, 52, 74);
 const RING_LOW = leanBack(36, 68, 30, 52, 50, 70);
@@ -84,9 +98,9 @@ export const X07_CLIPS = {
   }),
 
   doorframe_biceps_curl: clip({
-    id: 'doorframe_biceps_curl', duration: 4000, hero: 0.5,
+    id: 'doorframe_biceps_curl', duration: 3200, hero: 0.5,
     props: [{ type: 'wall', x: 76, y0: 8, y1: 88 }],
-    keys: [{ t: 0, pose: ISO_DOOR_A }, { t: 0.5, pose: ISO_DOOR_B }, { t: 1, pose: ISO_DOOR_A }],
+    keys: repKeys(DOOR_CURL_DOWN, DOOR_CURL_UP, DOOR_CURL_SQUEEZE, { mode: 'lift', arc: 0.8 }),
   }),
 
   /* Bodyweight: the BODY travels, the implement stays put. */
