@@ -284,6 +284,16 @@ export function staticFrame(clip, u) {
   return svg;
 }
 
+/*
+ * Whether motion is switched off right now — either by the app's own control or
+ * by the OS setting. The filmed demos need this: an animated WebP cannot be
+ * paused from script the way the rig can, so the card renders the rig instead
+ * while motion is off, which honours the control rather than ignoring it.
+ */
+export function motionOff() {
+  return globalPaused || reduceMotion.matches;
+}
+
 export function pauseAll(v) {
   globalPaused = !!v;
   if (!v) {

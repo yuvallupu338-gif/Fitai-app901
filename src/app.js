@@ -219,8 +219,10 @@ function renderApp() {
       onclick: (e) => {
         animsPaused = !animsPaused;
         pauseAll(animsPaused);
-        e.currentTarget.classList.toggle('on', animsPaused);
-        e.currentTarget.lastChild.textContent = animsPaused ? 'הפעל תנועה' : 'עצור תנועה';
+        // Redraw rather than just re-labelling: the filmed demos cannot be
+        // paused in place, so the cards have to be rebuilt to swap them for the
+        // rig. Cheap, and it keeps the button honest.
+        show(store.get().ui.tab || 'plan');
       },
     }, h('span.ico', '❙❙'), h('span', animsPaused ? 'הפעל תנועה' : 'עצור תנועה')));
   }
