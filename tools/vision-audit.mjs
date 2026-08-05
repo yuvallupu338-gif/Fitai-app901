@@ -24,7 +24,7 @@ import { fileURLToPath, pathToFileURL } from 'node:url';
 const ROOT = resolve(dirname(fileURLToPath(import.meta.url)), '..');
 const load = (rel) => import(pathToFileURL(resolve(ROOT, rel)).href);
 
-const { normalizeRead, scanEligibility, fatLossBlocked } = await load('src/vision/analyze.js');
+const { normalizeRead, scanEligibility, fatLossBlocked, CONDITIONING } = await load('src/vision/analyze.js');
 const { emphasisFrom, emphasisSummary, timelineGap, goalConflict, GROUPS } = await load('src/vision/apply.js');
 const { profileBrief, PATTERNS } = await load('src/vision/prompt.js');
 const { normalizeProfile, defaults } = await load('src/intake/schema.js');
@@ -95,7 +95,12 @@ for (const raw of HOSTILE) {
     }
     ok(read.steer.goal === null || ['fatloss', 'muscle', 'strength', 'fitness'].includes(read.steer.goal),
       `bogus goal ${read.steer.goal} survived`);
-    ok(['none', 'light', 'moderate', 'high'].includes(read.steer.conditioning),
+    // Read from the enum itself rather than a copy of it. The copy that used to
+    // be here went stale the moment 'unchanged' was added, and it failed in the
+    // direction that matters least: it called a legal value bogus. A copy that
+    // drifts the other way — missing a value the normaliser now lets through —
+    // would have passed silently.
+    ok(CONDITIONING.includes(read.steer.conditioning),
       `bogus conditioning ${read.steer.conditioning} survived`);
     for (const item of read.posture) {
       ok(PATTERNS.includes(item.drill), `bogus drill ${item.drill} survived`);

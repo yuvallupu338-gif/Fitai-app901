@@ -231,8 +231,13 @@ export const TOOL = {
           },
           conditioning: {
             type: 'string',
-            enum: ['none', 'light', 'moderate', 'high'],
-            description: 'How much cardio the gap between these two photos actually calls for.',
+            enum: ['unchanged', 'none', 'light', 'moderate', 'high'],
+            description:
+              'How much cardio the gap between these two photos actually calls for. '
+              + 'The other four values all MOVE the weekly conditioning block — "light" cuts it, '
+              + '"moderate" and "high" grow it — so answer "unchanged" whenever the photos do not '
+              + 'argue about cardio in either direction. That is the ordinary answer, and it leaves '
+              + 'the amount the questionnaire already set exactly where it is.',
           },
           note: {
             type: 'string',

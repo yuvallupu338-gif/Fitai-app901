@@ -13,12 +13,26 @@
  *   - exceed the per-group ceiling in volume.js
  *   - change the training track the user chose
  *
- * Pure functions over plain objects. No DOM, no network, no randomness.
+ * Pure functions over plain objects. No DOM, no network, no randomness. The one
+ * import is volume.js, which is arithmetic over a plain object and pulls in
+ * nothing itself — emphasisSummary needs it to say what a read actually changed.
  */
 
-/* Which volume group each movement pattern feeds. The generator thinks in
-   patterns; volume.js thinks in groups; this table is the only place the two
-   vocabularies meet. */
+import { weeklyVolume } from '../engine/volume.js';
+
+/*
+ * Which volume group each movement pattern feeds. The generator thinks in
+ * patterns; volume.js thinks in groups; this is where the two vocabularies meet.
+ *
+ * generator.js has the same table, and the generator's is the one that decides
+ * where a slot's sets are actually spent from — so any disagreement between the
+ * two is a bug by construction. It disagreed about plyo: here jumping was priced
+ * out of conditioning, in the generator it comes out of legs. Emphasising jumps
+ * therefore bought a longer cardio block and not one extra jump, which is close
+ * to the opposite of what was asked for. Copied rather than imported only
+ * because generator.js does not export it; the moment it does this becomes an
+ * import and the copy goes.
+ */
 const PATTERN_GROUP = {
   vertical_push: 'push',
   horizontal_push: 'push',
@@ -27,6 +41,7 @@ const PATTERN_GROUP = {
   squat: 'legs',
   hinge: 'legs',
   lunge: 'legs',
+  plyo: 'legs',
   arms_biceps: 'arms',
   arms_triceps: 'arms',
   shoulders_lateral: 'shoulders',
@@ -37,8 +52,10 @@ const PATTERN_GROUP = {
   calf: 'calves',
   carry: 'core',
   conditioning: 'conditioning',
-  plyo: 'conditioning',
-  mobility: null,
+  // Mobility slots are also paid for out of core in the generator. Mapping it to
+  // null here meant a posture drill — which defaults to 'mobility' — asked for
+  // work that no group was funding.
+  mobility: 'core',
 };
 
 const GROUPS = ['push', 'pull', 'legs', 'core', 'arms', 'shoulders', 'calves', 'conditioning'];
@@ -51,8 +68,12 @@ const DEEMPHASIS = 0.85;
 
 /* Conditioning is asked for directly rather than inferred, because "how much
    cardio" is the one question where the gap between two photos really does
-   give a clearer answer than the questionnaire does. */
-const CONDITIONING_FACTOR = { none: 0.35, light: 0.8, moderate: 1.3, high: 1.8 };
+   give a clearer answer than the questionnaire does.
+   'unchanged' is the neutral answer and has to map to exactly 1.0: every other
+   value moves the block, so without a 1.0 the mere fact that a scan ran was
+   enough to change cardio. An unrecognised value falls through to no factor at
+   all, which is the same thing. */
+const CONDITIONING_FACTOR = { unchanged: 1, none: 0.35, light: 0.8, moderate: 1.3, high: 1.8 };
 
 /* A low-confidence read still says something, but it should not reshape a week
    as hard as a clear one. Everything is pulled back toward 1.0 in proportion. */
@@ -77,6 +98,54 @@ function temper(mult, weight) {
 }
 
 /* ------------------------------------------------------------------ *
+ * How old the read is
+ * ------------------------------------------------------------------ */
+
+/*
+ * A read is a photograph of a gap, and the training exists to close that gap.
+ * Eight weeks of work is enough to move it; six months is enough that the photo
+ * is a description of someone else. So the multipliers lose weight as the read
+ * ages instead of steering forever off a picture from last winter.
+ *
+ * Only the steering decays. The verdict, the timeline and the notes are still
+ * worth reading at six months — what expires is the standing to keep bending
+ * this week's volume.
+ */
+const FRESH_DAYS = 56;    // 8 weeks: still the same body, full weight
+const STALE_DAYS = 84;    // 12 weeks: the UI should start asking for a new photo
+const SPENT_DAYS = 182;   // ~6 months: the read no longer moves any volume
+
+/**
+ * How old a read is and how much say it still has. Null when there is no read,
+ * or no timestamp on it — and a read with no usable date keeps full weight
+ * rather than losing it, because a scan that silently stopped working would be a
+ * far harder failure to notice than one that worked a few weeks too long.
+ *
+ * `he` is empty while the read is fresh — there is nothing to tell the user
+ * until there is something to do about it.
+ */
+export function readAge(read, now) {
+  if (!read || typeof read !== 'object') return null;
+  const at = Date.parse(read.at);
+  if (!Number.isFinite(at)) return null;
+  const days = Math.max(0, Math.floor(((now || new Date()).getTime() - at) / 86400000));
+  const weeks = Math.round(days / 7);
+  const weight = days <= FRESH_DAYS ? 1
+    : days >= SPENT_DAYS ? 0
+      : 1 - (days - FRESH_DAYS) / (SPENT_DAYS - FRESH_DAYS);
+
+  let he = '';
+  if (days >= SPENT_DAYS) {
+    he = `הסריקה הזאת בת ${weeks} שבועות, והיא כבר לא מזיזה את חלוקת הנפח. `
+      + 'תמונה חדשה תיתן קריאה של הפער כפי שהוא היום.';
+  } else if (days >= STALE_DAYS) {
+    he = `הסריקה הזאת בת ${weeks} שבועות. ככל שהיא מתיישנת המשקל שלה בתוכנית יורד — `
+      + 'אם התאמנת מאז, תמונה חדשה שווה יותר מהקריאה הזאת.';
+  }
+  return { days, weeks, weight, stale: days >= STALE_DAYS, spent: days >= SPENT_DAYS, he };
+}
+
+/* ------------------------------------------------------------------ *
  * emphasisFrom
  * ------------------------------------------------------------------ */
 
@@ -87,12 +156,18 @@ function temper(mult, weight) {
  *
  * A read that is unusable, missing or malformed returns a neutral set, which
  * makes "no scan" and "a scan that failed" the same thing downstream.
+ *
+ * `now` is only ever passed by tests; the app leaves it out.
  */
-export function emphasisFrom(read) {
+export function emphasisFrom(read, now) {
   const out = neutral();
   if (!read || read.usable !== true || !read.steer) return out;
 
-  const weight = CONFIDENCE_WEIGHT[read.confidence] || CONFIDENCE_WEIGHT.low;
+  // Two things dilute a read: how much the photos supported it, and how long
+  // ago they were taken. Both pull toward 1.0, so they multiply.
+  const age = readAge(read, now);
+  const weight = (CONFIDENCE_WEIGHT[read.confidence] || CONFIDENCE_WEIGHT.low)
+    * (age ? age.weight : 1);
 
   const emphasise = Array.isArray(read.steer.emphasise) ? read.steer.emphasise : [];
   emphasise.forEach((pattern, i) => {
@@ -154,24 +229,58 @@ export function groupHe(group) {
   return GROUP_HE[group] || group;
 }
 
+const NOTHING_MOVED = 'הסריקה לא שינתה את חלוקת הנפח — התוכנית שנבנתה כבר תואמת לפער בין התמונות.';
+
+/* The same threshold volume.js uses to decide whether a scan counts as having
+   steered anything, so the sentence and the volume note never disagree. */
+const ASKED = 0.05;
+
 /**
- * The one-line "what the scan actually changed" the plan screen shows. Reads
- * the multipliers rather than the model's words, so it can never claim a change
- * that did not happen.
+ * The one-line "what the scan actually changed" the plan screen shows.
+ *
+ * Given a profile it is MEASURED: the same week is costed twice, once with the
+ * emphasis neutralised and once with it applied, and only groups whose whole-set
+ * count actually moved are named. This used to read the multipliers instead,
+ * under a comment claiming that made it impossible to overstate anything, and
+ * the truth was the reverse. volume.js applies the multipliers, then clips each
+ * group at its ceiling, rescales the week to the time available, rounds to whole
+ * sets and drops the small groups left under three. A 1.3 on conditioning
+ * survives none of that in a two-set hypertrophy block, and was announced as
+ * "more cardio" to a plan that ends up with no cardio at all.
+ *
+ * Without a profile there is no week to cost, so it says what the read ASKED
+ * for and says that is what it is. That is weaker, and it is true — which the
+ * definite version, computed against some average stranger's week, would not be.
  */
-export function emphasisSummary(emphasis) {
-  const e = emphasis || neutral();
+export function emphasisSummary(emphasis, profile) {
+  const e = emphasis && typeof emphasis === 'object' ? emphasis : neutral();
   const up = [];
   const down = [];
-  for (const g of GROUPS) {
-    if (e[g] >= 1.1) up.push(GROUP_HE[g]);
-    else if (e[g] <= 0.92) down.push(GROUP_HE[g]);
+
+  if (profile && typeof profile === 'object') {
+    const before = weeklyVolume(Object.assign({}, profile, { emphasis: neutral() }));
+    const after = weeklyVolume(Object.assign({}, profile, { emphasis: e }));
+    for (const g of GROUPS) {
+      const moved = after[g] - before[g];
+      if (moved > 0) up.push(GROUP_HE[g]);
+      else if (moved < 0) down.push(GROUP_HE[g]);
+    }
+    if (!up.length && !down.length) return NOTHING_MOVED;
+    const parts = [];
+    if (up.length) parts.push(`יותר נפח ל${up.join(', ')}`);
+    if (down.length) parts.push(`פחות ל${down.join(', ')}`);
+    return `${parts.join(' · ')}. שאר הכללים — ציוד, פציעות, מסלול — לא השתנו.`;
   }
-  if (!up.length && !down.length) return 'הסריקה לא שינתה את חלוקת הנפח — התוכנית שנבנתה כבר תואמת לפער בין התמונות.';
+
+  for (const g of GROUPS) {
+    if (e[g] > 1 + ASKED) up.push(GROUP_HE[g]);
+    else if (e[g] < 1 - ASKED) down.push(GROUP_HE[g]);
+  }
+  if (!up.length && !down.length) return NOTHING_MOVED;
   const parts = [];
   if (up.length) parts.push(`יותר נפח ל${up.join(', ')}`);
   if (down.length) parts.push(`פחות ל${down.join(', ')}`);
-  return `${parts.join(' · ')}. שאר הכללים — ציוד, פציעות, מסלול — לא השתנו.`;
+  return `הסריקה ביקשה ${parts.join(' · ')}. כמה מזה נכנס בפועל נקבע מול התקרות והזמן שיש לך.`;
 }
 
 /* ------------------------------------------------------------------ *

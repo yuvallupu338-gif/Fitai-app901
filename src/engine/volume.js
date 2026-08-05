@@ -56,6 +56,13 @@ function clampInt(v, lo, hi, d) {
   return Math.max(lo, Math.min(hi, n));
 }
 
+/* The sleep question is asked in half hours, so a figure quoted back at the
+   user has to survive the trip: 6.5 must come back as "6.5", not as "7". */
+function hoursHe(v) {
+  const n = num(v, 0);
+  return Number.isInteger(n) ? String(n) : String(Math.round(n * 10) / 10);
+}
+
 function goalOf(profile) {
   return GOAL_BASE[profile && profile.goal] ? profile.goal : 'fitness';
 }
@@ -141,9 +148,153 @@ function factors(profile, days, minutes) {
   const dense = (days >= 5 && (exp === 'intermediate' || exp === 'advanced')) ? 1.05 : 1.0;
 
   return {
-    experience, frequency, session, rest, load, years, dense,
+    // `sleep` rides along because the note quotes it: read twice, the note and
+    // the factor it explains can disagree, and the user only sees the note.
+    experience, frequency, session, rest, load, years, dense, sleep,
     total: experience * frequency * session * rest * load * years * dense,
   };
+}
+
+/* ------------------------------------------------------------------ *
+ * Sharing a fixed number of sets out between the groups
+ * ------------------------------------------------------------------ */
+
+/*
+ * Upper bound per group, as one table instead of a run of Math.min calls.
+ * Every step that moves sets around reads this, because the ceilings used to
+ * be stamped on once in the middle of the pipeline and the later re-spreads
+ * walked straight past them — a five-day fat-loss week could finish with 18
+ * sets of conditioning against a cap of 14.
+ */
+function ceilingsFor(exp) {
+  const c = CEILING[exp];
+  const caps = {
+    core: 14,
+    arms: Math.round(c * 0.65),      // accessory work never outgrows the compounds
+    shoulders: Math.round(c * 0.6),
+    calves: 8,
+    conditioning: 14,
+  };
+  for (const g of MAJORS) caps[g] = c;
+  return caps;
+}
+
+const NO_FLOOR = { push: 0, pull: 0, legs: 0, core: 0, arms: 0, shoulders: 0, calves: 0, conditioning: 0 };
+
+/**
+ * Hand out exactly `total` sets in proportion to `weights`, nobody above its
+ * ceiling and nobody below its floor.
+ *
+ * The spill is the whole point. A group already sitting on its ceiling cannot
+ * take its share, and the sets it turns down have to land somewhere or the week
+ * silently shrinks — which is how emphasising a capped group used to cost the
+ * rest of the week 39 sets without adding one to the group that was asked for.
+ * A floor works the same way in reverse: what it takes, it takes from the
+ * groups still free to move rather than out of the total.
+ *
+ * Note that the bounds are a CLAMP on each group's share, not a reservation off
+ * the top. Handing every group its floor first and sharing only the remainder
+ * would flatten the week — the small groups would come out of a 79-set fat-loss
+ * plan with 5.6 sets of calves against 13 of pushing, where the proportions ask
+ * for 3.6 against 14.4.
+ */
+function distribute(weights, total, caps, floors) {
+  const out = {};
+  let open = [];
+  let left = total;
+  for (const g of GROUPS) {
+    if (weights[g] > 0) open.push(g);
+    else { out[g] = Math.min(floors[g], caps[g]); left -= out[g]; }
+  }
+  // Every pass but the last pins at least one group to a bound, so the number
+  // of groups bounds the passes.
+  for (let pass = 0; pass < GROUPS.length && open.length; pass++) {
+    const wSum = open.reduce((n, g) => n + weights[g], 0);
+    if (wSum <= 0) break;
+    const next = [];
+    let pinned = 0;
+    for (const g of open) {
+      const share = left * (weights[g] / wSum);
+      if (share > caps[g]) { out[g] = caps[g]; pinned += out[g]; } else if (share < floors[g]) {
+        out[g] = Math.min(floors[g], caps[g]);
+        pinned += out[g];
+      } else { out[g] = share; next.push(g); }
+    }
+    if (next.length === open.length) break;   // nothing hit a bound: settled
+    left -= pinned;
+    open = next;
+  }
+  return out;
+}
+
+/** Whole sets, each inside its own floor and ceiling. */
+function roundSets(vals, caps, floors) {
+  const out = {};
+  for (const g of GROUPS) out[g] = Math.max(floors[g], Math.min(Math.round(vals[g]), caps[g]));
+  return out;
+}
+
+/*
+ * The same, but the parts still add up to `total`.
+ *
+ * Rounding eight numbers one at a time misses their sum by a set or three in
+ * either direction. Normally nobody would care; here the total is the one
+ * number the note promises the scan did not move, so the difference is settled
+ * against the fractions rather than left where it fell — the biggest fraction
+ * takes the leftover set, the smallest gives one back.
+ */
+function roundToTotal(vals, total, caps, floors) {
+  const out = roundSets(vals, caps, floors);
+  const byFraction = GROUPS.filter((g) => out[g] > 0)
+    .sort((a, b) => (vals[b] - out[b]) - (vals[a] - out[a]));
+  let left = total - GROUPS.reduce((n, g) => n + out[g], 0);
+  for (let pass = 0; left !== 0 && pass < GROUPS.length; pass++) {
+    const order = left > 0 ? byFraction : byFraction.slice().reverse();
+    let moved = false;
+    for (const g of order) {
+      if (left === 0) break;
+      if (left > 0 && out[g] < caps[g]) { out[g] += 1; left -= 1; moved = true; }
+      if (left < 0 && out[g] > floors[g]) { out[g] -= 1; left += 1; moved = true; }
+    }
+    // Floors and ceilings outrank the total: if the week cannot be made to add
+    // up without breaking one, it stops trying rather than breaking one.
+    if (!moved) break;
+  }
+  return out;
+}
+
+/*
+ * Which groups the week trains at all, and the least each of them may hold.
+ *
+ * Under 3 sets a week is not training, it is decoration: those groups are
+ * dropped and their sets re-spent on the ones that survived — in a 30-minute
+ * full-body session the compounds carry the arms anyway.
+ *
+ * The list is read off the NEUTRAL week, in both directions.
+ *
+ * Downward, because trimming is not dropping: a group the week did train keeps
+ * its place at that 3-set floor however hard the scan leans away from it, and
+ * "a bit less biceps" turning into no biceps at all is a far bigger edit than
+ * the 0.85 it came from — with nothing in the UI to show the user the
+ * difference.
+ *
+ * Upward, because whether a group fits in the week at all is a fact about the
+ * clock, not about the photographs. Letting the steered numbers vote here read
+ * badly in practice: a capped emphasis on legs would spill a couple of loose
+ * sets onto calves, tip them over the 3-set bar, and answer "more squatting"
+ * with a calf exercise the read never asked for.
+ */
+function survivors(shaped, base) {
+  const floors = {};
+  const weights = {};
+  for (const g of GROUPS) {
+    const keep = SMALL.indexOf(g) < 0 || base[g] >= 3;
+    floors[g] = keep ? (g === 'core' ? 2 : 3) : 0;
+    // A kept group needs a non-zero weight even when the scan starved it, or
+    // the floor would be all it ever gets back.
+    weights[g] = keep ? Math.max(shaped[g], 0.01) : 0;
+  }
+  return { floors, weights };
 }
 
 /**
@@ -160,86 +311,103 @@ export function weeklyVolume(profile) {
   const minutes = clampInt(p.minutesPerSession, 20, 120, 60);
   const budget = sessionBudget(p);
   const f = factors(p, days, minutes);
+  const caps = ceilingsFor(exp);
 
-  // The scan biases the DISTRIBUTION only. It is applied before the ceilings and
-  // before the time budget on purpose: a photo can argue about where the week's
-  // sets go, and it has no standing to argue about how many a body recovers from
-  // or how many fit in forty minutes.
-  const emph = emphasisOf(p);
-  const raw = {};
-  for (const g of GROUPS) raw[g] = GOAL_BASE[goal][g] * f.total * emph[g];
-
-  // Physiological ceilings. Accessory work never outgrows the compounds.
-  const ceiling = CEILING[exp];
-  for (const g of MAJORS) raw[g] = Math.min(raw[g], ceiling);
-  raw.core = Math.min(raw.core, 14);
-  raw.arms = Math.min(raw.arms, Math.round(ceiling * 0.65));
-  raw.shoulders = Math.min(raw.shoulders, Math.round(ceiling * 0.6));
-  raw.calves = Math.min(raw.calves, 8);
-  raw.conditioning = Math.min(raw.conditioning, 14);
+  // The neutral week: the goal baseline scaled by recovery, held under the
+  // physiological ceilings. This is computed even when a scan is attached,
+  // because it is what the scan is allowed to rearrange and nothing more.
+  const base = {};
+  for (const g of GROUPS) base[g] = Math.min(GOAL_BASE[goal][g] * f.total, caps[g]);
 
   // What the week can actually hold: working sets that fit in the main blocks,
   // and never more variety than the session has room for.
   const perSession = Math.min(budget.mainMin / MIN_PER_SET[goal], budget.maxSlots * 3.0);
   const capacity = perSession * days;
 
-  let sum = GROUPS.reduce((n, g) => n + raw[g], 0);
+  let sum = GROUPS.reduce((n, g) => n + base[g], 0);
   const timeBound = sum > capacity;
   if (timeBound && sum > 0) {
     const k = capacity / sum;
-    for (const g of GROUPS) raw[g] *= k;
+    for (const g of GROUPS) base[g] *= k;
     sum = capacity;
   } else if (sum < capacity * 0.82) {
     // Long sessions, modest target: spend some of the spare time, but stay
     // under the ceilings — extra time is worth more as rest than as sets.
     const k = Math.min(1.3, (capacity * 0.85) / Math.max(1, sum));
-    for (const g of GROUPS) {
-      raw[g] = Math.min(raw[g] * k, g === 'core' ? 14 : MAJORS.includes(g) ? ceiling : raw[g] * 1.3);
-    }
-    sum = GROUPS.reduce((n, g) => n + raw[g], 0);
+    for (const g of GROUPS) base[g] = Math.min(base[g] * k, caps[g]);
+    sum = GROUPS.reduce((n, g) => n + base[g], 0);
   }
 
-  // Under 3 sets a week is not training, it is decoration. Drop those groups and
-  // hand their minutes to the groups that survived — in a 30-minute full-body
-  // session the compounds carry the arms anyway.
-  const out = {};
-  let dropped = 0;
-  for (const g of GROUPS) {
-    if (SMALL.indexOf(g) >= 0 && raw[g] < 3) { dropped += raw[g]; out[g] = 0; } else out[g] = raw[g];
-  }
-  const survivors = GROUPS.filter((g) => out[g] > 0);
-  const survivorSum = survivors.reduce((n, g) => n + out[g], 0);
-  if (dropped > 0.01 && survivorSum > 0) {
-    const spread = 1 + dropped / survivorSum;
-    for (const g of survivors) out[g] *= spread;
+  /*
+   * The scan biases the DISTRIBUTION only — a photo can argue about where the
+   * week's sets go, and it has no standing to argue about how many a body
+   * recovers from or how many fit in forty minutes.
+   *
+   * So the multipliers are weights inside a fixed pool, not a scale on the way
+   * in. Scaling first was self-defeating: a group already on its ceiling could
+   * not rise however hard the photo pushed, but its inflated number still swole
+   * the sum, and the fill-to-capacity factor that followed shrank every other
+   * group to pay for sets nobody ever received. Redistributing spends the
+   * neutral week's own sum instead, and whatever a ceiling refuses spills onto
+   * the groups that can still take it.
+   */
+  const emph = emphasisOf(p);
+  const emphasised = emphasisActive(emph);
+  let shaped = base;
+  if (emphasised) {
+    const weights = {};
+    for (const g of GROUPS) weights[g] = base[g] * emph[g];
+    shaped = distribute(weights, sum, caps, NO_FLOOR);
   }
 
-  const vol = {};
-  for (const g of MAJORS) vol[g] = Math.max(3, Math.round(Math.min(out[g], ceiling)));
-  vol.core = Math.max(2, Math.round(Math.min(out.core, 16)));
-  for (const g of SMALL) vol[g] = out[g] >= 2.5 ? Math.round(out[g]) : 0;
+  const kept = survivors(shaped, base);
+  const out = distribute(kept.weights, sum, caps, kept.floors);
+
+  // The neutral week is rounded on its own terms; a steered week is rounded to
+  // the total the neutral one came to. That equality is the sentence the note
+  // says out loud, so it is enforced here rather than hoped for — see
+  // roundToTotal for what happens when a floor makes it impossible.
+  let vol;
+  let moved = false;
+  if (emphasised) {
+    const flat = survivors(base, base);
+    const neutral = roundSets(distribute(flat.weights, sum, caps, flat.floors), caps, flat.floors);
+    vol = roundToTotal(out, GROUPS.reduce((n, g) => n + neutral[g], 0), caps, kept.floors);
+    // A scan that leans on a group already sitting on its ceiling, in a week
+    // where the groups it would take from are on theirs too, has nowhere to
+    // move sets to and correctly changes nothing. The note is keyed on this
+    // rather than on the multipliers, so it cannot announce an effect that the
+    // arithmetic refused to produce.
+    moved = GROUPS.some((g) => vol[g] !== neutral[g]);
+  } else {
+    vol = roundSets(out, caps, kept.floors);
+  }
 
   vol.total = GROUPS.reduce((n, g) => n + vol[g], 0);
-  vol.emphasised = emphasisActive(emph);
-  vol.note = volumeNote(p, vol, {
-    goal, exp, days, minutes, timeBound, factors: f, emphasised: vol.emphasised,
+  vol.emphasised = emphasised;
+  vol.note = volumeNote(vol, {
+    goal, exp, days, minutes, timeBound, factors: f, moved,
   });
   return vol;
 }
 
-function volumeNote(profile, vol, ctx) {
+/* The profile is deliberately not a parameter: every number this sentence
+   quotes has to be one the engine actually used, so they all arrive through
+   `vol` and `ctx` and there is no second reading of the raw answers to drift
+   away from the first. */
+function volumeNote(vol, ctx) {
   const head = `${GOAL_HE[ctx.goal]} ב־${ctx.days} אימונים של ${ctx.minutes} דק׳: `
     + `${vol.total} סטים עובדים בשבוע, ${vol.push} לדחיפה, ${vol.pull} למשיכה ו־${vol.legs} לרגליים`;
 
   let why;
-  if (ctx.emphasised) {
-    // Say it first when it applies: the user pressed a button and expects to see
-    // where it landed, and a distribution change is invisible without a sentence.
-    why = 'החלוקה בין הקבוצות הוזזה לפי הפער שהסריקה מצאה בין שתי התמונות — הסכום השבועי נשאר בתוך אותם גבולות';
-  } else if (ctx.timeBound) {
+  if (ctx.timeBound) {
     why = 'זה מה שבאמת נכנס בזמן שיש, וקיצור מנוחות מעבר לזה כבר פוגע באיכות של כל סט';
   } else if (ctx.factors.rest < 1) {
-    why = `הורדתי נפח כי ${Math.round(num(profile.sleepHours, 7))} שעות שינה לא מספיקות להתאושש מיותר`;
+    // The figure has to be the one the user actually typed. The question is
+    // asked in half hours, so rounding 6.5 up to "7 שעות" both quotes them a
+    // number they never gave and names the very value that would NOT have cost
+    // them any volume — the rule it is explaining turns over at 7.
+    why = `הורדתי נפח כי ${hoursHe(ctx.factors.sleep)} שעות שינה לא מספיקות להתאושש מיותר`;
   } else if (ctx.factors.load < 1) {
     why = 'הורדתי נפח כי רמת הלחץ שדיווחת עליה גובה מההתאוששות בדיוק כמו אימון נוסף';
   } else if (ctx.exp === 'beginner') {
@@ -251,7 +419,17 @@ function volumeNote(profile, vol, ctx) {
   } else {
     why = 'הכול בתוך הטווח של 10–20 סטים אפקטיביים לקבוצת שריר בשבוע';
   }
-  return `${head} — ${why}.`;
+
+  // The scan gets a sentence of its own instead of taking the one that explains
+  // the number in the head. Both are true at the same time — the week is the
+  // size the clock and the recovery allow, AND the split inside it moved — and
+  // whichever of the two is dropped, the user is left holding half an answer to
+  // "why does it say this". The clause with the dash stays glued to the head
+  // because it is what makes that number make sense.
+  const scan = ctx.moved
+    ? ' הסריקה הזיזה את החלוקה בין הקבוצות לפי הפער שמצאה בין שתי התמונות, בלי לשנות את הסכום השבועי.'
+    : '';
+  return `${head} — ${why}.${scan}`;
 }
 
 /* ------------------------------------------------------------------ *

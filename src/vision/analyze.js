@@ -82,7 +82,15 @@ const LEANNESS = ['much_leaner', 'somewhat_leaner', 'similar', 'less_lean', 'unc
 const MASS = ['much_more', 'somewhat_more', 'similar', 'less', 'unclear'];
 const BANDS = ['realistic', 'tight', 'needs_more_time', 'not_reachable_naturally'];
 const GOALS = ['fatloss', 'muscle', 'strength', 'fitness'];
-const CONDITIONING = ['none', 'light', 'moderate', 'high'];
+/* 'unchanged' is not an amount of cardio, it is the absence of an opinion about
+   cardio, and the enum has to carry one: the other four all move the weekly
+   conditioning block, so without it every usable scan moved cardio whether or
+   not the photos said anything about it. It is also the fallback, because a
+   missing or unrecognised answer is exactly the case where there is no opinion —
+   falling back to 'light' (x0.8) meant a scan that never mentioned cardio cut
+   it, and in a muscle or strength plan, where the block is two or three sets to
+   begin with, cut it below the floor in volume.js and deleted it. */
+const CONDITIONING = ['unchanged', 'none', 'light', 'moderate', 'high'];
 const AREAS = ['shoulders', 'upper_back', 'lower_back', 'hips', 'knees', 'ankles', 'neck'];
 /* Why a read was refused. 'unreadable' and 'not_a_body' are quality problems and
    retrying with better photos is the right advice. 'minor' and 'sexual' are
@@ -237,7 +245,7 @@ export function normalizeRead(raw, meta, profile) {
     emphasise,
     // A pattern cannot be both emphasised and trimmed; emphasis wins.
     deemphasise: patternList(st.deemphasise, 2).filter((x) => emphasise.indexOf(x) < 0),
-    conditioning: oneOf(st.conditioning, CONDITIONING, 'light'),
+    conditioning: oneOf(st.conditioning, CONDITIONING, 'unchanged'),
     note: clean(st.note, 700),
   };
   if (!out.steer.goal) out.steer.goalNote = null;
@@ -278,6 +286,12 @@ export async function analyze(profile, opts) {
   const p = profile || {};
   const o = opts || {};
 
+  // First, ahead of every other check. Who may run this does not depend on which
+  // provider is configured, and answering a fourteen-year-old with "no vision
+  // model selected" is both untrue and an invitation to go and select one.
+  const eligible = scanEligibility(p);
+  if (!eligible.ok) throw new AiError(eligible.kind, eligible.he);
+
   // The image block is provider-shaped, so the provider has to be resolved
   // before the photos can even be packed.
   const chosen = choiceFor('vision');
@@ -286,10 +300,6 @@ export async function analyze(profile, opts) {
     throw new AiError('no_vision',
       'לא נבחר מודל ראייה. הסריקה קוראת תמונות ודורשת ספק שמקבל אותן.');
   }
-
-  // Before the photos are packed, let alone sent.
-  const eligible = scanEligibility(p);
-  if (!eligible.ok) throw new AiError(eligible.kind, eligible.he);
 
   const now = imageBlock(p.photoNow, provider);
   const target = imageBlock(p.photoTarget, provider);
@@ -317,6 +327,11 @@ export async function analyze(profile, opts) {
 
   return normalizeRead(input, { model, at: new Date().toISOString() }, p);
 }
+
+/* Exported for the same reason PATTERNS is exported from prompt.js: so the audit
+   can check a read against the enum itself instead of against a copy of it that
+   silently goes stale the next time a value is added. */
+export { CONDITIONING };
 
 export { AiError };
 /* Kept as an alias: scan.js and the audits have always caught VisionError. */
