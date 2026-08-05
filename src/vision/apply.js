@@ -19,44 +19,20 @@
  */
 
 import { weeklyVolume } from '../engine/volume.js';
+import { PATTERN_GROUP } from '../engine/generator.js';
 
 /*
  * Which volume group each movement pattern feeds. The generator thinks in
  * patterns; volume.js thinks in groups; this is where the two vocabularies meet.
  *
- * generator.js has the same table, and the generator's is the one that decides
- * where a slot's sets are actually spent from — so any disagreement between the
- * two is a bug by construction. It disagreed about plyo: here jumping was priced
- * out of conditioning, in the generator it comes out of legs. Emphasising jumps
- * therefore bought a longer cardio block and not one extra jump, which is close
- * to the opposite of what was asked for. Copied rather than imported only
- * because generator.js does not export it; the moment it does this becomes an
- * import and the copy goes.
+ * Imported rather than restated. This file used to keep its own copy, and the
+ * copies drifted in both directions at once: plyo was priced out of conditioning
+ * here and out of legs in the generator, so emphasising jumps bought a longer
+ * cardio block instead of a jump; mobility was funded by nothing here and by
+ * core there, so asking for it did nothing. The generator's table is the one
+ * that decides where a slot's sets actually come from, which makes it the only
+ * one worth reading.
  */
-const PATTERN_GROUP = {
-  vertical_push: 'push',
-  horizontal_push: 'push',
-  vertical_pull: 'pull',
-  horizontal_pull: 'pull',
-  squat: 'legs',
-  hinge: 'legs',
-  lunge: 'legs',
-  plyo: 'legs',
-  arms_biceps: 'arms',
-  arms_triceps: 'arms',
-  shoulders_lateral: 'shoulders',
-  shoulders_rear: 'shoulders',
-  core_flexion: 'core',
-  core_antiextension: 'core',
-  core_rotation: 'core',
-  calf: 'calves',
-  carry: 'core',
-  conditioning: 'conditioning',
-  // Mobility slots are also paid for out of core in the generator. Mapping it to
-  // null here meant a posture drill — which defaults to 'mobility' — asked for
-  // work that no group was funding.
-  mobility: 'core',
-};
 
 const GROUPS = ['push', 'pull', 'legs', 'core', 'arms', 'shoulders', 'calves', 'conditioning'];
 

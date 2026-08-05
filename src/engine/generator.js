@@ -27,8 +27,19 @@ import { weeklyVolume, splitFor, sessionBudget } from './volume.js';
  * Tables
  * ------------------------------------------------------------------ */
 
-/** Movement pattern -> the volume group it spends sets from. */
-const PATTERN_GROUP = {
+/*
+ * Movement pattern -> the volume group it spends sets from.
+ *
+ * Exported because the photo scan needs the same answer when it turns an
+ * emphasis into per-group multipliers, and it used to keep its own copy. The
+ * copies drifted: plyo was charged to legs here and to conditioning there, so
+ * asking for more jumping bought a longer cardio block; mobility was charged to
+ * core here and to nothing there, so asking for it did nothing at all. Neither
+ * failed loudly — the sets simply went somewhere the user had not asked for.
+ * This is the table that decides where sets really come from, so it is the one
+ * that gets shared.
+ */
+export const PATTERN_GROUP = {
   horizontal_push: 'push', vertical_push: 'push',
   horizontal_pull: 'pull', vertical_pull: 'pull',
   squat: 'legs', hinge: 'legs', lunge: 'legs', plyo: 'legs',

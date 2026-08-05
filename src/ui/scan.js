@@ -180,10 +180,14 @@ export function renderRead(read, profile, opts) {
         ? h('div.scantags', steer.emphasise.map((p) => h('span.fact', patternHe(p))))
         : null,
       steer.note ? h('p', steer.note) : null,
-      // What the engine actually did, read back off the multipliers rather than
-      // off the model's sentence — the two can disagree, and this one is true.
+      // What the engine actually did, rather than what the model's sentence
+      // says it did — the two can disagree. Passing the profile is what makes
+      // the difference between the two: with it, emphasisSummary costs this
+      // user's week twice and names the groups whose whole sets really moved;
+      // without it, it can only report what the read ASKED for, because a
+      // request is all that is knowable without a week to measure against.
       h('p', { style: { color: 'var(--dim)', fontSize: '12.5px' } },
-        emphasisSummary(emphasisFrom(read))),
+        emphasisSummary(emphasisFrom(read), profile)),
     ));
   }
 
