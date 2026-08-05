@@ -134,8 +134,16 @@ export function renderWizard(root, onDone) {
     return wrap;
   }
 
+  /* A field's options may depend on earlier answers — the equipment checklist
+     drops the cable stack once someone has chosen calisthenics — so they are
+     resolved against the live profile rather than read as a fixed array. */
+  function optionsOf(f) {
+    return typeof f.options === 'function' ? f.options(profile) : (f.options || []);
+  }
+
   function control(f) {
     const val = profile[f.key];
+    const opts = optionsOf(f);
     switch (f.type) {
       case 'number':
         return h('div.with-unit',
@@ -168,8 +176,8 @@ export function renderWizard(root, onDone) {
         });
 
       case 'choice':
-        return h('div.opts' + (f.options.length > 4 ? '.two' : ''),
-          f.options.map((o) => optionBtn(o, val === o.value, () => {
+        return h('div.opts' + (opts.length > 4 ? '.two' : ''),
+          opts.map((o) => optionBtn(o, val === o.value, () => {
             setValue(f.key, o.value, f);
             draw();
           })),
@@ -177,10 +185,10 @@ export function renderWizard(root, onDone) {
 
       case 'multi': {
         const arr = Array.isArray(val) ? val : [];
-        return h('div.opts' + (f.options.length > 4 ? '.two' : ''),
-          f.options.map((o) => optionBtn(o, arr.includes(o.value), () => {
+        return h('div.opts' + (opts.length > 4 ? '.two' : ''),
+          opts.map((o) => optionBtn(o, arr.includes(o.value), () => {
             const next = arr.includes(o.value) ? arr.filter((v) => v !== o.value) : arr.concat(o.value);
-            setValue(f.key, applyExclusive(f, next, o.value));
+            setValue(f.key, applyExclusive(f, next, o.value, opts));
             draw();
           })),
         );
@@ -189,11 +197,11 @@ export function renderWizard(root, onDone) {
       case 'chips': {
         const arr = Array.isArray(val) ? val : [];
         return h('div.chipset',
-          f.options.map((o) => h('button.btn' + (arr.includes(o.value) ? '.on' : ''), {
+          opts.map((o) => h('button.btn' + (arr.includes(o.value) ? '.on' : ''), {
             type: 'button',
             onclick: () => {
               const next = arr.includes(o.value) ? arr.filter((v) => v !== o.value) : arr.concat(o.value);
-              setValue(f.key, applyExclusive(f, next, o.value));
+              setValue(f.key, applyExclusive(f, next, o.value, opts));
               draw();
             },
           }, o.label)),
@@ -228,8 +236,8 @@ export function renderWizard(root, onDone) {
         }
         return h('div',
           h('div.scale', btns),
-          f.options && f.options.length >= 2
-            ? h('div.scale-ends', h('span', f.options[0].label), h('span', f.options[f.options.length - 1].label))
+          opts.length >= 2
+            ? h('div.scale-ends', h('span', opts[0].label), h('span', opts[opts.length - 1].label))
             : null,
         );
       }
@@ -327,10 +335,10 @@ export function renderWizard(root, onDone) {
   draw();
 }
 
-function applyExclusive(f, next, justPicked) {
+function applyExclusive(f, next, justPicked, options) {
   // A "none of these" style option clears everything else, and picking anything
   // else clears it. Schema marks it with option.exclusive.
-  const ex = (f.options || []).filter((o) => o.exclusive).map((o) => o.value);
+  const ex = (options || f.options || []).filter((o) => o.exclusive).map((o) => o.value);
   if (!ex.length) return next;
   if (ex.includes(justPicked)) return next.includes(justPicked) ? [justPicked] : [];
   return next.filter((v) => !ex.includes(v));

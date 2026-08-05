@@ -365,6 +365,16 @@ export const STEPS = [
         // Only worth asking when the equipment allows both. On a bare floor
         // calisthenics is not a preference, it is the only option.
         showIf: (p) => p.location !== 'home_bodyweight',
+        // Switching to calisthenics drops the machine kit the location seeded.
+        // Leaving it set is invisible in the programme — the track filter
+        // excludes those exercises anyway — but the review screen would still
+        // list "מכונות, פולי" as this user's equipment, contradicting the
+        // choice they just made two lines above it.
+        onSet: (p, value) => {
+          if (value === 'calisthenics') {
+            p.equipment = (p.equipment || []).filter((q) => q !== 'machines' && q !== 'cable');
+          }
+        },
         help: 'שני אנשים באותו חדר כושר ועם אותה מטרה יכולים לרצות אימון אחר לגמרי. זו העדפה, לא הגבלה — אפשר לשנות בכל רגע.',
         options: [
           {
@@ -383,7 +393,13 @@ export const STEPS = [
       },
       {
         key: 'gymMachines', label: 'יש מכונות, או רק משקולות חופשיות?', type: 'choice',
-        showIf: (p) => p.location === 'full_gym' || p.location === 'building_gym',
+        // Gated on the TRACK as well as the place. Someone who just chose
+        // calisthenics has said they train with their own bodyweight on bars
+        // and rings; asking them next whether the gym has a cable stack is
+        // asking about equipment their answer already ruled out, and it reads
+        // as the app not having listened.
+        showIf: (p) => (p.location === 'full_gym' || p.location === 'building_gym')
+          && p.track !== 'calisthenics',
         options: [
           { value: true, label: 'יש מכונות ופולי' },
           { value: false, label: 'רק משקולות חופשיות' },
@@ -395,7 +411,12 @@ export const STEPS = [
         // genuinely varies, so the checklist earns its place there.
         showIf: (p) => p.location !== 'full_gym',
         help: 'סימנתי מה שבדרך כלל יש במקום שבחרת. הוסף או הורד לפי המציאות.',
-        options: EQUIPMENT_OPTIONS,
+        // Same reason the machines question is gated: a calisthenics answer has
+        // already excluded the cable stack, so offering it as a tick box asks
+        // the user to answer a question they just answered.
+        options: (p) => (p.track === 'calisthenics'
+          ? EQUIPMENT_OPTIONS.filter((o) => o.value !== 'machines' && o.value !== 'cable')
+          : EQUIPMENT_OPTIONS),
       },
     ],
   },
