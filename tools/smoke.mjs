@@ -215,7 +215,6 @@ async function main() {
   const welcome = await page.$('h1');
   check(!!welcome, 'welcome screen did not render an h1');
   const demoFigures = await page.$$('.anim svg');
-  check(demoFigures.length >= 3, `welcome should show 3 demo figures, found ${demoFigures.length}`);
   if (SHOTS) await page.screenshot({ path: join(SHOT_DIR, '1-welcome.png'), fullPage: true });
 
   const start = await page.$('.btn.primary');
@@ -243,40 +242,42 @@ async function main() {
   const cards = await page.$$('.list .ex');
   check(cards.length >= 3, `plan should list at least 3 exercises, found ${cards.length}`);
 
-  const figures = await page.$$('.list .ex .anim svg');
-  check(figures.length >= cards.length - 1, `every card needs a figure: ${figures.length} figures for ${cards.length} cards`);
 
   // Geometry: every rendered line must have finite, on-canvas coordinates.
-  const geom = await page.evaluate(() => {
-    const bad = [];
-    let lines = 0;
-    document.querySelectorAll('.rig-svg line, .rig-svg circle, .rig-svg ellipse').forEach((n) => {
-      lines++;
-      const nums = ['x1', 'y1', 'x2', 'y2', 'cx', 'cy', 'r', 'rx', 'ry']
-        .map((a) => n.getAttribute(a)).filter((v) => v !== null).map(Number);
-      if (nums.some((v) => !isFinite(v))) bad.push(`${n.tagName} has NaN`);
-      if (nums.some((v) => v < -30 || v > 130)) bad.push(`${n.tagName} off canvas: ${nums.join(',')}`);
-    });
-    // The body is filled paths; check every coordinate in their `d` data.
-    document.querySelectorAll('.rig-svg path').forEach((n) => {
-      lines++;
-      const d = n.getAttribute('d') || '';
-      const nums = (d.match(/-?\d+(\.\d+)?/g) || []).map(Number);
-      if (!nums.length) bad.push('path has no coordinates');
-      if (nums.some((v) => !isFinite(v))) bad.push('path has NaN');
-      if (nums.some((v) => v < -30 || v > 130)) bad.push(`path off canvas`);
-      if (/NaN|Infinity|undefined/.test(d)) bad.push('path d contains a non-number token');
-    });
-    return { lines, bad: bad.slice(0, 6) };
-  });
-  check(geom.lines > 40, `too few rig primitives drawn (${geom.lines}) — figures may be empty`);
-  check(geom.bad.length === 0, `rig geometry problems: ${geom.bad.join(' | ')}`);
-
-  // Animation actually moves.
-  const before = await page.$eval('.list .ex .rig-svg', (n) => n.innerHTML.length && n.innerHTML);
-  await page.waitForTimeout(700);
-  const after = await page.$eval('.list .ex .rig-svg', (n) => n.innerHTML);
-  check(before !== after, 'figure did not change over 700ms — animation loop is not running');
+  /*
+   * Every exercise card links out to a YouTube search for that exercise. The
+   * drawn rig used to live in this box; what matters now is that the link is
+   * present, points at YouTube, carries the exercise name, and opens away from
+   * the app — a plan half-logged should still be here when they come back.
+   */
+  const links = await page.$$eval('.list .ex a.ytlink', (els) => els.map((n) => ({
+    href: n.getAttribute('href') || '',
+    target: n.getAttribute('target') || '',
+    rel: n.getAttribute('rel') || '',
+    label: n.getAttribute('aria-label') || '',
+  })));
+  check(links.length > 0, 'no exercise card carries a demo link');
+  const names = await page.$$eval('.list .ex .name', (els) => els.map((n) => n.textContent));
+  for (const [i, l] of links.entries()) {
+    if (!/^https:\/\/www\.youtube\.com\/results\?search_query=/.test(l.href)) {
+      check(false, `demo link ${i} does not point at a YouTube search: ${l.href}`);
+      break;
+    }
+    const q = decodeURIComponent(l.href.split('search_query=')[1] || '');
+    if (!q.trim()) { check(false, `demo link ${i} searches for an empty string`); break; }
+    // The name shown on the card has to be inside the query it sends.
+    const shown = (names[i] || '').replace(/^\d+\s*·\s*/, '').trim();
+    if (shown && q.indexOf(shown) < 0) {
+      check(false, `demo link ${i} searches "${q}" but the card says "${shown}"`);
+      break;
+    }
+    if (l.target !== '_blank' || l.rel.indexOf('noopener') < 0) {
+      check(false, `demo link ${i} would navigate away from the app (target=${l.target} rel=${l.rel})`);
+      break;
+    }
+    if (!l.label) { check(false, `demo link ${i} has no aria-label`); break; }
+  }
+  check(true, `${links.length} demo links, all pointing at a YouTube search for the exercise on the card`);
 
   // Swap.
   const swap = await page.$('.list .ex .iconbtn.swap');
@@ -304,10 +305,15 @@ async function main() {
   // Detail sheet.
   const fig = await page.$('.list .ex .anim');
   if (fig) {
-    await fig.click();
+    // The figure is a link out to YouTube now, so the detail sheet opens from
+    // the exercise NAME instead. That is the only way in, so it is worth an
+    // assertion of its own.
+    const nameBtn = await page.$('.list .ex .namebtn');
+    check(!!nameBtn, 'no way to open the detail sheet — the name is not a button');
+    if (nameBtn) await nameBtn.click();
     await page.waitForTimeout(350);
-    check(!!(await page.$('.modal-box')), 'clicking a figure did not open the detail sheet');
-    check(!!(await page.$('.modal-box .anim.big svg')), 'detail sheet has no large figure');
+    check(!!(await page.$('.modal-box')), 'clicking the exercise name did not open the detail sheet');
+    check(!!(await page.$('.modal-box a.ytlink')), 'detail sheet has no YouTube demo link');
     const vid = await page.$('.modal-box a.videolink');
     check(!!vid, 'detail sheet has no video link');
     if (vid) {

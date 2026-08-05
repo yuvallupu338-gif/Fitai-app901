@@ -654,3 +654,35 @@ body.resting .modal-back { padding-bottom: 96px; }
   .restbar { display: none !important; }
   body.resting { padding-bottom: 0; }
 }
+
+/* YouTube demo link — occupies the box the drawn figure used to.
+   Sized and positioned by the existing .anim rule, so the card layout is
+   unchanged whether or not this is present. */
+.anim.ytlink {
+  display: flex; flex-direction: column; align-items: center; justify-content: center;
+  gap: 3px; text-decoration: none; color: var(--dim);
+  transition: border-color var(--fast), color var(--fast), background var(--fast);
+}
+.anim.ytlink:hover, .anim.ytlink:focus-visible {
+  border-color: var(--amber); color: var(--ink);
+  background: linear-gradient(180deg, #1B2836, #16202D);
+}
+.anim.ytlink .ytmark {
+  font-size: 19px; line-height: 1; color: #E5484D;
+  transition: transform var(--fast);
+}
+.anim.ytlink:hover .ytmark { transform: scale(1.14); }
+.anim.ytlink .ytcap { font-size: 10.5px; letter-spacing: .02em; text-align: center; }
+.anim.big.ytlink { aspect-ratio: auto; min-height: 96px; padding: 18px 12px; }
+.anim.big.ytlink .ytmark { font-size: 34px; }
+.anim.big.ytlink .ytcap { font-size: 13px; }
+
+/* The exercise name doubles as the way into the detail sheet, now that the
+   figure links out to YouTube instead. Styled as the heading it already was —
+   the affordance is the underline on hover, not a button chrome. */
+.ex .namebtn {
+  display: block; width: 100%; text-align: start;
+  background: none; border: 0; padding: 0; margin: 0;
+  font: inherit; color: inherit; cursor: pointer;
+}
+.ex .namebtn:hover, .ex .namebtn:focus-visible { text-decoration: underline; color: var(--amber); }

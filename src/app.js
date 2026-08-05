@@ -6,8 +6,6 @@
  */
 
 import { h, clear, qs, announce } from './core/dom.js';
-import { mountClip, pauseAll } from './core/anim.js';
-import { clipById } from './data/clips.index.js';
 import * as store from './core/store.js';
 
 import { renderWizard } from './ui/wizard.js';
@@ -33,7 +31,6 @@ const TABS = [
   { id: 'progress', label: 'מעקב' },
 ];
 
-let animsPaused = false;
 
 function boot() {
   const st = store.get();
@@ -50,26 +47,15 @@ function renderWelcome() {
   releaseAll();
   clear(root);
 
-  const demos = h('div', {
-    style: {
-      display: 'grid', gridTemplateColumns: 'repeat(3,1fr)', gap: '9px', marginTop: '26px',
-    },
-  });
-  for (const id of ['pullup', 'squat', 'pushup']) {
-    const box = h('div.anim', { style: { width: '100%', height: 'auto', aspectRatio: '1' } });
-    demos.appendChild(box);
-    mountClip(box, clipById(id), { label: 'הדגמת תרגיל' });
-  }
 
   root.appendChild(h('section.hero-in', { style: { paddingTop: '52px' } },
     h('div.eyebrow', 'FitAI · תוכנית אישית'),
     h('h1', 'התוכנית נבנית ', h('em', 'ממך'), '.', h('br'), 'לא מתבנית.'),
     h('p.sub',
       'כמה שאלות על הגוף, המטרה, הזמן והציוד שיש לך — ואתה מקבל תוכנית אימונים מלאה, '
-      + 'תזונה שמתאימה לך, ואנימציה לכל תרגיל כדי שתדע בדיוק איך הוא נראה. '
+      + 'תזונה שמתאימה לך, וקישור לכל תרגיל כדי לראות איך הוא נראה. '
       + 'ואם תיתן שתי תמונות — אתה היום והגוף שאתה מכוון אליו — מודל ראייה יקרא את שתיהן, '
       + 'ייתן ליעד שלך רמת היגיון, ויכוון את התוכנית לפער ביניהן.'),
-    demos,
     h('div.facts', { style: { marginTop: '26px' } },
       h('span.fact', 'שאלון של ', h('b', '3 דק׳')),
       h('span.fact', 'תוכנית מלאה ', h('b', 'מיידית')),
@@ -213,16 +199,6 @@ function renderApp() {
         onclick: () => show(t.id),
       }, t.label));
     }
-    tabBar.appendChild(h('button.btn.ghost' + (animsPaused ? '.on' : ''), {
-      type: 'button',
-      title: 'עצור או הפעל אנימציות',
-      onclick: (e) => {
-        animsPaused = !animsPaused;
-        pauseAll(animsPaused);
-        e.currentTarget.classList.toggle('on', animsPaused);
-        e.currentTarget.lastChild.textContent = animsPaused ? 'הפעל תנועה' : 'עצור תנועה';
-      },
-    }, h('span.ico', '❙❙'), h('span', animsPaused ? 'הפעל תנועה' : 'עצור תנועה')));
   }
 
   function show(tab) {
@@ -248,7 +224,6 @@ function renderApp() {
       console.error(e);
       body.appendChild(h('p.empty', 'לא הצלחתי להציג את המסך הזה. נסה מסך אחר.'));
     }
-    if (animsPaused) pauseAll(true);
   }
 
   show(st.ui.tab && tabsAvailable.some((t) => t.id === st.ui.tab) ? st.ui.tab : 'plan');

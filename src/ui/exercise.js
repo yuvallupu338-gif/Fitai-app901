@@ -7,8 +7,6 @@
  */
 
 import { h, clear, modal, announce } from '../core/dom.js';
-import { mountClip } from '../core/anim.js';
-import { clipFor } from '../data/clips.index.js';
 import { byId } from '../data/exercises.index.js';
 import { stepDifficulty, prescribeSwap } from '../engine/adjust.js';
 import { startRest, parseRest } from './timer.js';
@@ -24,10 +22,30 @@ export function releaseAll() {
   players.clear();
 }
 
-function mount(host, ex, label) {
-  const ctl = mountClip(host, clipFor(ex), { label });
-  players.add(ctl);
-  return ctl;
+/*
+ * A link to a YouTube search for this exercise, rather than a drawn figure.
+ *
+ * The search is by the Hebrew name, because that is the name on the card and
+ * the one the user would type. The English name rides along as a second term:
+ * on movements where Hebrew coverage is thin it is what surfaces a technique
+ * video, and where it is not, YouTube ignores it.
+ *
+ * target=_blank with rel=noopener — this is the one place the app leaves the
+ * device, and a plan half-logged should still be here when they come back.
+ */
+function demoSearchUrl(ex, name) {
+  const terms = [name || (ex && ex.name), ex && ex.nameEn].filter(Boolean).join(' ');
+  return `https://www.youtube.com/results?search_query=${encodeURIComponent(terms)}`;
+}
+
+function ytLink(ex, name, big) {
+  return h(`a.anim${big ? '.big' : ''}.ytlink`, {
+    href: demoSearchUrl(ex, name),
+    target: '_blank',
+    rel: 'noopener noreferrer',
+    title: `חפש ביוטיוב: ${name}`,
+    'aria-label': `צפה בהדגמה של ${name} ביוטיוב — נפתח בלשונית חדשה`,
+  }, h('span.ytmark', '▶'), h('span.ytcap', big ? 'צפה בהדגמה ביוטיוב' : 'הדגמה'));
 }
 
 /**
@@ -46,17 +64,19 @@ export function exerciseCard(day, slot, index, onChange) {
 
   const card = h('div.ex' + (done ? '.done' : ''));
 
-  const figure = h('div.anim', {
-    role: 'button', tabindex: '0',
-    title: 'הדגמה — לחץ להסבר מלא',
-    onclick: () => openDetail(day, slot, pick, onChange),
-    onkeydown: (e) => { if (e.key === 'Enter' || e.key === ' ') { e.preventDefault(); openDetail(day, slot, pick, onChange); } },
-  });
-  card.appendChild(figure);
-  mount(figure, ex, `הדגמה: ${v.name}`);
+  card.appendChild(ytLink(ex, v.name, false));
 
+  /*
+   * The name opens the detail sheet, because the figure no longer can — it is a
+   * link out to YouTube now. The sheet holds the full cues and the alternatives,
+   * so losing the only way in would have quietly removed all of it.
+   */
   const body = h('div.body-col',
-    h('div.name', `${String(index).padStart(2, '0')} · ${v.name}`),
+    h('button.name.namebtn', {
+      type: 'button',
+      title: 'פרטים, דגשים וחלופות',
+      onclick: () => openDetail(day, slot, pick, onChange),
+    }, `${String(index).padStart(2, '0')} · ${v.name}`),
     v.nameEn ? h('div.name-en', v.nameEn) : null,
     h('div.prescr',
       h('span.chip', String(v.sets)),
@@ -251,7 +271,7 @@ export function openDetail(day, slot, pick, onChange) {
   const v = slot.variants[pick];
   const ex = byId(v.exId);
 
-  const figure = h('div.anim.big');
+  const figure = ytLink(ex, v.name, true);
   const body = h('div',
     figure,
     h('h3', { style: { marginTop: '14px' } }, v.name),
@@ -286,19 +306,12 @@ export function openDetail(day, slot, pick, onChange) {
     slot.variants.length > 1 ? variantSwitcher(day, slot, pick, onChange) : null,
   );
 
-  let ctl = null;
   const close = modal(h('div', body, h('div.modal-actions',
     h('button.btn', { type: 'button', onclick: () => close() }, 'סגור'),
   )), {
     label: v.name,
-    onClose: () => {
-      // Stop the sheet's figure rather than leaving it ticking on a detached node.
-      if (ctl) { ctl.destroy(); players.delete(ctl); }
-    },
   });
 
-  ctl = mountClip(figure, clipFor(ex), { label: `הדגמה: ${v.name}` });
-  players.add(ctl);
   return close;
 }
 
