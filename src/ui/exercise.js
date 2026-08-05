@@ -7,8 +7,7 @@
  */
 
 import { h, clear, modal, announce } from '../core/dom.js';
-import { mountClip, motionOff } from '../core/anim.js';
-import { DEMOS } from '../data/demos.js';
+import { mountClip } from '../core/anim.js';
 import { clipFor } from '../data/clips.index.js';
 import { byId } from '../data/exercises.index.js';
 import { stepDifficulty, prescribeSwap } from '../engine/adjust.js';
@@ -26,26 +25,6 @@ export function releaseAll() {
 }
 
 function mount(host, ex, label) {
-  /*
-   * A filmed demonstration beats a schematic wherever one exists — you can see
-   * the bar path, the depth and what the lifter's back is actually doing. The
-   * rig still draws the other 220-odd movements, so a missing entry here is not
-   * an error, it is the normal case.
-   *
-   * While motion is off the rig is used even when a film exists: an animated
-   * WebP keeps playing no matter what script asks of it, so showing one under a
-   * pressed "stop motion" button would be the control lying.
-   */
-  const demo = !motionOff() && DEMOS[ex.id];
-  if (demo) {
-    const img = h('img.demo', {
-      src: demo, alt: label, loading: 'lazy', decoding: 'async',
-    });
-    host.appendChild(img);
-    const ctl = { destroy() { img.remove(); } };
-    players.add(ctl);
-    return ctl;
-  }
   const ctl = mountClip(host, clipFor(ex), { label });
   players.add(ctl);
   return ctl;

@@ -654,14 +654,3 @@ body.resting .modal-back { padding-bottom: 96px; }
   .restbar { display: none !important; }
   body.resting { padding-bottom: 0; }
 }
-
-/* Filmed demonstrations.
-   Same box as the rig so a card's layout does not shift depending on whether a
-   film exists for that movement. object-fit: cover because the source footage
-   is 4:3 and the box is square — letterboxing a lifter inside an 84px tile
-   leaves too little of them to read. */
-.anim .demo {
-  display: block; width: 100%; height: 100%;
-  object-fit: cover; object-position: center;
-}
-.anim.big .demo { border-radius: var(--r-sm); }
