@@ -147,14 +147,30 @@ function restChip(v) {
   }, h('span.ico', '◷'), `מנוחה ${v.rest}`);
 }
 
+/*
+ * Difficulty, and separately which alternative you are looking at.
+ *
+ * These were one row and read as one number. The label said "קושי", and the
+ * chip beside it said "1/3" — which was the VARIANT index, not the level, so a
+ * level-4 exercise showing as the first of three alternatives announced itself
+ * as "קושי 1/3". The chip also vanished whenever a slot had a single variant,
+ * which made the whole row look like it rendered inconsistently.
+ *
+ * The level is now spelled out as a number as well as drawn. At level 1 the
+ * meter is one faint rung in five, which is indistinguishable from a bar that
+ * failed to render, and "1/5" beside it settles the question.
+ */
 function levelRow(level, pick, total, adjusted) {
   const rungs = h('span.rungs');
   for (let i = 1; i <= 5; i++) rungs.appendChild(h('span.rung' + (i <= level ? '.f' : '')));
   return h('div.lev',
     h('span.lbl', 'קושי'),
     rungs,
+    h('span.of', { 'aria-label': `רמת קושי ${level} מתוך 5` }, `${level}/5`),
     adjusted ? h('span.of', { style: { color: 'var(--cyan)' } }, 'מותאם') : null,
-    !adjusted && total > 1 ? h('span.of', `${pick + 1}/${total}`) : null,
+    !adjusted && total > 1
+      ? h('span.of', { style: { opacity: '.75' } }, `חלופה ${pick + 1} מתוך ${total}`)
+      : null,
   );
 }
 
