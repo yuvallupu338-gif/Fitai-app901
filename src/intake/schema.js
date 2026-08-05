@@ -274,8 +274,19 @@ export const STEPS = [
   {
     id: 'vision',
     title: 'לאן אתה מכוון',
-    subtitle: 'שתי תמונות. אחת שלך היום, אחת של הגוף שאתה מכוון אליו — '
-      + 'ומודל ראייה קורא את שתיהן, נותן רמת היגיון ליעד שלך, ומכוון את התוכנית לפער ביניהן.',
+    /*
+     * Under 18 all three photo fields are hidden, so this used to head an
+     * otherwise ordinary question with a paragraph describing a photo scan that
+     * was nowhere on the page — and the age limit was only ever explained later,
+     * on a tab of the finished plan. Describe what is actually on screen, and
+     * say why the rest is missing at the moment it goes missing.
+     */
+    subtitle: (p) => (withholdsPhotoScan(p)
+      ? 'סריקת התמונות פתוחה מגיל 18, אז השלב הזה מסתכם בשאלה אחת. '
+        + 'התוכנית נבנית לך במלואה בלי הסריקה — היא לא מוסיפה תרגילים ולא משנה את המסלול, '
+        + 'רק מזיזה את החלוקה בין קבוצות השריר.'
+      : 'שתי תמונות. אחת שלך היום, אחת של הגוף שאתה מכוון אליו — '
+        + 'ומודל ראייה קורא את שתיהן, נותן רמת היגיון ליעד שלך, ומכוון את התוכנית לפער ביניהן.'),
     fields: [
       {
         key: 'commitment', label: 'כמה אתה מוכן להתמסר לתהליך', type: 'scale', min: 1, max: 5,

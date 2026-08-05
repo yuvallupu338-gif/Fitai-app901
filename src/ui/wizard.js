@@ -16,6 +16,10 @@ const DAY_NAMES = ['ראשון', 'שני', 'שלישי', 'רביעי', 'חמיש
 
 const REVIEW_STEP = STEPS.length;
 
+function subtitleOf(stepDef, profile) {
+  return typeof stepDef.subtitle === 'function' ? stepDef.subtitle(profile) : stepDef.subtitle;
+}
+
 export function renderWizard(root, onDone) {
   const st = store.get();
   let profile = st.profile ? Object.assign(defaults(), st.profile) : defaults();
@@ -107,7 +111,12 @@ export function renderWizard(root, onDone) {
     const section = h('section',
       h('div.stepmeta', `שלב ${idx + 1} מתוך ${REVIEW_STEP + 1}`),
       h('h2', stepDef.title),
-      stepDef.subtitle ? h('p.sub', { style: { marginBottom: '26px' } }, stepDef.subtitle) : h('div', { style: { height: '20px' } }),
+      // A subtitle may be a function of the profile, for the same reason options
+      // may be: a step whose fields are conditionally hidden must be able to
+      // stop describing the ones that are not there.
+      subtitleOf(stepDef, profile)
+        ? h('p.sub', { style: { marginBottom: '26px' } }, subtitleOf(stepDef, profile))
+        : h('div', { style: { height: '20px' } }),
     );
     // The free-text shortcut only makes sense on the first step, where nothing
     // has been answered yet — offering it later would ask the user to describe

@@ -422,6 +422,47 @@ try {
   } catch (e) { err(`duration-note check could not run: ${e.message}`); }
 }
 
+/*
+ * A step must not describe fields it is not showing.
+ *
+ * The photo step's heading promised "two photographs, and a vision model reads
+ * both" to a fifteen-year-old whose three photo fields were all hidden by
+ * showIf — a paragraph about a feature nowhere on the page, with the age limit
+ * explained only later, on a tab of the finished plan.
+ *
+ * Checked structurally rather than by looking for words. A first attempt
+ * searched the subtitle for "תמונה"/"תמונות" and flagged the REPLACEMENT text
+ * too, because a sentence explaining that photos are unavailable naturally
+ * contains the word "photos". What actually matters is simpler: if a step hides
+ * fields for some profiles, its subtitle has to change for those profiles. A
+ * subtitle identical on both sides is describing one of them wrongly.
+ */
+{
+  try {
+    const schema = await load('src/intake/schema.js');
+    const AGES = [12, 15, 17, 18, 30, 65];
+    for (const step of schema.STEPS || []) {
+      const seen = new Map();   // subtitle text -> the set of shown field keys
+      for (const age of AGES) {
+        const p = schema.normalizeProfile(Object.assign(schema.defaults(), { age }));
+        const sub = typeof step.subtitle === 'function' ? step.subtitle(p) : step.subtitle;
+        if (!sub) continue;
+        const keys = (step.fields || [])
+          .filter((f) => !f.showIf || f.showIf(p)).map((f) => f.key).join(',');
+        if (!seen.has(sub)) seen.set(sub, new Set());
+        seen.get(sub).add(keys);
+      }
+      for (const [sub, fieldSets] of seen) {
+        if (fieldSets.size > 1) {
+          err(`step "${step.id}" shows different fields to different profiles `
+            + `([${[...fieldSets].join('] vs [')}]) but heads all of them with the same `
+            + `subtitle — one of those pages is described wrongly: "${sub.slice(0, 50)}..."`);
+        }
+      }
+    }
+  } catch (e) { err(`step-promise check could not run: ${e.message}`); }
+}
+
 /* ---------------- clips ---------------- */
 
 const clipFiles = existsSync(resolve(ROOT, 'src/data'))
