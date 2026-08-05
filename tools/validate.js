@@ -386,6 +386,42 @@ try {
   } catch (e) { err(`demo-mapping check could not run: ${e.message}`); }
 }
 
+/*
+ * Every duration the plan quotes must be a duration some day actually has.
+ *
+ * The programme notes render inside whichever day is open, so a note quoting
+ * the week's AVERAGE printed "planned to fit in about 65 minutes" underneath a
+ * day whose own header said 80. Averages are fine in a summary and wrong under
+ * a specific day.
+ */
+{
+  try {
+    const gen = await load('src/engine/generator.js');
+    const schema = await load('src/intake/schema.js');
+    for (const minutesPerSession of [30, 45, 60, 90, 120]) {
+      for (const daysPerWeek of [2, 3, 4, 5, 6]) {
+        const p = schema.normalizeProfile(Object.assign(schema.defaults(), {
+          age: 30, heightCm: 178, weightKg: 76, goal: 'muscle',
+          experience: 'intermediate', daysPerWeek, minutesPerSession,
+          location: 'full_gym', track: 'mixed',
+        }));
+        const program = gen.generateProgram(p);
+        const real = new Set(program.days.map((d) => d.durationMin));
+        for (const note of program.notes || []) {
+          const m = /מתוכננים להיכנס ב־(\d+)(?:–(\d+))?/.exec(note);
+          if (!m) continue;
+          for (const n of [m[1], m[2]].filter(Boolean).map(Number)) {
+            if (!real.has(n)) {
+              err(`${minutesPerSession}min/${daysPerWeek}d: a note quotes ${n} min, but the days `
+                + `are [${[...real].join(', ')}] — no day has that duration`);
+            }
+          }
+        }
+      }
+    }
+  } catch (e) { err(`duration-note check could not run: ${e.message}`); }
+}
+
 /* ---------------- clips ---------------- */
 
 const clipFiles = existsSync(resolve(ROOT, 'src/data'))

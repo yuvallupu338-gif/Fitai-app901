@@ -472,7 +472,19 @@ export const STEPS = [
       {
         key: 'injuries', label: 'פציעות או כאבים כרוניים', type: 'chips',
         help: 'סמן כל אזור שכואב, נפצע, או שאתה נזהר בו. תרגילים שמעמיסים עליו לא ייכנסו לתוכנית.',
-        options: INJURY_OPTIONS,
+        /*
+         * Pregnancy is dropped for someone who answered male two steps earlier.
+         * Every other chip here is an injury anyone can have; this one is the
+         * single option the questionnaire already knows cannot apply, and
+         * offering it reads as the form not having listened.
+         *
+         * Only an explicit 'male' hides it — an unanswered or self-described sex
+         * keeps the chip, because the cost of hiding it from someone who needs
+         * it is far higher than the cost of showing it to someone who does not.
+         */
+        options: (p) => (p && p.sex === 'male'
+          ? INJURY_OPTIONS.filter((o) => o.value !== 'pregnancy')
+          : INJURY_OPTIONS),
       },
       {
         key: 'surgeries', label: 'ניתוחים', type: 'textarea', required: false,

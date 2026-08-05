@@ -1147,7 +1147,19 @@ function buildNotes(profile, ctx) {
     out.push('כשמשקל הגוף נהיה קל — עבור לחלופה הקשה יותר בכפתור ⇄, ולא לעוד 30 חזרות מאותו תרגיל.');
   }
   if (ctx.shortfall >= 12) {
-    out.push(`האימון מתוכנן להיכנס בערך ב־${ctx.typicalDuration} דק׳ ולא ב־${ctx.minutesPerSession}. את ההפרש כדאי להוציא על סטי חימום בתרגיל הראשון ועל מנוחות מלאות — לא על עוד סטים.`);
+    /*
+     * These notes are program-level but they render inside whichever day is
+     * open, so this one used to print the week's AVERAGE duration under a day
+     * whose own header said something else — "planned to fit in about 65
+     * minutes" beneath a heading reading 80. Quoting the real spread instead
+     * means the sentence is true whichever day the reader is looking at, and it
+     * matches the number already on screen above it.
+     */
+    const span = ctx.shortestDay === ctx.longestDay
+      ? `${ctx.longestDay} דק׳`
+      : `${ctx.shortestDay}–${ctx.longestDay} דק׳`;
+    out.push(`האימונים מתוכננים להיכנס ב־${span} ולא ב־${ctx.minutesPerSession}. `
+      + 'את ההפרש כדאי להוציא על סטי חימום בתרגיל הראשון ועל מנוחות מלאות — לא על עוד סטים.');
   }
   out.push('כפתור ⇄ מחליף תרגיל לחלופה שעושה את אותה עבודה. אם תרגיל לא מרגיש נכון — החלף אותו, אל תדחוף דרכו.');
   return out;
@@ -1380,7 +1392,13 @@ export function generateProgram(profile) {
       daysPerWeek,
       minutesPerSession,
       typicalDuration,
-      shortfall: minutesPerSession - typicalDuration,
+      shortestDay: days.reduce((n, d) => Math.min(n, d.durationMin), Infinity),
+      longestDay: days.reduce((n, d) => Math.max(n, d.durationMin), 0),
+      // Judged on the SHORTEST day, because that is the one that surprises
+      // someone who set aside a fixed slot: a week of 85/55/70/40 against a
+      // 90-minute ask needs saying, and averaging it away (or judging it on the
+      // 85) hides exactly the day they would notice.
+      shortfall: minutesPerSession - days.reduce((n, d) => Math.min(n, d.durationMin), Infinity),
       bodyweightOnly,
       cautioned,
     }),
