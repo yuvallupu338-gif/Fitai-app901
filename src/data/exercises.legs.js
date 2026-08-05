@@ -1095,7 +1095,7 @@ export const LEGS = [
     unilateral: false,
     contraindications: [],
     cues: ['גב לקיר, עקבים כחצי צעד קדימה', 'הרם אצבעות גבוה ככל האפשר', 'ירידה איטית ומבוקרת'],
-    anim: 'calf',
+    anim: 'tibialis_raise',
     regressionOf: null,
     progressionTo: null,
     tags: ['isolation', 'warmup'],

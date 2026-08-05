@@ -149,10 +149,24 @@ export const PLANK_TOP = {
   footL: -30, footR: -30,
 };
 
-/* The toes stay planted through a push-up — the body pivots about them — so the
-   bottom position pins the feet with IK instead of letting the legs swing down. */
+/*
+ * The toes stay planted through a push-up — the body pivots about them — so the
+ * bottom position pins the feet with IK instead of letting the legs swing down.
+ *
+ * Depth: the arm reaches 23.5 (upperArm 12 + forearm 11.5), and the top holds
+ * the shoulder 23.4 above the hand — a real lockout. The bottom used to sit
+ * 16.2 above it, which is a 87-degree elbow: legal, but it leaves the chest
+ * about ten units off the floor and moves the whole figure only 7 units in a
+ * hundred-unit box. At the 84px the card actually draws, that is six pixels,
+ * and the push-up read as a figure trembling rather than descending.
+ *
+ * Now 12.7 above the hand — a 65-degree elbow, chest near the floor, which is
+ * the depth the exercise is prescribed at. Visible travel goes 7.2 -> 10.7.
+ * The lowest drawn point is unchanged at 0.15 below the ground line (the toe),
+ * so nothing new touches the floor; there was simply headroom nobody had used.
+ */
 export const PLANK_BOTTOM = p(PLANK_TOP, {
-  x: 34, y: 79.5, spine: 21, head: 13,
+  x: 32.7, y: 83, spine: 20, head: 12,
   handL: { x: 56.5, y: 87.5, bend: -1 },
   handR: { x: 58.5, y: 87.5, bend: -1 },
   legL: undefined, legR: undefined,

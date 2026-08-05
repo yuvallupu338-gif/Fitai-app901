@@ -22,7 +22,11 @@ for (const [id, clip] of Object.entries(CLIPS)) {
     const j = solve(sampleClip(clip, i / 20));
     const pts = { head: j.head, pelvis: j.pelvis,
       handR: j.arms.R.hand, handL: j.arms.L.hand,
-      kneeR: j.legs.R.knee, ankleR: j.legs.R.ankle, ankleL: j.legs.L.ankle };
+      kneeR: j.legs.R.knee, ankleR: j.legs.R.ankle, ankleL: j.legs.L.ankle,
+      // Toes are tracked because some movements happen entirely below the
+      // ankle. A tibialis raise pivots on a planted heel, so every other joint
+      // is stationary by design and the clip scored 0.0 while visibly working.
+      toeR: j.legs.R.toe, toeL: j.legs.L.toe };
     for (const [k, [x, y]] of Object.entries(pts)) {
       (track[k] ||= []).push([x, y]);
     }
@@ -51,7 +55,7 @@ const spanOf = (clip) => {
   const t = {};
   for (let i = 0; i < 20; i++) {
     const j = solve(sampleClip(clip, i / 20));
-    const p = { head: j.head, pelvis: j.pelvis, handR: j.arms.R.hand, kneeR: j.legs.R.knee, ankleR: j.legs.R.ankle };
+    const p = { head: j.head, pelvis: j.pelvis, handR: j.arms.R.hand, kneeR: j.legs.R.knee, ankleR: j.legs.R.ankle, toeR: j.legs.R.toe };
     for (const [k, v] of Object.entries(p)) (t[k] ||= []).push(v);
   }
   let best = 0;

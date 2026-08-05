@@ -866,7 +866,7 @@ export const PULL = [
     unilateral: false,
     contraindications: ['elbow'],
     cues: ['מוט בגובה מותן, אחיזה תחתונה', 'המרפקים קבועים במקום — רק האמות זזות', 'גוף ישר, עקבים נעוצים ברצפה'],
-    anim: 'aussie_row',
+    anim: 'biceps_curl',
     regressionOf: 'ring_curl',
     progressionTo: 'ring_curl',
     tags: ['isolation'],

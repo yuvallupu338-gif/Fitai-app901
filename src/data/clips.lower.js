@@ -880,7 +880,42 @@ const SCR_UP = p(SCR_DOWN, {
   footL: -14, footR: -14,
 });
 
+/*
+ * Tibialis raise — the opposite of the calf raise above, and it used to borrow
+ * that clip, so an exercise whose whole point is lifting the TOES played an
+ * animation of the heels lifting. Anatomically backwards, and the one thing an
+ * animation exists to prevent.
+ *
+ * The heel is the pivot and stays planted, so the ankle target does not move at
+ * all — only the foot angle rotates, and the other way: the calf raise runs
+ * 2 -> -42 (toes down), this runs 2 -> +34 (toes toward the shin). The torso
+ * leans back a touch because that is how the movement is actually done, with
+ * the shoulders against a wall and the heels a step out from it.
+ */
+const TIB_DOWN = {
+  x: 50, y: 57.5, spine: 92, head: 92,
+  armL: [-84, -86], armR: [-96, -94],
+  footPtL: { x: 49, y: 87.5, bend: 1 }, footPtR: { x: 51, y: 87.5, bend: 1 },
+  footL: 2, footR: 2,
+};
+const TIB_MID = p(TIB_DOWN, { footL: 18, footR: 18 });
+const TIB_UP = p(TIB_DOWN, { footL: 34, footR: 34 });
+
 const CALF_CLIPS = {
+  tibialis_raise: clip({
+    id: 'tibialis_raise',
+    duration: 2200,
+    hero: 0.4,
+    keys: [
+      { t: 0, pose: TIB_DOWN },
+      { t: 0.2, pose: TIB_MID },
+      { t: 0.38, pose: TIB_UP, ease: 'out' },
+      { t: 0.52, pose: TIB_UP },
+      { t: 0.78, pose: TIB_MID },
+      { t: 1, pose: TIB_DOWN },
+    ],
+  }),
+
   calf_raise: clip({
     id: 'calf_raise',
     duration: 2400,

@@ -1161,7 +1161,7 @@ export const PUSH = [
     unilateral: false,
     contraindications: ['lower_back'],
     cues: ['אחיזה רחבה ומרפקים פתוחים 90 מעלות', 'משוך לתחתית עצם החזה', 'גב ישר והבטן מהודקת'],
-    anim: 'bent_row',
+    anim: 'reverse_fly',
     regressionOf: null,
     progressionTo: null,
     tags: ['compound'],

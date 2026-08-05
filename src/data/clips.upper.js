@@ -56,7 +56,7 @@ const PLANK_TOES = {
 };
 const PU_TOP = p(PLANK_TOP, Object.assign({ x: 36.2, y: 73.2 }, PLANK_TOES));
 const PU_BOTTOM = PLANK_BOTTOM;
-const PU_PAUSE = p(PLANK_BOTTOM, { x: 34.3, y: 79.1, spine: 21.5, head: 13.5 });
+const PU_PAUSE = p(PLANK_BOTTOM, { x: 33, y: 82.6, spine: 20.5, head: 12.5 });
 
 const pushup = {
   id: 'pushup',
@@ -71,7 +71,7 @@ const pushup = {
 /* --- knees down: the pivot moves from the toes to the knees ---------- */
 
 const KPU_TOP = {
-  x: 36, y: 75.5, spine: 26, head: 18,
+  x: 36, y: 73.6, spine: 27, head: 19,
   handL: { x: 56.5, y: 87.5, bend: -1 },
   handR: { x: 58.5, y: 87.5, bend: -1 },
   legL: [-140, 155], legR: [-144, 151],
@@ -79,11 +79,11 @@ const KPU_TOP = {
 };
 
 const KPU_BOTTOM = p(KPU_TOP, {
-  x: 36.4, y: 78.2, spine: 18, head: 10,
-  legL: [-149, 146], legR: [-153, 142],
+  x: 36.6, y: 80.6, spine: 16, head: 8,
+  legL: [-152, 143], legR: [-156, 139],
 });
 
-const KPU_PAUSE = p(KPU_BOTTOM, { y: 77.9, spine: 18.5, head: 10.5 });
+const KPU_PAUSE = p(KPU_BOTTOM, { y: 80.3, spine: 16.5, head: 8.5 });
 
 const knee_pushup = {
   id: 'knee_pushup',
@@ -130,8 +130,8 @@ const DPU_TOP = {
   footL: -149, footR: -149,
 };
 
-const DPU_BOTTOM = p(DPU_TOP, { x: 33, y: 74, spine: 8, head: 1 });
-const DPU_PAUSE = p(DPU_BOTTOM, { x: 33.2, y: 73.6, spine: 8.5, head: 1.5 });
+const DPU_BOTTOM = p(DPU_TOP, { x: 32, y: 77.4, spine: 7, head: 0 });
+const DPU_PAUSE = p(DPU_BOTTOM, { x: 32.2, y: 77, spine: 7.5, head: 0.5 });
 
 const decline_pushup = {
   id: 'decline_pushup',

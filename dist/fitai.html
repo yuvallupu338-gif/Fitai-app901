@@ -1764,10 +1764,24 @@ const PLANK_TOP = {
   footL: -30, footR: -30,
 };
 
-/* The toes stay planted through a push-up — the body pivots about them — so the
-   bottom position pins the feet with IK instead of letting the legs swing down. */
+/*
+ * The toes stay planted through a push-up — the body pivots about them — so the
+ * bottom position pins the feet with IK instead of letting the legs swing down.
+ *
+ * Depth: the arm reaches 23.5 (upperArm 12 + forearm 11.5), and the top holds
+ * the shoulder 23.4 above the hand — a real lockout. The bottom used to sit
+ * 16.2 above it, which is a 87-degree elbow: legal, but it leaves the chest
+ * about ten units off the floor and moves the whole figure only 7 units in a
+ * hundred-unit box. At the 84px the card actually draws, that is six pixels,
+ * and the push-up read as a figure trembling rather than descending.
+ *
+ * Now 12.7 above the hand — a 65-degree elbow, chest near the floor, which is
+ * the depth the exercise is prescribed at. Visible travel goes 7.2 -> 10.7.
+ * The lowest drawn point is unchanged at 0.15 below the ground line (the toe),
+ * so nothing new touches the floor; there was simply headroom nobody had used.
+ */
 const PLANK_BOTTOM = p(PLANK_TOP, {
-  x: 34, y: 79.5, spine: 21, head: 13,
+  x: 32.7, y: 83, spine: 20, head: 12,
   handL: { x: 56.5, y: 87.5, bend: -1 },
   handR: { x: 58.5, y: 87.5, bend: -1 },
   legL: undefined, legR: undefined,
@@ -2334,7 +2348,7 @@ const PLANK_TOES = {
 };
 const PU_TOP = p(PLANK_TOP, Object.assign({ x: 36.2, y: 73.2 }, PLANK_TOES));
 const PU_BOTTOM = PLANK_BOTTOM;
-const PU_PAUSE = p(PLANK_BOTTOM, { x: 34.3, y: 79.1, spine: 21.5, head: 13.5 });
+const PU_PAUSE = p(PLANK_BOTTOM, { x: 33, y: 82.6, spine: 20.5, head: 12.5 });
 
 const pushup = {
   id: 'pushup',
@@ -2349,7 +2363,7 @@ const pushup = {
 /* --- knees down: the pivot moves from the toes to the knees ---------- */
 
 const KPU_TOP = {
-  x: 36, y: 75.5, spine: 26, head: 18,
+  x: 36, y: 73.6, spine: 27, head: 19,
   handL: { x: 56.5, y: 87.5, bend: -1 },
   handR: { x: 58.5, y: 87.5, bend: -1 },
   legL: [-140, 155], legR: [-144, 151],
@@ -2357,11 +2371,11 @@ const KPU_TOP = {
 };
 
 const KPU_BOTTOM = p(KPU_TOP, {
-  x: 36.4, y: 78.2, spine: 18, head: 10,
-  legL: [-149, 146], legR: [-153, 142],
+  x: 36.6, y: 80.6, spine: 16, head: 8,
+  legL: [-152, 143], legR: [-156, 139],
 });
 
-const KPU_PAUSE = p(KPU_BOTTOM, { y: 77.9, spine: 18.5, head: 10.5 });
+const KPU_PAUSE = p(KPU_BOTTOM, { y: 80.3, spine: 16.5, head: 8.5 });
 
 const knee_pushup = {
   id: 'knee_pushup',
@@ -2408,8 +2422,8 @@ const DPU_TOP = {
   footL: -149, footR: -149,
 };
 
-const DPU_BOTTOM = p(DPU_TOP, { x: 33, y: 74, spine: 8, head: 1 });
-const DPU_PAUSE = p(DPU_BOTTOM, { x: 33.2, y: 73.6, spine: 8.5, head: 1.5 });
+const DPU_BOTTOM = p(DPU_TOP, { x: 32, y: 77.4, spine: 7, head: 0 });
+const DPU_PAUSE = p(DPU_BOTTOM, { x: 32.2, y: 77, spine: 7.5, head: 0.5 });
 
 const decline_pushup = {
   id: 'decline_pushup',
@@ -5005,7 +5019,42 @@ const SCR_UP = p(SCR_DOWN, {
   footL: -14, footR: -14,
 });
 
+/*
+ * Tibialis raise — the opposite of the calf raise above, and it used to borrow
+ * that clip, so an exercise whose whole point is lifting the TOES played an
+ * animation of the heels lifting. Anatomically backwards, and the one thing an
+ * animation exists to prevent.
+ *
+ * The heel is the pivot and stays planted, so the ankle target does not move at
+ * all — only the foot angle rotates, and the other way: the calf raise runs
+ * 2 -> -42 (toes down), this runs 2 -> +34 (toes toward the shin). The torso
+ * leans back a touch because that is how the movement is actually done, with
+ * the shoulders against a wall and the heels a step out from it.
+ */
+const TIB_DOWN = {
+  x: 50, y: 57.5, spine: 92, head: 92,
+  armL: [-84, -86], armR: [-96, -94],
+  footPtL: { x: 49, y: 87.5, bend: 1 }, footPtR: { x: 51, y: 87.5, bend: 1 },
+  footL: 2, footR: 2,
+};
+const TIB_MID = p(TIB_DOWN, { footL: 18, footR: 18 });
+const TIB_UP = p(TIB_DOWN, { footL: 34, footR: 34 });
+
 const CALF_CLIPS = {
+  tibialis_raise: clip({
+    id: 'tibialis_raise',
+    duration: 2200,
+    hero: 0.4,
+    keys: [
+      { t: 0, pose: TIB_DOWN },
+      { t: 0.2, pose: TIB_MID },
+      { t: 0.38, pose: TIB_UP, ease: 'out' },
+      { t: 0.52, pose: TIB_UP },
+      { t: 0.78, pose: TIB_MID },
+      { t: 1, pose: TIB_DOWN },
+    ],
+  }),
+
   calf_raise: clip({
     id: 'calf_raise',
     duration: 2400,
@@ -14557,7 +14606,7 @@ const PUSH = [
     unilateral: false,
     contraindications: ['lower_back'],
     cues: ['אחיזה רחבה ומרפקים פתוחים 90 מעלות', 'משוך לתחתית עצם החזה', 'גב ישר והבטן מהודקת'],
-    anim: 'bent_row',
+    anim: 'reverse_fly',
     regressionOf: null,
     progressionTo: null,
     tags: ['compound'],
@@ -15489,7 +15538,7 @@ const PULL = [
     unilateral: false,
     contraindications: ['elbow'],
     cues: ['מוט בגובה מותן, אחיזה תחתונה', 'המרפקים קבועים במקום — רק האמות זזות', 'גוף ישר, עקבים נעוצים ברצפה'],
-    anim: 'aussie_row',
+    anim: 'biceps_curl',
     regressionOf: 'ring_curl',
     progressionTo: 'ring_curl',
     tags: ['isolation'],
@@ -16803,7 +16852,7 @@ const LEGS = [
     unilateral: false,
     contraindications: [],
     cues: ['גב לקיר, עקבים כחצי צעד קדימה', 'הרם אצבעות גבוה ככל האפשר', 'ירידה איטית ומבוקרת'],
-    anim: 'calf',
+    anim: 'tibialis_raise',
     regressionOf: null,
     progressionTo: null,
     tags: ['isolation', 'warmup'],
