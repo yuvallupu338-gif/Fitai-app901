@@ -118,6 +118,58 @@ if (allEx.size) {
   if (warmup.length < 10) err(`only ${warmup.length} exercises tagged 'warmup' — the generator needs at least 10 to build warm-ups (core file owns mobility)`);
 }
 
+/* ---------------- the refusal chips ---------------- */
+
+/*
+ * Every chip the "exercises I will not do" question offers must actually remove
+ * something. Two of them never had: the terms were בורפי and הנדסטנד while the
+ * library says ברפי and עמידת ידיים, so ticking either did nothing and the user
+ * was then prescribed the exact movement they had refused. A refusal that
+ * silently fails is worse than not asking.
+ */
+{
+  const schema = await load('src/intake/schema.js');
+  const registry = await load('src/data/exercises.index.js');
+  if (schema && registry && schema.STEPS) {
+    const limits = schema.STEPS.find((st) => st.id === 'limits');
+    const field = limits && limits.fields.find((f) => f.key === 'avoid');
+    const seen = new Set();
+    if (!field) {
+      err('the limits step has no avoid field');
+    } else {
+      for (const [track, location] of [
+        ['calisthenics', 'full_gym'], ['weights', 'full_gym'],
+        ['mixed', 'full_gym'], ['calisthenics', 'home_bodyweight'],
+        ['mixed', 'home_weights'],
+      ]) {
+        const base = schema.normalizeProfile({
+          track, location, age: 25, heightCm: 175, weightKg: 75, experience: 'advanced',
+        });
+        const offered = typeof field.options === 'function' ? field.options(base) : field.options;
+        const before = registry.candidates(base, {}).length;
+        for (const o of offered) {
+          const after = registry.candidates(
+            schema.normalizeProfile(Object.assign({}, base, { avoid: [o.value] })), {},
+          ).length;
+          if (before - after <= 0) {
+            err(`avoid chip "${o.label}" removes nothing for ${track}/${location} — the term matches no exercise`);
+          }
+        }
+        if (!offered.length) err(`no avoid chips offered for ${track}/${location}`);
+        for (const o of offered) seen.add(o.value);
+      }
+      // A term that matches nothing does not show up as a dead chip — it shows
+      // up as no chip, in every configuration, which hides the authoring
+      // mistake instead of surfacing it. So the DECLARED list is checked too.
+      for (const o of (schema.AVOID_OPTIONS || [])) {
+        if (!seen.has(o.value)) {
+          err(`avoid chip "${o.label}" (${o.value}) is never offered anywhere — its term matches no exercise in any track`);
+        }
+      }
+    }
+  }
+}
+
 /* ---------------- clips ---------------- */
 
 const clipFiles = existsSync(resolve(ROOT, 'src/data'))

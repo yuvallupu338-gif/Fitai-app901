@@ -32,9 +32,18 @@ export function conflictsInjury(profile, ex) {
   return (ex.contraindications || []).some((c) => inj.has(c));
 }
 
-/** True when the user explicitly refused this movement. */
+/**
+ * True when the user explicitly refused this movement.
+ *
+ * A refusal may carry several terms separated by "|", because a movement family
+ * is not always one word: dips are called both מקבילים and דיפס in this library,
+ * and a single substring cannot reach both.
+ */
 export function isAvoided(profile, ex) {
-  const list = (profile.avoid || []).map((s) => String(s).trim().toLowerCase()).filter(Boolean);
+  const list = (profile.avoid || [])
+    .flatMap((s) => String(s).toLowerCase().split('|'))
+    .map((s) => s.trim())
+    .filter(Boolean);
   if (!list.length) return false;
   const hay = `${ex.name} ${ex.nameEn}`.toLowerCase();
   return list.some((a) => hay.includes(a) || a.includes(ex.nameEn.toLowerCase()));

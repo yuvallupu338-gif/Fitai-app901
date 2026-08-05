@@ -7,6 +7,7 @@
  */
 
 import { emphasisFrom, confidenceHe } from '../vision/apply.js';
+import { candidates } from '../data/exercises.index.js';
 
 const TODAY = () => new Date();
 
@@ -443,17 +444,16 @@ export const STEPS = [
         key: 'avoid', label: 'תרגילים שאתה לא מסוגל או לא מוכן לעשות', type: 'chips',
         required: false,
         help: 'סמן מה שלא ייכנס לתוכנית בשום מקרה.',
-        options: [
-          { value: 'ריצה', label: 'ריצה' },
-          { value: 'קפיצ', label: 'קפיצות' },
-          { value: 'סקוואט', label: 'סקוואט' },
-          { value: 'דדליפט', label: 'דדליפט' },
-          { value: 'מתח', label: 'מתח' },
-          { value: 'מקביל', label: 'מקבילים' },
-          { value: 'לחיצת חזה', label: 'לחיצת חזה' },
-          { value: 'הנדסטנד', label: 'עמידת ידיים' },
-          { value: 'בורפי', label: 'בורפי' },
-        ],
+        // Only offer refusals that could actually happen. Asking a calisthenics
+        // trainee whether they refuse deadlifts, or someone with a bare floor
+        // whether they refuse the bench press, is asking about a movement their
+        // earlier answers already ruled out — the same not-listening the
+        // machines question used to do, one step later.
+        //
+        // Derived rather than hand-gated, so it stays honest as the exercise
+        // library grows: a chip survives only if some exercise this user could
+        // actually be prescribed matches it.
+        options: (p) => AVOID_OPTIONS.filter((o) => avoidableFor(p, o.value)),
       },
     ],
   },
@@ -590,6 +590,56 @@ export const STEPS = [
     ],
   },
 ];
+
+/*
+ * The terms are matched as substrings against the exercise names, so they have
+ * to be the words the library actually uses. Two of these were simply wrong and
+ * had never matched anything: the library says ברפי, not בורפי, and
+ * עמידת ידיים, not הנדסטנד. Ticking either chip removed nothing at all, which
+ * is the worst way for a refusal to fail — the user is asked, answers, and is
+ * then prescribed the exact movement they refused.
+ */
+const AVOID_OPTIONS = [
+  { value: 'ריצה', label: 'ריצה' },
+  { value: 'קפיצ', label: 'קפיצות' },
+  { value: 'סקוואט', label: 'סקוואט' },
+  { value: 'דדליפט', label: 'דדליפט' },
+  { value: 'מתח|pull-up|pullup', label: 'מתח' },
+  { value: 'מקביל|דיפס|dip', label: 'מקבילים / דיפס' },
+  { value: 'לחיצת חזה', label: 'לחיצת חזה' },
+  { value: 'עמידת ידיים|handstand', label: 'עמידת ידיים' },
+  { value: 'ברפי|burpee', label: 'ברפי' },
+];
+
+/** The Hebrew label for a stored avoid value, for the review screen. */
+function avoidLabel(value) {
+  const hit = AVOID_OPTIONS.find((o) => o.value === value);
+  return hit ? hit.label : value;
+}
+
+/**
+ * Could this user ever be prescribed something the term matches?
+ *
+ * Queried with the avoid list emptied, or a chip would vanish the moment it was
+ * ticked — the registry filters avoided movements out of the very pool being
+ * asked about. Equipment, track and injuries still apply, which is the point.
+ */
+function avoidableFor(profile, term) {
+  const probe = Object.assign({}, profile, { avoid: [] });
+  // Split on "|" exactly as isAvoided does. Testing the whole value as one
+  // string matched nothing and silently hid every multi-term chip.
+  const needles = String(term).toLowerCase().split('|').map((t) => t.trim()).filter(Boolean);
+  let pool;
+  try {
+    pool = candidates(probe, { ignoreTrack: false });
+  } catch (e) {
+    return true;   // never hide an option because a lookup failed
+  }
+  return pool.some((e) => {
+    const hay = `${e.name} ${e.nameEn}`.toLowerCase();
+    return needles.some((n) => hay.includes(n));
+  });
+}
 
 /* ------------------------------------------------------------------ *
  * Validation
@@ -820,7 +870,7 @@ export function summarize(profile) {
     { label: 'ציוד', value: eqLabels.length ? eqLabels.join(', ') : 'משקל גוף בלבד' },
     { label: 'מגבלות', value: injLabels.length ? injLabels.join(', ') : 'אין' },
   );
-  if ((p.avoid || []).length) rows.push({ label: 'לא לכלול', value: p.avoid.join(', ') });
+  if ((p.avoid || []).length) rows.push({ label: 'לא לכלול', value: p.avoid.map(avoidLabel).join(', ') });
   rows.push({ label: 'שינה ועומס', value: `${p.sleepHours} שעות · עומס ${p.stress}/5` });
 
   const bm = p.benchmarks || {};
@@ -871,4 +921,4 @@ function formatHeDate(d) {
   return parts.length === 3 ? `${parts[2]}.${parts[1]}.${parts[0]}` : '—';
 }
 
-export { EQUIPMENT_OPTIONS, INJURY_OPTIONS, DIET_OPTIONS, EQUIPMENT_BY_LOCATION };
+export { EQUIPMENT_OPTIONS, INJURY_OPTIONS, DIET_OPTIONS, EQUIPMENT_BY_LOCATION, AVOID_OPTIONS };
