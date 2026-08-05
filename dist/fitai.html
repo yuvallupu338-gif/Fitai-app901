@@ -19019,6 +19019,22 @@ function layout(profile, vol, budget, split) {
   const days = split.days.map((d) => ({ def: d, picks: [] }));
 
   const patternsOfGroup = (d, group) => d.def.patterns.filter((pat) => PATTERN_GROUP[pat] === group);
+
+  /*
+   * Every pattern the app knows for a group, not just the ones this day's split
+   * happened to name. A split lists one pull pattern for a given day, so when
+   * the pull group earned two slots there the second one had nowhere to go and
+   * took the same pattern again — and a pull day could ship a pull-up, a
+   * wide-grip pull-up and a chin-up as three separate exercises. Widening to
+   * the group's siblings turns that into a vertical pull AND a horizontal pull,
+   * which is what the second slot was for. Still inside the group, so a pull
+   * slot can never become a squat.
+   */
+  const groupVocabulary = {};
+  for (const pat of Object.keys(PATTERN_GROUP)) {
+    const g = PATTERN_GROUP[pat];
+    (groupVocabulary[g] = groupVocabulary[g] || []).push(pat);
+  }
   const priority = GROUP_PRIORITY[goal] || GROUP_PRIORITY.fitness;
 
   for (const group of priority) {
@@ -19057,12 +19073,31 @@ function layout(profile, vol, budget, split) {
       const d = open[0];
       const pats = fallbackPattern ? [fallbackPattern] : patternsOfGroup(d, group);
       const taken = d.picks.filter((s) => s.group === group).length;
-      const pattern = pats[taken % pats.length];
+
+      // Exhaust the day's own patterns first, then the group's other patterns
+      // that this day has not used, and only then repeat. Repeating is still
+      // the last resort rather than an error: two sets of pull-ups beats a
+      // pull day with one exercise on it.
+      let pattern = pats[taken % pats.length];
+      if (taken >= pats.length && !fallbackPattern) {
+        const unused = (groupVocabulary[group] || [])
+          .filter((pat) => !d.picks.some((s) => s.pattern === pat));
+        if (unused.length) pattern = unused[0];
+      }
+
+      // A widened pattern is not in the day's list, so indexOf gives -1 and it
+      // would sort ahead of the warm-up. Sit it next to the sibling it joins.
+      let order = d.def.patterns.indexOf(pattern);
+      if (order < 0) {
+        const sibling = pats.length ? d.def.patterns.indexOf(pats[0]) : -1;
+        order = sibling >= 0 ? sibling + 0.5 : 98;
+      }
+
       d.picks.push({
         group,
         pattern,
         occurrence: d.picks.filter((s) => s.pattern === pattern).length,
-        order: fallbackPattern ? 99 : d.def.patterns.indexOf(pattern),
+        order: fallbackPattern ? 99 : order,
         seq: taken,
       });
     }

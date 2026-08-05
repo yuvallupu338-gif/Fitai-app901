@@ -320,6 +320,50 @@ try {
   } catch (e) { err(`track-purity check could not run: ${e.message}`); }
 }
 
+/*
+ * No day may spend three slots on one movement pattern.
+ *
+ * A split names one pull pattern for a given day, so when the pull group earned
+ * two slots there the second had nowhere to go and repeated it — producing a
+ * pull-up, a wide-grip pull-up and a chin-up as three separate exercises, nine
+ * sets of one movement, the assisted regression prescribed next to the full
+ * version it exists to replace. Two of a pattern is defensible (heavy then
+ * volume); three is the allocator giving up.
+ */
+{
+  try {
+    const gen = await load('src/engine/generator.js');
+    const schema = await load('src/intake/schema.js');
+    const idx = await load('src/data/exercises.index.js');
+    let worst = 0, worstAt = '';
+    for (const track of ['calisthenics', 'weights', 'mixed']) {
+      for (const location of ['full_gym', 'building_gym', 'home_weights', 'home_bodyweight']) {
+        for (const experience of ['beginner', 'intermediate', 'advanced']) {
+          for (const daysPerWeek of [3, 4, 5]) {
+            const p = schema.normalizeProfile(Object.assign(schema.defaults(), {
+              age: 30, heightCm: 178, weightKg: 76, goal: 'muscle',
+              experience, daysPerWeek, minutesPerSession: 60, location, track,
+            }));
+            for (const d of gen.generateProgram(p).days) {
+              const count = {};
+              for (const slot of d.slots) {
+                const ex = idx.byId(slot.variants[0].exId);
+                if (!ex) continue;
+                count[ex.pattern] = (count[ex.pattern] || 0) + 1;
+                if (count[ex.pattern] > worst) {
+                  worst = count[ex.pattern];
+                  worstAt = `${track}/${location}/${experience}/${daysPerWeek}d "${d.title}" ${ex.pattern}`;
+                }
+              }
+            }
+          }
+        }
+      }
+    }
+    if (worst >= 3) err(`a day spends ${worst} slots on one pattern — ${worstAt}`);
+  } catch (e) { err(`pattern-repeat check could not run: ${e.message}`); }
+}
+
 /* ---------------- clips ---------------- */
 
 const clipFiles = existsSync(resolve(ROOT, 'src/data'))
