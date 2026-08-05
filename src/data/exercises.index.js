@@ -68,9 +68,22 @@ const TRACK_NEUTRAL_PATTERNS = new Set([
 
 export function matchesTrack(ex, track) {
   if (!track || track === 'mixed') return true;
-  if (TRACK_NEUTRAL_PATTERNS.has(ex.pattern)) return true;
   const eq = ex.equipment || [];
+
+  /*
+   * Calisthenics is checked BEFORE the neutral-pattern exemption, because the
+   * two rules mean different things and the exemption used to swallow this one.
+   *
+   * Neutrality says a core or conditioning movement does not have to prove it
+   * belongs on a given track — a plank is a plank either way. It does not say
+   * the movement may bring a cable stack. The track's own description promises
+   * "progression by leverage and not by weight", and returning true here first
+   * put a cable crunch and a cable wood chop into calisthenics plans, which is
+   * precisely the loading it promised to leave out.
+   */
   if (track === 'calisthenics') return eq.every((q) => CALISTHENIC_EQUIPMENT.has(q));
+
+  if (TRACK_NEUTRAL_PATTERNS.has(ex.pattern)) return true;
   if (track === 'weights') return eq.some((q) => LOADED_EQUIPMENT.has(q));
   return true;
 }

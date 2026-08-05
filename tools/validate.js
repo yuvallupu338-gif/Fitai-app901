@@ -296,6 +296,30 @@ try {
   try { walk('src'); } catch (e) { err(`age-policy check could not run: ${e.message}`); }
 }
 
+/*
+ * A track must keep the promise its own description makes.
+ *
+ * The calisthenics option tells the user "progression by leverage and not by
+ * weight". matchesTrack returned true for core, conditioning and mobility
+ * patterns BEFORE it looked at equipment, so a cable crunch and a cable wood
+ * chop were shipped inside calisthenics plans — the exact loading the track
+ * said it left out. Neutrality was meant to say a plank belongs on either
+ * track, not that a plank may bring a cable stack.
+ */
+{
+  const LOADED = ['dumbbells', 'barbell', 'kettlebell', 'machines', 'cable'];
+  try {
+    const idx = await load('src/data/exercises.index.js');
+    const offenders = idx.EXERCISES.filter((e) => idx.matchesTrack(e, 'calisthenics')
+      && (e.equipment || []).some((q) => LOADED.includes(q)));
+    for (const e of offenders.slice(0, 6)) {
+      err(`${e.id} (${e.nameEn}) needs ${e.equipment.join('+')} but passes the calisthenics `
+        + `track filter — that track promises progression by leverage, not load`);
+    }
+    if (offenders.length > 6) err(`...and ${offenders.length - 6} more loaded exercises in calisthenics`);
+  } catch (e) { err(`track-purity check could not run: ${e.message}`); }
+}
+
 /* ---------------- clips ---------------- */
 
 const clipFiles = existsSync(resolve(ROOT, 'src/data'))
