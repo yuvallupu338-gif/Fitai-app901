@@ -170,6 +170,87 @@ if (allEx.size) {
   }
 }
 
+/*
+ * Every option a step offers must describe equipment that step's own answers
+ * say the user has.
+ *
+ * The questionnaire asks where you train, seeds a kit from that, and then asks
+ * how you want to train — all on one screen. The track descriptions were a
+ * fixed list, so someone answering "בית עם משקולות" (dumbbells, bands, a mat)
+ * was offered a track called "מכונות ומשקולות" described as "מוט, משקולות,
+ * מכונות ופולי". Three of those four did not exist for them, two lines under
+ * their own answer. Nothing downstream broke — the generator already filters by
+ * equipment — which is exactly why it survived: the only symptom was the
+ * questionnaire contradicting itself, and no test read the prose.
+ */
+async function checkOptionsMatchKit(schema, err) {
+  const HE = {
+    machines: ['מכונות'], cable: ['פולי'], barbell: ['מוט '],
+    dip_bars: ['מקבילים'], rings: ['טבעות'],
+    // Added after the first fix named bands to a building gym that has none —
+    // the replacement wording repeated the defect one layer down, and the
+    // check could not see it because its vocabulary stopped at the heavy gear.
+    bands: ['גומיות'], kettlebell: ['קטלבל'], treadmill: ['הליכון'],
+  };
+  const GEAR_IDS = new Set(['pullup_bar', 'dip_bars', 'rings', 'bands', 'dumbbells', 'barbell',
+    'kettlebell', 'bench', 'box', 'machines', 'cable', 'trx', 'jump_rope', 'mat',
+    'treadmill', 'bike', 'rower']);
+  const LOCATIONS = ['full_gym', 'building_gym', 'home_weights', 'home_bodyweight'];
+  const steps = schema.STEPS || schema.steps || [];
+
+  for (const loc of LOCATIONS) {
+    const p = schema.normalizeProfile(Object.assign(schema.defaults(), { location: loc }));
+    const kit = new Set(p.equipment || []);
+
+    for (const step of steps) {
+      for (const f of (step.fields || [])) {
+        if (typeof f.showIf === 'function' && !f.showIf(p)) continue;
+        const opts = typeof f.options === 'function' ? f.options(p) : f.options;
+        if (!Array.isArray(opts)) continue;
+
+        // Skip the fields whose options ARE the vocabulary: "what do you
+        // actually have" has to be able to offer a barbell to someone who does
+        // not have one yet — that is the question. Likewise the avoid chips
+        // name movements, not the asker's kit. The defect is a field that
+        // describes how you will TRAIN using gear you have already said you
+        // lack, so only fields whose values are not gear ids are checked.
+        const isGearVocabulary = opts.some((o) => GEAR_IDS.has(o.value));
+        if (isGearVocabulary || f.key === 'avoid') continue;
+
+        // And skip the fields that ESTABLISH the kit rather than describe
+        // training with it. "חדר כושר מלא" has to be able to say it has
+        // machines and a cable stack — describing the places you are choosing
+        // between is the entire question — and "יש מכונות ופולי" is how you
+        // answer whether your building gym has any. A yes/no field is asking
+        // about the world; a field that sets the kit defines it. It is the
+        // fields DOWNSTREAM of those answers that must not contradict them.
+        const asksAboutTheWorld = opts.some((o) => typeof o.value === 'boolean');
+        if (asksAboutTheWorld || f.key === 'location') continue;
+
+        for (const o of opts) {
+          const text = `${o.label || ''} ${o.desc || ''}`;
+          for (const gear of Object.keys(HE)) {
+            if (kit.has(gear)) continue;
+            for (const word of HE[gear]) {
+              if (text.indexOf(word) >= 0) {
+                err(`${loc}: option "${o.label}" on field ${f.key} names ${gear} `
+                  + `("${word.trim()}") but this location's kit is [${[...kit].join(', ')}]`);
+              }
+            }
+          }
+        }
+      }
+    }
+  }
+}
+
+try {
+  const schema = await load('src/intake/schema.js');
+  if (schema && schema.normalizeProfile && schema.defaults) {
+    await checkOptionsMatchKit(schema, err);
+  }
+} catch (e) { err(`option/kit check could not run: ${e.message}`); }
+
 /* ---------------- clips ---------------- */
 
 const clipFiles = existsSync(resolve(ROOT, 'src/data'))

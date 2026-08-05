@@ -377,20 +377,60 @@ export const STEPS = [
           }
         },
         help: 'שני אנשים באותו חדר כושר ועם אותה מטרה יכולים לרצות אימון אחר לגמרי. זו העדפה, לא הגבלה — אפשר לשנות בכל רגע.',
-        options: [
-          {
-            value: 'calisthenics', label: 'קליסטניקס',
-            desc: 'שליטה במשקל הגוף — מתח, מקבילים, טבעות, עמידת ידיים. התקדמות במנוף ולא במשקל',
-          },
-          {
-            value: 'weights', label: 'מכונות ומשקולות',
-            desc: 'ברזל — מוט, משקולות, מכונות ופולי. התקדמות בעומס',
-          },
-          {
-            value: 'mixed', label: 'משולב',
-            desc: 'הטוב משני העולמות — הכלי שמתאים לכל תרגיל',
-          },
-        ],
+        /*
+         * Worded from the equipment the user actually has, not from a fixed
+         * list. The weights track used to be called "מכונות ומשקולות" and
+         * described as "מוט, משקולות, מכונות ופולי" on every screen — including
+         * for someone who had just answered "בית עם משקולות", whose whole kit is
+         * dumbbells, bands and a mat. Three of the four things it named did not
+         * exist for them. The programme never used the missing gear, so nothing
+         * downstream broke; the questionnaire simply described a gym they had
+         * already said they did not have, two lines under their own answer.
+         *
+         * Reads p.equipment rather than the location, because the equipment
+         * chips sit on this same step: uncheck the machines and this rewords
+         * itself, which is the behaviour someone editing that list expects.
+         */
+        options: (p) => {
+          const kit = new Set(p && Array.isArray(p.equipment) ? p.equipment : []);
+          const heavy = kit.has('machines') || kit.has('cable');
+          const bar = kit.has('barbell');
+
+          // Name only what is actually in the kit. Writing "משקולות יד וגומיות"
+          // as a fixed phrase reintroduces the same defect one layer down: a
+          // building gym has dumbbells and no bands.
+          const held = [];
+          if (kit.has('dumbbells')) held.push('משקולות יד');
+          if (kit.has('kettlebell')) held.push('קטלבל');
+          if (kit.has('bands')) held.push('גומיות');
+          let label = 'משקולות';
+          let desc = `${held.length ? held.join(' ו') : 'מה שיש לך'}. התקדמות בעומס`;
+          if (heavy) {
+            label = 'מכונות ומשקולות';
+            desc = 'ברזל — מוט, משקולות, מכונות ופולי. התקדמות בעומס';
+          } else if (bar) {
+            label = 'משקולות חופשיות';
+            desc = 'מוט ומשקולות יד, בלי מכונות. התקדמות בעומס';
+          }
+
+          // Same idea on the calisthenics side: naming rings and parallel bars
+          // to someone who has neither is the same defect, and the floor
+          // progressions are the honest description of what they would get.
+          const bars = kit.has('pullup_bar') || kit.has('dip_bars') || kit.has('rings');
+          return [
+            {
+              value: 'calisthenics', label: 'קליסטניקס',
+              desc: bars
+                ? 'שליטה במשקל הגוף — מתח, מקבילים, טבעות, עמידת ידיים. התקדמות במנוף ולא במשקל'
+                : 'שליטה במשקל הגוף — שכיבות, סקוואט, פלאנק, עמידת ידיים. התקדמות במנוף ולא במשקל',
+            },
+            { value: 'weights', label, desc },
+            {
+              value: 'mixed', label: 'משולב',
+              desc: 'הטוב משני העולמות — הכלי שמתאים לכל תרגיל',
+            },
+          ];
+        },
       },
       {
         key: 'gymMachines', label: 'יש מכונות, או רק משקולות חופשיות?', type: 'choice',
