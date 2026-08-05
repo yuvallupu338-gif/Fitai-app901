@@ -21,6 +21,8 @@
  * Food is Israeli home food with household measures, not grams on a scale.
  */
 
+import { withholdsBodyNumbers } from './age.js';
+
 /* ------------------------------------------------------------------ *
  * Food bank
  *
@@ -438,7 +440,7 @@ function strategy(profile) {
 
 export function nutritionPlan(profile) {
   const p = profile || {};
-  const minor = Number(p.age) < 16;
+  const minor = withholdsBodyNumbers(p);
   const meals = [];
 
   const trainHour = TRAIN_TIME[p.timeOfDay] || 18;

@@ -12678,6 +12678,122 @@ function importJson(text) {
   };
 })();
 
+__m["src/engine/age.js"] = (function () {
+/*
+ * age.js — every place the app treats a young trainee differently, and why.
+ *
+ * These rules were previously spelled out as bare numbers in six files, and they
+ * drifted apart the moment two surfaces disagreed about the same person. The
+ * nutrition tab told a thirteen-year-old, in as many words, not to weigh
+ * themselves weekly because they are still growing — and the tracking tab, in
+ * the same plan, opened with "one weigh-in a week, same day, in the morning"
+ * and gave them a button for it. Both were written honestly. Neither knew about
+ * the other.
+ *
+ * So the thresholds live here, once, each with the reason attached. A number
+ * without its reason is a number somebody will "tidy up" later.
+ *
+ * Pure arithmetic over a profile: no DOM, no imports, no side effects.
+ */
+
+/*
+ * Below this, the app does not put a number on food or on the body.
+ *
+ * A targeted deficit during growth costs height and bone density, and the habit
+ * of weekly self-weighing is itself the harm at this age — it teaches a child to
+ * read a rising number, which is exactly what growth looks like, as failure. The
+ * two halves are one rule and they have to move together.
+ */
+const BODY_NUMBERS_FROM = 16;
+
+/*
+ * Below this the app will not build a deficit, whatever the goal chip says.
+ * Higher than the rule above because "no calorie target" and "no fat loss" are
+ * different claims: a seventeen-year-old can be given a maintenance figure and
+ * taught to eat to it; they should still not be dieting.
+ */
+const FAT_LOSS_FROM = 18;
+
+/*
+ * Below this the photo scan does not run at all. It asks for a photograph of a
+ * body in tight clothing and sends it to a third party — the argument is about
+ * the picture, not about the training, so it is the strictest line in the file.
+ */
+const PHOTO_SCAN_FROM = 18;
+
+/*
+ * Below this, top-end loading is held back: growth plates are open, and the
+ * limiting factor is connective tissue rather than muscle. This does not stop
+ * anyone training hard, it stops the plan chasing a one-rep max.
+ */
+const HEAVY_LOAD_FROM = 16;
+
+/*
+ * The general "this is a minor and the app says so out loud" line, used for
+ * headings and for the non-negotiable warnings (parental consent, a doctor's
+ * sign-off, no creatine or protein powder). Shares the number with FAT_LOSS_FROM
+ * and is kept separate anyway, because the two would be edited for different
+ * reasons and a shared constant would make one silently follow the other.
+ */
+const ADULT_FROM = 18;
+
+function ageOf(profile) {
+  const n = Number(profile && profile.age);
+  return Number.isFinite(n) ? n : null;
+}
+
+/*
+ * Each of these answers one question, and the UI is expected to ask rather than
+ * compare ages itself. An unknown age is treated as an adult: the questionnaire
+ * requires it, so a missing value means an imported or hand-edited profile, and
+ * silently applying child rules to an adult who never answered would be its own
+ * kind of wrong.
+ */
+
+/** No calorie targets, no macro split, no weekly weigh-in, no body-fat talk. */
+function withholdsBodyNumbers(profile) {
+  const a = ageOf(profile);
+  return a !== null && a < BODY_NUMBERS_FROM;
+}
+
+/** True when a deficit must not be built, whatever the goal says. */
+function withholdsFatLoss(profile) {
+  const a = ageOf(profile);
+  return a !== null && a < FAT_LOSS_FROM;
+}
+
+/** True when the photo scan must not run. */
+function withholdsPhotoScan(profile) {
+  const a = ageOf(profile);
+  return a !== null && a < PHOTO_SCAN_FROM;
+}
+
+/** True when the plan should stay off maximal loads. */
+function withholdsHeavyLoad(profile) {
+  const a = ageOf(profile);
+  return a !== null && a < HEAVY_LOAD_FROM;
+}
+
+/** True when the app should speak to this trainee as a minor. */
+function isMinor(profile) {
+  const a = ageOf(profile);
+  return a !== null && a < ADULT_FROM;
+}
+
+  return {
+    "BODY_NUMBERS_FROM": BODY_NUMBERS_FROM,
+    "FAT_LOSS_FROM": FAT_LOSS_FROM,
+    "PHOTO_SCAN_FROM": PHOTO_SCAN_FROM,
+    "HEAVY_LOAD_FROM": HEAVY_LOAD_FROM,
+    "ADULT_FROM": ADULT_FROM,
+    "withholdsBodyNumbers": withholdsBodyNumbers,
+    "withholdsFatLoss": withholdsFatLoss,
+    "withholdsPhotoScan": withholdsPhotoScan,
+    "withholdsHeavyLoad": withholdsHeavyLoad,
+    "isMinor": isMinor,
+  };
+})();
+
 __m["src/engine/volume.js"] = (function () {
 /*
  * volume.js — how much work the week gets, how the week is split, and how much
@@ -19665,6 +19781,8 @@ __m["src/vision/apply.js"] = (function () {
  * nothing itself — emphasisSummary needs it to say what a read actually changed.
  */
 
+const { withholdsFatLoss } = __m["src/engine/age.js"];
+
 const { weeklyVolume } = __m["src/engine/volume.js"];
 const { PATTERN_GROUP } = __m["src/engine/generator.js"];
 
@@ -19994,7 +20112,7 @@ const GOAL_HE = {
    answer a question about two numbers. */
 function fatLossDisallowed(profile) {
   const age = Number(profile && profile.age);
-  if (Number.isFinite(age) && age < 18) return true;
+  if (withholdsFatLoss({ age })) return true;
   const h = Number(profile && profile.heightCm);
   const w = Number(profile && profile.weightKg);
   if (!Number.isFinite(h) || !Number.isFinite(w) || h <= 0) return false;
@@ -20058,6 +20176,8 @@ __m["src/intake/schema.js"] = (function () {
  * downstream consumes. The wizard in src/ui/wizard.js renders whatever is
  * declared here; adding a question needs no UI change.
  */
+
+const { withholdsPhotoScan } = __m["src/engine/age.js"];
 
 const { emphasisFrom, confidenceHe } = __m["src/vision/apply.js"];
 const { candidates } = __m["src/data/exercises.index.js"];
@@ -20339,18 +20459,18 @@ const STEPS = [
         // The scan is 18+, and asking a fifteen-year-old to photograph
         // themselves in tight clothing for a feature they cannot use is the
         // question that should never have been on screen.
-        showIf: (p) => Number(p.age) >= 18,
+        showIf: (p) => !withholdsPhotoScan(p),
         help: 'עמידה זקופה, מול המצלמה, בגדים צמודים או בגד ים. '
           + 'זו גם נקודת ההתחלה שלך — בעוד שלושה חודשים היא ההוכחה הכי טובה שמשהו קרה.',
       },
       {
         key: 'photoTarget', label: 'תמונה של הגוף שאתה מכוון אליו', type: 'photo', required: false,
-        showIf: (p) => Number(p.age) >= 18,
+        showIf: (p) => !withholdsPhotoScan(p),
         help: 'בדרך כלל זה מישהו אחר, וזה בסדר גמור. הפער בין שתי התמונות הוא בדיוק מה שנמדד.',
       },
       {
         key: 'visionRead', label: 'סריקת התמונות', type: 'scan', required: false,
-        showIf: (p) => Number(p.age) >= 18 && !!p.photoNow && !!p.photoTarget,
+        showIf: (p) => !withholdsPhotoScan(p) && !!p.photoNow && !!p.photoTarget,
       },
     ],
   },
@@ -23386,6 +23506,8 @@ __m["src/ui/wizard.js"] = (function () {
  * one step at a time, and hands a finished profile back to the app.
  */
 
+const { withholdsPhotoScan } = __m["src/engine/age.js"];
+
 const { h, clear, announce, shrinkImage } = __m["src/core/dom.js"];
 const { STEPS, defaults, validateStep, normalizeProfile, summarize } = __m["src/intake/schema.js"];
 const { renderScan } = __m["src/ui/scan.js"];
@@ -23707,7 +23829,7 @@ function renderWizard(root, onDone) {
         h('ul',
           h('li', 'התוכנית היא נקודת פתיחה מבוססת עקרונות אימון, לא ייעוץ רפואי.'),
           h('li', 'כאב חד במפרק — עוצרים. יום מנוחה עכשיו חוסך חודשיים אחר כך.'),
-          profile.age < 18
+          withholdsPhotoScan(profile)
             ? h('li', h('b', 'מתחת לגיל 18: '), 'ההורים יודעים, ורופא נתן אישור. זה סטנדרט, לא סימן שמשהו לא בסדר.')
             : h('li', 'אם יש מצב רפואי או ניתוח בשנה האחרונה — כדאי לאשר עם רופא.'),
         ),
@@ -24840,6 +24962,8 @@ __m["src/ui/nutrition.js"] = (function () {
  * meal-by-meal with swappable alternatives, eating out, and how to know it works.
  */
 
+const { withholdsBodyNumbers, isMinor } = __m["src/engine/age.js"];
+
 const { h, clear, announce } = __m["src/core/dom.js"];
 const store = __m["src/core/store.js"];
 
@@ -24871,7 +24995,7 @@ function renderNutrition(root, plan, profile) {
       // one, but the engine also withholds it when the profile is missing the
       // numbers to compute from — an imported backup, a half-filled intake.
       // Telling those people it is because of their age would be a lie.
-      view.appendChild(h('p.lead', Number(profile && profile.age) < 16
+      view.appendChild(h('p.lead', withholdsBodyNumbers(profile)
         ? 'בלי ספירת קלוריות ובלי מאקרו. בגיל הזה המטרה היא הרגלים, לא מספרים — הגוף עוד גדל, והוא צריך חומר גלם קבוע.'
         : 'אין כאן יעד קלורי — חסרים הגיל, הגובה או המשקל שצריך כדי לחשב אותו. כלל הצלחת והארוחות למטה עומדים בפני עצמם.'));
     }
@@ -24947,7 +25071,7 @@ function renderNutrition(root, plan, profile) {
 
     if (plan.warnings && plan.warnings.length) {
       view.appendChild(h('div.warnbox', { style: { marginTop: '22px' } },
-        h('h4', Number(profile && profile.age) < 18 ? 'דברים שלא מתפשרים עליהם' : 'שווה לדעת'),
+        h('h4', isMinor(profile) ? 'דברים שלא מתפשרים עליהם' : 'שווה לדעת'),
         h('ul', plan.warnings.map((w) => h('li', w)))));
     }
   }
@@ -26277,6 +26401,7 @@ __m["src/ui/progress.js"] = (function () {
 
 const { h, clear, announce } = __m["src/core/dom.js"];
 const { weeklyPlanNote, progressionModel } = __m["src/engine/progression.js"];
+const { withholdsBodyNumbers } = __m["src/engine/age.js"];
 const store = __m["src/core/store.js"];
 
 function renderProgress(root, program, profile) {
@@ -26291,13 +26416,22 @@ function renderProgress(root, program, profile) {
     const isDeload = model && model.deloadEveryWeeks
       ? week % model.deloadEveryWeeks === 0 : false;
 
+    // The nutrition tab tells a trainee under 16 not to weigh weekly, and says
+    // why: they are still growing, so the number is supposed to rise. This tab
+    // used to open with the opposite instruction and hand them a button for it.
+    // Same plan, same screen-full, two contradicting answers.
+    const noBodyNumbers = withholdsBodyNumbers(profile);
+
     view.appendChild(h('h3', 'מעקב'));
-    view.appendChild(h('p.lead', 'שקילה אחת בשבוע. אותו יום, בבוקר, אחרי שירותים, לפני שאתה אוכל. משקל יומי קופץ קילו בין בוקר לערב ולא אומר כלום.'));
+    view.appendChild(h('p.lead', noBodyNumbers
+      ? 'מה שנמדד כאן זה מה שקורה באימון — חזרות, משקלים והתמדה. לא המספר על המאזניים: '
+        + 'בגיל הזה הוא אמור לעלות, ומעקב שבועי אחריו מלמד לקרוא גדילה ככישלון.'
+      : 'שקילה אחת בשבוע. אותו יום, בבוקר, אחרי שירותים, לפני שאתה אוכל. משקל יומי קופץ קילו בין בוקר לערב ולא אומר כלום.'));
 
     view.appendChild(h('div.facts',
       h('span.fact', 'שבוע ', h('b', String(week))),
       h('span.fact', 'אימונים השבוע ', h('b', `${doneDays(program)}/${program.days.length}`)),
-      st.weights.length ? h('span.fact', 'משקל אחרון ', h('b', `${st.weights[st.weights.length - 1].kg} ק״ג`)) : null,
+      (!noBodyNumbers && st.weights.length) ? h('span.fact', 'משקל אחרון ', h('b', `${st.weights[st.weights.length - 1].kg} ק״ג`)) : null,
       isDeload ? h('span.fact', { style: { borderColor: 'var(--amber)' } }, 'שבוע ', h('b', 'דילואד')) : null,
     ));
 
@@ -26305,37 +26439,42 @@ function renderProgress(root, program, profile) {
     if (note) view.appendChild(h('p.focus', { style: { marginTop: '18px' } }, note));
 
     /* ---- weight entry ---- */
-    view.appendChild(h('div.rule'));
-    view.appendChild(h('h3', 'משקל'));
+    // Withheld under 16 rather than merely discouraged. Leaving the field on
+    // screen under a paragraph explaining not to use it is an invitation with a
+    // disclaimer, and the disclaimer loses.
+    if (!noBodyNumbers) {
+      view.appendChild(h('div.rule'));
+      view.appendChild(h('h3', 'משקל'));
 
-    const input = h('input', {
-      type: 'number', inputmode: 'decimal', step: '0.1', min: '20', max: '300',
-      placeholder: String(profile.weightKg || ''),
-    });
-    view.appendChild(h('div.logrow', { style: { marginTop: '10px' } },
-      input,
-      h('button.btn', {
-        type: 'button',
-        onclick: () => {
-          const kg = Number(input.value);
-          if (!kg || kg < 20 || kg > 300) { input.focus(); return; }
-          store.addWeight(kg);
-          input.value = '';
-          draw();
-          announce('המשקל נשמר');
-        },
-      }, h('span.ico', '+'), 'רשום שקילה'),
-    ));
+      const input = h('input', {
+        type: 'number', inputmode: 'decimal', step: '0.1', min: '20', max: '300',
+        placeholder: String(profile.weightKg || ''),
+      });
+      view.appendChild(h('div.logrow', { style: { marginTop: '10px' } },
+        input,
+        h('button.btn', {
+          type: 'button',
+          onclick: () => {
+            const kg = Number(input.value);
+            if (!kg || kg < 20 || kg > 300) { input.focus(); return; }
+            store.addWeight(kg);
+            input.value = '';
+            draw();
+            announce('המשקל נשמר');
+          },
+        }, h('span.ico', '+'), 'רשום שקילה'),
+      ));
 
-    if (st.weights.length >= 2) {
-      view.appendChild(sparkline(st.weights, profile.targetWeightKg));
-      const first = st.weights[0];
-      const last = st.weights[st.weights.length - 1];
-      const delta = last.kg - first.kg;
-      view.appendChild(h('p.lead',
-        `${st.weights.length} שקילות · שינוי כולל ${delta > 0 ? '+' : ''}${Math.round(delta * 10) / 10} ק״ג מאז ${formatDate(first.date)}.`));
-    } else {
-      view.appendChild(h('p.empty', 'שתי שקילות ומעלה — ותופיע כאן גרף מגמה.'));
+      if (st.weights.length >= 2) {
+        view.appendChild(sparkline(st.weights, profile.targetWeightKg));
+        const first = st.weights[0];
+        const last = st.weights[st.weights.length - 1];
+        const delta = last.kg - first.kg;
+        view.appendChild(h('p.lead',
+          `${st.weights.length} שקילות · שינוי כולל ${delta > 0 ? '+' : ''}${Math.round(delta * 10) / 10} ק״ג מאז ${formatDate(first.date)}.`));
+      } else {
+        view.appendChild(h('p.empty', 'שתי שקילות ומעלה — ותופיע כאן גרף מגמה.'));
+      }
     }
 
     /* ---- adherence ---- */
@@ -26489,6 +26628,8 @@ __m["src/engine/nutrition.js"] = (function () {
  *
  * Food is Israeli home food with household measures, not grams on a scale.
  */
+
+const { withholdsBodyNumbers } = __m["src/engine/age.js"];
 
 /* ------------------------------------------------------------------ *
  * Food bank
@@ -26907,7 +27048,7 @@ function strategy(profile) {
 
 function nutritionPlan(profile) {
   const p = profile || {};
-  const minor = Number(p.age) < 16;
+  const minor = withholdsBodyNumbers(p);
   const meals = [];
 
   const trainHour = TRAIN_TIME[p.timeOfDay] || 18;

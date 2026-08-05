@@ -6,6 +6,8 @@
  * declared here; adding a question needs no UI change.
  */
 
+import { withholdsPhotoScan } from '../engine/age.js';
+
 import { emphasisFrom, confidenceHe } from '../vision/apply.js';
 import { candidates } from '../data/exercises.index.js';
 
@@ -286,18 +288,18 @@ export const STEPS = [
         // The scan is 18+, and asking a fifteen-year-old to photograph
         // themselves in tight clothing for a feature they cannot use is the
         // question that should never have been on screen.
-        showIf: (p) => Number(p.age) >= 18,
+        showIf: (p) => !withholdsPhotoScan(p),
         help: 'עמידה זקופה, מול המצלמה, בגדים צמודים או בגד ים. '
           + 'זו גם נקודת ההתחלה שלך — בעוד שלושה חודשים היא ההוכחה הכי טובה שמשהו קרה.',
       },
       {
         key: 'photoTarget', label: 'תמונה של הגוף שאתה מכוון אליו', type: 'photo', required: false,
-        showIf: (p) => Number(p.age) >= 18,
+        showIf: (p) => !withholdsPhotoScan(p),
         help: 'בדרך כלל זה מישהו אחר, וזה בסדר גמור. הפער בין שתי התמונות הוא בדיוק מה שנמדד.',
       },
       {
         key: 'visionRead', label: 'סריקת התמונות', type: 'scan', required: false,
-        showIf: (p) => Number(p.age) >= 18 && !!p.photoNow && !!p.photoTarget,
+        showIf: (p) => !withholdsPhotoScan(p) && !!p.photoNow && !!p.photoTarget,
       },
     ],
   },

@@ -5,7 +5,7 @@
  * Exits non-zero on any error. Warnings do not fail the build.
  */
 
-import { readdirSync, existsSync } from 'node:fs';
+import { readdirSync, existsSync, readFileSync } from 'node:fs';
 import { pathToFileURL } from 'node:url';
 import { resolve, dirname } from 'node:path';
 import { fileURLToPath } from 'node:url';
@@ -250,6 +250,51 @@ try {
     await checkOptionsMatchKit(schema, err);
   }
 } catch (e) { err(`option/kit check could not run: ${e.message}`); }
+
+/*
+ * The age thresholds must come from one place.
+ *
+ * They were spelled out as bare numbers in six files and drifted: the nutrition
+ * tab told a thirteen-year-old not to weigh weekly and said why, while the
+ * tracking tab in the same plan opened with "one weigh-in a week" and gave them
+ * the button. Both were written honestly; neither knew about the other. So any
+ * NEW literal age comparison outside age.js is refused here — the point is not
+ * that 16 is right, it is that there must be exactly one 16.
+ *
+ * The engine files that still compare ages directly are listed as known: they
+ * encode dosing curves rather than policy (how fast to add load at 15, not
+ * whether to). They are allowed to stay, but not to grow.
+ */
+{
+  const ALLOWED = new Set([
+    'src/engine/age.js',
+    'src/engine/generator.js',      // level cap + rep-range dosing
+    'src/engine/progression.js',    // load-jump and intensity curves
+    'src/engine/targets.js',        // its own fat-loss refusal, older than age.js
+    'src/engine/volume.js',         // recovery curve: 65 / 55 / 15 is dosing, not policy
+    'src/vision/analyze.js',        // scan gate, states its own constant
+  ]);
+  const AGE_CMP = /\bage\s*[<>]=?\s*(\d{1,2})\b|\bage\)\s*[<>]=?\s*(\d{1,2})\b/g;
+  const walk = (dir) => {
+    for (const f of readdirSync(resolve(ROOT, dir), { withFileTypes: true })) {
+      const rel = `${dir}/${f.name}`;
+      if (f.isDirectory()) { walk(rel); continue; }
+      if (!/\.js$/.test(f.name)) continue;
+      if (ALLOWED.has(rel)) continue;
+      const src = readFileSync(resolve(ROOT, rel), 'utf8');
+      let m;
+      AGE_CMP.lastIndex = 0;
+      while ((m = AGE_CMP.exec(src))) {
+        const n = Number(m[1] || m[2]);
+        if (n >= 10 && n <= 25) {
+          err(`${rel} compares age against ${n} directly — import the rule from `
+            + `src/engine/age.js instead, so two screens cannot disagree about the same person`);
+        }
+      }
+    }
+  };
+  try { walk('src'); } catch (e) { err(`age-policy check could not run: ${e.message}`); }
+}
 
 /* ---------------- clips ---------------- */
 

@@ -3,6 +3,8 @@
  * meal-by-meal with swappable alternatives, eating out, and how to know it works.
  */
 
+import { withholdsBodyNumbers, isMinor } from '../engine/age.js';
+
 import { h, clear, announce } from '../core/dom.js';
 import * as store from '../core/store.js';
 
@@ -34,7 +36,7 @@ export function renderNutrition(root, plan, profile) {
       // one, but the engine also withholds it when the profile is missing the
       // numbers to compute from — an imported backup, a half-filled intake.
       // Telling those people it is because of their age would be a lie.
-      view.appendChild(h('p.lead', Number(profile && profile.age) < 16
+      view.appendChild(h('p.lead', withholdsBodyNumbers(profile)
         ? 'בלי ספירת קלוריות ובלי מאקרו. בגיל הזה המטרה היא הרגלים, לא מספרים — הגוף עוד גדל, והוא צריך חומר גלם קבוע.'
         : 'אין כאן יעד קלורי — חסרים הגיל, הגובה או המשקל שצריך כדי לחשב אותו. כלל הצלחת והארוחות למטה עומדים בפני עצמם.'));
     }
@@ -110,7 +112,7 @@ export function renderNutrition(root, plan, profile) {
 
     if (plan.warnings && plan.warnings.length) {
       view.appendChild(h('div.warnbox', { style: { marginTop: '22px' } },
-        h('h4', Number(profile && profile.age) < 18 ? 'דברים שלא מתפשרים עליהם' : 'שווה לדעת'),
+        h('h4', isMinor(profile) ? 'דברים שלא מתפשרים עליהם' : 'שווה לדעת'),
         h('ul', plan.warnings.map((w) => h('li', w)))));
     }
   }

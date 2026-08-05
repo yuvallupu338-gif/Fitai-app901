@@ -18,6 +18,8 @@
  * nothing itself — emphasisSummary needs it to say what a read actually changed.
  */
 
+import { withholdsFatLoss } from '../engine/age.js';
+
 import { weeklyVolume } from '../engine/volume.js';
 import { PATTERN_GROUP } from '../engine/generator.js';
 
@@ -347,7 +349,7 @@ const GOAL_HE = {
    answer a question about two numbers. */
 function fatLossDisallowed(profile) {
   const age = Number(profile && profile.age);
-  if (Number.isFinite(age) && age < 18) return true;
+  if (withholdsFatLoss({ age })) return true;
   const h = Number(profile && profile.heightCm);
   const w = Number(profile && profile.weightKg);
   if (!Number.isFinite(h) || !Number.isFinite(w) || h <= 0) return false;

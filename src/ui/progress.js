@@ -5,6 +5,7 @@
 
 import { h, clear, announce } from '../core/dom.js';
 import { weeklyPlanNote, progressionModel } from '../engine/progression.js';
+import { withholdsBodyNumbers } from '../engine/age.js';
 import * as store from '../core/store.js';
 
 export function renderProgress(root, program, profile) {
@@ -19,13 +20,22 @@ export function renderProgress(root, program, profile) {
     const isDeload = model && model.deloadEveryWeeks
       ? week % model.deloadEveryWeeks === 0 : false;
 
+    // The nutrition tab tells a trainee under 16 not to weigh weekly, and says
+    // why: they are still growing, so the number is supposed to rise. This tab
+    // used to open with the opposite instruction and hand them a button for it.
+    // Same plan, same screen-full, two contradicting answers.
+    const noBodyNumbers = withholdsBodyNumbers(profile);
+
     view.appendChild(h('h3', 'מעקב'));
-    view.appendChild(h('p.lead', 'שקילה אחת בשבוע. אותו יום, בבוקר, אחרי שירותים, לפני שאתה אוכל. משקל יומי קופץ קילו בין בוקר לערב ולא אומר כלום.'));
+    view.appendChild(h('p.lead', noBodyNumbers
+      ? 'מה שנמדד כאן זה מה שקורה באימון — חזרות, משקלים והתמדה. לא המספר על המאזניים: '
+        + 'בגיל הזה הוא אמור לעלות, ומעקב שבועי אחריו מלמד לקרוא גדילה ככישלון.'
+      : 'שקילה אחת בשבוע. אותו יום, בבוקר, אחרי שירותים, לפני שאתה אוכל. משקל יומי קופץ קילו בין בוקר לערב ולא אומר כלום.'));
 
     view.appendChild(h('div.facts',
       h('span.fact', 'שבוע ', h('b', String(week))),
       h('span.fact', 'אימונים השבוע ', h('b', `${doneDays(program)}/${program.days.length}`)),
-      st.weights.length ? h('span.fact', 'משקל אחרון ', h('b', `${st.weights[st.weights.length - 1].kg} ק״ג`)) : null,
+      (!noBodyNumbers && st.weights.length) ? h('span.fact', 'משקל אחרון ', h('b', `${st.weights[st.weights.length - 1].kg} ק״ג`)) : null,
       isDeload ? h('span.fact', { style: { borderColor: 'var(--amber)' } }, 'שבוע ', h('b', 'דילואד')) : null,
     ));
 
@@ -33,37 +43,42 @@ export function renderProgress(root, program, profile) {
     if (note) view.appendChild(h('p.focus', { style: { marginTop: '18px' } }, note));
 
     /* ---- weight entry ---- */
-    view.appendChild(h('div.rule'));
-    view.appendChild(h('h3', 'משקל'));
+    // Withheld under 16 rather than merely discouraged. Leaving the field on
+    // screen under a paragraph explaining not to use it is an invitation with a
+    // disclaimer, and the disclaimer loses.
+    if (!noBodyNumbers) {
+      view.appendChild(h('div.rule'));
+      view.appendChild(h('h3', 'משקל'));
 
-    const input = h('input', {
-      type: 'number', inputmode: 'decimal', step: '0.1', min: '20', max: '300',
-      placeholder: String(profile.weightKg || ''),
-    });
-    view.appendChild(h('div.logrow', { style: { marginTop: '10px' } },
-      input,
-      h('button.btn', {
-        type: 'button',
-        onclick: () => {
-          const kg = Number(input.value);
-          if (!kg || kg < 20 || kg > 300) { input.focus(); return; }
-          store.addWeight(kg);
-          input.value = '';
-          draw();
-          announce('המשקל נשמר');
-        },
-      }, h('span.ico', '+'), 'רשום שקילה'),
-    ));
+      const input = h('input', {
+        type: 'number', inputmode: 'decimal', step: '0.1', min: '20', max: '300',
+        placeholder: String(profile.weightKg || ''),
+      });
+      view.appendChild(h('div.logrow', { style: { marginTop: '10px' } },
+        input,
+        h('button.btn', {
+          type: 'button',
+          onclick: () => {
+            const kg = Number(input.value);
+            if (!kg || kg < 20 || kg > 300) { input.focus(); return; }
+            store.addWeight(kg);
+            input.value = '';
+            draw();
+            announce('המשקל נשמר');
+          },
+        }, h('span.ico', '+'), 'רשום שקילה'),
+      ));
 
-    if (st.weights.length >= 2) {
-      view.appendChild(sparkline(st.weights, profile.targetWeightKg));
-      const first = st.weights[0];
-      const last = st.weights[st.weights.length - 1];
-      const delta = last.kg - first.kg;
-      view.appendChild(h('p.lead',
-        `${st.weights.length} שקילות · שינוי כולל ${delta > 0 ? '+' : ''}${Math.round(delta * 10) / 10} ק״ג מאז ${formatDate(first.date)}.`));
-    } else {
-      view.appendChild(h('p.empty', 'שתי שקילות ומעלה — ותופיע כאן גרף מגמה.'));
+      if (st.weights.length >= 2) {
+        view.appendChild(sparkline(st.weights, profile.targetWeightKg));
+        const first = st.weights[0];
+        const last = st.weights[st.weights.length - 1];
+        const delta = last.kg - first.kg;
+        view.appendChild(h('p.lead',
+          `${st.weights.length} שקילות · שינוי כולל ${delta > 0 ? '+' : ''}${Math.round(delta * 10) / 10} ק״ג מאז ${formatDate(first.date)}.`));
+      } else {
+        view.appendChild(h('p.empty', 'שתי שקילות ומעלה — ותופיע כאן גרף מגמה.'));
+      }
     }
 
     /* ---- adherence ---- */

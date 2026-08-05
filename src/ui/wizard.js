@@ -3,6 +3,8 @@
  * one step at a time, and hands a finished profile back to the app.
  */
 
+import { withholdsPhotoScan } from '../engine/age.js';
+
 import { h, clear, announce, shrinkImage } from '../core/dom.js';
 import { STEPS, defaults, validateStep, normalizeProfile, summarize } from '../intake/schema.js';
 import { renderScan } from './scan.js';
@@ -324,7 +326,7 @@ export function renderWizard(root, onDone) {
         h('ul',
           h('li', 'התוכנית היא נקודת פתיחה מבוססת עקרונות אימון, לא ייעוץ רפואי.'),
           h('li', 'כאב חד במפרק — עוצרים. יום מנוחה עכשיו חוסך חודשיים אחר כך.'),
-          profile.age < 18
+          withholdsPhotoScan(profile)
             ? h('li', h('b', 'מתחת לגיל 18: '), 'ההורים יודעים, ורופא נתן אישור. זה סטנדרט, לא סימן שמשהו לא בסדר.')
             : h('li', 'אם יש מצב רפואי או ניתוח בשנה האחרונה — כדאי לאשר עם רופא.'),
         ),
