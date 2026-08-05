@@ -16,6 +16,7 @@ import pg from 'pg';
 import { readdirSync, readFileSync, existsSync } from 'node:fs';
 import { join, dirname } from 'node:path';
 import { fileURLToPath } from 'node:url';
+import { applySeed, DEMO_PASSWORD } from './seed-lib.mjs';
 
 const root = join(dirname(fileURLToPath(import.meta.url)), '..');
 const withSeed = process.argv.includes('--with-seed');
@@ -55,8 +56,10 @@ if (withSeed) {
   if (existsSync(seed)) {
     process.stdout.write('▶ seed.sql … ');
     try {
-      await client.query(readFileSync(seed, 'utf8'));
-      console.log('הושלם');
+      // applySeed מריץ את ה־SQL וגם מייצר את ה־Hash של סיסמאות הדוגמה.
+      // בלי החלק השני אף משתמש דוגמה לא יוכל להתחבר.
+      const seeded = await applySeed(client);
+      console.log(`הושלם (${seeded} משתמשי דוגמה, סיסמה: ${DEMO_PASSWORD})`);
     } catch (error) {
       console.log('נכשל');
       console.error(`\n✖ שגיאה בזריעת הנתונים:\n${error.message}\n`);

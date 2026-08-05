@@ -1,8 +1,8 @@
 #!/usr/bin/env node
 /**
  * זורע נתוני דוגמה בעברית (‎supabase/seed.sql‎).
- * הסיסמאות של משתמשי הדוגמה נוצרות כאן עם אותו אלגוריתם scrypt
- * שבו משתמשת האפליקציה, כדי שאפשר יהיה להתחבר איתם באמת.
+ * הסיסמאות של משתמשי הדוגמה נוצרות עם אותו אלגוריתם scrypt שבו משתמשת
+ * האפליקציה, כדי שאפשר יהיה להתחבר איתם באמת (ראו ‎scripts/seed-lib.mjs‎).
  */
 import { config as loadEnv } from 'dotenv';
 
@@ -10,26 +10,7 @@ import { config as loadEnv } from 'dotenv';
 loadEnv({ path: '.env.local' });
 loadEnv();
 import pg from 'pg';
-import { readFileSync } from 'node:fs';
-import { join, dirname } from 'node:path';
-import { fileURLToPath } from 'node:url';
-import { scryptSync, randomBytes } from 'node:crypto';
-
-const root = join(dirname(fileURLToPath(import.meta.url)), '..');
-
-// חייב להתאים ל־lib/auth/password.ts
-const SCRYPT = { N: 16384, r: 8, p: 1, keylen: 64 };
-
-function hashPassword(password) {
-  const salt = randomBytes(16);
-  const derived = scryptSync(password.normalize('NFKC'), salt, SCRYPT.keylen, {
-    N: SCRYPT.N,
-    r: SCRYPT.r,
-    p: SCRYPT.p,
-    maxmem: 256 * 1024 * 1024,
-  });
-  return ['scrypt', SCRYPT.N, SCRYPT.r, SCRYPT.p, salt.toString('base64'), derived.toString('base64')].join('$');
-}
+import { applySeed, DEMO_PASSWORD } from './seed-lib.mjs';
 
 const connectionString = process.env.SUPABASE_DB_URL;
 if (!connectionString) {
@@ -44,17 +25,8 @@ const client = new pg.Client({
 
 await client.connect();
 
-const sql = readFileSync(join(root, 'supabase', 'seed.sql'), 'utf8');
 console.log('▶ זורע נתוני דוגמה …');
-await client.query(sql);
+const seeded = await applySeed(client);
 
-// כל משתמשי הדוגמה מקבלים את הסיסמה Demo1234 עם hash אמיתי ונפרד.
-const { rows } = await client.query(
-  "select id from profiles where username in (select username from profiles) and password_hash = 'SEED_PLACEHOLDER'",
-);
-for (const row of rows) {
-  await client.query('update profiles set password_hash = $1 where id = $2', [hashPassword('Demo1234'), row.id]);
-}
-
-console.log(`✓ נזרעו נתוני דוגמה. ${rows.length} משתמשים קיבלו את הסיסמה: Demo1234`);
+console.log(`✓ נזרעו נתוני דוגמה. ${seeded} משתמשים קיבלו את הסיסמה: ${DEMO_PASSWORD}`);
 await client.end();
