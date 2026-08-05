@@ -108,22 +108,38 @@ const SQ_QUARTER = p(SQUAT_PARALLEL, Object.assign({
 const SQ_PAR = p(SQUAT_PARALLEL, SQ_FEET);
 const SQ_BOT = p(SQUAT_BOTTOM, SQ_FEET);
 
+/*
+ * Out of the hole. Not the halfway pose — the HIPS lead and the chest lags, so
+ * the pelvis is already above where a straight interpolation would put it while
+ * the spine is still nearer the bottom's forward lean. That lag is what a squat
+ * looks like under load and what "every joint arrives on the same frame" never
+ * shows. The pelvis is 6.9 above the bottom against 14.1 for the whole ascent;
+ * the spine has come up 6 of its 26 degrees.
+ */
+const SQ_DRIVE = p(SQUAT_PARALLEL, Object.assign({
+  x: 48.6, y: 64.6, spine: 68, head: 80,
+  armL: [-24, -32], armR: [-30, -38],
+}, SQ_FEET));
+
 /* Loaded versions of the same four positions. Each is built once so the t:0
    and t:1 keys can share one object reference and the loop stays seamless. */
 const GOB_TOP = chestHold(SQ_TOP, 'kettlebell');
 const GOB_QUARTER = chestHold(SQ_QUARTER, 'kettlebell');
 const GOB_PAR = chestHold(SQ_PAR, 'kettlebell');
 const GOB_BOT = chestHold(SQ_BOT, 'kettlebell');
+const GOB_DRIVE = chestHold(SQ_DRIVE, 'kettlebell');
 
 const BSQ_TOP = backRack(SQ_TOP);
 const BSQ_QUARTER = backRack(SQ_QUARTER);
 const BSQ_PAR = backRack(SQ_PAR);
 const BSQ_BOT = backRack(SQ_BOT);
+const BSQ_DRIVE = backRack(SQ_DRIVE);
 
 const FSQ_TOP = frontRack(SQ_TOP);
 const FSQ_QUARTER = frontRack(SQ_QUARTER);
 const FSQ_PAR = frontRack(SQ_PAR);
 const FSQ_BOT = frontRack(SQ_BOT);
+const FSQ_DRIVE = frontRack(SQ_DRIVE);
 
 /* Box squat: sit back onto the box, feet further forward than a free squat. */
 const BOX_PROP = { type: 'box', x: 40, y: 74, w: 22, h: 14 };
@@ -164,10 +180,12 @@ const SQUAT_CLIPS = {
     hero: 0.5,
     keys: [
       { t: 0, pose: SQ_TOP },
-      { t: 0.18, pose: SQ_QUARTER },
-      { t: 0.4, pose: SQ_PAR },
-      { t: 0.5, pose: SQ_BOT, ease: 'out' },
-      { t: 0.6, pose: SQ_BOT },
+      { t: 0.18, pose: SQ_QUARTER, ease: 'in' },
+      { t: 0.38, pose: SQ_PAR, ease: 'linear' },
+      { t: 0.48, pose: SQ_BOT, ease: 'out' },
+      { t: 0.58, pose: SQ_BOT },
+      { t: 0.8, pose: SQ_DRIVE, ease: 'grind' },
+      { t: 0.95, pose: SQ_TOP, ease: 'out' },
       { t: 1, pose: SQ_TOP },
     ],
   }),
@@ -178,10 +196,12 @@ const SQUAT_CLIPS = {
     hero: 0.52,
     keys: [
       { t: 0, pose: GOB_TOP },
-      { t: 0.22, pose: GOB_QUARTER },
-      { t: 0.44, pose: GOB_PAR },
-      { t: 0.55, pose: GOB_BOT, ease: 'out' },
-      { t: 0.64, pose: GOB_BOT },
+      { t: 0.2, pose: GOB_QUARTER, ease: 'in' },
+      { t: 0.4, pose: GOB_PAR, ease: 'linear' },
+      { t: 0.5, pose: GOB_BOT, ease: 'out' },
+      { t: 0.6, pose: GOB_BOT },
+      { t: 0.82, pose: GOB_DRIVE, ease: 'grind' },
+      { t: 0.96, pose: GOB_TOP, ease: 'out' },
       { t: 1, pose: GOB_TOP },
     ],
   }),
@@ -192,10 +212,12 @@ const SQUAT_CLIPS = {
     hero: 0.52,
     keys: [
       { t: 0, pose: BSQ_TOP },
-      { t: 0.2, pose: BSQ_QUARTER },
-      { t: 0.42, pose: BSQ_PAR },
-      { t: 0.54, pose: BSQ_BOT, ease: 'out' },
+      { t: 0.2, pose: BSQ_QUARTER, ease: 'in' },
+      { t: 0.42, pose: BSQ_PAR, ease: 'linear' },
+      { t: 0.52, pose: BSQ_BOT, ease: 'out' },
       { t: 0.62, pose: BSQ_BOT },
+      { t: 0.84, pose: BSQ_DRIVE, ease: 'grind' },
+      { t: 0.96, pose: BSQ_TOP, ease: 'out' },
       { t: 1, pose: BSQ_TOP },
     ],
   }),
@@ -206,10 +228,12 @@ const SQUAT_CLIPS = {
     hero: 0.52,
     keys: [
       { t: 0, pose: FSQ_TOP },
-      { t: 0.2, pose: FSQ_QUARTER },
-      { t: 0.42, pose: FSQ_PAR },
-      { t: 0.54, pose: FSQ_BOT, ease: 'out' },
+      { t: 0.2, pose: FSQ_QUARTER, ease: 'in' },
+      { t: 0.42, pose: FSQ_PAR, ease: 'linear' },
+      { t: 0.52, pose: FSQ_BOT, ease: 'out' },
       { t: 0.62, pose: FSQ_BOT },
+      { t: 0.84, pose: FSQ_DRIVE, ease: 'grind' },
+      { t: 0.96, pose: FSQ_TOP, ease: 'out' },
       { t: 1, pose: FSQ_TOP },
     ],
   }),
@@ -286,16 +310,26 @@ const LG_STEP = p(LUNGE_TOP, {
   footPtL: { x: 46, y: 87.5, bend: 1 }, footPtR: { x: 64, y: 82, bend: 1 },
   footL: 2, footR: 10,
 });
+/* The rear ankle is placed so the rear TOE stays exactly where it stood at
+   LG_STAND: a heel that lifts about its own ball, not a foot that shuffles. */
 const LG_BOTTOM = p(LUNGE_BOTTOM, {
   x: 59, y: 68,
-  footPtL: { x: 46, y: 85, bend: 1 }, footPtR: { x: 73, y: 87.5, bend: 1 },
+  footPtL: { x: 46.9, y: 84.25, bend: 1 }, footPtR: { x: 73, y: 87.5, bend: 1 },
   footL: -30, footR: 2,
 });
 /* Same bottom with the far leg in front — walking lunges alternate sides. */
 const LG_BOTTOM_L = p(LUNGE_BOTTOM, {
   x: 59, y: 68,
-  footPtL: { x: 73, y: 87.5, bend: 1 }, footPtR: { x: 46, y: 85, bend: 1 },
+  footPtL: { x: 73, y: 87.5, bend: 1 }, footPtR: { x: 48.9, y: 84.25, bend: 1 },
   footL: 2, footR: -30,
+});
+/* Mirror of LG_STEP: the FAR foot is the one in the air. A walking lunge that
+   goes straight from feet-together to the bottom drags the stepping sole 25
+   units along the floor, which is a skate, not a step. */
+const LG_STEP_L = p(LUNGE_TOP, {
+  x: 53, y: 60, spine: 87, head: 87,
+  footPtL: { x: 64, y: 82, bend: 1 }, footPtR: { x: 48, y: 87.5, bend: 1 },
+  footL: 10, footR: 2,
 });
 
 /* Reverse lunge — the front foot never moves, the hips travel back over it. */
@@ -395,16 +429,24 @@ const SPLIT_CLIPS = {
     ],
   }),
 
-  /* Alternates sides in place — travelling right would break the loop. */
+  /* Alternates sides in place — travelling right would break the loop. Each
+     half is step, sink, drive: the swing foot is airborne in LG_STEP so it
+     lands on the floor instead of sliding along it. */
   walking_lunge: clip({
     id: 'walking_lunge',
     duration: 3800,
     hero: 0.25,
     keys: [
       { t: 0, pose: LG_STAND },
-      { t: 0.25, pose: LG_BOTTOM },
+      { t: 0.1, pose: LG_STEP, ease: 'out' },
+      { t: 0.25, pose: LG_BOTTOM, ease: 'in' },
+      { t: 0.32, pose: LG_BOTTOM },
+      { t: 0.44, pose: LG_STEP, ease: 'grind' },
       { t: 0.5, pose: LG_STAND },
-      { t: 0.75, pose: LG_BOTTOM_L },
+      { t: 0.6, pose: LG_STEP_L, ease: 'out' },
+      { t: 0.75, pose: LG_BOTTOM_L, ease: 'in' },
+      { t: 0.82, pose: LG_BOTTOM_L },
+      { t: 0.94, pose: LG_STEP_L, ease: 'grind' },
       { t: 1, pose: LG_STAND },
     ],
   }),
@@ -488,9 +530,13 @@ const SLR_TOP = hangHold({
   footPtL: { x: 44, y: 86, bend: 1 }, footPtR: { x: 50, y: 87.5, bend: 1 },
   footL: 2, footR: 2,
 }, 22.9, 'dumbbell');
+/* The mid target has to sit on the same 30-unit arc from the hip that TOP and
+   BOT sit on. Pulled in closer (it was at 21.5) the IK had nowhere to put the
+   knee but a 50-degree bend, and the free leg read as a donkey kick instead of
+   the straight trailing line that tells a single-leg RDL apart from one. */
 const SLR_MID = hangHold({
   x: 48.5, y: 59, spine: 50, head: 42,
-  footPtL: { x: 30, y: 70, bend: 1 }, footPtR: { x: 50, y: 87.5, bend: 1 },
+  footPtL: { x: 23.6, y: 76.4, bend: 1 }, footPtR: { x: 50, y: 87.5, bend: 1 },
   footL: -70, footR: 2,
 }, 22.9, 'dumbbell');
 const SLR_BOT = hangHold({
@@ -939,19 +985,37 @@ const BR_DIP = p(BR_STAND, {
   armL: [-132, -122], armR: [-138, -128],
 });
 const BR_AIR = p(BR_STAND, {
-  x: 50, y: 56, spine: 70, head: 80,
+  x: 46, y: 55, spine: 70, head: 80,
   armL: [20, 30], armR: [16, 26],
-  footPtL: { x: 56, y: 74, bend: 1 }, footPtR: { x: 58, y: 74, bend: 1 },
+  footPtL: { x: 50, y: 74, bend: 1 }, footPtR: { x: 52, y: 74, bend: 1 },
   footL: -30, footR: -30,
 });
 const BR_LAND = p(BR_STAND, {
-  x: 62, y: 66, spine: 66, head: 80,
+  x: 50, y: 66, spine: 66, head: 80,
   armL: [-110, -100], armR: [-116, -106],
-  footPtL: { x: 70, y: 87.5, bend: 1 }, footPtR: { x: 72, y: 87.5, bend: 1 },
+  footPtL: { x: 54, y: 87.5, bend: 1 }, footPtR: { x: 56, y: 87.5, bend: 1 },
 });
 const BR_TALL = p(BR_STAND, {
-  x: 70, y: 57.5,
-  footPtL: { x: 69, y: 87.5, bend: 1 }, footPtR: { x: 71, y: 87.5, bend: 1 },
+  x: 54, y: 57.5,
+  footPtL: { x: 53, y: 87.5, bend: 1 }, footPtR: { x: 55, y: 87.5, bend: 1 },
+});
+/*
+ * A clip loops, so a jump that travels has to get home, and the old keys did it
+ * by sliding the whole figure 32 units backwards with both feet welded to the
+ * floor. It hops back instead — which is what anyone doing repeat broad jumps
+ * in one spot actually does — and the hop has a key in the air, so no foot ever
+ * moves while it is touching the ground.
+ */
+const BR_HOP = p(BR_STAND, {
+  x: 46, y: 58, spine: 84, head: 88,
+  armL: [-40, -30], armR: [-46, -36],
+  footPtL: { x: 45, y: 79, bend: 1 }, footPtR: { x: 47, y: 79, bend: 1 },
+  footL: -20, footR: -20,
+});
+const BR_ABSORB = p(BR_STAND, {
+  x: 40, y: 64, spine: 74, head: 84,
+  armL: [-120, -110], armR: [-126, -116],
+  footPtL: { x: 37, y: 87.5, bend: 1 }, footPtR: { x: 39, y: 87.5, bend: 1 },
 });
 
 /* Generic `plyo`: a stiff pogo hop — shallow dip, straight legs in the air. */
@@ -1002,14 +1066,16 @@ const JUMP_CLIPS = {
 
   broad_jump: clip({
     id: 'broad_jump',
-    duration: 1900,
-    hero: 0.34,
+    duration: 2400,
+    hero: 0.3,
     keys: [
       { t: 0, pose: BR_STAND },
-      { t: 0.1, pose: BR_DIP },
-      { t: 0.36, pose: BR_AIR, ease: 'out' },
-      { t: 0.5, pose: BR_LAND, ease: 'in' },
-      { t: 0.66, pose: BR_TALL },
+      { t: 0.08, pose: BR_DIP, ease: 'anticipate' },
+      { t: 0.28, pose: BR_AIR, ease: 'out' },
+      { t: 0.4, pose: BR_LAND, ease: 'in' },
+      { t: 0.52, pose: BR_TALL },
+      { t: 0.72, pose: BR_HOP, ease: 'out' },
+      { t: 0.86, pose: BR_ABSORB, ease: 'in' },
       { t: 1, pose: BR_STAND },
     ],
   }),

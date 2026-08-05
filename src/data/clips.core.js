@@ -250,12 +250,14 @@ const hollow_rock = clip({
   duration: 2000,
   hero: 0.25,
   props: [MAT_WIDE],
+  /* A rock is a pendulum: slowest at the two ends, fastest through the middle.
+     inOut everywhere stopped it four times a cycle. */
   keys: [
     { t: 0, pose: HOL_MID },
-    { t: 0.25, pose: ROCK_BACK },
-    { t: 0.5, pose: HOL_MID },
-    { t: 0.75, pose: ROCK_FWD },
-    { t: 1, pose: HOL_MID },
+    { t: 0.25, pose: ROCK_BACK, ease: 'out' },
+    { t: 0.5, pose: HOL_MID, ease: 'in' },
+    { t: 0.75, pose: ROCK_FWD, ease: 'out' },
+    { t: 1, pose: HOL_MID, ease: 'in' },
   ],
 });
 
@@ -281,16 +283,25 @@ function crunchPose(spine, tuck) {
 const CR_DOWN = crunchPose(10, 12);
 const CR_UP = crunchPose(38, 16);
 const CR_SQUEEZE = crunchPose(41.5, 17);
+/* Halfway down. The eccentric is the half a crunch is actually made of and it
+   had no key at all — the shoulder blades went from the squeeze to the mat in
+   one straight line. */
+const CR_MIDWAY = crunchPose(24, 14);
 
 const crunch = clip({
   id: 'crunch',
   duration: 2600,
   hero: 0.34,
   props: [MAT_WIDE],
+  /* The lowering used to be one straight interpolation over half the cycle,
+     which is the only half of a crunch that trains anything. It gets a key of
+     its own and 46% of the clip; the shortening half keeps 34%. */
   keys: [
     { t: 0, pose: CR_DOWN },
-    { t: 0.34, pose: CR_UP, ease: 'out' },
+    { t: 0.34, pose: CR_UP, ease: 'grind' },
     { t: 0.46, pose: CR_SQUEEZE },
+    { t: 0.74, pose: CR_MIDWAY, ease: 'in' },
+    { t: 0.94, pose: CR_DOWN, ease: 'out' },
     { t: 1, pose: CR_DOWN },
   ],
 });
@@ -391,6 +402,7 @@ function reachCrunch(spine, upper, fore) {
 const CF_DOWN = reachCrunch(12, 168, 172);
 const CF_UP = reachCrunch(40, 176, 176);
 const CF_SQUEEZE = reachCrunch(43, 178, 178);
+const CF_MIDWAY = reachCrunch(25, 172, 174);
 
 const core_flexion = clip({
   id: 'core_flexion',
@@ -399,8 +411,10 @@ const core_flexion = clip({
   props: [MAT_WIDE],
   keys: [
     { t: 0, pose: CF_DOWN },
-    { t: 0.32, pose: CF_UP, ease: 'out' },
+    { t: 0.32, pose: CF_UP, ease: 'grind' },
     { t: 0.44, pose: CF_SQUEEZE },
+    { t: 0.72, pose: CF_MIDWAY, ease: 'in' },
+    { t: 0.94, pose: CF_DOWN, ease: 'out' },
     { t: 1, pose: CF_DOWN },
   ],
 });
@@ -437,10 +451,10 @@ const russian_twist = clip({
   props: [MAT_WIDE],
   keys: [
     { t: 0, pose: RT_MID },
-    { t: 0.25, pose: RT_NEAR },
-    { t: 0.5, pose: RT_MID },
-    { t: 0.75, pose: RT_FAR },
-    { t: 1, pose: RT_MID },
+    { t: 0.25, pose: RT_NEAR, ease: 'out' },
+    { t: 0.5, pose: RT_MID, ease: 'in' },
+    { t: 0.75, pose: RT_FAR, ease: 'out' },
+    { t: 1, pose: RT_MID, ease: 'in' },
   ],
 });
 
@@ -501,10 +515,10 @@ const core_rotation = clip({
   props: [],
   keys: [
     { t: 0, pose: CRO_HIGH },
-    { t: 0.3, pose: CRO_MID },
-    { t: 0.5, pose: CRO_LOW },
-    { t: 0.75, pose: CRO_MID },
-    { t: 1, pose: CRO_HIGH },
+    { t: 0.3, pose: CRO_MID, ease: 'in' },
+    { t: 0.5, pose: CRO_LOW, ease: 'out' },
+    { t: 0.75, pose: CRO_MID, ease: 'in' },
+    { t: 1, pose: CRO_HIGH, ease: 'out' },
   ],
 });
 
@@ -543,6 +557,12 @@ const HKR_TOP = p(HKR_TUCK, Object.assign(hips(50, 38.12, 96), {
   head: 96,
   legL: [-22, -118], legR: [-26, -122],
 }));
+/* Knees halfway back down, so the lowering is not one straight drop. */
+const HKR_MIDWAY = p(HKR_TUCK, Object.assign(hips(50, 38.12, 92), {
+  head: 92,
+  legL: [-58, -108], legR: [-62, -112],
+  footL: -16, footR: -16,
+}));
 
 const hanging_knee_raise = clip({
   id: 'hanging_knee_raise',
@@ -552,8 +572,10 @@ const hanging_knee_raise = clip({
   props: [BAR_PROP],
   keys: [
     { t: 0, pose: HANG_BOTTOM },
-    { t: 0.38, pose: HKR_TUCK, ease: 'out' },
+    { t: 0.38, pose: HKR_TUCK, ease: 'grind' },
     { t: 0.5, pose: HKR_TOP },
+    { t: 0.76, pose: HKR_MIDWAY, ease: 'in' },
+    { t: 0.94, pose: HANG_BOTTOM, ease: 'out' },
     { t: 1, pose: HANG_BOTTOM },
   ],
 });
@@ -577,9 +599,11 @@ const hanging_leg_raise = clip({
   props: [BAR_PROP],
   keys: [
     { t: 0, pose: HANG_BOTTOM },
-    { t: 0.24, pose: HLR_MID },
+    { t: 0.24, pose: HLR_MID, ease: 'grind' },
     { t: 0.42, pose: HLR_TOP, ease: 'out' },
     { t: 0.54, pose: HLR_SQUEEZE },
+    { t: 0.8, pose: HLR_MID, ease: 'in' },
+    { t: 0.95, pose: HANG_BOTTOM, ease: 'out' },
     { t: 1, pose: HANG_BOTTOM },
   ],
 });
@@ -800,6 +824,17 @@ const BUR_PLANK = p(BUR_CROUCH, Object.assign(hips(64.5, 64, 24), {
   footL: -28, footR: -30,
 }));
 
+/* Feet in the air on the way back and on the way in. Without this key both
+   toes stayed welded to the mat while they travelled 35 units, which is a
+   burpee performed on ice. The hands are already planted, so the hips only
+   have to hinge over them. */
+const BUR_KICK = p(BUR_CROUCH, Object.assign(hips(64.5, 64, 12), {
+  head: 6,
+  footPtL: { x: 26, y: 81.5, bend: 1 },
+  footPtR: { x: 27.2, y: 81.8, bend: 1 },
+  footL: -16, footR: -18,
+}));
+
 const BUR_JUMP = p(BUR_STAND, {
   x: 51, y: 52.2, spine: 90, head: 92,
   handL: { x: 53, y: 7.2, bend: -1 },
@@ -816,30 +851,49 @@ const burpee = clip({
   props: [{ type: 'mat', x: 42, w: 76 }],
   keys: [
     { t: 0, pose: BUR_STAND },
-    { t: 0.16, pose: BUR_CROUCH },
-    { t: 0.34, pose: BUR_PLANK },
-    { t: 0.52, pose: BUR_CROUCH },
-    { t: 0.72, pose: BUR_JUMP, ease: 'out' },
-    { t: 1, pose: BUR_STAND },
+    { t: 0.14, pose: BUR_CROUCH },
+    { t: 0.24, pose: BUR_KICK, ease: 'in' },
+    { t: 0.36, pose: BUR_PLANK, ease: 'out' },
+    { t: 0.48, pose: BUR_KICK, ease: 'in' },
+    { t: 0.58, pose: BUR_CROUCH, ease: 'out' },
+    { t: 0.76, pose: BUR_JUMP, ease: 'out' },
+    { t: 1, pose: BUR_STAND, ease: 'in' },
   ],
 });
 
-/* Jumping jack — feet split fore/aft to stand in for the lateral spread, arms
-   sweep the full arc overhead. */
+/*
+ * Jumping jack — the one movement in this file that is ENTIRELY frontal-plane.
+ *
+ * Seen edge-on there is nothing left of it: the two arms lie on top of each
+ * other and the only way to show the legs opening is to scissor them fore and
+ * aft, which is a split jack, a different exercise with a different muscle
+ * bill. That is what this clip used to do, and it read as a man jogging.
+ * `spread` turns the figure to face the camera and the arms and legs open
+ * where a viewer can see them.
+ *
+ * The arc is keyed at three heights, not two, because an arm that goes from
+ * hip to overhead in one lerp travels the CHORD — a straight diagonal — and a
+ * jumping jack is the arc, not the endpoints.
+ */
+const JACK_SPREAD = 13;
+
 function jackPose(py, feet, hands, footAng) {
   return p(STAND, {
-    x: 50, y: py, spine: 90, head: 90,
+    x: 50, y: py, spine: 90, head: 90, spread: JACK_SPREAD,
     handL: { x: hands[0], y: hands[1], bend: -1 },
-    handR: { x: hands[2], y: hands[3], bend: -1 },
+    handR: { x: hands[2], y: hands[3], bend: 1 },
     footPtL: { x: feet[0], y: feet[1], bend: 1 },
     footPtR: { x: feet[2], y: feet[3], bend: 1 },
-    footL: footAng, footR: footAng,
+    footL: 180 - footAng, footR: footAng,
   });
 }
 
-const JJ_CLOSED = jackPose(57.2, [48.7, FLOOR, 51.3, FLOOR], [47.8, 57, 52.2, 57], 2);
-const JJ_AIR = jackPose(55.5, [44, 84, 56.5, 84.3], [63, 19.5, 65.5, 17.5], -20);
-const JJ_OPEN = jackPose(59.6, [37.5, FLOOR, 62.5, FLOOR], [47.5, 14.5, 52.5, 15.3], 2);
+/* feet under the hips, hands at the thighs */
+const JJ_CLOSED = jackPose(57.2, [47.5, FLOOR, 52.5, FLOOR], [39.8, 57.2, 60.2, 57.2], 4);
+/* half open, mid-flight: arms out at shoulder height, feet off the floor */
+const JJ_AIR = jackPose(55.4, [39, 84, 61, 84], [24.5, 33.4, 75.5, 33.4], -16);
+/* wide, hands nearly touching overhead */
+const JJ_OPEN = jackPose(61, [33, FLOOR, 67, FLOOR], [45.4, 12.4, 54.6, 12.4], 14);
 
 const jumping_jack = clip({
   id: 'jumping_jack',
@@ -848,11 +902,13 @@ const jumping_jack = clip({
   ease: 'linear',
   props: [],
   keys: [
+    // Ballistics, not a metronome: leaving the floor the figure is decelerating
+    // against gravity, coming back down it is speeding up.
     { t: 0, pose: JJ_CLOSED },
-    { t: 0.25, pose: JJ_AIR },
-    { t: 0.5, pose: JJ_OPEN },
-    { t: 0.75, pose: JJ_AIR },
-    { t: 1, pose: JJ_CLOSED },
+    { t: 0.26, pose: JJ_AIR, ease: 'out' },
+    { t: 0.5, pose: JJ_OPEN, ease: 'in' },
+    { t: 0.76, pose: JJ_AIR, ease: 'out' },
+    { t: 1, pose: JJ_CLOSED, ease: 'in' },
   ],
 });
 

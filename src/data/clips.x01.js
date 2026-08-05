@@ -16,6 +16,7 @@
 
 import { p } from '../core/poses.js';
 
+import { repKeys } from '../core/anim.js';
 /* ================================================================== *
  * 1. HORIZONTAL PUSH
  * ================================================================== */
@@ -48,12 +49,7 @@ const incline_pushup = {
   hero: 0.44,
   ease: 'inOut',
   props: [{ type: 'box', x: 70, y: 72, w: 26, h: 16 }],
-  keys: [
-    { t: 0, pose: INCP_TOP },
-    { t: 0.42, pose: INCP_BOTTOM },
-    { t: 0.56, pose: INCP_PAUSE },
-    { t: 1, pose: INCP_TOP },
-  ],
+  keys: repKeys(INCP_TOP, INCP_BOTTOM, INCP_PAUSE, { lag: 1.2 }),
 };
 
 /* --- push-up ---------------------------------------------------------
@@ -83,12 +79,7 @@ const pushup = {
   hero: 0.42,
   ease: 'inOut',
   props: [],
-  keys: [
-    { t: 0, pose: PUSH_TOP },
-    { t: 0.4, pose: PUSH_BOTTOM },
-    { t: 0.54, pose: PUSH_PAUSE },
-    { t: 1, pose: PUSH_TOP },
-  ],
+  keys: repKeys(PUSH_TOP, PUSH_BOTTOM, PUSH_PAUSE, { lag: 1.4 }),
 };
 
 /* --- band chest press ------------------------------------------------
@@ -314,12 +305,7 @@ const incline_pike_pushup = {
   hero: 0.44,
   ease: 'inOut',
   props: [{ type: 'bench', x: 82, y: 80, w: 24, h: 5 }],
-  keys: [
-    { t: 0, pose: IPK_TOP },
-    { t: 0.42, pose: IPK_BOTTOM },
-    { t: 0.56, pose: IPK_PAUSE },
-    { t: 1, pose: IPK_TOP },
-  ],
+  keys: repKeys(IPK_TOP, IPK_BOTTOM, IPK_PAUSE, { lag: 1.4 }),
 };
 
 /* --- pike push-up ----------------------------------------------------
@@ -349,12 +335,7 @@ const pike_pushup = {
   hero: 0.44,
   ease: 'inOut',
   props: [],
-  keys: [
-    { t: 0, pose: PK_TOP },
-    { t: 0.42, pose: PK_BOTTOM },
-    { t: 0.56, pose: PK_PAUSE },
-    { t: 1, pose: PK_TOP },
-  ],
+  keys: repKeys(PK_TOP, PK_BOTTOM, PK_PAUSE, { lag: 1.6 }),
 };
 
 /* --- machine shoulder press ------------------------------------------

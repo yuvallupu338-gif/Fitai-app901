@@ -153,7 +153,12 @@ Every `src/data/clips.*.js` file exports a map of `clipId -> clip`.
   duration: 2600,        // ms for one full cycle
   ground: true,          // false for hanging clips (feet legitimately go below the floor)
   hero: 0.0,             // normalised time of the "poster" frame (used when motion is reduced)
-  ease: 'inOut',         // default easing between keys: 'inOut'|'out'|'in'|'linear'
+  ease: 'inOut',         // default motion curve between keys — see CURVE in src/core/anim.js:
+                         //   'linear' | 'in' | 'out' | 'inOut'  generic
+                         //   'grind'      concentric with a sticking point: fast off the
+                         //                bottom, slowest through the MIDDLE, fast to lockout
+                         //   'settle'     lockout that overshoots ~4% and settles back
+                         //   'anticipate' loads ~4% backwards before it goes
   props: [ ... ],        // see PROPS
   keys: [
     { t: 0,    pose: {...} },
@@ -166,10 +171,27 @@ Every `src/data/clips.*.js` file exports a map of `clipId -> clip`.
 - `t` values ascend, start at 0, end at 1.
 - Build poses with `p(BASE, {overrides})` from `src/core/poses.js`. Do not
   hand-write every joint.
+- Build the KEYS of an ordinary rep with `repKeys(rest, far, hold, opts)` from
+  `src/core/anim.js` rather than writing `[rest, far, hold, rest]` by hand. It
+  gives the eccentric more time than the concentric, puts a key inside each
+  half, lags the spine behind the pelvis (`lag`) and bows the hand path off the
+  chord (`arc`). `opts.mode` says which half is the concentric: `'lower'` starts
+  at lockout (push-up, squat, bench), `'lift'` starts at the stretch (row, curl,
+  pull-up, calf raise).
 - **Angle continuity:** interpolation is linear on raw numbers. If a limb sits
   near ±180, keep the sign consistent across all keys of the clip.
 - Pin hands and feet with IK targets (`handL: {x, y, bend}`) whenever they touch
   something — a bar, the floor, a bench. FK arrays are for free-floating limbs.
+- **`bend` never changes inside a clip.** It selects WHICH of the two IK
+  solutions a joint uses, and `lerpPose` copies it from the first key of a
+  segment instead of interpolating it, so a different value on a later key makes
+  the joint snap to the other solution rather than blend towards it.
+- **`spread` never changes inside a clip either.** It is a camera choice, not a
+  joint: interpolating it rotates the figure between profile and head-on
+  mid-rep, which is a cut, not a movement.
+- What a foot PINS is its ankle; what the viewer sees touching the ground is the
+  toe, 6.5 units away at whatever angle `footL`/`footR` sets. They coincide only
+  for a flat foot. `node tools/clip-audit.mjs` checks all of the above.
 - Read `src/core/rig.js` and `src/core/poses.js` before writing clips. The
   coordinate system, the base pose library and the IK helper are all documented
   there.

@@ -9,6 +9,7 @@
  */
 
 import { p, STAND, STAND_PLANTED, HINGE_TOP, HINGE_BOTTOM } from '../core/poses.js';
+import { repKeys } from '../core/anim.js';
 
 const clip = (o) => Object.assign({ duration: 3000, hero: 0, ease: 'inOut', props: [] }, o);
 
@@ -85,8 +86,33 @@ const PRONE_CURLED = Object.assign({}, PRONE_STRAIGHT, {
   legL: [182, 104], legR: [184, 100], footL: 20, footR: 20,
 });
 
+/* ---- conventional deadlift: the bar is set down every rep ---- */
+
+/* Arms as ANGLES, not hand targets: in a deadlift they hang straight the whole
+   way up, and every other key of this clip uses angles, so pinning one made the
+   arms snap at the midpoint of every rep. */
+const DL_ARMS = { load: 'barbell', armL: [-88, -90], armR: [-92, -90] };
+const DL_FLOOR = Object.assign({
+  x: 45, y: 68, spine: 26, head: 18,
+  footPtL: { x: 49, y: 87.5, bend: 1 }, footPtR: { x: 52, y: 87.5, bend: 1 },
+  footL: 2, footR: 2,
+}, DL_ARMS);
+const DL_KNEE = MID(DL_ARMS);
+const DL_LOCK = TOP(DL_ARMS);
+
 /* ---- single-leg RDL: the free leg rises to horizontal behind ---- */
 
+/*
+ * Single-leg RDL. The free leg is posed by ANGLE, and the numbers below are
+ * written to sweep BACKWARD past straight-down, because the interpolator is
+ * linear on the raw number and does not know which way a hip is allowed to go.
+ *
+ * Written as legR [-70,-110] -> [172,176] the arithmetic sweep is +242 degrees:
+ * the free leg kicked forward, rose past the head and came down behind, which
+ * is the one path a hip cannot take. -188/-184 is the same picture (-188 = 172)
+ * reached by the -118 degrees of hip EXTENSION the exercise is actually made
+ * of. Do not "tidy" these back into the -180..180 range.
+ */
 const SL_TOP = p(STAND, {
   x: 50, y: 57, spine: 88,
   armL: [-84, -88], armR: [-96, -92], load: 'dumbbell',
@@ -96,12 +122,35 @@ const SL_TOP = p(STAND, {
   footPtL: { x: 50, y: 87.5, bend: 1 },
   legR: [-70, -110], footL: 2, footR: -20,
 });
+/* Mid-hinge: the torso is halfway down and the free leg trails it, still short
+   of horizontal. Without this key the leg and the spine arrive together, which
+   is a hinge no hamstring has ever produced. */
+const SL_MID = {
+  x: 49, y: 58.4, spine: 54, head: 46,
+  armL: [-84, -88], armR: [-94, -91], load: 'dumbbell',
+  footPtL: { x: 50, y: 87.5, bend: 1 },
+  // The free foot passes the standing one here. Its ANKLE has to sit high
+  // enough that the straight line the interpolator draws to it clears the
+  // floor: the arc cuts its corner, and at [-132,-136] the toe scraped two
+  // units under the ground halfway to this key.
+  legR: [-118, -124], footL: 2, footR: -18,
+};
 const SL_BOTTOM = {
   x: 48, y: 60, spine: 18, head: 10,
   armL: [-84, -88], armR: [-92, -90], load: 'dumbbell',
   footPtL: { x: 50, y: 87.5, bend: 1 },
-  legR: [172, 176], footL: 2, footR: 96,
+  legR: [-188, -184], footL: 2, footR: -124,
 };
+
+/* ---- back extension: the torso rotates about a pad, nothing else moves ---- */
+
+const bext = (spine) => ({
+  x: 54, y: 62, spine, head: spine - 6,
+  armL: [150, 140], armR: [156, 146],
+  legL: [-24, -28], legR: [-28, -32], footL: 60, footR: 60,
+});
+const BEXT_DOWN = bext(200);
+const BEXT_UP = bext(178);
 
 /* ---- kettlebell swing: hinge, then a hard snap to horizontal ---- */
 
@@ -113,64 +162,47 @@ export const X09_CLIPS = {
   hip_hinge_drill: clip({
     id: 'hip_hinge_drill', duration: 3400,
     props: [{ type: 'wall', x: 24, y0: 40, y1: 88 }],
-    keys: [
-      { t: 0, pose: TOP({ armL: [-40, -34], armR: [-46, -40] }) },
-      { t: 0.4, pose: MID({ armL: [-40, -34], armR: [-46, -40] }) },
-      { t: 0.55, pose: BOTTOM({ armL: [-40, -34], armR: [-46, -40] }) },
-      { t: 1, pose: TOP({ armL: [-40, -34], armR: [-46, -40] }) },
-    ],
+    keys: repKeys(TOP({ armL: [-40, -34], armR: [-46, -40] }), BOTTOM({ armL: [-40, -34], armR: [-46, -40] }), null, { lag: 1.4 }),
   }),
 
   rdl: clip({
     id: 'rdl', duration: 3200,
-    keys: [
-      { t: 0, pose: TOP({ load: 'barbell', armL: [-88, -90], armR: [-92, -90] }) },
-      { t: 0.4, pose: MID({ load: 'barbell', armL: [-88, -90], armR: [-92, -90] }) },
-      { t: 0.55, pose: BOTTOM({ load: 'barbell', armL: [-88, -90], armR: [-92, -90] }) },
-      { t: 1, pose: TOP({ load: 'barbell', armL: [-88, -90], armR: [-92, -90] }) },
-    ],
+    keys: repKeys(TOP({ load: 'barbell', armL: [-88, -90], armR: [-92, -90] }), BOTTOM({ load: 'barbell', armL: [-88, -90], armR: [-92, -90] }), null, { lag: 1.4 }),
   }),
 
   /* The deadlift starts on the FLOOR — the bar is set down every rep, which is
      what separates it from an RDL that stops at mid-shin. */
   deadlift: clip({
-    id: 'deadlift', duration: 3400,
+    id: 'deadlift', duration: 3400, hero: 0.12,
+    /*
+     * Tempo, not a metronome. The pull is 36% of the cycle and runs on `grind`,
+     * because a deadlift has one famous sticking point — just below the knee,
+     * where the bar leaves the shins and the hips have not yet taken over — and
+     * it sits in the MIDDLE of the drive, which is the one place inOut can
+     * never put a slow moment. Then a beat at lockout, then a longer eccentric,
+     * because the bar comes down slower than it went up and everything on this
+     * screen used to take exactly as long in both directions.
+     */
     keys: [
-      {
-        t: 0,
-        // Arms as ANGLES, not hand targets: in a deadlift they hang straight
-        // the whole way up, and the keys above use angles, so pinning only this
-        // one made the arms snap at the midpoint of every rep.
-        pose: {
-          x: 45, y: 68, spine: 26, head: 18,
-          armL: [-88, -90], armR: [-92, -90],
-          footPtL: { x: 49, y: 87.5, bend: 1 }, footPtR: { x: 52, y: 87.5, bend: 1 },
-          footL: 2, footR: 2, load: 'barbell',
-        },
-      },
-      { t: 0.28, pose: MID({ load: 'barbell', armL: [-88, -90], armR: [-92, -90] }) },
-      { t: 0.5, pose: TOP({ load: 'barbell', armL: [-88, -90], armR: [-92, -90] }) },
-      { t: 0.72, pose: MID({ load: 'barbell', armL: [-88, -90], armR: [-92, -90] }) },
-      {
-        t: 1,
-        // Arms as ANGLES, not hand targets: in a deadlift they hang straight
-        // the whole way up, and the keys above use angles, so pinning only this
-        // one made the arms snap at the midpoint of every rep.
-        pose: {
-          x: 45, y: 68, spine: 26, head: 18,
-          armL: [-88, -90], armR: [-92, -90],
-          footPtL: { x: 49, y: 87.5, bend: 1 }, footPtR: { x: 52, y: 87.5, bend: 1 },
-          footL: 2, footR: 2, load: 'barbell',
-        },
-      },
+      { t: 0, pose: DL_FLOOR },
+      { t: 0.22, pose: DL_KNEE, ease: 'grind' },
+      { t: 0.36, pose: DL_LOCK, ease: 'out' },
+      { t: 0.48, pose: DL_LOCK },
+      { t: 0.72, pose: DL_KNEE, ease: 'in' },
+      { t: 0.94, pose: DL_FLOOR, ease: 'out' },
+      { t: 1, pose: DL_FLOOR },
     ],
   }),
 
   db_single_leg_rdl: clip({
-    id: 'db_single_leg_rdl', duration: 3600,
+    id: 'db_single_leg_rdl', duration: 3600, hero: 0.44,
     keys: [
-      { t: 0, pose: SL_TOP }, { t: 0.45, pose: SL_BOTTOM },
-      { t: 0.6, pose: SL_BOTTOM }, { t: 1, pose: SL_TOP },
+      { t: 0, pose: SL_TOP },
+      { t: 0.26, pose: SL_MID },
+      { t: 0.48, pose: SL_BOTTOM, ease: 'out' },
+      { t: 0.58, pose: SL_BOTTOM },
+      { t: 0.82, pose: SL_MID, ease: 'grind' },
+      { t: 1, pose: SL_TOP, ease: 'settle' },
     ],
   }),
 
@@ -212,73 +244,44 @@ export const X09_CLIPS = {
   hip_thrust: clip({
     id: 'hip_thrust', duration: 2900,
     props: [{ type: 'bench', x: 28, y: 68, w: 30, h: 5 }],
-    keys: [
-      { t: 0, pose: THRUST_DOWN }, { t: 0.4, pose: THRUST_UP },
-      { t: 0.6, pose: THRUST_UP }, { t: 1, pose: THRUST_DOWN },
-    ],
+    keys: repKeys(THRUST_DOWN, THRUST_UP, THRUST_UP, { mode: 'lift' }),
   }),
 
+  /* Loaded version: the dumbbell rides ON THE HIPS, which is where the hands
+     have to be. At [-70,-80] they hung straight down from a shoulder already
+     lying on the bench and finished two and a half units under the floor,
+     holding nothing — there was no load on the pose at all, so the only thing
+     separating this from the bodyweight version was a pair of buried arms. */
   db_hip_thrust: clip({
     id: 'db_hip_thrust', duration: 3000,
     props: [{ type: 'bench', x: 28, y: 68, w: 30, h: 5 }],
-    keys: [
-      { t: 0, pose: Object.assign({}, THRUST_DOWN, { armL: [-70, -80], armR: [-64, -74] }) },
-      { t: 0.4, pose: Object.assign({}, THRUST_UP, { armL: [-70, -80], armR: [-64, -74] }) },
-      { t: 0.62, pose: Object.assign({}, THRUST_UP, { armL: [-70, -80], armR: [-64, -74] }) },
-      { t: 1, pose: Object.assign({}, THRUST_DOWN, { armL: [-70, -80], armR: [-64, -74] }) },
-    ],
+    keys: repKeys(
+      Object.assign({}, THRUST_DOWN, { armL: [-45, -45], armR: [-42, -48], load: 'dumbbell' }),
+      Object.assign({}, THRUST_UP, { armL: [-10, -10], armR: [-8, -12], load: 'dumbbell' }),
+      null, { mode: 'lift' }),
   }),
 
   /* Knee flexion, lying face down — a different joint from every hinge above. */
   band_leg_curl: clip({
     id: 'band_leg_curl', duration: 2800,
     props: [{ type: 'band', x0: 8, y0: 86, x1: 22, y1: 80, sag: 2 }],
-    keys: [
-      { t: 0, pose: PRONE_STRAIGHT }, { t: 0.42, pose: PRONE_CURLED },
-      { t: 0.58, pose: PRONE_CURLED }, { t: 1, pose: PRONE_STRAIGHT },
-    ],
+    keys: repKeys(PRONE_STRAIGHT, PRONE_CURLED, PRONE_CURLED, { mode: 'lift' }),
   }),
 
   towel_hamstring_curl: clip({
     id: 'towel_hamstring_curl', duration: 3000,
     props: [{ type: 'mat', x: 40, w: 60 }],
-    keys: [
-      { t: 0, pose: PRONE_STRAIGHT },
-      { t: 0.45, pose: Object.assign({}, PRONE_STRAIGHT, { legL: [182, 122], legR: [184, 118], footL: 34, footR: 34 }) },
-      { t: 0.6, pose: Object.assign({}, PRONE_STRAIGHT, { legL: [182, 122], legR: [184, 118], footL: 34, footR: 34 }) },
-      { t: 1, pose: PRONE_STRAIGHT },
-    ],
+    keys: repKeys(
+      PRONE_STRAIGHT,
+      Object.assign({}, PRONE_STRAIGHT, { legL: [182, 122], legR: [184, 118], footL: 34, footR: 34 }),
+      null, { mode: 'lift' },
+    ),
   }),
 
   back_extension: clip({
     id: 'back_extension', duration: 3200,
     props: [{ type: 'machine', x: 62, y: 58, w: 26, h: 30 }],
-    keys: [
-      {
-        t: 0,
-        pose: {
-          x: 54, y: 62, spine: 200, head: 194,
-          armL: [150, 140], armR: [156, 146],
-          legL: [-24, -28], legR: [-28, -32], footL: 60, footR: 60,
-        },
-      },
-      {
-        t: 0.45,
-        pose: {
-          x: 54, y: 62, spine: 178, head: 172,
-          armL: [150, 140], armR: [156, 146],
-          legL: [-24, -28], legR: [-28, -32], footL: 60, footR: 60,
-        },
-      },
-      {
-        t: 1,
-        pose: {
-          x: 54, y: 62, spine: 200, head: 194,
-          armL: [150, 140], armR: [156, 146],
-          legL: [-24, -28], legR: [-28, -32], footL: 60, footR: 60,
-        },
-      },
-    ],
+    keys: repKeys(BEXT_DOWN, BEXT_UP, null, { mode: 'lift' }),
   }),
 
   /* Nordics: the body stays rigid and rotates about the knee. The three
@@ -286,27 +289,18 @@ export const X09_CLIPS = {
   nordic_curl: clip({
     id: 'nordic_curl', duration: 4000,
     props: [{ type: 'mat', x: 44, w: 56 }],
-    keys: [
-      { t: 0, pose: NORDIC_UP }, { t: 0.45, pose: NORDIC_MID },
-      { t: 0.62, pose: NORDIC_LOW }, { t: 1, pose: NORDIC_UP },
-    ],
+    keys: repKeys(NORDIC_UP, NORDIC_LOW, null, {}),
   }),
 
   nordic_negative: clip({
     id: 'nordic_negative', duration: 4400,
     props: [{ type: 'mat', x: 44, w: 56 }],
-    keys: [
-      { t: 0, pose: NORDIC_UP }, { t: 0.6, pose: NORDIC_MID },
-      { t: 0.8, pose: NORDIC_LOW }, { t: 1, pose: NORDIC_UP },
-    ],
+    keys: repKeys(NORDIC_UP, NORDIC_LOW, null, {}),
   }),
 
   band_assisted_nordic: clip({
     id: 'band_assisted_nordic', duration: 3800,
     props: [{ type: 'mat', x: 44, w: 56 }, { type: 'band', x0: 50, y0: 12, x1: 62, y1: 62, sag: 4 }],
-    keys: [
-      { t: 0, pose: NORDIC_UP }, { t: 0.45, pose: NORDIC_ASSIST },
-      { t: 0.62, pose: NORDIC_ASSIST }, { t: 1, pose: NORDIC_UP },
-    ],
+    keys: repKeys(NORDIC_UP, NORDIC_ASSIST, NORDIC_ASSIST, {}),
   }),
 };

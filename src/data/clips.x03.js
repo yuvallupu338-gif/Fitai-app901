@@ -23,6 +23,7 @@
 
 import { p, STAND, SEATED } from '../core/poses.js';
 
+import { repKeys } from '../core/anim.js';
 /* ------------------------------------------------------------------ *
  * Helpers
  * ------------------------------------------------------------------ */
@@ -232,38 +233,36 @@ const db_lateral_raise = clip({
    of the body the whole way and finish in a shallow V at shoulder height —
    never out to the sides, never parallel like a front raise. */
 
-const SCP_DOWN = p(TALL, {
+/* Scaption is the plane between a front raise and a lateral one, so it is drawn
+   on the same camera as the lateral raise — facing — with the arms carried
+   NARROWER than a true lateral. Side-on it was two hands four units apart
+   travelling the same line, which is a front raise. */
+const SCP_DOWN = p(FACING, {
   load: 'dumbbell',
-  handL: { x: 53.4, y: 56.0, bend: 1 },
-  handR: { x: 56.4, y: 56.6, bend: 1 },
+  handL: { x: 41.5, y: 57.2, bend: -1 },
+  handR: { x: 58.5, y: 57.2, bend: 1 },
 });
 
 const SCP_MID = p(SCP_DOWN, {
-  handL: { x: 64.0, y: 44.0, bend: 1 },
-  handR: { x: 65.8, y: 48.5, bend: 1 },
+  handL: { x: 35.5, y: 46.5, bend: -1 },
+  handR: { x: 64.5, y: 46.5, bend: 1 },
 });
 
 const SCP_TOP = p(SCP_DOWN, {
-  handL: { x: 71.0, y: 30.5, bend: 1 },
-  handR: { x: 71.5, y: 38.6, bend: 1 },
+  handL: { x: 30.5, y: 33.5, bend: -1 },
+  handR: { x: 69.5, y: 33.5, bend: 1 },
 });
 
 const SCP_HOLD = p(SCP_DOWN, {
-  handL: { x: 70.5, y: 31.1, bend: 1 },
-  handR: { x: 71.1, y: 39.2, bend: 1 },
+  handL: { x: 31.2, y: 34.1, bend: -1 },
+  handR: { x: 68.8, y: 34.1, bend: 1 },
 });
 
 const db_scaption_raise = clip({
   id: 'db_scaption_raise',
   duration: 2900,
   hero: 0.4,
-  keys: [
-    { t: 0, pose: SCP_DOWN },
-    { t: 0.22, pose: SCP_MID },
-    { t: 0.4, pose: SCP_TOP },
-    { t: 0.52, pose: SCP_HOLD },
-    { t: 1, pose: SCP_DOWN },
-  ],
+  keys: repKeys(SCP_DOWN, SCP_TOP, SCP_HOLD, { mode: 'lift' }),
 });
 
 /* Upright row: the bar rides up the shirt, so the hands barely move sideways —
@@ -390,12 +389,7 @@ const ring_y_raise = clip({
   duration: 3200,
   hero: 0.44,
   props: [{ type: 'rings', x: 57, y: 38.5, w: 11, y0: 5 }],
-  keys: [
-    { t: 0, pose: RYR_HANG },
-    { t: 0.4, pose: RYR_Y },
-    { t: 0.54, pose: RYR_HOLD },
-    { t: 1, pose: RYR_HANG },
-  ],
+  keys: repKeys(RYR_HANG, RYR_Y, RYR_HOLD, { mode: 'lift' }),
 });
 
 /* Ring reverse fly: same lean, but the arms open sideways into a wide T
@@ -425,12 +419,7 @@ const ring_reverse_fly = clip({
   duration: 3000,
   hero: 0.44,
   props: [{ type: 'rings', x: 56.5, y: 45.5, w: 15, y0: 5 }],
-  keys: [
-    { t: 0, pose: RRF_HANG },
-    { t: 0.4, pose: RRF_OPEN },
-    { t: 0.54, pose: RRF_HOLD },
-    { t: 1, pose: RRF_HANG },
-  ],
+  keys: repKeys(RRF_HANG, RRF_OPEN, RRF_HOLD, { mode: 'lift' }),
 });
 
 /* ================================================================== *
@@ -523,12 +512,7 @@ const prone_t_raise = clip({
   duration: 3000,
   hero: 0.44,
   props: [{ type: 'mat', x: 46, w: 88 }],
-  keys: [
-    { t: 0, pose: PT_REST },
-    { t: 0.4, pose: PT_UP },
-    { t: 0.56, pose: PT_HOLD },
-    { t: 1, pose: PT_REST },
-  ],
+  keys: repKeys(PT_REST, PT_UP, PT_HOLD, { mode: 'lift' }),
 });
 
 /* Y-raise — arms start overhead on the floor and lift forward past the ears. */
@@ -553,103 +537,100 @@ const prone_y_raise = clip({
   duration: 3200,
   hero: 0.44,
   props: [{ type: 'mat', x: 46, w: 88 }],
-  keys: [
-    { t: 0, pose: PY_REST },
-    { t: 0.4, pose: PY_UP },
-    { t: 0.58, pose: PY_HOLD },
-    { t: 1, pose: PY_REST },
-  ],
+  keys: repKeys(PY_REST, PY_UP, PY_HOLD, { mode: 'lift' }),
 });
 
 /* Bent-over dumbbell reverse fly: a real hinge — chest almost parallel to the
    floor, knees soft, elbows fixed at a slight bend and the hands opening back
    past the hip line. The eccentric is deliberately the long half. */
 
+/*
+ * Hinged AND facing the camera. Drawn in profile the two hands both travelled
+ * back and up along the same diagonal, four units apart, which is the picture
+ * of a bent-over ROW — the one exercise a rear fly most needs to be told apart
+ * from. Everything that makes it a fly happens across the frontal plane.
+ *
+ * rig.js separates the two sides horizontally on screen rather than square to
+ * the spine, precisely so a hinged body still shows both arms: hinging turns
+ * the body in the plane the camera looks down, so the shoulders stay side by
+ * side on screen. Shoulder joints land at (55.4, 52.7) and (66.4, 52.7).
+ */
 const RF_HINGE = {
-  x: 46, y: 62, spine: 24, head: 18,
-  footPtL: { x: 45.4, y: ANKLE, bend: 1 },
-  footPtR: { x: 47.8, y: ANKLE, bend: 1 },
-  footL: 2, footR: 2,
+  x: 40, y: 62, spine: 24, head: 18, spread: 11,
+  footPtL: { x: 34.6, y: ANKLE, bend: 1 },
+  footPtR: { x: 45.4, y: ANKLE, bend: 1 },
+  footL: 172, footR: 8,
   load: 'dumbbell',
 };
 
 const RF_HANG = p(RF_HINGE, {
-  handL: { x: 64.6, y: 73.4, bend: -1 },
-  handR: { x: 68.0, y: 73.8, bend: -1 },
+  handL: { x: 55.4, y: 75.4, bend: -1 },
+  handR: { x: 66.4, y: 75.4, bend: 1 },
 });
 
 const RF_MID = p(RF_HINGE, {
-  handL: { x: 56.0, y: 66.0, bend: -1 },
-  handR: { x: 61.0, y: 70.0, bend: -1 },
+  handL: { x: 40.2, y: 68.2, bend: -1 },
+  handR: { x: 81.6, y: 68.2, bend: 1 },
 });
 
 const RF_OPEN = p(RF_HINGE, {
-  handL: { x: 48.4, y: 59.6, bend: -1 },
-  handR: { x: 54.0, y: 66.4, bend: -1 },
+  handL: { x: 33.8, y: 54.2, bend: -1 },
+  handR: { x: 88.0, y: 54.2, bend: 1 },
 });
 
 const RF_HOLD = p(RF_HINGE, {
-  handL: { x: 48.9, y: 60.2, bend: -1 },
-  handR: { x: 54.5, y: 67.0, bend: -1 },
+  handL: { x: 34.5, y: 54.9, bend: -1 },
+  handR: { x: 87.3, y: 54.9, bend: 1 },
 });
 
 const db_reverse_fly = clip({
   id: 'db_reverse_fly',
   duration: 3000,
-  hero: 0.44,
-  keys: [
-    { t: 0, pose: RF_HANG },
-    { t: 0.22, pose: RF_MID },
-    { t: 0.4, pose: RF_OPEN },
-    { t: 0.54, pose: RF_HOLD },
-    { t: 1, pose: RF_HANG, ease: 'linear' },
-  ],
+  hero: 0.4,
+  keys: repKeys(RF_HANG, RF_OPEN, RF_HOLD, { mode: 'lift' }),
 });
 
 /* Chest-supported: face down ON the bench, so the torso cannot cheat at all.
    The arms hang dead vertical at the bottom — that is the giveaway — and the
    squeeze at the top is held for a beat. */
 
+/* Same plane problem as the free version, same answer. Face down on the pad,
+   spread across it, arms hanging dead vertical at the bottom and opening into
+   a wide T. Shoulder joints land at (52.3, 58.5) and (64.3, 58.5). */
 const CSF_BASE = {
-  x: 36, y: 60.5, spine: 5, head: 3,
-  footPtL: { x: 23.5, y: 86.6, bend: -1 },
-  footPtR: { x: 27.5, y: 87.4, bend: -1 },
+  x: 36, y: 60.5, spine: 5, head: 3, spread: 12,
+  footPtL: { x: 21.5, y: 86.6, bend: -1 },
+  footPtR: { x: 29.5, y: 87.4, bend: -1 },
   footL: 34, footR: 42,
   load: 'dumbbell',
 };
 
 const CSF_HANG = p(CSF_BASE, {
-  handL: { x: 57.2, y: 79.0, bend: -1 },
-  handR: { x: 60.2, y: 79.4, bend: -1 },
+  handL: { x: 52.3, y: 81.2, bend: -1 },
+  handR: { x: 64.3, y: 81.2, bend: 1 },
 });
 
 const CSF_MID = p(CSF_BASE, {
-  handL: { x: 51.0, y: 76.6, bend: -1 },
-  handR: { x: 55.4, y: 78.2, bend: -1 },
+  handL: { x: 37.5, y: 74.8, bend: -1 },
+  handR: { x: 79.1, y: 74.8, bend: 1 },
 });
 
 const CSF_OPEN = p(CSF_BASE, {
-  handL: { x: 46.0, y: 74.0, bend: -1 },
-  handR: { x: 51.2, y: 77.0, bend: -1 },
+  handL: { x: 30.6, y: 60.2, bend: -1 },
+  handR: { x: 86.0, y: 60.2, bend: 1 },
 });
 
 const CSF_HOLD = p(CSF_BASE, {
-  handL: { x: 46.5, y: 74.6, bend: -1 },
-  handR: { x: 51.7, y: 77.5, bend: -1 },
+  handL: { x: 31.3, y: 60.8, bend: -1 },
+  handR: { x: 85.3, y: 60.8, bend: 1 },
 });
 
 const chest_supported_db_reverse_fly = clip({
   id: 'chest_supported_db_reverse_fly',
   duration: 3000,
-  hero: 0.44,
+  hero: 0.4,
   props: [{ type: 'bench', x: 44, y: 63, w: 36, h: 5 }],
-  keys: [
-    { t: 0, pose: CSF_HANG },
-    { t: 0.22, pose: CSF_MID },
-    { t: 0.4, pose: CSF_OPEN },
-    { t: 0.56, pose: CSF_HOLD },
-    { t: 1, pose: CSF_HANG },
-  ],
+  keys: repKeys(CSF_HANG, CSF_OPEN, CSF_HOLD, { mode: 'lift' }),
 });
 
 /* Machine reverse fly: seated, chest pinned to the pad, handles set at shoulder

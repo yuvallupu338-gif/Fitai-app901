@@ -505,7 +505,7 @@ export const X11_CLIPS = {
   }),
 
   rower_intervals: clip({
-    id: 'rower_intervals', duration: 2600,
+    id: 'rower_intervals', duration: 2600, ease: 'linear',
     props: [
       { type: 'bar', x: 42, y: 82, w: 56, posts: false },
       { type: 'machine', x: 88, y: 52, w: 12, h: 30 },

@@ -24,6 +24,7 @@
  */
 
 import { p, STAND, HANG } from '../core/poses.js';
+import { repKeys } from '../core/anim.js';
 
 const clip = (o) => Object.assign({ duration: 4200, hero: 0.25, ease: 'inOut', props: [] }, o);
 
@@ -184,9 +185,12 @@ const childSit = (spine, head, lx, ly, rx, ry) => ({
   legL: [-36, 178], legR: [-36, 175],
   footL: 172, footR: 170,
 });
+/* The reaching hands go far enough out that the arms are nearly straight. Any
+   closer and the IK has to fold them, and with bend -1 the fold goes DOWNWARD:
+   at 74 the far elbow sat two units under the mat. */
 const CHILD_SIT = childSit(55, 62, 56, 76, 58, 78);
-const CHILD_FOLD = childSit(-5, -1, 74, 87, 76, 87);
-const CHILD_REACH = childSit(-8, -4, 76.5, 87, 78.5, 87);
+const CHILD_FOLD = childSit(-5, -1, 77.5, 87.2, 79.5, 87.2);
+const CHILD_REACH = childSit(-8, -4, 79, 87.2, 81, 87.2);
 
 /* World's greatest stretch: a deep lunge, then the torso opens and one arm winds
    up to the ceiling. The down hand stays welded to the mat throughout and the
@@ -205,10 +209,15 @@ const WGS_LUNGE = Object.assign({}, WGS_BASE, {
   handL: { x: 58, y: 87, bend: -1 },
   handR: { x: 63, y: 87, bend: -1 },
 });
+/* bend matches WGS_LUNGE. lerpPose reads `bend` from the FIRST key of a
+   segment and never interpolates it, so a value that changes between keys does
+   not blend — the elbow snaps to the other IK solution the instant the clip
+   crosses that key. Nine units of elbow, twice a cycle, for a field nobody
+   watches. Keep one bend per limb per clip. */
 const WGS_OPEN = Object.assign({}, WGS_BASE, {
   spine: 30, head: 62,
   handL: { x: 58, y: 87, bend: -1 },
-  handR: { x: 64, y: 43, bend: 1 },
+  handR: { x: 64, y: 43, bend: -1 },
 });
 
 /* Glute bridge activation. The shared GLUTE_BRIDGE_* poses cannot carry this
@@ -274,19 +283,23 @@ export const X12_CLIPS = {
 
   leg_swings_front: clip({
     id: 'leg_swings_front', duration: 3400,
+    /* A swing is a pendulum: slowest at the two ends, fastest through the
+       bottom. inOut on every segment stopped the leg dead at the midpoint,
+       which is the one place it cannot stop. `in` out of an end and `out` into
+       the next hand over at matching speed. */
     keys: [
-      { t: 0, pose: SWING_F_BACK }, { t: 0.3, pose: SWING_F_MID },
-      { t: 0.55, pose: SWING_F_FWD }, { t: 0.8, pose: SWING_F_MID },
-      { t: 1, pose: SWING_F_BACK },
+      { t: 0, pose: SWING_F_BACK }, { t: 0.3, pose: SWING_F_MID, ease: 'in' },
+      { t: 0.55, pose: SWING_F_FWD, ease: 'out' }, { t: 0.8, pose: SWING_F_MID, ease: 'in' },
+      { t: 1, pose: SWING_F_BACK, ease: 'out' },
     ],
   }),
 
   leg_swings_side: clip({
     id: 'leg_swings_side', duration: 3400,
     keys: [
-      { t: 0, pose: SWING_S_OUT }, { t: 0.3, pose: SWING_S_MID },
-      { t: 0.55, pose: SWING_S_IN }, { t: 0.8, pose: SWING_S_MID },
-      { t: 1, pose: SWING_S_OUT },
+      { t: 0, pose: SWING_S_OUT }, { t: 0.3, pose: SWING_S_MID, ease: 'in' },
+      { t: 0.55, pose: SWING_S_IN, ease: 'out' }, { t: 0.8, pose: SWING_S_MID, ease: 'in' },
+      { t: 1, pose: SWING_S_OUT, ease: 'out' },
     ],
   }),
 
@@ -359,10 +372,7 @@ export const X12_CLIPS = {
   band_scap_pulldown: clip({
     id: 'band_scap_pulldown', duration: 3200, hero: 0.5,
     props: [{ type: 'band', x0: 53, y0: 6, x1: 62, y1: 53, sag: 2 }],
-    keys: [
-      { t: 0, pose: SCAP_OVERHEAD }, { t: 0.42, pose: SCAP_PULLED },
-      { t: 0.62, pose: SCAP_PULLED }, { t: 1, pose: SCAP_OVERHEAD },
-    ],
+    keys: repKeys(SCAP_OVERHEAD, SCAP_PULLED, SCAP_PULLED, { mode: 'lift' }),
   }),
 
   passive_bar_hang: clip({

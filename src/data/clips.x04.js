@@ -7,6 +7,8 @@
  * geometry with the angle as the variable.
  */
 
+import { repKeys } from '../core/anim.js';
+
 const clip = (o) => Object.assign({ duration: 3000, hero: 0, ease: 'inOut', props: [] }, o);
 
 /*
@@ -44,9 +46,13 @@ const TABLE_HIGH = row(19, 62, 56, 13, 87.5);
 
 /* Prone on the floor: nothing supports the arms, so the raise is small and the
    chest lifts with it — a completely different silhouette from a hanging row. */
+/* The rest position lays the arms ON the mat. At [-16,-20]/[-22,-26] they hung
+   below a shoulder that is already 81.6 down the frame, and both hands ended up
+   three units under the floor — the audit's old tolerance let anything above
+   y 92 through, and a hand at 91 is unmistakably buried. */
 const PRONE_DOWN = {
   x: 42, y: 84, spine: 6, head: 16,
-  armL: [-16, -20], armR: [-22, -26],
+  armL: [-9, -13], armR: [-12, -17],
   legL: [182, 182], legR: [184, 184], footL: 96, footR: 96,
 };
 const PRONE_Y = Object.assign({}, PRONE_DOWN, { y: 83, spine: 12, head: 24, armL: [26, 30], armR: [20, 24] });
@@ -75,37 +81,25 @@ export const X04_CLIPS = {
   incline_aussie_row: clip({
     id: 'incline_aussie_row', duration: 2900,
     props: [{ type: 'bar', x: 66, y: 46, w: 26 }],
-    keys: [
-      { t: 0, pose: INCLINE_LOW }, { t: 0.42, pose: INCLINE_HIGH },
-      { t: 0.56, pose: INCLINE_HIGH }, { t: 1, pose: INCLINE_LOW },
-    ],
+    keys: repKeys(INCLINE_LOW, INCLINE_HIGH, INCLINE_HIGH, { mode: 'lift', lag: 1.2 }),
   }),
 
   aussie_row: clip({
     id: 'aussie_row', duration: 3000,
     props: [{ type: 'bar', x: 66, y: 50, w: 26 }],
-    keys: [
-      { t: 0, pose: AUSSIE_LOW }, { t: 0.42, pose: AUSSIE_HIGH },
-      { t: 0.58, pose: AUSSIE_HIGH }, { t: 1, pose: AUSSIE_LOW },
-    ],
+    keys: repKeys(AUSSIE_LOW, AUSSIE_HIGH, AUSSIE_HIGH, { mode: 'lift', lag: 1.2 }),
   }),
 
   feet_elevated_aussie_row: clip({
     id: 'feet_elevated_aussie_row', duration: 3200,
     props: [{ type: 'bar', x: 66, y: 52, w: 26 }, { type: 'box', x: 12, y: 74, w: 20, h: 14 }],
-    keys: [
-      { t: 0, pose: ELEV_LOW }, { t: 0.44, pose: ELEV_HIGH },
-      { t: 0.6, pose: ELEV_HIGH }, { t: 1, pose: ELEV_LOW },
-    ],
+    keys: repKeys(ELEV_LOW, ELEV_HIGH, ELEV_HIGH, { mode: 'lift', lag: 1.2 }),
   }),
 
   table_row: clip({
     id: 'table_row', duration: 3000,
     props: [{ type: 'bench', x: 62, y: 56, w: 34, h: 4 }],
-    keys: [
-      { t: 0, pose: TABLE_LOW }, { t: 0.42, pose: TABLE_HIGH },
-      { t: 0.58, pose: TABLE_HIGH }, { t: 1, pose: TABLE_LOW },
-    ],
+    keys: repKeys(TABLE_LOW, TABLE_HIGH, TABLE_HIGH, { mode: 'lift', lag: 1.2 }),
   }),
 
   prone_ytw_raise: clip({
@@ -121,19 +115,13 @@ export const X04_CLIPS = {
   superman_row: clip({
     id: 'superman_row', duration: 3000,
     props: [{ type: 'mat', x: 44, w: 60 }],
-    keys: [
-      { t: 0, pose: SUPER_DOWN }, { t: 0.4, pose: SUPER_UP },
-      { t: 0.6, pose: SUPER_UP }, { t: 1, pose: SUPER_DOWN },
-    ],
+    keys: repKeys(SUPER_DOWN, SUPER_UP, SUPER_UP, { mode: 'lift' }),
   }),
 
   band_bent_over_row: clip({
     id: 'band_bent_over_row', duration: 2900,
     props: [{ type: 'band', x0: 50, y0: 87.5, x1: 58, y1: 66, sag: 2 }],
-    keys: [
-      { t: 0, pose: BENT_DOWN }, { t: 0.4, pose: BENT_UP },
-      { t: 0.58, pose: BENT_UP }, { t: 1, pose: BENT_DOWN },
-    ],
+    keys: repKeys(BENT_DOWN, BENT_UP, BENT_UP, { mode: 'lift' }),
   }),
 
   towel_row_iso: clip({

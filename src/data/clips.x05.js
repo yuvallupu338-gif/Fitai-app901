@@ -6,6 +6,8 @@
  * and whether one arm works or two.
  */
 
+import { repKeys } from '../core/anim.js';
+
 const clip = (o) => Object.assign({ duration: 3000, hero: 0, ease: 'inOut', props: [] }, o);
 
 /* Bent over, hinged and held: the torso is a platform, not part of the lift. */
@@ -69,27 +71,18 @@ const ARCHER_IN = lean(43, 65, 24, 44, 44, 66, 50, 12);
 export const X05_CLIPS = {
   db_bent_row: clip({
     id: 'db_bent_row', duration: 2900,
-    keys: [
-      { t: 0, pose: DB_BENT_DOWN }, { t: 0.4, pose: DB_BENT_UP },
-      { t: 0.58, pose: DB_BENT_UP }, { t: 1, pose: DB_BENT_DOWN },
-    ],
+    keys: repKeys(DB_BENT_DOWN, DB_BENT_UP, DB_BENT_UP, { mode: 'lift' }),
   }),
 
   bent_row: clip({
     id: 'bent_row', duration: 3000,
-    keys: [
-      { t: 0, pose: BB_BENT_DOWN }, { t: 0.42, pose: BB_BENT_UP },
-      { t: 0.6, pose: BB_BENT_UP }, { t: 1, pose: BB_BENT_DOWN },
-    ],
+    keys: repKeys(BB_BENT_DOWN, BB_BENT_UP, BB_BENT_UP, { mode: 'lift' }),
   }),
 
   db_chest_supported_row: clip({
     id: 'db_chest_supported_row', duration: 3100,
     props: [{ type: 'bench', x: 46, y: 66, w: 40, h: 5 }],
-    keys: [
-      { t: 0, pose: CHEST_DOWN }, { t: 0.42, pose: CHEST_UP },
-      { t: 0.6, pose: CHEST_UP }, { t: 1, pose: CHEST_DOWN },
-    ],
+    keys: repKeys(CHEST_DOWN, CHEST_UP, CHEST_UP, { mode: 'lift' }),
   }),
 
   cable_row: clip({
@@ -99,10 +92,7 @@ export const X05_CLIPS = {
       { type: 'bench', x: 42, y: 76, w: 40, h: 4, legs: false },
       { type: 'band', x0: 80, y0: 62, x1: 58, y1: 62, sag: 0 },
     ],
-    keys: [
-      { t: 0, pose: CABLE_ROW_OUT }, { t: 0.42, pose: CABLE_ROW_IN },
-      { t: 0.6, pose: CABLE_ROW_IN }, { t: 1, pose: CABLE_ROW_OUT },
-    ],
+    keys: repKeys(CABLE_ROW_OUT, CABLE_ROW_IN, CABLE_ROW_IN, { mode: 'lift' }),
   }),
 
   cable_single_arm_row: clip({
@@ -112,10 +102,7 @@ export const X05_CLIPS = {
       { type: 'bench', x: 42, y: 76, w: 40, h: 4, legs: false },
       { type: 'band', x0: 80, y0: 60, x1: 58, y1: 60, sag: 0 },
     ],
-    keys: [
-      { t: 0, pose: CABLE_ONE_OUT }, { t: 0.42, pose: CABLE_ONE_IN },
-      { t: 0.62, pose: CABLE_ONE_IN }, { t: 1, pose: CABLE_ONE_OUT },
-    ],
+    keys: repKeys(CABLE_ONE_OUT, CABLE_ONE_IN, CABLE_ONE_IN, { mode: 'lift' }),
   }),
 
   machine_row: clip({
@@ -124,10 +111,7 @@ export const X05_CLIPS = {
       { type: 'machine', x: 76, y: 44, w: 22, h: 44 },
       { type: 'bench', x: 34, y: 76, w: 26, h: 5 },
     ],
-    keys: [
-      { t: 0, pose: MACHINE_OUT }, { t: 0.42, pose: MACHINE_IN },
-      { t: 0.6, pose: MACHINE_IN }, { t: 1, pose: MACHINE_OUT },
-    ],
+    keys: repKeys(MACHINE_OUT, MACHINE_IN, MACHINE_IN, { mode: 'lift' }),
   }),
 
   trx_row: clip({
@@ -136,18 +120,12 @@ export const X05_CLIPS = {
       { type: 'band', x0: 60, y0: 8, x1: 60, y1: 52, sag: 0 },
       { type: 'band', x0: 66, y0: 8, x1: 66, y1: 52, sag: 0 },
     ],
-    keys: [
-      { t: 0, pose: TRX_OUT }, { t: 0.42, pose: TRX_IN },
-      { t: 0.6, pose: TRX_IN }, { t: 1, pose: TRX_OUT },
-    ],
+    keys: repKeys(TRX_OUT, TRX_IN, TRX_IN, { mode: 'lift', lag: 1.2 }),
   }),
 
   archer_row: clip({
     id: 'archer_row', duration: 3400,
     props: [{ type: 'rings', x: 62, y: 50, w: 10, y0: 6 }],
-    keys: [
-      { t: 0, pose: ARCHER_OUT }, { t: 0.44, pose: ARCHER_IN },
-      { t: 0.62, pose: ARCHER_IN }, { t: 1, pose: ARCHER_OUT },
-    ],
+    keys: repKeys(ARCHER_OUT, ARCHER_IN, ARCHER_IN, { mode: 'lift', lag: 1.2 }),
   }),
 };

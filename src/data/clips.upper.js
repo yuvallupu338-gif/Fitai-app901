@@ -29,6 +29,8 @@ import {
   STAND,
   SEATED,
 } from '../core/poses.js';
+import { repKeys } from '../core/anim.js';
+
 
 /* ================================================================== *
  * 1. PUSH-UP FAMILY
@@ -38,7 +40,21 @@ import {
 
 /* --- standard push-up ------------------------------------------------ */
 
-const PU_TOP = PLANK_TOP;
+/*
+ * The top of a push-up, with the TOES PINNED rather than the legs posed by
+ * angle. PLANK_TOP poses them by angle and PLANK_BOTTOM pins them, so every
+ * clip built from the pair mixed the two representations on one limb —
+ * lerpPose cannot blend an angle pair against an IK target, so it hard-swaps at
+ * the halfway mark and both legs teleport. The targets below are exactly where
+ * PLANK_TOP's angles already put the ankles, so nothing about the picture
+ * changes; only how it blends.
+ */
+const PLANK_TOES = {
+  legL: undefined, legR: undefined,
+  footPtL: { x: 8.3, y: 84.9, bend: -1 },
+  footPtR: { x: 9.3, y: 84.9, bend: -1 },
+};
+const PU_TOP = p(PLANK_TOP, Object.assign({ x: 36.2, y: 73.2 }, PLANK_TOES));
 const PU_BOTTOM = PLANK_BOTTOM;
 const PU_PAUSE = p(PLANK_BOTTOM, { x: 34.3, y: 79.1, spine: 21.5, head: 13.5 });
 
@@ -49,12 +65,7 @@ const pushup = {
   hero: 0.42,
   ease: 'inOut',
   props: [],
-  keys: [
-    { t: 0, pose: PU_TOP },
-    { t: 0.42, pose: PU_BOTTOM },
-    { t: 0.54, pose: PU_PAUSE },
-    { t: 1, pose: PU_TOP },
-  ],
+  keys: repKeys(PU_TOP, PU_BOTTOM, PU_PAUSE, { lag: 1.4 }),
 };
 
 /* --- knees down: the pivot moves from the toes to the knees ---------- */
@@ -81,12 +92,7 @@ const knee_pushup = {
   hero: 0.42,
   ease: 'inOut',
   props: [{ type: 'mat', x: 40, w: 62 }],
-  keys: [
-    { t: 0, pose: KPU_TOP },
-    { t: 0.42, pose: KPU_BOTTOM },
-    { t: 0.54, pose: KPU_PAUSE },
-    { t: 1, pose: KPU_TOP },
-  ],
+  keys: repKeys(KPU_TOP, KPU_BOTTOM, KPU_PAUSE, { lag: 1.2 }),
 };
 
 /* --- hands elevated on a box: the easiest loaded angle --------------- */
@@ -110,12 +116,7 @@ const incline_pushup = {
   hero: 0.42,
   ease: 'inOut',
   props: [{ type: 'box', x: 66, y: 75, w: 24, h: 13 }],
-  keys: [
-    { t: 0, pose: IPU_TOP },
-    { t: 0.42, pose: IPU_BOTTOM },
-    { t: 0.54, pose: IPU_PAUSE },
-    { t: 1, pose: IPU_TOP },
-  ],
+  keys: repKeys(IPU_TOP, IPU_BOTTOM, IPU_PAUSE, { lag: 1.2 }),
 };
 
 /* --- feet elevated: more load on the shoulders ----------------------- */
@@ -139,20 +140,15 @@ const decline_pushup = {
   hero: 0.44,
   ease: 'inOut',
   props: [{ type: 'box', x: 14, y: 76, w: 22, h: 12 }],
-  keys: [
-    { t: 0, pose: DPU_TOP },
-    { t: 0.44, pose: DPU_BOTTOM },
-    { t: 0.56, pose: DPU_PAUSE },
-    { t: 1, pose: DPU_TOP },
-  ],
+  keys: repKeys(DPU_TOP, DPU_BOTTOM, DPU_PAUSE, { lag: 1.4 }),
 };
 
 /* --- diamond: hands together under the sternum, elbows glued in ------ */
 
-const DIA_TOP = p(PLANK_TOP, {
+const DIA_TOP = p(PLANK_TOP, Object.assign({ x: 36.2, y: 73.2 }, PLANK_TOES, {
   handL: { x: 56.5, y: 87.5, bend: -1 },
   handR: { x: 57.5, y: 87.5, bend: -1 },
-});
+}));
 
 const DIA_BOTTOM = p(PLANK_BOTTOM, {
   x: 33.6, y: 80,
@@ -169,12 +165,7 @@ const diamond_pushup = {
   hero: 0.44,
   ease: 'inOut',
   props: [],
-  keys: [
-    { t: 0, pose: DIA_TOP },
-    { t: 0.44, pose: DIA_BOTTOM },
-    { t: 0.58, pose: DIA_PAUSE },
-    { t: 1, pose: DIA_TOP },
-  ],
+  keys: repKeys(DIA_TOP, DIA_BOTTOM, DIA_PAUSE, { lag: 1.2 }),
 };
 
 /* --- archer: the torso slides over the working (near) hand ----------- */
@@ -198,12 +189,7 @@ const archer_pushup = {
   hero: 0.44,
   ease: 'inOut',
   props: [],
-  keys: [
-    { t: 0, pose: ARC_TOP },
-    { t: 0.44, pose: ARC_BOTTOM },
-    { t: 0.58, pose: ARC_PAUSE },
-    { t: 1, pose: ARC_TOP },
-  ],
+  keys: repKeys(ARC_TOP, ARC_BOTTOM, ARC_PAUSE, { lag: 1.4 }),
 };
 
 /* --- pseudo planche: hands by the waist, shoulders way past them ----- */
@@ -227,12 +213,7 @@ const pseudo_planche_pushup = {
   hero: 0.46,
   ease: 'inOut',
   props: [],
-  keys: [
-    { t: 0, pose: PPP_TOP },
-    { t: 0.46, pose: PPP_BOTTOM },
-    { t: 0.6, pose: PPP_PAUSE },
-    { t: 1, pose: PPP_TOP },
-  ],
+  keys: repKeys(PPP_TOP, PPP_BOTTOM, PPP_PAUSE, { lag: 1.2 }),
 };
 
 /* --- pike push-up: hips stay high, the head travels to the floor ----- */
@@ -253,12 +234,7 @@ const pike_pushup = {
   hero: 0.44,
   ease: 'inOut',
   props: [],
-  keys: [
-    { t: 0, pose: PIKE_TOP },
-    { t: 0.44, pose: PIKE_BOTTOM },
-    { t: 0.58, pose: PIKE_PAUSE },
-    { t: 1, pose: PIKE_TOP },
-  ],
+  keys: repKeys(PIKE_TOP, PIKE_BOTTOM, PIKE_PAUSE, { lag: 1.6 }),
 };
 
 /* --- feet on a box: nearly vertical pressing ------------------------- */
@@ -282,12 +258,7 @@ const elevated_pike_pushup = {
   hero: 0.46,
   ease: 'inOut',
   props: [{ type: 'box', x: 20, y: 74, w: 22, h: 14 }],
-  keys: [
-    { t: 0, pose: EPP_TOP },
-    { t: 0.46, pose: EPP_BOTTOM },
-    { t: 0.6, pose: EPP_PAUSE },
-    { t: 1, pose: EPP_TOP },
-  ],
+  keys: repKeys(EPP_TOP, EPP_BOTTOM, EPP_PAUSE, { lag: 1.6 }),
 };
 
 /* ================================================================== *
@@ -356,12 +327,7 @@ const handstand_pushup = {
   hero: 0.46,
   ease: 'inOut',
   props: [{ type: 'wall', x: 58, y0: 6, y1: 88 }],
-  keys: [
-    { t: 0, pose: HSPU_TOP },
-    { t: 0.46, pose: HSPU_BOTTOM },
-    { t: 0.58, pose: HSPU_PAUSE },
-    { t: 1, pose: HSPU_TOP },
-  ],
+  keys: repKeys(HSPU_TOP, HSPU_BOTTOM, HSPU_PAUSE, { lag: 1.2 }),
 };
 
 /* ================================================================== *
@@ -390,12 +356,7 @@ const dip_bars = {
   hero: 0.44,
   ease: 'inOut',
   props: [{ type: 'dipbars', x: 50, y: 56, w: 26, gap: 6 }],
-  keys: [
-    { t: 0, pose: DIP_A },
-    { t: 0.44, pose: DIP_B },
-    { t: 0.56, pose: DIP_C },
-    { t: 1, pose: DIP_A },
-  ],
+  keys: repKeys(DIP_A, DIP_B, DIP_C, { lag: 1.6, arc: 1.6 }),
 };
 
 /* Rings add a little wobble: the hands drift apart under load. */
@@ -458,12 +419,7 @@ const bench_dip = {
   hero: 0.44,
   ease: 'inOut',
   props: [{ type: 'bench', x: 24, y: 70, w: 26, h: 6 }],
-  keys: [
-    { t: 0, pose: BDIP_A },
-    { t: 0.44, pose: BDIP_B },
-    { t: 0.56, pose: BDIP_C },
-    { t: 1, pose: BDIP_A },
-  ],
+  keys: repKeys(BDIP_A, BDIP_B, BDIP_C, { lag: 1.2 }),
 };
 
 /* ================================================================== *
@@ -504,12 +460,7 @@ const bench_press = {
   hero: 0.44,
   ease: 'inOut',
   props: [BENCH_PROP],
-  keys: [
-    { t: 0, pose: BP_LOCK },
-    { t: 0.44, pose: BP_CHEST },
-    { t: 0.56, pose: BP_PAUSE },
-    { t: 1, pose: BP_LOCK },
-  ],
+  keys: repKeys(BP_LOCK, BP_CHEST, BP_PAUSE, { arc: 2.2 }),
 };
 
 const CG_LOCK = p(SUPINE_BENCH, {
@@ -535,12 +486,7 @@ const close_grip_bench = {
   hero: 0.44,
   ease: 'inOut',
   props: [BENCH_PROP],
-  keys: [
-    { t: 0, pose: CG_LOCK },
-    { t: 0.44, pose: CG_CHEST },
-    { t: 0.56, pose: CG_PAUSE },
-    { t: 1, pose: CG_LOCK },
-  ],
+  keys: repKeys(CG_LOCK, CG_CHEST, CG_PAUSE, { arc: 1.6 }),
 };
 
 const DBP_LOCK = p(SUPINE_BENCH, {
@@ -566,12 +512,7 @@ const db_bench_press = {
   hero: 0.44,
   ease: 'inOut',
   props: [BENCH_PROP],
-  keys: [
-    { t: 0, pose: DBP_LOCK },
-    { t: 0.44, pose: DBP_CHEST },
-    { t: 0.56, pose: DBP_PAUSE },
-    { t: 1, pose: DBP_LOCK },
-  ],
+  keys: repKeys(DBP_LOCK, DBP_CHEST, DBP_PAUSE, { arc: 2.0 }),
 };
 
 /* Fly: elbows stay softly bent, the arms sweep wide instead of pressing. */
@@ -633,12 +574,7 @@ const skullcrusher = {
   hero: 0.44,
   ease: 'inOut',
   props: [BENCH_PROP],
-  keys: [
-    { t: 0, pose: SKULL_LOCK },
-    { t: 0.44, pose: SKULL_DOWN },
-    { t: 0.56, pose: SKULL_PAUSE },
-    { t: 1, pose: SKULL_LOCK },
-  ],
+  keys: repKeys(SKULL_LOCK, SKULL_DOWN, SKULL_PAUSE, { arc: 1.4 }),
 };
 
 /* Incline press: reclined ~50deg, head up-back, chest facing up-forward. */
@@ -676,12 +612,7 @@ const incline_db_press = {
     { type: 'bench', x: 60, y: 76, w: 26, h: 5 },
     { type: 'box', x: 36, y: 68, w: 16, h: 20 },
   ],
-  keys: [
-    { t: 0, pose: INC_LOCK },
-    { t: 0.44, pose: INC_BOTTOM },
-    { t: 0.56, pose: INC_PAUSE },
-    { t: 1, pose: INC_LOCK },
-  ],
+  keys: repKeys(INC_LOCK, INC_BOTTOM, INC_PAUSE, { arc: 1.8 }),
 };
 
 /* Seated machine press: back supported, handles travel straight forward. */
@@ -712,12 +643,7 @@ const machine_chest_press = {
     { type: 'machine', x: 78, y: 36, w: 18, h: 36 },
     { type: 'bench', x: 44, y: 72, w: 22, h: 5 },
   ],
-  keys: [
-    { t: 0, pose: MCP_BACK },
-    { t: 0.4, pose: MCP_OUT },
-    { t: 0.52, pose: MCP_HOLD },
-    { t: 1, pose: MCP_BACK },
-  ],
+  keys: repKeys(MCP_BACK, MCP_OUT, MCP_HOLD, { arc: 1.2 }),
 };
 
 /* ================================================================== *
@@ -908,12 +834,7 @@ const archer_pullup = {
   hero: 0.42,
   ease: 'inOut',
   props: [BAR_PROP],
-  keys: [
-    { t: 0, pose: AP_HANG },
-    { t: 0.36, pose: AP_TOP },
-    { t: 0.5, pose: AP_HOLD },
-    { t: 1, pose: AP_HANG },
-  ],
+  keys: repKeys(AP_HANG, AP_TOP, AP_HOLD, { mode: 'lift', arc: 1.6 }),
 };
 
 /* Negative: start at the top, five slow seconds down, step back up. */
@@ -1002,12 +923,17 @@ const muscle_up = {
   hero: 0.46,
   ease: 'inOut',
   props: [MU_BAR],
+  /* The way down is a muscle-up too, and it used to be one straight line from
+     the support back to the hang — through the bar. It reverses through the
+     same catch position it came up through. */
   keys: [
     { t: 0, pose: MU_HANG },
-    { t: 0.26, pose: MU_PULL },
+    { t: 0.26, pose: MU_PULL, ease: 'grind' },
     { t: 0.46, pose: MU_CATCH },
     { t: 0.58, pose: MU_SUPPORT },
-    { t: 1, pose: MU_HANG },
+    { t: 0.72, pose: MU_CATCH, ease: 'in' },
+    { t: 0.88, pose: MU_PULL },
+    { t: 1, pose: MU_HANG, ease: 'out' },
   ],
 };
 
@@ -1045,12 +971,7 @@ const scap_pull = {
   hero: 0.38,
   ease: 'inOut',
   props: [BAR_PROP],
-  keys: [
-    { t: 0, pose: SCAP_DOWN },
-    { t: 0.38, pose: SCAP_UP },
-    { t: 0.52, pose: SCAP_HOLD },
-    { t: 1, pose: SCAP_DOWN },
-  ],
+  keys: repKeys(SCAP_DOWN, SCAP_UP, SCAP_HOLD, { mode: 'lift' }),
 };
 
 /* Tuck front lever: hips rise until the back is horizontal under the bar. */
@@ -1112,12 +1033,7 @@ const aussie_row = {
   hero: 0.42,
   ease: 'inOut',
   props: [{ type: 'bar', x: 58, y: 52, w: 36, posts: true }],
-  keys: [
-    { t: 0, pose: AR_BOTTOM },
-    { t: 0.42, pose: AR_TOP },
-    { t: 0.54, pose: AR_HOLD },
-    { t: 1, pose: AR_BOTTOM },
-  ],
+  keys: repKeys(AR_BOTTOM, AR_TOP, AR_HOLD, { mode: 'lift', lag: 1.2, arc: 1.4 }),
 };
 
 const RR_BOTTOM = p(AR_BOTTOM, {
@@ -1135,12 +1051,7 @@ const ring_row = {
   hero: 0.42,
   ease: 'inOut',
   props: [{ type: 'rings', x: 58, y: 52, w: 6, y0: 6 }],
-  keys: [
-    { t: 0, pose: RR_BOTTOM },
-    { t: 0.42, pose: RR_TOP },
-    { t: 0.54, pose: RR_HOLD },
-    { t: 1, pose: RR_BOTTOM },
-  ],
+  keys: repKeys(RR_BOTTOM, RR_TOP, RR_HOLD, { mode: 'lift', lag: 1.2, arc: 1.4 }),
 };
 
 /* Bent-over rowing: hips back, spine long at ~30deg, elbows drive past the ribs. */
@@ -1175,12 +1086,7 @@ const bent_row = {
   hero: 0.42,
   ease: 'inOut',
   props: [],
-  keys: [
-    { t: 0, pose: BR_HANG },
-    { t: 0.42, pose: BR_TOP },
-    { t: 0.54, pose: BR_HOLD },
-    { t: 1, pose: BR_HANG },
-  ],
+  keys: repKeys(BR_HANG, BR_TOP, BR_HOLD, { mode: 'lift', arc: 1.8 }),
 };
 
 const DR_HANG = p(HINGED, {
@@ -1206,12 +1112,7 @@ const db_row = {
   hero: 0.42,
   ease: 'inOut',
   props: [],
-  keys: [
-    { t: 0, pose: DR_HANG },
-    { t: 0.42, pose: DR_TOP },
-    { t: 0.54, pose: DR_HOLD },
-    { t: 1, pose: DR_HANG },
-  ],
+  keys: repKeys(DR_HANG, DR_TOP, DR_HOLD, { mode: 'lift', arc: 1.8 }),
 };
 
 /* Seated cable row: reach long at the front, finish tall with elbows in. */
@@ -1244,12 +1145,7 @@ const cable_row = {
     { type: 'machine', x: 80, y: 50, w: 14, h: 38 },
     { type: 'band', x0: 73, y0: 57, x1: 64, y1: 56.5, sag: 0 },
   ],
-  keys: [
-    { t: 0, pose: CR_STRETCH },
-    { t: 0.4, pose: CR_PULL },
-    { t: 0.52, pose: CR_HOLD },
-    { t: 1, pose: CR_STRETCH },
-  ],
+  keys: repKeys(CR_STRETCH, CR_PULL, CR_HOLD, { mode: 'lift', arc: 1.4 }),
 };
 
 /* Lat pulldown: seated, slight lean back, bar to the collarbone. */
@@ -1284,30 +1180,63 @@ const lat_pulldown = {
     { type: 'bench', x: 44, y: 74, w: 20, h: 5 },
     { type: 'band', x0: 53, y0: 22, x1: 53, y1: 30, sag: 0 },
   ],
-  keys: [
-    { t: 0, pose: LP_TOP },
-    { t: 0.42, pose: LP_DOWN },
-    { t: 0.54, pose: LP_HOLD },
-    { t: 1, pose: LP_TOP },
-  ],
+  keys: repKeys(LP_TOP, LP_DOWN, LP_HOLD, { mode: 'lift', arc: 1.8 }),
 };
 
-/* Face pull: high cable to the forehead, elbows above the wrists. */
+/* ------------------------------------------------------------------ *
+ * FRONTAL-PLANE BASE
+ *
+ * A face pull, a band pull-apart and a rear fly all happen ACROSS the body,
+ * toward the camera. Drawn in profile the two arms lie exactly on top of each
+ * other, the whole range of motion projects onto a few units of screen, and
+ * the three exercises become the same picture of one arm twitching.
+ *
+ * `spread` (see the long note in rig.js) turns the figure to face the viewer:
+ * the shoulders and hips separate horizontally and the arms are read in the
+ * frontal plane. 13 is about a shoulder width. The feet turn out, because two
+ * feet pointing the same way is the one detail that still says "profile".
+ * ------------------------------------------------------------------ */
 
-const FP_OUT = p(STAND, {
-  x: 44,
-  handL: { x: 64, y: 38, bend: 1 },
-  handR: { x: 66, y: 38.5, bend: 1 },
+const FACING_SPREAD = 13;
+
+const FACING = p(STAND, {
+  x: 50, y: 57, spine: 90, head: 90, spread: FACING_SPREAD,
+  footPtL: { x: 44.6, y: 87.5, bend: 1 },
+  footPtR: { x: 55.4, y: 87.5, bend: 1 },
+  footL: 172, footR: 8,
+  legL: undefined, legR: undefined,
 });
 
-const FP_IN = p(FP_OUT, {
-  handL: { x: 54, y: 30, bend: 1 },
-  handR: { x: 57, y: 29, bend: 1 },
+/* Shoulder joints of FACING: (43.5, 34.12) and (56.5, 34.12). */
+
+/* Face pull: high cable to the face, elbows flaring WIDE and staying above the
+   wrists. The flare is the whole exercise and it only exists in this plane. */
+
+/*
+ * The hands come IN and the ELBOWS go out — which is the exercise. Extended
+ * toward the anchor the arms point at the camera and would project to nothing,
+ * so the start is drawn as reach out to the sides at eye level; the finish
+ * folds the hands to the ears with the elbows flared wide, and the flare is
+ * what the profile view could never show.
+ */
+const FP_OUT = p(FACING, {
+  handL: { x: 24, y: 30, bend: 1 },
+  handR: { x: 76, y: 30, bend: -1 },
 });
 
-const FP_HOLD = p(FP_OUT, {
-  handL: { x: 54.4, y: 30.4, bend: 1 },
-  handR: { x: 57.4, y: 29.4, bend: 1 },
+const FP_MID = p(FACING, {
+  handL: { x: 31, y: 25.5, bend: 1 },
+  handR: { x: 69, y: 25.5, bend: -1 },
+});
+
+const FP_IN = p(FACING, {
+  handL: { x: 39, y: 22, bend: 1 },
+  handR: { x: 61, y: 22, bend: -1 },
+});
+
+const FP_HOLD = p(FACING, {
+  handL: { x: 38.4, y: 22.4, bend: 1 },
+  handR: { x: 61.6, y: 22.4, bend: -1 },
 });
 
 const face_pull = {
@@ -1317,37 +1246,45 @@ const face_pull = {
   hero: 0.44,
   ease: 'inOut',
   props: [
-    { type: 'machine', x: 88, y: 18, w: 14, h: 44 },
-    { type: 'band', x0: 81, y0: 36, x1: 65, y1: 38, sag: 1 },
+    // A high anchor overhead with a rope to each hand: the one arrangement of a
+    // cable that survives being looked at from the front.
+    { type: 'bar', x: 50, y: 7, w: 24, posts: false },
+    { type: 'band', x0: 45, y0: 7, x1: 32, y1: 26, sag: 1.5 },
+    { type: 'band', x0: 55, y0: 7, x1: 68, y1: 26, sag: 1.5 },
   ],
   keys: [
+    // Pull fast, hold the squeeze, feed it back slower than it came.
     { t: 0, pose: FP_OUT },
-    { t: 0.42, pose: FP_IN },
-    { t: 0.54, pose: FP_HOLD },
-    { t: 1, pose: FP_OUT },
+    { t: 0.18, pose: FP_MID, ease: 'in' },
+    { t: 0.34, pose: FP_IN, ease: 'out' },
+    { t: 0.5, pose: FP_HOLD },
+    { t: 1, pose: FP_OUT, ease: 'inOut' },
   ],
 };
 
-/* Band pull-apart: arms stay long and open in front of the chest. */
+/* Band pull-apart: arms stay long and sweep apart across the chest. */
 
-const BPA_TOGETHER = p(STAND, {
-  handL: { x: 70, y: 28, bend: 1 },
-  handR: { x: 71, y: 38, bend: -1 },
+/* Hands in front and elbows bent OUT at the start — arms pointing at the camera
+   project to nothing, so the fold is where the reach has to go. Both ends stay
+   clear of the double-fold that put the forearms across the chest. */
+const BPA_TOGETHER = p(FACING, {
+  handL: { x: 36, y: 42, bend: -1 },
+  handR: { x: 64, y: 42, bend: 1 },
 });
 
-const BPA_MID = p(BPA_TOGETHER, {
-  handL: { x: 68, y: 23, bend: 1 },
-  handR: { x: 70.5, y: 40, bend: -1 },
+const BPA_MID = p(FACING, {
+  handL: { x: 28, y: 37, bend: -1 },
+  handR: { x: 72, y: 37, bend: 1 },
 });
 
-const BPA_APART = p(BPA_TOGETHER, {
-  handL: { x: 62, y: 20, bend: 1 },
-  handR: { x: 68, y: 48, bend: -1 },
+const BPA_APART = p(FACING, {
+  handL: { x: 21.5, y: 33.6, bend: -1 },
+  handR: { x: 78.5, y: 33.6, bend: 1 },
 });
 
-const BPA_HOLD = p(BPA_TOGETHER, {
-  handL: { x: 65.4, y: 19.6, bend: 1 },
-  handR: { x: 70.2, y: 41.4, bend: -1 },
+const BPA_HOLD = p(FACING, {
+  handL: { x: 22.3, y: 33.9, bend: -1 },
+  handR: { x: 77.7, y: 33.9, bend: 1 },
 });
 
 const band_pull_apart = {
@@ -1356,13 +1293,13 @@ const band_pull_apart = {
   ground: true,
   hero: 0.44,
   ease: 'inOut',
-  props: [{ type: 'band', x0: 65, y0: 20, x1: 70, y1: 41, sag: -3 }],
+  props: [{ type: 'band', x0: 30, y0: 36, x1: 70, y1: 36, sag: -1.5 }],
   keys: [
     { t: 0, pose: BPA_TOGETHER },
-    { t: 0.24, pose: BPA_MID },
-    { t: 0.44, pose: BPA_APART },
-    { t: 0.56, pose: BPA_HOLD },
-    { t: 1, pose: BPA_TOGETHER },
+    { t: 0.2, pose: BPA_MID, ease: 'in' },
+    { t: 0.38, pose: BPA_APART, ease: 'out' },
+    { t: 0.52, pose: BPA_HOLD },
+    { t: 1, pose: BPA_TOGETHER, ease: 'inOut' },
   ],
 };
 
@@ -1470,12 +1407,7 @@ const triceps_pushdown = {
     { type: 'machine', x: 56, y: 4, w: 10, h: 20 },
     { type: 'band', x0: 56, y0: 24, x1: 52, y1: 43, sag: 1 },
   ],
-  keys: [
-    { t: 0, pose: PD_TOP },
-    { t: 0.4, pose: PD_LOCK },
-    { t: 0.52, pose: PD_HOLD },
-    { t: 1, pose: PD_TOP },
-  ],
+  keys: repKeys(PD_TOP, PD_LOCK, PD_HOLD, { mode: 'lift', arc: 1.4 }),
 };
 
 /* Shrug: the load rises, the neck shortens, the feet stay welded down. */
@@ -1506,35 +1438,41 @@ const shrug = {
   hero: 0.36,
   ease: 'inOut',
   props: [],
-  keys: [
-    { t: 0, pose: SHRUG_DOWN },
-    { t: 0.36, pose: SHRUG_UP },
-    { t: 0.48, pose: SHRUG_HOLD },
-    { t: 1, pose: SHRUG_DOWN },
-  ],
+  keys: repKeys(SHRUG_DOWN, SHRUG_UP, SHRUG_HOLD, { mode: 'lift' }),
 };
 
 /* Lateral raise: the hands ride an arc at arm's length, never above the ears. */
 
-const LR_DOWN = p(STAND, {
+/*
+ * Lateral raise. The hand targets were ALREADY symmetric about x = 50 — this
+ * clip was always describing a frontal-plane movement — but with spread 0 both
+ * arms grew out of one point in the middle of the chest and the pair read as a
+ * FRONT raise with a thick arm. Standing it on FACING is the whole fix; the
+ * targets only widened enough to keep the arms straight at the top, which is
+ * where a lateral raise is judged.
+ *
+ * bend puts each elbow slightly ABOVE the shoulder-to-hand line, which is the
+ * "pour the jug" the cue asks for and the opposite of a shrugged raise.
+ */
+const LR_DOWN = p(FACING, {
   load: 'dumbbell',
-  handL: { x: 49, y: 57.1, bend: 1 },
-  handR: { x: 51, y: 57.1, bend: -1 },
+  handL: { x: 41, y: 57.4, bend: -1 },
+  handR: { x: 59, y: 57.4, bend: 1 },
 });
 
 const LR_MID = p(LR_DOWN, {
-  handL: { x: 33.7, y: 50.4, bend: 1 },
-  handR: { x: 66.3, y: 50.4, bend: -1 },
+  handL: { x: 31.5, y: 47.5, bend: -1 },
+  handR: { x: 68.5, y: 47.5, bend: 1 },
 });
 
 const LR_TOP = p(LR_DOWN, {
-  handL: { x: 27, y: 35, bend: 1 },
-  handR: { x: 73, y: 35, bend: -1 },
+  handL: { x: 21.5, y: 34.2, bend: -1 },
+  handR: { x: 78.5, y: 34.2, bend: 1 },
 });
 
 const LR_HOLD = p(LR_DOWN, {
-  handL: { x: 27.6, y: 35.8, bend: 1 },
-  handR: { x: 72.4, y: 35.8, bend: -1 },
+  handL: { x: 22.3, y: 34.8, bend: -1 },
+  handR: { x: 77.7, y: 34.8, bend: 1 },
 });
 
 const lateral_raise = {
@@ -1592,28 +1530,44 @@ const front_raise = {
   ],
 };
 
-/* Rear fly: hinged over, the hands travel back past the hips, elbows high. */
+/*
+ * Rear fly: hinged over, the arms hang straight down and open into a wide T.
+ *
+ * Hinged AND facing. rig.js separates the two sides horizontally on screen
+ * rather than perpendicular to the spine, precisely so a bent-over movement
+ * still shows both arms — a body hinging in the sagittal plane does not move
+ * its shoulders apart in the plane the camera is looking down. In profile the
+ * old keys moved both hands 25 units along nearly the same diagonal, which is
+ * the picture of a bent-over row, not of a fly.
+ */
 
-const RF_DOWN = p(HINGED, {
-  spine: 30, head: 24,
+const RF_BASE = p(HINGED, {
+  spine: 30, head: 24, spread: 11,
   load: 'dumbbell',
-  handL: { x: 64, y: 73, bend: -1 },
-  handR: { x: 66, y: 73.5, bend: -1 },
+  footPtL: { x: 44, y: 87.5, bend: 1 },
+  footPtR: { x: 52, y: 87.5, bend: 1 },
+  footL: 174, footR: 6,
 });
 
-const RF_MID = p(RF_DOWN, {
-  handL: { x: 54, y: 64.5, bend: -1 },
-  handR: { x: 57, y: 68, bend: -1 },
+/* Shoulder of RF_BASE lands at (65.8, 50.6); the hands hang below it. */
+const RF_DOWN = p(RF_BASE, {
+  handL: { x: 60.6, y: 72.5, bend: -1 },
+  handR: { x: 71.0, y: 72.5, bend: 1 },
 });
 
-const RF_BACK = p(RF_DOWN, {
-  handL: { x: 45, y: 58, bend: -1 },
-  handR: { x: 48, y: 63, bend: -1 },
+const RF_MID = p(RF_BASE, {
+  handL: { x: 53.5, y: 63.5, bend: -1 },
+  handR: { x: 78.1, y: 63.5, bend: 1 },
 });
 
-const RF_HOLD = p(RF_DOWN, {
-  handL: { x: 45.6, y: 58.8, bend: -1 },
-  handR: { x: 48.6, y: 63.6, bend: -1 },
+const RF_BACK = p(RF_BASE, {
+  handL: { x: 46.5, y: 53.5, bend: -1 },
+  handR: { x: 85.1, y: 53.5, bend: 1 },
+});
+
+const RF_HOLD = p(RF_BASE, {
+  handL: { x: 47.4, y: 54.2, bend: -1 },
+  handR: { x: 84.2, y: 54.2, bend: 1 },
 });
 
 const reverse_fly = {
@@ -1625,10 +1579,10 @@ const reverse_fly = {
   props: [],
   keys: [
     { t: 0, pose: RF_DOWN },
-    { t: 0.24, pose: RF_MID },
-    { t: 0.44, pose: RF_BACK },
-    { t: 0.56, pose: RF_HOLD },
-    { t: 1, pose: RF_DOWN },
+    { t: 0.2, pose: RF_MID, ease: 'in' },
+    { t: 0.38, pose: RF_BACK, ease: 'out' },
+    { t: 0.52, pose: RF_HOLD },
+    { t: 1, pose: RF_DOWN, ease: 'inOut' },
   ],
 };
 
@@ -1646,12 +1600,7 @@ const horizontal_push = {
   hero: 0.42,
   ease: 'inOut',
   props: [],
-  keys: [
-    { t: 0, pose: PU_TOP },
-    { t: 0.42, pose: PU_BOTTOM },
-    { t: 0.54, pose: PU_PAUSE },
-    { t: 1, pose: PU_TOP },
-  ],
+  keys: repKeys(PU_TOP, PU_BOTTOM, PU_PAUSE, { lag: 1.4 }),
 };
 
 const vertical_push = {
@@ -1661,12 +1610,7 @@ const vertical_push = {
   hero: 0.44,
   ease: 'inOut',
   props: [],
-  keys: [
-    { t: 0, pose: PIKE_TOP },
-    { t: 0.44, pose: PIKE_BOTTOM },
-    { t: 0.58, pose: PIKE_PAUSE },
-    { t: 1, pose: PIKE_TOP },
-  ],
+  keys: repKeys(PIKE_TOP, PIKE_BOTTOM, PIKE_PAUSE, { lag: 1.6 }),
 };
 
 /* Unloaded bent-over row — no bar, no bench, just the pulling shape. */
@@ -1693,12 +1637,7 @@ const horizontal_pull = {
   hero: 0.42,
   ease: 'inOut',
   props: [],
-  keys: [
-    { t: 0, pose: GHP_HANG },
-    { t: 0.42, pose: GHP_TOP },
-    { t: 0.54, pose: GHP_HOLD },
-    { t: 1, pose: GHP_HANG },
-  ],
+  keys: repKeys(GHP_HANG, GHP_TOP, GHP_HOLD, { mode: 'lift', lag: 1.2, arc: 1.4 }),
 };
 
 const vertical_pull = {
@@ -1764,32 +1703,28 @@ const arms_triceps = {
   hero: 0.44,
   ease: 'inOut',
   props: [],
-  keys: [
-    { t: 0, pose: DIA_TOP },
-    { t: 0.44, pose: DIA_BOTTOM },
-    { t: 0.58, pose: DIA_PAUSE },
-    { t: 1, pose: DIA_TOP },
-  ],
+  keys: repKeys(DIA_TOP, DIA_BOTTOM, DIA_PAUSE, { arc: 1.2 }),
 };
 
-const GLR_DOWN = p(STAND, {
-  handL: { x: 49, y: 57.1, bend: 1 },
-  handR: { x: 51, y: 57.1, bend: -1 },
+/* Unloaded pattern fallback — same plane, a shade shy of the loaded top. */
+const GLR_DOWN = p(FACING, {
+  handL: { x: 41.5, y: 57.2, bend: -1 },
+  handR: { x: 58.5, y: 57.2, bend: 1 },
 });
 
 const GLR_MID = p(GLR_DOWN, {
-  handL: { x: 33.7, y: 50.4, bend: 1 },
-  handR: { x: 66.3, y: 50.4, bend: -1 },
+  handL: { x: 32.5, y: 48.5, bend: -1 },
+  handR: { x: 67.5, y: 48.5, bend: 1 },
 });
 
 const GLR_TOP = p(GLR_DOWN, {
-  handL: { x: 27, y: 35, bend: 1 },
-  handR: { x: 73, y: 35, bend: -1 },
+  handL: { x: 23, y: 36, bend: -1 },
+  handR: { x: 77, y: 36, bend: 1 },
 });
 
 const GLR_HOLD = p(GLR_DOWN, {
-  handL: { x: 27.6, y: 35.8, bend: 1 },
-  handR: { x: 72.4, y: 35.8, bend: -1 },
+  handL: { x: 23.8, y: 36.6, bend: -1 },
+  handR: { x: 76.2, y: 36.6, bend: 1 },
 });
 
 const shoulders_lateral = {
@@ -1808,25 +1743,27 @@ const shoulders_lateral = {
   ],
 };
 
-const GRF_DOWN = p(HINGED, {
-  spine: 30, head: 24,
-  handL: { x: 64, y: 73, bend: -1 },
-  handR: { x: 66, y: 73.5, bend: -1 },
+/* Unloaded rear-delt fallback: the same hinged, camera-facing body as the
+   dumbbell fly, opening a little shy of it and with nothing in the hands. */
+const GRF_DOWN = p(RF_BASE, {
+  load: undefined,
+  handL: { x: 61.2, y: 72.2, bend: -1 },
+  handR: { x: 70.4, y: 72.2, bend: 1 },
 });
 
 const GRF_MID = p(GRF_DOWN, {
-  handL: { x: 54, y: 64.5, bend: -1 },
-  handR: { x: 57, y: 68, bend: -1 },
+  handL: { x: 54.8, y: 64.5, bend: -1 },
+  handR: { x: 76.8, y: 64.5, bend: 1 },
 });
 
 const GRF_BACK = p(GRF_DOWN, {
-  handL: { x: 45, y: 58, bend: -1 },
-  handR: { x: 48, y: 63, bend: -1 },
+  handL: { x: 48.4, y: 55.6, bend: -1 },
+  handR: { x: 83.2, y: 55.6, bend: 1 },
 });
 
 const GRF_HOLD = p(GRF_DOWN, {
-  handL: { x: 45.6, y: 58.8, bend: -1 },
-  handR: { x: 48.6, y: 63.6, bend: -1 },
+  handL: { x: 49.2, y: 56.2, bend: -1 },
+  handR: { x: 82.4, y: 56.2, bend: 1 },
 });
 
 const shoulders_rear = {

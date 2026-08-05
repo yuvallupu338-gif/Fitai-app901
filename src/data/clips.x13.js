@@ -16,6 +16,8 @@
  * range — and makes that difference the most visible thing in the frame.
  */
 
+import { repKeys } from '../core/anim.js';
+
 import {
   p, STAND, STAND_PLANTED, HOLLOW, PLANK_TOP, HANG, PULLUP_TOP,
 } from '../core/poses.js';
@@ -126,8 +128,19 @@ const WALL_BOTTOM = p(WALL_TOP, {
    the chest rises and sinks a couple of units between the planted hands and the
    rest of the body does not move at all. Small on purpose — drawing it bigger
    would make it a push-up, which is exactly the mistake it teaches against. */
-const SCAP_HOLLOW = p(PLANK_TOP, { x: 36.4, y: 70.8, spine: 25, head: 17 });
-const SCAP_ROUND = p(PLANK_TOP, { x: 36.4, y: 75.2, spine: 21, head: 12 });
+/* Feet PINNED, not posed by angle. Posed by angle the whole leg travelled with
+   the pelvis, so the 4.4 units the shoulders drop dragged the toes 2.4 units
+   under the floor. Pinned, the ankle stays put and only the shoulder girdle
+   moves — which is the entire exercise. The pelvis range narrows to what the
+   30.5-unit leg can actually span from that ankle. */
+const SCAP_FEET = {
+  legL: undefined, legR: undefined,
+  footPtL: { x: 8.0, y: 84.9, bend: -1 },
+  footPtR: { x: 9.2, y: 85.1, bend: -1 },
+  footL: -23, footR: -25,
+};
+const SCAP_HOLLOW = p(PLANK_TOP, Object.assign({ x: 36.4, y: 74.2, spine: 25, head: 17 }, SCAP_FEET));
+const SCAP_ROUND = p(PLANK_TOP, Object.assign({ x: 36.4, y: 77.2, spine: 21, head: 12 }, SCAP_FEET));
 
 /* Kneeling pike push-up: same overhead press shape as a pike push-up, but the
    knees are down, so the hips sit far lower and the body makes a shallow tent
@@ -384,37 +397,25 @@ export const X13_CLIPS = {
   side_plank_knees: clip({
     id: 'side_plank_knees', duration: 4000, hero: 0.5,
     props: [{ type: 'mat', x: 52, w: 56 }],
-    keys: [
-      { t: 0, pose: SIDE_KNEE_DOWN }, { t: 0.5, pose: SIDE_KNEE_UP },
-      { t: 1, pose: SIDE_KNEE_DOWN },
-    ],
+    keys: repKeys(SIDE_KNEE_DOWN, SIDE_KNEE_UP, null, { mode: 'lift' }),
   }),
 
   wall_pushup: clip({
     id: 'wall_pushup', duration: 3000,
     props: [{ type: 'wall', x: 76, y0: 12, y1: 88 }],
-    keys: [
-      { t: 0, pose: WALL_TOP }, { t: 0.42, pose: WALL_BOTTOM },
-      { t: 0.56, pose: WALL_BOTTOM }, { t: 1, pose: WALL_TOP },
-    ],
+    keys: repKeys(WALL_TOP, WALL_BOTTOM, WALL_BOTTOM, { lag: 1.0 }),
   }),
 
   scap_pushup: clip({
     id: 'scap_pushup', duration: 3200,
     props: [{ type: 'mat', x: 48, w: 62 }],
-    keys: [
-      { t: 0, pose: SCAP_HOLLOW }, { t: 0.4, pose: SCAP_ROUND },
-      { t: 0.6, pose: SCAP_ROUND }, { t: 1, pose: SCAP_HOLLOW },
-    ],
+    keys: repKeys(SCAP_HOLLOW, SCAP_ROUND, SCAP_ROUND, { lag: 1.0 }),
   }),
 
   kneeling_pike_pushup: clip({
     id: 'kneeling_pike_pushup', duration: 3200,
     props: [{ type: 'mat', x: 52, w: 60 }],
-    keys: [
-      { t: 0, pose: KPIKE_TOP }, { t: 0.44, pose: KPIKE_BOTTOM },
-      { t: 0.58, pose: KPIKE_BOTTOM }, { t: 1, pose: KPIKE_TOP },
-    ],
+    keys: repKeys(KPIKE_TOP, KPIKE_BOTTOM, KPIKE_BOTTOM, { lag: 1.2 }),
   }),
 
   sit_to_stand: clip({
@@ -430,10 +431,7 @@ export const X13_CLIPS = {
   supported_split_squat: clip({
     id: 'supported_split_squat', duration: 3400,
     props: [{ type: 'wall', x: 76, y0: 34, y1: 88 }],
-    keys: [
-      { t: 0, pose: SUP_TOP }, { t: 0.44, pose: SUP_BOTTOM },
-      { t: 0.6, pose: SUP_BOTTOM }, { t: 1, pose: SUP_TOP },
-    ],
+    keys: repKeys(SUP_TOP, SUP_BOTTOM, SUP_BOTTOM, {}),
   }),
 
   low_box_jump: clip({
@@ -449,10 +447,7 @@ export const X13_CLIPS = {
   single_leg_box_squat: clip({
     id: 'single_leg_box_squat', duration: 3400,
     props: [{ type: 'box', x: 46, y: 71, w: 24, h: 17 }],
-    keys: [
-      { t: 0, pose: SLBOX_TOP }, { t: 0.44, pose: SLBOX_DOWN },
-      { t: 0.6, pose: SLBOX_DOWN }, { t: 1, pose: SLBOX_TOP },
-    ],
+    keys: repKeys(SLBOX_TOP, SLBOX_DOWN, SLBOX_DOWN, {}),
   }),
 
   jumping_pullup: clip({
@@ -468,28 +463,19 @@ export const X13_CLIPS = {
   lying_knee_raise: clip({
     id: 'lying_knee_raise', duration: 3200,
     props: [{ type: 'mat', x: 46, w: 58 }],
-    keys: [
-      { t: 0, pose: LKR_DOWN }, { t: 0.42, pose: LKR_UP },
-      { t: 0.58, pose: LKR_UP }, { t: 1, pose: LKR_DOWN },
-    ],
+    keys: repKeys(LKR_DOWN, LKR_UP, LKR_UP, { mode: 'lift' }),
   }),
 
   reverse_crunch: clip({
     id: 'reverse_crunch', duration: 3000,
     props: [{ type: 'mat', x: 46, w: 58 }],
-    keys: [
-      { t: 0, pose: RC_DOWN }, { t: 0.42, pose: RC_UP },
-      { t: 0.56, pose: RC_UP }, { t: 1, pose: RC_DOWN },
-    ],
+    keys: repKeys(RC_DOWN, RC_UP, RC_UP, { mode: 'lift' }),
   }),
 
   prone_w_raise: clip({
     id: 'prone_w_raise', duration: 3400,
     props: [{ type: 'mat', x: 46, w: 60 }],
-    keys: [
-      { t: 0, pose: PRONE_W_DOWN }, { t: 0.42, pose: PRONE_W_UP },
-      { t: 0.62, pose: PRONE_W_UP }, { t: 1, pose: PRONE_W_DOWN },
-    ],
+    keys: repKeys(PRONE_W_DOWN, PRONE_W_UP, PRONE_W_UP, { mode: 'lift' }),
   }),
 
   bw_lateral_raise: clip({
@@ -503,6 +489,9 @@ export const X13_CLIPS = {
 
   march_in_place: clip({
     id: 'march_in_place', duration: 2800,
+    /* Locomotion, so it never stops: linear keeps the planted foot travelling
+       at one speed under a body that keeps moving over it. */
+    ease: 'linear',
     keys: [
       { t: 0, pose: MARCH_L }, { t: 0.25, pose: MARCH_MID },
       { t: 0.5, pose: MARCH_R }, { t: 0.75, pose: MARCH_MID },

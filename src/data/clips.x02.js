@@ -16,6 +16,7 @@
 
 import { p } from '../core/poses.js';
 
+import { repKeys } from '../core/anim.js';
 /* --- wall triceps extension ------------------------------------------
  * The gentlest triceps press there is: hands stay put on the wall at head
  * height, the body is one rigid lever pivoting on the heels, and ONLY the
@@ -111,12 +112,7 @@ const close_grip_pushup = {
   hero: 0.44,
   ease: 'inOut',
   props: [],
-  keys: [
-    { t: 0, pose: CGP_TOP },
-    { t: 0.42, pose: CGP_BOTTOM },
-    { t: 0.58, pose: CGP_PAUSE },
-    { t: 1, pose: CGP_TOP },
-  ],
+  keys: repKeys(CGP_TOP, CGP_BOTTOM, CGP_PAUSE, { lag: 1.2 }),
 };
 
 /* --- bench dip -------------------------------------------------------

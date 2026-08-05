@@ -17,6 +17,8 @@
  * no band at all, which is what these had.
  */
 
+import { repKeys } from '../core/anim.js';
+
 import {
   p, STAND, STAND_PLANTED, HINGE_TOP, HINGE_BOTTOM, SUPINE, SEATED, DIP_TOP, DIP_BOTTOM,
 } from '../core/poses.js';
@@ -169,11 +171,30 @@ const BAND_ROW_IN = p(BAND_ROW_OUT, {
 
 /* Cable face pull: the hands finish either side of the head with the elbows
    HIGH, which is what separates it from a row to the ribs. */
-const FACE_PULL_OUT = p(STAND_PLANTED, {
-  x: 42, armL: [4, 2], armR: [-2, -4],
+/*
+ * Face pull, turned to face the camera. The elbows flaring wide IS the
+ * exercise, and it happens entirely in the plane the profile view collapses:
+ * side-on the two arms lay on top of each other and both flare and grip width
+ * vanished. `spread` (see rig.js) separates the shoulders; the hands come in to
+ * the ears while the elbows travel out past them.
+ * Shoulder joints land at (43.5, 34.12) and (56.5, 34.12).
+ */
+const FACE_PULL_FACING = p(STAND_PLANTED, {
+  x: 50, y: 57, spread: 13,
+  footPtL: { x: 44.6, y: 87.5, bend: 1 },
+  footPtR: { x: 55.4, y: 87.5, bend: 1 },
+  footL: 172, footR: 8,
 });
-const FACE_PULL_IN = p(STAND_PLANTED, {
-  x: 42, armL: [24, 140], armR: [18, 134],
+const FACE_PULL_OUT = p(FACE_PULL_FACING, {
+  handL: { x: 24, y: 30, bend: 1 },
+  handR: { x: 76, y: 30, bend: -1 },
+});
+/* The cable version finishes HIGHER and wider than the band one — a rope on a
+   stack lets the hands pass the ears and the shoulders externally rotate, which
+   a band anchored to a doorframe never quite allows. */
+const FACE_PULL_IN = p(FACE_PULL_FACING, {
+  handL: { x: 34.5, y: 17.5, bend: 1 },
+  handR: { x: 65.5, y: 17.5, bend: -1 },
 });
 
 /* ------------------------------------------------------------------ *
@@ -278,28 +299,19 @@ export const X14_CLIPS = {
 
   kb_deadlift: clip({
     id: 'kb_deadlift', duration: 3200,
-    keys: [
-      { t: 0, pose: KB_DL_BOTTOM }, { t: 0.4, pose: KB_DL_TOP },
-      { t: 0.6, pose: KB_DL_TOP }, { t: 1, pose: KB_DL_BOTTOM },
-    ],
+    keys: repKeys(KB_DL_BOTTOM, KB_DL_TOP, KB_DL_TOP, { mode: 'lift', arc: 1.4 }),
   }),
 
   bw_hip_thrust: clip({
     id: 'bw_hip_thrust', duration: 3200,
     props: [{ type: 'bench', x: 42, y: 76, w: 26, h: 5 }],
-    keys: [
-      { t: 0, pose: BWT_DOWN }, { t: 0.42, pose: BWT_UP },
-      { t: 0.62, pose: BWT_UP }, { t: 1, pose: BWT_DOWN },
-    ],
+    keys: repKeys(BWT_DOWN, BWT_UP, BWT_UP, { mode: 'lift' }),
   }),
 
   db_floor_press: clip({
     id: 'db_floor_press', duration: 3000,
     props: [{ type: 'mat', x: 44, w: 58 }],
-    keys: [
-      { t: 0, pose: FLOOR_PRESS_DOWN }, { t: 0.42, pose: FLOOR_PRESS_UP },
-      { t: 0.6, pose: FLOOR_PRESS_UP }, { t: 1, pose: FLOOR_PRESS_DOWN },
-    ],
+    keys: repKeys(FLOOR_PRESS_DOWN, FLOOR_PRESS_UP, FLOOR_PRESS_UP, { mode: 'lift', arc: 1.6 }),
   }),
 
   seated_db_shoulder_press: clip({
@@ -308,37 +320,25 @@ export const X14_CLIPS = {
       { type: 'bench', x: 44, y: 76, w: 24, h: 5 },
       { type: 'wall', x: 32, y0: 52, y1: 78 },
     ],
-    keys: [
-      { t: 0, pose: SEATED_PRESS_DOWN }, { t: 0.42, pose: SEATED_PRESS_UP },
-      { t: 0.6, pose: SEATED_PRESS_UP }, { t: 1, pose: SEATED_PRESS_DOWN },
-    ],
+    keys: repKeys(SEATED_PRESS_DOWN, SEATED_PRESS_UP, SEATED_PRESS_UP, { mode: 'lift', arc: 1.8 }),
   }),
 
   band_overhead_press: clip({
     id: 'band_overhead_press', duration: 3200,
     props: [{ type: 'band', x0: 50, y0: 87, x1: 56, y1: 40, sag: 3 }],
-    keys: [
-      { t: 0, pose: BAND_OHP_DOWN }, { t: 0.42, pose: BAND_OHP_UP },
-      { t: 0.6, pose: BAND_OHP_UP }, { t: 1, pose: BAND_OHP_DOWN },
-    ],
+    keys: repKeys(BAND_OHP_DOWN, BAND_OHP_UP, BAND_OHP_UP, { mode: 'lift', arc: 1.6 }),
   }),
 
   bar_dip: clip({
     id: 'bar_dip', duration: 3000, ground: false,
     props: [{ type: 'dipbars', x: 50, y: 40, w: 26, gap: 7 }],
-    keys: [
-      { t: 0, pose: CHEST_DIP_TOP }, { t: 0.42, pose: CHEST_DIP_BOTTOM },
-      { t: 0.58, pose: CHEST_DIP_BOTTOM }, { t: 1, pose: CHEST_DIP_TOP },
-    ],
+    keys: repKeys(CHEST_DIP_TOP, CHEST_DIP_BOTTOM, CHEST_DIP_BOTTOM, { lag: 1.6 }),
   }),
 
   floor_triceps_dip: clip({
     id: 'floor_triceps_dip', duration: 3000,
     props: [{ type: 'mat', x: 52, w: 62 }],
-    keys: [
-      { t: 0, pose: FLOOR_DIP_UP }, { t: 0.42, pose: FLOOR_DIP_DOWN },
-      { t: 0.58, pose: FLOOR_DIP_DOWN }, { t: 1, pose: FLOOR_DIP_UP },
-    ],
+    keys: repKeys(FLOOR_DIP_UP, FLOOR_DIP_DOWN, FLOOR_DIP_DOWN, { lag: 1.2 }),
   }),
 
   band_lat_pulldown: clip({
@@ -347,19 +347,13 @@ export const X14_CLIPS = {
       { type: 'mat', x: 46, w: 50 },
       { type: 'band', x0: 54, y0: 12, x1: 56, y1: 52, sag: 2 },
     ],
-    keys: [
-      { t: 0, pose: BAND_PD_UP }, { t: 0.42, pose: BAND_PD_DOWN },
-      { t: 0.6, pose: BAND_PD_DOWN }, { t: 1, pose: BAND_PD_UP },
-    ],
+    keys: repKeys(BAND_PD_UP, BAND_PD_DOWN, BAND_PD_DOWN, { mode: 'lift' }),
   }),
 
   doorframe_towel_row: clip({
     id: 'doorframe_towel_row', duration: 3200,
     props: [{ type: 'wall', x: 74, y0: 10, y1: 88 }],
-    keys: [
-      { t: 0, pose: TOWEL_BACK }, { t: 0.42, pose: TOWEL_IN },
-      { t: 0.6, pose: TOWEL_IN }, { t: 1, pose: TOWEL_BACK },
-    ],
+    keys: repKeys(TOWEL_BACK, TOWEL_IN, TOWEL_IN, { mode: 'lift' }),
   }),
 
   band_seated_row: clip({
@@ -368,56 +362,42 @@ export const X14_CLIPS = {
       { type: 'mat', x: 46, w: 56 },
       { type: 'band', x0: 76, y0: 84, x1: 60, y1: 59, sag: 2 },
     ],
-    keys: [
-      { t: 0, pose: BAND_ROW_OUT }, { t: 0.42, pose: BAND_ROW_IN },
-      { t: 0.6, pose: BAND_ROW_IN }, { t: 1, pose: BAND_ROW_OUT },
-    ],
+    keys: repKeys(BAND_ROW_OUT, BAND_ROW_IN, BAND_ROW_IN, { mode: 'lift' }),
   }),
 
   cable_face_pull: clip({
     id: 'cable_face_pull', duration: 3000,
     props: [
-      { type: 'machine', x: 82, y: 22, w: 16, h: 60 },
-      { type: 'band', x0: 74, y0: 26, x1: 58, y1: 44, sag: 2 },
+      // A high anchor with a rope to each hand: the one way to draw a cable
+      // that survives the camera moving round to the front.
+      { type: 'machine', x: 88, y: 10, w: 14, h: 62 },
+      { type: 'bar', x: 50, y: 7, w: 24, posts: false },
+      { type: 'band', x0: 45, y0: 7, x1: 30, y1: 22, sag: 1.5 },
+      { type: 'band', x0: 55, y0: 7, x1: 70, y1: 22, sag: 1.5 },
     ],
-    keys: [
-      { t: 0, pose: FACE_PULL_OUT }, { t: 0.42, pose: FACE_PULL_IN },
-      { t: 0.6, pose: FACE_PULL_IN }, { t: 1, pose: FACE_PULL_OUT },
-    ],
+    keys: repKeys(FACE_PULL_OUT, FACE_PULL_IN, FACE_PULL_IN, { mode: 'lift' }),
   }),
 
   backpack_curl: clip({
     id: 'backpack_curl', duration: 3000,
-    keys: [
-      { t: 0, pose: PACK_DOWN }, { t: 0.42, pose: PACK_UP },
-      { t: 0.6, pose: PACK_UP }, { t: 1, pose: PACK_DOWN },
-    ],
+    keys: repKeys(PACK_DOWN, PACK_UP, PACK_UP, { mode: 'lift', arc: 1.4 }),
   }),
 
   band_hammer_curl: clip({
     id: 'band_hammer_curl', duration: 3000,
     props: [{ type: 'band', x0: 50, y0: 87, x1: 56, y1: 62, sag: 2 }],
-    keys: [
-      { t: 0, pose: BAND_CURL_DOWN }, { t: 0.42, pose: BAND_CURL_UP },
-      { t: 0.6, pose: BAND_CURL_UP }, { t: 1, pose: BAND_CURL_DOWN },
-    ],
+    keys: repKeys(BAND_CURL_DOWN, BAND_CURL_UP, BAND_CURL_UP, { mode: 'lift', arc: 1.4 }),
   }),
 
   band_triceps_pushdown: clip({
     id: 'band_triceps_pushdown', duration: 3000,
     props: [{ type: 'band', x0: 56, y0: 14, x1: 57, y1: 60, sag: 2 }],
-    keys: [
-      { t: 0, pose: PUSHDOWN_UP }, { t: 0.42, pose: PUSHDOWN_DOWN },
-      { t: 0.6, pose: PUSHDOWN_DOWN }, { t: 1, pose: PUSHDOWN_UP },
-    ],
+    keys: repKeys(PUSHDOWN_UP, PUSHDOWN_DOWN, PUSHDOWN_DOWN, { mode: 'lift' }),
   }),
 
   db_front_raise: clip({
     id: 'db_front_raise', duration: 3200,
-    keys: [
-      { t: 0, pose: FRONT_RAISE_DOWN }, { t: 0.42, pose: FRONT_RAISE_UP },
-      { t: 0.6, pose: FRONT_RAISE_UP }, { t: 1, pose: FRONT_RAISE_DOWN },
-    ],
+    keys: repKeys(FRONT_RAISE_DOWN, FRONT_RAISE_UP, FRONT_RAISE_UP, { mode: 'lift', arc: 1.2 }),
   }),
 
   arm_circles: clip({

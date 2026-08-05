@@ -8,6 +8,7 @@
  */
 
 import { p, STAND, SEATED } from '../core/poses.js';
+import { repKeys } from '../core/anim.js';
 
 const clip = (o) => Object.assign({ duration: 2800, hero: 0, ease: 'inOut', props: [] }, o);
 
@@ -92,13 +93,13 @@ export const X07_CLIPS = {
   bodyweight_curl_bar: clip({
     id: 'bodyweight_curl_bar', duration: 3200,
     props: [{ type: 'bar', x: 50, y: 52, w: 34 }],
-    keys: [{ t: 0, pose: BAR_LOW }, { t: 0.45, pose: BAR_HIGH }, { t: 0.6, pose: BAR_HIGH }, { t: 1, pose: BAR_LOW }],
+    keys: repKeys(BAR_LOW, BAR_HIGH, BAR_HIGH, { mode: 'lift', arc: 1.2 }),
   }),
 
   ring_curl: clip({
     id: 'ring_curl', duration: 3200,
     props: [{ type: 'rings', x: 52, y: 50, w: 8, y0: 6 }],
-    keys: [{ t: 0, pose: RING_LOW }, { t: 0.45, pose: RING_HIGH }, { t: 0.62, pose: RING_HIGH }, { t: 1, pose: RING_LOW }],
+    keys: repKeys(RING_LOW, RING_HIGH, RING_HIGH, { mode: 'lift', arc: 1.2 }),
   }),
 
   trx_biceps_curl: clip({
@@ -107,16 +108,13 @@ export const X07_CLIPS = {
       { type: 'band', x0: 52, y0: 8, x1: 51, y1: 46, sag: 0 },
       { type: 'band', x0: 58, y0: 8, x1: 57, y1: 46, sag: 0 },
     ],
-    keys: [{ t: 0, pose: TRX_LOW }, { t: 0.45, pose: TRX_HIGH }, { t: 0.6, pose: TRX_HIGH }, { t: 1, pose: TRX_LOW }],
+    keys: repKeys(TRX_LOW, TRX_HIGH, TRX_HIGH, { mode: 'lift', arc: 1.2 }),
   }),
 
   band_biceps_curl: clip({
     id: 'band_biceps_curl', duration: 2900,
     props: [{ type: 'band', x0: 49, y0: 87.5, x1: 52, y1: 57, sag: 3 }],
-    keys: [
-      { t: 0, pose: BAND_DOWN }, { t: 0.45, pose: BAND_MID },
-      { t: 0.6, pose: BAND_UP }, { t: 1, pose: BAND_DOWN },
-    ],
+    keys: repKeys(BAND_DOWN, BAND_MID, BAND_UP, { mode: 'lift', arc: 1.4 }),
   }),
 
   /* Free weights. */
@@ -138,25 +136,25 @@ export const X07_CLIPS = {
 
   bb_curl: clip({
     id: 'bb_curl', duration: 2900,
-    keys: [{ t: 0, pose: BB_DOWN }, { t: 0.45, pose: BB_UP }, { t: 0.58, pose: BB_UP }, { t: 1, pose: BB_DOWN }],
+    keys: repKeys(BB_DOWN, BB_UP, BB_UP, { mode: 'lift', arc: 1.5 }),
   }),
 
   ez_curl: clip({
     id: 'ez_curl', duration: 3000,
-    keys: [{ t: 0, pose: EZ_DOWN }, { t: 0.45, pose: EZ_UP }, { t: 0.62, pose: EZ_UP }, { t: 1, pose: EZ_DOWN }],
+    keys: repKeys(EZ_DOWN, EZ_UP, EZ_UP, { mode: 'lift', arc: 1.5 }),
   }),
 
   /* Supported: the giveaway is the body position, not the arm. */
   incline_db_curl: clip({
     id: 'incline_db_curl', duration: 3200,
     props: [{ type: 'bench', x: 46, y: 62, w: 34, h: 5 }],
-    keys: [{ t: 0, pose: INCLINE_DOWN }, { t: 0.5, pose: INCLINE_UP }, { t: 1, pose: INCLINE_DOWN }],
+    keys: repKeys(INCLINE_DOWN, INCLINE_UP, null, { mode: 'lift', arc: 1.4 }),
   }),
 
   concentration_curl: clip({
     id: 'concentration_curl', duration: 3200,
     props: [{ type: 'bench', x: 46, y: 70, w: 28, h: 5 }],
-    keys: [{ t: 0, pose: CONC_DOWN }, { t: 0.5, pose: CONC_UP }, { t: 1, pose: CONC_DOWN }],
+    keys: repKeys(CONC_DOWN, CONC_UP, null, { mode: 'lift', arc: 1.2 }),
   }),
 
   /* Machines: the prop does the identifying. */
@@ -166,10 +164,7 @@ export const X07_CLIPS = {
       { type: 'machine', x: 84, y: 44, w: 14, h: 44 },
       { type: 'band', x0: 80, y0: 50, x1: 58, y1: 57, sag: 1 },
     ],
-    keys: [
-      { t: 0, pose: CABLE_DOWN }, { t: 0.45, pose: CABLE_MID },
-      { t: 0.6, pose: CABLE_UP }, { t: 1, pose: CABLE_DOWN },
-    ],
+    keys: repKeys(CABLE_DOWN, CABLE_MID, CABLE_UP, { mode: 'lift', arc: 1.4 }),
   }),
 
   machine_curl: clip({
@@ -178,6 +173,6 @@ export const X07_CLIPS = {
       { type: 'machine', x: 64, y: 52, w: 24, h: 36 },
       { type: 'bench', x: 38, y: 70, w: 24, h: 5 },
     ],
-    keys: [{ t: 0, pose: MACH_DOWN }, { t: 0.5, pose: MACH_UP }, { t: 1, pose: MACH_DOWN }],
+    keys: repKeys(MACH_DOWN, MACH_UP, null, { mode: 'lift', arc: 1.2 }),
   }),
 };
