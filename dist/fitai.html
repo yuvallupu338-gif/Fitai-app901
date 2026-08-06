@@ -1453,6 +1453,22 @@ __m["src/engine/age.js"] = (function () {
  */
 
 /*
+ * The youngest and oldest the app is built for.
+ *
+ * 12 rather than 10: below that a structured programme is not the right tool
+ * regardless of how it is worded — training is play, PE and a club, and the
+ * questionnaire's whole frame (a goal, a target date, a weekly split) does not
+ * fit a ten-year-old. Everything downstream clamps to these, so a hand-edited
+ * or imported profile cannot smuggle an age the plan was never designed around.
+ *
+ * They live here with the policy thresholds because they were the same bug
+ * waiting to happen: the floor was written as a bare 10 in six files, and a
+ * seventh would have disagreed the moment anybody changed one of them.
+ */
+const MIN_AGE = 12;
+const MAX_AGE = 90;
+
+/*
  * Below this, the app does not put a number on food or on the body.
  *
  * A targeted deficit during growth costs height and bone density, and the habit
@@ -1508,7 +1524,7 @@ const STILL_DEVELOPING_UNTIL = 23;
 /** True when some of a body-composition goal will close without training. */
 function stillDeveloping(profile) {
   const a = ageOf(profile);
-  return a !== null && a >= 10 && a < STILL_DEVELOPING_UNTIL;
+  return a !== null && a >= MIN_AGE && a < STILL_DEVELOPING_UNTIL;
 }
 
 function ageOf(profile) {
@@ -1587,13 +1603,15 @@ function hidesBodyReading(profile) {
  */
 function growthAllowanceKgPerWeek(profile) {
   const a = ageOf(profile);
-  if (a === null || a < 10) return 0;
+  if (a === null || a < MIN_AGE) return 0;
   if (a <= 15) return 0.09;            // through the spurt
   if (a >= 20) return 0;               // skeleton is done
   return 0.09 * ((20 - a) / 5);        // taper across 16-19
 }
 
   return {
+    "MIN_AGE": MIN_AGE,
+    "MAX_AGE": MAX_AGE,
     "BODY_NUMBERS_FROM": BODY_NUMBERS_FROM,
     "FAT_LOSS_FROM": FAT_LOSS_FROM,
     "PHOTO_SCAN_FROM": PHOTO_SCAN_FROM,
@@ -1625,6 +1643,8 @@ __m["src/engine/volume.js"] = (function () {
  *      no matter what the target says.
  *   3. The plan is the smaller of the two, and the note says which one bound it.
  */
+
+const { MIN_AGE, MAX_AGE } = __m["src/engine/age.js"];
 
 /* Groups the whole engine talks in. These keys are the weeklyVolume() result. */
 const GROUPS = ['push', 'pull', 'legs', 'core', 'arms', 'shoulders', 'calves', 'conditioning'];
@@ -1744,7 +1764,7 @@ function sessionBudget(profile) {
 
 function factors(profile, days, minutes) {
   const exp = experienceOf(profile);
-  const age = clampInt(profile.age, 10, 90, 30);
+  const age = clampInt(profile.age, MIN_AGE, MAX_AGE, 30);
   const sleep = num(profile.sleepHours, 7.5);
   const stress = clampInt(profile.stress, 1, 5, 3);
 
@@ -7301,6 +7321,8 @@ __m["src/engine/generator.js"] = (function () {
  * not ours. Nothing here uses Math.random(); variety comes from hashProfile().
  */
 
+const { MIN_AGE, MAX_AGE } = __m["src/engine/age.js"];
+
 const { candidates, candidatesOrFallback, conflictsInjury, hashProfile, rotate, } = __m["src/data/exercises.index.js"];
 const { weeklyVolume, splitFor, sessionBudget } = __m["src/engine/volume.js"];
 
@@ -8060,7 +8082,7 @@ function roleFor(pattern, compoundIndex) {
 function desiredLevel(profile, role) {
   const base = { beginner: 1.7, returning: 2.4, intermediate: 3.2, advanced: 4.2 }[experienceOf(profile)];
   const byRole = { skill: 0.5, main: 0.3, secondary: 0, accessory: -0.3, core: 0, finisher: -0.3 }[role] || 0;
-  const age = clampInt(profile.age, 10, 90, 30);
+  const age = clampInt(profile.age, MIN_AGE, MAX_AGE, 30);
   const injuries = (profile.injuries || []).length;
   let out = base + byRole;
   if (age >= 60) out -= 0.7;
@@ -8316,7 +8338,7 @@ function noteFor(profile, ex, slot, risky) {
   }
 
   let note = baseNote(profile, ex, slot);
-  const age = clampInt(profile.age, 10, 90, 30);
+  const age = clampInt(profile.age, MIN_AGE, MAX_AGE, 30);
   if (slot.role === 'main' && age < 16 && ex.level >= 3) {
     note = `${note} בגיל הזה טכניקה קודמת למשקל.`;
   } else if (ex.unilateral && slot.role !== 'core' && note.indexOf('לכל צד') < 0) {
@@ -8409,7 +8431,7 @@ function buildCooldown(profile) {
 
 function buildNotes(profile, ctx) {
   const out = [];
-  const age = clampInt(profile.age, 10, 90, 30);
+  const age = clampInt(profile.age, MIN_AGE, MAX_AGE, 30);
   const sleep = numOr(profile.sleepHours, 7.5);
   const stress = clampInt(profile.stress, 1, 5, 3);
   const injuries = profile.injuries || [];
@@ -9154,7 +9176,7 @@ __m["src/intake/schema.js"] = (function () {
  * declared here; adding a question needs no UI change.
  */
 
-const { withholdsPhotoScan } = __m["src/engine/age.js"];
+const { withholdsPhotoScan, MIN_AGE, MAX_AGE } = __m["src/engine/age.js"];
 
 const { emphasisFrom, confidenceHe } = __m["src/vision/apply.js"];
 const { candidates } = __m["src/data/exercises.index.js"];
@@ -9316,10 +9338,10 @@ const STEPS = [
     fields: [
       { key: 'name', label: 'איך לקרוא לך?', type: 'text', required: false, placeholder: 'לא חובה' },
       {
-        key: 'age', label: 'גיל', type: 'number', unit: 'שנים', min: 10, max: 90,
+        key: 'age', label: 'גיל', type: 'number', unit: 'שנים', min: MIN_AGE, max: MAX_AGE,
         validate: (v) => {
           if (v === null || v === '') return 'צריך גיל כדי לבנות תוכנית בטוחה';
-          if (v < 10 || v > 90) return 'הזן גיל בין 10 ל־90';
+          if (v < MIN_AGE || v > MAX_AGE) return `התוכנית נבנית מגיל ${MIN_AGE} עד ${MAX_AGE}`;
           return null;
         },
       },
@@ -9826,7 +9848,7 @@ function normalizeProfile(input) {
   const p = Object.assign({}, d, input || {});
 
   p.name = String(p.name || '').trim();
-  p.age = clamp(p.age, 10, 90, 30);
+  p.age = clamp(p.age, MIN_AGE, MAX_AGE, 30);
   p.sex = ['male', 'female', 'other'].includes(p.sex) ? p.sex : 'male';
   p.heightCm = clamp(p.heightCm, 120, 220, 175);
   p.weightKg = clamp(p.weightKg, 25, 250, 70);
@@ -12000,6 +12022,8 @@ __m["src/ai/intake.js"] = (function () {
  * a value in one that the form would reject.
  */
 
+const { MIN_AGE, MAX_AGE } = __m["src/engine/age.js"];
+
 const { callTool, AiError } = __m["src/ai/client.js"];
 const { EQUIPMENT_OPTIONS, INJURY_OPTIONS, DIET_OPTIONS } = __m["src/intake/schema.js"];
 
@@ -12166,7 +12190,7 @@ function normalizePatch(raw) {
   const patch = {};
   const put = (k, v) => { if (v !== undefined && v !== '') patch[k] = v; };
 
-  put('age', intIn(r.age, 10, 90));
+  put('age', intIn(r.age, MIN_AGE, MAX_AGE));
   put('sex', oneOf(r.sex, SEXES));
   put('heightCm', intIn(r.heightCm, 120, 220));
   put('weightKg', numIn(r.weightKg, 25, 250));

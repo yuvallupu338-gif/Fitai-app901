@@ -16,6 +16,22 @@
  */
 
 /*
+ * The youngest and oldest the app is built for.
+ *
+ * 12 rather than 10: below that a structured programme is not the right tool
+ * regardless of how it is worded — training is play, PE and a club, and the
+ * questionnaire's whole frame (a goal, a target date, a weekly split) does not
+ * fit a ten-year-old. Everything downstream clamps to these, so a hand-edited
+ * or imported profile cannot smuggle an age the plan was never designed around.
+ *
+ * They live here with the policy thresholds because they were the same bug
+ * waiting to happen: the floor was written as a bare 10 in six files, and a
+ * seventh would have disagreed the moment anybody changed one of them.
+ */
+export const MIN_AGE = 12;
+export const MAX_AGE = 90;
+
+/*
  * Below this, the app does not put a number on food or on the body.
  *
  * A targeted deficit during growth costs height and bone density, and the habit
@@ -71,7 +87,7 @@ export const STILL_DEVELOPING_UNTIL = 23;
 /** True when some of a body-composition goal will close without training. */
 export function stillDeveloping(profile) {
   const a = ageOf(profile);
-  return a !== null && a >= 10 && a < STILL_DEVELOPING_UNTIL;
+  return a !== null && a >= MIN_AGE && a < STILL_DEVELOPING_UNTIL;
 }
 
 function ageOf(profile) {
@@ -150,7 +166,7 @@ export function hidesBodyReading(profile) {
  */
 export function growthAllowanceKgPerWeek(profile) {
   const a = ageOf(profile);
-  if (a === null || a < 10) return 0;
+  if (a === null || a < MIN_AGE) return 0;
   if (a <= 15) return 0.09;            // through the spurt
   if (a >= 20) return 0;               // skeleton is done
   return 0.09 * ((20 - a) / 5);        // taper across 16-19

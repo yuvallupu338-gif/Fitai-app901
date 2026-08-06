@@ -6,7 +6,7 @@
  * declared here; adding a question needs no UI change.
  */
 
-import { withholdsPhotoScan } from '../engine/age.js';
+import { withholdsPhotoScan, MIN_AGE, MAX_AGE } from '../engine/age.js';
 
 import { emphasisFrom, confidenceHe } from '../vision/apply.js';
 import { candidates } from '../data/exercises.index.js';
@@ -168,10 +168,10 @@ export const STEPS = [
     fields: [
       { key: 'name', label: 'איך לקרוא לך?', type: 'text', required: false, placeholder: 'לא חובה' },
       {
-        key: 'age', label: 'גיל', type: 'number', unit: 'שנים', min: 10, max: 90,
+        key: 'age', label: 'גיל', type: 'number', unit: 'שנים', min: MIN_AGE, max: MAX_AGE,
         validate: (v) => {
           if (v === null || v === '') return 'צריך גיל כדי לבנות תוכנית בטוחה';
-          if (v < 10 || v > 90) return 'הזן גיל בין 10 ל־90';
+          if (v < MIN_AGE || v > MAX_AGE) return `התוכנית נבנית מגיל ${MIN_AGE} עד ${MAX_AGE}`;
           return null;
         },
       },
@@ -678,7 +678,7 @@ export function normalizeProfile(input) {
   const p = Object.assign({}, d, input || {});
 
   p.name = String(p.name || '').trim();
-  p.age = clamp(p.age, 10, 90, 30);
+  p.age = clamp(p.age, MIN_AGE, MAX_AGE, 30);
   p.sex = ['male', 'female', 'other'].includes(p.sex) ? p.sex : 'male';
   p.heightCm = clamp(p.heightCm, 120, 220, 175);
   p.weightKg = clamp(p.weightKg, 25, 250, 70);

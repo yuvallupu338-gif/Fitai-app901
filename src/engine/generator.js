@@ -18,6 +18,8 @@
  * not ours. Nothing here uses Math.random(); variety comes from hashProfile().
  */
 
+import { MIN_AGE, MAX_AGE } from './age.js';
+
 import {
   candidates, candidatesOrFallback, conflictsInjury, hashProfile, rotate,
 } from '../data/exercises.index.js';
@@ -779,7 +781,7 @@ function roleFor(pattern, compoundIndex) {
 function desiredLevel(profile, role) {
   const base = { beginner: 1.7, returning: 2.4, intermediate: 3.2, advanced: 4.2 }[experienceOf(profile)];
   const byRole = { skill: 0.5, main: 0.3, secondary: 0, accessory: -0.3, core: 0, finisher: -0.3 }[role] || 0;
-  const age = clampInt(profile.age, 10, 90, 30);
+  const age = clampInt(profile.age, MIN_AGE, MAX_AGE, 30);
   const injuries = (profile.injuries || []).length;
   let out = base + byRole;
   if (age >= 60) out -= 0.7;
@@ -1035,7 +1037,7 @@ function noteFor(profile, ex, slot, risky) {
   }
 
   let note = baseNote(profile, ex, slot);
-  const age = clampInt(profile.age, 10, 90, 30);
+  const age = clampInt(profile.age, MIN_AGE, MAX_AGE, 30);
   if (slot.role === 'main' && age < 16 && ex.level >= 3) {
     note = `${note} בגיל הזה טכניקה קודמת למשקל.`;
   } else if (ex.unilateral && slot.role !== 'core' && note.indexOf('לכל צד') < 0) {
@@ -1128,7 +1130,7 @@ function buildCooldown(profile) {
 
 function buildNotes(profile, ctx) {
   const out = [];
-  const age = clampInt(profile.age, 10, 90, 30);
+  const age = clampInt(profile.age, MIN_AGE, MAX_AGE, 30);
   const sleep = numOr(profile.sleepHours, 7.5);
   const stress = clampInt(profile.stress, 1, 5, 3);
   const injuries = profile.injuries || [];

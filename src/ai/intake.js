@@ -24,6 +24,8 @@
  * a value in one that the form would reject.
  */
 
+import { MIN_AGE, MAX_AGE } from '../engine/age.js';
+
 import { callTool, AiError } from './client.js';
 import { EQUIPMENT_OPTIONS, INJURY_OPTIONS, DIET_OPTIONS } from '../intake/schema.js';
 
@@ -190,7 +192,7 @@ export function normalizePatch(raw) {
   const patch = {};
   const put = (k, v) => { if (v !== undefined && v !== '') patch[k] = v; };
 
-  put('age', intIn(r.age, 10, 90));
+  put('age', intIn(r.age, MIN_AGE, MAX_AGE));
   put('sex', oneOf(r.sex, SEXES));
   put('heightCm', intIn(r.heightCm, 120, 220));
   put('weightKg', numIn(r.weightKg, 25, 250));

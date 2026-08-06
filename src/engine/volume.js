@@ -12,6 +12,8 @@
  *   3. The plan is the smaller of the two, and the note says which one bound it.
  */
 
+import { MIN_AGE, MAX_AGE } from './age.js';
+
 /* Groups the whole engine talks in. These keys are the weeklyVolume() result. */
 const GROUPS = ['push', 'pull', 'legs', 'core', 'arms', 'shoulders', 'calves', 'conditioning'];
 const MAJORS = ['push', 'pull', 'legs'];
@@ -130,7 +132,7 @@ export function sessionBudget(profile) {
 
 function factors(profile, days, minutes) {
   const exp = experienceOf(profile);
-  const age = clampInt(profile.age, 10, 90, 30);
+  const age = clampInt(profile.age, MIN_AGE, MAX_AGE, 30);
   const sleep = num(profile.sleepHours, 7.5);
   const stress = clampInt(profile.stress, 1, 5, 3);
 

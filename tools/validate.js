@@ -697,6 +697,55 @@ try {
   } catch (e) { err(`age-reaches-output check could not run: ${e.message}`); }
 }
 
+/*
+ * The age bounds come from one place, and hold at every layer.
+ *
+ * The floor was a bare 10 in six files — the questionnaire's min, its validate,
+ * normalizeProfile's clamp, two engines and the free-text parser. Moving the app
+ * to 12 meant changing all six, and a seventh written later would have
+ * disagreed silently: the field would refuse 11 while the engine happily planned
+ * for it.
+ *
+ * Checked at the three layers that can each let an age through on their own —
+ * what the form accepts, what normalizeProfile stores, and what the free-text
+ * parser extracts.
+ */
+{
+  try {
+    const age = await load('src/engine/age.js');
+    const schema = await load('src/intake/schema.js');
+    const MIN = age.MIN_AGE;
+    const MAX = age.MAX_AGE;
+    if (!(MIN >= 12 && MIN < MAX && MAX <= 120)) err(`age bounds look wrong: ${MIN}-${MAX}`);
+
+    let field = null;
+    for (const step of schema.STEPS || []) {
+      for (const f of step.fields || []) if (f.key === 'age') field = f;
+    }
+    if (!field) { err('the questionnaire has no age field'); }
+    else {
+      if (field.min !== MIN || field.max !== MAX) {
+        err(`the age field accepts ${field.min}-${field.max} but the rule is ${MIN}-${MAX}`);
+      }
+      for (const bad of [MIN - 1, MAX + 1]) {
+        if (!field.validate(bad)) err(`the age field accepts ${bad}, outside ${MIN}-${MAX}`);
+      }
+      for (const good of [MIN, MAX]) {
+        if (field.validate(good)) err(`the age field rejects ${good}, which is inside ${MIN}-${MAX}`);
+      }
+    }
+
+    // normalizeProfile is the last line: an imported profile must be clamped.
+    for (const bad of [3, MIN - 1, MAX + 1, 200]) {
+      const got = schema.normalizeProfile(Object.assign(schema.defaults(), { age: bad })).age;
+      if (got < MIN || got > MAX) {
+        err(`normalizeProfile let age ${bad} through as ${got} — an imported profile can `
+          + `smuggle an age the plan was never designed around`);
+      }
+    }
+  } catch (e) { err(`age-bounds check could not run: ${e.message}`); }
+}
+
 /* ---------------- clips ---------------- */
 
 const clipFiles = existsSync(resolve(ROOT, 'src/data'))
