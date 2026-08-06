@@ -525,7 +525,22 @@ const WARMUP_FOR = {
 };
 
 const WARMUP_LEAD = ['march_in_place', 'jumping_jack', 'jog', 'jump_rope'];
-const COOLDOWN_IDS = ['childs_pose_reach', 'hip_flexor_stretch_kneeling', 'deep_squat_hold', 'cat_cow'];
+/*
+ * Ordered by preference, and long enough that filtering can bite.
+ *
+ * The first three are the ones worth doing and they are also the three that a
+ * knee, hip or shoulder rules out — a deep squat is full knee flexion, kneeling
+ * puts bodyweight on the front of the knee, and child's pose is both deep knee
+ * flexion and end-range shoulder overhead. Until those carried
+ * contraindications the filter had nothing to remove and every trainee got the
+ * identical four lines; now that they do, the list needs somewhere to fall back
+ * to or a guarded knee ends the session with one stretch and a breath.
+ */
+const COOLDOWN_IDS = [
+  'childs_pose_reach', 'hip_flexor_stretch_kneeling', 'deep_squat_hold',
+  'cat_cow', 'hip_switch_90_90', 'thoracic_rotation', 'glute_bridge_activation',
+  'torso_twist_standing', 'shoulder_circles',
+];
 
 const DEFAULT_DAYS = {
   2: [0, 3], 3: [0, 2, 4], 4: [0, 1, 3, 4], 5: [0, 1, 2, 3, 4], 6: [0, 1, 2, 3, 4, 5],

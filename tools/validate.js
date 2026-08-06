@@ -522,6 +522,67 @@ try {
   } catch (e) { err(`logo check could not run: ${e.message}`); }
 }
 
+/*
+ * The cool-down has to respect an injury too, and still be a cool-down.
+ *
+ * It runs through the same candidate filter as everything else, so it looked
+ * safe — but the three stretches it reaches for first carried no
+ * contraindications, so the filter had nothing to remove and every trainee got
+ * the identical four lines. A guarded knee was being sent into a deep squat hold
+ * and onto its knee for a hip-flexor stretch.
+ *
+ * Both halves are checked: nothing contraindicated survives, AND the list does
+ * not collapse to a breathing drill once the filtering starts working.
+ */
+{
+  try {
+    const gen = await load('src/engine/generator.js');
+    const schema = await load('src/intake/schema.js');
+    const idx = await load('src/data/exercises.index.js');
+    const byName = new Map(idx.EXERCISES.map((e) => [e.name, e]));
+
+    /*
+     * Stated here rather than read from the exercise's own contraindications,
+     * because reading them would make this circular: deleting a tag would make
+     * the filter and the check agree that nothing is wrong. These are claims
+     * about the movements themselves — a deep squat is full knee flexion and
+     * full ankle dorsiflexion, kneeling puts bodyweight on the front of the
+     * knee, child's pose is deep knee flexion plus end-range shoulder overhead.
+     */
+    const MUST_NOT = {
+      deep_squat_hold: ['knee', 'ankle'],
+      hip_flexor_stretch_kneeling: ['knee', 'hip'],
+      childs_pose_reach: ['knee', 'shoulder'],
+      passive_bar_hang: ['shoulder'],
+    };
+    const SETS = [[], ['knee'], ['ankle'], ['hip'], ['shoulder'], ['lower_back'],
+      ['knee', 'shoulder'], ['knee', 'ankle', 'hip', 'shoulder', 'lower_back']];
+
+    for (const injuries of SETS) {
+      const p = schema.normalizeProfile(Object.assign(schema.defaults(), {
+        age: 30, heightCm: 178, weightKg: 76, goal: 'muscle', experience: 'intermediate',
+        daysPerWeek: 4, minutesPerSession: 60, location: 'full_gym', injuries,
+      }));
+      const cd = gen.generateProgram(p).cooldown || [];
+      const label = injuries.join('+') || 'no injuries';
+
+      if (cd.length < 3) {
+        err(`${label}: the cool-down is down to ${cd.length} item(s) — filtering must not `
+          + `leave someone with nothing but a breathing drill`);
+      }
+      for (const item of cd) {
+        const ex = byName.get(item.name);
+        if (!ex) continue;   // the closing breath is not an exercise
+        const banned = MUST_NOT[ex.id] || [];
+        const clash = banned.filter((c) => injuries.includes(c));
+        if (clash.length) {
+          err(`${label}: the cool-down includes "${ex.name}", which loads ${clash.join('+')}`);
+        }
+      }
+    }
+  } catch (e) { err(`cool-down check could not run: ${e.message}`); }
+}
+
 /* ---------------- clips ---------------- */
 
 const clipFiles = existsSync(resolve(ROOT, 'src/data'))
