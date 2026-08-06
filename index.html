@@ -379,6 +379,17 @@ function esc(value) {
     .replace(/"/g, '&quot;').replace(/'/g, '&#39;');
 }
 
+/**
+ * מנרמל תוצאת embed של PostgREST למערך.
+ *
+ * יחס "אחד לאחד" (למשל תגובה יחידה לביקורת) מוחזר כאובייקט ולא כמערך,
+ * ולכן קריאה ישירה ל־map הייתה נכשלת בדיוק על השורות שיש בהן תוכן.
+ */
+function asArray(value) {
+  if (Array.isArray(value)) return value;
+  return value ? [value] : [];
+}
+
 const $ = (sel, root = document) => root.querySelector(sel);
 const $$ = (sel, root = document) => Array.from(root.querySelectorAll(sel));
 
@@ -974,22 +985,23 @@ function passwordStrength(value) {
 }
 
 /* ---------- הרשמה ---------- */
-async function screenRegister() {
+/**
+ * ההרשמה מבקשת רק את ההכרחי: שם, שם משתמש וסיסמה שהמשתמש ממציא.
+ * העיר נבחרת מאוחר יותר בהגדרות הפרופיל, וההפיכה לבעל עסק נעשית משם.
+ */
+function screenRegister() {
   if (session) { location.hash = '#/'; return ''; }
 
-  const cities = await call(db.from('cities').select('id,name,district')
-    .eq('is_active', true).order('population', { ascending: false, nullsFirst: false }).limit(400));
-
-  setTimeout(() => bindRegisterForm(cities));
+  setTimeout(bindRegisterForm);
 
   return `
-    <div style="max-width:460px;margin-inline:auto">
-      ${pageHeader('יצירת חשבון', 'בלי אימייל ובלי אימות טלפון. רק שם משתמש וסיסמה.')}
+    <div style="max-width:420px;margin-inline:auto">
+      ${pageHeader('יצירת חשבון', 'בלי אימייל ובלי אימות טלפון — רק שם וסיסמה')}
       <form class="card p stack" id="form-register" novalidate>
         <p class="err" id="reg-error" role="alert"></p>
 
         <div class="field">
-          <label for="fullName">שם מלא *</label>
+          <label for="fullName">השם שלכם *</label>
           <input class="input" id="fullName" autocomplete="name" required />
           <p class="err" id="err-fullName"></p>
         </div>
@@ -997,18 +1009,8 @@ async function screenRegister() {
         <div class="field">
           <label for="reg-username">שם משתמש *</label>
           <input class="input" id="reg-username" autocomplete="username" required />
-          <p class="hint">באמצעותו תתחברו לאפליקציה. אפשר בעברית או באנגלית.</p>
+          <p class="hint">זה השם שאיתו תתחברו. אפשר להמציא — בעברית או באנגלית.</p>
           <p class="sm" id="username-status" aria-live="polite"></p>
-        </div>
-
-        <div class="field">
-          <label for="city">עיר מגורים *</label>
-          <input class="input" id="city" list="city-list" placeholder="התחילו להקליד…" autocomplete="address-level2" required />
-          <datalist id="city-list">
-            ${cities.map((c) => `<option value="${esc(c.name)}">${esc(c.district || '')}</option>`).join('')}
-          </datalist>
-          <p class="hint">נשתמש בעיר כדי להציג בעלי מקצוע ופוסטים רלוונטיים. אפשר לשנות בהגדרות.</p>
-          <p class="err" id="err-city"></p>
         </div>
 
         <div class="field">
@@ -1034,18 +1036,16 @@ async function screenRegister() {
           <p class="err" id="err-confirm"></p>
         </div>
 
-        <div class="field">
-          <label for="birthDate">תאריך לידה (רשות)</label>
-          <input class="input" id="birthDate" type="date" />
-          <p class="hint">עוזר לנו להגן על משתמשים מתחת לגיל 18 בהזמנות ביקורי בית.</p>
-        </div>
-
         <label class="row" style="align-items:flex-start;gap:.5rem;font-weight:400">
           <input type="checkbox" id="terms" required style="margin-top:.3rem" />
           <span class="sm">אני מאשר/ת את תנאי השימוש ומתחייב/ת לא לפרסם תמונות של לקוחות ללא הסכמתם.</span>
         </label>
 
         <button class="btn block" id="reg-submit" type="submit">יצירת חשבון</button>
+
+        <p class="tiny muted center">
+          את העיר ואת שאר הפרטים אפשר להשלים אחר כך בהגדרות הפרופיל.
+        </p>
       </form>
 
       <p class="center muted sm" style="margin-top:1rem">
@@ -1054,7 +1054,7 @@ async function screenRegister() {
     </div>`;
 }
 
-function bindRegisterForm(cities) {
+function bindRegisterForm() {
   bindPasswordToggle();
 
   const password = $('#reg-password');
@@ -1102,16 +1102,11 @@ function bindRegisterForm(cities) {
 
     const fullName = $('#fullName').value.trim();
     const username = $('#reg-username').value.trim();
-    const cityName = $('#city').value.trim();
     const pass = $('#reg-password').value;
     const confirm = $('#confirm').value;
-    const birthDate = $('#birthDate').value || null;
-
-    const city = cities.find((c) => c.name === cityName);
     let bad = false;
 
-    if (fullName.length < 2) { $('#err-fullName').textContent = 'יש להזין שם מלא'; bad = true; }
-    if (!city) { $('#err-city').textContent = 'יש לבחור עיר מהרשימה'; bad = true; }
+    if (fullName.length < 2) { $('#err-fullName').textContent = 'יש להזין שם'; bad = true; }
     if (!passwordStrength(pass).ok) { errorBox.textContent = 'הסיסמה חייבת לכלול שמונה תווים, אות וספרה'; bad = true; }
     if (pass !== confirm) { $('#err-confirm').textContent = 'הסיסמאות אינן זהות'; bad = true; }
     if (!$('#terms').checked) { errorBox.textContent = 'יש לאשר את תנאי השימוש'; bad = true; }
@@ -1119,8 +1114,7 @@ function bindRegisterForm(cities) {
 
     await withBusy($('#reg-submit'), async () => {
       const { data, error } = await db.rpc('auth_register', {
-        p_full_name: fullName, p_username: username, p_city_id: city.id,
-        p_password: pass, p_birth_date: birthDate,
+        p_full_name: fullName, p_username: username, p_password: pass,
       });
       if (error) { errorBox.textContent = errorMessage(error); return; }
 
@@ -1162,24 +1156,19 @@ function showRecoveryCode(code, isNew) {
     catch { toastBad('ההעתקה נכשלה — אפשר לסמן ולהעתיק ידנית'); }
   });
   $('#saved-it').addEventListener('change', (e) => { $('#code-continue').disabled = !e.target.checked; });
-  $('#code-continue').addEventListener('click', () => {
-    if (isNew) askProfessionalQuestion();
-    else { location.hash = '#/settings'; router(); }
-  });
-}
 
-/** השאלה שנשאלת פעם אחת אחרי ההרשמה. */
-function askProfessionalQuestion() {
-  $('#main').innerHTML = `
-    <div class="fade" style="max-width:460px;margin-inline:auto">
-      ${pageHeader('עוד שאלה אחת')}
-      <section class="card p stack">
-        <h2>האם תרצו להוסיף את עצמכם גם כבעלי מקצוע?</h2>
-        <p class="sm muted">אפשר תמיד לשנות את זה מאוחר יותר. אותו חשבון משמש לשני המצבים.</p>
-        <button class="btn block" onclick="location.hash='#/onboarding'">כן — צרו לי פרופיל של בעל מקצוע</button>
-        <button class="btn outline block" onclick="location.hash='#/'; router()">לא כרגע — המשך כמשתמש רגיל</button>
-      </section>
-    </div>`;
+  // אחרי ההרשמה נכנסים ישר לאפליקציה. השלמת הפרטים וההפיכה לבעל עסק
+  // מחכות בהגדרות הפרופיל, ולא עוצרות את המשתמש בכניסה הראשונה.
+  $('#code-continue').addEventListener('click', () => {
+    if (isNew) {
+      location.hash = '#/';
+      router();
+      toastOk('ברוכים הבאים! אפשר להשלים פרטים בהגדרות');
+    } else {
+      location.hash = '#/settings';
+      router();
+    }
+  });
 }
 
 /* ---------- שחזור סיסמה ---------- */
@@ -2018,8 +2007,8 @@ function renderUserProfile(profile, isFollowing, isMe, draftPro) {
         <div class="row wrap">
           <a class="btn outline grow" href="#/settings">עריכת פרופיל</a>
           ${draftPro
-            ? `<a class="btn grow" href="#/onboarding">השלמת הפרופיל המקצועי</a>`
-            : `<a class="btn grow" href="#/onboarding">הפיכה לבעל/ת מקצוע</a>`}
+            ? `<a class="btn grow" href="#/onboarding">השלמת הפרופיל העסקי</a>`
+            : `<a class="btn grow" href="#/settings">פתיחת פרופיל עסקי</a>`}
         </div>`
         : session ? `
         <div class="row wrap">
@@ -2264,7 +2253,7 @@ async function renderProfessionalProfile(profile, pro, isFollowing, isMe) {
           </div>
           ${r.body ? `<p class="sm">${esc(r.body)}</p>` : ''}
           <span class="badge ok">הזמנה מאומתת</span>
-          ${(r.review_replies || []).map((reply) => `
+          ${asArray(r.review_replies).map((reply) => `
             <div class="card p sm" style="background:hsl(var(--muted));box-shadow:none">
               <strong class="tiny">תגובת בעל המקצוע</strong>
               <p>${esc(reply.body)}</p></div>`).join('')}
@@ -4352,7 +4341,7 @@ async function screenSettings() {
         const { error } = await db.from('profiles').update({
           full_name: $('#st-name').value.trim(),
           bio: $('#st-bio').value.trim() || null,
-          city_id: $('#st-city').value,
+          city_id: $('#st-city').value || null,
         }).eq('id', myId());
         if (error) { toastBad(errorMessage(error)); return; }
         await restoreSession();
@@ -4375,18 +4364,30 @@ async function screenSettings() {
   return `
     ${pageHeader('הגדרות')}
 
-    <section class="card p stack">
+    ${profile.city_id ? '' : `
+      <section class="card p row" style="background:hsl(var(--accent));align-items:flex-start">
+        <span style="font-size:1.3rem">📍</span>
+        <span class="grow sm">
+          <strong>הוסיפו את העיר שלכם</strong>
+          <span class="tiny" style="display:block">
+            בעזרתה נציג לכם בעלי מקצוע ופוסטים מהאזור. אפשר לשנות בכל רגע.</span>
+        </span>
+      </section>`}
+
+    <section class="card p stack" ${profile.city_id ? '' : 'style="margin-top:.75rem"'}>
       <h2>הפרופיל שלי</h2>
-      <div class="field"><label for="st-name">שם מלא</label>
+      <div class="field"><label for="st-name">השם שלי</label>
         <input class="input" id="st-name" value="${esc(profile.full_name)}" /></div>
       <div class="field"><label>שם משתמש</label>
         <input class="input" value="${esc(profile.username)}" disabled />
         <p class="hint">שם המשתמש קבוע ואינו ניתן לשינוי.</p></div>
-      <div class="field"><label for="st-city">עיר</label>
+      <div class="field"><label for="st-city">עיר מגורים</label>
         <select class="input" id="st-city">
+          <option value="">לא נבחרה עיר</option>
           ${cities.map((c) => `<option value="${esc(c.id)}"
             ${c.id === profile.city_id ? 'selected' : ''}>${esc(c.name)}</option>`).join('')}
-        </select></div>
+        </select>
+        <p class="hint">משמשת להצגת בעלי מקצוע ופוסטים רלוונטיים לאזור שלכם.</p></div>
       <div class="field"><label for="st-bio">קצת עליי</label>
         <textarea class="input" id="st-bio" maxlength="500">${esc(profile.bio || '')}</textarea></div>
       <button class="btn block" id="save-profile">שמירת השינויים</button>
@@ -4409,11 +4410,15 @@ async function screenSettings() {
     </section>
 
     <section class="card p stack" style="margin-top:1rem">
-      <h2>מצב בעל מקצוע</h2>
+      <h2>בעל/ת עסק</h2>
       ${isPro()
-        ? `<a class="btn outline block" href="#/pro">לוח הבקרה המקצועי</a>
-           <a class="btn outline block" href="#/onboarding">עריכת הפרופיל המקצועי</a>`
-        : `<a class="btn block" href="#/onboarding">הפיכה לבעל/ת מקצוע</a>`}
+        ? `<p class="sm muted">יש לכם פרופיל עסקי פעיל. אותו חשבון משמש לשני המצבים.</p>
+           <a class="btn outline block" href="#/pro">לוח הבקרה המקצועי</a>
+           <a class="btn outline block" href="#/onboarding">עריכת הפרופיל העסקי</a>`
+        : `<p class="sm">רוצים לקבל לקוחות דרך האפליקציה? פתחו פרופיל עסקי —
+             פרסמו את העבודות שלכם, קבעו מחירים וקבלו הזמנות.</p>
+           <p class="tiny muted">אותו חשבון משמש לשני המצבים, ואפשר לחזור אחורה בכל שלב.</p>
+           <a class="btn block" href="#/onboarding">אני בעל/ת עסק — פתיחת פרופיל עסקי</a>`}
     </section>
 
     ${me()?.role === 'admin' ? `<section class="card p stack" style="margin-top:1rem">

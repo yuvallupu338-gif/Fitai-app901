@@ -76,9 +76,12 @@ export async function registerAction(input: unknown): Promise<ActionResult<Regis
       return fail('שם המשתמש כבר תפוס', { username: ['שם המשתמש כבר תפוס'] });
     }
 
-    const { data: city } = await admin.from('cities').select('id').eq('id', cityId).maybeSingle();
-    if (!city) {
-      return fail('יש לבחור עיר מהרשימה', { cityId: ['יש לבחור עיר מהרשימה'] });
+    // העיר אינה חובה בהרשמה. אם נשלחה – היא חייבת להיות אמיתית.
+    if (cityId) {
+      const { data: city } = await admin.from('cities').select('id').eq('id', cityId).maybeSingle();
+      if (!city) {
+        return fail('יש לבחור עיר מהרשימה', { cityId: ['יש לבחור עיר מהרשימה'] });
+      }
     }
 
     const bootstrapAdmin =
@@ -90,7 +93,7 @@ export async function registerAction(input: unknown): Promise<ActionResult<Regis
       .insert({
         username,
         full_name: fullName,
-        city_id: cityId,
+        city_id: cityId ?? null,
         password_hash: await hashPassword(password),
         avatar_url: avatarUrl ?? null,
         birth_date: birthDate || null,

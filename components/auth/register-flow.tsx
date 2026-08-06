@@ -5,7 +5,7 @@ import { useRouter } from 'next/navigation';
 import { useForm } from 'react-hook-form';
 import { zodResolver } from '@hookform/resolvers/zod';
 import { toast } from 'sonner';
-import { AlertCircle, Check, Copy, Loader2, ShieldCheck, Sparkles, UserRound, X } from 'lucide-react';
+import { AlertCircle, Check, Copy, Loader2, ShieldCheck, X } from 'lucide-react';
 import { Button } from '@/components/ui/button';
 import { Input } from '@/components/ui/input';
 import { Checkbox } from '@/components/ui/checkbox';
@@ -13,16 +13,18 @@ import { Label } from '@/components/ui/label';
 import { Field } from '@/components/ui/field';
 import { Card } from '@/components/ui/card';
 import { PasswordInput, PasswordStrength } from '@/components/shared/password-input';
-import { CityCombobox } from '@/components/shared/city-combobox';
 import { SingleImageUploader } from '@/components/shared/image-uploader';
 import { registerSchema, type RegisterInput } from '@/lib/validations';
 import { checkUsernameAvailability, registerAction } from '@/lib/actions/auth';
-import type { City } from '@/types/app';
-import { cn } from '@/lib/utils';
 
-type Step = 'details' | 'recovery' | 'role';
+type Step = 'details' | 'recovery';
 
-export function RegisterFlow({ cities }: { cities: City[] }) {
+/**
+ * ההרשמה כוללת שני שלבים בלבד: פרטים וקוד השחזור.
+ * השלמת הפרופיל וההפיכה לבעל עסק מחכות בהגדרות ואינן עוצרות
+ * את המשתמש בכניסה הראשונה.
+ */
+export function RegisterFlow() {
   const router = useRouter();
   const [step, setStep] = React.useState<Step>('details');
   const [recoveryCode, setRecoveryCode] = React.useState('');
@@ -32,18 +34,13 @@ export function RegisterFlow({ cities }: { cities: City[] }) {
     return (
       <RecoveryCodeStep
         code={recoveryCode}
-        onContinue={() => setStep('role')}
+        onContinue={() => { router.push('/'); router.refresh(); }}
       />
     );
   }
 
-  if (step === 'role') {
-    return <RoleChoiceStep onChoose={(path) => { router.push(path); router.refresh(); }} />;
-  }
-
   return (
     <DetailsStep
-      cities={cities}
       serverError={serverError}
       setServerError={setServerError}
       onSuccess={(code) => {
@@ -59,12 +56,10 @@ export function RegisterFlow({ cities }: { cities: City[] }) {
 // ---------------------------------------------------------------------
 
 function DetailsStep({
-  cities,
   serverError,
   setServerError,
   onSuccess,
 }: {
-  cities: City[];
   serverError: string | null;
   setServerError: (value: string | null) => void;
   onSuccess: (recoveryCode: string) => void;
@@ -87,7 +82,6 @@ function DetailsStep({
 
   const username = form.watch('username');
   const password = form.watch('password');
-  const cityId = form.watch('cityId');
   const avatarUrl = form.watch('avatarUrl');
 
   // בדיקת תפיסת שם המשתמש תוך כדי הקלדה (עם השהיה קצרה).
@@ -201,22 +195,6 @@ function DetailsStep({
           <p className="-mt-2 text-xs font-medium text-success">שם המשתמש פנוי 🎉</p>
         ) : null}
 
-        <Field
-          label="עיר מגורים"
-          htmlFor="cityId"
-          required
-          error={form.formState.errors.cityId?.message}
-          hint="נשתמש בעיר כדי להציג בעלי מקצוע ופוסטים רלוונטיים. אפשר לשנות בהגדרות."
-        >
-          <CityCombobox
-            id="cityId"
-            cities={cities}
-            value={cityId || null}
-            onChange={(id) => form.setValue('cityId', id ?? '', { shouldValidate: true })}
-            invalid={Boolean(form.formState.errors.cityId)}
-          />
-        </Field>
-
         <Field label="סיסמה" htmlFor="password" required error={form.formState.errors.password?.message}>
           <PasswordInput id="password" autoComplete="new-password" {...form.register('password')} />
         </Field>
@@ -229,14 +207,6 @@ function DetailsStep({
           error={form.formState.errors.confirmPassword?.message}
         >
           <PasswordInput id="confirmPassword" autoComplete="new-password" {...form.register('confirmPassword')} />
-        </Field>
-
-        <Field
-          label="תאריך לידה (רשות)"
-          htmlFor="birthDate"
-          hint="עוזר לנו להגן על משתמשים מתחת לגיל 18 בהזמנות ביקורי בית."
-        >
-          <Input id="birthDate" type="date" max={new Date().toISOString().slice(0, 10)} {...form.register('birthDate')} />
         </Field>
 
         <div className="flex items-start gap-2">
@@ -258,6 +228,10 @@ function DetailsStep({
         <Button type="submit" block size="lg" loading={form.formState.isSubmitting}>
           יצירת חשבון
         </Button>
+
+        <p className="text-center text-xs text-muted-foreground">
+          את העיר ואת שאר הפרטים אפשר להשלים אחר כך בהגדרות הפרופיל.
+        </p>
       </form>
     </>
   );
@@ -340,67 +314,6 @@ function RecoveryCodeStep({ code, onContinue }: { code: string; onContinue: () =
           המשך
         </Button>
       </Card>
-    </div>
-  );
-}
-
-// ---------------------------------------------------------------------
-// שלב 3 – משתמש רגיל או בעל מקצוע
-// ---------------------------------------------------------------------
-
-function RoleChoiceStep({ onChoose }: { onChoose: (path: string) => void }) {
-  const options = [
-    {
-      key: 'user',
-      title: 'לא כרגע – המשך כמשתמש רגיל',
-      description: 'לגלות בעלי מקצוע, לעקוב, לשמור עבודות ולהזמין טיפולים. תמיד אפשר להוסיף פרופיל מקצועי בהגדרות.',
-      icon: UserRound,
-      path: '/',
-    },
-    {
-      key: 'pro',
-      title: 'כן – צור לי פרופיל של בעל מקצוע',
-      description: 'לפרסם את העבודות שלך, לקבל עוקבים, לנהל שירותים ומחירים ולקבל הזמנות ומפגשים קבועים.',
-      icon: Sparkles,
-      path: '/pro/onboarding',
-    },
-  ] as const;
-
-  return (
-    <div className="space-y-6 animate-fade-in-up">
-      <div className="space-y-2 text-center">
-        <h1 className="text-2xl font-bold">האם תרצה להוסיף את עצמך גם כבעל מקצוע?</h1>
-        <p className="text-sm text-muted-foreground">
-          אותו חשבון משמש לשני המצבים – אין צורך בשני חשבונות נפרדים.
-        </p>
-      </div>
-
-      <div className="space-y-3">
-        {options.map((option) => (
-          <button
-            key={option.key}
-            type="button"
-            onClick={() => onChoose(option.path)}
-            className={cn(
-              'surface surface-hover flex w-full items-start gap-4 p-5 text-start',
-              option.key === 'pro' && 'border-primary/40 bg-primary/5',
-            )}
-          >
-            <span
-              className={cn(
-                'flex size-11 shrink-0 items-center justify-center rounded-2xl',
-                option.key === 'pro' ? 'bg-primary text-primary-foreground' : 'bg-muted text-muted-foreground',
-              )}
-            >
-              <option.icon className="size-5" aria-hidden />
-            </span>
-            <span className="space-y-1">
-              <span className="block font-semibold">{option.title}</span>
-              <span className="block text-sm text-muted-foreground">{option.description}</span>
-            </span>
-          </button>
-        ))}
-      </div>
     </div>
   );
 }

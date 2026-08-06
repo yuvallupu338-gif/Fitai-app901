@@ -21,15 +21,23 @@ export const passwordSchema = z
   .regex(/[A-Za-zא-ת]/, 'הסיסמה חייבת להכיל לפחות אות אחת')
   .regex(/\d/, 'הסיסמה חייבת להכיל לפחות ספרה אחת');
 
+/**
+ * ההרשמה מבקשת רק את ההכרחי: שם, שם משתמש וסיסמה.
+ * העיר נבחרת מאוחר יותר בהגדרות הפרופיל, ולכן היא רשות כאן.
+ */
 export const registerSchema = z
   .object({
     fullName: z
-      .string({ required_error: 'שם מלא הוא שדה חובה' })
+      .string({ required_error: 'שם הוא שדה חובה' })
       .trim()
-      .min(2, 'יש להזין שם מלא')
+      .min(2, 'יש להזין שם')
       .max(80, 'השם ארוך מדי'),
     username: usernameSchema,
-    cityId: z.string({ required_error: 'יש לבחור עיר מגורים' }).uuid('יש לבחור עיר מהרשימה'),
+    // מחרוזת ריקה מהטופס נחשבת כ"לא נבחרה עיר" ולא כערך לא תקין.
+    cityId: z.preprocess(
+      (value) => (value === '' || value === undefined ? null : value),
+      z.string().uuid('יש לבחור עיר מהרשימה').nullable(),
+    ),
     password: passwordSchema,
     confirmPassword: z.string({ required_error: 'יש לאמת את הסיסמה' }),
     avatarUrl: z.string().url().optional().nullable(),
