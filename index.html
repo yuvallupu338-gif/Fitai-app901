@@ -4652,23 +4652,43 @@ function renderSetup() {
     <div class="shell" style="max-width:520px">
       <div style="margin-top:2rem">
         <h1 style="text-align:center">💄 יופי</h1>
-        <p class="muted center sm" style="margin-bottom:1rem">חיבור למסד הנתונים</p>
+        <p class="muted center sm" style="margin-bottom:1rem">חיבור חד־פעמי למסד הנתונים</p>
 
-        <section class="card p stack">
-          <p class="sm">כדי להתחיל, הזינו את שני הערכים מ־Supabase:
-            <strong>Project Settings → API</strong>.</p>
+        <section class="card p stack" style="background:hsl(var(--accent))">
+          <h2>למה צריך את זה?</h2>
+          <p class="sm">הקובץ הזה הוא <strong>הממשק</strong> של האפליקציה. המשתמשים,
+            בעלי המקצוע, הפוסטים וההזמנות נשמרים <strong>במסד נתונים</strong> — כך שכל מי
+            שנכנס רואה את אותו מידע מעודכן, וכלום לא נעלם כשסוגרים את הדפדפן.</p>
+          <p class="sm">שתי השורות למטה פשוט אומרות לקובץ <strong>לאיזה מסד להתחבר</strong>.
+            מזינים אותן פעם אחת בלבד.</p>
+        </section>
+
+        <section class="card p stack" style="margin-top:.75rem">
+          <p class="sm"><strong>מאיפה לוקחים את הערכים?</strong></p>
+          <ol class="sm" style="margin:0;padding-inline-start:1.2rem">
+            <li>נכנסים ל־<span dir="ltr">supabase.com</span> ופותחים את הפרויקט שלכם
+              (אם אין — יוצרים אחד, בחינם).</li>
+            <li>בתפריט: <strong>Project Settings → API</strong>.</li>
+            <li>מעתיקים משם את שני הערכים לשדות כאן.</li>
+          </ol>
 
           <div class="field"><label for="cfg-url">Project URL</label>
-            <input class="input" id="cfg-url" dir="ltr" placeholder="https://xxxx.db.co" /></div>
+            <input class="input" id="cfg-url" dir="ltr" placeholder="https://xxxx.supabase.co" /></div>
 
           <div class="field"><label for="cfg-key">anon public key</label>
-            <input class="input" id="cfg-key" dir="ltr" placeholder="eyJhbGciOi…" /></div>
+            <input class="input" id="cfg-key" dir="ltr" placeholder="eyJhbGciOi…" />
+            <p class="hint">המפתח הארוך שמסומן <span dir="ltr">anon</span> / <span dir="ltr">public</span>.</p></div>
 
           <button class="btn block" id="cfg-save">שמירה והתחלה</button>
 
           <p class="tiny muted">
-            שני הערכים האלה ציבוריים ומיועדים לדפדפן. הם מוגנים על ידי Row Level Security.
+            שני הערכים האלה ציבוריים ומיועדים לדפדפן — הם מוגנים על ידי Row Level Security
+            ואינם מאפשרים לראות או לשנות דבר שהמשתמש המחובר אינו רשאי לו.
             <strong>אין להזין כאן את מפתח ה־service_role.</strong>
+          </p>
+          <p class="tiny muted">
+            הערכים נשמרים בדפדפן שלכם בלבד. מפתחים שרוצים לדלג על המסך הזה יכולים לקבע
+            אותם בקוד — ראו את ההערה בראש הקובץ.
           </p>
         </section>
       </div>
