@@ -84,6 +84,99 @@ export const ADULT_FROM = 18;
  */
 export const STILL_DEVELOPING_UNTIL = 23;
 
+/*
+ * Where recovery between sessions measurably slows.
+ *
+ * These two were bare numbers inside the volume model's recovery factor, which
+ * is precisely the shape of bug this file exists to stop: the warm-up needed a
+ * line for "this body takes longer to be ready" and would otherwise have
+ * invented a second one, leaving the app believing recovery slows at 65 in one
+ * engine and 68 in another for the same person.
+ *
+ * They are not a verdict on anybody. Everything above them still trains; the
+ * plan just stops assuming a session can be walked into cold.
+ */
+export const SLOWER_RECOVERY_FROM = 55;
+export const MUCH_SLOWER_RECOVERY_FROM = 65;
+
+/*
+ * Where the plan stops choosing impact for somebody.
+ *
+ * Not the joints — the landing. Skipping, jogging on the spot and jumping jacks
+ * are all decelerations, and deceleration is a balance task before it is a knee
+ * task. This is the same line the rest-day tasks already drew for skipping rope,
+ * and it is shared with them deliberately: two surfaces that both decide whether
+ * to make somebody jump should not disagree about when to stop.
+ *
+ * Nothing here forbids jumping. It stops a generated plan from opening with it
+ * for a trainee who never asked to jump and cannot see why it appeared.
+ */
+export const IMPACT_EASES_FROM = 60;
+
+/*
+ * Where a warm-up stops being allowed to consist entirely of floor work.
+ *
+ * Getting down to the floor and back up is a movement in its own right, and for
+ * a trainee who finds it hard it is the hardest thing in the session — done
+ * eight times, before the training has started. The rule is not that the floor
+ * is banned: floor drills are the good ones and they stay. It is that a standing
+ * alternative must exist, so a warm-up is never a wall a session cannot get past.
+ */
+export const STANDING_OPTION_FROM = MUCH_SLOWER_RECOVERY_FROM;
+
+/*
+ * Below this a body is ready quickly, and a long warm-up costs the session.
+ *
+ * A thirteen-year-old is warm after three minutes of movement; spending seven on
+ * it out of a forty-five minute session buys nothing and takes the time straight
+ * out of the training. Shares its number with HEAVY_LOAD_FROM and is kept
+ * separate for the same reason ADULT_FROM is: they would be edited for different
+ * reasons, and one silently following the other is the bug, not the tidy-up.
+ */
+export const WARMS_FAST_UNTIL = 16;
+
+/** True when the plan should not choose jumping or running for somebody. */
+export function easesImpact(profile) {
+  const a = ageOf(profile);
+  return a !== null && a >= IMPACT_EASES_FROM;
+}
+
+/** True when the warm-up must offer something that is not done on the floor. */
+export function needsStandingOption(profile) {
+  const a = ageOf(profile);
+  return a !== null && a >= STANDING_OPTION_FROM;
+}
+
+/** True when tissue needs longer to be ready, so the warm-up earns more time. */
+export function needsLongerWarmup(profile) {
+  const a = ageOf(profile);
+  return a !== null && a >= SLOWER_RECOVERY_FROM;
+}
+
+/** True when a body warms quickly and a long warm-up is time taken from training. */
+export function warmsFast(profile) {
+  const a = ageOf(profile);
+  return a !== null && a >= MIN_AGE && a < WARMS_FAST_UNTIL;
+}
+
+/**
+ * How long to hold a cool-down stretch, in seconds.
+ *
+ * Shorter holds do less as tissue gets stiffer with age, and the cool-down is
+ * the one place in the session where spending another twenty seconds costs
+ * nothing. The young end is not shortened for safety — it is shortened because a
+ * thirteen-year-old will not hold a stretch for fifty seconds, and printing a
+ * number nobody follows is worse than printing one they do.
+ */
+export function stretchHoldSeconds(profile) {
+  const a = ageOf(profile);
+  if (a === null) return 40;
+  if (a < WARMS_FAST_UNTIL) return 25;
+  if (a >= MUCH_SLOWER_RECOVERY_FROM) return 50;
+  if (a >= SLOWER_RECOVERY_FROM) return 45;
+  return 40;
+}
+
 /** True when some of a body-composition goal will close without training. */
 export function stillDeveloping(profile) {
   const a = ageOf(profile);

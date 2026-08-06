@@ -1521,6 +1521,99 @@ const ADULT_FROM = 18;
  */
 const STILL_DEVELOPING_UNTIL = 23;
 
+/*
+ * Where recovery between sessions measurably slows.
+ *
+ * These two were bare numbers inside the volume model's recovery factor, which
+ * is precisely the shape of bug this file exists to stop: the warm-up needed a
+ * line for "this body takes longer to be ready" and would otherwise have
+ * invented a second one, leaving the app believing recovery slows at 65 in one
+ * engine and 68 in another for the same person.
+ *
+ * They are not a verdict on anybody. Everything above them still trains; the
+ * plan just stops assuming a session can be walked into cold.
+ */
+const SLOWER_RECOVERY_FROM = 55;
+const MUCH_SLOWER_RECOVERY_FROM = 65;
+
+/*
+ * Where the plan stops choosing impact for somebody.
+ *
+ * Not the joints — the landing. Skipping, jogging on the spot and jumping jacks
+ * are all decelerations, and deceleration is a balance task before it is a knee
+ * task. This is the same line the rest-day tasks already drew for skipping rope,
+ * and it is shared with them deliberately: two surfaces that both decide whether
+ * to make somebody jump should not disagree about when to stop.
+ *
+ * Nothing here forbids jumping. It stops a generated plan from opening with it
+ * for a trainee who never asked to jump and cannot see why it appeared.
+ */
+const IMPACT_EASES_FROM = 60;
+
+/*
+ * Where a warm-up stops being allowed to consist entirely of floor work.
+ *
+ * Getting down to the floor and back up is a movement in its own right, and for
+ * a trainee who finds it hard it is the hardest thing in the session — done
+ * eight times, before the training has started. The rule is not that the floor
+ * is banned: floor drills are the good ones and they stay. It is that a standing
+ * alternative must exist, so a warm-up is never a wall a session cannot get past.
+ */
+const STANDING_OPTION_FROM = MUCH_SLOWER_RECOVERY_FROM;
+
+/*
+ * Below this a body is ready quickly, and a long warm-up costs the session.
+ *
+ * A thirteen-year-old is warm after three minutes of movement; spending seven on
+ * it out of a forty-five minute session buys nothing and takes the time straight
+ * out of the training. Shares its number with HEAVY_LOAD_FROM and is kept
+ * separate for the same reason ADULT_FROM is: they would be edited for different
+ * reasons, and one silently following the other is the bug, not the tidy-up.
+ */
+const WARMS_FAST_UNTIL = 16;
+
+/** True when the plan should not choose jumping or running for somebody. */
+function easesImpact(profile) {
+  const a = ageOf(profile);
+  return a !== null && a >= IMPACT_EASES_FROM;
+}
+
+/** True when the warm-up must offer something that is not done on the floor. */
+function needsStandingOption(profile) {
+  const a = ageOf(profile);
+  return a !== null && a >= STANDING_OPTION_FROM;
+}
+
+/** True when tissue needs longer to be ready, so the warm-up earns more time. */
+function needsLongerWarmup(profile) {
+  const a = ageOf(profile);
+  return a !== null && a >= SLOWER_RECOVERY_FROM;
+}
+
+/** True when a body warms quickly and a long warm-up is time taken from training. */
+function warmsFast(profile) {
+  const a = ageOf(profile);
+  return a !== null && a >= MIN_AGE && a < WARMS_FAST_UNTIL;
+}
+
+/**
+ * How long to hold a cool-down stretch, in seconds.
+ *
+ * Shorter holds do less as tissue gets stiffer with age, and the cool-down is
+ * the one place in the session where spending another twenty seconds costs
+ * nothing. The young end is not shortened for safety — it is shortened because a
+ * thirteen-year-old will not hold a stretch for fifty seconds, and printing a
+ * number nobody follows is worse than printing one they do.
+ */
+function stretchHoldSeconds(profile) {
+  const a = ageOf(profile);
+  if (a === null) return 40;
+  if (a < WARMS_FAST_UNTIL) return 25;
+  if (a >= MUCH_SLOWER_RECOVERY_FROM) return 50;
+  if (a >= SLOWER_RECOVERY_FROM) return 45;
+  return 40;
+}
+
 /** True when some of a body-composition goal will close without training. */
 function stillDeveloping(profile) {
   const a = ageOf(profile);
@@ -1618,6 +1711,16 @@ function growthAllowanceKgPerWeek(profile) {
     "HEAVY_LOAD_FROM": HEAVY_LOAD_FROM,
     "ADULT_FROM": ADULT_FROM,
     "STILL_DEVELOPING_UNTIL": STILL_DEVELOPING_UNTIL,
+    "SLOWER_RECOVERY_FROM": SLOWER_RECOVERY_FROM,
+    "MUCH_SLOWER_RECOVERY_FROM": MUCH_SLOWER_RECOVERY_FROM,
+    "IMPACT_EASES_FROM": IMPACT_EASES_FROM,
+    "STANDING_OPTION_FROM": STANDING_OPTION_FROM,
+    "WARMS_FAST_UNTIL": WARMS_FAST_UNTIL,
+    "easesImpact": easesImpact,
+    "needsStandingOption": needsStandingOption,
+    "needsLongerWarmup": needsLongerWarmup,
+    "warmsFast": warmsFast,
+    "stretchHoldSeconds": stretchHoldSeconds,
     "stillDeveloping": stillDeveloping,
     "withholdsBodyNumbers": withholdsBodyNumbers,
     "withholdsFatLoss": withholdsFatLoss,
@@ -1644,7 +1747,7 @@ __m["src/engine/volume.js"] = (function () {
  *   3. The plan is the smaller of the two, and the note says which one bound it.
  */
 
-const { MIN_AGE, MAX_AGE } = __m["src/engine/age.js"];
+const { MIN_AGE, MAX_AGE, SLOWER_RECOVERY_FROM, MUCH_SLOWER_RECOVERY_FROM } = __m["src/engine/age.js"];
 
 /* Groups the whole engine talks in. These keys are the weeklyVolume() result. */
 const GROUPS = ['push', 'pull', 'legs', 'core', 'arms', 'shoulders', 'calves', 'conditioning'];
@@ -1777,7 +1880,9 @@ function factors(profile, days, minutes) {
           : minutes <= 90 ? 1.05 : 1.08;
   const rest = sleep < 6 ? 0.82 : sleep < 7 ? 0.90 : sleep >= 8.5 ? 1.04 : 1.0;
   const load = stress >= 5 ? 0.85 : stress >= 4 ? 0.92 : 1.0;
-  const years = age >= 65 ? 0.86 : age >= 55 ? 0.93 : age < 15 ? 0.92 : 1.0;
+  const years = age >= MUCH_SLOWER_RECOVERY_FROM ? 0.86
+    : age >= SLOWER_RECOVERY_FROM ? 0.93
+      : age < 15 ? 0.92 : 1.0;
   // Enough training age to use a 5–6 day week, so use it.
   const dense = (days >= 5 && (exp === 'intermediate' || exp === 'advanced')) ? 1.05 : 1.0;
 
@@ -2233,6 +2338,108 @@ function splitFor(profile) {
     "sessionBudget": sessionBudget,
     "weeklyVolume": weeklyVolume,
     "splitFor": splitFor,
+  };
+})();
+
+__m["src/data/demands.js"] = (function () {
+/*
+ * demands.js — what a warm-up drill asks of a body, apart from injury.
+ *
+ * Every drill already carries `contraindications`, and those answer one
+ * question: does this hurt a part that is already hurt. They say nothing about
+ * the demands that decide whether a drill belongs in a particular person's
+ * warm-up when nothing at all is wrong with them — whether it leaves the ground,
+ * whether it needs getting down to the floor and back up, whether it hangs
+ * bodyweight from two hands.
+ *
+ * That gap was why the warm-up came out identical from 12 to 90. The filter had
+ * only injuries to work with, and a healthy 78-year-old ticks no boxes, so they
+ * were handed the same four lines as a healthy 25-year-old — opening with
+ * marching, then a floor drill, then another floor drill.
+ *
+ *   impact     the drill leaves the ground; landing is a deceleration
+ *   floor      needs getting down to the floor and back up again
+ *   deep_knee  needs full knee flexion under bodyweight, and getting out of it
+ *   hang       hangs bodyweight from the hands
+ *   balance    stands on one leg with nothing to hold
+ *
+ * A drill with no entry demands none of these: it is done standing, or leaning
+ * on a wall, and anybody who can walk into the session can do it. That is the
+ * common case, so the table lists only the exceptions — and validate.js checks
+ * that every warm-up drill is either listed here or deliberately not, so a drill
+ * added later cannot inherit "standing, safe for everyone" by being forgotten.
+ */
+
+const DEMANDS = {
+  /* Leaves the ground. */
+  pogo_hop: ['impact'],
+  jumping_jack: ['impact'],
+  jog: ['impact'],
+  high_knees: ['impact'],
+
+  /* Lying, kneeling or on all fours — the floor is the starting position. */
+  prone_w_raise: ['floor'],
+  prone_ytw_raise: ['floor'],
+  prone_lat_pull_slide: ['floor'],
+  bird_dog: ['floor'],
+  dead_bug: ['floor'],
+  cat_cow: ['floor'],
+  thoracic_rotation: ['floor'],
+  quadruped_scap_pushup: ['floor'],
+  scap_pushup: ['floor'],
+  wrist_prep: ['floor'],
+  glute_bridge: ['floor'],
+  glute_bridge_activation: ['floor'],
+  hip_switch_90_90: ['floor'],
+  childs_pose_reach: ['floor', 'deep_knee'],
+  hip_flexor_stretch_kneeling: ['floor'],
+  worlds_greatest_stretch: ['floor'],
+
+  /* Full knee flexion under bodyweight, and standing back up out of it. */
+  deep_squat_hold: ['deep_knee'],
+
+  /* Bodyweight through the hands. */
+  dead_hang: ['hang'],
+  passive_bar_hang: ['hang'],
+  scap_pull: ['hang'],
+
+  /* One leg, nothing to hold. The leg swings are not here on purpose: their
+   * own cues put a hand on the wall, which is what makes them not this. */
+  toy_soldier: ['balance'],
+  standing_knee_to_elbow: ['balance'],
+};
+
+/*
+ * Drills confirmed to demand nothing beyond standing up.
+ *
+ * Listed rather than inferred from absence, so that "this drill needs nothing"
+ * is a statement somebody made, not the default a new drill falls into by
+ * nobody having looked at it.
+ */
+const PLAIN_STANDING = [
+  'wall_slide', 'arm_circles', 'db_scaption_raise', 'wall_angel', 'band_pull_apart',
+  'sit_to_stand', 'hip_hinge_drill', 'band_pull_through', 'tibialis_raise',
+  'march_in_place', 'shoulder_circles', 'torso_twist_standing', 'hip_circles',
+  'leg_swings_front', 'leg_swings_side', 'ankle_rocks', 'band_dislocates',
+  'band_scap_pulldown',
+];
+
+/** What a drill demands. Unknown ids return an empty list, same as a plain one. */
+function demandsOf(id) {
+  return DEMANDS[id] || [];
+}
+
+/** True when the drill asks for any of the given demands. */
+function asks(id, ...what) {
+  const d = demandsOf(id);
+  return what.some((w) => d.indexOf(w) >= 0);
+}
+
+  return {
+    "DEMANDS": DEMANDS,
+    "PLAIN_STANDING": PLAIN_STANDING,
+    "demandsOf": demandsOf,
+    "asks": asks,
   };
 })();
 
@@ -7321,7 +7528,8 @@ __m["src/engine/generator.js"] = (function () {
  * not ours. Nothing here uses Math.random(); variety comes from hashProfile().
  */
 
-const { MIN_AGE, MAX_AGE } = __m["src/engine/age.js"];
+const { MIN_AGE, MAX_AGE, easesImpact, needsStandingOption, needsLongerWarmup, warmsFast, stretchHoldSeconds, } = __m["src/engine/age.js"];
+const { asks } = __m["src/data/demands.js"];
 
 const { candidates, candidatesOrFallback, conflictsInjury, hashProfile, rotate, } = __m["src/data/exercises.index.js"];
 const { weeklyVolume, splitFor, sessionBudget } = __m["src/engine/volume.js"];
@@ -7827,7 +8035,20 @@ const WARMUP_FOR = {
   conditioning: ['march_in_place'],
 };
 
-const WARMUP_LEAD = ['march_in_place', 'jumping_jack', 'jog', 'jump_rope'];
+/*
+ * The pulse raiser, gentlest last.
+ *
+ * It used to run the other way, and march_in_place carries no
+ * contraindications — so it was always available, always chosen, and every
+ * trainee from 12 to 90 opened with marching on the spot. That is not caution,
+ * it is a warm-up that does not warm anybody up: a fifteen-year-old about to
+ * train needs their heart rate somewhere, and marching does not take it there.
+ *
+ * Ordered hardest first now, and easesImpact removes the top of the list for
+ * whoever should not be landing, so the same walk down the list produces a real
+ * pulse raiser for a trainee who can jump and marching for one who should not.
+ */
+const WARMUP_LEAD = ['jumping_jack', 'jog', 'high_knees', 'march_in_place'];
 /*
  * Ordered by preference, and long enough that filtering can bite.
  *
@@ -7843,6 +8064,16 @@ const COOLDOWN_IDS = [
   'childs_pose_reach', 'hip_flexor_stretch_kneeling', 'deep_squat_hold',
   'cat_cow', 'hip_switch_90_90', 'thoracic_rotation', 'glute_bridge_activation',
   'torso_twist_standing', 'shoulder_circles',
+];
+
+/*
+ * Standing drills to fall back on when a warm-up came out entirely floor-based.
+ * Ordered so the first one moves something general — hips and shoulders — rather
+ * than adding a third variation on whatever the day already trains.
+ */
+const STANDING_FALLBACK = [
+  'hip_circles', 'shoulder_circles', 'torso_twist_standing', 'ankle_rocks',
+  'arm_circles', 'march_in_place', 'sit_to_stand',
 ];
 
 const DEFAULT_DAYS = {
@@ -8357,8 +8588,54 @@ function drillPrescription(ex) {
   return ex.pattern === 'conditioning' ? '60–90 שנ׳' : '10 חזרות';
 }
 
+/*
+ * How many drills the warm-up is worth to this trainee.
+ *
+ * The budget alone gave everybody the same answer, because it is derived from
+ * session length and session length is what age already shortened — so an
+ * 80-year-old got a shorter warm-up out of a shorter session, which is exactly
+ * backwards. Warming up is the part of the session that gets *more* important
+ * as recovery slows, and less important the younger the body is.
+ */
+function warmupDrillCount(profile, budget) {
+  const base = clampInt(budget.warmupMin / 1.6, 4, 7, 5);
+  if (warmsFast(profile)) return Math.max(3, base - 1);
+  if (needsLongerWarmup(profile)) return Math.min(8, base + 2);
+  return base;
+}
+
 function buildWarmup(profile, budget, split) {
   const allowed = new Map(candidates(profile, { tag: 'warmup' }).map((e) => [e.id, e]));
+
+  /*
+   * Age filters the vocabulary before anything is chosen from it, rather than
+   * after — a drill removed at the end leaves a gap, a drill removed here means
+   * the next one down the list takes its place.
+   *
+   * Impact and unsupported single-leg balance go at the same line because they
+   * are the same demand: landing from a jumping jack and standing on one leg for
+   * a straight-leg kick both ask a body to catch itself. The leg swings survive
+   * this — their own cues put a hand on the wall, which is exactly what makes
+   * them a different drill from the ones removed here.
+   */
+  if (easesImpact(profile)) {
+    for (const id of Array.from(allowed.keys())) {
+      if (asks(id, 'impact', 'balance')) allowed.delete(id);
+    }
+  }
+
+  /*
+   * A hang is full bodyweight through two hands. For a trainee who is not
+   * already training it is close to the hardest thing they can do, and a warm-up
+   * drill that is the hardest thing in the session is not a warm-up. Held to
+   * beginners and returners on purpose: somebody at 68 who does pull-ups keeps
+   * their scap pulls, because for them the premise is simply false.
+   */
+  const exp = experienceOf(profile);
+  if (needsStandingOption(profile) && (exp === 'beginner' || exp === 'returning')) {
+    for (const id of Array.from(allowed.keys())) if (asks(id, 'hang')) allowed.delete(id);
+  }
+
   const items = [];
   const used = new Set();
 
@@ -8368,6 +8645,7 @@ function buildWarmup(profile, budget, split) {
     if (!ex) return false;
     used.add(id);
     items.push({
+      id: ex.id,
       name: ex.name,
       prescription: drillPrescription(ex),
       note: WARMUP_NOTE[ex.id] || (ex.cues && ex.cues[0]) || '',
@@ -8386,7 +8664,7 @@ function buildWarmup(profile, budget, split) {
     .sort((a, b) => b[1] - a[1] || a[0].localeCompare(b[0]))
     .map((e) => e[0]);
 
-  const target = clampInt(budget.warmupMin / 1.6, 4, 7, 5);
+  const target = warmupDrillCount(profile, budget);
   for (let round = 0; round < 4 && items.length < target; round++) {
     for (const pat of ordered) {
       if (items.length >= target) break;
@@ -8401,23 +8679,55 @@ function buildWarmup(profile, budget, split) {
       push(ex.id);
     }
   }
+
+  /*
+   * At least one drill that is not done on the floor.
+   *
+   * Every drill here can be worth doing and the warm-up still be unusable: the
+   * pattern lists lead with floor work for the pulling and core patterns, so a
+   * trainee whose week is built on those could be handed five drills that all
+   * begin with getting down. This adds a standing one rather than removing the
+   * floor ones — the floor drills are the good ones, they just cannot be the
+   * whole warm-up for somebody who finds the floor hard.
+   */
+  if (needsStandingOption(profile) && !items.some((it) => !asks(it.id, 'floor', 'deep_knee'))) {
+    for (const id of STANDING_FALLBACK) if (push(id)) break;
+  }
   return items;
 }
 
 function buildCooldown(profile) {
   const allowed = new Map(candidates(profile, { tag: 'warmup' }).map((e) => [e.id, e]));
+  const hold = stretchHoldSeconds(profile);
+
+  /*
+   * The preference list opens with three floor stretches — child's pose, a
+   * kneeling hip flexor, a deep squat — so the default cool-down asks somebody
+   * to get down and up three times at the end of a session, when they are most
+   * tired. Above the line, the standing and seated entries move to the front:
+   * the same list, read in a different order, which keeps every stretch
+   * available instead of shortening the session's ending to a breath.
+   */
+  const order = needsStandingOption(profile)
+    ? COOLDOWN_IDS.slice().sort((a, b) => Number(asks(a, 'floor', 'deep_knee')) - Number(asks(b, 'floor', 'deep_knee')))
+    : COOLDOWN_IDS;
+
   const out = [];
-  for (const id of COOLDOWN_IDS) {
+  for (const id of order) {
     if (out.length >= 3) break;
     const ex = allowed.get(id);
     if (!ex) continue;
     out.push({
+      id: ex.id,
       name: ex.name,
-      prescription: ex.unit === 'time' ? (ex.unilateral ? '30 שנ׳ לכל צד' : '40 שנ׳') : '8 חזרות איטיות',
+      prescription: ex.unit === 'time'
+        ? (ex.unilateral ? `${Math.round(hold * 0.75)} שנ׳ לכל צד` : `${hold} שנ׳`)
+        : '8 חזרות איטיות',
       note: WARMUP_NOTE[ex.id] || (ex.cues && ex.cues[0]) || '',
     });
   }
   out.push({
+    id: 'seated_breathing',
     name: 'נשימה עמוקה בישיבה',
     prescription: '2 דק׳',
     note: 'מוריד דופק ומסמן לגוף שהאימון נגמר. שם מתחילה ההתאוששות.',
@@ -15050,7 +15360,7 @@ __m["src/engine/restday.js"] = (function () {
  */
 
 const { hashProfile, rotate } = __m["src/data/exercises.index.js"];
-const { withholdsBodyNumbers } = __m["src/engine/age.js"];
+const { withholdsBodyNumbers, IMPACT_EASES_FROM } = __m["src/engine/age.js"];
 
 /*
  * The catalogue.
@@ -15085,7 +15395,10 @@ const TASKS = [
     id: 'jump_rope_10',
     title: 'קפיצה בחבל 10 דקות',
     body: 'לא ברצף — 8 סבבים של דקה עם חצי דקה הפסקה. הכתפיים עושות את הסיבוב, לא המרפקים.',
-    load: 'moderate', needs: ['jump_rope'], hurts: ['knee', 'ankle', 'lower_back'], maxAge: 60,
+    // Shares its cap with the warm-up's impact line: both decide whether to
+    // make the same person land, and they must not answer differently.
+    load: 'moderate', needs: ['jump_rope'], hurts: ['knee', 'ankle', 'lower_back'],
+    maxAge: IMPACT_EASES_FROM,
   },
   {
     id: 'bike_20',

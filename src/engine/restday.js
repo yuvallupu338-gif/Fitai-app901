@@ -17,7 +17,7 @@
  */
 
 import { hashProfile, rotate } from '../data/exercises.index.js';
-import { withholdsBodyNumbers } from './age.js';
+import { withholdsBodyNumbers, IMPACT_EASES_FROM } from './age.js';
 
 /*
  * The catalogue.
@@ -52,7 +52,10 @@ const TASKS = [
     id: 'jump_rope_10',
     title: 'קפיצה בחבל 10 דקות',
     body: 'לא ברצף — 8 סבבים של דקה עם חצי דקה הפסקה. הכתפיים עושות את הסיבוב, לא המרפקים.',
-    load: 'moderate', needs: ['jump_rope'], hurts: ['knee', 'ankle', 'lower_back'], maxAge: 60,
+    // Shares its cap with the warm-up's impact line: both decide whether to
+    // make the same person land, and they must not answer differently.
+    load: 'moderate', needs: ['jump_rope'], hurts: ['knee', 'ankle', 'lower_back'],
+    maxAge: IMPACT_EASES_FROM,
   },
   {
     id: 'bike_20',

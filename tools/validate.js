@@ -698,6 +698,135 @@ try {
 }
 
 /*
+ * The warm-up and the cool-down have to know how old the trainee is.
+ *
+ * They were the last part of the plan that did not. Every other engine bent for
+ * age — volume, session length, calories, exercise selection, rest-day tasks —
+ * and these two handed out the identical four drills and the identical four
+ * stretches from 12 to 90, because the only filter they had was injury and a
+ * healthy 78-year-old ticks no boxes.
+ *
+ * The drills below are named here, not read from demands.js, and that is the
+ * whole point. A check that asks the same table the generator asks can only ever
+ * confirm the two agree: delete jumping_jack's entry and the drill starts
+ * appearing in an 85-year-old's warm-up while the check reports everything is
+ * fine. So the unsafe cases are restated independently, and the two descriptions
+ * have to keep matching on their own.
+ */
+{
+  try {
+    const g = await load('src/engine/generator.js');
+    const schema = await load('src/intake/schema.js');
+    const dm = await load('src/data/demands.js');
+    const ix = await load('src/data/exercises.index.js');
+
+    const mk = (over) => schema.normalizeProfile(Object.assign(schema.defaults(), {
+      sex: 'male', heightCm: 175, weightKg: 74, goal: 'muscle', experience: 'beginner',
+      daysPerWeek: 3, minutesPerSession: 45, location: 'home_weights',
+    }, over));
+    const plan = (over) => g.generateProgram(mk(over));
+
+    /* Restated independently of demands.js. */
+    const LEAVES_THE_GROUND = ['jumping_jack', 'jog', 'high_knees', 'pogo_hop', 'jump_rope'];
+    const ONE_LEG_UNSUPPORTED = ['toy_soldier', 'standing_knee_to_elbow'];
+    const NEEDS_THE_FLOOR = [
+      'childs_pose_reach', 'hip_flexor_stretch_kneeling', 'cat_cow', 'bird_dog', 'dead_bug',
+      'hip_switch_90_90', 'glute_bridge', 'glute_bridge_activation', 'thoracic_rotation',
+      'quadruped_scap_pushup', 'scap_pushup', 'wrist_prep', 'prone_w_raise', 'prone_ytw_raise',
+      'prone_lat_pull_slide', 'worlds_greatest_stretch', 'deep_squat_hold',
+    ];
+    const HANGS_FROM_THE_HANDS = ['dead_hang', 'passive_bar_hang', 'scap_pull'];
+
+    const ids = (list) => (list || []).map((x) => x.id).filter(Boolean);
+
+    for (const age of [62, 70, 82, 90]) {
+      const p = plan({ age });
+      for (const id of ids(p.warmup)) {
+        if (LEAVES_THE_GROUND.includes(id)) err(`age ${age}: the warm-up opens with "${id}", which leaves the ground`);
+        if (ONE_LEG_UNSUPPORTED.includes(id)) err(`age ${age}: the warm-up includes "${id}" — one leg with nothing to hold`);
+      }
+    }
+
+    // A beginner past the line should not be warming up by hanging their bodyweight.
+    for (const age of [70, 85]) {
+      for (const id of ids(plan({ age }).warmup)) {
+        if (HANGS_FROM_THE_HANDS.includes(id)) err(`age ${age}: a beginner's warm-up includes "${id}" — full bodyweight through two hands`);
+      }
+    }
+    // ...but somebody who trains keeps it, or the rule is about age rather than capacity.
+    {
+      const kept = ids(plan({ age: 68, experience: 'advanced' }).warmup).some((id) => HANGS_FROM_THE_HANDS.includes(id));
+      if (!kept) err('an advanced 68-year-old lost their hanging drills — the rule is meant to be about capacity, not birthdays');
+    }
+
+    // Never a warm-up or a cool-down made entirely of getting down to the floor.
+    for (const age of [66, 75, 90]) {
+      const p = plan({ age });
+      if (!ids(p.warmup).some((id) => !NEEDS_THE_FLOOR.includes(id))) {
+        err(`age ${age}: every drill in the warm-up needs getting down to the floor`);
+      }
+      const stretches = ids(p.cooldown).filter((id) => id !== 'seated_breathing');
+      if (stretches.length && !stretches.some((id) => !NEEDS_THE_FLOOR.includes(id))) {
+        err(`age ${age}: every cool-down stretch needs getting down to the floor`);
+      }
+    }
+
+    // The regression that started this: two very different bodies, one warm-up.
+    {
+      const young = ids(plan({ age: 14 }).warmup).join(',');
+      const mid = ids(plan({ age: 30 }).warmup).join(',');
+      const old = ids(plan({ age: 82 }).warmup).join(',');
+      if (young === old) err(`a 14-year-old and an 82-year-old get the identical warm-up: ${old || '(empty)'}`);
+      if (mid === old) err(`a 30-year-old and an 82-year-old get the identical warm-up: ${old || '(empty)'}`);
+    }
+
+    // A trainee who can jump should be given something that raises a pulse.
+    for (const age of [14, 25, 40]) {
+      const lead = ids(plan({ age }).warmup)[0];
+      if (lead && !LEAVES_THE_GROUND.includes(lead)) {
+        err(`age ${age}: the warm-up opens with "${lead}" — nothing here raises a heart rate before training`);
+      }
+    }
+
+    // Stretch holds should lengthen with age, not stay on one number for everybody.
+    {
+      const secs = (age) => {
+        const c = plan({ age }).cooldown.find((x) => /שנ׳$/.test(x.prescription || ''));
+        return c ? parseInt(c.prescription, 10) : null;
+      };
+      const a = secs(14); const b = secs(30); const c = secs(80);
+      if (a === null || b === null || c === null) err('cool-down stretches carry no hold length at all');
+      else if (!(a < b && b < c)) err(`cool-down holds do not lengthen with age: 14->${a}s, 30->${b}s, 80->${c}s`);
+    }
+
+    // Nobody ends up with an empty warm-up because a filter removed everything.
+    for (const age of [12, 25, 60, 75, 90]) {
+      const p = plan({ age });
+      if ((p.warmup || []).length < 3) err(`age ${age}: warm-up is down to ${(p.warmup || []).length} drills`);
+      if ((p.cooldown || []).length < 2) err(`age ${age}: cool-down is down to ${(p.cooldown || []).length} items`);
+    }
+
+    /*
+     * Coverage of the table itself. This one does read demands.js, which is
+     * fine — it is not judging whether a drill is safe, it is checking that
+     * somebody looked at every drill, so a new one cannot inherit "standing,
+     * fine for a ninety-year-old" by being forgotten.
+     */
+    {
+      const all = ix.ALL_EXERCISES || ix.EXERCISES || [];
+      const warm = all.filter((e) => (e.tags || []).indexOf('warmup') >= 0).map((e) => e.id);
+      const classified = new Set(Object.keys(dm.DEMANDS).concat(dm.PLAIN_STANDING));
+      const missing = warm.filter((id) => !classified.has(id));
+      if (missing.length) err(`warm-up drills with no demands entry: ${missing.join(', ')}`);
+      const stray = Array.from(classified).filter((id) => warm.indexOf(id) < 0);
+      if (stray.length) err(`demands.js classifies drills that are not warm-up drills: ${stray.join(', ')}`);
+      const both = dm.PLAIN_STANDING.filter((id) => dm.DEMANDS[id]);
+      if (both.length) err(`drills listed as plain standing and as demanding: ${both.join(', ')}`);
+    }
+  } catch (e) { err(`warm-up/cool-down age check could not run: ${e.message}`); }
+}
+
+/*
  * The age bounds come from one place, and hold at every layer.
  *
  * The floor was a bare 10 in six files — the questionnaire's min, its validate,

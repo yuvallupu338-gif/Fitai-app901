@@ -12,7 +12,7 @@
  *   3. The plan is the smaller of the two, and the note says which one bound it.
  */
 
-import { MIN_AGE, MAX_AGE } from './age.js';
+import { MIN_AGE, MAX_AGE, SLOWER_RECOVERY_FROM, MUCH_SLOWER_RECOVERY_FROM } from './age.js';
 
 /* Groups the whole engine talks in. These keys are the weeklyVolume() result. */
 const GROUPS = ['push', 'pull', 'legs', 'core', 'arms', 'shoulders', 'calves', 'conditioning'];
@@ -145,7 +145,9 @@ function factors(profile, days, minutes) {
           : minutes <= 90 ? 1.05 : 1.08;
   const rest = sleep < 6 ? 0.82 : sleep < 7 ? 0.90 : sleep >= 8.5 ? 1.04 : 1.0;
   const load = stress >= 5 ? 0.85 : stress >= 4 ? 0.92 : 1.0;
-  const years = age >= 65 ? 0.86 : age >= 55 ? 0.93 : age < 15 ? 0.92 : 1.0;
+  const years = age >= MUCH_SLOWER_RECOVERY_FROM ? 0.86
+    : age >= SLOWER_RECOVERY_FROM ? 0.93
+      : age < 15 ? 0.92 : 1.0;
   // Enough training age to use a 5–6 day week, so use it.
   const dense = (days >= 5 && (exp === 'intermediate' || exp === 'advanced')) ? 1.05 : 1.0;
 

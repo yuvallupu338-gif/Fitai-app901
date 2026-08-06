@@ -18,7 +18,11 @@
  * not ours. Nothing here uses Math.random(); variety comes from hashProfile().
  */
 
-import { MIN_AGE, MAX_AGE } from './age.js';
+import {
+  MIN_AGE, MAX_AGE,
+  easesImpact, needsStandingOption, needsLongerWarmup, warmsFast, stretchHoldSeconds,
+} from './age.js';
+import { asks } from '../data/demands.js';
 
 import {
   candidates, candidatesOrFallback, conflictsInjury, hashProfile, rotate,
@@ -526,7 +530,20 @@ const WARMUP_FOR = {
   conditioning: ['march_in_place'],
 };
 
-const WARMUP_LEAD = ['march_in_place', 'jumping_jack', 'jog', 'jump_rope'];
+/*
+ * The pulse raiser, gentlest last.
+ *
+ * It used to run the other way, and march_in_place carries no
+ * contraindications — so it was always available, always chosen, and every
+ * trainee from 12 to 90 opened with marching on the spot. That is not caution,
+ * it is a warm-up that does not warm anybody up: a fifteen-year-old about to
+ * train needs their heart rate somewhere, and marching does not take it there.
+ *
+ * Ordered hardest first now, and easesImpact removes the top of the list for
+ * whoever should not be landing, so the same walk down the list produces a real
+ * pulse raiser for a trainee who can jump and marching for one who should not.
+ */
+const WARMUP_LEAD = ['jumping_jack', 'jog', 'high_knees', 'march_in_place'];
 /*
  * Ordered by preference, and long enough that filtering can bite.
  *
@@ -542,6 +559,16 @@ const COOLDOWN_IDS = [
   'childs_pose_reach', 'hip_flexor_stretch_kneeling', 'deep_squat_hold',
   'cat_cow', 'hip_switch_90_90', 'thoracic_rotation', 'glute_bridge_activation',
   'torso_twist_standing', 'shoulder_circles',
+];
+
+/*
+ * Standing drills to fall back on when a warm-up came out entirely floor-based.
+ * Ordered so the first one moves something general — hips and shoulders — rather
+ * than adding a third variation on whatever the day already trains.
+ */
+const STANDING_FALLBACK = [
+  'hip_circles', 'shoulder_circles', 'torso_twist_standing', 'ankle_rocks',
+  'arm_circles', 'march_in_place', 'sit_to_stand',
 ];
 
 const DEFAULT_DAYS = {
@@ -1056,8 +1083,54 @@ function drillPrescription(ex) {
   return ex.pattern === 'conditioning' ? '60–90 שנ׳' : '10 חזרות';
 }
 
+/*
+ * How many drills the warm-up is worth to this trainee.
+ *
+ * The budget alone gave everybody the same answer, because it is derived from
+ * session length and session length is what age already shortened — so an
+ * 80-year-old got a shorter warm-up out of a shorter session, which is exactly
+ * backwards. Warming up is the part of the session that gets *more* important
+ * as recovery slows, and less important the younger the body is.
+ */
+function warmupDrillCount(profile, budget) {
+  const base = clampInt(budget.warmupMin / 1.6, 4, 7, 5);
+  if (warmsFast(profile)) return Math.max(3, base - 1);
+  if (needsLongerWarmup(profile)) return Math.min(8, base + 2);
+  return base;
+}
+
 function buildWarmup(profile, budget, split) {
   const allowed = new Map(candidates(profile, { tag: 'warmup' }).map((e) => [e.id, e]));
+
+  /*
+   * Age filters the vocabulary before anything is chosen from it, rather than
+   * after — a drill removed at the end leaves a gap, a drill removed here means
+   * the next one down the list takes its place.
+   *
+   * Impact and unsupported single-leg balance go at the same line because they
+   * are the same demand: landing from a jumping jack and standing on one leg for
+   * a straight-leg kick both ask a body to catch itself. The leg swings survive
+   * this — their own cues put a hand on the wall, which is exactly what makes
+   * them a different drill from the ones removed here.
+   */
+  if (easesImpact(profile)) {
+    for (const id of Array.from(allowed.keys())) {
+      if (asks(id, 'impact', 'balance')) allowed.delete(id);
+    }
+  }
+
+  /*
+   * A hang is full bodyweight through two hands. For a trainee who is not
+   * already training it is close to the hardest thing they can do, and a warm-up
+   * drill that is the hardest thing in the session is not a warm-up. Held to
+   * beginners and returners on purpose: somebody at 68 who does pull-ups keeps
+   * their scap pulls, because for them the premise is simply false.
+   */
+  const exp = experienceOf(profile);
+  if (needsStandingOption(profile) && (exp === 'beginner' || exp === 'returning')) {
+    for (const id of Array.from(allowed.keys())) if (asks(id, 'hang')) allowed.delete(id);
+  }
+
   const items = [];
   const used = new Set();
 
@@ -1067,6 +1140,7 @@ function buildWarmup(profile, budget, split) {
     if (!ex) return false;
     used.add(id);
     items.push({
+      id: ex.id,
       name: ex.name,
       prescription: drillPrescription(ex),
       note: WARMUP_NOTE[ex.id] || (ex.cues && ex.cues[0]) || '',
@@ -1085,7 +1159,7 @@ function buildWarmup(profile, budget, split) {
     .sort((a, b) => b[1] - a[1] || a[0].localeCompare(b[0]))
     .map((e) => e[0]);
 
-  const target = clampInt(budget.warmupMin / 1.6, 4, 7, 5);
+  const target = warmupDrillCount(profile, budget);
   for (let round = 0; round < 4 && items.length < target; round++) {
     for (const pat of ordered) {
       if (items.length >= target) break;
@@ -1100,23 +1174,55 @@ function buildWarmup(profile, budget, split) {
       push(ex.id);
     }
   }
+
+  /*
+   * At least one drill that is not done on the floor.
+   *
+   * Every drill here can be worth doing and the warm-up still be unusable: the
+   * pattern lists lead with floor work for the pulling and core patterns, so a
+   * trainee whose week is built on those could be handed five drills that all
+   * begin with getting down. This adds a standing one rather than removing the
+   * floor ones — the floor drills are the good ones, they just cannot be the
+   * whole warm-up for somebody who finds the floor hard.
+   */
+  if (needsStandingOption(profile) && !items.some((it) => !asks(it.id, 'floor', 'deep_knee'))) {
+    for (const id of STANDING_FALLBACK) if (push(id)) break;
+  }
   return items;
 }
 
 function buildCooldown(profile) {
   const allowed = new Map(candidates(profile, { tag: 'warmup' }).map((e) => [e.id, e]));
+  const hold = stretchHoldSeconds(profile);
+
+  /*
+   * The preference list opens with three floor stretches — child's pose, a
+   * kneeling hip flexor, a deep squat — so the default cool-down asks somebody
+   * to get down and up three times at the end of a session, when they are most
+   * tired. Above the line, the standing and seated entries move to the front:
+   * the same list, read in a different order, which keeps every stretch
+   * available instead of shortening the session's ending to a breath.
+   */
+  const order = needsStandingOption(profile)
+    ? COOLDOWN_IDS.slice().sort((a, b) => Number(asks(a, 'floor', 'deep_knee')) - Number(asks(b, 'floor', 'deep_knee')))
+    : COOLDOWN_IDS;
+
   const out = [];
-  for (const id of COOLDOWN_IDS) {
+  for (const id of order) {
     if (out.length >= 3) break;
     const ex = allowed.get(id);
     if (!ex) continue;
     out.push({
+      id: ex.id,
       name: ex.name,
-      prescription: ex.unit === 'time' ? (ex.unilateral ? '30 שנ׳ לכל צד' : '40 שנ׳') : '8 חזרות איטיות',
+      prescription: ex.unit === 'time'
+        ? (ex.unilateral ? `${Math.round(hold * 0.75)} שנ׳ לכל צד` : `${hold} שנ׳`)
+        : '8 חזרות איטיות',
       note: WARMUP_NOTE[ex.id] || (ex.cues && ex.cues[0]) || '',
     });
   }
   out.push({
+    id: 'seated_breathing',
     name: 'נשימה עמוקה בישיבה',
     prescription: '2 דק׳',
     note: 'מוריד דופק ומסמן לגוף שהאימון נגמר. שם מתחילה ההתאוששות.',
