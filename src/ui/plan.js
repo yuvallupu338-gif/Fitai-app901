@@ -23,13 +23,24 @@ export function renderPlan(root, program, profile) {
     const st = store.get();
     const active = Math.min(st.ui.activeDay || 0, program.days.length - 1);
     const day = program.days[active];
+    const trainDays = new Set(program.days.map((d) => d.dayIndex));
+    const activeRest = Number.isInteger(st.ui.activeRest) && !trainDays.has(st.ui.activeRest)
+      ? st.ui.activeRest : null;
 
-    view.appendChild(weekStrip(program, active, (i) => {
-      store.set({ ui: Object.assign({}, store.get().ui, { activeDay: i }) });
+    view.appendChild(weekStrip(program, active, activeRest, (i) => {
+      store.set({ ui: Object.assign({}, store.get().ui, { activeDay: i, activeRest: null }) });
+      draw();
+    }, (wd) => {
+      store.set({ ui: Object.assign({}, store.get().ui, { activeRest: wd }) });
       draw();
     }));
 
     view.appendChild(weekFoot(program, profile));
+
+    if (activeRest !== null) {
+      view.appendChild(restDayView(program, profile, activeRest, draw));
+      return;
+    }
 
     view.appendChild(h('div.whead',
       h('h2', day.title),
@@ -123,7 +134,7 @@ export function renderPlan(root, program, profile) {
   return { redraw: draw };
 }
 
-function weekStrip(program, active, onPick) {
+function weekStrip(program, active, activeRest, onPick, onRest) {
   const byWeekday = new Map(program.days.map((d, i) => [d.dayIndex, { day: d, i }]));
   const strip = h('nav.week', { 'aria-label': 'בחירת יום אימון' });
 
@@ -139,17 +150,23 @@ function weekStrip(program, active, onPick) {
       if (done) bar.appendChild(h('span.fill', { style: { height: `${Math.round((done / total) * 100)}%` } }));
     }
 
-    const cell = h(isTrain ? 'button.daycell.train' : 'div.daycell', isTrain ? {
+    /*
+     * Rest cells are buttons too. They used to be inert divs, so a week strip
+     * that invited a tap on four days quietly ignored the other three — and the
+     * rest day's task, its stretches and its (different) meals had no way in.
+     */
+    const restOn = !isTrain && activeRest === wd;
+    const cell = h(isTrain ? 'button.daycell.train' : 'button.daycell.restcell', {
       type: 'button',
-      'aria-pressed': on ? 'true' : 'false',
-      'aria-label': `${NAMES[wd]} · ${hit.day.title}`,
-      onclick: () => onPick(hit.i),
-    } : null,
-    h('span.tag', isTrain ? shortTag(hit.day) : ''),
+      'aria-pressed': (on || restOn) ? 'true' : 'false',
+      'aria-label': isTrain ? `${NAMES[wd]} · ${hit.day.title}` : `${NAMES[wd]} · יום מנוחה`,
+      onclick: () => (isTrain ? onPick(hit.i) : onRest(wd)),
+    },
+    h('span.tag', isTrain ? shortTag(hit.day) : 'מנוחה'),
     bar,
     h('span.letter', LETTERS[wd]));
 
-    if (on) cell.classList.add('on');
+    if (on || restOn) cell.classList.add('on');
     strip.appendChild(cell);
   }
   return strip;
@@ -170,6 +187,82 @@ function shortTag(day) {
  * listed — the point is partly to show that a rest day IS a rest day, and that
  * the empty ones are deliberate rather than forgotten.
  */
+
+/*
+ * A rest day, opened from the week strip.
+ *
+ * Deliberately shaped like a training day — heading, one focus line, then the
+ * content — because the point of the change is that a rest day is a day in the
+ * plan rather than a gap between days. What differs is what is on it: the small
+ * task, the stretches, and the fact that the day's meals are not the same as a
+ * training day's.
+ */
+function restDayView(program, profile, wd, redraw) {
+  const wrap = h('div');
+  const trainDays = new Set(program.days.map((d) => d.dayIndex));
+  const restIdx = [];
+  for (let i = 0; i < 7; i++) if (!trainDays.has(i)) restIdx.push(i);
+  const task = restDayTasks(profile, restIdx).find((t) => t.dayIndex === wd) || null;
+  const dayId = `rest${wd}`;
+
+  wrap.appendChild(h('div.whead',
+    h('h2', 'יום מנוחה'),
+    h('span.meta', [`יום ${NAMES[wd]}`, task ? task.title : 'בלי משימה'].join(' · '))));
+  wrap.appendChild(h('p.focus', task
+    ? 'ההתאוששות היא חלק מהתוכנית, לא הפסקה ממנה. מה שכאן נועד להשאיר אותך רענן יותר, לא עייף.'
+    : 'היום באמת פנוי. אין משימה, וזה בכוונה — שבוע שממלא את כל שבעת הימים הוא שבוע שנוטשים.'));
+
+  if (task) {
+    const done = store.isDone(dayId, 'task');
+    wrap.appendChild(h('div.list', { style: { marginTop: '14px' } },
+      h('div.ex.restrow' + (done ? '.done' : ''),
+        h('span.num', '01'),
+        h('div.body-col',
+          h('div.name', task.title),
+          h('div.prescr', h('span.chip' + (task.load === 'moderate' ? '' : '.rest'),
+            task.load === 'moderate' ? 'תובעני יותר' : 'קל')),
+          h('div.cues', h('span', task.body))),
+        h('div.acts', h('button.iconbtn' + (done ? '.on' : ''), {
+          type: 'button',
+          title: done ? 'בטל סימון' : 'סמן שבוצע',
+          'aria-pressed': done ? 'true' : 'false',
+          onclick: () => {
+            store.setDone(dayId, 'task', !done);
+            announce(done ? 'הסימון בוטל' : `${task.title} — בוצע`);
+            redraw();
+          },
+        }, '✓')))));
+  }
+
+  // The same stretches the training days close with. On a rest day they are the
+  // whole of it rather than a cool-down, so they open by default.
+  if (program.cooldown && program.cooldown.length) {
+    wrap.appendChild(h('details.warm', { open: true },
+      h('summary', 'מתיחות ליום מנוחה', h('span', '5 דק׳')),
+      h('div.inner', h('ol', program.cooldown.map((c) => h('li',
+        h('b', c.name), c.prescription ? ` — ${c.prescription}` : ''))))));
+  }
+
+  /*
+   * Meals differ on a rest day — the pre-workout meal has nothing to sit before
+   * — and the nutrition tab already knew that, behind a toggle nobody arriving
+   * from here would think to flip. Opening it from this button sets the toggle,
+   * so the tab shows the day you are actually looking at.
+   */
+  wrap.appendChild(h('div.toolbar', { style: { marginTop: '18px' } },
+    h('button.btn', {
+      type: 'button',
+      onclick: () => {
+        store.set({ ui: Object.assign({}, store.get().ui, { restDayMeals: true, tab: 'nutrition' }) });
+        location.reload();
+      },
+    }, h('span.ico', '🍽'), 'התזונה של יום מנוחה')));
+  wrap.appendChild(h('p.lead', { style: { marginTop: '8px' } },
+    'בימי מנוחה אין ארוחה שלפני אימון, והשאר נשאר כפי שהוא.'));
+
+  return wrap;
+}
+
 function restSection(program, profile, redraw) {
   const trainDays = new Set(program.days.map((d) => d.dayIndex));
   const restIdx = [];

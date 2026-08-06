@@ -279,6 +279,28 @@ async function main() {
   }
   check(true, `${links.length} demo links, all pointing at a YouTube search for the exercise on the card`);
 
+  /*
+   * Rest days are days, not gaps. The week strip used to make training days
+   * tappable and leave the rest inert, so the rest day's task, its stretches and
+   * its different meals had no way in.
+   */
+  const restCells = await page.$$('.daycell.restcell');
+  check(restCells.length > 0, 'no rest day in the week strip is clickable');
+  if (restCells.length) {
+    await restCells[0].click();
+    await page.waitForTimeout(400);
+    const head = await page.$eval('.whead h2', (n) => n.textContent).catch(() => '');
+    check(head.indexOf('מנוחה') >= 0, `clicking a rest day did not open a rest view (heading: "${head}")`);
+    check(!!(await page.$('details.warm')), 'rest day view has no stretches');
+    const nutBtn = await page.$('button:has-text("התזונה של יום מנוחה")');
+    check(!!nutBtn, 'rest day view has no way to reach that day\'s meals');
+    // Back to a training day so the checks below see a session.
+    const trainCell = await page.$('.daycell.train');
+    if (trainCell) { await trainCell.click(); await page.waitForTimeout(400); }
+    const back = await page.$eval('.whead h2', (n) => n.textContent).catch(() => '');
+    check(back.indexOf('מנוחה') < 0, 'picking a training day after a rest day did not switch back');
+  }
+
   // Swap.
   const swap = await page.$('.list .ex .iconbtn.swap');
   if (swap) {
