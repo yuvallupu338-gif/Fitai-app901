@@ -28,6 +28,29 @@
   בתוך מסד הנתונים. מפתח החתימה לעולם אינו מגיע לדפדפן.
 -->
 
+<script>
+/* ==========================================================
+   ⬅⬅⬅  מלאו כאן פעם אחת, וזהו.  ➡➡➡
+   ==========================================================
+
+   אחרי שתמלאו את שתי השורות האלה, כל מי שיפתח את האפליקציה
+   ייכנס ישר למסך ההרשמה — בדיוק כמו באינסטגרם. אף אחד לא
+   יתבקש להגדיר שום דבר.
+
+   כל עוד הן ריקות, מוצג מסך הגדרה חד־פעמי שמסביר מה לעשות.
+
+   מאיפה מעתיקים:
+     supabase.com  →  הפרויקט שלכם  →  Project Settings  →  API
+
+   ⚠ רק המפתח שמסומן anon / public.
+     אין להדביק כאן את מפתח ה־service_role.
+   ========================================================== */
+
+// ‎||‎ נועד לאפשר הזרקת הערכים מבחוץ (סביבת אירוח, בדיקות) בלי לדרוס אותם.
+window.YOFI_SUPABASE_URL      = window.YOFI_SUPABASE_URL      || '';   // 'https://abcdefgh.supabase.co'
+window.YOFI_SUPABASE_ANON_KEY = window.YOFI_SUPABASE_ANON_KEY || '';   // 'eyJhbGciOiJIUzI1NiIsInR5cCI6IkpXVCJ9...'
+</script>
+
 <style>
 /* ==========================================================
    מערכת העיצוב — זהה לאפליקציית Next.js
@@ -153,7 +176,9 @@ h3{font-size:.95rem; font-weight:600}
 .btn[disabled]{opacity:.5; cursor:not-allowed}
 .btn.ghost{background:transparent; color:hsl(var(--foreground))}
 .btn.ghost:hover{background:hsl(var(--muted))}
-.btn.outline{background:transparent; border-color:hsl(var(--border))}
+/* חובה לקבוע צבע טקסט: ‎.btn‎ מגדיר את צבע הטקסט של כפתור מלא,
+   ועל רקע שקוף הוא היה נעלם (לבן על לבן במצב בהיר). */
+.btn.outline{background:transparent; color:hsl(var(--foreground)); border-color:hsl(var(--border))}
 .btn.outline:hover{background:hsl(var(--muted))}
 .btn.sec{background:hsl(var(--secondary)); color:hsl(var(--secondary-foreground))}
 .btn.danger{background:hsl(var(--destructive)); color:#fff}
@@ -266,6 +291,7 @@ html[data-theme="dark"] .badge.warn{color:hsl(var(--warning))}
 <div id="app" class="app"></div>
 <div id="toasts" aria-live="polite" aria-atomic="false"></div>
 <div id="modal-root"></div>
+<!-- APP:START -->
 <script>
 /* ==========================================================
    1. הגדרות, לקוח Supabase וניהול הסשן
@@ -4761,5 +4787,6 @@ Object.assign(window, {
 boot();
 
 </script>
+<!-- APP:END -->
 </body>
 </html>
