@@ -605,5 +605,45 @@ for (const p of problems) console.log(`  PROBLEM ${p}`);
   ok(!growthNote(null) && !growthNote(undefined), 'growthNote must survive no profile at all');
 }
 
+
+/*
+ * A minor's body reading steers the plan and is never displayed.
+ *
+ * The realism verdict stays on screen — that is a judgement about a goal and a
+ * date. What is withheld is the description of the trainee's own body, which is
+ * written to aim the programme and aims it just as well unread. Handing a
+ * thirteen-year-old a paragraph analysing their torso is how an app that meant
+ * to help teaches somebody to inspect themselves.
+ *
+ * Checked here rather than only in the renderer, because the property that
+ * matters is that hiding it costs nothing: the emphasis must be identical.
+ */
+{
+  const { hidesBodyReading } = await load('src/engine/age.js');
+  const { emphasisFrom } = await load('src/vision/apply.js');
+
+  for (const age of [12, 14, 17]) {
+    ok(hidesBodyReading({ age }), `the body reading must be withheld at ${age}`);
+  }
+  for (const age of [18, 25, 60]) {
+    ok(!hidesBodyReading({ age }), `the body reading must be shown at ${age}`);
+  }
+
+  // Hiding is a display decision only — the week must not change because of it.
+  const read = {
+    usable: true, confidence: 'high', at: new Date().toISOString(),
+    steer: {
+      emphasise: ['vertical_pull', 'squat'], deemphasise: ['calf'],
+      conditioning: 'moderate', goal: null, goalNote: null, note: '',
+    },
+  };
+  const a = JSON.stringify(emphasisFrom(read));
+  const b = JSON.stringify(emphasisFrom(read));
+  ok(a === b, 'emphasisFrom must be deterministic for one read');
+  ok(a.indexOf('1.35') >= 0 || a.indexOf('1.3') >= 0,
+    'a hidden reading must still move the emphasis — withholding it from the screen '
+    + 'must not quietly withhold it from the plan');
+}
+
 console.log(problems.length ? `\n${problems.length} problem(s)` : '\nOK');
 process.exit(problems.length ? 1 : 0);

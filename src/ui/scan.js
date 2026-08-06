@@ -23,6 +23,7 @@
 import { h, clear, announce, shrinkImage } from '../core/dom.js';
 import { analyze, VisionError, scanEligibility } from '../vision/analyze.js';
 import { hasKey, keyLooksValid, loadKey, choiceFor } from '../ai/client.js';
+import { hidesBodyReading } from '../engine/age.js';
 import { settingsRows } from './aisettings.js';
 import {
   emphasisFrom, emphasisSummary, bandHe, confidenceHe, buildHe, trainingAgeHe,
@@ -161,8 +162,32 @@ export function renderRead(read, profile, opts) {
       h('h4', 'מה תראה ראשון'), h('p', r.firstMilestone)));
   }
 
-  const sp = read.startPoint;
-  const tp = read.targetPhysique;
+  /*
+   * Under 18 the body reading steers the plan and is never displayed.
+   *
+   * Everything below this line describes the trainee's own body — how lean it
+   * is, what mass it carries, what stands out, what the posture is doing. It is
+   * written to aim the programme, and it aims the programme just as well unread.
+   * What stays on screen is the realism verdict, which is a judgement about a
+   * goal and a date rather than about them.
+   *
+   * The read is untouched: emphasisFrom still consumes all of it, so the week a
+   * fourteen-year-old gets is identical to the one they would have got if this
+   * were printed. The only difference is that nobody hands a child a paragraph
+   * analysing their torso.
+   */
+  const hideBody = hidesBodyReading(profile);
+  if (hideBody) {
+    box.appendChild(h('div.scancard',
+      h('div.eyebrow', 'מה נעשה עם הקריאה'),
+      h('p', 'הקריאה של התמונות שימשה לכוון את חלוקת הנפח בתוכנית שלך, והיא לא מוצגת כאן. '
+        + 'מה שכן מוצג הוא עד כמה היעד שבחרת מסתדר עם התאריך שנתת — וזה השיפוט על המטרה, לא עליך.'),
+      h('p', { style: { color: 'var(--dimmer)', fontSize: '12.5px' } },
+        emphasisSummary(emphasisFrom(read), profile))));
+  }
+
+  const sp = hideBody ? null : read.startPoint;
+  const tp = hideBody ? null : read.targetPhysique;
   if (sp || tp) {
     const grid = h('div.scangrid');
     if (sp) {
@@ -184,7 +209,7 @@ export function renderRead(read, profile, opts) {
     box.appendChild(grid);
   }
 
-  const steer = read.steer;
+  const steer = hideBody ? null : read.steer;
   if (steer && (steer.note || (steer.emphasise || []).length)) {
     box.appendChild(h('div.scancard',
       h('div.eyebrow', 'איך זה מכוון את התוכנית'),
@@ -203,7 +228,7 @@ export function renderRead(read, profile, opts) {
     ));
   }
 
-  if ((read.posture || []).length) {
+  if (!hideBody && (read.posture || []).length) {
     box.appendChild(h('div.scancard',
       h('div.eyebrow', 'שווה לבדוק'),
       h('ul', read.posture.map((item) => h('li', item.observation))),

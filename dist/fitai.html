@@ -1471,6 +1471,23 @@ function isMinor(profile) {
   return a !== null && a < ADULT_FROM;
 }
 
+/**
+ * True when a photo reading must steer the plan without ever being displayed.
+ *
+ * The realism verdict — is this target reachable by this date — is still shown,
+ * because that is a judgement about a goal and a calendar. What is withheld is
+ * the description of the body itself: how lean it is, how much mass it carries,
+ * what stands out, what the posture is doing. Those exist to aim the programme
+ * and they do that work whether or not anybody reads them.
+ *
+ * A thirteen-year-old has no use for a paragraph analysing their own torso, and
+ * handing them one is how an app that meant to help teaches somebody to inspect
+ * themselves. The plan is built from it identically either way.
+ */
+function hidesBodyReading(profile) {
+  return isMinor(profile);
+}
+
   return {
     "BODY_NUMBERS_FROM": BODY_NUMBERS_FROM,
     "FAT_LOSS_FROM": FAT_LOSS_FROM,
@@ -1484,6 +1501,7 @@ function isMinor(profile) {
     "withholdsPhotoScan": withholdsPhotoScan,
     "withholdsHeavyLoad": withholdsHeavyLoad,
     "isMinor": isMinor,
+    "hidesBodyReading": hidesBodyReading,
   };
 })();
 
@@ -11258,6 +11276,7 @@ __m["src/ui/scan.js"] = (function () {
 const { h, clear, announce, shrinkImage } = __m["src/core/dom.js"];
 const { analyze, VisionError, scanEligibility } = __m["src/vision/analyze.js"];
 const { hasKey, keyLooksValid, loadKey, choiceFor } = __m["src/ai/client.js"];
+const { hidesBodyReading } = __m["src/engine/age.js"];
 const { settingsRows } = __m["src/ui/aisettings.js"];
 const { emphasisFrom, emphasisSummary, bandHe, confidenceHe, buildHe, trainingAgeHe, patternHe, timelineGap, goalConflict, growthNote, } = __m["src/vision/apply.js"];
 
@@ -11393,8 +11412,32 @@ function renderRead(read, profile, opts) {
       h('h4', 'מה תראה ראשון'), h('p', r.firstMilestone)));
   }
 
-  const sp = read.startPoint;
-  const tp = read.targetPhysique;
+  /*
+   * Under 18 the body reading steers the plan and is never displayed.
+   *
+   * Everything below this line describes the trainee's own body — how lean it
+   * is, what mass it carries, what stands out, what the posture is doing. It is
+   * written to aim the programme, and it aims the programme just as well unread.
+   * What stays on screen is the realism verdict, which is a judgement about a
+   * goal and a date rather than about them.
+   *
+   * The read is untouched: emphasisFrom still consumes all of it, so the week a
+   * fourteen-year-old gets is identical to the one they would have got if this
+   * were printed. The only difference is that nobody hands a child a paragraph
+   * analysing their torso.
+   */
+  const hideBody = hidesBodyReading(profile);
+  if (hideBody) {
+    box.appendChild(h('div.scancard',
+      h('div.eyebrow', 'מה נעשה עם הקריאה'),
+      h('p', 'הקריאה של התמונות שימשה לכוון את חלוקת הנפח בתוכנית שלך, והיא לא מוצגת כאן. '
+        + 'מה שכן מוצג הוא עד כמה היעד שבחרת מסתדר עם התאריך שנתת — וזה השיפוט על המטרה, לא עליך.'),
+      h('p', { style: { color: 'var(--dimmer)', fontSize: '12.5px' } },
+        emphasisSummary(emphasisFrom(read), profile))));
+  }
+
+  const sp = hideBody ? null : read.startPoint;
+  const tp = hideBody ? null : read.targetPhysique;
   if (sp || tp) {
     const grid = h('div.scangrid');
     if (sp) {
@@ -11416,7 +11459,7 @@ function renderRead(read, profile, opts) {
     box.appendChild(grid);
   }
 
-  const steer = read.steer;
+  const steer = hideBody ? null : read.steer;
   if (steer && (steer.note || (steer.emphasise || []).length)) {
     box.appendChild(h('div.scancard',
       h('div.eyebrow', 'איך זה מכוון את התוכנית'),
@@ -11435,7 +11478,7 @@ function renderRead(read, profile, opts) {
     ));
   }
 
-  if ((read.posture || []).length) {
+  if (!hideBody && (read.posture || []).length) {
     box.appendChild(h('div.scancard',
       h('div.eyebrow', 'שווה לבדוק'),
       h('ul', read.posture.map((item) => h('li', item.observation))),

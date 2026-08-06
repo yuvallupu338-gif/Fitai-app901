@@ -116,3 +116,20 @@ export function isMinor(profile) {
   const a = ageOf(profile);
   return a !== null && a < ADULT_FROM;
 }
+
+/**
+ * True when a photo reading must steer the plan without ever being displayed.
+ *
+ * The realism verdict — is this target reachable by this date — is still shown,
+ * because that is a judgement about a goal and a calendar. What is withheld is
+ * the description of the body itself: how lean it is, how much mass it carries,
+ * what stands out, what the posture is doing. Those exist to aim the programme
+ * and they do that work whether or not anybody reads them.
+ *
+ * A thirteen-year-old has no use for a paragraph analysing their own torso, and
+ * handing them one is how an app that meant to help teaches somebody to inspect
+ * themselves. The plan is built from it identically either way.
+ */
+export function hidesBodyReading(profile) {
+  return isMinor(profile);
+}
