@@ -27,6 +27,13 @@ import { withholdsBodyNumbers } from './age.js';
  * opposite of a rest day for someone whose knee is the reason they are careful.
  * `load` is what the task costs the body, and it is what stops these stacking
  * into a fifth session: at most one 'moderate' task per week.
+ *
+ * `maxAge` is the same idea as `hurts`, for the risk nobody ticks a box for.
+ * The injury filter catches a jump rope for a declared bad knee; it had nothing
+ * to say about an eighty-two-year-old with no injuries listed, who was being
+ * handed ten minutes of jumping — a hundred landings and a balance demand, on a
+ * day meant for recovery. Where a task is capped there is always a gentler one
+ * left in the pool, so the day still has something on it.
  */
 const TASKS = [
   {
@@ -39,13 +46,13 @@ const TASKS = [
     id: 'walk_5k',
     title: 'הליכה 5 ק״מ',
     body: 'בערך 50 דקות. אם אתה עושה את זה אחרי ארוחה — עוד יותר טוב, זה מיישר את הסוכר בדם.',
-    load: 'moderate', needs: [], hurts: ['knee', 'ankle', 'hip'],
+    load: 'moderate', needs: [], hurts: ['knee', 'ankle', 'hip'], maxAge: 70,
   },
   {
     id: 'jump_rope_10',
     title: 'קפיצה בחבל 10 דקות',
     body: 'לא ברצף — 8 סבבים של דקה עם חצי דקה הפסקה. הכתפיים עושות את הסיבוב, לא המרפקים.',
-    load: 'moderate', needs: ['jump_rope'], hurts: ['knee', 'ankle', 'lower_back'],
+    load: 'moderate', needs: ['jump_rope'], hurts: ['knee', 'ankle', 'lower_back'], maxAge: 60,
   },
   {
     id: 'bike_20',
@@ -69,7 +76,7 @@ const TASKS = [
     id: 'stairs_10',
     title: '10 קומות מדרגות',
     body: 'עולים ברגל, יורדים במעלית. הירידה היא מה שמכאיב מחר, והיא לא נחוצה כאן.',
-    load: 'moderate', needs: [], hurts: ['knee', 'hip'],
+    load: 'moderate', needs: [], hurts: ['knee', 'hip'], maxAge: 65,
   },
   {
     id: 'carry_walk',
@@ -87,7 +94,7 @@ const TASKS = [
     id: 'walk_hills',
     title: 'הליכה 30 דקות בעלייה',
     body: 'רחוב משופע או הליכון בשיפוע 6–8. העלייה מעלה דופק בלי הזעזוע שיש בריצה.',
-    load: 'moderate', needs: [], hurts: ['knee', 'ankle'],
+    load: 'moderate', needs: [], hurts: ['knee', 'ankle'], maxAge: 70,
   },
   {
     id: 'row_15',
@@ -125,6 +132,8 @@ function allowed(task, profile) {
   if (task.hurts.some((q) => inj.has(q))) return false;
   const owned = new Set(profile.equipment || []);
   if (!task.needs.every((q) => owned.has(q))) return false;
+  const age = Number(profile.age);
+  if (task.maxAge && Number.isFinite(age) && age > task.maxAge) return false;
   return true;
 }
 

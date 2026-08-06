@@ -641,6 +641,62 @@ try {
   } catch (e) { err(`growth-allowance check could not run: ${e.message}`); }
 }
 
+/*
+ * Age has to reach the output, not just the arithmetic.
+ *
+ * Both defects here were the same shape: a rule existed and something later
+ * erased it.
+ *
+ * volume.js reduces the weekly target for age, sleep and stress — and then the
+ * "spend the spare time" step scaled whatever survived back up to a flat share
+ * of the clock. At 4x60 an eighty-year-old beginner and a twenty-five-year-old
+ * both came out at 63 sets, so the only thing deciding was the calendar.
+ *
+ * restday.js filtered its tasks by injury and equipment and not by age, so an
+ * eighty-two-year-old with no injuries ticked was handed ten minutes of jump
+ * rope — a hundred landings and a balance demand, on a recovery day.
+ */
+{
+  try {
+    const v = await load('src/engine/volume.js');
+    const rd = await load('src/engine/restday.js');
+    const schema = await load('src/intake/schema.js');
+    const mk = (over) => schema.normalizeProfile(Object.assign(schema.defaults(), {
+      heightCm: 172, weightKg: 62, goal: 'muscle', experience: 'beginner',
+      daysPerWeek: 4, minutesPerSession: 60, sleepHours: 7, stress: 3,
+    }, over));
+
+    // Recovery must survive the time cap.
+    const young = v.weeklyVolume(mk({ age: 25 })).total;
+    const old = v.weeklyVolume(mk({ age: 80 })).total;
+    if (old >= young) {
+      err(`an 80-year-old is prescribed ${old} sets against a 25-year-old's ${young} — `
+        + `the recovery factors are being erased by the fill-to-capacity step`);
+    }
+    const slept = v.weeklyVolume(mk({ age: 25, sleepHours: 9 })).total;
+    const tired = v.weeklyVolume(mk({ age: 25, sleepHours: 5 })).total;
+    if (tired >= slept) err(`5 hours of sleep yields ${tired} sets and 9 hours ${slept} — sleep is not reaching the plan`);
+    const calm = v.weeklyVolume(mk({ age: 25, stress: 1 })).total;
+    const fried = v.weeklyVolume(mk({ age: 25, stress: 5 })).total;
+    if (fried >= calm) err(`stress 5 yields ${fried} sets and stress 1 ${calm} — stress is not reaching the plan`);
+
+    // Rest-day tasks must respect age, and must not run out because of it.
+    const IMPACT = ['jump_rope_10', 'stairs_10'];
+    for (const age of [12, 25, 55, 62, 70, 82, 90]) {
+      const p = mk({ age, goal: 'fitness', location: 'full_gym' });
+      const tasks = rd.restDayTasks(p, [1, 3, 5, 6]);
+      if (!tasks.length) err(`age ${age}: no rest-day task at all`);
+      if (age >= 70) {
+        for (const t of tasks) {
+          if (IMPACT.includes(t.id)) {
+            err(`age ${age}: rest-day task "${t.title}" is impact work on a recovery day`);
+          }
+        }
+      }
+    }
+  } catch (e) { err(`age-reaches-output check could not run: ${e.message}`); }
+}
+
 /* ---------------- clips ---------------- */
 
 const clipFiles = existsSync(resolve(ROOT, 'src/data'))

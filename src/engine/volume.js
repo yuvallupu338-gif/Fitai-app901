@@ -335,11 +335,28 @@ export function weeklyVolume(profile) {
     for (const g of GROUPS) base[g] *= k;
     sum = capacity;
   } else if (sum < capacity * 0.82) {
-    // Long sessions, modest target: spend some of the spare time, but stay
-    // under the ceilings — extra time is worth more as rest than as sets.
-    const k = Math.min(1.3, (capacity * 0.85) / Math.max(1, sum));
-    for (const g of GROUPS) base[g] = Math.min(base[g] * k, caps[g]);
-    sum = GROUPS.reduce((n, g) => n + base[g], 0);
+    /*
+     * Long sessions, modest target: spend some of the spare time, but stay
+     * under the ceilings — extra time is worth more as rest than as sets.
+     *
+     * The fill target is scaled by recovery, because filling to a flat share of
+     * the clock undid the recovery model completely. factors() reduces the
+     * target for age, sleep and stress; this step then scaled whatever was left
+     * back up to 85% of what fits in the time, so at 4x60 an eighty-year-old
+     * beginner and a twenty-five-year-old both came out at 63 sets. The clock
+     * was the only thing left deciding, which is exactly what the factors exist
+     * to prevent.
+     *
+     * Only the recovery terms count here. Experience, frequency and session
+     * length already describe how much work fits and how much a trainee can
+     * handle — reusing them would charge the same limit twice.
+     */
+    const recovery = f.rest * f.load * f.years;
+    const k = Math.min(1.3, (capacity * 0.85 * recovery) / Math.max(1, sum));
+    if (k > 1) {
+      for (const g of GROUPS) base[g] = Math.min(base[g] * k, caps[g]);
+      sum = GROUPS.reduce((n, g) => n + base[g], 0);
+    }
   }
 
   /*
