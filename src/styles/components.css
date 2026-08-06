@@ -716,3 +716,9 @@ body.resting .modal-back { padding-bottom: 96px; }
 }
 .growthnote .gicon { color: var(--cyan); font-size: 15px; line-height: 1.4; flex: none; }
 .growthnote p { margin: 0; font-size: 13px; line-height: 1.6; color: var(--dim); }
+
+/* The logo. Sized by attribute so the layout is correct before the image
+   decodes — an inline data URI still costs a frame, and the header must not
+   jump when it lands. */
+.brandmark { display: block; height: auto; max-width: 100%; }
+.brandmark.sm { opacity: .92; }

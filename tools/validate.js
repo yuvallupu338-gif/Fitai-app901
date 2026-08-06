@@ -483,6 +483,45 @@ try {
   } catch (e) { err(`calisthenics-only check could not run: ${e.message}`); }
 }
 
+/*
+ * The logo has to actually be a logo.
+ *
+ * It is a base64 data URI in a source file, which is the one kind of asset that
+ * can rot silently: a truncated paste still parses as a string, still imports,
+ * still renders as an <img> — just a broken one, and only on somebody else's
+ * screen. So its shape is checked here rather than trusted.
+ *
+ * The size ceiling is the real point. The bundle is under a megabyte and this is
+ * one image; the 640x640 plate it was cut from was 531KB on its own, which would
+ * have been more than half the app.
+ */
+{
+  try {
+    const brand = await load('src/core/brand.js');
+    const uri = brand.LOGO;
+    if (typeof uri !== 'string' || !uri) {
+      err('src/core/brand.js does not export a LOGO string');
+    } else {
+      const m = /^data:image\/(webp|png|jpeg|svg\+xml);base64,([A-Za-z0-9+/=]+)$/.exec(uri);
+      if (!m) {
+        err('LOGO is not a well-formed base64 image data URI — a truncated paste still '
+          + 'imports fine and only fails on screen');
+      } else {
+        const bytes = Buffer.from(m[2], 'base64');
+        const kb = Math.round(bytes.length / 1024);
+        if (kb > 90) err(`the logo is ${kb}KB — too heavy for a bundle this size; re-cut it smaller`);
+        if (bytes.length < 2000) err(`the logo is only ${bytes.length} bytes — that is a truncated asset`);
+        // Magic bytes: the declared type must be the actual type.
+        const head = bytes.slice(0, 12).toString('latin1');
+        if (m[1] === 'webp' && !(head.startsWith('RIFF') && head.indexOf('WEBP') === 8)) {
+          err('LOGO claims image/webp but the bytes are not a WebP');
+        }
+        if (m[1] === 'png' && bytes[1] !== 0x50) err('LOGO claims image/png but the bytes are not a PNG');
+      }
+    }
+  } catch (e) { err(`logo check could not run: ${e.message}`); }
+}
+
 /* ---------------- clips ---------------- */
 
 const clipFiles = existsSync(resolve(ROOT, 'src/data'))

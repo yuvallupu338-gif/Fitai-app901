@@ -5,6 +5,7 @@
  * Everything is client side; nothing leaves the device.
  */
 
+import { LOGO } from './core/brand.js';
 import { h, clear, qs, announce } from './core/dom.js';
 import * as store from './core/store.js';
 
@@ -49,7 +50,8 @@ function renderWelcome() {
 
 
   root.appendChild(h('section.hero-in', { style: { paddingTop: '52px' } },
-    h('div.eyebrow', 'FitAI · תוכנית אישית'),
+    h('img.brandmark', { src: LOGO, alt: 'FitAI', width: '170', height: '65' }),
+    h('div.eyebrow', 'תוכנית אישית'),
     h('h1', 'התוכנית נבנית ', h('em', 'ממך'), '.', h('br'), 'לא מתבנית.'),
     h('p.sub',
       'אימון קליסטניקס בלבד — משקל גוף, מוט מתח, מקבילים וטבעות. כמה שאלות על הגוף, המטרה, '
@@ -82,7 +84,7 @@ function renderIntake() {
   releaseAll();
   clear(root);
   root.appendChild(h('header', { style: { padding: '26px 0 0' } },
-    h('div.eyebrow', 'FitAI')));
+    h('img.brandmark.sm', { src: LOGO, alt: 'FitAI', width: '104', height: '40' })));
 
   const host = h('div');
   root.appendChild(host);
