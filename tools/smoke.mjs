@@ -426,7 +426,77 @@ async function main() {
   check(consoleErrors.length === 0, `console errors: ${consoleErrors.slice(0, 5).join(' | ')}`);
   if (resourceErrors.length) notes.push(`${resourceErrors.length} remote resource(s) unavailable (expected offline: web fonts)`);
 
+  await checkAgeBounds(browser, target);
+
   await finish(browser, server);
+}
+
+/*
+ * The age floor, checked where a trainee meets it: the form.
+ *
+ * validate.js already pins MIN_AGE/MAX_AGE against the field, normalizeProfile
+ * and the free-text parser, but all three read the module. This one types a
+ * number into the running app and watches what happens, so a floor that is
+ * right in age.js and wrong on screen still fails.
+ *
+ * Each age gets its own browser context. The wizard keeps a draft, and a draft
+ * left over from the previous age is read back into the field — which looks
+ * exactly like the app refusing a legal age. It cost me an afternoon; the
+ * isolation is the point of the helper.
+ */
+async function checkAgeBounds(browser, target) {
+  const { MIN_AGE, MAX_AGE } = await import(pathToFileURL(resolve(ROOT, 'src/engine/age.js')).href);
+
+  const attempt = async (age) => {
+    const ctx = await browser.newContext({ viewport: { width: 430, height: 900 } });
+    const pg = await ctx.newPage();
+    await pg.goto(target, { waitUntil: 'networkidle' });
+    const start = await pg.$('.btn.primary');
+    if (start) { await start.click(); await pg.waitForTimeout(300); }
+
+    const built = await runWizard(pg, {
+      date: new Date(Date.now() + 200 * 86400000).toISOString().slice(0, 10),
+      number: 3, days: 3, text: '', clickFirstChip: false,
+      numbers: {
+        גיל: age, גובה: 165, משקל: 55, יעד: 58,
+        אימונים: 3, דקות: 45, שינה: 8, ארוחות: 4,
+        'שכיבות': 10, 'מתח': 2, 'פלאנק': 30,
+      },
+      optionText: {},
+    });
+
+    // What the field actually holds, so a form the harness failed to fill is
+    // not mistaken for the app turning someone away.
+    const held = await pg.$$eval('.field', (fs) => {
+      for (const f of fs) {
+        const l = f.querySelector('.flabel');
+        const i = f.querySelector('input');
+        if (l && i && l.textContent.includes('גיל')) return i.value;
+      }
+      return null;
+    }).catch(() => null);
+
+    await ctx.close();
+    return { built, held };
+  };
+
+  let held4 = true;
+  const holds = (ok, message) => { if (!ok) held4 = false; check(ok, message); };
+
+  for (const age of [MIN_AGE, MAX_AGE]) {
+    const { built } = await attempt(age);
+    holds(built, `age ${age} is inside ${MIN_AGE}-${MAX_AGE} but the questionnaire would not build a plan for it`);
+  }
+  for (const age of [MIN_AGE - 1, MAX_AGE + 1]) {
+    const { built, held } = await attempt(age);
+    holds(!built, `age ${age} is outside ${MIN_AGE}-${MAX_AGE} and the questionnaire built a plan anyway`);
+    holds(held === String(age),
+      `could not confirm age ${age} was refused: the age field held ${held === null ? 'nothing' : `"${held}"`}, `
+      + 'so the wizard may have stopped for an unrelated reason');
+  }
+  if (held4) {
+    notes.push(`age bounds hold in the browser: ${MIN_AGE}-${MAX_AGE} accepted, ${MIN_AGE - 1} and ${MAX_AGE + 1} refused`);
+  }
 }
 
 async function finish(browser, server) {
