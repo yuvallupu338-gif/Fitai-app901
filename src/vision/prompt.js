@@ -181,15 +181,22 @@ export const TOOL = {
           honestMonths: {
             type: ['integer', 'null'],
             description:
-              'Months of consistent training to get meaningfully close — not identical, close. '
-              + 'Null when the target is not reachable naturally.',
+              'Months to get meaningfully close — not identical, close. '
+              + 'Null when the target is not reachable naturally. '
+              + 'For a user in their late teens or early twenties this is NOT training time alone: '
+              + 'frame width, chest depth and muscle mass keep developing into the early twenties, '
+              + 'so part of the gap closes with age. Account for it in the number.',
           },
           verdict: {
             type: 'string',
             description:
               'Three to five Hebrew sentences. What is reachable by their date, what is not, and '
               + 'what the honest version of this goal looks like. This is the paragraph the whole '
-              + 'feature exists to produce.',
+              + 'feature exists to produce. '
+              + 'If the user is under about 23, say plainly that some of the distance closes on its '
+              + 'own as they finish developing — and say it in BOTH directions: it means the target '
+              + 'is more reachable than the training alone would suggest, AND it means they should '
+              + 'not credit the programme for what age delivers. Do not use it to promise anything.',
           },
           firstMilestone: {
             type: 'string',

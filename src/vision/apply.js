@@ -18,7 +18,7 @@
  * nothing itself — emphasisSummary needs it to say what a read actually changed.
  */
 
-import { withholdsFatLoss } from '../engine/age.js';
+import { withholdsFatLoss, stillDeveloping } from '../engine/age.js';
 
 import { weeklyVolume } from '../engine/volume.js';
 import { PATTERN_GROUP } from '../engine/generator.js';
@@ -302,6 +302,23 @@ export function trainingAgeHe(age) { return TRAINING_AGE_HE[age] || TRAINING_AGE
  * How the scan's timeline compares with the date the user picked. Returns null
  * when there is nothing to say — no read, no months, no target date.
  */
+/*
+ * The sentence itself. The rule behind it — who counts as still developing, and
+ * why — lives in engine/age.js with every other age threshold, so two screens
+ * cannot disagree about the same person.
+ */
+export function growthNote(profile) {
+  if (!stillDeveloping(profile)) return null;
+  const age = Number(profile.age);
+  return {
+    age,
+    he: `בגיל ${age} חלק מהפער בין שתי התמונות ייסגר בלי קשר לאימון — רוחב המסגרת, עומק בית החזה `
+      + 'ומסת השריר ממשיכים להתפתח לתוך שנות העשרים המוקדמות. '
+      + 'זה עובד לשני הכיוונים: היעד קרוב יותר ממה שהאימון לבדו מסביר, וגם — אל תזקוף לזכות התוכנית '
+      + 'את מה שהגיל עושה ממילא.',
+  };
+}
+
 export function timelineGap(read, profile) {
   if (!read || read.usable !== true || !read.realism) return null;
   const months = read.realism.honestMonths;

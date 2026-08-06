@@ -946,6 +946,17 @@ body.resting .modal-back { padding-bottom: 96px; }
 .daycell.restcell.on .bar { opacity: 1; box-shadow: inset 0 0 0 1px var(--cyan); }
 .daycell.restcell.on .letter { color: var(--cyan); }
 
+/* The natural-development note under a scan verdict. Informational, not a
+   warning — it qualifies the verdict rather than contradicting it. */
+.growthnote {
+  display: flex; gap: 9px; align-items: flex-start;
+  margin-top: 12px; padding: 12px 14px;
+  border: 1px solid var(--line-soft); border-radius: var(--r-sm);
+  background: linear-gradient(180deg, #16212F, #131C29);
+}
+.growthnote .gicon { color: var(--cyan); font-size: 15px; line-height: 1.4; flex: none; }
+.growthnote p { margin: 0; font-size: 13px; line-height: 1.6; color: var(--dim); }
+
 </style>
 </head>
 <body>
@@ -1399,6 +1410,24 @@ const HEAVY_LOAD_FROM = 16;
  */
 const ADULT_FROM = 18;
 
+/*
+ * Below this, part of the change between two photographs is not the training.
+ *
+ * Frame width, chest depth and muscle mass keep developing into the early
+ * twenties, and the photo scan opens at 18 — so its verdict, which is phrased in
+ * months of work, was charging the programme for what finishing growing
+ * delivers. 23 is deliberately conservative; the app only ever says the
+ * direction, never an amount, because a photograph cannot tell you how much is
+ * left.
+ */
+const STILL_DEVELOPING_UNTIL = 23;
+
+/** True when some of a body-composition goal will close without training. */
+function stillDeveloping(profile) {
+  const a = ageOf(profile);
+  return a !== null && a >= 10 && a < STILL_DEVELOPING_UNTIL;
+}
+
 function ageOf(profile) {
   const n = Number(profile && profile.age);
   return Number.isFinite(n) ? n : null;
@@ -1448,6 +1477,8 @@ function isMinor(profile) {
     "PHOTO_SCAN_FROM": PHOTO_SCAN_FROM,
     "HEAVY_LOAD_FROM": HEAVY_LOAD_FROM,
     "ADULT_FROM": ADULT_FROM,
+    "STILL_DEVELOPING_UNTIL": STILL_DEVELOPING_UNTIL,
+    "stillDeveloping": stillDeveloping,
     "withholdsBodyNumbers": withholdsBodyNumbers,
     "withholdsFatLoss": withholdsFatLoss,
     "withholdsPhotoScan": withholdsPhotoScan,
@@ -8553,7 +8584,7 @@ __m["src/vision/apply.js"] = (function () {
  * nothing itself — emphasisSummary needs it to say what a read actually changed.
  */
 
-const { withholdsFatLoss } = __m["src/engine/age.js"];
+const { withholdsFatLoss, stillDeveloping } = __m["src/engine/age.js"];
 
 const { weeklyVolume } = __m["src/engine/volume.js"];
 const { PATTERN_GROUP } = __m["src/engine/generator.js"];
@@ -8837,6 +8868,23 @@ function trainingAgeHe(age) { return TRAINING_AGE_HE[age] || TRAINING_AGE_HE.unc
  * How the scan's timeline compares with the date the user picked. Returns null
  * when there is nothing to say — no read, no months, no target date.
  */
+/*
+ * The sentence itself. The rule behind it — who counts as still developing, and
+ * why — lives in engine/age.js with every other age threshold, so two screens
+ * cannot disagree about the same person.
+ */
+function growthNote(profile) {
+  if (!stillDeveloping(profile)) return null;
+  const age = Number(profile.age);
+  return {
+    age,
+    he: `בגיל ${age} חלק מהפער בין שתי התמונות ייסגר בלי קשר לאימון — רוחב המסגרת, עומק בית החזה `
+      + 'ומסת השריר ממשיכים להתפתח לתוך שנות העשרים המוקדמות. '
+      + 'זה עובד לשני הכיוונים: היעד קרוב יותר ממה שהאימון לבדו מסביר, וגם — אל תזקוף לזכות התוכנית '
+      + 'את מה שהגיל עושה ממילא.',
+  };
+}
+
 function timelineGap(read, profile) {
   if (!read || read.usable !== true || !read.realism) return null;
   const months = read.realism.honestMonths;
@@ -8933,6 +8981,7 @@ function goalConflict(read, profile) {
     "confidenceHe": confidenceHe,
     "buildHe": buildHe,
     "trainingAgeHe": trainingAgeHe,
+    "growthNote": growthNote,
     "timelineGap": timelineGap,
     "goalConflict": goalConflict,
     "GROUPS": GROUPS,
@@ -10505,15 +10554,22 @@ const TOOL = {
           honestMonths: {
             type: ['integer', 'null'],
             description:
-              'Months of consistent training to get meaningfully close — not identical, close. '
-              + 'Null when the target is not reachable naturally.',
+              'Months to get meaningfully close — not identical, close. '
+              + 'Null when the target is not reachable naturally. '
+              + 'For a user in their late teens or early twenties this is NOT training time alone: '
+              + 'frame width, chest depth and muscle mass keep developing into the early twenties, '
+              + 'so part of the gap closes with age. Account for it in the number.',
           },
           verdict: {
             type: 'string',
             description:
               'Three to five Hebrew sentences. What is reachable by their date, what is not, and '
               + 'what the honest version of this goal looks like. This is the paragraph the whole '
-              + 'feature exists to produce.',
+              + 'feature exists to produce. '
+              + 'If the user is under about 23, say plainly that some of the distance closes on its '
+              + 'own as they finish developing — and say it in BOTH directions: it means the target '
+              + 'is more reachable than the training alone would suggest, AND it means they should '
+              + 'not credit the programme for what age delivers. Do not use it to promise anything.',
           },
           firstMilestone: {
             type: 'string',
@@ -11203,7 +11259,7 @@ const { h, clear, announce, shrinkImage } = __m["src/core/dom.js"];
 const { analyze, VisionError, scanEligibility } = __m["src/vision/analyze.js"];
 const { hasKey, keyLooksValid, loadKey, choiceFor } = __m["src/ai/client.js"];
 const { settingsRows } = __m["src/ui/aisettings.js"];
-const { emphasisFrom, emphasisSummary, bandHe, confidenceHe, buildHe, trainingAgeHe, patternHe, timelineGap, goalConflict, } = __m["src/vision/apply.js"];
+const { emphasisFrom, emphasisSummary, bandHe, confidenceHe, buildHe, trainingAgeHe, patternHe, timelineGap, goalConflict, growthNote, } = __m["src/vision/apply.js"];
 
 
 /* ------------------------------------------------------------------ *
@@ -11312,6 +11368,18 @@ function renderRead(read, profile, opts) {
 
   if (r.verdict) {
     box.appendChild(h(`div.verdict.${band.tone}`, paras(r.verdict)));
+  }
+
+  /*
+   * Sits directly under the verdict, because it changes how that paragraph
+   * should be read. The verdict is phrased in months of training; for someone
+   * still finishing growing, part of the distance is not training at all, and
+   * that cuts both ways — nearer than the work alone implies, and not the
+   * programme's achievement.
+   */
+  const growth = growthNote(profile);
+  if (growth) {
+    box.appendChild(h('div.growthnote', h('span.gicon', '↗'), h('p', growth.he)));
   }
 
   const gap = timelineGap(read, profile);

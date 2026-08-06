@@ -56,6 +56,24 @@ export const HEAVY_LOAD_FROM = 16;
  */
 export const ADULT_FROM = 18;
 
+/*
+ * Below this, part of the change between two photographs is not the training.
+ *
+ * Frame width, chest depth and muscle mass keep developing into the early
+ * twenties, and the photo scan opens at 18 — so its verdict, which is phrased in
+ * months of work, was charging the programme for what finishing growing
+ * delivers. 23 is deliberately conservative; the app only ever says the
+ * direction, never an amount, because a photograph cannot tell you how much is
+ * left.
+ */
+export const STILL_DEVELOPING_UNTIL = 23;
+
+/** True when some of a body-composition goal will close without training. */
+export function stillDeveloping(profile) {
+  const a = ageOf(profile);
+  return a !== null && a >= 10 && a < STILL_DEVELOPING_UNTIL;
+}
+
 function ageOf(profile) {
   const n = Number(profile && profile.age);
   return Number.isFinite(n) ? n : null;

@@ -705,3 +705,14 @@ body.resting .modal-back { padding-bottom: 96px; }
 .daycell.restcell:hover .bar, .daycell.restcell:focus-visible .bar { opacity: .9; }
 .daycell.restcell.on .bar { opacity: 1; box-shadow: inset 0 0 0 1px var(--cyan); }
 .daycell.restcell.on .letter { color: var(--cyan); }
+
+/* The natural-development note under a scan verdict. Informational, not a
+   warning — it qualifies the verdict rather than contradicting it. */
+.growthnote {
+  display: flex; gap: 9px; align-items: flex-start;
+  margin-top: 12px; padding: 12px 14px;
+  border: 1px solid var(--line-soft); border-radius: var(--r-sm);
+  background: linear-gradient(180deg, #16212F, #131C29);
+}
+.growthnote .gicon { color: var(--cyan); font-size: 15px; line-height: 1.4; flex: none; }
+.growthnote p { margin: 0; font-size: 13px; line-height: 1.6; color: var(--dim); }

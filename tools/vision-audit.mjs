@@ -574,5 +574,36 @@ for (const base of BASES) {
 
 console.log(`vision checks: ${checks}`);
 for (const p of problems) console.log(`  PROBLEM ${p}`);
+
+/*
+ * Natural development must be stated for a user still finishing growing.
+ *
+ * The scan opens at 18 and phrases its verdict in months of training, so without
+ * this the programme takes credit for what age delivers — and the target reads
+ * as further away than it is. The note is produced deterministically rather than
+ * asked of the model, because a rule that only holds when a model complies is
+ * not a rule.
+ */
+{
+  const { growthNote } = await load('src/vision/apply.js');
+  for (const age of [18, 19, 20, 21, 22]) {
+    const n = growthNote({ age });
+    ok(!!n, `growthNote must fire at ${age} — the scan is open from 18 and the body is not finished`);
+    if (n) {
+      ok(n.he.indexOf(String(age)) >= 0, `growthNote at ${age} should name the age it is talking about`);
+      // It has to cut both ways, or it becomes a promise.
+      ok(/אל תזקוף|לא בגלל|ממילא/.test(n.he),
+        `growthNote at ${age} only says the target is closer — it must also say not to credit the programme`);
+    }
+  }
+  for (const age of [23, 25, 40, 70]) {
+    ok(!growthNote({ age }), `growthNote must NOT fire at ${age} — nothing is still developing`);
+  }
+  for (const bad of [null, undefined, '', 0, 'abc', NaN]) {
+    ok(!growthNote({ age: bad }), `growthNote must stay silent for a missing age (${JSON.stringify(bad)})`);
+  }
+  ok(!growthNote(null) && !growthNote(undefined), 'growthNote must survive no profile at all');
+}
+
 console.log(problems.length ? `\n${problems.length} problem(s)` : '\nOK');
 process.exit(problems.length ? 1 : 0);

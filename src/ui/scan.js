@@ -26,7 +26,7 @@ import { hasKey, keyLooksValid, loadKey, choiceFor } from '../ai/client.js';
 import { settingsRows } from './aisettings.js';
 import {
   emphasisFrom, emphasisSummary, bandHe, confidenceHe, buildHe, trainingAgeHe,
-  patternHe, timelineGap, goalConflict,
+  patternHe, timelineGap, goalConflict, growthNote,
 } from '../vision/apply.js';
 
 
@@ -136,6 +136,18 @@ export function renderRead(read, profile, opts) {
 
   if (r.verdict) {
     box.appendChild(h(`div.verdict.${band.tone}`, paras(r.verdict)));
+  }
+
+  /*
+   * Sits directly under the verdict, because it changes how that paragraph
+   * should be read. The verdict is phrased in months of training; for someone
+   * still finishing growing, part of the distance is not training at all, and
+   * that cuts both ways — nearer than the work alone implies, and not the
+   * programme's achievement.
+   */
+  const growth = growthNote(profile);
+  if (growth) {
+    box.appendChild(h('div.growthnote', h('span.gicon', '↗'), h('p', growth.he)));
   }
 
   const gap = timelineGap(read, profile);
