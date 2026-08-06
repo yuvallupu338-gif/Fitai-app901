@@ -412,6 +412,77 @@ try {
   } catch (e) { err(`rest-day check could not run: ${e.message}`); }
 }
 
+/*
+ * This is a calisthenics app. Nothing may hand the user loaded equipment.
+ *
+ * The track is forced in normalizeProfile rather than asked, so the failure mode
+ * is not a wrong answer — it is a seed list, an option chip or an imported
+ * profile quietly reintroducing dumbbells, and the generator happily using them
+ * because matchesTrack was never the thing that stopped it.
+ */
+{
+  const LOADED = ['dumbbells', 'barbell', 'kettlebell', 'machines', 'cable'];
+  try {
+    const schema = await load('src/intake/schema.js');
+    const gen = await load('src/engine/generator.js');
+    const idx = await load('src/data/exercises.index.js');
+    const LOCATIONS = ['full_gym', 'building_gym', 'home_weights', 'home_bodyweight'];
+
+    for (const location of LOCATIONS) {
+      const p = schema.normalizeProfile(Object.assign(schema.defaults(), {
+        age: 30, heightCm: 178, weightKg: 76, location,
+      }));
+      if (p.track !== 'calisthenics') err(`${location}: normalizeProfile produced track "${p.track}"`);
+      for (const q of p.equipment || []) {
+        if (LOADED.includes(q)) err(`${location}: the seeded kit includes ${q}, which this app never uses`);
+      }
+    }
+
+    // An imported profile that claims another track must be coerced, not honoured.
+    const smuggled = schema.normalizeProfile(Object.assign(schema.defaults(), {
+      age: 30, heightCm: 178, weightKg: 76, location: 'full_gym',
+      track: 'weights', equipment: ['barbell', 'machines', 'cable', 'dumbbells'],
+    }));
+    if (smuggled.track !== 'calisthenics') err('an imported profile kept a non-calisthenics track');
+    for (const q of smuggled.equipment || []) {
+      if (LOADED.includes(q)) err(`an imported profile kept ${q} in its equipment list`);
+    }
+
+    // And no generated programme may contain a loaded exercise.
+    for (const location of LOCATIONS) {
+      for (const experience of ['beginner', 'intermediate', 'advanced']) {
+        const p = schema.normalizeProfile(Object.assign(schema.defaults(), {
+          age: 30, heightCm: 178, weightKg: 76, location, experience,
+          daysPerWeek: 4, minutesPerSession: 60, goal: 'muscle',
+        }));
+        for (const d of gen.generateProgram(p).days) {
+          for (const slot of d.slots) {
+            for (const v of slot.variants) {
+              const ex = idx.byId(v.exId);
+              if (!ex) continue;
+              const bad = (ex.equipment || []).filter((q) => LOADED.includes(q));
+              if (bad.length) {
+                err(`${location}/${experience}: "${ex.nameEn}" needs ${bad.join('+')} in a calisthenics-only app`);
+              }
+            }
+          }
+        }
+      }
+    }
+
+    // The questionnaire must not offer loaded gear either.
+    for (const step of schema.STEPS || []) {
+      for (const f of step.fields || []) {
+        const opts = typeof f.options === 'function' ? f.options(schema.defaults()) : f.options;
+        if (!Array.isArray(opts)) continue;
+        for (const o of opts) {
+          if (LOADED.includes(o.value)) err(`the ${f.key} question still offers "${o.label}"`);
+        }
+      }
+    }
+  } catch (e) { err(`calisthenics-only check could not run: ${e.message}`); }
+}
+
 /* ---------------- clips ---------------- */
 
 const clipFiles = existsSync(resolve(ROOT, 'src/data'))

@@ -290,7 +290,6 @@ const LOC_HE = {
   full_gym: 'חדר כושר מלא', building_gym: 'חדר כושר בבניין',
   home_weights: 'בית עם משקולות', home_bodyweight: 'בית בלי ציוד',
 };
-const TRACK_HE = { calisthenics: 'קליסטניקס', weights: 'מכונות ומשקולות', mixed: 'משולב' };
 
 function weeksTo(dateStr) {
   const d = new Date(dateStr);
@@ -317,7 +316,11 @@ export function profileBrief(profile) {
     p.targetWeightKg ? `משקל יעד: ${p.targetWeightKg} ק״ג` : 'משקל יעד: לא צוין',
     `זמינות: ${p.daysPerWeek} אימונים בשבוע, ${p.minutesPerSession} דקות לאימון`,
     `מקום וציוד: ${LOC_HE[p.location] || p.location}`,
-    `מסלול מועדף: ${TRACK_HE[p.track] || p.track}`,
+    // Stated as a fact about the app, not a preference of the user's. The
+    // model cannot usefully suggest "add weight" here — there is no weight to
+    // add — and a read that steered that way would produce advice the engine
+    // silently drops.
+    'אימון: קליסטניקס בלבד — משקל גוף, מוט, מקבילים וטבעות. אין משקולות, מכונות או פולי.',
     `שינה: ${p.sleepHours} שעות · עומס יומיומי: ${p.stress}/5`,
     `רמת התמסרות שהצהיר עליה: ${p.commitment}/5`,
   ];

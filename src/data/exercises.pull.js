@@ -206,6 +206,50 @@ export const PULL = [
     tags: ['compound'],
   },
   {
+    /*
+     * Rings are core kit for this app and every ring exercise in the library was
+     * level 3 or above, while a beginner is capped at 2 — so someone who ticked
+     * "טבעות" could never be shown one. This is the honest beginner rung: rings
+     * set high, body close to upright, which is the same movement at a fraction
+     * of the load.
+     */
+    id: 'high_ring_row',
+    name: 'חתירה בטבעות בזווית גבוהה',
+    nameEn: 'High Ring Row',
+    pattern: 'horizontal_pull',
+    muscles: { primary: ['back', 'lats'], secondary: ['biceps', 'rear_delts', 'core'] },
+    equipment: ['rings'],
+    level: 2,
+    unit: 'reps',
+    unilateral: false,
+    contraindications: [],
+    cues: ['טבעות גבוהות, גוף כמעט זקוף', 'ככל שהרגליים קדימה יותר — קשה יותר', 'שכמות נסגרות לפני שהמרפקים מתכופפים'],
+    anim: 'ring_row',
+    progressionTo: 'ring_row',
+    tags: ['compound'],
+  },
+  {
+    /*
+     * The other beginner rung, and the one that teaches the thing rings are for:
+     * holding a stable position on an unstable tool. Feet stay on the floor, so
+     * the load is whatever the trainee chooses to lean into.
+     */
+    id: 'ring_support_hold',
+    name: 'החזקת תמיכה בטבעות',
+    nameEn: 'Ring Support Hold',
+    pattern: 'horizontal_push',
+    muscles: { primary: ['chest', 'shoulders'], secondary: ['triceps', 'core'] },
+    equipment: ['rings'],
+    level: 2,
+    unit: 'time',
+    unilateral: false,
+    contraindications: ['shoulder'],
+    cues: ['רגליים על הרצפה — אתה קובע כמה משקל לתת', 'מרפקים נעולים, טבעות צמודות לירכיים', 'סובב את הטבעות כלפי חוץ וייצב'],
+    anim: 'ring_dip',
+    progressionTo: 'ring_dip',
+    tags: ['compound'],
+  },
+  {
     id: 'ring_row',
     name: 'חתירה בטבעות',
     nameEn: 'Ring Row',

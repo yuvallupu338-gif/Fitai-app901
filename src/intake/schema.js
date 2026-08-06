@@ -101,12 +101,18 @@ export function defaults() {
  * Option tables
  * ------------------------------------------------------------------ */
 
+/*
+ * This app trains one way: bodyweight. So the kit a place gives you is the kit
+ * that matters to bodyweight work — bars, rings, a box to elevate on — and the
+ * loaded equipment that used to be seeded here (dumbbells, barbell, machines,
+ * a cable stack) is gone, because nothing in the programme would ever reach
+ * for it.
+ */
 const EQUIPMENT_BY_LOCATION = {
-  full_gym: ['pullup_bar', 'dip_bars', 'rings', 'bands', 'dumbbells', 'barbell',
-    'kettlebell', 'bench', 'box', 'machines', 'cable', 'mat', 'jump_rope',
-    'treadmill', 'bike', 'rower'],
-  building_gym: ['dumbbells', 'bench', 'mat', 'treadmill', 'bike'],
-  home_weights: ['dumbbells', 'bands', 'mat'],
+  full_gym: ['pullup_bar', 'dip_bars', 'rings', 'bands', 'bench', 'box', 'mat',
+    'jump_rope', 'treadmill', 'bike', 'rower'],
+  building_gym: ['pullup_bar', 'bench', 'mat', 'treadmill', 'bike'],
+  home_weights: ['pullup_bar', 'bands', 'mat'],
   home_bodyweight: ['mat'],
 };
 
@@ -115,13 +121,8 @@ const EQUIPMENT_OPTIONS = [
   { value: 'dip_bars', label: 'מקבילים' },
   { value: 'rings', label: 'טבעות' },
   { value: 'bands', label: 'גומיות' },
-  { value: 'dumbbells', label: 'משקולות יד' },
-  { value: 'barbell', label: 'מוט ומשקולות' },
-  { value: 'kettlebell', label: 'קטלבל' },
   { value: 'bench', label: 'ספסל' },
   { value: 'box', label: 'קופסה / מדרגה' },
-  { value: 'machines', label: 'מכונות' },
-  { value: 'cable', label: 'פולי' },
   { value: 'trx', label: 'TRX' },
   { value: 'jump_rope', label: 'חבל קפיצה' },
   { value: 'mat', label: 'מזרן' },
@@ -360,7 +361,7 @@ export const STEPS = [
   {
     id: 'equipment',
     title: 'איפה אתה מתאמן',
-    subtitle: 'התוכנית תשתמש רק במה שבאמת יש לך. אין ציוד — עדיין יש תוכנית מלאה.',
+    subtitle: 'אימון במשקל גוף. מוט מתח פותח הרבה, אבל גם בלי שום דבר יש תוכנית מלאה.',
     fields: [
       {
         key: 'location', label: 'המקום', type: 'choice',
@@ -368,95 +369,10 @@ export const STEPS = [
         // edited from a real baseline instead of starting empty.
         onSet: (p, value) => { p.equipment = (EQUIPMENT_BY_LOCATION[value] || []).slice(); },
         options: [
-          { value: 'full_gym', label: 'חדר כושר מלא', desc: 'משקולות חופשיות, מכונות, פולי' },
-          { value: 'building_gym', label: 'חדר כושר בבניין', desc: 'בסיסי — כמה משקולות, אולי הליכון' },
-          { value: 'home_weights', label: 'בית עם משקולות', desc: 'משקולות יד או גומיות בבית' },
-          { value: 'home_bodyweight', label: 'בית בלי כלום', desc: 'משקל גוף בלבד' },
-        ],
-      },
-      {
-        key: 'track', label: 'איך אתה רוצה להתאמן', type: 'choice',
-        // Only worth asking when the equipment allows both. On a bare floor
-        // calisthenics is not a preference, it is the only option.
-        showIf: (p) => p.location !== 'home_bodyweight',
-        // Switching to calisthenics drops the machine kit the location seeded.
-        // Leaving it set is invisible in the programme — the track filter
-        // excludes those exercises anyway — but the review screen would still
-        // list "מכונות, פולי" as this user's equipment, contradicting the
-        // choice they just made two lines above it.
-        onSet: (p, value) => {
-          if (value === 'calisthenics') {
-            p.equipment = (p.equipment || []).filter((q) => q !== 'machines' && q !== 'cable');
-          }
-        },
-        help: 'שני אנשים באותו חדר כושר ועם אותה מטרה יכולים לרצות אימון אחר לגמרי. זו העדפה, לא הגבלה — אפשר לשנות בכל רגע.',
-        /*
-         * Worded from the equipment the user actually has, not from a fixed
-         * list. The weights track used to be called "מכונות ומשקולות" and
-         * described as "מוט, משקולות, מכונות ופולי" on every screen — including
-         * for someone who had just answered "בית עם משקולות", whose whole kit is
-         * dumbbells, bands and a mat. Three of the four things it named did not
-         * exist for them. The programme never used the missing gear, so nothing
-         * downstream broke; the questionnaire simply described a gym they had
-         * already said they did not have, two lines under their own answer.
-         *
-         * Reads p.equipment rather than the location, because the equipment
-         * chips sit on this same step: uncheck the machines and this rewords
-         * itself, which is the behaviour someone editing that list expects.
-         */
-        options: (p) => {
-          const kit = new Set(p && Array.isArray(p.equipment) ? p.equipment : []);
-          const heavy = kit.has('machines') || kit.has('cable');
-          const bar = kit.has('barbell');
-
-          // Name only what is actually in the kit. Writing "משקולות יד וגומיות"
-          // as a fixed phrase reintroduces the same defect one layer down: a
-          // building gym has dumbbells and no bands.
-          const held = [];
-          if (kit.has('dumbbells')) held.push('משקולות יד');
-          if (kit.has('kettlebell')) held.push('קטלבל');
-          if (kit.has('bands')) held.push('גומיות');
-          let label = 'משקולות';
-          let desc = `${held.length ? held.join(' ו') : 'מה שיש לך'}. התקדמות בעומס`;
-          if (heavy) {
-            label = 'מכונות ומשקולות';
-            desc = 'ברזל — מוט, משקולות, מכונות ופולי. התקדמות בעומס';
-          } else if (bar) {
-            label = 'משקולות חופשיות';
-            desc = 'מוט ומשקולות יד, בלי מכונות. התקדמות בעומס';
-          }
-
-          // Same idea on the calisthenics side: naming rings and parallel bars
-          // to someone who has neither is the same defect, and the floor
-          // progressions are the honest description of what they would get.
-          const bars = kit.has('pullup_bar') || kit.has('dip_bars') || kit.has('rings');
-          return [
-            {
-              value: 'calisthenics', label: 'קליסטניקס',
-              desc: bars
-                ? 'שליטה במשקל הגוף — מתח, מקבילים, טבעות, עמידת ידיים. התקדמות במנוף ולא במשקל'
-                : 'שליטה במשקל הגוף — שכיבות, סקוואט, פלאנק, עמידת ידיים. התקדמות במנוף ולא במשקל',
-            },
-            { value: 'weights', label, desc },
-            {
-              value: 'mixed', label: 'משולב',
-              desc: 'הטוב משני העולמות — הכלי שמתאים לכל תרגיל',
-            },
-          ];
-        },
-      },
-      {
-        key: 'gymMachines', label: 'יש מכונות, או רק משקולות חופשיות?', type: 'choice',
-        // Gated on the TRACK as well as the place. Someone who just chose
-        // calisthenics has said they train with their own bodyweight on bars
-        // and rings; asking them next whether the gym has a cable stack is
-        // asking about equipment their answer already ruled out, and it reads
-        // as the app not having listened.
-        showIf: (p) => (p.location === 'full_gym' || p.location === 'building_gym')
-          && p.track !== 'calisthenics',
-        options: [
-          { value: true, label: 'יש מכונות ופולי' },
-          { value: false, label: 'רק משקולות חופשיות' },
+          { value: 'full_gym', label: 'חדר כושר או פארק כושר', desc: 'מוט מתח, מקבילים, אולי טבעות' },
+          { value: 'building_gym', label: 'חדר כושר בבניין', desc: 'מוט מתח, ספסל, אולי הליכון' },
+          { value: 'home_weights', label: 'בית עם מוט מתח', desc: 'מוט על המשקוף, אולי גומיות' },
+          { value: 'home_bodyweight', label: 'בית בלי כלום', desc: 'רצפה וקיר. זה מספיק' },
         ],
       },
       {
@@ -790,9 +706,14 @@ export function normalizeProfile(input) {
 
   p.location = ['full_gym', 'building_gym', 'home_weights', 'home_bodyweight'].includes(p.location)
     ? p.location : 'home_bodyweight';
-  p.track = ['calisthenics', 'weights', 'mixed'].includes(p.track) ? p.track : 'mixed';
+  /*
+   * There is one track. The questionnaire no longer asks, imported profiles
+   * from an older build are coerced rather than honoured, and every downstream
+   * filter still reads p.track — so this single line is what makes the whole
+   * app calisthenics, instead of a rule repeated in each consumer.
+   */
+  p.track = 'calisthenics';
   // Training on a bare floor IS calisthenics — the question was never asked.
-  if (p.location === 'home_bodyweight') p.track = 'calisthenics';
   p.gymMachines = p.gymMachines !== false;
 
   const known = new Set(EQUIPMENT_OPTIONS.map((o) => o.value));

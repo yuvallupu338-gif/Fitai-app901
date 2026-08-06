@@ -20,7 +20,7 @@ const FIELD_HE = {
   age: 'גיל', sex: 'מין', heightCm: 'גובה', weightKg: 'משקל',
   experience: 'ותק', goal: 'מטרה', sport: 'ענף', targetWeightKg: 'משקל יעד',
   daysPerWeek: 'אימונים בשבוע', minutesPerSession: 'דקות לאימון', timeOfDay: 'שעה',
-  location: 'מקום', track: 'מסלול', equipment: 'ציוד',
+  location: 'מקום', equipment: 'ציוד',
   injuries: 'מגבלות', avoid: 'לא לכלול', medical: 'מצב רפואי',
   sleepHours: 'שינה', stress: 'עומס', commitment: 'התמסרות',
   withPartner: 'אימון משותף', wantsNutrition: 'תזונה', mealsPerDay: 'ארוחות',
