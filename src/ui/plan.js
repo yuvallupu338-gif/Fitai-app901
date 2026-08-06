@@ -5,6 +5,7 @@
 
 import { h, clear, announce } from '../core/dom.js';
 import { exerciseCard, releaseAll } from './exercise.js';
+import { restDayTasks, restNote } from '../engine/restday.js';
 import * as store from '../core/store.js';
 
 const LETTERS = ['א', 'ב', 'ג', 'ד', 'ה', 'ו', 'ש'];
@@ -101,6 +102,8 @@ export function renderPlan(root, program, profile) {
       ));
     }
 
+    view.appendChild(restSection(program, profile, draw));
+
     if (program.notes && program.notes.length) {
       view.appendChild(h('div.warnbox', { style: { marginTop: '20px' } },
         h('h4', 'שים לב'),
@@ -158,17 +161,77 @@ function shortTag(day) {
   return `${t.slice(0, 6)}…`;
 }
 
+
+/*
+ * Rest days, with something small to do on them.
+ *
+ * Ticked through the same store as an exercise, keyed on a synthetic day id, so
+ * they reset with the week exactly like sets do. Days with no task are still
+ * listed — the point is partly to show that a rest day IS a rest day, and that
+ * the empty ones are deliberate rather than forgotten.
+ */
+function restSection(program, profile, redraw) {
+  const trainDays = new Set(program.days.map((d) => d.dayIndex));
+  const restIdx = [];
+  for (let i = 0; i < 7; i++) if (!trainDays.has(i)) restIdx.push(i);
+  if (!restIdx.length) return h('div');
+
+  const tasks = restDayTasks(profile, restIdx);
+  const byDay = new Map(tasks.map((t) => [t.dayIndex, t]));
+
+  const rows = restIdx.map((i) => {
+    const t = byDay.get(i);
+    if (!t) {
+      return h('div.ex.restrow.free',
+        h('span.num', LETTERS[i]),
+        h('div.body-col',
+          h('div.name', `יום ${NAMES[i]}`),
+          h('div.prescr', h('span.chip.rest', 'מנוחה מלאה'))));
+    }
+    const dayId = `rest${i}`;
+    const done = store.isDone(dayId, 'task');
+    return h('div.ex.restrow' + (done ? '.done' : ''),
+      h('span.num', LETTERS[i]),
+      h('div.body-col',
+        h('div.name', t.title),
+        h('div.name-en', `יום ${NAMES[i]}`),
+        h('div.prescr',
+          h('span.chip' + (t.load === 'moderate' ? '' : '.rest'),
+            t.load === 'moderate' ? 'תובעני יותר' : 'קל'),
+        ),
+        h('div.cues', h('span', t.body))),
+      h('div.acts', h('button.iconbtn' + (done ? '.on' : ''), {
+        type: 'button',
+        title: done ? 'בטל סימון' : 'סמן שבוצע',
+        'aria-pressed': done ? 'true' : 'false',
+        onclick: () => {
+          store.setDone(dayId, 'task', !done);
+          announce(done ? 'הסימון בוטל' : `${t.title} — בוצע`);
+          redraw();
+        },
+      }, '✓')));
+  });
+
+  return h('div', { style: { marginTop: '26px' } },
+    h('h3', 'ימי מנוחה'),
+    h('p.lead', restNote(profile, tasks, restIdx.length)),
+    h('div.list', { style: { marginTop: '12px' } }, rows));
+}
+
 function weekFoot(program, profile) {
   const trainDays = new Set(program.days.map((d) => d.dayIndex));
   const rest = [];
-  for (let i = 0; i < 7; i++) if (!trainDays.has(i)) rest.push(LETTERS[i]);
+  const restIdx = [];
+  for (let i = 0; i < 7; i++) if (!trainDays.has(i)) { rest.push(LETTERS[i]); restIdx.push(i); }
 
   const total = program.days.reduce((n, d) => n + d.slots.length, 0);
   const done = program.days.reduce((n, d) => n + d.slots.filter((s) => store.isDone(d.id, s.key)).length, 0);
 
   return h('div.weekfoot',
+    // One sentence about rest days, from the same place the section below uses,
+    // so the footer cannot promise something the list does not show.
     h('span', rest.length
-      ? `ימי ${rest.join('׳, ')}׳ — מנוחה. הליכה ומתיחות קלות זה מצוין.`
+      ? `ימי ${rest.join('׳, ')}׳ — ${restNote(profile, restDayTasks(profile, restIdx), rest.length)}`
       : 'שבוע מלא. שים לב להתאוששות.'),
     h('span', { style: { fontFamily: 'var(--mono)', color: done === total && total ? 'var(--cyan)' : 'var(--dim)' } },
       `${done}/${total} השבוע`),

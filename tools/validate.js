@@ -364,6 +364,54 @@ try {
   } catch (e) { err(`pattern-repeat check could not run: ${e.message}`); }
 }
 
+/*
+ * Rest-day tasks must respect the same limits the training does.
+ *
+ * They are the one part of the week that is not built by the generator, so none
+ * of the exercise filters touch them: an injury the plan carefully worked
+ * around all week must not reappear as "jump rope for ten minutes" on Tuesday.
+ * Nor may a task ask for equipment the profile does not have, and nor may a
+ * week fill every rest day — a plan with something on all seven days is a plan
+ * nobody keeps.
+ */
+{
+  try {
+    const rd = await load('src/engine/restday.js');
+    const schema = await load('src/intake/schema.js');
+    const INJURIES = ['knee', 'ankle', 'hip', 'lower_back', 'shoulder', 'elbow', 'wrist'];
+    for (const goal of ['fatloss', 'muscle', 'strength', 'fitness', 'sport']) {
+      for (const injury of [null].concat(INJURIES)) {
+        for (const location of ['full_gym', 'home_bodyweight']) {
+          const p = schema.normalizeProfile(Object.assign(schema.defaults(), {
+            age: 30, heightCm: 178, weightKg: 76, goal, experience: 'intermediate',
+            daysPerWeek: 3, minutesPerSession: 60, location,
+            injuries: injury ? [injury] : [],
+          }));
+          const restIdx = [0, 1, 2, 3];
+          const tasks = rd.restDayTasks(p, restIdx);
+          const owned = new Set(p.equipment || []);
+          const byId = new Map(rd.TASKS.map((t) => [t.id, t]));
+          for (const t of tasks) {
+            const def = byId.get(t.id);
+            if (!def) { err(`rest task ${t.id} is not in the catalogue`); continue; }
+            if (injury && def.hurts.indexOf(injury) >= 0) {
+              err(`${goal}/${injury}: rest task "${def.title}" is contraindicated for ${injury}`);
+            }
+            for (const q of def.needs) {
+              if (!owned.has(q)) err(`${goal}/${location}: rest task "${def.title}" needs ${q}, which this profile lacks`);
+            }
+          }
+          if (tasks.length > restIdx.length) err(`${goal}: more rest tasks than rest days`);
+          const hard = tasks.filter((t) => t.load === 'moderate').length;
+          if (hard > 1) err(`${goal}/${injury || 'none'}: ${hard} demanding rest-day tasks in one week — rest days are for resting`);
+          const ids = new Set(tasks.map((t) => t.id));
+          if (ids.size !== tasks.length) err(`${goal}: the same rest task appears twice in one week`);
+        }
+      }
+    }
+  } catch (e) { err(`rest-day check could not run: ${e.message}`); }
+}
+
 /* ---------------- clips ---------------- */
 
 const clipFiles = existsSync(resolve(ROOT, 'src/data'))

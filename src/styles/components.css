@@ -686,3 +686,13 @@ body.resting .modal-back { padding-bottom: 96px; }
   font: inherit; color: inherit; cursor: pointer;
 }
 .ex .namebtn:hover, .ex .namebtn:focus-visible { text-decoration: underline; color: var(--amber); }
+
+/* Rest-day rows. Deliberately quieter than an exercise card — these are not
+   sessions, and they should not compete with one for attention. */
+.restrow { opacity: .96; }
+.restrow .num { color: var(--dim); font-size: 13px; }
+.restrow.free { opacity: .6; }
+.restrow.free .cues { display: none; }
+.restrow .cues { margin-top: 6px; color: var(--dim); font-size: 12.5px; line-height: 1.5; }
+.restrow.done { opacity: .55; }
+.restrow.done .name { text-decoration: line-through; }
