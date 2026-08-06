@@ -133,3 +133,25 @@ export function isMinor(profile) {
 export function hidesBodyReading(profile) {
   return isMinor(profile);
 }
+
+/*
+ * How much weight a body still adds on its own, in kg per week, before any
+ * training is counted.
+ *
+ * Adolescent boys gain roughly 4-9 kg a year through the growth spurt, from
+ * height, skeletal mass and organ mass — none of it produced by a programme.
+ * The figure here is the conservative end of that, and it tapers to nothing by
+ * the time the skeleton is done.
+ *
+ * It exists because the goal assessment prices weight gain off adult
+ * training-driven muscle rates. Against those a thirteen-year-old planning to go
+ * from 48kg to 60kg in a year is "unrealistic" and is told the extra will be
+ * fat — when in fact that is close to ordinary development.
+ */
+export function growthAllowanceKgPerWeek(profile) {
+  const a = ageOf(profile);
+  if (a === null || a < 10) return 0;
+  if (a <= 15) return 0.09;            // through the spurt
+  if (a >= 20) return 0;               // skeleton is done
+  return 0.09 * ((20 - a) / 5);        // taper across 16-19
+}

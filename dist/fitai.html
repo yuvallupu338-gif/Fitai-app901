@@ -1571,6 +1571,28 @@ function hidesBodyReading(profile) {
   return isMinor(profile);
 }
 
+/*
+ * How much weight a body still adds on its own, in kg per week, before any
+ * training is counted.
+ *
+ * Adolescent boys gain roughly 4-9 kg a year through the growth spurt, from
+ * height, skeletal mass and organ mass — none of it produced by a programme.
+ * The figure here is the conservative end of that, and it tapers to nothing by
+ * the time the skeleton is done.
+ *
+ * It exists because the goal assessment prices weight gain off adult
+ * training-driven muscle rates. Against those a thirteen-year-old planning to go
+ * from 48kg to 60kg in a year is "unrealistic" and is told the extra will be
+ * fat — when in fact that is close to ordinary development.
+ */
+function growthAllowanceKgPerWeek(profile) {
+  const a = ageOf(profile);
+  if (a === null || a < 10) return 0;
+  if (a <= 15) return 0.09;            // through the spurt
+  if (a >= 20) return 0;               // skeleton is done
+  return 0.09 * ((20 - a) / 5);        // taper across 16-19
+}
+
   return {
     "BODY_NUMBERS_FROM": BODY_NUMBERS_FROM,
     "FAT_LOSS_FROM": FAT_LOSS_FROM,
@@ -1585,6 +1607,7 @@ function hidesBodyReading(profile) {
     "withholdsHeavyLoad": withholdsHeavyLoad,
     "isMinor": isMinor,
     "hidesBodyReading": hidesBodyReading,
+    "growthAllowanceKgPerWeek": growthAllowanceKgPerWeek,
   };
 })();
 
@@ -16493,6 +16516,8 @@ __m["src/engine/targets.js"] = (function () {
  * bodyweight, because a 60kg and a 110kg person cannot lose the same kilos.
  */
 
+const { growthAllowanceKgPerWeek } = __m["src/engine/age.js"];
+
 const DAY = 86400000;
 
 /* Ceilings, as a fraction of bodyweight per week. */
@@ -16600,8 +16625,26 @@ function assessGoal(profile) {
   const perWeekFrac = Math.abs(delta) / weeks / start;
 
   const factor = commitmentFactor(p);
-  const ceiling = (losing ? LOSS_CEILING : (GAIN_CEILING[p.experience] || GAIN_CEILING.beginner)) * factor;
-  const comfy = (losing ? LOSS_COMFORTABLE : (GAIN_COMFORTABLE[p.experience] || GAIN_COMFORTABLE.beginner)) * factor;
+  let ceiling = (losing ? LOSS_CEILING : (GAIN_CEILING[p.experience] || GAIN_CEILING.beginner)) * factor;
+  let comfy = (losing ? LOSS_COMFORTABLE : (GAIN_COMFORTABLE[p.experience] || GAIN_COMFORTABLE.beginner)) * factor;
+
+  /*
+   * The ceilings above are adult, training-driven muscle gain. A body that is
+   * still growing adds mass without being asked, so for a trainee in that window
+   * the growth is added on top before the target is judged.
+   *
+   * Without this a thirteen-year-old at 48kg aiming for 60 in a year came out
+   * "unrealistic" and was told the extra would be fat — while that trajectory is
+   * close to ordinary development. Only applies to gaining: growth is not a
+   * licence to lose weight faster, and under-18 fat loss is refused above
+   * regardless.
+   */
+  const growthKgPerWeek = losing ? 0 : growthAllowanceKgPerWeek(p);
+  const growthFrac = start > 0 ? growthKgPerWeek / start : 0;
+  if (growthFrac > 0) {
+    ceiling += growthFrac;
+    comfy += growthFrac;
+  }
 
   const minor = Number(p.age) < 18;
 
@@ -16651,7 +16694,9 @@ function assessGoal(profile) {
   base.verdict = `${Math.abs(round1(delta))} ק״ג ב־${weeks} שבועות דורש ${kg(Math.abs(base.ratePerWeekKg))} בשבוע. `
     + (losing
       ? 'מעל הקצב הזה מה שיורד הוא בעיקר שריר ומים, והמשקל חוזר. '
-      : 'הגוף לא בונה שריר מהר יותר מזה — מעל הקצב הזה התוספת היא שומן. ')
+      : (growthFrac > 0
+        ? 'זה מעל מה שגדילה טבעית ואימון מוסיפים יחד בגיל הזה — מעל הקצב הזה התוספת היא שומן. '
+        : 'הגוף לא בונה שריר מהר יותר מזה — מעל הקצב הזה התוספת היא שומן. '))
     + (farOff
       ? `${kg(Math.abs(delta))} בקצב שהגוף שלך באמת מסוגל לו זה עניין של ${Math.round(weeksNeeded / 52)} שנים, לא של חודשים. `
         + `בזמן שנתת היעד הוא ${kg(reachable)} — וזה יעד טוב. `
@@ -16783,6 +16828,16 @@ function renderGuide(root, program, profile) {
   const goal = safe(() => assessGoal(profile), null);
   if (goal) {
     view.appendChild(h('h3', 'היעד שלך'));
+    /*
+     * Says where the judgement comes from. It is arithmetic on the numbers in
+     * the questionnaire — weight, target weight, date — and it runs whether or
+     * not a photo was ever uploaded. Without this line it reads as the scan's
+     * opinion, and someone who never scanned anything is left wondering what
+     * looked at them.
+     */
+    view.appendChild(h('p.lead', { style: { fontSize: '12.5px', marginTop: '-4px' } },
+      'החישוב הזה נעשה מהמספרים שהזנת — משקל היום, משקל היעד והתאריך. הוא לא קשור לסריקת התמונות '
+      + 'ורץ גם בלעדיה.'));
 
     if (profile.photoNow || profile.photoTarget) {
       view.appendChild(h('div.visionpair',

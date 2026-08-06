@@ -583,6 +583,64 @@ try {
   } catch (e) { err(`cool-down check could not run: ${e.message}`); }
 }
 
+/*
+ * A growing body is not judged by adult muscle-gain rates.
+ *
+ * The goal assessment prices weight gain off GAIN_CEILING, which describes what
+ * an adult builds from training. A thirteen-year-old at 48kg aiming for 60 in a
+ * year came out "unrealistic", with the plan telling him the extra would be fat
+ * — while that trajectory is close to ordinary development. Growth adds mass
+ * whether or not anybody trains.
+ *
+ * Checked in both directions, because the easy over-correction is to hand
+ * teenagers a licence: growth must NOT loosen fat loss, and it must be gone by
+ * the twenties.
+ */
+{
+  try {
+    const tg = await load('src/engine/targets.js');
+    const schema = await load('src/intake/schema.js');
+    const future = (weeks) => {
+      const d = new Date();
+      d.setDate(d.getDate() + weeks * 7);
+      return d.toISOString().slice(0, 10);
+    };
+    const mk = (over) => schema.normalizeProfile(Object.assign(schema.defaults(), {
+      sex: 'male', heightCm: 166, weightKg: 48, goal: 'muscle',
+      experience: 'beginner', commitment: 4, targetDate: future(56),
+    }, over));
+
+    // 48 -> 60 in a year is normal development at 13, and not at 25.
+    const teen = tg.assessGoal(mk({ age: 13, targetWeightKg: 60 }));
+    if (!teen.realistic) {
+      err('a 13-year-old going 48kg -> 60kg in a year is judged unrealistic — that is '
+        + 'ordinary growth being priced as adult muscle gain');
+    }
+    if (/הגוף לא בונה שריר מהר יותר מזה/.test(teen.verdict)) {
+      err('the goal verdict tells a growing teenager his body cannot add that mass');
+    }
+
+    const adult = tg.assessGoal(mk({ age: 25, targetWeightKg: 60 }));
+    if (adult.realistic) {
+      err('a 25-year-old going 48kg -> 60kg in a year is judged realistic — the growth '
+        + 'allowance must not reach adults');
+    }
+
+    // The allowance must not make losing weight easier for a minor.
+    const teenLoss = tg.assessGoal(mk({ age: 13, weightKg: 60, targetWeightKg: 50 }));
+    if (teenLoss.realistic) {
+      err('under-18 fat loss is being called realistic — growth must never loosen that');
+    }
+
+    const age = await load('src/engine/age.js');
+    if (age.growthAllowanceKgPerWeek({ age: 25 }) !== 0) err('growth allowance leaks into adults');
+    if (age.growthAllowanceKgPerWeek({ age: 9 }) !== 0) err('growth allowance applies below the intake floor');
+    if (!(age.growthAllowanceKgPerWeek({ age: 13 }) > age.growthAllowanceKgPerWeek({ age: 18 }))) {
+      err('the growth allowance does not taper with age');
+    }
+  } catch (e) { err(`growth-allowance check could not run: ${e.message}`); }
+}
+
 /* ---------------- clips ---------------- */
 
 const clipFiles = existsSync(resolve(ROOT, 'src/data'))

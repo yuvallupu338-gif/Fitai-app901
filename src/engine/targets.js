@@ -10,6 +10,8 @@
  * bodyweight, because a 60kg and a 110kg person cannot lose the same kilos.
  */
 
+import { growthAllowanceKgPerWeek } from './age.js';
+
 const DAY = 86400000;
 
 /* Ceilings, as a fraction of bodyweight per week. */
@@ -117,8 +119,26 @@ export function assessGoal(profile) {
   const perWeekFrac = Math.abs(delta) / weeks / start;
 
   const factor = commitmentFactor(p);
-  const ceiling = (losing ? LOSS_CEILING : (GAIN_CEILING[p.experience] || GAIN_CEILING.beginner)) * factor;
-  const comfy = (losing ? LOSS_COMFORTABLE : (GAIN_COMFORTABLE[p.experience] || GAIN_COMFORTABLE.beginner)) * factor;
+  let ceiling = (losing ? LOSS_CEILING : (GAIN_CEILING[p.experience] || GAIN_CEILING.beginner)) * factor;
+  let comfy = (losing ? LOSS_COMFORTABLE : (GAIN_COMFORTABLE[p.experience] || GAIN_COMFORTABLE.beginner)) * factor;
+
+  /*
+   * The ceilings above are adult, training-driven muscle gain. A body that is
+   * still growing adds mass without being asked, so for a trainee in that window
+   * the growth is added on top before the target is judged.
+   *
+   * Without this a thirteen-year-old at 48kg aiming for 60 in a year came out
+   * "unrealistic" and was told the extra would be fat — while that trajectory is
+   * close to ordinary development. Only applies to gaining: growth is not a
+   * licence to lose weight faster, and under-18 fat loss is refused above
+   * regardless.
+   */
+  const growthKgPerWeek = losing ? 0 : growthAllowanceKgPerWeek(p);
+  const growthFrac = start > 0 ? growthKgPerWeek / start : 0;
+  if (growthFrac > 0) {
+    ceiling += growthFrac;
+    comfy += growthFrac;
+  }
 
   const minor = Number(p.age) < 18;
 
@@ -168,7 +188,9 @@ export function assessGoal(profile) {
   base.verdict = `${Math.abs(round1(delta))} ק״ג ב־${weeks} שבועות דורש ${kg(Math.abs(base.ratePerWeekKg))} בשבוע. `
     + (losing
       ? 'מעל הקצב הזה מה שיורד הוא בעיקר שריר ומים, והמשקל חוזר. '
-      : 'הגוף לא בונה שריר מהר יותר מזה — מעל הקצב הזה התוספת היא שומן. ')
+      : (growthFrac > 0
+        ? 'זה מעל מה שגדילה טבעית ואימון מוסיפים יחד בגיל הזה — מעל הקצב הזה התוספת היא שומן. '
+        : 'הגוף לא בונה שריר מהר יותר מזה — מעל הקצב הזה התוספת היא שומן. '))
     + (farOff
       ? `${kg(Math.abs(delta))} בקצב שהגוף שלך באמת מסוגל לו זה עניין של ${Math.round(weeksNeeded / 52)} שנים, לא של חודשים. `
         + `בזמן שנתת היעד הוא ${kg(reachable)} — וזה יעד טוב. `

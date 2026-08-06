@@ -21,6 +21,16 @@ export function renderGuide(root, program, profile) {
   const goal = safe(() => assessGoal(profile), null);
   if (goal) {
     view.appendChild(h('h3', 'היעד שלך'));
+    /*
+     * Says where the judgement comes from. It is arithmetic on the numbers in
+     * the questionnaire — weight, target weight, date — and it runs whether or
+     * not a photo was ever uploaded. Without this line it reads as the scan's
+     * opinion, and someone who never scanned anything is left wondering what
+     * looked at them.
+     */
+    view.appendChild(h('p.lead', { style: { fontSize: '12.5px', marginTop: '-4px' } },
+      'החישוב הזה נעשה מהמספרים שהזנת — משקל היום, משקל היעד והתאריך. הוא לא קשור לסריקת התמונות '
+      + 'ורץ גם בלעדיה.'));
 
     if (profile.photoNow || profile.photoTarget) {
       view.appendChild(h('div.visionpair',
