@@ -334,23 +334,34 @@ Supabase Auth דורש אימייל, והדרישה כאן היא **שם משת�
 
 ## התקנה והרצה
 
-### מסלול א׳ — רק `index.html` (בלי Node כלל)
+### מסלול א׳ — בלי Node כלל: קובץ SQL אחד + `index.html`
 
-1. הריצו את המיגרציות פעם אחת מול Supabase (ראו *הגדרת Supabase מאפס*).
-2. פתחו את `index.html` בדפדפן — או העלו אותו לכל אחסון סטטי / GitHub Pages.
-3. הזינו במסך הפתיחה את `Project URL` ואת מפתח ה‑`anon`.
+זה המסלול הקצר ביותר. אין צורך בשום כלי פיתוח.
 
-הערכים נשמרים ב‑`localStorage` של הדפדפן. אפשר גם לקבע אותם מראש בקוד:
+1. **צרו פרויקט** ב‑[supabase.com](https://supabase.com) (התוכנית החינמית מספיקה).
+2. **SQL Editor → New query** → הדביקו את כל `supabase/setup.sql` → **Run**.
+   הקובץ יוצר את כל 49 הטבלאות, ההרשאות, הפונקציות ונתוני ההדגמה בהרצה אחת.
+3. בסוף אותו קובץ יש שורה אחת שצריך למלא — הדביקו בה את ה‑JWT Secret שלכם
+   (**Project Settings → API → JWT Settings**) והריצו גם אותה.
+4. **Project Settings → API** → העתיקו את `Project URL` ואת מפתח ה‑`anon`.
+5. פתחו את `index.html` בעורך טקסט והדביקו אותם **בשתי השורות שבראש הקובץ**:
 
-```html
-<script>
-  window.YOFI_SUPABASE_URL = 'https://xxxx.supabase.co';
-  window.YOFI_SUPABASE_ANON_KEY = 'eyJhbGciOi…';
-</script>
+```js
+window.YOFI_SUPABASE_URL      = 'https://abcdefgh.supabase.co';
+window.YOFI_SUPABASE_ANON_KEY = 'eyJhbGciOi…';
 ```
 
-> **אל תזינו כאן את `service_role`.** רק `anon` — הוא היחיד שמיועד לדפדפן,
+6. פתחו את הקובץ בדפדפן — או העלו אותו לכל אחסון סטטי / GitHub Pages.
+
+מרגע שהשורות מלאות, **מסך ההגדרה אינו מופיע יותר לאף אחד**: כל מבקר נכנס
+ישר למסך ההרשמה. אם משאירים אותן ריקות, מוצג מסך הגדרה חד־פעמי שמסביר מה לעשות
+ושומר את הערכים ב‑`localStorage` של אותו דפדפן בלבד.
+
+> **אל תזינו את `service_role`.** רק `anon` — הוא היחיד שמיועד לדפדפן,
 > והוא מוגן במלואו על ידי RLS.
+
+`setup.sql` **אידמפוטנטי** — אפשר להריץ אותו שוב בבטחה, הוא אינו מוחק נתונים קיימים.
+הוא נוצר אוטומטית מהמיגרציות; אחרי שינוי בהן הריצו `npm run build:sql`.
 
 ### מסלול ב׳ — אפליקציית Next.js המלאה
 
@@ -381,6 +392,7 @@ npm run typecheck   # TypeScript
 npm run check       # שניהם
 npm run db:reset    # מיגרציות + זריעה מחדש
 npm run db:types    # יצירת types/database.ts מהסכמה האמיתית
+npm run build:sql   # הרכבת supabase/setup.sql מהמיגרציות
 ```
 
 ---

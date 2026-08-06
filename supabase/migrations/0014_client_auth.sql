@@ -219,11 +219,13 @@ $$;
  * הרשמה ללא אימייל.
  * מחזירה אסימון גישה, את הפרופיל, ואת קוד השחזור – שמוצג פעם אחת בלבד.
  */
+-- ברירות המחדל חייבות להיות זהות לאלה שב־0015. ‎create or replace‎ אינו
+-- יכול להסיר ברירת מחדל קיימת, ובלי ההתאמה הרצה חוזרת של ההתקנה נכשלת.
 create or replace function public.auth_register(
   p_full_name  text,
   p_username   text,
-  p_city_id    uuid,
-  p_password   text,
+  p_city_id    uuid default null,
+  p_password   text default null,
   p_avatar_url text default null,
   p_birth_date date default null
 )
