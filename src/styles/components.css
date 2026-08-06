@@ -15,11 +15,14 @@
 .btn[disabled]:hover { border-color: var(--line); background: var(--steel-2); }
 .btn .ico { font-family: var(--mono); font-size: 14px; color: var(--amber); line-height: 1; }
 .btn.on { border-color: var(--amber); color: var(--amber); background: var(--amber-wash); }
+/* The gradient is the difference between a painted rectangle and something that
+   looks like it can be pressed. */
 .btn.primary {
-  background: var(--amber); color: #14202F; border-color: var(--amber); font-weight: 700;
+  background: var(--amber-grad); color: #1A1206; border-color: transparent; font-weight: 700;
+  box-shadow: 0 6px 18px rgba(255, 138, 43, .22);
 }
-.btn.primary:hover { background: #FFC262; }
-.btn.primary .ico { color: #14202F; }
+.btn.primary:hover { filter: brightness(1.07); }
+.btn.primary .ico { color: #1A1206; }
 .btn.ghost { background: transparent; }
 .btn.lg { padding: 11px 22px; font-size: 15px; }
 .btn.danger:hover { border-color: var(--rose); color: var(--rose); }
@@ -326,13 +329,52 @@ input::placeholder, textarea::placeholder { color: var(--dimmer); }
 .review .row span:last-child { text-align: end; font-weight: 600; }
 
 /* ---------------- tabs ---------------- */
+/*
+ * The tab bar is one object, not a row of loose buttons.
+ *
+ * It used to be ghost buttons sitting directly on the page, which made the
+ * selected view a slightly brighter button among equals. A rail with the active
+ * tab filled solid says where you are before you read anything — and it is the
+ * one control on screen that is always present, so it is worth the pixels.
+ */
 .tabs {
-  display: flex; gap: 6px; position: sticky; top: 0; z-index: 20;
-  background: linear-gradient(180deg, var(--night) 70%, transparent);
-  padding: 12px 0 10px; margin-bottom: 4px; overflow-x: auto; scrollbar-width: none;
+  display: flex; gap: 4px; position: sticky; top: 0; z-index: 20;
+  padding: 7px; margin: 12px 0 18px;
+  background: var(--steel); border: 1px solid var(--line-soft);
+  border-radius: var(--r-pill);
+  overflow-x: auto; scrollbar-width: none;
+  box-shadow: 0 10px 30px rgba(0, 0, 0, .28);
 }
 .tabs::-webkit-scrollbar { display: none; }
-.tabs .btn { white-space: nowrap; }
+.tabs .btn {
+  white-space: nowrap; border: 0; background: none;
+  border-radius: var(--r-pill); padding: 9px 16px; color: var(--dim);
+}
+.tabs .btn:hover { background: var(--steel-2); color: var(--chalk); }
+.tabs .btn.on {
+  background: var(--amber-grad); color: #1A1206; font-weight: 600;
+  box-shadow: 0 4px 14px rgba(255, 177, 60, .22);
+}
+.tabs .btn.on:hover { color: #1A1206; }
+
+/*
+ * Stat cards: one number, one label. The inline .fact chips are right for a
+ * long list of profile facts, and wrong for the three or four figures that are
+ * the point of a screen — those need to be readable across a room.
+ */
+.statgrid {
+  display: grid; grid-template-columns: repeat(auto-fit, minmax(118px, 1fr));
+  gap: 9px; margin-top: 20px;
+}
+.statcard {
+  background: var(--steel); border: 1px solid var(--line-soft);
+  border-radius: var(--r); padding: 15px 14px; text-align: center;
+}
+.statcard b {
+  display: block; font-family: var(--display); font-size: 25px;
+  color: var(--chalk); line-height: 1.1; letter-spacing: -.01em;
+}
+.statcard span { display: block; font-size: 11.5px; color: var(--dim); margin-top: 5px; }
 
 /* ---------------- meals ---------------- */
 .daytoggle { display: flex; gap: 8px; flex-wrap: wrap; margin-bottom: 12px; }
@@ -722,3 +764,5 @@ body.resting .modal-back { padding-bottom: 96px; }
    jump when it lands. */
 .brandmark { display: block; height: auto; max-width: 100%; }
 .brandmark.sm { opacity: .92; }
+.statcard.hot { border-color: var(--amber); background: var(--amber-wash); }
+.statcard.hot b { color: var(--amber); font-size: 20px; }

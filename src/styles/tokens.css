@@ -31,9 +31,19 @@
   --body: "Assistant", system-ui, sans-serif;
   --mono: "IBM Plex Mono", ui-monospace, monospace;
 
+  /* accents, continued */
+  /* The second amber. A single flat accent reads as a fill; a pair reads as a
+     surface with light on it, which is what makes a primary button look
+     pressable rather than painted. */
+  --amber-2: #FF8A2B;
+  --amber-grad: linear-gradient(135deg, var(--amber), var(--amber-2));
+
   /* geometry */
-  --r: 14px;
-  --r-sm: 9px;
+  /* Larger than they were. At 14px a card corner reads as a rounded rectangle;
+     at 18 it reads as a card, which is the difference between the interface
+     looking assembled and looking designed. */
+  --r: 18px;
+  --r-sm: 12px;
   --r-pill: 999px;
   --wrap: 760px;
   --gap: 9px;

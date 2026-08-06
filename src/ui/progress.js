@@ -32,11 +32,16 @@ export function renderProgress(root, program, profile) {
         + 'בגיל הזה הוא אמור לעלות, ומעקב שבועי אחריו מלמד לקרוא גדילה ככישלון.'
       : 'שקילה אחת בשבוע. אותו יום, בבוקר, אחרי שירותים, לפני שאתה אוכל. משקל יומי קופץ קילו בין בוקר לערב ולא אומר כלום.'));
 
-    view.appendChild(h('div.facts',
-      h('span.fact', 'שבוע ', h('b', String(week))),
-      h('span.fact', 'אימונים השבוע ', h('b', `${doneDays(program)}/${program.days.length}`)),
-      (!noBodyNumbers && st.weights.length) ? h('span.fact', 'משקל אחרון ', h('b', `${st.weights[st.weights.length - 1].kg} ק״ג`)) : null,
-      isDeload ? h('span.fact', { style: { borderColor: 'var(--amber)' } }, 'שבוע ', h('b', 'דילואד')) : null,
+    // These four are the point of the screen rather than a list of profile
+    // facts, so they get the card treatment: number first, label under it.
+    const stat = (value, label, hot) => h('div.statcard' + (hot ? '.hot' : ''),
+      h('b', String(value)), h('span', label));
+    view.appendChild(h('div.statgrid',
+      stat(week, 'שבוע'),
+      stat(`${doneDays(program)}/${program.days.length}`, 'אימונים השבוע'),
+      (!noBodyNumbers && st.weights.length)
+        ? stat(`${st.weights[st.weights.length - 1].kg}`, 'משקל אחרון · ק״ג') : null,
+      isDeload ? stat('דילואד', 'סוג השבוע', true) : null,
     ));
 
     const note = safe(() => weeklyPlanNote(profile, week), '');
