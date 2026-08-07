@@ -143,6 +143,11 @@ const COOLDOWN = 2;
           if (s.jumpFor > 0) { s.jumpFor--; input.press('a'); } else {
             input.release('a');
             if (s.cooldown > 0) s.cooldown--;
+            /* Stop stroking for a spell when the run has stalled. Underwater,
+               "stuck" is as often a ceiling as a floor, and a bot that only
+               ever swims upwards pins itself against the coral it needed to
+               go under. */
+            else if (s.since > 60 && (s.since % 90) < 45) { /* sink */ }
             else if (gap < 48 || p.y > 130 || s.since > 8) { s.jumpFor = 2; s.cooldown = 7; }
           }
           return;

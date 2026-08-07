@@ -111,7 +111,29 @@ export class Player {
    * ---------------------------------------------------------------- */
 
   update(input, level, frame) {
-    this.underwater = this.world.isUnderwater(this.x + this.w / 2, this.y + this.h / 2);
+    const cx = this.x + this.w / 2;
+    /* Two different questions. Swim physics key off the body's centre — you
+       swim once you are mostly under. Whether you can push off the water at
+       all keys off your feet, which is what makes the surface a place you can
+       leave rather than a place you get stuck at. */
+    this.underwater = this.world.isUnderwater(cx, this.y + this.h / 2);
+    this.touchingWater = this.underwater
+      || this.world.isUnderwater(cx, this.y + this.h - 2);
+    /*
+     * Deep water and the surface are two different places.
+     *
+     * Everything below keys off `deepWater`, not `underwater`, and that one
+     * distinction is what makes a pond escapable. With swim gravity applying
+     * the moment the body's centre dips under the line and land gravity the
+     * moment it rises above, the two fight each other in the twelve pixels
+     * between: each stroke lifts you into the heavier gravity, which drops
+     * you back under, for ever. Treat the top of the water as air you can
+     * push off instead, and coming out of a pond is a jump.
+     */
+    const surface = this.world.surfaceY(cx);
+    const centre = this.y + this.h / 2;
+    this.atSurface = surface !== null && centre < surface + K.SWIM_SURFACE_BAND;
+    this.deepWater = this.underwater && !this.atSurface;
 
     switch (this.state) {
       case 'dying': return this.updateDying();
@@ -145,7 +167,7 @@ export class Player {
       }
     }
 
-    if (this.underwater) this.swim(input, left, right);
+    if (this.deepWater) this.swim(input, left, right);
     else this.walk(left, right, run);
 
     this.jump(input, level);
@@ -267,18 +289,30 @@ export class Player {
     const pressed = input.pressed('a');
     this.jumpHeld = input.held('a');
 
-    if (this.underwater) {
-      /* Swimming is one stroke per press, and near the surface the stroke is
-         weaker so you bob rather than launch out of the water. */
+    if (this.deepWater) {
+      /* Swimming proper: one stroke per press, no button-holding. */
       if (pressed) {
-        const surface = this.world.surfaceY(this.x + this.w / 2);
-        const centre = this.y + this.h / 2;
-        const atSurface = surface !== null && centre < surface + K.SWIM_SURFACE_BAND;
-        this.vy = atSurface ? K.SWIM_STROKE_SURFACE : K.SWIM_STROKE;
+        this.vy = K.SWIM_STROKE;
         this.swimStroke = 16;
         this.world.sfx('swim');
       }
       if (this.swimStroke > 0) this.swimStroke--;
+      return;
+    }
+
+    /*
+     * At the surface with water under you: the press is a leap out, and it is
+     * a real jump — held for height, with the ordinary gravity — so that
+     * clearing the lip of a pond is the same skill as clearing a ledge.
+     */
+    if (pressed && !this.onGround && this.touchingWater) {
+      const row = K.JUMP_TABLE[0];
+      this.vy = K.WATER_LEAP;
+      this.gravityHold = row.hold;
+      this.gravityFall = row.fall;
+      this.jumping = true;
+      this.swimStroke = 16;
+      this.world.sfx('swim');
       return;
     }
 
@@ -295,7 +329,7 @@ export class Player {
   }
 
   applyGravity(input) {
-    if (this.underwater) {
+    if (this.deepWater) {
       this.vy += K.SWIM_GRAVITY;
       this.vy = clamp(this.vy, K.SWIM_MAX_RISE, K.SWIM_MAX_FALL);
       /* A swimmer cannot leave the top of the screen. On land, jumping off

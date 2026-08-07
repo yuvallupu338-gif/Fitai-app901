@@ -80,7 +80,24 @@ export const SWIM_STROKE = -1.4;
 export const SWIM_STROKE_SURFACE = -3.0;
 export const SWIM_SURFACE_BAND = 12;       // px below the line that counts
 export const SWIM_MAX_FALL = 2.0;
-export const SWIM_MAX_RISE = -2.0;
+/*
+ * The rise cap has to be at least as fast as the strongest stroke, or it
+ * silently deletes it: a stroke sets vy directly and gravity is the only
+ * thing that ever pulls back, so clamping to -2 made SWIM_STROKE_SURFACE's
+ * -3 exactly as strong as an ordinary paddle.
+ */
+export const SWIM_MAX_RISE = -3.0;
+/*
+ * Pressing jump with your feet in the water and your head out of it.
+ *
+ * Without this the surface of a pond is a trap with no name: the swim physics
+ * key off the body's centre, so at the waterline you are not underwater
+ * enough to stroke and not on the ground enough to jump, and every press does
+ * nothing. You bob in an eight-pixel band until the clock runs out. This is
+ * the leap out of the water, and it uses the ordinary jump gravity so that
+ * once you are clear you are simply jumping.
+ */
+export const WATER_LEAP = -4.2;
 export const SWIM_ACCEL = 0.03;
 export const SWIM_MAX = 1.4;
 export const SWIM_DECEL = 0.014;

@@ -83,7 +83,8 @@ function stubWorld(level) {
       return t === T.WATER || t === T.WATER_TOP;
     },
     surfaceY() {
-      if (level.water) return 16;
+      /* Matches World.surfaceY: a fully submerged level has no surface. */
+      if (level.water) return null;
       if (level.waterLine === undefined) return null;
       return level.waterLine * TILE;
     },

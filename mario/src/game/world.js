@@ -597,11 +597,20 @@ export class World {
     return isWater(level.at(Math.floor(x / 16), Math.floor(y / 16)));
   }
 
-  /* The y of the water surface above a point, or null on dry land. Used for
-     the weaker stroke near the top. */
+  /*
+   * The y of the water surface above a point, or null if there is not one.
+   *
+   * A fully submerged level has no surface — the top of the map is more
+   * water, not air — so it answers null, and everything that keys off the
+   * surface (the leap out, the switch to land gravity) correctly never fires
+   * there. Reporting the top of the screen as a surface made the ceiling of
+   * every underwater level behave like the top of a pond: the swimmer flipped
+   * between swim and land physics every frame and hung there, unable to sink
+   * back under the coral he was supposed to swim beneath.
+   */
   surfaceY(x) {
     const level = this.level;
-    if (level.water) return 16;
+    if (level.water) return null;
     if (level.waterLine === undefined) return null;
     return level.waterLine * 16;
   }
