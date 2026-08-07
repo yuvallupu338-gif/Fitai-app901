@@ -31,7 +31,7 @@ const { normalizeProfile, defaults } = await load('src/intake/schema.js');
 const { weeklyVolume } = await load('src/engine/volume.js');
 const { generateProgram } = await load('src/engine/generator.js');
 const { nutritionPlan } = await load('src/engine/nutrition.js');
-const { byId } = await load('src/data/exercises.index.js');
+const { byId, candidates } = await load('src/data/exercises.index.js');
 
 const problems = [];
 const fail = (m) => problems.push(m);
@@ -254,9 +254,32 @@ for (const base of BASES) {
         if (!ex) continue;
         ok((ex.equipment || []).every((q) => owned.has(q)),
           `${base.location}: ${ex.id} needs ${ex.equipment} which the user does not own`);
+        /*
+         * The field is `contraindications`. This read `contraindicated` — a
+         * name no exercise has ever carried — so `(undefined || [])` made it
+         * `ok(!false)` and it could not fail. Both AI audits had it: 1,490
+         * checks between them, asserting the injury rule twice and proving it
+         * zero times. Deleting the injury filter left both suites green.
+         *
+         * The first repair asked whether the variant's note carried the ⚠︎
+         * caution, and that was circular in the same way — the generator sets
+         * the caution from the same conflictsInjury call that should have
+         * filtered the exercise out, so with the filter disabled all 28 leaked
+         * picks still arrived flagged and the check still passed.
+         *
+         * So it asks the registry instead. A contraindicated exercise is
+         * legitimate only when nothing clean covers that pattern; the
+         * generator drops to the easiest option and says so. That condition is
+         * checkable independently: ask candidates() — which applies the injury
+         * filter — for the pattern, and if it returns anything at all, a clean
+         * option existed and this pick is a leak.
+         */
         for (const inj of scanned.injuries) {
-          ok(!(ex.contraindicated || []).includes(inj),
-            `${base.location}: ${ex.id} is contraindicated for ${inj}`);
+          if (!(ex.contraindications || []).includes(inj)) continue;
+          const clean = candidates(scanned, { pattern: ex.pattern });
+          ok(clean.length === 0,
+            `${base.location}: ${ex.id} loads a declared ${inj} while ${clean.length} clean `
+            + `option(s) existed for ${ex.pattern} (e.g. ${clean.slice(0, 2).map((c) => c.id).join(', ')})`);
         }
       }
     }

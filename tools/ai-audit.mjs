@@ -31,7 +31,7 @@ const { normalizePatch, TOOL: INTAKE_TOOL } = await load('src/ai/intake.js');
 const { imageBlock, choiceFor } = await load('src/ai/client.js');
 const { normalizeProfile, EQUIPMENT_OPTIONS, INJURY_OPTIONS } = await load('src/intake/schema.js');
 const { generateProgram } = await load('src/engine/generator.js');
-const { byId } = await load('src/data/exercises.index.js');
+const { byId, candidates } = await load('src/data/exercises.index.js');
 
 const problems = [];
 let checks = 0;
@@ -168,6 +168,16 @@ const HOSTILE = [
   { goal: 'become_a_bird', sex: 'yes', experience: 'godlike', location: 'the_moon', track: 'jazz' },
   { equipment: ['barbell', 'lightsaber', 'barbell'], injuries: ['knee', 'soul'], diet: ['vegan', 'air'] },
   { avoid: ['ריצה', '', null, 'x'.repeat(500)], medical: 'y'.repeat(5000), allergies: 'z'.repeat(5000) },
+  /*
+   * The wildcard refusal. `avoid` matches as a substring of the exercise name,
+   * so single common letters match everything — this exact array produced four
+   * days with zero exercises while the plan announced 73 working sets. It is
+   * schema-valid: items are strings, the count is 10, each is under the 40-char
+   * cap. The only thing wrong with it is that no refusal is one letter long.
+   */
+  { avoid: ['ה', 'ו', 'י', 'א', 'ר', 'ל', 'מ', 'ב', 'ת', 'ש'] },
+  { avoid: ['יי', 'מי', 'ות', 'יב', 'פי', 'כי', 'יה', 'בת', 'על', 'יכ'] },
+  { avoid: [' ', '  ', '|', '||', 'א|ב|ג'] },
   { sport: 'כדורסל' },                                   // sport with no sport goal
   { goal: 'sport', sport: 'כדורסל' },
   { minutesPerSession: 37, daysPerWeek: 99, mealsPerDay: 1 },
@@ -256,15 +266,38 @@ for (const base of BASES) {
           if (!(ex.equipment || []).every((q) => owned.has(q))) {
             problems.push(`${base.location}: ${ex.id} needs ${ex.equipment}, user owns ${[...owned]}`);
           }
+          /* See the note in vision-audit.mjs — same defect, same repair. A
+           * contraindicated pick is legitimate only when the registry has
+           * nothing clean for that pattern, which is asked here rather than
+           * inferred from the caution the generator wrote alongside it. */
           for (const inj of merged.injuries) {
-            if ((ex.contraindicated || []).includes(inj)) {
-              problems.push(`${base.location}: ${ex.id} is contraindicated for ${inj}`);
+            if (!(ex.contraindications || []).includes(inj)) continue;
+            const clean = candidates(merged, { pattern: ex.pattern });
+            if (clean.length) {
+              problems.push(`${base.location}: ${ex.id} loads a declared ${inj} while `
+                + `${clean.length} clean option(s) existed for ${ex.pattern}`);
             }
           }
         }
       }
     }
     ok(program.days.length === merged.daysPerWeek, `${base.location}: day count wrong after a patch`);
+    /*
+     * Day count is not a plan. This asserted only that the right number of days
+     * came back, so a program of four empty days passed — which is exactly what
+     * a schema-valid `avoid` of ten single Hebrew letters produced, while the
+     * volume note went on announcing 73 working sets. `avoid` is the one free
+     * string a model can put into the engine; it now needs terms of at least
+     * two characters, and this is the assertion that would have noticed.
+     */
+    for (const day of program.days) {
+      ok(day.slots.length > 0,
+        `${base.location}: "${day.title}" came back with no exercises at all after a patch`);
+      for (const slot of day.slots) {
+        ok(slot.variants && slot.variants.length > 0,
+          `${base.location}: "${day.title}" has a slot with no variants after a patch`);
+      }
+    }
     const twice = normalizeProfile(merged);
     ok(JSON.stringify(twice) === JSON.stringify(merged),
       `${base.location}: normalizeProfile is not idempotent after a patch`);

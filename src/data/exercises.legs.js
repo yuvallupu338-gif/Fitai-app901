@@ -312,6 +312,51 @@ export const LEGS = [
     progressionTo: 'pistol_squat',
     tags: ['compound', 'skill'],
   },
+  /*
+   * The two rungs between a two-legged squat and a pistol.
+   *
+   * Both single-leg squat progressions already here need equipment nobody
+   * training at home has — the box squat wants a plyo box, the assisted pistol
+   * wants suspension straps. Filter those out and the squat ladder for a
+   * bands-and-a-bar trainee reads level 1, level 2, then pistol at level 5,
+   * with nothing in between. "This is too easy" on a banded squat had one
+   * place to go and it was a pistol squat.
+   *
+   * These need a doorframe and a floor. They are the standard progression and
+   * they were simply missing.
+   */
+  {
+    id: 'supported_single_leg_squat',
+    name: 'סקוואט על רגל אחת בתמיכת יד',
+    nameEn: 'Supported Single-Leg Squat',
+    pattern: 'squat',
+    muscles: { primary: ['quads', 'glutes'], secondary: ['core', 'hamstrings'] },
+    equipment: ['none'],
+    level: 3,
+    unit: 'reps',
+    unilateral: true,
+    contraindications: ['knee'],
+    cues: ['יד אחת על משקוף או קיר — לאיזון בלבד', 'המשקל על העקב של הרגל העובדת', 'ירידה איטית, בלי ליפול פנימה עם הברך'],
+    regressionOf: 'band_squat',
+    progressionTo: 'skater_squat',
+    tags: ['compound'],
+  },
+  {
+    id: 'skater_squat',
+    name: 'סקוואט סקייטר',
+    nameEn: 'Skater Squat',
+    pattern: 'squat',
+    muscles: { primary: ['quads', 'glutes'], secondary: ['core', 'hamstrings'] },
+    equipment: ['none'],
+    level: 4,
+    unit: 'reps',
+    unilateral: true,
+    contraindications: ['knee'],
+    cues: ['הרגל האחורית מתקפלת אחורה והברך יורדת אל הרצפה', 'גו נוטה קדימה — זה תקין כאן', 'נגיעה קלה בברך ועלייה, בלי להישען עליה'],
+    regressionOf: 'supported_single_leg_squat',
+    progressionTo: 'pistol_squat',
+    tags: ['compound'],
+  },
   {
     id: 'pistol_squat',
     name: 'סקוואט פיסטול',
@@ -324,7 +369,7 @@ export const LEGS = [
     unilateral: true,
     contraindications: ['knee', 'hip'],
     cues: ['רגל חופשית ישרה וגבוהה', 'ידיים קדימה כמשקל נגד', 'עלייה בלי ניתור ובלי נפילה הצידה'],
-    regressionOf: null,
+    regressionOf: 'skater_squat',
     progressionTo: null,
     tags: ['compound', 'skill'],
   },

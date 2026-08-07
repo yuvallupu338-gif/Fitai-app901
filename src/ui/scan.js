@@ -536,6 +536,31 @@ export function renderScanTab(host, profile, opts) {
         + 'ומזיז את חלוקת הנפח בתוכנית לפער שביניהן. אפשר להחליף תמונה ולסרוק שוב בכל שלב.'),
     ));
 
+    /*
+     * The refusal comes before the pickers, not under them.
+     *
+     * renderScan already refuses, and the comment above that check says exactly
+     * why: "asking someone to photograph themselves and only then declining is
+     * the worst possible order." But renderScan is called at the bottom of this
+     * function, so on this tab the refusal sat below both file inputs — a
+     * fifteen-year-old was shown "אתה היום" and "לאן אתה מכוון" with a בחר
+     * button under each, and only after scrolling past them learned the feature
+     * is not for them. The questionnaire hides the same three fields for the
+     * same person (schema.js, showIf: !withholdsPhotoScan).
+     *
+     * Nothing was ever sent — analyze() refuses ahead of resolving a provider —
+     * but a picked photo is written to the profile by setPhoto, so the child's
+     * two body photographs reached localStorage for a scan that could not run.
+     */
+    const eligible = scanEligibility(working);
+    if (!eligible.ok) {
+      wrap.appendChild(h('div.warnbox',
+        h('h4', 'הסריקה לא זמינה'),
+        h('p', eligible.he),
+      ));
+      return;
+    }
+
     wrap.appendChild(h('div.visionpair',
       photoPicker(working, PHOTO_SLOTS[0], setPhoto),
       h('div.arrow', { 'aria-hidden': 'true' }, '←'),

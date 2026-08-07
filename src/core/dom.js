@@ -131,6 +131,27 @@ export function shrinkImage(file, maxPx, quality) {
 let liveRegion = null;
 /** Announce a message to screen readers without moving focus. */
 /*
+ * A number that carries a sign, kept together in an RTL paragraph.
+ *
+ * Digits render left-to-right inside Hebrew text, which is right — "76" is
+ * always "76". A leading + or − is not a digit though; it is a neutral, and in
+ * an RTL run it gets pulled to the far side of the digits it belongs to. So
+ * "-1.5 ק״ג" displays as "1.5-" and "+30" as "30+": the sign detaches from its
+ * own number and lands where a reader has no reason to attach it back.
+ *
+ * Ranges do NOT need this and must not be wrapped in it. "8–12" displays as
+ * "12–8", and that is correct — a Hebrew reader scans right-to-left, meets 8
+ * first and 12 second, and reads "8 to 12". Both numbers stay intact. Forcing
+ * that to LTR would be the actual bug.
+ *
+ * timer.js worked this out first, for the rest clock, and fixed it in place.
+ * This is the same fix with a name, so the next signed number gets it too.
+ */
+export function signedNum(text) {
+  return h('span', { dir: 'ltr' }, String(text));
+}
+
+/*
  * Whether the reader has asked the system for less movement.
  *
  * It lives here rather than in anim.js, where it was, because of what importing

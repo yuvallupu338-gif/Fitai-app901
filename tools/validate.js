@@ -826,6 +826,111 @@ try {
 }
 
 /*
+ * "This is too easy" must not hand back something dangerous.
+ *
+ * The control steps an exercise up a rung. It took the next variant in the
+ * slot, sorted by level, and never asked how far that jumped. For a trainee
+ * with bands and a pull-up bar the squat variants are level 1, 2 and 5 — the
+ * middle rungs need a plyo box and suspension straps and are filtered out by
+ * equipment — so pressing it on a banded squat returned a pistol squat. Three
+ * levels, onto one leg, for somebody the plan had on two.
+ *
+ * Checked against generated programmes rather than against the ladder in the
+ * data, because the defect was in what survived the equipment filter, not in
+ * how the exercises were written. A hole in a ladder is invisible until you
+ * stand on the rung below it with the wrong kit.
+ */
+{
+  try {
+    const schema = await load('src/intake/schema.js');
+    const gen = await load('src/engine/generator.js');
+    const adjust = await load('src/engine/adjust.js');
+    const registry = await load('src/data/exercises.index.js');
+
+    const KITS = [
+      ['home_bodyweight', []],
+      ['home_bands', ['bands', 'mat']],
+      ['home_weights', ['bands', 'mat', 'pullup_bar']],
+      ['gym_basic', ['pullup_bar', 'dip_bars', 'rings', 'mat']],
+      ['full_gym', ['pullup_bar', 'dip_bars', 'rings', 'bands', 'mat', 'box']],
+    ];
+    let steps = 0;
+    // One line per hole, not one per profile that walks into it.
+    const holes = new Set();
+    for (const [location, equipment] of KITS) {
+      for (const experience of ['beginner', 'returning', 'intermediate', 'advanced']) {
+        for (const age of [12, 16, 30, 70]) {
+          const p = schema.normalizeProfile(Object.assign(schema.defaults(), {
+            age, sex: 'male', heightCm: 175, weightKg: 72, goal: 'muscle',
+            experience, daysPerWeek: 3, minutesPerSession: 45, location, equipment,
+          }));
+          const program = gen.generateProgram(p);
+          for (const day of program.days) {
+            for (const slot of day.slots) {
+              const v = (slot.variants || [])[0];
+              if (!v) continue;
+              const cur = registry.byId(v.exId);
+              if (!cur) continue;
+              for (const dir of [1, -1]) {
+                const next = adjust.stepDifficulty(p, slot, v.exId, dir);
+                if (!next) continue;
+                const to = registry.byId(next.id || next.exId);
+                if (!to) { err('stepDifficulty returned something with no exercise behind it'); continue; }
+                steps++;
+
+                /*
+                 * The rule is "nearest rung", not a fixed distance.
+                 *
+                 * A first attempt asserted at most one level per press, and it
+                 * failed 62 times on the way down — level 4 to level 2 across
+                 * three patterns that simply have no level 3 in them. Those
+                 * steps were right: the nearest thing that exists is the best
+                 * answer available, and a check that calls it wrong is a check
+                 * that has to be argued with rather than believed.
+                 *
+                 * So it asks whether a rung was stepped over: anything the
+                 * registry could have offered, strictly between where the
+                 * trainee is and where the press landed them. That is what the
+                 * leapfrog bug actually was, and it is true regardless of how
+                 * the ladders are shaped.
+                 */
+                const pool = registry.candidates(p, { pattern: cur.pattern, maxLevel: 5 });
+                const between = pool.filter((e) => (dir > 0
+                  ? e.level > cur.level && e.level < to.level
+                  : e.level < cur.level && e.level > to.level));
+                if (between.length) {
+                  err(`${location}/${experience}/age ${age}: ${dir > 0 ? '"קל לי"' : '"קשה לי"'} on `
+                    + `${cur.id} (level ${cur.level}) jumped to ${to.id} (level ${to.level}), stepping over `
+                    + `${between[0].id} at level ${between[0].level}`);
+                }
+
+                /*
+                 * A hole in a ladder is not a code defect, but it is why the
+                 * squat sent somebody from a banded squat to a pistol, so it is
+                 * worth saying out loud rather than discovering from a plan.
+                 */
+                if (dir > 0 && to.level - cur.level > 1) {
+                  holes.add(`${cur.pattern}: nothing between ${cur.id} (level ${cur.level}) and `
+                    + `${to.id} (level ${to.level}) — "קל לי" moves ${to.level - cur.level} levels at once`);
+                }
+
+                // Stepping must never introduce kit the trainee lacks.
+                const owned = new Set(p.equipment.concat(['none']));
+                if (!(to.equipment || []).every((q) => owned.has(q))) {
+                  err(`${location}: stepping ${cur.id} produced ${to.id}, which needs ${to.equipment}`);
+                }
+              }
+            }
+          }
+        }
+      }
+    }
+    for (const hole of holes) warn(hole);
+    if (steps < 200) err(`the difficulty-step check only exercised ${steps} steps`);
+  } catch (e) { err(`difficulty-step check could not run: ${e.message}`); }
+}
+
+/*
  * A week has to fit the clock it was given, and a blank age is not a child.
  *
  * Both of these came out of a code review on the pull request, and both were
