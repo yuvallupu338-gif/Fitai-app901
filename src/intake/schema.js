@@ -65,7 +65,7 @@ export function defaults() {
 
     currentActivity: '',
     benchmarks: {
-      pushups: null, pullups: null, plankSec: null, dips: null,
+      pushups: null, pullups: null, plankSec: null, dips: null, squats: null,
     },
     /*
      * When those numbers were last recorded. Stamped by the wizard and by the
@@ -469,6 +469,28 @@ export const STEPS = [
        * pull-up and the push-up already here.
        */
       { key: 'bm_dips', label: 'מקבילים ברצף', type: 'number', unit: 'חזרות', required: false, min: 0, max: 100 },
+      /*
+       * The leg question, which did not exist.
+       *
+       * Four numbers were asked and every one of them spoke for the upper body:
+       * push-ups and dips for pushing, pull-ups for pulling, plank for the core.
+       * SPEAKS_FOR had no entry for squat, hinge or lunge, so demonstratedLevel
+       * returned null for all three and leg selection fell back to the
+       * experience tier — a checkbox ticked once and never updated again.
+       *
+       * Measured across a simulated year: a trainee going from 12 push-ups to
+       * 80 and from 2 pull-ups to 20 was prescribed tempo_squat L2,
+       * single_leg_rdl L2 and split_squat L2 at every single point. Byte
+       * identical. Their upper body climbed five levels while half their body
+       * sat still, and the ladder above them was not empty — squat and hinge
+       * both run all the way to level 5.
+       *
+       * Bodyweight squats in a row, to match the shape of the other four. It is
+       * an imperfect discriminator at the top, because leg endurance saturates
+       * where leg strength does not, and the rungs above 50 lean on that
+       * honestly rather than pretending otherwise.
+       */
+      { key: 'bm_squats', label: 'סקוואט ברצף', type: 'number', unit: 'חזרות', required: false, min: 0, max: 300 },
       {
         key: 'sleepHours', label: 'כמה שעות שינה בממוצע', type: 'number', unit: 'שעות',
         min: 4, max: 12, step: 0.5,

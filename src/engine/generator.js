@@ -913,6 +913,28 @@ function restrictPool(pool, role) {
   let out = working.length ? working : pool;
   if (role === 'main' || role === 'secondary') {
     const compound = out.filter((e) => !isIsolation(e));
+    /*
+     * One compound option is not a pool, it is a rut — so the threshold is two.
+     *
+     * This filter exists to stop a chest fly being prescribed as a main lift,
+     * and for pressing and pulling it is exactly right. Applied to the hinge it
+     * starves the pattern: single_leg_rdl is the ONLY compound hinge in this
+     * library, and every other one — the entire nordic curl family, the hip
+     * thrust, the glute bridge — is tagged isolation and dropped. So single-leg
+     * RDL at level 2 was the posterior-chain main for the fourteen-year-old,
+     * the intermediate, the 45-year-old with a bad back and the 85-year-old
+     * alike, often twice a week, always with no swap alternative, for the whole
+     * life of the programme. The nordic curl is single-joint by the letter of
+     * the rule and is the best-evidenced hamstring movement available without
+     * weights; the rule was written about cable flyes and never reconsidered.
+     *
+     * Below two, the isolations come back in and the caller is told, so the
+     * prescription is still written for what the movement actually is.
+     */
+    if (compound.length >= 2) return { pool: compound, demoted: false, onlyWarmups };
+    if (compound.length === 1 && out.length > 1) {
+      return { pool: out, demoted: true, onlyWarmups };
+    }
     if (compound.length) return { pool: compound, demoted: false, onlyWarmups };
     // Nothing compound covers this pattern for this user. Take the isolation,
     // but tell the caller so the prescription is written for what it is.

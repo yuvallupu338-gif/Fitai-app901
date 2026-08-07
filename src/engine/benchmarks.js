@@ -40,6 +40,27 @@ const LADDERS = {
   dips: [[30, 5], [20, 4], [10, 3], [5, 2], [0, 1]],
   pullups: [[15, 5], [10, 4], [4, 3], [1, 2], [0, 1]],
   plankSec: [[180, 5], [120, 4], [60, 3], [30, 2], [0, 1]],
+  /*
+   * Legs, and this ladder stops at 4 on purpose.
+   *
+   * Bodyweight squats are the easiest leg movement in the library and they are
+   * an endurance test long before they are a strength one: 90 in a row is a
+   * good engine, not a strong squat. The first version of this ran to 5 and the
+   * measurement caught what that meant — a self-declared BEGINNER who typed 90
+   * was prescribed the nordic curl, which is the hardest hamstring movement
+   * that exists and which most trained athletes cannot do one of.
+   *
+   * Level 5 down here is the pistol squat and the full nordic curl. Those are
+   * skill work with their own progressions, and no count of the easiest
+   * movement in the pattern is evidence for them. The trainee who really is
+   * there gets there through "קל לי", which is a claim about the actual
+   * exercise in front of them rather than an extrapolation from a different one.
+   *
+   * A rep count is a weak instrument here compared to what it is for pull-ups.
+   * It is still enormously better than what it replaces, which was nothing at
+   * all: legs came from the experience tier and never moved again.
+   */
+  squats: [[60, 4], [40, 3], [20, 2], [0, 1]],
 };
 
 /* Which declared number speaks for which movement pattern. */
@@ -52,6 +73,17 @@ const SPEAKS_FOR = {
   arms_biceps: ['pullups'],
   core_antiextension: ['plankSec'],
   core_flexion: ['plankSec'],
+  /*
+   * The three leg patterns, which had no entry here at all — the reason half
+   * the body never progressed. A squat count speaks for all three because they
+   * share a demand: the knee-dominant and hip-dominant patterns in this library
+   * are the same musculature at different angles, and nothing in the
+   * questionnaire distinguishes them. Better one honest signal for three
+   * patterns than none for any of them.
+   */
+  squat: ['squats'],
+  lunge: ['squats'],
+  hinge: ['squats'],
 };
 
 function repsOf(profile, key) {
@@ -224,3 +256,11 @@ export function benchmarkNote(profile) {
   return `רמת התרגילים נקבעה מהמספרים שדיווחת — ${parts.join(', ')} — ולא רק מהוותק שסימנת. `
     + 'אם משהו יצא קל או קשה מדי, הכפתורים בכרטיס מזיזים אותו רמה.';
 }
+
+/*
+ * Exported so tools/validate.js can assert the general rule rather than a list
+ * it would have to remember to update: every number the questionnaire collects
+ * must be read by at least one movement pattern. The leg hole existed because
+ * nothing could state that.
+ */
+export { LADDERS, SPEAKS_FOR };

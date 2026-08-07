@@ -2603,6 +2603,27 @@ const LADDERS = {
   dips: [[30, 5], [20, 4], [10, 3], [5, 2], [0, 1]],
   pullups: [[15, 5], [10, 4], [4, 3], [1, 2], [0, 1]],
   plankSec: [[180, 5], [120, 4], [60, 3], [30, 2], [0, 1]],
+  /*
+   * Legs, and this ladder stops at 4 on purpose.
+   *
+   * Bodyweight squats are the easiest leg movement in the library and they are
+   * an endurance test long before they are a strength one: 90 in a row is a
+   * good engine, not a strong squat. The first version of this ran to 5 and the
+   * measurement caught what that meant — a self-declared BEGINNER who typed 90
+   * was prescribed the nordic curl, which is the hardest hamstring movement
+   * that exists and which most trained athletes cannot do one of.
+   *
+   * Level 5 down here is the pistol squat and the full nordic curl. Those are
+   * skill work with their own progressions, and no count of the easiest
+   * movement in the pattern is evidence for them. The trainee who really is
+   * there gets there through "קל לי", which is a claim about the actual
+   * exercise in front of them rather than an extrapolation from a different one.
+   *
+   * A rep count is a weak instrument here compared to what it is for pull-ups.
+   * It is still enormously better than what it replaces, which was nothing at
+   * all: legs came from the experience tier and never moved again.
+   */
+  squats: [[60, 4], [40, 3], [20, 2], [0, 1]],
 };
 
 /* Which declared number speaks for which movement pattern. */
@@ -2615,6 +2636,17 @@ const SPEAKS_FOR = {
   arms_biceps: ['pullups'],
   core_antiextension: ['plankSec'],
   core_flexion: ['plankSec'],
+  /*
+   * The three leg patterns, which had no entry here at all — the reason half
+   * the body never progressed. A squat count speaks for all three because they
+   * share a demand: the knee-dominant and hip-dominant patterns in this library
+   * are the same musculature at different angles, and nothing in the
+   * questionnaire distinguishes them. Better one honest signal for three
+   * patterns than none for any of them.
+   */
+  squat: ['squats'],
+  lunge: ['squats'],
+  hinge: ['squats'],
 };
 
 function repsOf(profile, key) {
@@ -2788,6 +2820,14 @@ function benchmarkNote(profile) {
     + 'אם משהו יצא קל או קשה מדי, הכפתורים בכרטיס מזיזים אותו רמה.';
 }
 
+/*
+ * Exported so tools/validate.js can assert the general rule rather than a list
+ * it would have to remember to update: every number the questionnaire collects
+ * must be read by at least one movement pattern. The leg hole existed because
+ * nothing could state that.
+ */
+
+
   return {
     "demonstratedLevel": demonstratedLevel,
     "hasBenchmarks": hasBenchmarks,
@@ -2799,6 +2839,8 @@ function benchmarkNote(profile) {
     "snoozeExpired": snoozeExpired,
     "retestDelta": retestDelta,
     "benchmarkNote": benchmarkNote,
+    "LADDERS": LADDERS,
+    "SPEAKS_FOR": SPEAKS_FOR,
   };
 })();
 
@@ -8723,6 +8765,28 @@ function restrictPool(pool, role) {
   let out = working.length ? working : pool;
   if (role === 'main' || role === 'secondary') {
     const compound = out.filter((e) => !isIsolation(e));
+    /*
+     * One compound option is not a pool, it is a rut — so the threshold is two.
+     *
+     * This filter exists to stop a chest fly being prescribed as a main lift,
+     * and for pressing and pulling it is exactly right. Applied to the hinge it
+     * starves the pattern: single_leg_rdl is the ONLY compound hinge in this
+     * library, and every other one — the entire nordic curl family, the hip
+     * thrust, the glute bridge — is tagged isolation and dropped. So single-leg
+     * RDL at level 2 was the posterior-chain main for the fourteen-year-old,
+     * the intermediate, the 45-year-old with a bad back and the 85-year-old
+     * alike, often twice a week, always with no swap alternative, for the whole
+     * life of the programme. The nordic curl is single-joint by the letter of
+     * the rule and is the best-evidenced hamstring movement available without
+     * weights; the rule was written about cable flyes and never reconsidered.
+     *
+     * Below two, the isolations come back in and the caller is told, so the
+     * prescription is still written for what the movement actually is.
+     */
+    if (compound.length >= 2) return { pool: compound, demoted: false, onlyWarmups };
+    if (compound.length === 1 && out.length > 1) {
+      return { pool: out, demoted: true, onlyWarmups };
+    }
     if (compound.length) return { pool: compound, demoted: false, onlyWarmups };
     // Nothing compound covers this pattern for this user. Take the isolation,
     // but tell the caller so the prescription is written for what it is.
@@ -9947,7 +10011,7 @@ function defaults() {
 
     currentActivity: '',
     benchmarks: {
-      pushups: null, pullups: null, plankSec: null, dips: null,
+      pushups: null, pullups: null, plankSec: null, dips: null, squats: null,
     },
     /*
      * When those numbers were last recorded. Stamped by the wizard and by the
@@ -10351,6 +10415,28 @@ const STEPS = [
        * pull-up and the push-up already here.
        */
       { key: 'bm_dips', label: 'מקבילים ברצף', type: 'number', unit: 'חזרות', required: false, min: 0, max: 100 },
+      /*
+       * The leg question, which did not exist.
+       *
+       * Four numbers were asked and every one of them spoke for the upper body:
+       * push-ups and dips for pushing, pull-ups for pulling, plank for the core.
+       * SPEAKS_FOR had no entry for squat, hinge or lunge, so demonstratedLevel
+       * returned null for all three and leg selection fell back to the
+       * experience tier — a checkbox ticked once and never updated again.
+       *
+       * Measured across a simulated year: a trainee going from 12 push-ups to
+       * 80 and from 2 pull-ups to 20 was prescribed tempo_squat L2,
+       * single_leg_rdl L2 and split_squat L2 at every single point. Byte
+       * identical. Their upper body climbed five levels while half their body
+       * sat still, and the ladder above them was not empty — squat and hinge
+       * both run all the way to level 5.
+       *
+       * Bodyweight squats in a row, to match the shape of the other four. It is
+       * an imperfect discriminator at the top, because leg endurance saturates
+       * where leg strength does not, and the rungs above 50 lean on that
+       * honestly rather than pretending otherwise.
+       */
+      { key: 'bm_squats', label: 'סקוואט ברצף', type: 'number', unit: 'חזרות', required: false, min: 0, max: 300 },
       {
         key: 'sleepHours', label: 'כמה שעות שינה בממוצע', type: 'number', unit: 'שעות',
         min: 4, max: 12, step: 0.5,

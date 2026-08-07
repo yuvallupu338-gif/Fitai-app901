@@ -1793,6 +1793,167 @@ try {
   } catch (e) { err(`tick-week check could not run: ${e.message}`); }
 }
 
+
+/*
+ * Every pattern the questionnaire asks a number about has to be able to move.
+ *
+ * Four numbers were collected and all four spoke for the upper body. SPEAKS_FOR
+ * had no entry for squat, hinge or lunge, so demonstratedLevel returned null for
+ * every leg pattern and selection fell back to the experience tier — a checkbox
+ * ticked once at intake and never updated by anything, including the four-week
+ * re-test. Simulated over a year: a trainee going from 12 push-ups to 80 and
+ * from 2 pull-ups to 20 was prescribed tempo_squat L2, single_leg_rdl L2 and
+ * split_squat L2 at every single point, byte identical, while their upper body
+ * climbed five levels.
+ *
+ * The ladder above them was never the problem — squat and hinge both run to
+ * level 5 in this library. There was simply no evidence to climb with.
+ */
+{
+  try {
+    const schema = await load('src/intake/schema.js');
+    const gen = await load('src/engine/generator.js');
+    const registry = await load('src/data/exercises.index.js');
+    const bench = await load('src/engine/benchmarks.js');
+
+    const mk = (over) => schema.normalizeProfile(Object.assign(schema.defaults(), {
+      age: 30, sex: 'male', heightCm: 178, weightKg: 78, goal: 'muscle',
+      experience: 'beginner', daysPerWeek: 4, minutesPerSession: 60,
+      location: 'home_bodyweight', equipment: ['pullup_bar'],
+    }, over));
+
+    const topLevel = (p, patterns) => {
+      let best = 0;
+      for (const day of gen.generateProgram(p).days) {
+        for (const slot of day.slots) {
+          const v = (slot.variants || [])[0];
+          if (!v) continue;
+          const ex = registry.byId(v.exId);
+          if (ex && patterns.includes(ex.pattern) && ex.level > best) best = ex.level;
+        }
+      }
+      return best;
+    };
+
+    const LEGS = ['squat', 'hinge', 'lunge'];
+    const UPPER = ['horizontal_push', 'vertical_push', 'horizontal_pull', 'vertical_pull'];
+
+    /*
+     * 1. Each leg pattern has to move on its own.
+     *
+     * The first version of this took the max across all three, which cannot
+     * tell "all three are wired" from "squat is wired and the other two are
+     * still frozen" — wiring squat alone left it green. Asked per pattern now,
+     * because hinge and lunge are separate holes and a trainee gets all three
+     * every week.
+     */
+    /*
+     * Which profile shapes actually train each pattern varies — the day
+     * templates in volume.js do not give every split a lunge. So each pattern
+     * is asked across several shapes and judged on the ones that train it. The
+     * first version used one profile and reported "no lunge slots to compare"
+     * as a failure, which confuses "this pattern is frozen" with "this trainee
+     * does not do lunges" — two different facts, and only one is a bug.
+     */
+    const SHAPES = [
+      { daysPerWeek: 4, minutesPerSession: 60, goal: 'muscle' },
+      { daysPerWeek: 3, minutesPerSession: 60, goal: 'fitness' },
+      { daysPerWeek: 5, minutesPerSession: 75, goal: 'muscle' },
+      { daysPerWeek: 6, minutesPerSession: 60, goal: 'strength' },
+      { daysPerWeek: 3, minutesPerSession: 45, goal: 'fatloss' },
+    ];
+    for (const pat of LEGS) {
+      let trained = 0;
+      let moved = 0;
+      let stuckAt = null;
+      for (const shape of SHAPES) {
+        const weak = topLevel(mk(Object.assign({ bm_squats: 5, bm_pushups: 20, bm_pullups: 5 }, shape)), [pat]);
+        const strong = topLevel(mk(Object.assign({ bm_squats: 90, bm_pushups: 20, bm_pullups: 5 }, shape)), [pat]);
+        if (!weak && !strong) continue;
+        trained++;
+        if (strong > weak) moved++;
+        else if (stuckAt === null) stuckAt = `${weak} -> ${strong}`;
+      }
+      if (!trained) {
+        warn(`no profile shape tested trains ${pat} at all, so its progression is untested here`);
+      } else if (!moved) {
+        err(`across ${trained} profile shape(s) that train ${pat}, declaring 90 bodyweight squats `
+          + `never produced a harder exercise than declaring 5 (${stuckAt}) — ${pat} is still `
+          + 'selected from a checkbox ticked once and cannot progress');
+      }
+    }
+
+    // 2. Not just the top: the ladder has to be walked, not jumped. Distinct
+    //    levels across the range is what tells "it reads the number" apart from
+    //    "it has two modes".
+    {
+      const seen = new Set();
+      for (const n of [0, 10, 20, 35, 55, 90]) seen.add(topLevel(mk({ bm_squats: n }), LEGS));
+      if (seen.size < 3) {
+        err(`squat counts from 0 to 90 produced only ${seen.size} distinct leg level(s) `
+          + `(${[...seen].sort().join(',')}) — the ladder is not being walked`);
+      }
+    }
+
+    // 3. Every pattern with a declared number must be able to move, or the
+    //    questionnaire is asking for something it does not use. This is the
+    //    general form of the bug: it would have caught the leg hole on the day
+    //    the leg question was added, and it will catch the next one.
+    for (const key of Object.keys(bench.LADDERS || {})) {
+      const speaks = Object.entries(bench.SPEAKS_FOR || {}).filter(([, ks]) => ks.includes(key));
+      if (!speaks.length) {
+        err(`the questionnaire collects "${key}" and no movement pattern reads it — a number `
+          + 'asked for and never used is the bug this whole file exists to catch');
+      }
+    }
+
+    // 4. And the leg number must not leak into the upper body.
+    const upperFlat = topLevel(mk({ bm_squats: 90 }), UPPER);
+    const upperCtl = topLevel(mk({ bm_squats: 0 }), UPPER);
+    if (upperFlat !== upperCtl) {
+      err(`declaring 90 squats changed the hardest upper-body exercise from level ${upperCtl} `
+        + `to ${upperFlat} — a leg number says nothing about pressing`);
+    }
+
+    // 5. Skipping the question still has to work, and must not read as zero.
+    if (bench.demonstratedLevel(mk({}), 'squat') !== null) {
+      err('an unanswered squat count reads as evidence — skipping it should fall back to the tier');
+    }
+    if (bench.demonstratedLevel(mk({ bm_squats: 0 }), 'squat') === null) {
+      err('a declared 0 squats reads as no answer — a declared zero is evidence too');
+    }
+
+    /*
+     * 6. And no leg number lifts a minor past the growth-plate ceiling.
+     *
+     * The tier is written out here rather than read from registry.levelCeiling(),
+     * which is the function under test: asking it for the number to compare
+     * against could only ever confirm it agreed with itself, and mutating it to
+     * return 5 for everybody left this green. 4 is the rule age.js argues for —
+     * level 5 in this library is the muscle-up, the front lever and the full
+     * nordic curl, the calisthenics equivalent of a maximal lift.
+     */
+    const MINOR_CEILING = 4;
+    for (const age of [12, 14, 15]) {
+      /*
+       * Every benchmark maxed, not just the squat count. The first version
+       * declared 300 squats alone, and since that ladder tops out at 4 nothing
+       * was pushing against the ceiling at all — removing the ceiling entirely
+       * left the check green. A limit is only tested by something trying to
+       * exceed it.
+       */
+      const p = mk({
+        age, bm_squats: 300, bm_pushups: 200, bm_pullups: 100, bm_dips: 100, bm_plankSec: 600,
+      });
+      const got = topLevel(p, LEGS.concat(UPPER));
+      if (got > MINOR_CEILING) {
+        err(`age ${age}: maxing every declared number produced a level ${got} exercise, above the `
+          + `${MINOR_CEILING} an open growth plate is capped at`);
+      }
+    }
+  } catch (e) { err(`leg-progression check could not run: ${e.message}`); }
+}
+
 /* ---------------- report ---------------- */
 
 console.log(`exercises: ${allEx.size}`);
