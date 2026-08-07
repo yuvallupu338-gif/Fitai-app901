@@ -350,6 +350,21 @@ input::placeholder, textarea::placeholder { color: var(--dimmer); }
   white-space: nowrap; border: 0; background: none;
   border-radius: var(--r-pill); padding: 9px 16px; color: var(--dim);
 }
+/*
+ * On a narrow phone the five tabs are wider than the strip, and the strip
+ * scrolls — which is fine, so long as you can tell. A tab cut in half is the
+ * affordance; a tab that is entirely absent reads as a missing feature, and
+ * nobody swipes a bar they have no reason to think continues.
+ *
+ * At 320px the last tab (מעקב) was 0% visible. Trimming the padding here brings
+ * it back into view far enough to invite the swipe, without touching the
+ * spacing at 390px and up, where all five already fit.
+ */
+@media (max-width: 384px) {
+  .tabs { gap: 3px; padding: 6px; }
+  .tabs .btn { padding: 9px 10px; }
+}
+
 .tabs .btn:hover { background: var(--steel-2); color: var(--chalk); }
 .tabs .btn.on {
   background: var(--amber-grad); color: #1A1206; font-weight: 600;
