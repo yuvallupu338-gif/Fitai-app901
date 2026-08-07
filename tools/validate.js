@@ -827,6 +827,122 @@ try {
 }
 
 /*
+ * A week has to fit the clock it was given, and a blank age is not a child.
+ *
+ * Both of these came out of a code review on the pull request, and both were
+ * real.
+ *
+ * The floors: push, pull and legs carry a floor of 3 sets and core 2, so a week
+ * keeping all four owes 11 sets before anything is decided. The time capacity is
+ * worked out separately and nothing compared them — two 20-minute strength
+ * sessions afford 8.1 sets and the plan came out at 11.
+ *
+ * The age: age.js says in as many words that an unknown age is treated as an
+ * adult, and its own ageOf() did Number(p.age) and checked isFinite. Number(null)
+ * is 0 and 0 is finite, so a profile with no age was read as a child by every
+ * gate in the file at once — no calorie target, no weigh-in, fat loss refused,
+ * scan off.
+ *
+ * The minutes-per-set table is restated here rather than imported, for the same
+ * reason the warm-up drills are: a check that reads the engine's own pace can
+ * only confirm the engine agrees with itself.
+ */
+{
+  try {
+    const v = await load('src/engine/volume.js');
+    const age = await load('src/engine/age.js');
+    const targets = await load('src/engine/targets.js');
+    const schema = await load('src/intake/schema.js');
+
+    const PACE = { strength: 3.2, muscle: 2.6, fatloss: 2.0, fitness: 2.1, sport: 2.2 };
+    const GROUPS = ['push', 'pull', 'legs', 'core', 'arms', 'shoulders', 'calves', 'conditioning'];
+    const KEEP = ['push', 'pull', 'legs', 'core'];
+
+    // Whole sets rounded one group at a time can miss the fractional capacity by
+    // a set or two; that is the rounding, not the bound coming off.
+    const ROUNDING = 2;
+
+    let checked = 0;
+    for (const goal of Object.keys(PACE)) {
+      for (const minutes of [20, 25, 30, 45, 60, 75, 90]) {
+        for (const days of [2, 3, 4, 5, 6]) {
+          for (const experience of ['beginner', 'advanced']) {
+            const p = schema.normalizeProfile(Object.assign(schema.defaults(), {
+              age: 30, sex: 'male', heightCm: 175, weightKg: 75,
+              goal, experience, daysPerWeek: days, minutesPerSession: minutes,
+              location: 'home_weights',
+            }));
+            const b = v.sessionBudget(p);
+            const vol = v.weeklyVolume(p);
+            const capacity = Math.min(b.mainMin / PACE[goal], b.maxSlots * 3.0) * days;
+            checked++;
+
+            if (vol.total > capacity + ROUNDING) {
+              err(`${goal} ${minutes}min x${days} (${experience}): ${vol.total} sets against a `
+                + `capacity of ${capacity.toFixed(1)} — the week does not fit the clock it was given`);
+            }
+            for (const g of GROUPS) {
+              if (!Number.isInteger(vol[g])) {
+                err(`${goal} ${minutes}min x${days}: ${g} came out at ${vol[g]} sets — not a whole number`);
+              }
+            }
+            // Shrinking a floor must not delete the movement pattern.
+            for (const g of KEEP) {
+              if (!(vol[g] >= 1)) {
+                err(`${goal} ${minutes}min x${days}: ${g} has ${vol[g]} sets — the week lost a movement pattern`);
+              }
+            }
+          }
+        }
+      }
+    }
+    if (checked < 200) err(`the volume-fits-the-clock check only ran ${checked} profiles`);
+
+    /* A profile with no age is an adult, at every gate, however the blank looks. */
+    const asked = {
+      'isMinor': (p) => age.isMinor(p),
+      'withholdsPhotoScan': (p) => age.withholdsPhotoScan(p),
+      'withholdsFatLoss': (p) => age.withholdsFatLoss(p),
+      'withholdsBodyNumbers': (p) => age.withholdsBodyNumbers(p),
+      'withholdsHeavyLoad': (p) => age.withholdsHeavyLoad(p),
+      'hidesBodyReading': (p) => age.hidesBodyReading(p),
+      'stillDeveloping': (p) => age.stillDeveloping(p),
+    };
+    for (const blank of [null, undefined, '', '   ', 'abc', NaN]) {
+      const p = { age: blank, sex: 'male', heightCm: 175, weightKg: 75 };
+      for (const name of Object.keys(asked)) {
+        if (asked[name](p)) {
+          err(`age.js: a profile with age ${JSON.stringify(blank)} answers true to ${name}() — `
+            + `the file says an unknown age is treated as an adult`);
+        }
+      }
+      if (age.growthAllowanceKgPerWeek(p) !== 0) {
+        err(`age.js: a profile with age ${JSON.stringify(blank)} is given a growth allowance`);
+      }
+    }
+    // ...and the goal assessment agrees, since it is the surface that showed it.
+    for (const blank of [null, undefined, '']) {
+      const p = Object.assign(schema.defaults(), {
+        age: blank, sex: 'male', heightCm: 175, weightKg: 80,
+        goal: 'fatloss', targetWeightKg: 72,
+      });
+      const verdict = targets.assessGoal(p);
+      if (/הגוף עוד גדל/.test(verdict.verdict || '')) {
+        err(`assessGoal refuses fat loss for a profile with age ${JSON.stringify(blank)} on the `
+          + `grounds that the body is still growing`);
+      }
+    }
+    // The gates must still fire for someone who actually is young.
+    {
+      const kid = { age: 13, sex: 'male', heightCm: 155, weightKg: 42 };
+      if (!age.isMinor(kid) || !age.withholdsFatLoss(kid) || !age.withholdsPhotoScan(kid)) {
+        err('the age gates stopped firing for a 13-year-old — the blank-age fix went too far');
+      }
+    }
+  } catch (e) { err(`volume-capacity / blank-age check could not run: ${e.message}`); }
+}
+
+/*
  * The age bounds come from one place, and hold at every layer.
  *
  * The floor was a bare 10 in six files — the questionnaire's min, its validate,

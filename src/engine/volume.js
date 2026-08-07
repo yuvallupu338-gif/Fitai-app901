@@ -305,6 +305,52 @@ function survivors(shaped, base) {
   return { floors, weights };
 }
 
+/*
+ * Floors that do not fit are not floors.
+ *
+ * push, pull and legs each carry a floor of 3 and core one of 2, so a week that
+ * keeps all four owes 11 sets before anything is decided. The time capacity is
+ * computed independently, and nothing checked the two against each other: at
+ * two 20-minute strength sessions the clock affords 8.1 sets and the plan came
+ * out at 11, over the bound the whole function exists to respect.
+ *
+ * Clamping in distribute() alone would not hold — roundSets re-imposes the same
+ * floors with Math.max afterwards and would put the sets straight back. So the
+ * floors are made feasible once, here, and every step downstream reads the
+ * feasible ones.
+ *
+ * Scaled together rather than dropped one at a time: a week too short for all
+ * four is too short for any of them to be at 3, and taking a whole group to
+ * zero to keep another at its floor loses a movement pattern entirely. Small
+ * and even beats complete and lopsided.
+ *
+ * Only reachable from an imported or hand-edited profile — the questionnaire
+ * offers 30 minutes at the shortest, and normalizeProfile accepts 20. Fixed
+ * rather than forbidden, because 20 is a length the app says it supports.
+ */
+function feasibleFloors(floors, caps, total) {
+  const need = GROUPS.reduce((n, g) => n + Math.min(floors[g], caps[g]), 0);
+  if (need <= total || need <= 0) return floors;
+
+  /*
+   * Whole sets, because a floor is compared against whole sets. roundSets ends
+   * with Math.max(floors[g], ...), so a floor of 2.216 does not lower a floor —
+   * it hands the plan a group with 2.216 sets in it, which is not a thing
+   * anybody can do on a Tuesday.
+   *
+   * Rounded down, never below 1: a scaled floor of 0.55 would delete the
+   * movement pattern rather than shorten it, and a week with no pulling in it
+   * is a worse answer than a week with one set of it.
+   */
+  const k = total / need;
+  const out = {};
+  for (const g of GROUPS) {
+    const lo = Math.min(floors[g], caps[g]);
+    out[g] = lo > 0 ? Math.max(1, Math.floor(lo * k)) : 0;
+  }
+  return out;
+}
+
 /**
  * Sets per week per muscle group.
  *
@@ -386,6 +432,7 @@ export function weeklyVolume(profile) {
   }
 
   const kept = survivors(shaped, base);
+  kept.floors = feasibleFloors(kept.floors, caps, sum);
   const out = distribute(kept.weights, sum, caps, kept.floors);
 
   // The neutral week is rounded on its own terms; a steered week is rounded to

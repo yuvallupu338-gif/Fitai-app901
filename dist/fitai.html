@@ -1620,8 +1620,28 @@ function stillDeveloping(profile) {
   return a !== null && a >= MIN_AGE && a < STILL_DEVELOPING_UNTIL;
 }
 
+/*
+ * The age on a profile, or null when there isn't one.
+ *
+ * The blank check comes before the conversion, and that ordering is the whole
+ * function. Number(null) is 0, Number('') is 0, and 0 is a perfectly finite
+ * number — so `Number.isFinite(Number(p.age))` answers "yes, this profile has
+ * an age" for a profile with no age at all, and every gate below then reads
+ * that zero as a child.
+ *
+ * A profile with a blank age got the treatment built for a twelve-year-old: no
+ * calorie target, no weigh-in, fat loss refused on the grounds that the body is
+ * still growing, and the photo scan turned off. The comment under these
+ * functions has always said an unknown age is treated as an adult. It was
+ * describing an intention the arithmetic did not carry out.
+ */
 function ageOf(profile) {
-  const n = Number(profile && profile.age);
+  const raw = profile && profile.age;
+  if (raw === null || raw === undefined) return null;
+  // Whitespace converts to 0 as readily as an empty string does: Number('   ')
+  // is 0, so a field somebody typed a space into reads as a newborn.
+  if (typeof raw === 'string' && raw.trim() === '') return null;
+  const n = Number(raw);
   return Number.isFinite(n) ? n : null;
 }
 
@@ -2040,6 +2060,52 @@ function survivors(shaped, base) {
   return { floors, weights };
 }
 
+/*
+ * Floors that do not fit are not floors.
+ *
+ * push, pull and legs each carry a floor of 3 and core one of 2, so a week that
+ * keeps all four owes 11 sets before anything is decided. The time capacity is
+ * computed independently, and nothing checked the two against each other: at
+ * two 20-minute strength sessions the clock affords 8.1 sets and the plan came
+ * out at 11, over the bound the whole function exists to respect.
+ *
+ * Clamping in distribute() alone would not hold — roundSets re-imposes the same
+ * floors with Math.max afterwards and would put the sets straight back. So the
+ * floors are made feasible once, here, and every step downstream reads the
+ * feasible ones.
+ *
+ * Scaled together rather than dropped one at a time: a week too short for all
+ * four is too short for any of them to be at 3, and taking a whole group to
+ * zero to keep another at its floor loses a movement pattern entirely. Small
+ * and even beats complete and lopsided.
+ *
+ * Only reachable from an imported or hand-edited profile — the questionnaire
+ * offers 30 minutes at the shortest, and normalizeProfile accepts 20. Fixed
+ * rather than forbidden, because 20 is a length the app says it supports.
+ */
+function feasibleFloors(floors, caps, total) {
+  const need = GROUPS.reduce((n, g) => n + Math.min(floors[g], caps[g]), 0);
+  if (need <= total || need <= 0) return floors;
+
+  /*
+   * Whole sets, because a floor is compared against whole sets. roundSets ends
+   * with Math.max(floors[g], ...), so a floor of 2.216 does not lower a floor —
+   * it hands the plan a group with 2.216 sets in it, which is not a thing
+   * anybody can do on a Tuesday.
+   *
+   * Rounded down, never below 1: a scaled floor of 0.55 would delete the
+   * movement pattern rather than shorten it, and a week with no pulling in it
+   * is a worse answer than a week with one set of it.
+   */
+  const k = total / need;
+  const out = {};
+  for (const g of GROUPS) {
+    const lo = Math.min(floors[g], caps[g]);
+    out[g] = lo > 0 ? Math.max(1, Math.floor(lo * k)) : 0;
+  }
+  return out;
+}
+
 /**
  * Sets per week per muscle group.
  *
@@ -2121,6 +2187,7 @@ function weeklyVolume(profile) {
   }
 
   const kept = survivors(shaped, base);
+  kept.floors = feasibleFloors(kept.floors, caps, sum);
   const out = distribute(kept.weights, sum, caps, kept.floors);
 
   // The neutral week is rounded on its own terms; a steered week is rounded to
@@ -16879,7 +16946,7 @@ __m["src/engine/targets.js"] = (function () {
  * bodyweight, because a 60kg and a 110kg person cannot lose the same kilos.
  */
 
-const { growthAllowanceKgPerWeek } = __m["src/engine/age.js"];
+const { growthAllowanceKgPerWeek, isMinor } = __m["src/engine/age.js"];
 
 const DAY = 86400000;
 
@@ -17009,7 +17076,18 @@ function assessGoal(profile) {
     comfy += growthFrac;
   }
 
-  const minor = Number(p.age) < 18;
+  /*
+   * Asked, not computed. `Number(p.age) < 18` was the test here, and
+   * Number(null) is 0 — so a profile with no age at all read as a
+   * twelve-years-under-eighteen and had its fat-loss goal refused on the
+   * grounds that the body is still growing.
+   *
+   * age.js settles what a missing age means and settles it the other way: the
+   * questionnaire requires an age, so a blank one means an imported or
+   * hand-edited profile, and applying child rules to an adult who never
+   * answered is its own kind of wrong. This file had quietly disagreed.
+   */
+  const minor = isMinor(p);
 
   /* ---- under-18 fat loss gets steered, not encouraged ---- */
   if (minor && losing) {

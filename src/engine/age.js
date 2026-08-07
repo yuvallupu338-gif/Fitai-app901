@@ -183,8 +183,28 @@ export function stillDeveloping(profile) {
   return a !== null && a >= MIN_AGE && a < STILL_DEVELOPING_UNTIL;
 }
 
+/*
+ * The age on a profile, or null when there isn't one.
+ *
+ * The blank check comes before the conversion, and that ordering is the whole
+ * function. Number(null) is 0, Number('') is 0, and 0 is a perfectly finite
+ * number — so `Number.isFinite(Number(p.age))` answers "yes, this profile has
+ * an age" for a profile with no age at all, and every gate below then reads
+ * that zero as a child.
+ *
+ * A profile with a blank age got the treatment built for a twelve-year-old: no
+ * calorie target, no weigh-in, fat loss refused on the grounds that the body is
+ * still growing, and the photo scan turned off. The comment under these
+ * functions has always said an unknown age is treated as an adult. It was
+ * describing an intention the arithmetic did not carry out.
+ */
 function ageOf(profile) {
-  const n = Number(profile && profile.age);
+  const raw = profile && profile.age;
+  if (raw === null || raw === undefined) return null;
+  // Whitespace converts to 0 as readily as an empty string does: Number('   ')
+  // is 0, so a field somebody typed a space into reads as a newborn.
+  if (typeof raw === 'string' && raw.trim() === '') return null;
+  const n = Number(raw);
   return Number.isFinite(n) ? n : null;
 }
 

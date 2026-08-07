@@ -10,7 +10,7 @@
  * bodyweight, because a 60kg and a 110kg person cannot lose the same kilos.
  */
 
-import { growthAllowanceKgPerWeek } from './age.js';
+import { growthAllowanceKgPerWeek, isMinor } from './age.js';
 
 const DAY = 86400000;
 
@@ -140,7 +140,18 @@ export function assessGoal(profile) {
     comfy += growthFrac;
   }
 
-  const minor = Number(p.age) < 18;
+  /*
+   * Asked, not computed. `Number(p.age) < 18` was the test here, and
+   * Number(null) is 0 — so a profile with no age at all read as a
+   * twelve-years-under-eighteen and had its fat-loss goal refused on the
+   * grounds that the body is still growing.
+   *
+   * age.js settles what a missing age means and settles it the other way: the
+   * questionnaire requires an age, so a blank one means an imported or
+   * hand-edited profile, and applying child rules to an adult who never
+   * answered is its own kind of wrong. This file had quietly disagreed.
+   */
+  const minor = isMinor(p);
 
   /* ---- under-18 fat loss gets steered, not encouraged ---- */
   if (minor && losing) {
