@@ -5103,6 +5103,51 @@ const LEGS = [
     progressionTo: 'pistol_squat',
     tags: ['compound', 'skill'],
   },
+  /*
+   * The two rungs between a two-legged squat and a pistol.
+   *
+   * Both single-leg squat progressions already here need equipment nobody
+   * training at home has — the box squat wants a plyo box, the assisted pistol
+   * wants suspension straps. Filter those out and the squat ladder for a
+   * bands-and-a-bar trainee reads level 1, level 2, then pistol at level 5,
+   * with nothing in between. "This is too easy" on a banded squat had one
+   * place to go and it was a pistol squat.
+   *
+   * These need a doorframe and a floor. They are the standard progression and
+   * they were simply missing.
+   */
+  {
+    id: 'supported_single_leg_squat',
+    name: 'סקוואט על רגל אחת בתמיכת יד',
+    nameEn: 'Supported Single-Leg Squat',
+    pattern: 'squat',
+    muscles: { primary: ['quads', 'glutes'], secondary: ['core', 'hamstrings'] },
+    equipment: ['none'],
+    level: 3,
+    unit: 'reps',
+    unilateral: true,
+    contraindications: ['knee'],
+    cues: ['יד אחת על משקוף או קיר — לאיזון בלבד', 'המשקל על העקב של הרגל העובדת', 'ירידה איטית, בלי ליפול פנימה עם הברך'],
+    regressionOf: 'band_squat',
+    progressionTo: 'skater_squat',
+    tags: ['compound'],
+  },
+  {
+    id: 'skater_squat',
+    name: 'סקוואט סקייטר',
+    nameEn: 'Skater Squat',
+    pattern: 'squat',
+    muscles: { primary: ['quads', 'glutes'], secondary: ['core', 'hamstrings'] },
+    equipment: ['none'],
+    level: 4,
+    unit: 'reps',
+    unilateral: true,
+    contraindications: ['knee'],
+    cues: ['הרגל האחורית מתקפלת אחורה והברך יורדת אל הרצפה', 'גו נוטה קדימה — זה תקין כאן', 'נגיעה קלה בברך ועלייה, בלי להישען עליה'],
+    regressionOf: 'supported_single_leg_squat',
+    progressionTo: 'pistol_squat',
+    tags: ['compound'],
+  },
   {
     id: 'pistol_squat',
     name: 'סקוואט פיסטול',
@@ -5115,7 +5160,7 @@ const LEGS = [
     unilateral: true,
     contraindications: ['knee', 'hip'],
     cues: ['רגל חופשית ישרה וגבוהה', 'ידיים קדימה כמשקל נגד', 'עלייה בלי ניתור ובלי נפילה הצידה'],
-    regressionOf: null,
+    regressionOf: 'skater_squat',
     progressionTo: null,
     tags: ['compound', 'skill'],
   },
@@ -13126,10 +13171,33 @@ function stepDifficulty(profile, slot, currentExId, dir) {
     .map((v) => byId(v.exId))
     .filter(Boolean)
     .sort((a, b) => a.level - b.level || a.id.localeCompare(b.id));
+  /*
+   * The slot's own variants come first, because staying inside the slot the
+   * generator chose keeps the day coherent — but only to an adjacent rung.
+   * inSlot is sorted by level and this took inSlot[at + dir] with nothing
+   * checking how far that jumped.
+   *
+   * Being accurate about what this bound is worth: on its own, nothing. The
+   * real defect was that "קל לי" on a banded squat returned a pistol squat —
+   * three levels, onto one leg — and adding this guard did not change that by
+   * a single rung. Rejecting the in-slot neighbour just falls through to step
+   * 3, which ranks the whole pattern by nearest level, and for a trainee with
+   * bands and a bar the nearest squat above level 2 *was* the pistol: the
+   * level-3 and level-4 rungs need a plyo box and suspension straps and the
+   * equipment filter had removed them. What fixed it was adding two rungs that
+   * need no equipment.
+   *
+   * It stays because it is the direct expression of the rule validate.js
+   * enforces — a press moves to the nearest rung that exists, never over one —
+   * and because a slot whose variants skip a level the pattern does have is a
+   * shape the data can take again. It is a guard, not the cure, and the
+   * comment should not have claimed otherwise.
+   */
   const at = inSlot.findIndex((e) => e.id === currentExId);
   if (at >= 0) {
     const neighbour = inSlot[at + dir];
-    if (neighbour && neighbour.level !== cur.level) return neighbour;
+    if (neighbour && neighbour.level !== cur.level
+      && Math.abs(neighbour.level - cur.level) <= 1) return neighbour;
   }
 
   // 2. the exercise's own chain — the most meaningful step, when it exists
