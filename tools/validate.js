@@ -876,6 +876,96 @@ try {
 }
 
 /*
+ * The numbers a trainee reports have to change what they are given.
+ *
+ * They did not. Declaring 0 push-ups and declaring 60 produced byte-identical
+ * programmes, because selection read only the experience tier — and that ladder
+ * has no rung between "under 3 months" and "a year or more", so nine months of
+ * honest training leaves nothing truthful to tick. A fifteen-year-old who had
+ * worked up to 33 push-ups was opened on knee push-ups.
+ *
+ * Two things are asserted, and the second matters more than the first. The
+ * numbers must move the prescription; and no number, however large, may move it
+ * past the age ceiling or through an injury filter. A trainee typing 80 in a box
+ * is the easiest input in the app to overstate, honestly or otherwise.
+ */
+{
+  try {
+    const schema = await load('src/intake/schema.js');
+    const gen = await load('src/engine/generator.js');
+    const registry = await load('src/data/exercises.index.js');
+    const bench = await load('src/engine/benchmarks.js');
+
+    const mk = (over) => schema.normalizeProfile(Object.assign(schema.defaults(), {
+      age: 30, sex: 'male', heightCm: 175, weightKg: 72, goal: 'muscle',
+      experience: 'beginner', daysPerWeek: 4, minutesPerSession: 60,
+      location: 'home_weights', equipment: ['bands', 'mat', 'pullup_bar', 'rings'],
+    }, over));
+
+    const levelsFor = (p, patterns) => {
+      const out = [];
+      for (const day of gen.generateProgram(p).days) {
+        for (const slot of day.slots) {
+          const v = (slot.variants || [])[0];
+          if (!v) continue;
+          const ex = registry.byId(v.exId);
+          if (ex && patterns.includes(ex.pattern)) out.push(ex.level);
+        }
+      }
+      return out;
+    };
+
+    // 1. The same tier, different numbers, must not produce the same work.
+    const weak = levelsFor(mk({ bm_pushups: 0, bm_pullups: 0 }), ['horizontal_push', 'vertical_push']);
+    const strong = levelsFor(mk({ bm_pushups: 60, bm_pullups: 20 }), ['horizontal_push', 'vertical_push']);
+    if (!weak.length || !strong.length) {
+      err('the benchmark check found no pushing slots to compare');
+    } else if (Math.max(...strong) <= Math.max(...weak)) {
+      err(`declaring 60 push-ups yields level ${Math.max(...strong)} and declaring 0 yields `
+        + `${Math.max(...weak)} — the numbers the questionnaire asks for are not reaching selection`);
+    }
+
+    // 2. And no claimed number may lift a minor past the age ceiling.
+    for (const age of [12, 14, 15, 16, 30]) {
+      const p = mk({ age, bm_pushups: 200, bm_pullups: 100, bm_dips: 100, bm_plankSec: 600 });
+      const ceiling = registry.levelCeiling(p);
+      const all = levelsFor(p, ['horizontal_push', 'vertical_push', 'vertical_pull',
+        'horizontal_pull', 'squat', 'hinge', 'core_flexion', 'core_antiextension']);
+      if (all.length && Math.max(...all) > ceiling) {
+        err(`age ${age}: claiming 200 push-ups produced a level ${Math.max(...all)} exercise `
+          + `against a ceiling of ${ceiling} — a text field is not a reason to raise a growth-plate limit`);
+      }
+    }
+
+    // 3. Nor through an injury filter.
+    {
+      const p = mk({ injuries: ['shoulder'], bm_pushups: 200, bm_pullups: 100 });
+      for (const day of gen.generateProgram(p).days) {
+        for (const slot of day.slots) {
+          const v = (slot.variants || [])[0];
+          if (!v) continue;
+          const ex = registry.byId(v.exId);
+          if (!ex || !(ex.contraindications || []).includes('shoulder')) continue;
+          const clean = registry.candidates(p, { pattern: ex.pattern });
+          if (clean.length) {
+            err(`claiming 200 push-ups produced ${ex.id}, which loads a declared shoulder, `
+              + `while ${clean.length} clean option(s) existed`);
+          }
+        }
+      }
+    }
+
+    // 4. Skipping the questions and answering 0 are different answers.
+    if (bench.demonstratedLevel(mk({}), 'horizontal_push') !== null) {
+      err('an unanswered benchmark reads as evidence — skipping the question should fall back to the tier');
+    }
+    if (bench.demonstratedLevel(mk({ bm_pushups: 0 }), 'horizontal_push') === null) {
+      err('answering 0 reads as no answer — a declared zero is evidence too');
+    }
+  } catch (e) { err(`benchmark-driven selection check could not run: ${e.message}`); }
+}
+
+/*
  * A backup restore must not accept a file that is not a backup.
  *
  * importJson was JSON.parse then Object.assign over the empty state, so
