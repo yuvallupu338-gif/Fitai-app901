@@ -427,8 +427,76 @@ async function main() {
 
   await checkAgeBounds(browser, target);
   await checkTabsOnNarrowPhones(browser, target);
+  await checkDifficultyControlsAreHittable(browser, target);
 
   await finish(browser, server);
+}
+
+/*
+ * The two controls that change the training have to be hittable with a thumb.
+ *
+ * "קל לי" and "קשה לי" move a trainee up or down a rung. They were 58×23px
+ * with 6px between them — under the 24×24 WCAG 2.2 asks for, and the spacing
+ * exception did not apply because the gap put the neighbour inside the same
+ * circle. Two adjacent targets, pressed one-handed mid-set, sometimes by
+ * somebody in their seventies, where missing one hits the opposite
+ * instruction.
+ *
+ * Measured on a touch context rather than read out of the stylesheet, because
+ * the rule that matters is behind a pointer:coarse media query and a stylesheet
+ * grep would not know whether it applied. The profile is deliberately a
+ * 70-year-old beginner: the plan that most needs a way down is the one whose
+ * owner is least able to hit a 23px target.
+ */
+async function checkDifficultyControlsAreHittable(browser, target) {
+  const ctx = await browser.newContext({
+    viewport: { width: 390, height: 900 }, isMobile: true, hasTouch: true, deviceScaleFactor: 2,
+  });
+  const pg = await ctx.newPage();
+  await pg.goto(target, { waitUntil: 'networkidle' });
+  const start = await pg.$('.btn.primary');
+  if (start) { await start.tap().catch(() => start.click()); await pg.waitForTimeout(300); }
+
+  const built = await runWizard(pg, {
+    date: new Date(Date.now() + 200 * 86400000).toISOString().slice(0, 10),
+    number: 3, days: 3, text: '', clickFirstChip: false,
+    numbers: {
+      גיל: 70, גובה: 172, משקל: 74, יעד: 72,
+      אימונים: 3, דקות: 45, שינה: 7, ארוחות: 3,
+      'שכיבות': 8, 'מתח': 1, 'פלאנק': 30,
+    },
+    optionText: {},
+  });
+  if (!built) { check(false, 'the wizard did not reach a plan for a 70-year-old beginner'); await ctx.close(); return; }
+
+  const found = await pg.evaluate(() => {
+    const btns = Array.from(document.querySelectorAll('.fbtn'));
+    if (!btns.length) return null;
+    const rects = btns.map((b) => b.getBoundingClientRect());
+    return {
+      count: btns.length,
+      minHeight: Math.min(...rects.map((r) => r.height)),
+      minWidth: Math.min(...rects.map((r) => r.width)),
+      easier: btns.some((b) => b.textContent.includes('קשה לי')),
+      harder: btns.some((b) => b.textContent.includes('קל לי')),
+    };
+  });
+
+  if (!found) {
+    check(false, 'no difficulty controls on any exercise card — a trainee has no way to step up or down');
+  } else {
+    check(found.minHeight >= 44,
+      `the difficulty controls are ${Math.round(found.minHeight)}px tall on a touch screen — under the 44px `
+      + 'a thumb needs, and they sit beside their own opposite');
+    check(found.minWidth >= 44,
+      `the difficulty controls are ${Math.round(found.minWidth)}px wide on a touch screen`);
+    check(found.easier, 'no "קשה לי" anywhere in the plan — nothing offers a way down');
+    check(found.harder, 'no "קל לי" anywhere in the plan — nothing offers a way up');
+    if (found.minHeight >= 44 && found.easier && found.harder) {
+      notes.push(`difficulty controls: ${found.count} on the day, ${Math.round(found.minHeight)}px tall, both directions offered`);
+    }
+  }
+  await ctx.close();
 }
 
 /*
