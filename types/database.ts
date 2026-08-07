@@ -1404,6 +1404,7 @@ export type Database = {
           created_at: string;
           updated_at: string;
           deleted_at: string | null;
+          search_doc: string | null;
         };
         Insert: {
           id?: string;
@@ -1449,6 +1450,7 @@ export type Database = {
           created_at?: string;
           updated_at?: string;
           deleted_at?: string | null;
+          search_doc?: string | null;
         };
         Update: {
           id?: string;
@@ -1494,6 +1496,7 @@ export type Database = {
           created_at?: string;
           updated_at?: string;
           deleted_at?: string | null;
+          search_doc?: string | null;
         };
         Relationships: [
           {
@@ -2698,6 +2701,7 @@ export type Database = {
     Views: Record<string, never>;
     Functions: {
       admin_stats: { Args: Record<string, unknown>; Returns: unknown };
+      approve_profession_request: { Args: Record<string, unknown>; Returns: unknown };
       auth_change_password: { Args: Record<string, unknown>; Returns: unknown };
       auth_login: { Args: Record<string, unknown>; Returns: unknown };
       auth_me: { Args: Record<string, unknown>; Returns: unknown };
@@ -2706,6 +2710,7 @@ export type Database = {
       auth_rotate_recovery_code: { Args: Record<string, unknown>; Returns: unknown };
       available_slots: { Args: Record<string, unknown>; Returns: unknown };
       b64url: { Args: Record<string, unknown>; Returns: unknown };
+      build_search_doc: { Args: Record<string, unknown>; Returns: unknown };
       can_view_address: { Args: Record<string, unknown>; Returns: unknown };
       can_view_post: { Args: Record<string, unknown>; Returns: unknown };
       check_booking_slot: { Args: Record<string, unknown>; Returns: unknown };
@@ -2752,14 +2757,22 @@ export type Database = {
       post_system_message: { Args: Record<string, unknown>; Returns: unknown };
       preview_series_dates: { Args: Record<string, unknown>; Returns: unknown };
       professional_is_public: { Args: Record<string, unknown>; Returns: unknown };
+      professional_matches_word: { Args: Record<string, unknown>; Returns: unknown };
       professional_readiness: { Args: Record<string, unknown>; Returns: unknown };
       rating_breakdown: { Args: Record<string, unknown>; Returns: unknown };
       record_post_view: { Args: Record<string, unknown>; Returns: unknown };
       record_profile_view: { Args: Record<string, unknown>; Returns: unknown };
       refresh_professional_rating: { Args: Record<string, unknown>; Returns: unknown };
       refresh_response_time: { Args: Record<string, unknown>; Returns: unknown };
+      refresh_search_doc: { Args: Record<string, unknown>; Returns: unknown };
+      search_city: { Args: Record<string, unknown>; Returns: unknown };
       search_professionals: { Args: Record<string, unknown>; Returns: unknown };
       search_suggestions: { Args: Record<string, unknown>; Returns: unknown };
+      search_tokens: { Args: Record<string, unknown>; Returns: unknown };
+      search_wants_event: { Args: Record<string, unknown>; Returns: unknown };
+      search_wants_home: { Args: Record<string, unknown>; Returns: unknown };
+      search_wants_recurring: { Args: Record<string, unknown>; Returns: unknown };
+      search_wants_today: { Args: Record<string, unknown>; Returns: unknown };
       series_interval_weeks: { Args: Record<string, unknown>; Returns: unknown };
       set_app_secret: { Args: Record<string, unknown>; Returns: unknown };
       set_booking_blocked_until: { Args: Record<string, unknown>; Returns: unknown };
@@ -2767,12 +2780,18 @@ export type Database = {
       sign_jwt: { Args: Record<string, unknown>; Returns: unknown };
       similar_professionals: { Args: Record<string, unknown>; Returns: unknown };
       stamp_post_published_at: { Args: Record<string, unknown>; Returns: unknown };
+      strip_marks: { Args: Record<string, unknown>; Returns: unknown };
       sync_is_professional: { Args: Record<string, unknown>; Returns: unknown };
       sync_occurrence_from_booking: { Args: Record<string, unknown>; Returns: unknown };
       sync_username_reservation: { Args: Record<string, unknown>; Returns: unknown };
       touch_conversation_on_message: { Args: Record<string, unknown>; Returns: unknown };
+      touch_search_doc_from_child: { Args: Record<string, unknown>; Returns: unknown };
+      touch_search_doc_from_profile: { Args: Record<string, unknown>; Returns: unknown };
+      touch_search_doc_self: { Args: Record<string, unknown>; Returns: unknown };
       username_available: { Args: Record<string, unknown>; Returns: unknown };
       verify_password: { Args: Record<string, unknown>; Returns: unknown };
+      word_forms: { Args: Record<string, unknown>; Returns: unknown };
+      word_is_city: { Args: Record<string, unknown>; Returns: unknown };
     };
     Enums: {
       account_role: "user" | "moderator" | "admin";
