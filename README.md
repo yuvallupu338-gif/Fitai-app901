@@ -45,23 +45,35 @@ served alongside it as a single-file copy that also works offline.
 
 ## What it does
 
-**Intake** — nine steps covering the basics, training history, goal and target
+**Intake** — ten steps covering the basics, training history, goal and target
 date, where you are aiming (two photos and how hard you intend to go at it),
-realistic availability, location and equipment, whether you want to train
-calisthenics or with weights, injuries and refusals, current benchmarks, whether
-you train with a partner, and optionally nutrition. Answers are validated as you
-go and stored on the device.
+realistic availability, location and equipment, injuries and refusals, current
+benchmarks, whether you train with a partner, and optionally nutrition. Answers
+are validated as you go and stored on the device.
+
+There is no question about which track to train, because there is only one. The
+app builds calisthenics, and the equipment list is the short one that goes with
+it — a bar, rings, bands, a mat, parallettes. Asking somebody who picked
+calisthenics whether their gym has a cable machine was the complaint that ended
+the choice, and the filter now refuses barbell and machine work outright rather
+than relying on the equipment list to happen to exclude it.
+
+The age range is 12 to 90, and age is not a label on the plan — it changes the
+weekly volume, the session length, which exercises are picked, the warm-up, the
+cool-down, the rest-day tasks, whether calories are given a number at all, and
+what counts as a realistic target. `src/engine/age.js` holds every threshold
+with the reason attached.
 
 **Generation** — the engine picks a split from your weekly availability,
 allocates weekly set volume per muscle group, and fills each session from a
-database of 267 movements. It never prescribes equipment you do not have and
+database of 269 movements. It never prescribes equipment you do not have and
 never prescribes a movement that loads an injury you declared, unless nothing
 else covers that pattern — in which case it drops to the easiest option and
 says so. Verified across a 1500-profile sweep: no session repeats an exercise,
 none comes out under four movements, and the same answers always produce the
 same plan.
 
-**Free-text intake** — nine steps is the main reason someone opens this app and
+**Free-text intake** — ten steps is the main reason someone opens this app and
 does not finish, and most people can describe their situation in four sentences.
 Type a paragraph and a text model fills in what you actually said: age, where
 you train, what equipment you named, what hurts, how many sessions you will
@@ -69,7 +81,7 @@ really do. What it could not extract stays at its default and is listed by name,
 so nothing is silently assumed.
 
 It fills the form and then gets out of the way — it does not submit, does not
-skip a step, and shows every field it wrote. You walk the same nine steps
+skip a step, and shows every field it wrote. You walk the same ten steps
 afterwards with most of them already answered, which is where a wrong reading
 gets caught.
 
@@ -110,36 +122,39 @@ straight from a browser. Most others do not, and a browser may refuse the
 request before it leaves the machine. There is no server here to proxy through,
 so if that happens the app says so rather than pretending the key is wrong.
 
-**Animation** — every exercise animates. The figures are not images or video:
-`src/core/rig.js` is a humanoid skeleton with two-link inverse kinematics, each
-clip is a handful of keyframed poses, and the renderer draws a body with volume
-over that skeleton. The whole library adds no download weight and needs no
-network. Fonts are embedded too, so the single-file build renders identically
-offline; only the photo scan requires a connection.
+**Showing the movement** — each exercise card links to a YouTube search for that
+exercise, by Hebrew and English name. It is one line of code and it is the part
+of this app that most needed to not be clever: somebody who has never done a
+scapular pull wants to watch a person do one, and a search result does that
+better than anything generated here did.
 
-Clips resolve per exercise first, then per movement family, then per pattern, so
-a new exercise animates sensibly before anyone draws it a bespoke one. Run
-`node tools/validate.js` for the current split between exercises with an
-animation of their own and those borrowing a family clip.
+What it replaced is still in the repository, and the honest description of it is
+that it is no longer wired to anything. `src/core/rig.js` is a humanoid skeleton
+with two-link inverse kinematics, `src/data/clips.*.js` is 11,000 lines of
+keyframed poses, and together they animated every exercise as an SVG figure with
+no download weight and no network. It worked, the audits that cover it still
+pass, and no screen draws it.
 
-The rig draws from two cameras. Profile is the default and suits most things,
-but a movement that happens across the frontal plane is exactly the movement a
-profile view cannot show: side-on, a lateral raise and a front raise trace the
-same arc, both arms of a reverse fly overlap into one, and a wide grip looks
-like a narrow one. Setting `spread` on a pose turns the figure to face the
-viewer — shoulders and hips separate, and the limb angles read in the frontal
-plane instead.
+That is a deliberate state, not an oversight, and it has one practical
+consequence worth knowing: the animation modules are **not in the bundle**.
+`tools/build-single.js` walks the import graph from `src/app.js`, so anything
+unreachable from there is simply absent — the single file is 966 KB rather than
+1,008 KB because of it. What is still checked in and still audited is not
+therefore shipped, and `grep` on `dist/fitai.html` settles which is which faster
+than reading this paragraph.
 
-Counting exercises understates how visible a gap is. What matters is how often a
-borrowed clip actually leads a slot in a generated program, and — worse — how
-often the clip it borrows is named after a *different* movement. That was 28% of
-all slots and is now 0.1%; the regressions were the worst of it, since a
-beginner given a wall push-up was shown a picture of the incline push-up the app
-had just decided they were not ready for.
+The trap in that arrangement is a transitive import. `reduceMotion` — one
+`matchMedia` call — lived in `anim.js`, which imports `rig.js` for the skeleton
+and `poses.js` for the easing table, so the rest timer asking whether to repaint
+four times a second or once was pulling 1,159 lines of inverse kinematics into
+every build. It lives in `dom.js` now. Anything that wants a small utility out of
+the animation modules should move the utility, not reach for it.
 
-`docs/clip-assignments.json` lists what is still borrowed; dropping in a
-`clips.x*.js` batch keyed by exercise id gives those their own without touching
-the exercise database.
+`docs/clip-assignments.json` still maps exercises to clips, `clip-audit.mjs`
+still checks their geometry, and `motion-audit.mjs` still checks they move.
+Deleting the lot is a reasonable decision and has not been taken; reviving it
+means importing the player from `src/ui/exercise.js` again, which is where it
+was removed from.
 
 **Autoregulation** — every exercise carries "too easy" and "too hard" controls
 that move it up or down a rung and remember the choice. The step searches the
@@ -167,9 +182,9 @@ background, and there is no server of ours in the path.
 ```
 index.html
 src/
-  core/      rig, animation player, pose library, store, dom helpers
-  data/      exercise database and animation clips, plus their registries
-  engine/    volume, generator, progression, targets, nutrition
+  core/      store, dom helpers, brand — and the unwired rig, player and poses
+  data/      exercise database, warm-up demands, animation clips, registries
+  engine/    volume, generator, progression, targets, nutrition, rest days, age
   intake/    question schema and validation
   ai/        provider table, the network client, and the free-text intake reader
   vision/    photo-scan prompt, response normaliser, plan translation
@@ -178,6 +193,7 @@ src/
 tools/
   validate.js       cross-checks the data and engine layers
   clip-audit.mjs    geometry, loops and distinctiveness of the animations
+  motion-audit.mjs  that a clip actually moves the joints it claims to
   vision-audit.mjs  proves a photo scan cannot break the engine's rules
   ai-audit.mjs      provider request shapes, and that a filled form stays legal
   smoke.mjs         drives the real app in Chromium
@@ -192,6 +208,7 @@ docs/
 ```bash
 node tools/validate.js                                  # data + engine contracts
 node tools/clip-audit.mjs                               # animation quality
+node tools/motion-audit.mjs                             # clips actually move
 node tools/vision-audit.mjs                             # photo-scan containment
 node tools/ai-audit.mjs                                 # providers + intake containment
 node tools/build-single.js                              # single-file bundle
@@ -202,6 +219,20 @@ NODE_PATH=/opt/node22/lib/node_modules node tools/smoke.mjs --shots
 injury tags, then generates programs for four deliberately awkward profiles —
 including a 30-minute bodyweight session for someone with a bad back, a bad knee
 and a bad shoulder — and asserts each one is coherent and deterministic.
+
+It also holds the rules that no single module can check on its own. Age is the
+main one: that the weekly volume, session length and warm-up all still differ
+between a fourteen-year-old and an eighty-two-year-old after every later step has
+run, that a blank age is treated as an adult at all seven gates, that the bounds
+in `age.js` match what the questionnaire field will actually accept, and that a
+week never prescribes more sets than its own session budget can hold.
+
+Those checks name the unsafe cases themselves rather than importing the tables
+the engine reads. A check that asks the same table its subject asks can only ever
+confirm the two agree — delete `jumping_jack` from `demands.js` and the drill
+reappears in a ninety-year-old's warm-up while a table-driven check reports
+everything is fine. Every one of them has been watched fail on a deliberate
+mutation before being trusted; several caught bugs in their own fix.
 
 `clip-audit.mjs` samples every animation across its cycle and rejects joints
 that leave the canvas or pass through the floor, loops that jump, and clips that
@@ -237,8 +268,18 @@ and look at them before believing the tools.
 
 Add an entry to the right file in `src/data/exercises.*.js` following the shape
 in `docs/CONTRACTS.md`. Set `anim` to an existing clip id, or leave it as the
-movement pattern name — every pattern has a generic fallback clip, so a new
-exercise animates sensibly before anyone draws it a bespoke one.
+movement pattern name — every pattern has a generic fallback clip, so the audits
+stay green even though nothing currently draws them.
+
+A warm-up drill needs one more thing. Tag it `warmup` and give it an entry in
+`src/data/demands.js`, which says what the movement asks of a body apart from
+injury: whether it leaves the ground, starts on the floor, hangs bodyweight from
+the hands, or stands on one leg with nothing to hold. `contraindications` answers
+whether a drill hurts a part that already hurts; it says nothing about whether a
+healthy seventy-eight-year-old should be doing it. A drill with none of those
+demands goes in `PLAIN_STANDING`, which is a list rather than an inference on
+purpose — `validate.js` requires every warm-up drill to appear in one or the
+other, so "fine for anybody" has to be something a person decided.
 
 ## Scope
 
@@ -246,3 +287,10 @@ This produces a training plan from stated principles. It is not medical advice,
 it does not know your history, and it cannot see your technique. For anyone
 under 18, or with a medical condition or a recent surgery, the plan is a
 starting point to bring to a doctor — not a substitute for one.
+
+The age range runs to 90 at the top and 12 at the bottom, and the bottom is the
+one that carries conditions. Under 16 the app puts no number on food or on the
+body — no calorie target, no macro split, no weekly weigh-in — because a weekly
+number that rises is what growing looks like, and teaching a child to read that
+as failure is the harm. Under 18 it will not build a calorie deficit whatever the
+goal chip says, and the photo scan does not run at all. None of that is a setting.
