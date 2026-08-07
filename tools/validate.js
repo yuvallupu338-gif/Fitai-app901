@@ -1,0 +1,1180 @@
+#!/usr/bin/env node
+/*
+ * validate.js — cross-checks the data + engine modules against docs/CONTRACTS.md.
+ * Run with: node tools/validate.js
+ * Exits non-zero on any error. Warnings do not fail the build.
+ */
+
+import { readdirSync, existsSync, readFileSync } from 'node:fs';
+import { pathToFileURL } from 'node:url';
+import { resolve, dirname } from 'node:path';
+import { fileURLToPath } from 'node:url';
+
+const ROOT = resolve(dirname(fileURLToPath(import.meta.url)), '..');
+const errors = [];
+const warnings = [];
+
+const err = (m) => errors.push(m);
+const warn = (m) => warnings.push(m);
+
+const PATTERNS = new Set(['horizontal_push', 'vertical_push', 'horizontal_pull', 'vertical_pull',
+  'squat', 'hinge', 'lunge', 'core_flexion', 'core_antiextension', 'core_rotation', 'calf',
+  'arms_biceps', 'arms_triceps', 'shoulders_lateral', 'shoulders_rear', 'carry',
+  'conditioning', 'mobility', 'plyo']);
+
+const MUSCLES = new Set(['chest', 'back', 'lats', 'traps', 'shoulders', 'rear_delts', 'biceps',
+  'triceps', 'forearms', 'core', 'obliques', 'lower_back', 'glutes', 'quads', 'hamstrings',
+  'calves', 'hip_flexors', 'adductors', 'full_body']);
+
+const EQUIPMENT = new Set(['none', 'pullup_bar', 'dip_bars', 'rings', 'bands', 'dumbbells',
+  'barbell', 'kettlebell', 'bench', 'box', 'machines', 'cable', 'trx', 'jump_rope', 'mat',
+  'sled', 'treadmill', 'bike', 'rower']);
+
+/* Pose fields measured in degrees, where a difference of a full turn is the
+   same frame. Positions are not — 50 and 410 are two different places. */
+const ANGLE_KEYS = new Set(['spine', 'head', 'footL', 'footR']);
+
+const INJURIES = new Set(['lower_back', 'upper_back', 'neck', 'shoulder', 'elbow', 'wrist',
+  'hip', 'knee', 'ankle', 'hernia', 'pregnancy', 'heart', 'asthma']);
+
+async function load(rel) {
+  const abs = resolve(ROOT, rel);
+  if (!existsSync(abs)) return null;
+  try {
+    return await import(pathToFileURL(abs).href);
+  } catch (e) {
+    err(`${rel}: import failed — ${e.message}`);
+    return null;
+  }
+}
+
+function isStr(v) { return typeof v === 'string' && v.length > 0; }
+function isArrOf(v, fn) { return Array.isArray(v) && v.every(fn); }
+
+/* ---------------- exercises ---------------- */
+
+const exFiles = existsSync(resolve(ROOT, 'src/data'))
+  ? readdirSync(resolve(ROOT, 'src/data')).filter((f) => /^exercises\..+\.js$/.test(f) && f !== 'exercises.index.js')
+  : [];
+
+const allEx = new Map();
+
+for (const f of exFiles) {
+  const mod = await load(`src/data/${f}`);
+  if (!mod) continue;
+  const lists = Object.values(mod).filter(Array.isArray);
+  if (!lists.length) { err(`src/data/${f}: exports no array`); continue; }
+  for (const list of lists) {
+    for (const [i, e] of list.entries()) {
+      const at = `${f}[${i}]${e && e.id ? ` id=${e.id}` : ''}`;
+      if (!e || typeof e !== 'object') { err(`${at}: not an object`); continue; }
+      if (!isStr(e.id) || !/^[a-z0-9_]+$/.test(e.id)) err(`${at}: bad id`);
+      if (allEx.has(e.id)) err(`${at}: duplicate id (also in ${allEx.get(e.id)._file})`);
+      if (!isStr(e.name)) err(`${at}: missing Hebrew name`);
+      if (!isStr(e.nameEn)) err(`${at}: missing nameEn`);
+      if (!PATTERNS.has(e.pattern)) err(`${at}: bad pattern "${e.pattern}"`);
+      if (!e.muscles || !isArrOf(e.muscles.primary, (m) => MUSCLES.has(m))) err(`${at}: bad muscles.primary`);
+      if (e.muscles && e.muscles.secondary && !isArrOf(e.muscles.secondary, (m) => MUSCLES.has(m))) err(`${at}: bad muscles.secondary`);
+      if (!isArrOf(e.equipment, (q) => EQUIPMENT.has(q))) err(`${at}: bad equipment ${JSON.stringify(e.equipment)}`);
+      if (!(e.level >= 1 && e.level <= 5)) err(`${at}: bad level`);
+      if (!['reps', 'time', 'distance'].includes(e.unit)) err(`${at}: bad unit`);
+      if (typeof e.unilateral !== 'boolean') err(`${at}: unilateral must be boolean`);
+      if (!isArrOf(e.contraindications || [], (c) => INJURIES.has(c))) err(`${at}: bad contraindications`);
+      if (!isArrOf(e.cues, isStr) || !e.cues.length) err(`${at}: needs at least one cue`);
+      if (!isStr(e.anim)) err(`${at}: missing anim`);
+      if (!Array.isArray(e.tags)) err(`${at}: tags must be an array`);
+      if (e.id) { e._file = f; allEx.set(e.id, e); }
+    }
+  }
+}
+
+for (const e of allEx.values()) {
+  for (const k of ['regressionOf', 'progressionTo']) {
+    if (e[k] && !allEx.has(e[k])) err(`${e.id}: ${k} -> "${e[k]}" does not exist`);
+  }
+}
+
+// Every pattern the split can ask for must actually be fillable, including for
+// someone with no equipment at all.
+const OWNER = 'push file owns horizontal_push/vertical_push/arms_triceps/shoulders_lateral/shoulders_rear; '
+  + 'pull file owns horizontal_pull/vertical_pull/arms_biceps; '
+  + 'legs file owns squat/hinge/lunge/calf/plyo; '
+  + 'core file owns core_flexion/core_antiextension/core_rotation/carry/conditioning/mobility';
+
+if (allEx.size) {
+  for (const pat of PATTERNS) {
+    const inPattern = Array.from(allEx.values()).filter((e) => e.pattern === pat);
+    if (!inPattern.length) {
+      err(`no exercises for pattern "${pat}" — the split can request it and the generator will starve (${OWNER})`);
+      continue;
+    }
+    if (inPattern.length < 3) warn(`only ${inPattern.length} exercise(s) for pattern "${pat}"`);
+    const bodyweight = inPattern.filter((e) => e.equipment.every((q) => q === 'none' || q === 'mat'));
+    if (!bodyweight.length && pat !== 'carry') {
+      warn(`pattern "${pat}" has no equipment-free option — home_bodyweight profiles cannot train it`);
+    }
+  }
+  const warmup = Array.from(allEx.values()).filter((e) => (e.tags || []).includes('warmup'));
+  if (warmup.length < 10) err(`only ${warmup.length} exercises tagged 'warmup' — the generator needs at least 10 to build warm-ups (core file owns mobility)`);
+}
+
+/* ---------------- the refusal chips ---------------- */
+
+/*
+ * Every chip the "exercises I will not do" question offers must actually remove
+ * something. Two of them never had: the terms were בורפי and הנדסטנד while the
+ * library says ברפי and עמידת ידיים, so ticking either did nothing and the user
+ * was then prescribed the exact movement they had refused. A refusal that
+ * silently fails is worse than not asking.
+ */
+{
+  const schema = await load('src/intake/schema.js');
+  const registry = await load('src/data/exercises.index.js');
+  if (schema && registry && schema.STEPS) {
+    const limits = schema.STEPS.find((st) => st.id === 'limits');
+    const field = limits && limits.fields.find((f) => f.key === 'avoid');
+    const seen = new Set();
+    if (!field) {
+      err('the limits step has no avoid field');
+    } else {
+      for (const [track, location] of [
+        ['calisthenics', 'full_gym'], ['weights', 'full_gym'],
+        ['mixed', 'full_gym'], ['calisthenics', 'home_bodyweight'],
+        ['mixed', 'home_weights'],
+      ]) {
+        const base = schema.normalizeProfile({
+          track, location, age: 25, heightCm: 175, weightKg: 75, experience: 'advanced',
+        });
+        const offered = typeof field.options === 'function' ? field.options(base) : field.options;
+        const before = registry.candidates(base, {}).length;
+        for (const o of offered) {
+          const after = registry.candidates(
+            schema.normalizeProfile(Object.assign({}, base, { avoid: [o.value] })), {},
+          ).length;
+          if (before - after <= 0) {
+            err(`avoid chip "${o.label}" removes nothing for ${track}/${location} — the term matches no exercise`);
+          }
+        }
+        if (!offered.length) err(`no avoid chips offered for ${track}/${location}`);
+        for (const o of offered) seen.add(o.value);
+      }
+      // A term that matches nothing does not show up as a dead chip — it shows
+      // up as no chip, in every configuration, which hides the authoring
+      // mistake instead of surfacing it. So the DECLARED list is checked too.
+      for (const o of (schema.AVOID_OPTIONS || [])) {
+        if (!seen.has(o.value)) {
+          err(`avoid chip "${o.label}" (${o.value}) is never offered anywhere — its term matches no exercise in any track`);
+        }
+      }
+    }
+  }
+}
+
+/*
+ * Every option a step offers must describe equipment that step's own answers
+ * say the user has.
+ *
+ * The questionnaire asks where you train, seeds a kit from that, and then asks
+ * how you want to train — all on one screen. The track descriptions were a
+ * fixed list, so someone answering "בית עם משקולות" (dumbbells, bands, a mat)
+ * was offered a track called "מכונות ומשקולות" described as "מוט, משקולות,
+ * מכונות ופולי". Three of those four did not exist for them, two lines under
+ * their own answer. Nothing downstream broke — the generator already filters by
+ * equipment — which is exactly why it survived: the only symptom was the
+ * questionnaire contradicting itself, and no test read the prose.
+ */
+async function checkOptionsMatchKit(schema, err) {
+  const HE = {
+    machines: ['מכונות'], cable: ['פולי'], barbell: ['מוט '],
+    dip_bars: ['מקבילים'], rings: ['טבעות'],
+    // Added after the first fix named bands to a building gym that has none —
+    // the replacement wording repeated the defect one layer down, and the
+    // check could not see it because its vocabulary stopped at the heavy gear.
+    bands: ['גומיות'], kettlebell: ['קטלבל'], treadmill: ['הליכון'],
+  };
+  const GEAR_IDS = new Set(['pullup_bar', 'dip_bars', 'rings', 'bands', 'dumbbells', 'barbell',
+    'kettlebell', 'bench', 'box', 'machines', 'cable', 'trx', 'jump_rope', 'mat',
+    'treadmill', 'bike', 'rower']);
+  const LOCATIONS = ['full_gym', 'building_gym', 'home_weights', 'home_bodyweight'];
+  const steps = schema.STEPS || schema.steps || [];
+
+  for (const loc of LOCATIONS) {
+    const p = schema.normalizeProfile(Object.assign(schema.defaults(), { location: loc }));
+    const kit = new Set(p.equipment || []);
+
+    for (const step of steps) {
+      for (const f of (step.fields || [])) {
+        if (typeof f.showIf === 'function' && !f.showIf(p)) continue;
+        const opts = typeof f.options === 'function' ? f.options(p) : f.options;
+        if (!Array.isArray(opts)) continue;
+
+        // Skip the fields whose options ARE the vocabulary: "what do you
+        // actually have" has to be able to offer a barbell to someone who does
+        // not have one yet — that is the question. Likewise the avoid chips
+        // name movements, not the asker's kit. The defect is a field that
+        // describes how you will TRAIN using gear you have already said you
+        // lack, so only fields whose values are not gear ids are checked.
+        const isGearVocabulary = opts.some((o) => GEAR_IDS.has(o.value));
+        if (isGearVocabulary || f.key === 'avoid') continue;
+
+        // And skip the fields that ESTABLISH the kit rather than describe
+        // training with it. "חדר כושר מלא" has to be able to say it has
+        // machines and a cable stack — describing the places you are choosing
+        // between is the entire question — and "יש מכונות ופולי" is how you
+        // answer whether your building gym has any. A yes/no field is asking
+        // about the world; a field that sets the kit defines it. It is the
+        // fields DOWNSTREAM of those answers that must not contradict them.
+        const asksAboutTheWorld = opts.some((o) => typeof o.value === 'boolean');
+        if (asksAboutTheWorld || f.key === 'location') continue;
+
+        for (const o of opts) {
+          const text = `${o.label || ''} ${o.desc || ''}`;
+          for (const gear of Object.keys(HE)) {
+            if (kit.has(gear)) continue;
+            for (const word of HE[gear]) {
+              if (text.indexOf(word) >= 0) {
+                err(`${loc}: option "${o.label}" on field ${f.key} names ${gear} `
+                  + `("${word.trim()}") but this location's kit is [${[...kit].join(', ')}]`);
+              }
+            }
+          }
+        }
+      }
+    }
+  }
+}
+
+try {
+  const schema = await load('src/intake/schema.js');
+  if (schema && schema.normalizeProfile && schema.defaults) {
+    await checkOptionsMatchKit(schema, err);
+  }
+} catch (e) { err(`option/kit check could not run: ${e.message}`); }
+
+/*
+ * The age thresholds must come from one place.
+ *
+ * They were spelled out as bare numbers in six files and drifted: the nutrition
+ * tab told a thirteen-year-old not to weigh weekly and said why, while the
+ * tracking tab in the same plan opened with "one weigh-in a week" and gave them
+ * the button. Both were written honestly; neither knew about the other. So any
+ * NEW literal age comparison outside age.js is refused here — the point is not
+ * that 16 is right, it is that there must be exactly one 16.
+ *
+ * The engine files that still compare ages directly are listed as known: they
+ * encode dosing curves rather than policy (how fast to add load at 15, not
+ * whether to). They are allowed to stay, but not to grow.
+ */
+{
+  const ALLOWED = new Set([
+    'src/engine/age.js',
+    'src/engine/generator.js',      // level cap + rep-range dosing
+    'src/engine/progression.js',    // load-jump and intensity curves
+    'src/engine/targets.js',        // its own fat-loss refusal, older than age.js
+    'src/engine/volume.js',         // recovery curve: 65 / 55 / 15 is dosing, not policy
+    'src/vision/analyze.js',        // scan gate, states its own constant
+  ]);
+  const AGE_CMP = /\bage\s*[<>]=?\s*(\d{1,2})\b|\bage\)\s*[<>]=?\s*(\d{1,2})\b/g;
+  const walk = (dir) => {
+    for (const f of readdirSync(resolve(ROOT, dir), { withFileTypes: true })) {
+      const rel = `${dir}/${f.name}`;
+      if (f.isDirectory()) { walk(rel); continue; }
+      if (!/\.js$/.test(f.name)) continue;
+      if (ALLOWED.has(rel)) continue;
+      const src = readFileSync(resolve(ROOT, rel), 'utf8');
+      let m;
+      AGE_CMP.lastIndex = 0;
+      while ((m = AGE_CMP.exec(src))) {
+        const n = Number(m[1] || m[2]);
+        if (n >= 10 && n <= 25) {
+          err(`${rel} compares age against ${n} directly — import the rule from `
+            + `src/engine/age.js instead, so two screens cannot disagree about the same person`);
+        }
+      }
+    }
+  };
+  try { walk('src'); } catch (e) { err(`age-policy check could not run: ${e.message}`); }
+}
+
+/*
+ * A track must keep the promise its own description makes.
+ *
+ * The calisthenics option tells the user "progression by leverage and not by
+ * weight". matchesTrack returned true for core, conditioning and mobility
+ * patterns BEFORE it looked at equipment, so a cable crunch and a cable wood
+ * chop were shipped inside calisthenics plans — the exact loading the track
+ * said it left out. Neutrality was meant to say a plank belongs on either
+ * track, not that a plank may bring a cable stack.
+ */
+{
+  const LOADED = ['dumbbells', 'barbell', 'kettlebell', 'machines', 'cable'];
+  try {
+    const idx = await load('src/data/exercises.index.js');
+    const offenders = idx.EXERCISES.filter((e) => idx.matchesTrack(e, 'calisthenics')
+      && (e.equipment || []).some((q) => LOADED.includes(q)));
+    for (const e of offenders.slice(0, 6)) {
+      err(`${e.id} (${e.nameEn}) needs ${e.equipment.join('+')} but passes the calisthenics `
+        + `track filter — that track promises progression by leverage, not load`);
+    }
+    if (offenders.length > 6) err(`...and ${offenders.length - 6} more loaded exercises in calisthenics`);
+  } catch (e) { err(`track-purity check could not run: ${e.message}`); }
+}
+
+/*
+ * No day may spend three slots on one movement pattern.
+ *
+ * A split names one pull pattern for a given day, so when the pull group earned
+ * two slots there the second had nowhere to go and repeated it — producing a
+ * pull-up, a wide-grip pull-up and a chin-up as three separate exercises, nine
+ * sets of one movement, the assisted regression prescribed next to the full
+ * version it exists to replace. Two of a pattern is defensible (heavy then
+ * volume); three is the allocator giving up.
+ */
+{
+  try {
+    const gen = await load('src/engine/generator.js');
+    const schema = await load('src/intake/schema.js');
+    const idx = await load('src/data/exercises.index.js');
+    let worst = 0, worstAt = '';
+    for (const track of ['calisthenics', 'weights', 'mixed']) {
+      for (const location of ['full_gym', 'building_gym', 'home_weights', 'home_bodyweight']) {
+        for (const experience of ['beginner', 'intermediate', 'advanced']) {
+          for (const daysPerWeek of [3, 4, 5]) {
+            const p = schema.normalizeProfile(Object.assign(schema.defaults(), {
+              age: 30, heightCm: 178, weightKg: 76, goal: 'muscle',
+              experience, daysPerWeek, minutesPerSession: 60, location, track,
+            }));
+            for (const d of gen.generateProgram(p).days) {
+              const count = {};
+              for (const slot of d.slots) {
+                const ex = idx.byId(slot.variants[0].exId);
+                if (!ex) continue;
+                count[ex.pattern] = (count[ex.pattern] || 0) + 1;
+                if (count[ex.pattern] > worst) {
+                  worst = count[ex.pattern];
+                  worstAt = `${track}/${location}/${experience}/${daysPerWeek}d "${d.title}" ${ex.pattern}`;
+                }
+              }
+            }
+          }
+        }
+      }
+    }
+    if (worst >= 3) err(`a day spends ${worst} slots on one pattern — ${worstAt}`);
+  } catch (e) { err(`pattern-repeat check could not run: ${e.message}`); }
+}
+
+/*
+ * Rest-day tasks must respect the same limits the training does.
+ *
+ * They are the one part of the week that is not built by the generator, so none
+ * of the exercise filters touch them: an injury the plan carefully worked
+ * around all week must not reappear as "jump rope for ten minutes" on Tuesday.
+ * Nor may a task ask for equipment the profile does not have, and nor may a
+ * week fill every rest day — a plan with something on all seven days is a plan
+ * nobody keeps.
+ */
+{
+  try {
+    const rd = await load('src/engine/restday.js');
+    const schema = await load('src/intake/schema.js');
+    const INJURIES = ['knee', 'ankle', 'hip', 'lower_back', 'shoulder', 'elbow', 'wrist'];
+    for (const goal of ['fatloss', 'muscle', 'strength', 'fitness', 'sport']) {
+      for (const injury of [null].concat(INJURIES)) {
+        for (const location of ['full_gym', 'home_bodyweight']) {
+          const p = schema.normalizeProfile(Object.assign(schema.defaults(), {
+            age: 30, heightCm: 178, weightKg: 76, goal, experience: 'intermediate',
+            daysPerWeek: 3, minutesPerSession: 60, location,
+            injuries: injury ? [injury] : [],
+          }));
+          const restIdx = [0, 1, 2, 3];
+          const tasks = rd.restDayTasks(p, restIdx);
+          const owned = new Set(p.equipment || []);
+          const byId = new Map(rd.TASKS.map((t) => [t.id, t]));
+          for (const t of tasks) {
+            const def = byId.get(t.id);
+            if (!def) { err(`rest task ${t.id} is not in the catalogue`); continue; }
+            if (injury && def.hurts.indexOf(injury) >= 0) {
+              err(`${goal}/${injury}: rest task "${def.title}" is contraindicated for ${injury}`);
+            }
+            for (const q of def.needs) {
+              if (!owned.has(q)) err(`${goal}/${location}: rest task "${def.title}" needs ${q}, which this profile lacks`);
+            }
+          }
+          if (tasks.length > restIdx.length) err(`${goal}: more rest tasks than rest days`);
+          const hard = tasks.filter((t) => t.load === 'moderate').length;
+          if (hard > 1) err(`${goal}/${injury || 'none'}: ${hard} demanding rest-day tasks in one week — rest days are for resting`);
+          const ids = new Set(tasks.map((t) => t.id));
+          if (ids.size !== tasks.length) err(`${goal}: the same rest task appears twice in one week`);
+        }
+      }
+    }
+  } catch (e) { err(`rest-day check could not run: ${e.message}`); }
+}
+
+/*
+ * This is a calisthenics app. Nothing may hand the user loaded equipment.
+ *
+ * The track is forced in normalizeProfile rather than asked, so the failure mode
+ * is not a wrong answer — it is a seed list, an option chip or an imported
+ * profile quietly reintroducing dumbbells, and the generator happily using them
+ * because matchesTrack was never the thing that stopped it.
+ */
+{
+  const LOADED = ['dumbbells', 'barbell', 'kettlebell', 'machines', 'cable'];
+  try {
+    const schema = await load('src/intake/schema.js');
+    const gen = await load('src/engine/generator.js');
+    const idx = await load('src/data/exercises.index.js');
+    const LOCATIONS = ['full_gym', 'building_gym', 'home_weights', 'home_bodyweight'];
+
+    for (const location of LOCATIONS) {
+      const p = schema.normalizeProfile(Object.assign(schema.defaults(), {
+        age: 30, heightCm: 178, weightKg: 76, location,
+      }));
+      if (p.track !== 'calisthenics') err(`${location}: normalizeProfile produced track "${p.track}"`);
+      for (const q of p.equipment || []) {
+        if (LOADED.includes(q)) err(`${location}: the seeded kit includes ${q}, which this app never uses`);
+      }
+    }
+
+    // An imported profile that claims another track must be coerced, not honoured.
+    const smuggled = schema.normalizeProfile(Object.assign(schema.defaults(), {
+      age: 30, heightCm: 178, weightKg: 76, location: 'full_gym',
+      track: 'weights', equipment: ['barbell', 'machines', 'cable', 'dumbbells'],
+    }));
+    if (smuggled.track !== 'calisthenics') err('an imported profile kept a non-calisthenics track');
+    for (const q of smuggled.equipment || []) {
+      if (LOADED.includes(q)) err(`an imported profile kept ${q} in its equipment list`);
+    }
+
+    // And no generated programme may contain a loaded exercise.
+    for (const location of LOCATIONS) {
+      for (const experience of ['beginner', 'intermediate', 'advanced']) {
+        const p = schema.normalizeProfile(Object.assign(schema.defaults(), {
+          age: 30, heightCm: 178, weightKg: 76, location, experience,
+          daysPerWeek: 4, minutesPerSession: 60, goal: 'muscle',
+        }));
+        for (const d of gen.generateProgram(p).days) {
+          for (const slot of d.slots) {
+            for (const v of slot.variants) {
+              const ex = idx.byId(v.exId);
+              if (!ex) continue;
+              const bad = (ex.equipment || []).filter((q) => LOADED.includes(q));
+              if (bad.length) {
+                err(`${location}/${experience}: "${ex.nameEn}" needs ${bad.join('+')} in a calisthenics-only app`);
+              }
+            }
+          }
+        }
+      }
+    }
+
+    // The questionnaire must not offer loaded gear either.
+    for (const step of schema.STEPS || []) {
+      for (const f of step.fields || []) {
+        const opts = typeof f.options === 'function' ? f.options(schema.defaults()) : f.options;
+        if (!Array.isArray(opts)) continue;
+        for (const o of opts) {
+          if (LOADED.includes(o.value)) err(`the ${f.key} question still offers "${o.label}"`);
+        }
+      }
+    }
+  } catch (e) { err(`calisthenics-only check could not run: ${e.message}`); }
+}
+
+/*
+ * The logo has to actually be a logo.
+ *
+ * It is a base64 data URI in a source file, which is the one kind of asset that
+ * can rot silently: a truncated paste still parses as a string, still imports,
+ * still renders as an <img> — just a broken one, and only on somebody else's
+ * screen. So its shape is checked here rather than trusted.
+ *
+ * The size ceiling is the real point. The bundle is under a megabyte and this is
+ * one image; the 640x640 plate it was cut from was 531KB on its own, which would
+ * have been more than half the app.
+ */
+{
+  try {
+    const brand = await load('src/core/brand.js');
+    const uri = brand.LOGO;
+    if (typeof uri !== 'string' || !uri) {
+      err('src/core/brand.js does not export a LOGO string');
+    } else {
+      const m = /^data:image\/(webp|png|jpeg|svg\+xml);base64,([A-Za-z0-9+/=]+)$/.exec(uri);
+      if (!m) {
+        err('LOGO is not a well-formed base64 image data URI — a truncated paste still '
+          + 'imports fine and only fails on screen');
+      } else {
+        const bytes = Buffer.from(m[2], 'base64');
+        const kb = Math.round(bytes.length / 1024);
+        if (kb > 90) err(`the logo is ${kb}KB — too heavy for a bundle this size; re-cut it smaller`);
+        if (bytes.length < 2000) err(`the logo is only ${bytes.length} bytes — that is a truncated asset`);
+        // Magic bytes: the declared type must be the actual type.
+        const head = bytes.slice(0, 12).toString('latin1');
+        if (m[1] === 'webp' && !(head.startsWith('RIFF') && head.indexOf('WEBP') === 8)) {
+          err('LOGO claims image/webp but the bytes are not a WebP');
+        }
+        if (m[1] === 'png' && bytes[1] !== 0x50) err('LOGO claims image/png but the bytes are not a PNG');
+      }
+    }
+  } catch (e) { err(`logo check could not run: ${e.message}`); }
+}
+
+/*
+ * The cool-down has to respect an injury too, and still be a cool-down.
+ *
+ * It runs through the same candidate filter as everything else, so it looked
+ * safe — but the three stretches it reaches for first carried no
+ * contraindications, so the filter had nothing to remove and every trainee got
+ * the identical four lines. A guarded knee was being sent into a deep squat hold
+ * and onto its knee for a hip-flexor stretch.
+ *
+ * Both halves are checked: nothing contraindicated survives, AND the list does
+ * not collapse to a breathing drill once the filtering starts working.
+ */
+{
+  try {
+    const gen = await load('src/engine/generator.js');
+    const schema = await load('src/intake/schema.js');
+    const idx = await load('src/data/exercises.index.js');
+    const byName = new Map(idx.EXERCISES.map((e) => [e.name, e]));
+
+    /*
+     * Stated here rather than read from the exercise's own contraindications,
+     * because reading them would make this circular: deleting a tag would make
+     * the filter and the check agree that nothing is wrong. These are claims
+     * about the movements themselves — a deep squat is full knee flexion and
+     * full ankle dorsiflexion, kneeling puts bodyweight on the front of the
+     * knee, child's pose is deep knee flexion plus end-range shoulder overhead.
+     */
+    const MUST_NOT = {
+      deep_squat_hold: ['knee', 'ankle'],
+      hip_flexor_stretch_kneeling: ['knee', 'hip'],
+      childs_pose_reach: ['knee', 'shoulder'],
+      passive_bar_hang: ['shoulder'],
+    };
+    const SETS = [[], ['knee'], ['ankle'], ['hip'], ['shoulder'], ['lower_back'],
+      ['knee', 'shoulder'], ['knee', 'ankle', 'hip', 'shoulder', 'lower_back']];
+
+    for (const injuries of SETS) {
+      const p = schema.normalizeProfile(Object.assign(schema.defaults(), {
+        age: 30, heightCm: 178, weightKg: 76, goal: 'muscle', experience: 'intermediate',
+        daysPerWeek: 4, minutesPerSession: 60, location: 'full_gym', injuries,
+      }));
+      const cd = gen.generateProgram(p).cooldown || [];
+      const label = injuries.join('+') || 'no injuries';
+
+      if (cd.length < 3) {
+        err(`${label}: the cool-down is down to ${cd.length} item(s) — filtering must not `
+          + `leave someone with nothing but a breathing drill`);
+      }
+      for (const item of cd) {
+        const ex = byName.get(item.name);
+        if (!ex) continue;   // the closing breath is not an exercise
+        const banned = MUST_NOT[ex.id] || [];
+        const clash = banned.filter((c) => injuries.includes(c));
+        if (clash.length) {
+          err(`${label}: the cool-down includes "${ex.name}", which loads ${clash.join('+')}`);
+        }
+      }
+    }
+  } catch (e) { err(`cool-down check could not run: ${e.message}`); }
+}
+
+/*
+ * A growing body is not judged by adult muscle-gain rates.
+ *
+ * The goal assessment prices weight gain off GAIN_CEILING, which describes what
+ * an adult builds from training. A thirteen-year-old at 48kg aiming for 60 in a
+ * year came out "unrealistic", with the plan telling him the extra would be fat
+ * — while that trajectory is close to ordinary development. Growth adds mass
+ * whether or not anybody trains.
+ *
+ * Checked in both directions, because the easy over-correction is to hand
+ * teenagers a licence: growth must NOT loosen fat loss, and it must be gone by
+ * the twenties.
+ */
+{
+  try {
+    const tg = await load('src/engine/targets.js');
+    const schema = await load('src/intake/schema.js');
+    const future = (weeks) => {
+      const d = new Date();
+      d.setDate(d.getDate() + weeks * 7);
+      return d.toISOString().slice(0, 10);
+    };
+    const mk = (over) => schema.normalizeProfile(Object.assign(schema.defaults(), {
+      sex: 'male', heightCm: 166, weightKg: 48, goal: 'muscle',
+      experience: 'beginner', commitment: 4, targetDate: future(56),
+    }, over));
+
+    // 48 -> 60 in a year is normal development at 13, and not at 25.
+    const teen = tg.assessGoal(mk({ age: 13, targetWeightKg: 60 }));
+    if (!teen.realistic) {
+      err('a 13-year-old going 48kg -> 60kg in a year is judged unrealistic — that is '
+        + 'ordinary growth being priced as adult muscle gain');
+    }
+    if (/הגוף לא בונה שריר מהר יותר מזה/.test(teen.verdict)) {
+      err('the goal verdict tells a growing teenager his body cannot add that mass');
+    }
+
+    const adult = tg.assessGoal(mk({ age: 25, targetWeightKg: 60 }));
+    if (adult.realistic) {
+      err('a 25-year-old going 48kg -> 60kg in a year is judged realistic — the growth '
+        + 'allowance must not reach adults');
+    }
+
+    // The allowance must not make losing weight easier for a minor.
+    const teenLoss = tg.assessGoal(mk({ age: 13, weightKg: 60, targetWeightKg: 50 }));
+    if (teenLoss.realistic) {
+      err('under-18 fat loss is being called realistic — growth must never loosen that');
+    }
+
+    const age = await load('src/engine/age.js');
+    if (age.growthAllowanceKgPerWeek({ age: 25 }) !== 0) err('growth allowance leaks into adults');
+    if (age.growthAllowanceKgPerWeek({ age: 9 }) !== 0) err('growth allowance applies below the intake floor');
+    if (!(age.growthAllowanceKgPerWeek({ age: 13 }) > age.growthAllowanceKgPerWeek({ age: 18 }))) {
+      err('the growth allowance does not taper with age');
+    }
+  } catch (e) { err(`growth-allowance check could not run: ${e.message}`); }
+}
+
+/*
+ * Age has to reach the output, not just the arithmetic.
+ *
+ * Both defects here were the same shape: a rule existed and something later
+ * erased it.
+ *
+ * volume.js reduces the weekly target for age, sleep and stress — and then the
+ * "spend the spare time" step scaled whatever survived back up to a flat share
+ * of the clock. At 4x60 an eighty-year-old beginner and a twenty-five-year-old
+ * both came out at 63 sets, so the only thing deciding was the calendar.
+ *
+ * restday.js filtered its tasks by injury and equipment and not by age, so an
+ * eighty-two-year-old with no injuries ticked was handed ten minutes of jump
+ * rope — a hundred landings and a balance demand, on a recovery day.
+ */
+{
+  try {
+    const v = await load('src/engine/volume.js');
+    const rd = await load('src/engine/restday.js');
+    const schema = await load('src/intake/schema.js');
+    const mk = (over) => schema.normalizeProfile(Object.assign(schema.defaults(), {
+      heightCm: 172, weightKg: 62, goal: 'muscle', experience: 'beginner',
+      daysPerWeek: 4, minutesPerSession: 60, sleepHours: 7, stress: 3,
+    }, over));
+
+    // Recovery must survive the time cap.
+    const young = v.weeklyVolume(mk({ age: 25 })).total;
+    const old = v.weeklyVolume(mk({ age: 80 })).total;
+    if (old >= young) {
+      err(`an 80-year-old is prescribed ${old} sets against a 25-year-old's ${young} — `
+        + `the recovery factors are being erased by the fill-to-capacity step`);
+    }
+    const slept = v.weeklyVolume(mk({ age: 25, sleepHours: 9 })).total;
+    const tired = v.weeklyVolume(mk({ age: 25, sleepHours: 5 })).total;
+    if (tired >= slept) err(`5 hours of sleep yields ${tired} sets and 9 hours ${slept} — sleep is not reaching the plan`);
+    const calm = v.weeklyVolume(mk({ age: 25, stress: 1 })).total;
+    const fried = v.weeklyVolume(mk({ age: 25, stress: 5 })).total;
+    if (fried >= calm) err(`stress 5 yields ${fried} sets and stress 1 ${calm} — stress is not reaching the plan`);
+
+    // Rest-day tasks must respect age, and must not run out because of it.
+    const IMPACT = ['jump_rope_10', 'stairs_10'];
+    for (const age of [12, 25, 55, 62, 70, 82, 90]) {
+      const p = mk({ age, goal: 'fitness', location: 'full_gym' });
+      const tasks = rd.restDayTasks(p, [1, 3, 5, 6]);
+      if (!tasks.length) err(`age ${age}: no rest-day task at all`);
+      if (age >= 70) {
+        for (const t of tasks) {
+          if (IMPACT.includes(t.id)) {
+            err(`age ${age}: rest-day task "${t.title}" is impact work on a recovery day`);
+          }
+        }
+      }
+    }
+  } catch (e) { err(`age-reaches-output check could not run: ${e.message}`); }
+}
+
+/*
+ * The warm-up and the cool-down have to know how old the trainee is.
+ *
+ * They were the last part of the plan that did not. Every other engine bent for
+ * age — volume, session length, calories, exercise selection, rest-day tasks —
+ * and these two handed out the identical four drills and the identical four
+ * stretches from 12 to 90, because the only filter they had was injury and a
+ * healthy 78-year-old ticks no boxes.
+ *
+ * The drills below are named here, not read from demands.js, and that is the
+ * whole point. A check that asks the same table the generator asks can only ever
+ * confirm the two agree: delete jumping_jack's entry and the drill starts
+ * appearing in an 85-year-old's warm-up while the check reports everything is
+ * fine. So the unsafe cases are restated independently, and the two descriptions
+ * have to keep matching on their own.
+ */
+{
+  try {
+    const g = await load('src/engine/generator.js');
+    const schema = await load('src/intake/schema.js');
+    const dm = await load('src/data/demands.js');
+    const ix = await load('src/data/exercises.index.js');
+
+    const mk = (over) => schema.normalizeProfile(Object.assign(schema.defaults(), {
+      sex: 'male', heightCm: 175, weightKg: 74, goal: 'muscle', experience: 'beginner',
+      daysPerWeek: 3, minutesPerSession: 45, location: 'home_weights',
+    }, over));
+    const plan = (over) => g.generateProgram(mk(over));
+
+    /* Restated independently of demands.js. */
+    const LEAVES_THE_GROUND = ['jumping_jack', 'jog', 'high_knees', 'pogo_hop', 'jump_rope'];
+    const ONE_LEG_UNSUPPORTED = ['toy_soldier', 'standing_knee_to_elbow'];
+    const NEEDS_THE_FLOOR = [
+      'childs_pose_reach', 'hip_flexor_stretch_kneeling', 'cat_cow', 'bird_dog', 'dead_bug',
+      'hip_switch_90_90', 'glute_bridge', 'glute_bridge_activation', 'thoracic_rotation',
+      'quadruped_scap_pushup', 'scap_pushup', 'wrist_prep', 'prone_w_raise', 'prone_ytw_raise',
+      'prone_lat_pull_slide', 'worlds_greatest_stretch', 'deep_squat_hold',
+    ];
+    const HANGS_FROM_THE_HANDS = ['dead_hang', 'passive_bar_hang', 'scap_pull'];
+
+    const ids = (list) => (list || []).map((x) => x.id).filter(Boolean);
+
+    for (const age of [62, 70, 82, 90]) {
+      const p = plan({ age });
+      for (const id of ids(p.warmup)) {
+        if (LEAVES_THE_GROUND.includes(id)) err(`age ${age}: the warm-up opens with "${id}", which leaves the ground`);
+        if (ONE_LEG_UNSUPPORTED.includes(id)) err(`age ${age}: the warm-up includes "${id}" — one leg with nothing to hold`);
+      }
+    }
+
+    // A beginner past the line should not be warming up by hanging their bodyweight.
+    for (const age of [70, 85]) {
+      for (const id of ids(plan({ age }).warmup)) {
+        if (HANGS_FROM_THE_HANDS.includes(id)) err(`age ${age}: a beginner's warm-up includes "${id}" — full bodyweight through two hands`);
+      }
+    }
+    // ...but somebody who trains keeps it, or the rule is about age rather than capacity.
+    {
+      const kept = ids(plan({ age: 68, experience: 'advanced' }).warmup).some((id) => HANGS_FROM_THE_HANDS.includes(id));
+      if (!kept) err('an advanced 68-year-old lost their hanging drills — the rule is meant to be about capacity, not birthdays');
+    }
+
+    // Never a warm-up or a cool-down made entirely of getting down to the floor.
+    for (const age of [66, 75, 90]) {
+      const p = plan({ age });
+      if (!ids(p.warmup).some((id) => !NEEDS_THE_FLOOR.includes(id))) {
+        err(`age ${age}: every drill in the warm-up needs getting down to the floor`);
+      }
+      const stretches = ids(p.cooldown).filter((id) => id !== 'seated_breathing');
+      if (stretches.length && !stretches.some((id) => !NEEDS_THE_FLOOR.includes(id))) {
+        err(`age ${age}: every cool-down stretch needs getting down to the floor`);
+      }
+    }
+
+    // The regression that started this: two very different bodies, one warm-up.
+    {
+      const young = ids(plan({ age: 14 }).warmup).join(',');
+      const mid = ids(plan({ age: 30 }).warmup).join(',');
+      const old = ids(plan({ age: 82 }).warmup).join(',');
+      if (young === old) err(`a 14-year-old and an 82-year-old get the identical warm-up: ${old || '(empty)'}`);
+      if (mid === old) err(`a 30-year-old and an 82-year-old get the identical warm-up: ${old || '(empty)'}`);
+    }
+
+    // A trainee who can jump should be given something that raises a pulse.
+    for (const age of [14, 25, 40]) {
+      const lead = ids(plan({ age }).warmup)[0];
+      if (lead && !LEAVES_THE_GROUND.includes(lead)) {
+        err(`age ${age}: the warm-up opens with "${lead}" — nothing here raises a heart rate before training`);
+      }
+    }
+
+    // Stretch holds should lengthen with age, not stay on one number for everybody.
+    {
+      const secs = (age) => {
+        const c = plan({ age }).cooldown.find((x) => /שנ׳$/.test(x.prescription || ''));
+        return c ? parseInt(c.prescription, 10) : null;
+      };
+      const a = secs(14); const b = secs(30); const c = secs(80);
+      if (a === null || b === null || c === null) err('cool-down stretches carry no hold length at all');
+      else if (!(a < b && b < c)) err(`cool-down holds do not lengthen with age: 14->${a}s, 30->${b}s, 80->${c}s`);
+    }
+
+    // Nobody ends up with an empty warm-up because a filter removed everything.
+    for (const age of [12, 25, 60, 75, 90]) {
+      const p = plan({ age });
+      if ((p.warmup || []).length < 3) err(`age ${age}: warm-up is down to ${(p.warmup || []).length} drills`);
+      if ((p.cooldown || []).length < 2) err(`age ${age}: cool-down is down to ${(p.cooldown || []).length} items`);
+    }
+
+    /*
+     * Coverage of the table itself. This one does read demands.js, which is
+     * fine — it is not judging whether a drill is safe, it is checking that
+     * somebody looked at every drill, so a new one cannot inherit "standing,
+     * fine for a ninety-year-old" by being forgotten.
+     */
+    {
+      const all = ix.ALL_EXERCISES || ix.EXERCISES || [];
+      const warm = all.filter((e) => (e.tags || []).indexOf('warmup') >= 0).map((e) => e.id);
+      const classified = new Set(Object.keys(dm.DEMANDS).concat(dm.PLAIN_STANDING));
+      const missing = warm.filter((id) => !classified.has(id));
+      if (missing.length) err(`warm-up drills with no demands entry: ${missing.join(', ')}`);
+      const stray = Array.from(classified).filter((id) => warm.indexOf(id) < 0);
+      if (stray.length) err(`demands.js classifies drills that are not warm-up drills: ${stray.join(', ')}`);
+      const both = dm.PLAIN_STANDING.filter((id) => dm.DEMANDS[id]);
+      if (both.length) err(`drills listed as plain standing and as demanding: ${both.join(', ')}`);
+    }
+  } catch (e) { err(`warm-up/cool-down age check could not run: ${e.message}`); }
+}
+
+/*
+ * A week has to fit the clock it was given, and a blank age is not a child.
+ *
+ * Both of these came out of a code review on the pull request, and both were
+ * real.
+ *
+ * The floors: push, pull and legs carry a floor of 3 sets and core 2, so a week
+ * keeping all four owes 11 sets before anything is decided. The time capacity is
+ * worked out separately and nothing compared them — two 20-minute strength
+ * sessions afford 8.1 sets and the plan came out at 11.
+ *
+ * The age: age.js says in as many words that an unknown age is treated as an
+ * adult, and its own ageOf() did Number(p.age) and checked isFinite. Number(null)
+ * is 0 and 0 is finite, so a profile with no age was read as a child by every
+ * gate in the file at once — no calorie target, no weigh-in, fat loss refused,
+ * scan off.
+ *
+ * The minutes-per-set table is restated here rather than imported, for the same
+ * reason the warm-up drills are: a check that reads the engine's own pace can
+ * only confirm the engine agrees with itself.
+ */
+{
+  try {
+    const v = await load('src/engine/volume.js');
+    const age = await load('src/engine/age.js');
+    const targets = await load('src/engine/targets.js');
+    const schema = await load('src/intake/schema.js');
+
+    const PACE = { strength: 3.2, muscle: 2.6, fatloss: 2.0, fitness: 2.1, sport: 2.2 };
+    const GROUPS = ['push', 'pull', 'legs', 'core', 'arms', 'shoulders', 'calves', 'conditioning'];
+    const KEEP = ['push', 'pull', 'legs', 'core'];
+
+    // Whole sets rounded one group at a time can miss the fractional capacity by
+    // a set or two; that is the rounding, not the bound coming off.
+    const ROUNDING = 2;
+
+    let checked = 0;
+    for (const goal of Object.keys(PACE)) {
+      for (const minutes of [20, 25, 30, 45, 60, 75, 90]) {
+        for (const days of [2, 3, 4, 5, 6]) {
+          for (const experience of ['beginner', 'advanced']) {
+            const p = schema.normalizeProfile(Object.assign(schema.defaults(), {
+              age: 30, sex: 'male', heightCm: 175, weightKg: 75,
+              goal, experience, daysPerWeek: days, minutesPerSession: minutes,
+              location: 'home_weights',
+            }));
+            const b = v.sessionBudget(p);
+            const vol = v.weeklyVolume(p);
+            const capacity = Math.min(b.mainMin / PACE[goal], b.maxSlots * 3.0) * days;
+            checked++;
+
+            if (vol.total > capacity + ROUNDING) {
+              err(`${goal} ${minutes}min x${days} (${experience}): ${vol.total} sets against a `
+                + `capacity of ${capacity.toFixed(1)} — the week does not fit the clock it was given`);
+            }
+            for (const g of GROUPS) {
+              if (!Number.isInteger(vol[g])) {
+                err(`${goal} ${minutes}min x${days}: ${g} came out at ${vol[g]} sets — not a whole number`);
+              }
+            }
+            // Shrinking a floor must not delete the movement pattern.
+            for (const g of KEEP) {
+              if (!(vol[g] >= 1)) {
+                err(`${goal} ${minutes}min x${days}: ${g} has ${vol[g]} sets — the week lost a movement pattern`);
+              }
+            }
+          }
+        }
+      }
+    }
+    if (checked < 200) err(`the volume-fits-the-clock check only ran ${checked} profiles`);
+
+    /* A profile with no age is an adult, at every gate, however the blank looks. */
+    const asked = {
+      'isMinor': (p) => age.isMinor(p),
+      'withholdsPhotoScan': (p) => age.withholdsPhotoScan(p),
+      'withholdsFatLoss': (p) => age.withholdsFatLoss(p),
+      'withholdsBodyNumbers': (p) => age.withholdsBodyNumbers(p),
+      'withholdsHeavyLoad': (p) => age.withholdsHeavyLoad(p),
+      'hidesBodyReading': (p) => age.hidesBodyReading(p),
+      'stillDeveloping': (p) => age.stillDeveloping(p),
+    };
+    for (const blank of [null, undefined, '', '   ', 'abc', NaN]) {
+      const p = { age: blank, sex: 'male', heightCm: 175, weightKg: 75 };
+      for (const name of Object.keys(asked)) {
+        if (asked[name](p)) {
+          err(`age.js: a profile with age ${JSON.stringify(blank)} answers true to ${name}() — `
+            + `the file says an unknown age is treated as an adult`);
+        }
+      }
+      if (age.growthAllowanceKgPerWeek(p) !== 0) {
+        err(`age.js: a profile with age ${JSON.stringify(blank)} is given a growth allowance`);
+      }
+    }
+    // ...and the goal assessment agrees, since it is the surface that showed it.
+    for (const blank of [null, undefined, '']) {
+      const p = Object.assign(schema.defaults(), {
+        age: blank, sex: 'male', heightCm: 175, weightKg: 80,
+        goal: 'fatloss', targetWeightKg: 72,
+      });
+      const verdict = targets.assessGoal(p);
+      if (/הגוף עוד גדל/.test(verdict.verdict || '')) {
+        err(`assessGoal refuses fat loss for a profile with age ${JSON.stringify(blank)} on the `
+          + `grounds that the body is still growing`);
+      }
+    }
+    // The gates must still fire for someone who actually is young.
+    {
+      const kid = { age: 13, sex: 'male', heightCm: 155, weightKg: 42 };
+      if (!age.isMinor(kid) || !age.withholdsFatLoss(kid) || !age.withholdsPhotoScan(kid)) {
+        err('the age gates stopped firing for a 13-year-old — the blank-age fix went too far');
+      }
+    }
+  } catch (e) { err(`volume-capacity / blank-age check could not run: ${e.message}`); }
+}
+
+/*
+ * The age bounds come from one place, and hold at every layer.
+ *
+ * The floor was a bare 10 in six files — the questionnaire's min, its validate,
+ * normalizeProfile's clamp, two engines and the free-text parser. Moving the app
+ * to 12 meant changing all six, and a seventh written later would have
+ * disagreed silently: the field would refuse 11 while the engine happily planned
+ * for it.
+ *
+ * Checked at the three layers that can each let an age through on their own —
+ * what the form accepts, what normalizeProfile stores, and what the free-text
+ * parser extracts.
+ */
+{
+  try {
+    const age = await load('src/engine/age.js');
+    const schema = await load('src/intake/schema.js');
+    const MIN = age.MIN_AGE;
+    const MAX = age.MAX_AGE;
+    if (!(MIN >= 12 && MIN < MAX && MAX <= 120)) err(`age bounds look wrong: ${MIN}-${MAX}`);
+
+    let field = null;
+    for (const step of schema.STEPS || []) {
+      for (const f of step.fields || []) if (f.key === 'age') field = f;
+    }
+    if (!field) { err('the questionnaire has no age field'); }
+    else {
+      if (field.min !== MIN || field.max !== MAX) {
+        err(`the age field accepts ${field.min}-${field.max} but the rule is ${MIN}-${MAX}`);
+      }
+      for (const bad of [MIN - 1, MAX + 1]) {
+        if (!field.validate(bad)) err(`the age field accepts ${bad}, outside ${MIN}-${MAX}`);
+      }
+      for (const good of [MIN, MAX]) {
+        if (field.validate(good)) err(`the age field rejects ${good}, which is inside ${MIN}-${MAX}`);
+      }
+    }
+
+    // normalizeProfile is the last line: an imported profile must be clamped.
+    for (const bad of [3, MIN - 1, MAX + 1, 200]) {
+      const got = schema.normalizeProfile(Object.assign(schema.defaults(), { age: bad })).age;
+      if (got < MIN || got > MAX) {
+        err(`normalizeProfile let age ${bad} through as ${got} — an imported profile can `
+          + `smuggle an age the plan was never designed around`);
+      }
+    }
+  } catch (e) { err(`age-bounds check could not run: ${e.message}`); }
+}
+
+/* ---------------- clips ---------------- */
+
+const clipFiles = existsSync(resolve(ROOT, 'src/data'))
+  ? readdirSync(resolve(ROOT, 'src/data')).filter((f) => /^clips\..+\.js$/.test(f) && f !== 'clips.index.js')
+  : [];
+
+const allClips = new Map();   // the shared library, keyed by clip id
+const exClips = new Map();    // clips.x*.js — the per-exercise overrides, keyed by EXERCISE id
+
+for (const f of clipFiles) {
+  const mod = await load(`src/data/${f}`);
+  if (!mod) continue;
+  // The x-batches live in their own namespace: a clip keyed by an exercise id
+  // is MEANT to shadow the shared clip of the same name, so a collision across
+  // the two namespaces is the feature, not a duplicate.
+  const perExercise = /^clips\.x\d+\.js$/.test(f);
+  const bucket = perExercise ? exClips : allClips;
+  for (const val of Object.values(mod)) {
+    if (!val || typeof val !== 'object' || Array.isArray(val)) continue;
+    for (const [id, c] of Object.entries(val)) {
+      if (!c || typeof c !== 'object' || !Array.isArray(c.keys)) continue;
+      const at = `${f}:${id}`;
+      if (bucket.has(id)) err(`${at}: duplicate clip id within ${perExercise ? 'the per-exercise batches' : 'the shared library'}`);
+      if (perExercise && !allEx.has(id)) err(`${at}: per-exercise clip keyed "${id}", which is not an exercise id`);
+      if (!(c.duration > 200)) err(`${at}: duration must be > 200ms`);
+      if (!c.keys.length) { err(`${at}: no keys`); continue; }
+      if (c.keys[0].t !== 0) err(`${at}: first key must be t:0`);
+      if (c.keys[c.keys.length - 1].t !== 1) err(`${at}: last key must be t:1`);
+      for (let i = 1; i < c.keys.length; i++) {
+        if (!(c.keys[i].t > c.keys[i - 1].t)) err(`${at}: key ${i} t not ascending`);
+      }
+      for (const [i, k] of c.keys.entries()) {
+        if (!k.pose || typeof k.pose !== 'object') { err(`${at}: key ${i} has no pose`); continue; }
+        for (const [pk, pv] of Object.entries(k.pose)) {
+          if (typeof pv === 'number' && !isFinite(pv)) err(`${at}: key ${i} field ${pk} is not finite`);
+          if (Array.isArray(pv) && (pv.length !== 2 || pv.some((n) => typeof n !== 'number' || !isFinite(n)))) {
+            err(`${at}: key ${i} field ${pk} must be [num,num]`);
+          }
+          if (pv && typeof pv === 'object' && !Array.isArray(pv) && (typeof pv.x !== 'number' || typeof pv.y !== 'number')) {
+            err(`${at}: key ${i} IK target ${pk} needs numeric x,y`);
+          }
+        }
+      }
+      // Compared as WRITTEN this is wrong: a full arm circle ends at 276 degrees
+      // where it began at -84 — the same frame, a different number, and no way
+      // to express it as one object without the arm unwinding on the seam.
+      // clip-audit.mjs solves both frames and compares joints; here, without the
+      // rig loaded, an angle difference that is a whole number of turns is the
+      // cheap version of the same test.
+      const sameFrame = (a, b) => {
+        const ka = Object.keys(a);
+        const kb = Object.keys(b);
+        if (ka.length !== kb.length) return false;
+        for (const k of ka) {
+          const va = a[k];
+          const vb = b[k];
+          if (typeof va === 'number' && typeof vb === 'number') {
+            if (ANGLE_KEYS.has(k) ? (va - vb) % 360 !== 0 : va !== vb) return false;
+          } else if (Array.isArray(va) && Array.isArray(vb)) {
+            if (va.length !== vb.length) return false;
+            if (va.some((v, i) => (v - vb[i]) % 360 !== 0)) return false;
+          } else if (JSON.stringify(va) !== JSON.stringify(vb)) {
+            return false;
+          }
+        }
+        return true;
+      };
+      if (c.loop !== false && !sameFrame(c.keys[0].pose, c.keys[c.keys.length - 1].pose)) {
+        warn(`${at}: t:0 and t:1 poses differ — loop will jump`);
+      }
+      bucket.set(id, c);
+    }
+  }
+}
+
+for (const e of allEx.values()) {
+  if (!allClips.has(e.anim) && !PATTERNS.has(e.anim)) {
+    err(`${e.id}: anim "${e.anim}" is neither a clip id nor a pattern name`);
+  }
+}
+
+for (const pat of PATTERNS) {
+  if (!allClips.has(pat)) err(`missing generic fallback clip for pattern "${pat}"`);
+}
+
+/* ---------------- engine ---------------- */
+
+const REQUIRED = {
+  'src/engine/volume.js': ['weeklyVolume', 'splitFor', 'sessionBudget'],
+  'src/engine/generator.js': ['generateProgram'],
+  'src/engine/progression.js': ['buildPhases', 'progressionModel', 'projectTargets', 'weeklyPlanNote'],
+  'src/engine/targets.js': ['assessGoal', 'facts'],
+  'src/engine/nutrition.js': ['nutritionPlan'],
+  'src/intake/schema.js': ['STEPS', 'defaults', 'validateStep', 'normalizeProfile', 'summarize'],
+};
+
+for (const [file, names] of Object.entries(REQUIRED)) {
+  const mod = await load(file);
+  if (!mod) { err(`${file}: missing`); continue; }
+  for (const n of names) if (!(n in mod)) err(`${file}: missing export "${n}"`);
+}
+
+/* ---------------- end-to-end smoke ---------------- */
+
+const schema = await load('src/intake/schema.js');
+const gen = await load('src/engine/generator.js');
+const nut = await load('src/engine/nutrition.js');
+
+if (schema && gen && typeof schema.defaults === 'function' && typeof gen.generateProgram === 'function') {
+  const CASES = [
+    { label: 'teen bodyweight', over: { age: 13, sex: 'male', heightCm: 166, weightKg: 48, goal: 'muscle', location: 'home_bodyweight', equipment: ['none', 'pullup_bar', 'mat'], daysPerWeek: 3, minutesPerSession: 75 } },
+    { label: 'gym fatloss knee', over: { age: 34, sex: 'female', heightCm: 168, weightKg: 78, goal: 'fatloss', location: 'full_gym', daysPerWeek: 4, minutesPerSession: 60, injuries: ['knee'] } },
+    { label: 'minimal home 2d', over: { age: 52, sex: 'male', heightCm: 175, weightKg: 92, goal: 'fitness', location: 'home_bodyweight', equipment: ['none'], daysPerWeek: 2, minutesPerSession: 30, injuries: ['lower_back', 'shoulder', 'knee'] } },
+    { label: 'strength 6d', over: { age: 26, sex: 'male', heightCm: 182, weightKg: 84, goal: 'strength', experience: 'advanced', location: 'full_gym', daysPerWeek: 6, minutesPerSession: 90 } },
+  ];
+
+  for (const c of CASES) {
+    try {
+      const profile = schema.normalizeProfile(Object.assign(schema.defaults(), c.over));
+      const prog = gen.generateProgram(profile);
+      if (!prog || !Array.isArray(prog.days) || !prog.days.length) { err(`smoke "${c.label}": no days`); continue; }
+      if (prog.days.length !== profile.daysPerWeek) err(`smoke "${c.label}": ${prog.days.length} days, expected ${profile.daysPerWeek}`);
+      const seenKeys = new Set();
+      for (const d of prog.days) {
+        if (!d.slots || !d.slots.length) err(`smoke "${c.label}": day ${d.id} has no slots`);
+        for (const s of d.slots || []) {
+          const dk = `${d.id}:${s.key}`;
+          if (seenKeys.has(dk)) err(`smoke "${c.label}": duplicate slot key ${dk}`);
+          seenKeys.add(dk);
+          if (!s.variants || !s.variants.length) { err(`smoke "${c.label}": ${dk} has no variants`); continue; }
+          for (const v of s.variants) {
+            const ex = allEx.get(v.exId);
+            if (!ex) { err(`smoke "${c.label}": ${dk} unknown exId ${v.exId}`); continue; }
+            const missing = ex.equipment.filter((q) => q !== 'none' && !profile.equipment.includes(q));
+            if (missing.length) err(`smoke "${c.label}": ${dk} ${v.exId} needs ${missing.join(',')} which the profile lacks`);
+            const bad = (ex.contraindications || []).filter((x) => profile.injuries.includes(x));
+            if (bad.length && !String(v.note || '').startsWith('⚠︎')) {
+              err(`smoke "${c.label}": ${dk} ${v.exId} hits injury ${bad.join(',')} without a caution note`);
+            }
+            if (!isStr(v.sets) && typeof v.sets !== 'number') err(`smoke "${c.label}": ${dk} ${v.exId} bad sets`);
+            if (!isStr(v.reps)) err(`smoke "${c.label}": ${dk} ${v.exId} bad reps`);
+          }
+        }
+      }
+      // determinism
+      const again = gen.generateProgram(profile);
+      if (JSON.stringify(again) !== JSON.stringify(prog)) err(`smoke "${c.label}": generateProgram is not deterministic`);
+
+      if (nut && typeof nut.nutritionPlan === 'function') {
+        const np = nut.nutritionPlan(profile);
+        if (!np || !Array.isArray(np.meals) || !np.meals.length) err(`smoke "${c.label}": nutritionPlan has no meals`);
+        for (const m of np.meals || []) {
+          if (!m.variants || m.variants.length < 4) err(`smoke "${c.label}": meal ${m.slot} has < 4 variants`);
+        }
+        if (profile.age < 16 && np.strategy !== null) err(`smoke "${c.label}": under-16 must have strategy null`);
+      }
+    } catch (e) {
+      err(`smoke "${c.label}": threw — ${e.message}`);
+    }
+  }
+}
+
+/* ---------------- report ---------------- */
+
+// Animation coverage: how many exercises have a clip of their own versus one
+// borrowed from a sibling or the generic pattern fallback.
+let ownClip = 0;
+let borrowed = 0;
+try {
+  const idx = await load('src/data/clips.index.js');
+  if (idx && idx.BY_EXERCISE) {
+    for (const e of allEx.values()) {
+      if (idx.BY_EXERCISE[e.id]) ownClip++;
+      else borrowed++;
+    }
+  }
+} catch (e) { /* index not loadable yet */ }
+
+console.log(`exercises: ${allEx.size}   clips: ${allClips.size}`);
+if (ownClip + borrowed) {
+  const pct = Math.round((ownClip / (ownClip + borrowed)) * 100);
+  console.log(`animation coverage: ${ownClip} own, ${borrowed} borrowed (${pct}% bespoke)`);
+}
+for (const w of warnings) console.log(`  warn  ${w}`);
+for (const e of errors) console.log(`  ERROR ${e}`);
+console.log(errors.length ? `\n${errors.length} error(s)` : '\nOK');
+process.exit(errors.length ? 1 : 0);
