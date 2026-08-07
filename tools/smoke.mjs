@@ -426,8 +426,79 @@ async function main() {
   if (resourceErrors.length) notes.push(`${resourceErrors.length} remote resource(s) unavailable (expected offline: web fonts)`);
 
   await checkAgeBounds(browser, target);
+  await checkTabsOnNarrowPhones(browser, target);
 
   await finish(browser, server);
+}
+
+/*
+ * Every tab reachable on the phone somebody actually owns.
+ *
+ * The strip is overflow-x: auto, so a tab that does not fit is still reachable
+ * by swiping and nothing here is broken in the sense a test usually means. But
+ * at 320px the last tab — מעקב, where the weigh-in and the backup live — was
+ * 0% visible, and a bar with no visible cut-off edge gives nobody a reason to
+ * think it continues. That is a feature nobody finds, which is the same as a
+ * feature that is not there.
+ *
+ * Checked by measuring against the viewport rather than the strip's own box:
+ * the strip has padding, so a tab sitting exactly on its inner edge measures as
+ * outside the container while being perfectly visible on screen. That
+ * distinction cost a false alarm before it was written down.
+ *
+ * 320 is an iPhone SE 1st gen and rare; 360 is a Galaxy S-series and is not.
+ */
+async function checkTabsOnNarrowPhones(browser, target) {
+  let held = true;
+  const holds = (ok, message) => { if (!ok) held = false; check(ok, message); };
+
+  for (const width of [320, 360, 390]) {
+    const ctx = await browser.newContext({
+      viewport: { width, height: 700 }, isMobile: true, hasTouch: true, deviceScaleFactor: 2,
+    });
+    const pg = await ctx.newPage();
+    await pg.goto(target, { waitUntil: 'networkidle' });
+    const start = await pg.$('.btn.primary');
+    if (start) { await start.tap().catch(() => start.click()); await pg.waitForTimeout(300); }
+
+    const built = await runWizard(pg, {
+      date: new Date(Date.now() + 200 * 86400000).toISOString().slice(0, 10),
+      number: 3, days: 3, text: '', clickFirstChip: false,
+      numbers: {
+        גיל: 28, גובה: 178, משקל: 76, יעד: 80,
+        אימונים: 3, דקות: 60, שינה: 7, ארוחות: 4,
+        'שכיבות': 20, 'מתח': 6, 'פלאנק': 60,
+      },
+      optionText: {},
+    });
+
+    if (!built) {
+      holds(false, `the wizard did not reach a plan on a ${width}px screen`);
+      await ctx.close();
+      continue;
+    }
+
+    const tabs = await pg.evaluate(() => {
+      const vw = document.documentElement.clientWidth;
+      return Array.from(document.querySelectorAll('.tabs .btn')).map((b) => {
+        const r = b.getBoundingClientRect();
+        return { label: b.textContent.trim(), visible: Math.min(r.right, vw) - Math.max(r.left, 0), width: r.width };
+      });
+    });
+    holds(tabs.length > 0, `${width}px: no tabs rendered`);
+
+    // A tab with nothing on screen cannot be found; a sliver is enough to invite the swipe.
+    const invisible = tabs.filter((t) => t.visible <= 1).map((t) => t.label);
+    if (invisible.length) {
+      holds(false, `${width}px: ${invisible.join(', ')} — entirely off screen, with no visible edge to swipe toward`);
+    }
+
+    const overflow = await pg.evaluate(() => document.documentElement.scrollWidth - document.documentElement.clientWidth);
+    holds(overflow <= 2, `${width}px: the page itself scrolls sideways by ${overflow}px`);
+
+    await ctx.close();
+  }
+  if (held) notes.push('tabs reachable at 320px, 360px and 390px');
 }
 
 /*
