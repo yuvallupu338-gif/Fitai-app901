@@ -366,7 +366,10 @@ const GOAL_HE = {
    answer a question about two numbers. */
 function fatLossDisallowed(profile) {
   const age = Number(profile && profile.age);
-  if (withholdsFatLoss({ age })) return true;
+  // Asked of the profile, not of a number reconstructed from it: Number(null)
+  // is 0, and handing 0 to a gate written to reject a missing age turns "we do
+  // not know" into "twelve years under eighteen".
+  if (withholdsFatLoss(profile)) return true;
   const h = Number(profile && profile.heightCm);
   const w = Number(profile && profile.weightKg);
   if (!Number.isFinite(h) || !Number.isFinite(w) || h <= 0) return false;

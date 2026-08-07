@@ -135,13 +135,54 @@ export function renderWizard(root, onDone) {
     return section;
   }
 
+  /*
+   * A field, with its label actually attached to its control.
+   *
+   * The label was a div. No `for`, no `id`, no aria-labelledby, and control()
+   * emits bare inputs — so a screen reader on the first step read out three
+   * consecutive spin buttons with no names at all, which are age, height and
+   * weight. The one field that did get a name got "· לא חובה", the optional
+   * marker, because that was the nearest text.
+   *
+   * The error message had the same problem from the other side: it is a
+   * sibling span, so nothing tied it to the field it describes, and the only
+   * signal was a generic "יש שדה שדורש תיקון" that does not say which.
+   *
+   * The ids are derived from the field key, which schema.js already guarantees
+   * is unique per step, so there is nothing new to keep in sync.
+   */
   function field(f) {
     const bad = !!errors[f.key];
     const wrap = h('div.field' + (bad ? '.bad' : ''));
-    wrap.appendChild(h('div.flabel', f.label, f.required === false ? h('span', { style: { color: 'var(--dimmer)', fontWeight: '400', fontSize: '13px' } }, ' · לא חובה') : null));
-    if (f.help) wrap.appendChild(h('p.help', f.help));
-    wrap.appendChild(control(f));
-    if (bad) wrap.appendChild(h('span.err', errors[f.key]));
+    const labelId = `flabel-${f.key}`;
+    const errId = `ferr-${f.key}`;
+    const helpId = `fhelp-${f.key}`;
+
+    wrap.appendChild(h('div.flabel', { id: labelId }, f.label,
+      f.required === false ? h('span', { style: { color: 'var(--dimmer)', fontWeight: '400', fontSize: '13px' } }, ' · לא חובה') : null));
+    if (f.help) wrap.appendChild(h('p.help', { id: helpId }, f.help));
+
+    const node = control(f);
+    // The label names the control, and the help and error describe it. Applied
+    // to whatever control() produced rather than inside every branch of it, so
+    // a new field type cannot be added without a name.
+    const target = node.matches && node.matches('input, textarea, select')
+      ? node : node.querySelector && node.querySelector('input, textarea, select');
+    if (target) {
+      target.setAttribute('aria-labelledby', labelId);
+      const describedBy = [f.help ? helpId : null, bad ? errId : null].filter(Boolean).join(' ');
+      if (describedBy) target.setAttribute('aria-describedby', describedBy);
+      if (bad) target.setAttribute('aria-invalid', 'true');
+    } else if (node.setAttribute) {
+      // Chip sets, day pickers and scales are groups of buttons rather than one
+      // control; they get the label as a group name instead.
+      node.setAttribute('role', 'group');
+      node.setAttribute('aria-labelledby', labelId);
+      if (bad) node.setAttribute('aria-describedby', errId);
+    }
+
+    wrap.appendChild(node);
+    if (bad) wrap.appendChild(h('span.err', { id: errId }, errors[f.key]));
     return wrap;
   }
 

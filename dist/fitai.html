@@ -310,6 +310,9 @@ footer {
 .chip.time { background: var(--cyan-wash); color: var(--cyan); border-color: rgba(86, 217, 206, .22); }
 .chip.rest { background: transparent; color: var(--dim); border-color: var(--line); }
 .chip.warn { background: rgba(255, 122, 133, .1); color: var(--rose); border-color: rgba(255, 122, 133, .28); }
+/* Same treatment for the welcome fact chip that reports storage is unavailable. */
+.fact.warn { color: var(--rose); border-color: rgba(255, 122, 133, .28); }
+.fact.warn b { color: var(--rose); }
 
 /* ---------------- cards ---------------- */
 .cards { display: grid; grid-template-columns: repeat(auto-fit, minmax(210px, 1fr)); gap: var(--gap); }
@@ -1283,226 +1286,6 @@ function announce(msg) {
     "signedNum": signedNum,
     "reduceMotion": reduceMotion,
     "announce": announce,
-  };
-})();
-
-__m["src/core/store.js"] = (function () {
-/*
- * store.js — persistent app state with a tiny pub/sub.
- *
- * Everything lives under one localStorage key. If storage is unavailable
- * (private mode, file://, quota) we degrade to an in-memory copy so the app
- * still works for the session instead of throwing.
- */
-
-const KEY = 'fitai.v1';
-
-const memory = { data: null };
-
-function read() {
-  try {
-    const raw = window.localStorage.getItem(KEY);
-    if (raw) return JSON.parse(raw);
-  } catch (e) { /* fall through */ }
-  return memory.data;
-}
-
-function write(data) {
-  memory.data = data;
-  try {
-    window.localStorage.setItem(KEY, JSON.stringify(data));
-    return true;
-  } catch (e) {
-    return false;
-  }
-}
-
-const EMPTY = {
-  version: 1,
-  stage: 'welcome',      // 'welcome' | 'intake' | 'plan'
-  step: 0,               // intake step index
-  profile: null,
-  program: null,
-  nutrition: null,
-  ui: {
-    activeDay: 0,        // index into program.days
-    restDayMeals: false,
-    tab: 'plan',         // 'plan' | 'nutrition' | 'progress' | 'guide'
-  },
-  picks: {},             // "dayId:slotKey" -> variant index
-  overrides: {},         // "dayId:slotKey" -> Prescription, from "too easy"/"too hard"
-  done: {},              // "YYYY-Www:dayId:slotKey" -> 1
-  logs: {},              // "YYYY-MM-DD:dayId:slotKey" -> [{reps, weight, rpe}]
-  weights: [],           // [{date:'YYYY-MM-DD', kg:Number}]
-  startedAt: null,
-};
-
-let state = normalize(read());
-const subs = new Set();
-
-function normalize(raw) {
-  const s = Object.assign({}, EMPTY, raw || {});
-  s.ui = Object.assign({}, EMPTY.ui, s.ui);
-  for (const k of ['picks', 'done', 'logs', 'overrides']) if (!s[k] || typeof s[k] !== 'object') s[k] = {};
-  if (!Array.isArray(s.weights)) s.weights = [];
-  return s;
-}
-
-function get() {
-  return state;
-}
-
-function set(patch) {
-  state = normalize(Object.assign({}, state, typeof patch === 'function' ? patch(state) : patch));
-  write(state);
-  emit();
-  return state;
-}
-
-/** Mutate in place then persist — for deep edits where a patch is clumsy. */
-function update(fn) {
-  fn(state);
-  write(state);
-  emit();
-  return state;
-}
-
-function subscribe(fn) {
-  subs.add(fn);
-  return () => subs.delete(fn);
-}
-
-function emit() {
-  for (const fn of subs) {
-    try { fn(state); } catch (e) { console.error(e); }
-  }
-}
-
-function reset() {
-  state = normalize(null);
-  try { window.localStorage.removeItem(KEY); } catch (e) { /* ignore */ }
-  memory.data = null;
-  emit();
-}
-
-/* ------------------------------------------------------------------ *
- * Derived keys
- * ------------------------------------------------------------------ */
-
-/** ISO-ish week stamp, e.g. "2026-W31". Used to scope completion ticks. */
-function weekKey(d) {
-  const date = d ? new Date(d) : new Date();
-  const t = new Date(Date.UTC(date.getFullYear(), date.getMonth(), date.getDate()));
-  const day = t.getUTCDay() || 7;
-  t.setUTCDate(t.getUTCDate() + 4 - day);
-  const yearStart = new Date(Date.UTC(t.getUTCFullYear(), 0, 1));
-  const week = Math.ceil(((t - yearStart) / 86400000 + 1) / 7);
-  return `${t.getUTCFullYear()}-W${String(week).padStart(2, '0')}`;
-}
-
-function todayKey(d) {
-  const date = d ? new Date(d) : new Date();
-  const m = String(date.getMonth() + 1).padStart(2, '0');
-  const day = String(date.getDate()).padStart(2, '0');
-  return `${date.getFullYear()}-${m}-${day}`;
-}
-
-/** Which program week are we in (1-based), based on startedAt. */
-function currentWeek() {
-  if (!state.startedAt) return 1;
-  const ms = Date.now() - new Date(state.startedAt).getTime();
-  return Math.max(1, Math.floor(ms / (7 * 86400000)) + 1);
-}
-
-/* ------------------------------------------------------------------ *
- * Common operations
- * ------------------------------------------------------------------ */
-
-function pickOf(dayId, slotKey) {
-  return state.picks[`${dayId}:${slotKey}`] || 0;
-}
-
-function setPick(dayId, slotKey, v) {
-  update((s) => { s.picks[`${dayId}:${slotKey}`] = v; });
-}
-
-function overrideOf(dayId, slotKey) {
-  return state.overrides[`${dayId}:${slotKey}`] || null;
-}
-
-function setOverride(dayId, slotKey, prescription) {
-  update((s) => {
-    const k = `${dayId}:${slotKey}`;
-    if (prescription) s.overrides[k] = prescription;
-    else delete s.overrides[k];
-  });
-}
-
-function isDone(dayId, slotKey) {
-  return !!state.done[`${weekKey()}:${dayId}:${slotKey}`];
-}
-
-function setDone(dayId, slotKey, v) {
-  update((s) => {
-    const k = `${weekKey()}:${dayId}:${slotKey}`;
-    if (v) s.done[k] = 1; else delete s.done[k];
-  });
-}
-
-function logSet(dayId, slotKey, entry) {
-  update((s) => {
-    const k = `${todayKey()}:${dayId}:${slotKey}`;
-    if (!s.logs[k]) s.logs[k] = [];
-    s.logs[k].push(entry);
-  });
-}
-
-function logsFor(dayId, slotKey, date) {
-  return state.logs[`${todayKey(date)}:${dayId}:${slotKey}`] || [];
-}
-
-function addWeight(kg, date) {
-  update((s) => {
-    const d = todayKey(date);
-    const existing = s.weights.find((w) => w.date === d);
-    if (existing) existing.kg = kg;
-    else s.weights.push({ date: d, kg });
-    s.weights.sort((a, b) => a.date.localeCompare(b.date));
-  });
-}
-
-function exportJson() {
-  return JSON.stringify(state, null, 2);
-}
-
-function importJson(text) {
-  const parsed = JSON.parse(text);
-  state = normalize(parsed);
-  write(state);
-  emit();
-  return state;
-}
-
-  return {
-    "get": get,
-    "set": set,
-    "update": update,
-    "subscribe": subscribe,
-    "reset": reset,
-    "weekKey": weekKey,
-    "todayKey": todayKey,
-    "currentWeek": currentWeek,
-    "pickOf": pickOf,
-    "setPick": setPick,
-    "overrideOf": overrideOf,
-    "setOverride": setOverride,
-    "isDone": isDone,
-    "setDone": setDone,
-    "logSet": logSet,
-    "logsFor": logsFor,
-    "addWeight": addWeight,
-    "exportJson": exportJson,
-    "importJson": importJson,
   };
 })();
 
@@ -7244,6 +7027,7 @@ const { PUSH } = __m["src/data/exercises.push.js"];
 const { PULL } = __m["src/data/exercises.pull.js"];
 const { LEGS } = __m["src/data/exercises.legs.js"];
 const { CORE } = __m["src/data/exercises.core.js"];
+const { withholdsHeavyLoad } = __m["src/engine/age.js"];
 
 const EXERCISES = [].concat(PUSH, PULL, LEGS, CORE);
 
@@ -7345,6 +7129,29 @@ function matchesTrack(ex, track) {
 }
 
 /** Difficulty ceiling implied by experience — keeps novices off level 5 skills. */
+/*
+ * The hardest tier this profile may be offered.
+ *
+ * Experience sets it, and age lowers it. That second half did not exist:
+ * withholdsHeavyLoad and HEAVY_LOAD_FROM carry the most carefully argued
+ * comment in age.js — growth plates are open, connective tissue is the limiting
+ * factor, "this does not stop anyone training hard, it stops the plan chasing a
+ * one-rep max" — and nothing in the engine had ever asked either of them. Only
+ * tools/validate.js did. The under-16 rule existed as three bare `age < 16`
+ * literals in generator.js and progression.js, and every one of them appended a
+ * sentence to a note. Not one changed what was prescribed.
+ *
+ * So a fourteen-year-old who ticked "intermediate" was offered exactly what a
+ * thirty-year-old was. Level 5 in this library is the muscle-up, the front
+ * lever, pseudo-planche push-ups, the full nordic curl and the weighted
+ * pull-up — the calisthenics equivalent of a maximal lift, and one of them is
+ * literally added load. Level 4 is archer push-ups, wall handstands, ring work
+ * and wide-grip pull-ups: demanding, and not that.
+ *
+ * Capping at 4 rather than lower is the whole point of the threshold's own
+ * wording. A strong fifteen-year-old keeps everything except the tier that asks
+ * a still-open growth plate for a maximum.
+ */
 function levelCap(profile) {
   switch (profile.experience) {
     case 'beginner': return 2;
@@ -7352,6 +7159,27 @@ function levelCap(profile) {
     case 'intermediate': return 4;
     default: return 5;
   }
+}
+
+/*
+ * The tier nothing may go above, whatever else is asked for.
+ *
+ * Separate from levelCap because they are different kinds of limit. levelCap is
+ * a preference derived from experience and candidates() deliberately allows one
+ * tier of headroom above it; an explicit maxLevel overrides it outright, and
+ * candidatesOrFallback relaxes it on purpose when a pattern would otherwise
+ * come out empty. All three are correct for experience and all three are wrong
+ * for a growth plate.
+ *
+ * The first attempt at this put the age rule inside levelCap, and it did
+ * nothing at all: `levelCap(profile) + 1` turned a cap of 4 straight back into
+ * 5, and a 14-year-old was still prescribed muscle-ups. Verified before and
+ * after — identical. This applies last, to whatever number the rest arrived at.
+ */
+const HEAVY_LOAD_CEILING = 4;
+
+function levelCeiling(profile) {
+  return withholdsHeavyLoad(profile) ? HEAVY_LOAD_CEILING : 5;
 }
 
 /**
@@ -7368,7 +7196,8 @@ function levelCap(profile) {
  */
 function candidates(profile, opts) {
   const o = opts || {};
-  const cap = o.maxLevel !== undefined ? o.maxLevel : levelCap(profile) + 1;
+  const asked = o.maxLevel !== undefined ? o.maxLevel : levelCap(profile) + 1;
+  const cap = Math.min(asked, levelCeiling(profile));
   return EXERCISES
     .filter((e) => (!o.pattern || e.pattern === o.pattern))
     .filter((e) => (!o.patterns || o.patterns.includes(e.pattern)))
@@ -7395,6 +7224,8 @@ function candidatesOrFallback(profile, opts) {
   // yield long before a level ceiling, and far before an injury rule.
   list = candidates(profile, Object.assign({}, opts, { ignoreTrack: true }));
   if (list.length) return { list, risky: false };
+  // Relaxing the ceiling is safe here: candidates() clamps by levelCeiling last,
+  // so asking for 5 on a minor's behalf still comes back at 4.
   list = candidates(profile, Object.assign({}, opts, { ignoreTrack: true, maxLevel: 5 }));
   if (list.length) return { list, risky: false };
   list = candidates(profile, Object.assign({}, opts, { ignoreTrack: true, maxLevel: 5, allowInjuryRisk: true }));
@@ -7434,6 +7265,7 @@ function rotate(list, seed) {
     "isAvoided": isAvoided,
     "matchesTrack": matchesTrack,
     "levelCap": levelCap,
+    "levelCeiling": levelCeiling,
     "candidates": candidates,
     "candidatesOrFallback": candidatesOrFallback,
     "hashProfile": hashProfile,
@@ -7462,7 +7294,7 @@ __m["src/engine/generator.js"] = (function () {
  * not ours. Nothing here uses Math.random(); variety comes from hashProfile().
  */
 
-const { MIN_AGE, MAX_AGE, easesImpact, needsStandingOption, needsLongerWarmup, warmsFast, stretchHoldSeconds, } = __m["src/engine/age.js"];
+const { MIN_AGE, MAX_AGE, withholdsHeavyLoad, easesImpact, needsStandingOption, needsLongerWarmup, warmsFast, stretchHoldSeconds, } = __m["src/engine/age.js"];
 const { asks } = __m["src/data/demands.js"];
 
 const { candidates, candidatesOrFallback, conflictsInjury, hashProfile, rotate, } = __m["src/data/exercises.index.js"];
@@ -8504,7 +8336,7 @@ function noteFor(profile, ex, slot, risky) {
 
   let note = baseNote(profile, ex, slot);
   const age = clampInt(profile.age, MIN_AGE, MAX_AGE, 30);
-  if (slot.role === 'main' && age < 16 && ex.level >= 3) {
+  if (slot.role === 'main' && withholdsHeavyLoad(profile) && ex.level >= 3) {
     note = `${note} בגיל הזה טכניקה קודמת למשקל.`;
   } else if (ex.unilateral && slot.role !== 'core' && note.indexOf('לכל צד') < 0) {
     note = `${note} מתחילים בצד החלש וקובעים לפיו את החזרות.`;
@@ -8687,7 +8519,7 @@ function buildNotes(profile, ctx) {
   } else if (injuries.length) {
     out.push('כל תרגיל בתוכנית נבחר כך שלא יטען ישירות את המגבלות שדיווחת עליהן. כאב חד באימון הוא תמיד סיבה לעצור, לא להמשיך.');
   }
-  if (age < 16) {
+  if (withholdsHeavyLoad(profile)) {
     out.push('מתחת לגיל 16 הדגש הוא על טכניקה, טווח מלא ומשקל גוף — לא על עומס. שווה שמאמן יראה את התנועות פעם אחת, ושרופא ידע שאתה מתאמן.');
   }
   if (age >= 55) {
@@ -9352,7 +9184,10 @@ const GOAL_HE = {
    answer a question about two numbers. */
 function fatLossDisallowed(profile) {
   const age = Number(profile && profile.age);
-  if (withholdsFatLoss({ age })) return true;
+  // Asked of the profile, not of a number reconstructed from it: Number(null)
+  // is 0, and handing 0 to a gate written to reject a missing age turns "we do
+  // not know" into "twelve years under eighteen".
+  if (withholdsFatLoss(profile)) return true;
   const h = Number(profile && profile.heightCm);
   const w = Number(profile && profile.weightKg);
   if (!Number.isFinite(h) || !Number.isFinite(w) || h <= 0) return false;
@@ -9477,8 +9312,7 @@ function defaults() {
 
     currentActivity: '',
     benchmarks: {
-      pushups: null, pullups: null, plankSec: null,
-      squatKg: null, benchKg: null, deadliftKg: null,
+      pushups: null, pullups: null, plankSec: null, dips: null,
     },
     sleepHours: 7,
     stress: 3,
@@ -9863,9 +9697,19 @@ const STEPS = [
       { key: 'bm_pushups', label: 'שכיבות סמיכה ברצף', type: 'number', unit: 'חזרות', required: false, min: 0, max: 200 },
       { key: 'bm_pullups', label: 'מתח ברצף', type: 'number', unit: 'חזרות', required: false, min: 0, max: 100 },
       { key: 'bm_plankSec', label: 'פלאנק', type: 'number', unit: 'שניות', required: false, min: 0, max: 600 },
-      { key: 'bm_squatKg', label: 'סקוואט מקסימלי', type: 'number', unit: 'ק״ג', required: false, min: 0, max: 400 },
-      { key: 'bm_benchKg', label: 'לחיצת חזה מקסימלית', type: 'number', unit: 'ק״ג', required: false, min: 0, max: 400 },
-      { key: 'bm_deadliftKg', label: 'דדליפט מקסימלי', type: 'number', unit: 'ק״ג', required: false, min: 0, max: 500 },
+      /*
+       * A maximal squat, bench and deadlift used to be asked here, in
+       * kilograms. This app builds calisthenics and only calisthenics: no
+       * equipment list it offers contains a barbell, matchesTrack removes every
+       * loaded movement, and a check confirms zero of them are reachable for
+       * any profile. So it was asking three questions about a gym it will never
+       * send anybody to, for numbers no engine read — the whole-bundle scan
+       * found squatKg and benchKg changing nothing at all in any output.
+       *
+       * Dips replace them: a push benchmark this app can prescribe, next to the
+       * pull-up and the push-up already here.
+       */
+      { key: 'bm_dips', label: 'מקבילים ברצף', type: 'number', unit: 'חזרות', required: false, min: 0, max: 100 },
       {
         key: 'sleepHours', label: 'כמה שעות שינה בממוצע', type: 'number', unit: 'שעות',
         min: 4, max: 12, step: 0.5,
@@ -9959,7 +9803,7 @@ const STEPS = [
         help: 'קובע כמה הארוחות יהיו מורכבות.',
         options: [
           { value: 'self', label: 'אני' },
-          { value: 'family', label: 'במשפחה' },
+          { value: 'family', label: 'המשפחה' },
           { value: 'partner', label: 'בן/בת הזוג' },
           { value: 'outside', label: 'קונה מוכן' },
         ],
@@ -10275,9 +10119,8 @@ function summarize(profile) {
   const bmParts = [];
   if (bm.pushups) bmParts.push(`${bm.pushups} שכיבות`);
   if (bm.pullups) bmParts.push(`${bm.pullups} מתח`);
-  if (bm.squatKg) bmParts.push(`סקוואט ${bm.squatKg} ק״ג`);
-  if (bm.benchKg) bmParts.push(`חזה ${bm.benchKg} ק״ג`);
-  if (bm.deadliftKg) bmParts.push(`דדליפט ${bm.deadliftKg} ק״ג`);
+  if (bm.dips) bmParts.push(`${bm.dips} מקבילים`);
+  if (bm.plankSec) bmParts.push(`פלאנק ${bm.plankSec} שנ׳`);
   if (bmParts.length) rows.push({ label: 'מספרים היום', value: bmParts.join(' · ') });
 
   const COMMIT_HE = ['', 'כשמתאים לי', 'כשאני זוכר', 'רוב הזמן', 'מקפיד', 'בלי פשרות'];
@@ -10332,6 +10175,303 @@ function formatHeDate(d) {
     "DIET_OPTIONS": DIET_OPTIONS,
     "EQUIPMENT_BY_LOCATION": EQUIPMENT_BY_LOCATION,
     "AVOID_OPTIONS": AVOID_OPTIONS,
+  };
+})();
+
+__m["src/core/store.js"] = (function () {
+/*
+ * store.js — persistent app state with a tiny pub/sub.
+ *
+ * Everything lives under one localStorage key. If storage is unavailable
+ * (private mode, file://, quota) we degrade to an in-memory copy so the app
+ * still works for the session instead of throwing.
+ */
+
+const { normalizeProfile } = __m["src/intake/schema.js"];
+
+const KEY = 'fitai.v1';
+
+const memory = { data: null };
+
+function read() {
+  try {
+    const raw = window.localStorage.getItem(KEY);
+    if (raw) return JSON.parse(raw);
+  } catch (e) { /* fall through */ }
+  return memory.data;
+}
+
+/*
+ * Whether this device is actually keeping anything.
+ *
+ * write() has always returned false when localStorage refuses — private
+ * browsing, a full quota, file:// on some browsers — and all twenty-four call
+ * sites ignored it. The app then behaved perfectly for a whole session while
+ * saying, in four places, that the plan is saved on the device: the welcome
+ * footer, the tracking tab, the set logger, and an announcement after a photo.
+ * One reload and the questionnaire came back empty.
+ *
+ * Falling back to memory is the right behaviour — the session still works, and
+ * refusing to run would help nobody. Claiming it is saved is not. This records
+ * the truth so the UI can say it before somebody spends ten steps on a
+ * questionnaire they are about to lose.
+ */
+let storageWorks = true;
+
+function write(data) {
+  memory.data = data;
+  try {
+    window.localStorage.setItem(KEY, JSON.stringify(data));
+    return true;
+  } catch (e) {
+    storageWorks = false;
+    return false;
+  }
+}
+
+/*
+ * Asked once at load rather than waited for, because the first real write
+ * happens after the first question is answered and the warning belongs before
+ * it. Writes and removes its own key so it cannot disturb a stored plan.
+ */
+(function probeStorage() {
+  try {
+    const k = `${KEY}.probe`;
+    window.localStorage.setItem(k, '1');
+    window.localStorage.removeItem(k);
+  } catch (e) {
+    storageWorks = false;
+  }
+}());
+
+/** False when nothing typed into this app will survive a reload. */
+function persists() {
+  return storageWorks;
+}
+
+const EMPTY = {
+  version: 1,
+  stage: 'welcome',      // 'welcome' | 'intake' | 'plan'
+  step: 0,               // intake step index
+  profile: null,
+  program: null,
+  nutrition: null,
+  ui: {
+    activeDay: 0,        // index into program.days
+    restDayMeals: false,
+    tab: 'plan',         // 'plan' | 'nutrition' | 'progress' | 'guide'
+  },
+  picks: {},             // "dayId:slotKey" -> variant index
+  overrides: {},         // "dayId:slotKey" -> Prescription, from "too easy"/"too hard"
+  done: {},              // "YYYY-Www:dayId:slotKey" -> 1
+  logs: {},              // "YYYY-MM-DD:dayId:slotKey" -> [{reps, weight, rpe}]
+  weights: [],           // [{date:'YYYY-MM-DD', kg:Number}]
+  startedAt: null,
+};
+
+let state = normalize(read());
+const subs = new Set();
+
+function normalize(raw) {
+  const s = Object.assign({}, EMPTY, raw || {});
+  s.ui = Object.assign({}, EMPTY.ui, s.ui);
+  for (const k of ['picks', 'done', 'logs', 'overrides']) if (!s[k] || typeof s[k] !== 'object') s[k] = {};
+  if (!Array.isArray(s.weights)) s.weights = [];
+  return s;
+}
+
+function get() {
+  return state;
+}
+
+function set(patch) {
+  state = normalize(Object.assign({}, state, typeof patch === 'function' ? patch(state) : patch));
+  write(state);
+  emit();
+  return state;
+}
+
+/** Mutate in place then persist — for deep edits where a patch is clumsy. */
+function update(fn) {
+  fn(state);
+  write(state);
+  emit();
+  return state;
+}
+
+function subscribe(fn) {
+  subs.add(fn);
+  return () => subs.delete(fn);
+}
+
+function emit() {
+  for (const fn of subs) {
+    try { fn(state); } catch (e) { console.error(e); }
+  }
+}
+
+function reset() {
+  state = normalize(null);
+  try { window.localStorage.removeItem(KEY); } catch (e) { /* ignore */ }
+  memory.data = null;
+  emit();
+}
+
+/* ------------------------------------------------------------------ *
+ * Derived keys
+ * ------------------------------------------------------------------ */
+
+/** ISO-ish week stamp, e.g. "2026-W31". Used to scope completion ticks. */
+function weekKey(d) {
+  const date = d ? new Date(d) : new Date();
+  const t = new Date(Date.UTC(date.getFullYear(), date.getMonth(), date.getDate()));
+  const day = t.getUTCDay() || 7;
+  t.setUTCDate(t.getUTCDate() + 4 - day);
+  const yearStart = new Date(Date.UTC(t.getUTCFullYear(), 0, 1));
+  const week = Math.ceil(((t - yearStart) / 86400000 + 1) / 7);
+  return `${t.getUTCFullYear()}-W${String(week).padStart(2, '0')}`;
+}
+
+function todayKey(d) {
+  const date = d ? new Date(d) : new Date();
+  const m = String(date.getMonth() + 1).padStart(2, '0');
+  const day = String(date.getDate()).padStart(2, '0');
+  return `${date.getFullYear()}-${m}-${day}`;
+}
+
+/** Which program week are we in (1-based), based on startedAt. */
+function currentWeek() {
+  if (!state.startedAt) return 1;
+  const ms = Date.now() - new Date(state.startedAt).getTime();
+  return Math.max(1, Math.floor(ms / (7 * 86400000)) + 1);
+}
+
+/* ------------------------------------------------------------------ *
+ * Common operations
+ * ------------------------------------------------------------------ */
+
+function pickOf(dayId, slotKey) {
+  return state.picks[`${dayId}:${slotKey}`] || 0;
+}
+
+function setPick(dayId, slotKey, v) {
+  update((s) => { s.picks[`${dayId}:${slotKey}`] = v; });
+}
+
+function overrideOf(dayId, slotKey) {
+  return state.overrides[`${dayId}:${slotKey}`] || null;
+}
+
+function setOverride(dayId, slotKey, prescription) {
+  update((s) => {
+    const k = `${dayId}:${slotKey}`;
+    if (prescription) s.overrides[k] = prescription;
+    else delete s.overrides[k];
+  });
+}
+
+function isDone(dayId, slotKey) {
+  return !!state.done[`${weekKey()}:${dayId}:${slotKey}`];
+}
+
+function setDone(dayId, slotKey, v) {
+  update((s) => {
+    const k = `${weekKey()}:${dayId}:${slotKey}`;
+    if (v) s.done[k] = 1; else delete s.done[k];
+  });
+}
+
+function logSet(dayId, slotKey, entry) {
+  update((s) => {
+    const k = `${todayKey()}:${dayId}:${slotKey}`;
+    if (!s.logs[k]) s.logs[k] = [];
+    s.logs[k].push(entry);
+  });
+}
+
+function logsFor(dayId, slotKey, date) {
+  return state.logs[`${todayKey(date)}:${dayId}:${slotKey}`] || [];
+}
+
+function addWeight(kg, date) {
+  update((s) => {
+    const d = todayKey(date);
+    const existing = s.weights.find((w) => w.date === d);
+    if (existing) existing.kg = kg;
+    else s.weights.push({ date: d, kg });
+    s.weights.sort((a, b) => a.date.localeCompare(b.date));
+  });
+}
+
+function exportJson() {
+  return JSON.stringify(state, null, 2);
+}
+
+/*
+ * Restore from a backup, without letting any JSON file become the app's state.
+ *
+ * This used to be JSON.parse followed by Object.assign over the empty state.
+ * Two things followed from that.
+ *
+ * A file that was not a backup was accepted. `{"hello":"world"}` merged
+ * cleanly, wrote itself to localStorage and reloaded the page: profile,
+ * programme, every completion tick, every logged set and the whole weight
+ * history, gone, from the button that sounds like the safe one. The button two
+ * places along that says "start over" asks for confirmation; this one did not.
+ *
+ * And the profile inside a real backup was never re-normalised, so age 9 came
+ * through as 9. age.js says everything downstream clamps to MIN_AGE precisely
+ * so a hand-edited or imported profile cannot smuggle an age the plan was never
+ * designed around — that was true of the questionnaire path and false here,
+ * which is the only path where somebody can type the number themselves.
+ *
+ * Throwing on a file that is not a backup is the point: the caller shows the
+ * error and the existing state is still there to go back to.
+ */
+function importJson(text) {
+  const parsed = JSON.parse(text);
+  if (!parsed || typeof parsed !== 'object' || Array.isArray(parsed)) {
+    throw new Error('not a FitAI backup: expected an object');
+  }
+  // A backup always carries at least one of these. A file with none of them is
+  // somebody's shopping list, and merging it would erase a year of training.
+  const looksLikeBackup = ['profile', 'program', 'nutrition', 'logs', 'weights', 'done', 'version']
+    .some((k) => k in parsed);
+  if (!looksLikeBackup) {
+    throw new Error('not a FitAI backup: no profile, programme or history in it');
+  }
+
+  const next = normalize(parsed);
+  if (next.profile && typeof next.profile === 'object') {
+    next.profile = normalizeProfile(next.profile);
+  }
+  state = next;
+  write(state);
+  emit();
+  return state;
+}
+
+  return {
+    "persists": persists,
+    "get": get,
+    "set": set,
+    "update": update,
+    "subscribe": subscribe,
+    "reset": reset,
+    "weekKey": weekKey,
+    "todayKey": todayKey,
+    "currentWeek": currentWeek,
+    "pickOf": pickOf,
+    "setPick": setPick,
+    "overrideOf": overrideOf,
+    "setOverride": setOverride,
+    "isDone": isDone,
+    "setDone": setDone,
+    "logSet": logSet,
+    "logsFor": logsFor,
+    "addWeight": addWeight,
+    "exportJson": exportJson,
+    "importJson": importJson,
   };
 })();
 
@@ -11195,6 +11335,7 @@ __m["src/vision/analyze.js"] = (function () {
  */
 
 const { callTool, imageBlock, dataUrlBytes, AiError, choiceFor } = __m["src/ai/client.js"];
+const { PHOTO_SCAN_FROM, withholdsPhotoScan, withholdsFatLoss } = __m["src/engine/age.js"];
 const { SYSTEM, TOOL, PATTERNS, buildMessage } = __m["src/vision/prompt.js"];
 
 const PATTERN_SET = new Set(PATTERNS);
@@ -11207,12 +11348,24 @@ const MAX_IMAGE_BYTES = 3 * 1024 * 1024;
  * Who may run this at all.
  *
  * The scan asks for a photograph of a body in tight clothing and sends it to a
- * third party. The questionnaire accepts ages from 10. Those two facts together
- * are the whole argument for this gate — and the app already KNOWS the age, so
- * leaving the decision to a model guessing from the picture was choosing the
- * least reliable instrument available over the answer sitting in the profile.
+ * third party. That is the whole argument for the gate — and the app already
+ * KNOWS the age, so leaving the decision to a model guessing from the picture
+ * was choosing the least reliable instrument available over the answer sitting
+ * in the profile.
+ *
+ * The threshold comes from age.js now. It was a local `const MIN_SCAN_AGE = 18`
+ * beside a local `Number.isFinite(age) && age < 18`, which is the same rule
+ * written twice and, worse, written differently: Number(null) is 0 and 0 is
+ * finite, so a profile with no age was refused here while the questionnaire
+ * showed it the photo fields. Conservative, and still two files disagreeing
+ * about the same person. The comment above the gates in age.js — an unknown age
+ * is treated as an adult — is the policy; this file was quietly voting against
+ * it.
+ *
+ * The sentence claiming "the questionnaire accepts ages from 10" went with it.
+ * It has been 12 since the app moved, and a stale number in a safety comment is
+ * how the next person gets the threshold wrong.
  */
-const MIN_SCAN_AGE = 18;
 
 /*
  * Below this the app will not carry a fat-loss recommendation, whatever the
@@ -11231,8 +11384,7 @@ function bmiOf(profile) {
 
 /** True when a fat-loss steer must not be shown, whoever suggested it. */
 function fatLossBlocked(profile) {
-  const age = Number(profile && profile.age);
-  if (Number.isFinite(age) && age < 18) return true;
+  if (withholdsFatLoss(profile)) return true;
   const bmi = bmiOf(profile);
   return bmi !== null && bmi < UNDERWEIGHT_BMI;
 }
@@ -11242,12 +11394,11 @@ function fatLossBlocked(profile) {
  * before the photos are even chosen, rather than after they are uploaded.
  */
 function scanEligibility(profile) {
-  const age = Number(profile && profile.age);
-  if (Number.isFinite(age) && age < MIN_SCAN_AGE) {
+  if (withholdsPhotoScan(profile)) {
     return {
       ok: false,
       kind: 'underage',
-      he: `סריקת התמונות פתוחה מגיל ${MIN_SCAN_AGE}. `
+      he: `סריקת התמונות פתוחה מגיל ${PHOTO_SCAN_FROM}. `
         + 'זה לא קשור לתוכנית — היא נבנית לך במלואה בלי הסריקה, בדיוק כמו לכל אחד אחר.',
     };
   }
@@ -12897,13 +13048,54 @@ function renderWizard(root, onDone) {
     return section;
   }
 
+  /*
+   * A field, with its label actually attached to its control.
+   *
+   * The label was a div. No `for`, no `id`, no aria-labelledby, and control()
+   * emits bare inputs — so a screen reader on the first step read out three
+   * consecutive spin buttons with no names at all, which are age, height and
+   * weight. The one field that did get a name got "· לא חובה", the optional
+   * marker, because that was the nearest text.
+   *
+   * The error message had the same problem from the other side: it is a
+   * sibling span, so nothing tied it to the field it describes, and the only
+   * signal was a generic "יש שדה שדורש תיקון" that does not say which.
+   *
+   * The ids are derived from the field key, which schema.js already guarantees
+   * is unique per step, so there is nothing new to keep in sync.
+   */
   function field(f) {
     const bad = !!errors[f.key];
     const wrap = h('div.field' + (bad ? '.bad' : ''));
-    wrap.appendChild(h('div.flabel', f.label, f.required === false ? h('span', { style: { color: 'var(--dimmer)', fontWeight: '400', fontSize: '13px' } }, ' · לא חובה') : null));
-    if (f.help) wrap.appendChild(h('p.help', f.help));
-    wrap.appendChild(control(f));
-    if (bad) wrap.appendChild(h('span.err', errors[f.key]));
+    const labelId = `flabel-${f.key}`;
+    const errId = `ferr-${f.key}`;
+    const helpId = `fhelp-${f.key}`;
+
+    wrap.appendChild(h('div.flabel', { id: labelId }, f.label,
+      f.required === false ? h('span', { style: { color: 'var(--dimmer)', fontWeight: '400', fontSize: '13px' } }, ' · לא חובה') : null));
+    if (f.help) wrap.appendChild(h('p.help', { id: helpId }, f.help));
+
+    const node = control(f);
+    // The label names the control, and the help and error describe it. Applied
+    // to whatever control() produced rather than inside every branch of it, so
+    // a new field type cannot be added without a name.
+    const target = node.matches && node.matches('input, textarea, select')
+      ? node : node.querySelector && node.querySelector('input, textarea, select');
+    if (target) {
+      target.setAttribute('aria-labelledby', labelId);
+      const describedBy = [f.help ? helpId : null, bad ? errId : null].filter(Boolean).join(' ');
+      if (describedBy) target.setAttribute('aria-describedby', describedBy);
+      if (bad) target.setAttribute('aria-invalid', 'true');
+    } else if (node.setAttribute) {
+      // Chip sets, day pickers and scales are groups of buttons rather than one
+      // control; they get the label as a group name instead.
+      node.setAttribute('role', 'group');
+      node.setAttribute('aria-labelledby', labelId);
+      if (bad) node.setAttribute('aria-describedby', errId);
+    }
+
+    wrap.appendChild(node);
+    if (bad) wrap.appendChild(h('span.err', { id: errId }, errors[f.key]));
     return wrap;
   }
 
@@ -14187,7 +14379,12 @@ const TASKS = [
     id: 'walk_hills',
     title: 'הליכה 30 דקות בעלייה',
     body: 'רחוב משופע או הליכון בשיפוע 6–8. העלייה מעלה דופק בלי הזעזוע שיש בריצה.',
-    load: 'moderate', needs: [], hurts: ['knee', 'ankle'], maxAge: 70,
+    // 'hip' was missing while the flat 5 km walk beside it carries it. Half an
+    // hour at a 6–8% grade asks considerably more of hip flexion and extension
+    // than the same half hour on the level, so if one of them is a problem for
+    // a declared hip, this is the one. Found by the audit disagreeing with the
+    // table rather than reading it.
+    load: 'moderate', needs: [], hurts: ['knee', 'ankle', 'hip'], maxAge: 70,
   },
   {
     id: 'row_15',
@@ -14857,7 +15054,7 @@ __m["src/engine/progression.js"] = (function () {
  */
 
 const { candidates, hashProfile, rotate } = __m["src/data/exercises.index.js"];
-const { withholdsFatLoss } = __m["src/engine/age.js"];
+const { withholdsFatLoss, withholdsHeavyLoad } = __m["src/engine/age.js"];
 
 /* ------------------------------------------------------------------ *
  * Small helpers
@@ -15196,7 +15393,7 @@ function loadJump(profile, k) {
   const bw = num(profile.weightKg, 70);
   const age = num(profile.age, 30);
   let jump = k.barbell ? 5 : 2.5;
-  if (bw < 60 || age < 16 || age >= 68) jump = jump / 2;
+  if (bw < 60 || withholdsHeavyLoad(profile) || age >= 68) jump = jump / 2;
   if (!k.barbell && !k.freeWeights && k.machines) jump = Math.max(jump, 2.5);
   return jump;
 }
@@ -15414,7 +15611,7 @@ function projectTargets(profile) {
   /* ---- horizontal push, in reps ---- */
   const pushups = benchOf(p, 'pushups');
   rows.push({
-    label: 'שכיבות שמיכה',
+    label: 'שכיבות סמיכה',
     today: pushups === null ? '—' : `${Math.round(pushups)}`,
     target: pushups === null
       ? '3×12 מלאות, חזה לרצפה'
@@ -15450,61 +15647,41 @@ function projectTargets(profile) {
       : (plank >= 110 ? 'להוסיף קושי, לא זמן' : `${growSeconds(Math.round(plank), weeks, exp)} שנ׳`),
   });
 
+  /*
+   * The kilogram rows are gone.
+   *
+   * Every one of them sat behind `k.barbell || k.machines || k.freeWeights`,
+   * and kit() reads the equipment on exercises the registry will actually
+   * return. This app is calisthenics-only: matchesTrack removes every loaded
+   * movement, no equipment list it offers contains a barbell, and a check
+   * confirms zero loaded exercises are reachable for any profile. So the
+   * condition was permanently false and the rows were unreachable — which is
+   * why a user who typed a 220 kg squat saw "today: —" beside a bodyweight
+   * target, and why a 13-year-old was shown a "ציר ירכיים · today 80 ק״ג" row
+   * echoing a number nothing had used.
+   *
+   * The questionnaire has stopped asking for the three lifts, so there is
+   * nothing left to echo either.
+   */
+
   /* ---- squat ---- */
-  const squatKg = benchOf(p, 'squatKg');
-  const squatLoaded = candidates(p, { pattern: 'squat' })
-    .some((e) => (e.equipment || []).some((q) => q === 'barbell' || q === 'machines' || q === 'dumbbells' || q === 'kettlebell'));
-  if (squatKg !== null && (k.barbell || k.machines || k.freeWeights)) {
-    rows.push({
-      label: 'סקוואט',
-      today: `${round1(squatKg)} ק״ג`,
-      target: `${round1(growKg(squatKg, weeks, exp, false, age))} ק״ג`,
-    });
-  } else if (squatLoaded && !teen) {
-    rows.push({
-      label: 'סקוואט',
-      today: squatKg === null ? '—' : `${round1(squatKg)} ק״ג`,
-      target: '3×8 עם עומס יציב, ירך מתחת למקבילים',
-    });
-  } else {
-    rows.push({
-      label: 'סקוואט משקל גוף',
-      today: '—',
-      target: teen ? '3×15 עמוק ובשליטה' : '3×20 עמוק, עקבים על הרצפה',
-    });
-  }
+  rows.push({
+    label: 'סקוואט משקל גוף',
+    today: '—',
+    target: teen ? '3×15 עמוק ובשליטה' : '3×20 עמוק, עקבים על הרצפה',
+  });
 
   /* ---- hinge ---- */
-  const dlKg = benchOf(p, 'deadliftKg');
-  if (dlKg !== null && (k.barbell || k.freeWeights || k.machines)) {
-    rows.push({
-      label: 'דדליפט',
-      today: `${round1(dlKg)} ק״ג`,
-      target: `${round1(growKg(dlKg, weeks, exp, false, age))} ק״ג`,
-    });
-  } else if (candidates(p, { pattern: 'hinge' }).length) {
+  if (candidates(p, { pattern: 'hinge' }).length) {
     rows.push({
       label: 'ציר ירכיים',
-      today: dlKg === null ? '—' : `${round1(dlKg)} ק״ג`,
+      today: '—',
       target: teen ? '3×10 בגב ניטרלי, בלי עומס' : '3×10 בשליטה, גב ניטרלי לאורך כל הטווח',
     });
   }
 
   /* ---- press ---- */
-  const benchKg = benchOf(p, 'benchKg');
-  if (benchKg !== null && (k.barbell || k.freeWeights || k.machines)) {
-    rows.push({
-      label: 'לחיצת חזה',
-      today: `${round1(benchKg)} ק״ג`,
-      target: `${round1(growKg(benchKg, weeks, exp, true, age))} ק״ג`,
-    });
-  } else if (k.freeWeights || k.barbell || k.machines) {
-    rows.push({
-      label: 'לחיצת חזה',
-      today: benchKg === null ? '—' : `${round1(benchKg)} ק״ג`,
-      target: '3×10 בשליטה, ירידה של 2 שניות',
-    });
-  } else if (candidates(p, { pattern: 'vertical_push' }).length) {
+  if (candidates(p, { pattern: 'vertical_push' }).length) {
     rows.push({
       label: 'לחיצה מעל הראש',
       today: '—',
@@ -16251,7 +16428,7 @@ function renderProgress(root, program, profile) {
           signedNum(`${delta > 0 ? '+' : ''}${Math.round(delta * 10) / 10}`),
           ` ק״ג מאז ${formatDate(first.date)}.`));
       } else {
-        view.appendChild(h('p.empty', 'שתי שקילות ומעלה — ותופיע כאן גרף מגמה.'));
+        view.appendChild(h('p.empty', 'שתי שקילות ומעלה — ויופיע כאן גרף מגמה.'));
       }
     }
 
@@ -16276,7 +16453,10 @@ function renderProgress(root, program, profile) {
     /* ---- data controls ---- */
     view.appendChild(h('div.rule'));
     view.appendChild(h('h3', 'הנתונים שלך'));
-    view.appendChild(h('p.lead', 'הכול נשמר במכשיר הזה בלבד — לא נשלח לשום שרת. גיבוי הוא באחריותך.'));
+    view.appendChild(h('p.lead', store.persists()
+      ? 'הכול נשמר במכשיר הזה בלבד — לא נשלח לשום שרת. גיבוי הוא באחריותך.'
+      : 'הדפדפן הזה לא מרשה לשמור מידע, כנראה גלישה פרטית. שום דבר כאן לא ישרוד רענון — '
+        + 'אם אתה רוצה לשמור את התוכנית, ייצא גיבוי עכשיו ופתח אותו בחלון רגיל.'));
     view.appendChild(h('div.toolbar',
       h('button.btn', {
         type: 'button',
@@ -16295,9 +16475,34 @@ function renderProgress(root, program, profile) {
           file.addEventListener('change', () => {
             const f = file.files && file.files[0];
             if (!f) return;
+            /*
+             * Restoring replaces everything: profile, programme, ticks, logged
+             * sets, weight history. It asked for none of that — and the button
+             * two places along that says "start over" does ask. The one that
+             * sounds safe was the one that wiped a year without a word.
+             *
+             * The failure was screen-reader only too, through announce(), so a
+             * sighted user who picked the wrong file saw the page do nothing at
+             * all and had no way to know whether it had worked.
+             */
+            const hasWork = st.program || (st.weights || []).length
+              || Object.keys(st.done || {}).length || Object.keys(st.logs || {}).length;
+            if (hasWork && !window.confirm(
+              'שחזור מגיבוי מחליף את כל מה שיש כאן — התוכנית, הסימונים, הסטים שרשמת וההיסטוריה. '
+              + 'אי אפשר לבטל. להמשיך?')) return;
+
             f.text().then((t) => {
               try { store.importJson(t); location.reload(); }
-              catch (e) { announce('הקובץ לא תקין'); }
+              catch (e) {
+                announce('הקובץ לא תקין');
+                const box = h('p.err', { role: 'alert' },
+                  'הקובץ הזה הוא לא גיבוי של FitAI, ולכן שום דבר לא השתנה. '
+                  + 'קובץ גיבוי נוצר מהכפתור "ייצוא גיבוי" ליד.');
+                const holder = view.querySelector('.toolbar') || view;
+                const old = holder.querySelector('.err');
+                if (old) old.remove();
+                holder.appendChild(box);
+              }
             });
           });
           document.body.appendChild(file);
@@ -17266,9 +17471,21 @@ function renderWelcome() {
     h('div.facts', { style: { marginTop: '26px' } },
       h('span.fact', 'שאלון של ', h('b', '3 דק׳')),
       h('span.fact', 'תוכנית מלאה ', h('b', 'מיידית')),
-      h('span.fact', 'נשמר ', h('b', 'במכשיר')),
+      store.persists()
+        ? h('span.fact', 'נשמר ', h('b', 'במכשיר'))
+        : h('span.fact.warn', 'לא נשמר ', h('b', 'בגלישה פרטית')),
       h('span.fact', 'סריקת תמונות ', h('b', 'עם AI')),
     ),
+    /*
+     * Said here, before the ten steps, rather than discovered after them.
+     * The app works fine without storage for one session; what it must not do
+     * is promise otherwise and let somebody build a plan they will lose on the
+     * next reload.
+     */
+    store.persists() ? null : h('p.err', { role: 'status', style: { marginTop: '22px' } },
+      'הדפדפן הזה לא מרשה לשמור מידע — כנראה גלישה פרטית. אפשר לבנות תוכנית והיא תעבוד '
+      + 'עכשיו, אבל היא תיעלם ברגע שתסגור או תרענן את הדף. בחלון רגיל הכול נשמר.'),
+
     h('div.toolbar', { style: { marginTop: '30px' } },
       h('button.btn.primary.lg', {
         type: 'button',

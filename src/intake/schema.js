@@ -65,8 +65,7 @@ export function defaults() {
 
     currentActivity: '',
     benchmarks: {
-      pushups: null, pullups: null, plankSec: null,
-      squatKg: null, benchKg: null, deadliftKg: null,
+      pushups: null, pullups: null, plankSec: null, dips: null,
     },
     sleepHours: 7,
     stress: 3,
@@ -451,9 +450,19 @@ export const STEPS = [
       { key: 'bm_pushups', label: 'שכיבות סמיכה ברצף', type: 'number', unit: 'חזרות', required: false, min: 0, max: 200 },
       { key: 'bm_pullups', label: 'מתח ברצף', type: 'number', unit: 'חזרות', required: false, min: 0, max: 100 },
       { key: 'bm_plankSec', label: 'פלאנק', type: 'number', unit: 'שניות', required: false, min: 0, max: 600 },
-      { key: 'bm_squatKg', label: 'סקוואט מקסימלי', type: 'number', unit: 'ק״ג', required: false, min: 0, max: 400 },
-      { key: 'bm_benchKg', label: 'לחיצת חזה מקסימלית', type: 'number', unit: 'ק״ג', required: false, min: 0, max: 400 },
-      { key: 'bm_deadliftKg', label: 'דדליפט מקסימלי', type: 'number', unit: 'ק״ג', required: false, min: 0, max: 500 },
+      /*
+       * A maximal squat, bench and deadlift used to be asked here, in
+       * kilograms. This app builds calisthenics and only calisthenics: no
+       * equipment list it offers contains a barbell, matchesTrack removes every
+       * loaded movement, and a check confirms zero of them are reachable for
+       * any profile. So it was asking three questions about a gym it will never
+       * send anybody to, for numbers no engine read — the whole-bundle scan
+       * found squatKg and benchKg changing nothing at all in any output.
+       *
+       * Dips replace them: a push benchmark this app can prescribe, next to the
+       * pull-up and the push-up already here.
+       */
+      { key: 'bm_dips', label: 'מקבילים ברצף', type: 'number', unit: 'חזרות', required: false, min: 0, max: 100 },
       {
         key: 'sleepHours', label: 'כמה שעות שינה בממוצע', type: 'number', unit: 'שעות',
         min: 4, max: 12, step: 0.5,
@@ -547,7 +556,7 @@ export const STEPS = [
         help: 'קובע כמה הארוחות יהיו מורכבות.',
         options: [
           { value: 'self', label: 'אני' },
-          { value: 'family', label: 'במשפחה' },
+          { value: 'family', label: 'המשפחה' },
           { value: 'partner', label: 'בן/בת הזוג' },
           { value: 'outside', label: 'קונה מוכן' },
         ],
@@ -863,9 +872,8 @@ export function summarize(profile) {
   const bmParts = [];
   if (bm.pushups) bmParts.push(`${bm.pushups} שכיבות`);
   if (bm.pullups) bmParts.push(`${bm.pullups} מתח`);
-  if (bm.squatKg) bmParts.push(`סקוואט ${bm.squatKg} ק״ג`);
-  if (bm.benchKg) bmParts.push(`חזה ${bm.benchKg} ק״ג`);
-  if (bm.deadliftKg) bmParts.push(`דדליפט ${bm.deadliftKg} ק״ג`);
+  if (bm.dips) bmParts.push(`${bm.dips} מקבילים`);
+  if (bm.plankSec) bmParts.push(`פלאנק ${bm.plankSec} שנ׳`);
   if (bmParts.length) rows.push({ label: 'מספרים היום', value: bmParts.join(' · ') });
 
   const COMMIT_HE = ['', 'כשמתאים לי', 'כשאני זוכר', 'רוב הזמן', 'מקפיד', 'בלי פשרות'];

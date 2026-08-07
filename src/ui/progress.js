@@ -84,7 +84,7 @@ export function renderProgress(root, program, profile) {
           signedNum(`${delta > 0 ? '+' : ''}${Math.round(delta * 10) / 10}`),
           ` ק״ג מאז ${formatDate(first.date)}.`));
       } else {
-        view.appendChild(h('p.empty', 'שתי שקילות ומעלה — ותופיע כאן גרף מגמה.'));
+        view.appendChild(h('p.empty', 'שתי שקילות ומעלה — ויופיע כאן גרף מגמה.'));
       }
     }
 
@@ -109,7 +109,10 @@ export function renderProgress(root, program, profile) {
     /* ---- data controls ---- */
     view.appendChild(h('div.rule'));
     view.appendChild(h('h3', 'הנתונים שלך'));
-    view.appendChild(h('p.lead', 'הכול נשמר במכשיר הזה בלבד — לא נשלח לשום שרת. גיבוי הוא באחריותך.'));
+    view.appendChild(h('p.lead', store.persists()
+      ? 'הכול נשמר במכשיר הזה בלבד — לא נשלח לשום שרת. גיבוי הוא באחריותך.'
+      : 'הדפדפן הזה לא מרשה לשמור מידע, כנראה גלישה פרטית. שום דבר כאן לא ישרוד רענון — '
+        + 'אם אתה רוצה לשמור את התוכנית, ייצא גיבוי עכשיו ופתח אותו בחלון רגיל.'));
     view.appendChild(h('div.toolbar',
       h('button.btn', {
         type: 'button',
@@ -128,9 +131,34 @@ export function renderProgress(root, program, profile) {
           file.addEventListener('change', () => {
             const f = file.files && file.files[0];
             if (!f) return;
+            /*
+             * Restoring replaces everything: profile, programme, ticks, logged
+             * sets, weight history. It asked for none of that — and the button
+             * two places along that says "start over" does ask. The one that
+             * sounds safe was the one that wiped a year without a word.
+             *
+             * The failure was screen-reader only too, through announce(), so a
+             * sighted user who picked the wrong file saw the page do nothing at
+             * all and had no way to know whether it had worked.
+             */
+            const hasWork = st.program || (st.weights || []).length
+              || Object.keys(st.done || {}).length || Object.keys(st.logs || {}).length;
+            if (hasWork && !window.confirm(
+              'שחזור מגיבוי מחליף את כל מה שיש כאן — התוכנית, הסימונים, הסטים שרשמת וההיסטוריה. '
+              + 'אי אפשר לבטל. להמשיך?')) return;
+
             f.text().then((t) => {
               try { store.importJson(t); location.reload(); }
-              catch (e) { announce('הקובץ לא תקין'); }
+              catch (e) {
+                announce('הקובץ לא תקין');
+                const box = h('p.err', { role: 'alert' },
+                  'הקובץ הזה הוא לא גיבוי של FitAI, ולכן שום דבר לא השתנה. '
+                  + 'קובץ גיבוי נוצר מהכפתור "ייצוא גיבוי" ליד.');
+                const holder = view.querySelector('.toolbar') || view;
+                const old = holder.querySelector('.err');
+                if (old) old.remove();
+                holder.appendChild(box);
+              }
             });
           });
           document.body.appendChild(file);
