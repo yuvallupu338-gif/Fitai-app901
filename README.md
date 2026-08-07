@@ -2,9 +2,9 @@
 
 <div dir="rtl">
 
-אפליקציה שמראיינת אותך — גיל, גובה, משקל, ותק, מטרה, זמינות, ציוד, מגבלות,
-מצב נוכחי ותזונה — ובונה ממש התוכנית המלאה: אימונים, תזונה, מפת התקדמות
-ויעדים ריאליים. עם אנימציה חיה לכל תרגיל.
+אפליקציית קליסטניקס שמראיינת אותך — גיל, גובה, משקל, ותק, מטרה, זמינות, ציוד,
+מגבלות, מצב נוכחי ותזונה — ובונה ממש התוכנית המלאה: אימונים, תזונה, מפת
+התקדמות, משימות ליום מנוחה ויעדים ריאליים. מגיל 12 עד 90.
 
 </div>
 
@@ -28,8 +28,20 @@ Or open the prebuilt single file, which works straight off the disk:
 open dist/fitai.html
 ```
 
-Deploying to GitHub Pages needs no configuration — point Pages at the branch
-root and `index.html` works as-is.
+### On GitHub Pages
+
+Pages serves a project site from a subpath (`/Fitai-app901/`, not a domain
+root), which is where a static app usually breaks: one absolute `/src/app.js`
+and every module 404s. Every path here is relative, so it works — verified by
+serving the repo under that prefix and walking the whole questionnaire against
+it, with the server asserting that no request escaped the subpath.
+
+`.nojekyll` sits at the root. Nothing here starts with an underscore today, so
+Jekyll would not eat anything, but a file that did would vanish silently and the
+failure would look like a bug in the app.
+
+Point Pages at the branch root; `index.html` is the entry. `dist/fitai.html` is
+served alongside it as a single-file copy that also works offline.
 
 ## What it does
 
