@@ -966,6 +966,179 @@ try {
 }
 
 /*
+ * The four-week re-test cycle.
+ *
+ * Reading the declared numbers fixed one bug and created a slower one: whatever
+ * somebody could do on the day they signed up now decided their exercise levels
+ * forever. A beginner's push-ups roughly double in two months, so by week eight
+ * the plan is built on a number that stopped being true — and it is wrong in the
+ * direction nobody complains about, because too easy just feels like an easy week.
+ *
+ * Asserted here, in the order they can fail:
+ *
+ *   The clock fires. Not due on day 27, due on day 28. A cadence constant that
+ *   nothing compares against is a comment.
+ *
+ *   Nobody is nagged for a measurement they declined. Skipping the questions at
+ *   intake must not produce a prompt at week four.
+ *
+ *   Profiles that predate the stamp are asked. Every existing user has four
+ *   numbers and no benchmarksAt; unknown age is not fresh, and returning "not
+ *   due" there would mean they are never asked again.
+ *
+ *   And the end-to-end claim, which is the whole point: accepting new numbers
+ *   must change what gets prescribed. A re-test that writes a field the
+ *   generator never re-reads is the original bug with extra steps.
+ */
+{
+  try {
+    const schema = await load('src/intake/schema.js');
+    const bench = await load('src/engine/benchmarks.js');
+    const gen = await load('src/engine/generator.js');
+    const registry = await load('src/data/exercises.index.js');
+
+    const DAY = 24 * 60 * 60 * 1000;
+    /*
+     * Anchored to the real clock, not to a fixed date. normalizeProfile clears
+     * a stamp in the future, and it asks the wall clock rather than the `now`
+     * these functions are handed — a hard-coded anchor makes "30 days from the
+     * anchor" mean past or future depending on when the suite happens to run.
+     * All the arithmetic below is relative, so this stays deterministic.
+     */
+    const NOW = Date.now();
+    const agoDays = (n) => new Date(NOW - n * DAY).toISOString();
+
+    const mk = (over) => schema.normalizeProfile(Object.assign(schema.defaults(), {
+      age: 30, sex: 'male', heightCm: 175, weightKg: 72, goal: 'muscle',
+      experience: 'beginner', daysPerWeek: 4, minutesPerSession: 60,
+      location: 'home_weights', equipment: ['bands', 'mat', 'pullup_bar', 'rings'],
+    }, over));
+
+    const N = bench.RETEST_DAYS;
+    if (!Number.isInteger(N) || N < 7 || N > 120) {
+      err(`RETEST_DAYS is ${N} — a re-test cadence outside 7..120 days is not a cadence`);
+    }
+
+    // 1. The clock fires on the day it says it does, and not before.
+    const fresh = mk({ bm_pushups: 12, benchmarksAt: agoDays(N - 1) });
+    const stale = mk({ bm_pushups: 12, benchmarksAt: agoDays(N) });
+    if (bench.retestDue(fresh, NOW)) {
+      err(`a re-test came due after ${N - 1} days, one day early against RETEST_DAYS=${N}`);
+    }
+    if (!bench.retestDue(stale, NOW)) {
+      err(`a re-test did not come due after ${N} days — RETEST_DAYS=${N} is not being compared against`);
+    }
+    if (bench.daysUntilRetest(fresh, NOW) !== 1) {
+      err(`daysUntilRetest said ${bench.daysUntilRetest(fresh, NOW)} with one day to go`);
+    }
+    if (bench.daysUntilRetest(stale, NOW) !== null) {
+      err('daysUntilRetest returned a countdown for a re-test that is already due');
+    }
+
+    // 2. Nobody who skipped the questions is asked to re-take them.
+    for (const days of [0, N, N * 4]) {
+      const skipped = mk({ benchmarksAt: agoDays(days) });
+      if (bench.retestDue(skipped, NOW)) {
+        err(`a profile that declared no numbers was asked to re-test after ${days} days`);
+      }
+    }
+
+    // 3. Numbers with no stamp are of unknown age, and unknown is not fresh.
+    if (!bench.retestDue(mk({ bm_pushups: 12, benchmarksAt: null }), NOW)) {
+      err('a profile with benchmarks and no benchmarksAt is never due — every profile built '
+        + 'before the cycle existed is in exactly that state and would never be asked again');
+    }
+
+    // 4. A malformed or future stamp must not survive normalizeProfile: it would
+    //    make the re-test either permanently due or permanently not.
+    for (const bad of ['not a date', '', agoDays(-30)]) {
+      const got = mk({ bm_pushups: 12, benchmarksAt: bad }).benchmarksAt;
+      if (got !== null) err(`normalizeProfile kept benchmarksAt=${JSON.stringify(bad)} as ${got}`);
+    }
+
+    // 5. "Not now" has to actually stop the asking, and has to wear off.
+    const S = bench.RETEST_SNOOZE_DAYS;
+    if (bench.snoozeExpired(agoDays(S - 1), NOW)) {
+      err(`a "not now" expired after ${S - 1} days against RETEST_SNOOZE_DAYS=${S} — declining does nothing`);
+    }
+    if (!bench.snoozeExpired(agoDays(S), NOW)) {
+      err(`a "not now" still holds after ${S} days — declining once silences the re-test forever`);
+    }
+    if (!bench.snoozeExpired(null, NOW)) err('never having declined reads as a live snooze');
+    if (!bench.snoozeExpired(agoDays(-5), NOW)) {
+      err('a snooze stamped in the future holds — a wrong clock or an edited backup silences the prompt');
+    }
+
+    // 6. The delta is honest in both directions: it reports a real move, and it
+    //    reports nothing when the numbers are better but still on the same rung.
+    const before = mk({ bm_pushups: 12 });
+    const jumped = bench.retestDelta(before, { pushups: 40 });
+    if (!jumped.some((m) => m.pattern === 'horizontal_push' && m.to > m.from)) {
+      err('going from 12 to 40 push-ups reported no change to horizontal_push');
+    }
+    if (bench.retestDelta(before, { pushups: 13 }).length) {
+      err('12 to 13 push-ups reported a level change — one rep is not a new rung, and rebuilding '
+        + 'the week to say so punishes measuring');
+    }
+    if (bench.retestDelta(before, { pushups: 12 }).length) {
+      err('re-declaring the same number reported a change');
+    }
+
+    /*
+     * And it has to report a fall, with from/to the right way round.
+     *
+     * A re-test after an illness, an injury or a bad month comes back lower.
+     * That is the case the cycle exists for as much as the good one — the plan
+     * should start from where the trainee actually is — and the tracking tab
+     * reads from/to to decide whether to say "עלית" or "ירדת". Reporting a drop
+     * as a rise would have the app congratulating somebody on losing ground.
+     */
+    {
+      const strong = mk({ bm_pushups: 40 });
+      const fell = bench.retestDelta(strong, { pushups: 12 });
+      const hp = fell.find((m) => m.pattern === 'horizontal_push');
+      if (!hp) err('dropping from 40 to 12 push-ups reported no change to horizontal_push');
+      else if (!(hp.to < hp.from)) {
+        err(`dropping from 40 to 12 push-ups reported ${hp.from} -> ${hp.to}, which is not a fall`);
+      }
+      // A first-ever reading is from:null, not from:0 — the screen groups it
+      // with the rises, and 0 would read as "you were at level 0".
+      const firstEver = bench.retestDelta(mk({}), { pushups: 25 });
+      if (!firstEver.length) err('a first-ever benchmark reported no change at all');
+      else if (firstEver.some((m) => m.from !== null)) {
+        err('a pattern with no previous evidence reported a numeric "from" — null and a level '
+          + 'are different claims and the screen tells them apart');
+      }
+    }
+
+    // 7. End to end: the new numbers must reach the prescription.
+    const levelsFor = (p) => {
+      const out = [];
+      for (const day of gen.generateProgram(p).days) {
+        for (const slot of day.slots) {
+          const v = (slot.variants || [])[0];
+          if (!v) continue;
+          const ex = registry.byId(v.exId);
+          if (ex && ex.pattern === 'horizontal_push') out.push(ex.level);
+        }
+      }
+      return out;
+    };
+    const wasAt = levelsFor(before);
+    const nowAt = levelsFor(Object.assign({}, before, {
+      benchmarks: Object.assign({}, before.benchmarks, { pushups: 40 }),
+      benchmarksAt: agoDays(0),
+    }));
+    if (!wasAt.length || !nowAt.length) {
+      err('the re-test check found no pushing slots to compare');
+    } else if (Math.max(...nowAt) <= Math.max(...wasAt)) {
+      err(`a re-test from 12 to 40 push-ups left the hardest pushing exercise at level `
+        + `${Math.max(...nowAt)} — accepting the new numbers changes nothing that gets trained`);
+    }
+  } catch (e) { err(`re-test cycle check could not run: ${e.message}`); }
+}
+
+/*
  * A backup restore must not accept a file that is not a backup.
  *
  * importJson was JSON.parse then Object.assign over the empty state, so

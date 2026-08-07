@@ -251,7 +251,12 @@ details.warm li b { color: var(--chalk); font-weight: 600; }
   display: block; font-size: 15px; font-weight: 700; margin-bottom: 4px;
 }
 .field .help { font-size: 13px; color: var(--dim); margin-bottom: 9px; line-height: 1.5; }
-.field .err { font-size: 12.5px; color: var(--rose); margin-top: 6px; display: block; }
+/* The colour lives on the bare class, not on the in-field one. Two screens
+   raise .err outside a .field — the backup restore and the re-test — and until
+   this rule existed an error message there rendered as ordinary body text: the
+   right words, in the wrong voice, next to a form that looked like it worked. */
+.err { font-size: 13px; color: var(--rose); line-height: 1.5; }
+.field .err { font-size: 12.5px; margin-top: 6px; display: block; }
 .field.bad input, .field.bad textarea, .field.bad select { border-color: var(--rose); }
 
 input[type="text"], input[type="number"], input[type="date"], textarea, select {

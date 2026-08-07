@@ -7,6 +7,7 @@ import { withholdsPhotoScan } from '../engine/age.js';
 
 import { h, clear, announce, shrinkImage } from '../core/dom.js';
 import { STEPS, defaults, validateStep, normalizeProfile, summarize } from '../intake/schema.js';
+import { hasBenchmarks } from '../engine/benchmarks.js';
 import { renderScan } from './scan.js';
 import { renderQuickstart } from './quickstart.js';
 import * as store from '../core/store.js';
@@ -42,7 +43,15 @@ export function renderWizard(root, onDone) {
 
   function onNext() {
     if (step === REVIEW_STEP) {
-      onDone(normalizeProfile(profile));
+      /*
+       * Stamp when the numbers were given, so the four-week re-test has a
+       * clock to count from. Done here rather than in normalizeProfile, which
+       * runs on every keystroke and would keep pushing the date forward — the
+       * trainee would never come due.
+       */
+      const finished = normalizeProfile(profile);
+      if (hasBenchmarks(finished)) finished.benchmarksAt = new Date().toISOString();
+      onDone(finished);
       return;
     }
     const res = validateStep(step, profile);

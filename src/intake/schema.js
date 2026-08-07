@@ -67,6 +67,12 @@ export function defaults() {
     benchmarks: {
       pushups: null, pullups: null, plankSec: null, dips: null,
     },
+    /*
+     * When those numbers were last recorded. Stamped by the wizard and by the
+     * re-test, not by normalizeProfile — normalize runs on every keystroke and
+     * would keep resetting the clock, so a trainee would never come due.
+     */
+    benchmarksAt: null,
     sleepHours: 7,
     stress: 3,
 
@@ -756,6 +762,16 @@ export function normalizeProfile(input) {
     bm[k] = v === null || v === '' || !isFinite(Number(v)) ? null : Math.max(0, Number(v));
   }
   p.benchmarks = bm;
+
+  /*
+   * Kept as-is when it is a real date, cleared otherwise. An imported profile
+   * with a future or malformed stamp would otherwise make the re-test either
+   * never due or immediately due, and neither is the truth.
+   */
+  {
+    const t = Date.parse(p.benchmarksAt);
+    p.benchmarksAt = Number.isFinite(t) && t <= Date.now() ? new Date(t).toISOString() : null;
+  }
 
   p.sleepHours = clamp(p.sleepHours, 4, 12, 7);
   p.stress = clamp(Math.round(p.stress), 1, 5, 3);

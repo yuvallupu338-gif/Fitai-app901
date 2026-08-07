@@ -59,9 +59,15 @@ Produced by the intake wizard, consumed by every engine module.
 
   currentActivity: String,
   benchmarks: {                 // any field may be null
-    pushups: Number|null, pullups: Number|null, plankSec: Number|null,
-    squatKg: Number|null, benchKg: Number|null, deadliftKg: Number|null
+    pushups: Number|null, pullups: Number|null,
+    plankSec: Number|null, dips: Number|null
   },
+  benchmarksAt: String|null,    // ISO stamp of when those numbers were recorded.
+                                // Read by engine/benchmarks.js to decide when to
+                                // ask again (RETEST_DAYS). Stamped by the wizard
+                                // and by the re-test card — NOT by
+                                // normalizeProfile, which runs on every keystroke
+                                // and would keep resetting the clock.
   sleepHours: Number,           // 4..12
   stress: Number,               // 1 (calm) .. 5 (fried)
 

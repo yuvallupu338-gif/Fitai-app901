@@ -501,7 +501,12 @@ details.warm li b { color: var(--chalk); font-weight: 600; }
   display: block; font-size: 15px; font-weight: 700; margin-bottom: 4px;
 }
 .field .help { font-size: 13px; color: var(--dim); margin-bottom: 9px; line-height: 1.5; }
-.field .err { font-size: 12.5px; color: var(--rose); margin-top: 6px; display: block; }
+/* The colour lives on the bare class, not on the in-field one. Two screens
+   raise .err outside a .field — the backup restore and the re-test — and until
+   this rule existed an error message there rendered as ordinary body text: the
+   right words, in the wrong voice, next to a form that looked like it worked. */
+.err { font-size: 13px; color: var(--rose); line-height: 1.5; }
+.field .err { font-size: 12.5px; margin-top: 6px; display: block; }
 .field.bad input, .field.bad textarea, .field.bad select { border-color: var(--rose); }
 
 input[type="text"], input[type="number"], input[type="date"], textarea, select {
@@ -2362,6 +2367,114 @@ function hasBenchmarks(profile) {
   return Object.keys(LADDERS).some((k) => repsOf(profile, k) !== null);
 }
 
+/*
+ * How long a set of numbers stays believable.
+ *
+ * Four weeks is short enough that a beginner's push-ups have moved — they gain
+ * fastest at the start, which is exactly when a stale number costs the most —
+ * and long enough that re-testing is not itself the training. It also lands on
+ * the deload cadence, so the week somebody is told to back off is the week they
+ * are asked to measure.
+ *
+ * Counted in days rather than in programme weeks on purpose. currentWeek() is
+ * derived from startedAt and keeps counting whether or not anybody trained; a
+ * trainee who did nothing for a fortnight should not be asked to re-test on a
+ * schedule that pretended they did. Days since the numbers were last recorded
+ * is the honest clock.
+ */
+const RETEST_DAYS = 28;
+
+const DAY_MS = 24 * 60 * 60 * 1000;
+
+/** Days since the trainee last recorded their numbers, or null if never. */
+function daysSinceBenchmarks(profile, now) {
+  const at = profile && profile.benchmarksAt;
+  if (!at) return null;
+  const t = Date.parse(at);
+  if (!Number.isFinite(t)) return null;
+  const ms = (now === undefined ? Date.now() : now) - t;
+  return Math.max(0, Math.floor(ms / DAY_MS));
+}
+
+/**
+ * True when it is time to ask for the numbers again.
+ *
+ * Never true for somebody who gave none in the first place: the app should not
+ * open by nagging for a re-test of a measurement that was skipped. They are
+ * asked at the start, and if they declined, the tier carries the plan. The
+ * tracking tab still keeps a quiet, unprompted way in for them — declining is
+ * not the same as being locked out — but that is an offer, not this.
+ */
+function retestDue(profile, now) {
+  if (!hasBenchmarks(profile)) return false;
+  const days = daysSinceBenchmarks(profile, now);
+  /*
+   * Numbers with no stamp are of unknown age, and unknown is not fresh. Every
+   * profile built before this cycle existed is in exactly that state — it has
+   * four numbers and nothing saying when they were true — so returning false
+   * here would mean every trainee already using the app is never asked again.
+   * Asking once costs a card; the answer starts the clock properly.
+   */
+  if (days === null) return true;
+  return days >= RETEST_DAYS;
+}
+
+/** Days remaining until the next re-test, or null when it is already due. */
+function daysUntilRetest(profile, now) {
+  if (!hasBenchmarks(profile)) return null;
+  const days = daysSinceBenchmarks(profile, now);
+  if (days === null) return null;
+  return days >= RETEST_DAYS ? null : RETEST_DAYS - days;
+}
+
+/*
+ * How long "not now" lasts.
+ *
+ * A prompt with no way to decline is a prompt that gets answered with a guess,
+ * and a guessed push-up count is worse than a stale real one — the whole point
+ * of reading these numbers is that they are measured. So declining is allowed,
+ * and it has to actually stop the asking or it is not a decline.
+ *
+ * A week, not forever: the trainee is being asked to find ten minutes and a
+ * floor, which is a scheduling problem rather than a refusal, and the answer to
+ * "not today" is usually "next week" rather than "never".
+ */
+const RETEST_SNOOZE_DAYS = 7;
+
+/** True when a "not now" from this timestamp has run out (or never happened). */
+function snoozeExpired(snoozedAt, now) {
+  if (!snoozedAt) return true;
+  const t = Date.parse(snoozedAt);
+  if (!Number.isFinite(t)) return true;
+  const at = now === undefined ? Date.now() : now;
+  /* A stamp from the future is a broken clock or an edited backup, not a
+     snooze that lasts until then. */
+  if (t > at) return true;
+  return at - t >= RETEST_SNOOZE_DAYS * DAY_MS;
+}
+
+/**
+ * What changes if these new numbers are accepted, per pattern.
+ *
+ * Returned rather than applied, so the trainee can be shown what a re-test
+ * bought before their plan is rewritten — and so nothing moves if the answer is
+ * that nothing moved. The commonest honest outcome of a re-test is "the same",
+ * and an app that rebuilds the whole week to say so is an app that punishes
+ * measuring.
+ */
+function retestDelta(profile, nextBenchmarks) {
+  const after = Object.assign({}, profile, {
+    benchmarks: Object.assign({}, profile.benchmarks, nextBenchmarks),
+  });
+  const moved = [];
+  for (const pattern of Object.keys(SPEAKS_FOR)) {
+    const before = demonstratedLevel(profile, pattern);
+    const now = demonstratedLevel(after, pattern);
+    if (before !== now && now !== null) moved.push({ pattern, from: before, to: now });
+  }
+  return moved;
+}
+
 /**
  * A short Hebrew line naming what the app read, for the plan's own notes.
  *
@@ -2386,6 +2499,13 @@ function benchmarkNote(profile) {
   return {
     "demonstratedLevel": demonstratedLevel,
     "hasBenchmarks": hasBenchmarks,
+    "RETEST_DAYS": RETEST_DAYS,
+    "daysSinceBenchmarks": daysSinceBenchmarks,
+    "retestDue": retestDue,
+    "daysUntilRetest": daysUntilRetest,
+    "RETEST_SNOOZE_DAYS": RETEST_SNOOZE_DAYS,
+    "snoozeExpired": snoozeExpired,
+    "retestDelta": retestDelta,
     "benchmarkNote": benchmarkNote,
   };
 })();
@@ -9481,6 +9601,12 @@ function defaults() {
     benchmarks: {
       pushups: null, pullups: null, plankSec: null, dips: null,
     },
+    /*
+     * When those numbers were last recorded. Stamped by the wizard and by the
+     * re-test, not by normalizeProfile — normalize runs on every keystroke and
+     * would keep resetting the clock, so a trainee would never come due.
+     */
+    benchmarksAt: null,
     sleepHours: 7,
     stress: 3,
 
@@ -10171,6 +10297,16 @@ function normalizeProfile(input) {
   }
   p.benchmarks = bm;
 
+  /*
+   * Kept as-is when it is a real date, cleared otherwise. An imported profile
+   * with a future or malformed stamp would otherwise make the re-test either
+   * never due or immediately due, and neither is the truth.
+   */
+  {
+    const t = Date.parse(p.benchmarksAt);
+    p.benchmarksAt = Number.isFinite(t) && t <= Date.now() ? new Date(t).toISOString() : null;
+  }
+
   p.sleepHours = clamp(p.sleepHours, 4, 12, 7);
   p.stress = clamp(Math.round(p.stress), 1, 5, 3);
 
@@ -10427,6 +10563,8 @@ const EMPTY = {
     activeDay: 0,        // index into program.days
     restDayMeals: false,
     tab: 'plan',         // 'plan' | 'nutrition' | 'progress' | 'guide'
+    retestSnoozeAt: null, // ISO stamp of a "not now" on the four-week re-test
+    retestMoved: null,    // retestDelta() result, read once by the tracking tab
   },
   picks: {},             // "dayId:slotKey" -> variant index
   overrides: {},         // "dayId:slotKey" -> Prescription, from "too easy"/"too hard"
@@ -13087,6 +13225,7 @@ const { withholdsPhotoScan } = __m["src/engine/age.js"];
 
 const { h, clear, announce, shrinkImage } = __m["src/core/dom.js"];
 const { STEPS, defaults, validateStep, normalizeProfile, summarize } = __m["src/intake/schema.js"];
+const { hasBenchmarks } = __m["src/engine/benchmarks.js"];
 const { renderScan } = __m["src/ui/scan.js"];
 const { renderQuickstart } = __m["src/ui/quickstart.js"];
 const store = __m["src/core/store.js"];
@@ -13122,7 +13261,15 @@ function renderWizard(root, onDone) {
 
   function onNext() {
     if (step === REVIEW_STEP) {
-      onDone(normalizeProfile(profile));
+      /*
+       * Stamp when the numbers were given, so the four-week re-test has a
+       * clock to count from. Done here rather than in normalizeProfile, which
+       * runs on every keystroke and would keep pushing the date forward — the
+       * trainee would never come due.
+       */
+      const finished = normalizeProfile(profile);
+      if (hasBenchmarks(finished)) finished.benchmarksAt = new Date().toISOString();
+      onDone(finished);
       return;
     }
     const res = validateStep(step, profile);
@@ -14666,6 +14813,295 @@ function restNote(profile, tasks, restCount) {
   };
 })();
 
+__m["src/ui/retest.js"] = (function () {
+/*
+ * retest.js — asking for the numbers again, every four weeks.
+ *
+ * The questionnaire reads four numbers and the engine picks exercise levels
+ * from them. That was a one-off: whatever somebody could do on the day they
+ * signed up decided what they were prescribed forever. A beginner's push-ups
+ * roughly double in two months, so by week eight the plan is built on a number
+ * that is no longer true, and it is wrong in the direction that wastes the
+ * training — too easy, silently, with nothing on screen admitting it.
+ *
+ * So the app asks again. Four weeks, counted in days since the numbers were
+ * recorded rather than in programme weeks — see benchmarks.js for why that
+ * distinction matters for somebody who took a fortnight off.
+ *
+ * Two rules this screen exists to keep:
+ *
+ *   Nothing moves unless something moved. retestDelta() is consulted before
+ *   the programme is touched, and the commonest honest outcome of a re-test is
+ *   "the same". Rebuilding the week to announce that would punish measuring.
+ *
+ *   Declining works. "לא עכשיו" stops the asking for a week. A prompt with no
+ *   way out gets answered with a guess, and a guessed number is worse than a
+ *   stale measured one.
+ *
+ * The same form doubles as the way in for somebody who skipped the questions at
+ * intake. Before it there was no way at all: the four fields existed only inside
+ * the questionnaire, so a trainee who declined and later learned their push-up
+ * count would have had to redo all ten steps to tell the app.
+ */
+
+const { h, announce } = __m["src/core/dom.js"];
+const { STEPS } = __m["src/intake/schema.js"];
+const { patternHe } = __m["src/vision/apply.js"];
+const { RETEST_DAYS, RETEST_SNOOZE_DAYS, retestDue, daysUntilRetest, daysSinceBenchmarks, retestDelta, snoozeExpired, hasBenchmarks, } = __m["src/engine/benchmarks.js"];
+
+/*
+ * The questions, taken from the questionnaire itself rather than retyped.
+ *
+ * The re-test has to ask exactly what was asked the first time or the two
+ * numbers are not comparable, and a hand-copied list drifts the moment a fifth
+ * benchmark is added. Reading STEPS keeps the labels, the units and the bounds
+ * identical by construction.
+ */
+const FIELDS = STEPS
+  .reduce((acc, s) => acc.concat(s.fields || []), [])
+  .filter((f) => typeof f.key === 'string' && f.key.startsWith('bm_'))
+  .map((f) => ({ key: f.key.slice(3), label: f.label, unit: f.unit, min: f.min, max: f.max }));
+
+/** Should the re-test card be on screen right now? */
+function retestVisible(profile, ui, now) {
+  return retestDue(profile, now) && snoozeExpired(ui && ui.retestSnoozeAt, now);
+}
+
+/**
+ * One line for the plan tab, or null.
+ *
+ * The card itself lives in the tracking tab, which is where a measurement
+ * belongs — but somebody who never opens that tab would never be asked, and an
+ * app that only prompts where you already went is not prompting. This is the
+ * part that does the asking; the tab it points at does the work.
+ */
+function retestBanner(profile, ui, onGo, now) {
+  if (!retestVisible(profile, ui, now)) return null;
+  const days = daysSinceBenchmarks(profile, now);
+  return h('div.callout.warn', { role: 'status' },
+    h('h4', 'זמן למדוד מחדש'),
+    h('p', days === null
+      ? 'המספרים שהתוכנית בנויה עליהם נרשמו לפני זמן לא ידוע. בדיקה קצרה ואני מעדכן את הרמות.'
+      : `עברו ${days} ימים מאז שמדדת. שכיבות סמיכה, מתח, מקבילים ופלאנק — `
+        + 'כמה דקות, ואני מעדכן את הרמות לפי המספרים החדשים.'),
+    h('div.toolbar', { style: { margin: '12px 0 0' } },
+      h('button.btn.primary', { type: 'button', onclick: onGo }, 'למדידה'),
+    ),
+  );
+}
+
+/**
+ * The measurement card for the tracking tab, or null when there is nothing to
+ * say. Three states, in order of how loudly they ask:
+ *
+ *   due       — the four weeks are up. Amber, with a way to decline.
+ *   never     — the questionnaire's number fields were skipped. A quiet offer,
+ *               and the only way back in: without it, somebody who skipped the
+ *               questions and later knows their push-up count would have to
+ *               redo the entire questionnaire to tell the app.
+ *   otherwise — one line saying when the next measurement is.
+ *
+ *   onApply(nextProfile, moved)  — moved is retestDelta()'s list. Empty means
+ *                                  the numbers changed nothing and the caller
+ *                                  must NOT rebuild the programme.
+ *   onSnooze()                   — record the "not now".
+ */
+function retestCard(profile, ui, handlers, now) {
+  const cb = handlers || {};
+  const due = retestVisible(profile, ui, now);
+  const never = !hasBenchmarks(profile);
+  if (!due && !never) return dueLater(profile, ui, now);
+
+  const card = h(due ? 'div.callout.warn' : 'div.callout');
+  const days = daysSinceBenchmarks(profile, now);
+  card.appendChild(h('h4', never ? 'כוונון לפי מספרים' : 'מדידה מחדש'));
+  if (never) {
+    card.appendChild(h('p', 'דילגת על שאלות המספרים, אז רמת התרגילים נקבעה מהוותק שסימנת בלבד — '
+      + 'וזה האומדן הגס ביותר שיש כאן. ארבעה מספרים ואני מכוון אותה במדויק.'));
+  } else {
+    card.appendChild(h('p', days === null
+      ? 'המספרים האלה נרשמו לפני זמן לא ידוע, ורמת התרגילים נקבעת מהם. מדוד שוב ואעדכן.'
+      : `עברו ${days} ימים מאז המדידה האחרונה. הרמות בתוכנית נקבעו מהמספרים ההם, `
+        + 'ואם התקדמת הן כבר נמוכות מדי.'));
+  }
+  card.appendChild(h('p', 'סט אחד של כל תרגיל, עד כישלון טכני — לא עד כישלון מוחלט. '
+    + 'תרגיל אחד ליום מספיק, אין צורך למדוד הכל באותה ישיבה. שדה ריק נשאר כמו שהיה.'));
+
+  const inputs = new Map();
+  const rows = h('div', { style: { marginTop: '14px' } });
+  for (const f of FIELDS) {
+    const prev = valueOf(profile, f.key);
+    const id = `retest-${f.key}`;
+    const input = h('input', {
+      id,
+      type: 'number',
+      inputmode: 'numeric',
+      min: String(f.min),
+      max: String(f.max),
+      placeholder: prev === null ? '' : String(prev),
+      'aria-describedby': `${id}-prev`,
+    });
+    inputs.set(f.key, input);
+    rows.appendChild(h('div.logrow',
+      h('label', { for: id, style: { minWidth: '128px', fontSize: '13.5px' } }, f.label),
+      input,
+      h('span.setpill', { id: `${id}-prev` },
+        prev === null ? `${f.unit} · לא נמדד` : `${f.unit} · קודם ${prev}`),
+    ));
+  }
+  card.appendChild(rows);
+
+  const out = h('div');
+  card.appendChild(out);
+
+  card.appendChild(h('div.toolbar', { style: { margin: '14px 0 0' } },
+    h('button.btn.primary', {
+      type: 'button',
+      onclick: () => {
+        const next = {};
+        let bad = null;
+        for (const f of FIELDS) {
+          const raw = inputs.get(f.key).value;
+          if (raw === '') continue;
+          const n = Number(raw);
+          if (!Number.isFinite(n) || n < f.min || n > f.max) { bad = bad || f; continue; }
+          next[f.key] = Math.round(n);
+        }
+        if (bad) {
+          showError(out, `${bad.label}: הזן מספר בין ${bad.min} ל־${bad.max}.`);
+          inputs.get(bad.key).focus();
+          return;
+        }
+        if (!Object.keys(next).length) {
+          showError(out, never
+            ? 'לא הוזן אף מספר. מלא לפחות שדה אחד.'
+            : 'לא הוזן אף מספר. מלא לפחות שדה אחד, או "לא עכשיו".');
+          inputs.get(FIELDS[0].key).focus();
+          return;
+        }
+        const moved = retestDelta(profile, next);
+        const updated = Object.assign({}, profile, {
+          benchmarks: Object.assign({}, profile.benchmarks, next),
+          benchmarksAt: new Date(now === undefined ? Date.now() : now).toISOString(),
+        });
+        announce(moved.length
+          ? `המספרים עודכנו. ${moved.length} דפוסי תנועה זזים רמה, התוכנית נבנית מחדש.`
+          : 'המספרים עודכנו. הרמות נשארות כפי שהן.');
+        if (cb.onApply) cb.onApply(updated, moved);
+      },
+    }, never ? 'כוונן לפי המספרים' : 'עדכן ובנה מחדש'),
+    /* No decline on the offer. There is nothing to postpone — it is not asking,
+       and a "not now" on something that never nagged would only hide it. */
+    never ? null : h('button.btn', {
+      type: 'button',
+      onclick: () => {
+        announce(`נשאל שוב בעוד ${RETEST_SNOOZE_DAYS} ימים`);
+        if (cb.onSnooze) cb.onSnooze();
+      },
+    }, 'לא עכשיו'),
+  ));
+
+  return card;
+}
+
+/*
+ * The between-times line: how long until the next measurement.
+ *
+ * Worth showing even when nothing is due, because a cycle nobody can see is a
+ * cycle that arrives as a surprise.
+ *
+ * The snoozed case gets its own sentence rather than nothing. Somebody who
+ * pressed "לא עכשיו" and then found the screen blank has no way to tell whether
+ * they postponed the measurement or switched it off, and the difference matters
+ * to them — the card is the only thing keeping their levels honest.
+ */
+function dueLater(profile, ui, now) {
+  const snoozedAt = ui && ui.retestSnoozeAt;
+  if (retestDue(profile, now) && !snoozeExpired(snoozedAt, now)) {
+    const at = now === undefined ? Date.now() : now;
+    const back = Math.max(1, Math.ceil(
+      (Date.parse(snoozedAt) + RETEST_SNOOZE_DAYS * 86400000 - at) / 86400000));
+    return h('p.note', `המדידה נדחתה. אשאל שוב בעוד ${back} ימים — עד אז הרמות נשארות `
+      + 'לפי המספרים הישנים.');
+  }
+  const left = daysUntilRetest(profile, now);
+  if (left === null) return null;
+  return h('p.note', `מדידה הבאה בעוד ${left} ימים — כל ${RETEST_DAYS} יום אני מבקש את המספרים שוב `
+    + 'ומעדכן את רמות התרגילים לפיהם.');
+}
+
+/**
+ * What the new numbers bought, as a paragraph.
+ *
+ * Shown after the rebuild rather than instead of it: the trainee measured, and
+ * the least the app can do is name what changed. Deduped by Hebrew label,
+ * because push-ups speak for three patterns and three identical-looking lines
+ * read like a bug.
+ *
+ * Three buckets, because the same delta means three different things:
+ *
+ *   up    — they got stronger. Say so.
+ *   down  — a re-test after an illness, a layoff or a bad month comes back
+ *           lower and the engine correctly moves that pattern down a rung. This
+ *           used to announce it as "עלית רמה" — the app congratulating somebody
+ *           on losing ground, at the exact moment they are deciding whether to
+ *           believe anything it says.
+ *   first — from is null: the pattern had no evidence at all until now, which
+ *           is every pattern for a trainee who skipped the questions at intake.
+ *           Nothing rose; the app was told where they stand.
+ */
+function retestSummary(moved) {
+  if (!moved || !moved.length) {
+    return h('p.note', 'המספרים נשמרו. הרמות לא זזו — התוכנית שלך כבר במקום הנכון, '
+      + 'וזו תשובה טובה בדיוק כמו קפיצה.');
+  }
+  const names = (list) => {
+    const out = [];
+    for (const m of list) {
+      const he = patternHe(m.pattern);
+      if (out.indexOf(he) < 0) out.push(he);
+    }
+    return out.join(', ');
+  };
+  const first = moved.filter((m) => m.from === null);
+  const up = moved.filter((m) => m.from !== null && m.to > m.from);
+  const down = moved.filter((m) => m.from !== null && m.to < m.from);
+
+  const parts = [];
+  if (first.length) parts.push(`הרמות כוונו לפי המספרים ב: ${names(first)}.`);
+  if (up.length) {
+    parts.push(`עלית רמה ב: ${names(up)}. התרגילים בקבוצות האלה הוחלפו לגרסאות קשות יותר.`);
+  }
+  if (down.length) {
+    parts.push(`ירדת רמה ב: ${names(down)} — התוכנית מתחילה משם, וזה הדבר הנכון `
+      + 'אחרי הפסקה או מחלה. חוזרים מהר יותר ממה שנדמה.');
+  }
+  return h('p.note', parts.join(' '));
+}
+
+function valueOf(profile, key) {
+  const bm = (profile && profile.benchmarks) || {};
+  const v = bm[key];
+  if (v === null || v === undefined || v === '') return null;
+  const n = Number(v);
+  return Number.isFinite(n) ? n : null;
+}
+
+function showError(holder, msg) {
+  const old = holder.querySelector('.err');
+  if (old) old.remove();
+  holder.appendChild(h('p.err', { role: 'alert', style: { marginTop: '10px' } }, msg));
+  announce(msg);
+}
+
+  return {
+    "retestVisible": retestVisible,
+    "retestBanner": retestBanner,
+    "retestCard": retestCard,
+    "retestSummary": retestSummary,
+  };
+})();
+
 __m["src/ui/plan.js"] = (function () {
 /*
  * plan.js — the training view: week strip, session header, warm-up, exercises.
@@ -14675,14 +15111,16 @@ __m["src/ui/plan.js"] = (function () {
 const { h, clear, announce } = __m["src/core/dom.js"];
 const { exerciseCard, releaseAll } = __m["src/ui/exercise.js"];
 const { restDayTasks, restNote } = __m["src/engine/restday.js"];
+const { retestBanner } = __m["src/ui/retest.js"];
 const store = __m["src/core/store.js"];
 
 const LETTERS = ['א', 'ב', 'ג', 'ד', 'ה', 'ו', 'ש'];
 const NAMES = ['ראשון', 'שני', 'שלישי', 'רביעי', 'חמישי', 'שישי', 'שבת'];
 const TIME_HE = { morning: 'בוקר', noon: 'צהריים', evening: 'ערב' };
 
-function renderPlan(root, program, profile) {
+function renderPlan(root, program, profile, opts) {
   const view = h('section');
+  const o = opts || {};
   root.appendChild(view);
 
   function draw() {
@@ -14713,6 +15151,17 @@ function renderPlan(root, program, profile) {
     view.appendChild(weekStrip(program, active, activeRest, pickDay, pickRest));
 
     view.appendChild(weekFoot(program, profile));
+
+    /*
+     * The four-week re-test prompt. It sits on this tab because this is where
+     * everybody lands; the form itself is in the tracking tab, which is where a
+     * measurement belongs. Wrapped in a try because a prompt is never worth
+     * taking the session down for.
+     */
+    try {
+      const nudge = retestBanner(profile, st.ui, () => { if (o.onGoTo) o.onGoTo('progress'); });
+      if (nudge && o.onGoTo) view.appendChild(nudge);
+    } catch (e) { console.error(e); }
 
     if (activeRest !== null) {
       view.appendChild(restDayView(program, profile, activeRest, draw));
@@ -16318,6 +16767,7 @@ __m["src/ui/guide.js"] = (function () {
 const { h, signedNum } = __m["src/core/dom.js"];
 const { buildPhases, progressionModel, projectTargets } = __m["src/engine/progression.js"];
 const { assessGoal, commitmentNote } = __m["src/engine/targets.js"];
+const { RETEST_DAYS, hasBenchmarks, daysUntilRetest } = __m["src/engine/benchmarks.js"];
 const store = __m["src/core/store.js"];
 
 const GROUP_HE = {
@@ -16436,6 +16886,27 @@ function renderGuide(root, program, profile) {
     }
   }
 
+  /*
+   * When the exercise levels get re-decided.
+   *
+   * This tab explains the plan to its owner, and the fact that it re-decides
+   * itself belonged here: somebody who thinks the levels were set once has no
+   * reason to read the prompt four weeks later as anything but busywork.
+   *
+   * Only the cadence, not which numbers were read — benchmarkNote() already
+   * says that, and generator.js puts it in program.notes where the plan tab
+   * shows it. Repeating the same paragraph on two screens is the sort of thing
+   * that makes an app feel like it is padding.
+   */
+  if (safe(() => hasBenchmarks(profile), false)) {
+    const left = safe(() => daysUntilRetest(profile), null);
+    view.appendChild(h('p.note', { style: { marginTop: '14px' } }, left === null
+      ? `המספרים שהרמות נקבעו מהם בני יותר מ־${RETEST_DAYS} יום. בלשונית "מעקב" יש טופס קצר `
+        + 'למדוד מחדש, ומשם הרמות מתעדכנות.'
+      : `כל ${RETEST_DAYS} יום אני מבקש את המספרים שוב ומעדכן את הרמות — `
+        + `המדידה הבאה בעוד ${left} ימים.`));
+  }
+
   /* ---- phases ---- */
   const phases = safe(() => buildPhases(profile), []);
   if (phases && phases.length) {
@@ -16517,17 +16988,33 @@ __m["src/ui/progress.js"] = (function () {
 const { h, clear, announce, signedNum } = __m["src/core/dom.js"];
 const { weeklyPlanNote, progressionModel } = __m["src/engine/progression.js"];
 const { withholdsBodyNumbers } = __m["src/engine/age.js"];
+const { retestCard, retestSummary } = __m["src/ui/retest.js"];
 const store = __m["src/core/store.js"];
 
-function renderProgress(root, program, profile) {
+function renderProgress(root, program, profile, opts) {
   const view = h('section');
+  const o = opts || {};
   root.appendChild(view);
+
+  /* Survives a redraw so the "what changed" line is still there after the
+     numbers are saved and the card has gone. */
+  let lastMoved = null;
+
+  /*
+   * The profile can change under this screen without a rebuild. A re-test whose
+   * numbers moved no levels updates the stamp and nothing else — deliberately,
+   * so measuring and finding out you are where you were does not tear down the
+   * week. But draw() closes over the profile it was handed, so reading that one
+   * meant the card the trainee had just answered was still on screen, still
+   * saying the numbers were four weeks old.
+   */
+  let live = profile;
 
   function draw() {
     clear(view);
     const st = store.get();
     const week = store.currentWeek();
-    const model = safe(() => progressionModel(profile), null);
+    const model = safe(() => progressionModel(live), null);
     const isDeload = model && model.deloadEveryWeeks
       ? week % model.deloadEveryWeeks === 0 : false;
 
@@ -16535,7 +17022,7 @@ function renderProgress(root, program, profile) {
     // why: they are still growing, so the number is supposed to rise. This tab
     // used to open with the opposite instruction and hand them a button for it.
     // Same plan, same screen-full, two contradicting answers.
-    const noBodyNumbers = withholdsBodyNumbers(profile);
+    const noBodyNumbers = withholdsBodyNumbers(live);
 
     view.appendChild(h('h3', 'מעקב'));
     view.appendChild(h('p.lead', noBodyNumbers
@@ -16555,7 +17042,44 @@ function renderProgress(root, program, profile) {
       isDeload ? stat('דילואד', 'סוג השבוע', true) : null,
     ));
 
-    const note = safe(() => weeklyPlanNote(profile, week), '');
+    /* ---- four-week re-test ---- */
+    /*
+     * A rebuild re-runs renderApp from scratch, so a local variable cannot
+     * carry the result of the submit across it. The moved list is parked in
+     * ui, read once and cleared — the trainee measured, and the screen has to
+     * say what it bought rather than silently swap their exercises.
+     */
+    if (lastMoved === null && st.ui.retestMoved) {
+      lastMoved = st.ui.retestMoved;
+      store.set({ ui: Object.assign({}, store.get().ui, { retestMoved: null }) });
+    }
+    if (lastMoved) view.appendChild(retestSummary(lastMoved));
+
+    const card = safe(() => retestCard(live, st.ui, {
+      onApply: (next, moved) => {
+        /*
+         * Nothing is rebuilt when nothing moved. The commonest honest result
+         * of a re-test is "the same numbers", and an app that tears down the
+         * week to announce that is an app that charges you for measuring.
+         */
+        if (!moved.length) {
+          lastMoved = [];
+          live = next;
+          if (o.onProfileChange) o.onProfileChange(next);
+          draw();
+          return;
+        }
+        store.set({ ui: Object.assign({}, store.get().ui, { retestMoved: moved }) });
+        if (o.onRebuild) o.onRebuild(next, { keepTab: true });
+      },
+      onSnooze: () => {
+        store.set({ ui: Object.assign({}, store.get().ui, { retestSnoozeAt: new Date().toISOString() }) });
+        draw();
+      },
+    }), null);
+    if (card) view.appendChild(card);
+
+    const note = safe(() => weeklyPlanNote(live, week), '');
     if (note) view.appendChild(h('p.focus', { style: { marginTop: '18px' } }, note));
 
     /* ---- weight entry ---- */
@@ -16568,7 +17092,7 @@ function renderProgress(root, program, profile) {
 
       const input = h('input', {
         type: 'number', inputmode: 'decimal', step: '0.1', min: '20', max: '300',
-        placeholder: String(profile.weightKg || ''),
+        placeholder: String(live.weightKg || ''),
       });
       view.appendChild(h('div.logrow', { style: { marginTop: '10px' } },
         input,
@@ -16586,7 +17110,7 @@ function renderProgress(root, program, profile) {
       ));
 
       if (st.weights.length >= 2) {
-        view.appendChild(sparkline(st.weights, profile.targetWeightKg));
+        view.appendChild(sparkline(st.weights, live.targetWeightKg));
         const first = st.weights[0];
         const last = st.weights[st.weights.length - 1];
         const delta = last.kg - first.kg;
@@ -17715,8 +18239,15 @@ function build(profile) {
  * keeps startedAt, the completion ticks, the logged sets and the weight history:
  * the person did that work, and a change of emphasis is not a reason to erase it.
  */
-function rebuild(profile) {
+function rebuild(profile, opts) {
   const p = normalizeProfile(profile);
+  /*
+   * keepTab is for a rebuild the trainee started somewhere other than the plan
+   * — the four-week re-test lives in the tracking tab, and throwing them to a
+   * different screen the moment they submit hides the sentence saying what
+   * their new numbers changed.
+   */
+  const keepTab = !!(opts && opts.keepTab);
   try {
     const program = generateProgram(p);
     const nutrition = p.wantsNutrition ? nutritionPlan(p) : null;
@@ -17724,7 +18255,7 @@ function rebuild(profile) {
       profile: p,
       program,
       nutrition,
-      ui: Object.assign({}, store.get().ui, { tab: 'plan', activeDay: 0 }),
+      ui: Object.assign({}, store.get().ui, keepTab ? {} : { tab: 'plan', activeDay: 0 }),
     });
     renderApp();
     announce('התוכנית נבנתה מחדש');
@@ -17799,7 +18330,7 @@ function renderApp() {
     store.set({ ui: Object.assign({}, store.get().ui, { tab }) });
 
     try {
-      if (tab === 'plan') renderPlan(body, program, profile);
+      if (tab === 'plan') renderPlan(body, program, profile, { onGoTo: (t) => show(t) });
       else if (tab === 'nutrition' && nutrition) renderNutrition(body, nutrition, profile);
       else if (tab === 'scan') {
         renderScanTab(body, Object.assign({}, profile), {
@@ -17810,7 +18341,12 @@ function renderApp() {
           onRebuild: (next) => rebuild(next),
         });
       } else if (tab === 'guide') renderGuide(body, program, profile);
-      else if (tab === 'progress') renderProgress(body, program, profile);
+      else if (tab === 'progress') {
+        renderProgress(body, program, profile, {
+          onProfileChange: (next) => store.set({ profile: normalizeProfile(next) }),
+          onRebuild: (next, o) => rebuild(next, o),
+        });
+      }
     } catch (e) {
       console.error(e);
       body.appendChild(h('p.empty', 'לא הצלחתי להציג את המסך הזה. נסה מסך אחר.'));

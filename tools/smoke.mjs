@@ -428,8 +428,214 @@ async function main() {
   await checkAgeBounds(browser, target);
   await checkTabsOnNarrowPhones(browser, target);
   await checkDifficultyControlsAreHittable(browser, target);
+  await checkRetestCycle(browser, target);
 
   await finish(browser, server);
+}
+
+/*
+ * The four-week re-test, driven end to end.
+ *
+ * validate.js proves the arithmetic — 27 days is not due, 28 is, a snooze wears
+ * off — but arithmetic nobody can reach is the same bug the benchmarks had in
+ * the first place: four numbers, correct, read by nothing. This walks the real
+ * wizard, backdates the stamp in storage the way a real four weeks would, and
+ * asserts a trainee can actually see the prompt, decline it, and answer it.
+ *
+ * The clock is moved by editing localStorage rather than by faking Date, so
+ * everything under test runs against the real Date.now() the app ships with.
+ */
+async function checkRetestCycle(browser, target) {
+  const ctx = await browser.newContext({ viewport: { width: 430, height: 900 } });
+  const pg = await ctx.newPage();
+  const errs = [];
+  pg.on('pageerror', (e) => errs.push(e.message));
+  await pg.goto(target, { waitUntil: 'networkidle' });
+
+  const start = await pg.$('.btn.primary');
+  if (start) { await start.click(); await pg.waitForTimeout(300); }
+  const built = await runWizard(pg, {
+    date: new Date(Date.now() + 200 * 86400000).toISOString().slice(0, 10),
+    number: 3, text: '', days: 3, clickFirstChip: false, optionText: {},
+    numbers: {
+      גיל: 28, גובה: 178, משקל: 76, יעד: 80,
+      אימונים: 3, דקות: 60, שינה: 7, ארוחות: 4,
+      'שכיבות': 8, 'מתח': 2, 'פלאנק': 40,
+    },
+  });
+  if (!built) { failures.push('re-test check: the wizard never reached a plan'); await ctx.close(); return; }
+
+  const KEY = 'fitai.v1';
+  const state = () => pg.evaluate((k) => JSON.parse(window.localStorage.getItem(k) || '{}'), KEY);
+
+  // The wizard has to stamp the numbers, or nothing downstream has a clock.
+  const first = await state();
+  check(!!(first.profile && first.profile.benchmarksAt),
+    're-test check: finishing the wizard with benchmarks left benchmarksAt unset — the cycle never starts');
+  check(!/זמן למדוד מחדש/.test(await pg.$eval('#app', (n) => n.textContent)),
+    're-test check: brand-new numbers were immediately declared stale');
+
+  const backdate = (days) => pg.evaluate(([k, d]) => {
+    const s = JSON.parse(window.localStorage.getItem(k));
+    s.profile.benchmarksAt = new Date(Date.now() - d * 86400000).toISOString();
+    s.ui.retestSnoozeAt = null;
+    window.localStorage.setItem(k, JSON.stringify(s));
+  }, [KEY, days]);
+
+  /* ---- four weeks later: the plan tab has to ask ---- */
+  await backdate(30);
+  await pg.reload({ waitUntil: 'networkidle' });
+  await pg.waitForTimeout(400);
+  const banner = pg.locator('.callout.warn:has-text("זמן למדוד מחדש")');
+  check(await banner.count() > 0,
+    're-test check: 30 days on, the plan tab does not ask for the numbers — the prompt only exists '
+    + 'in a tab the trainee has no reason to open');
+
+  /* ---- and the button on it has to land on the form ---- */
+  if (await banner.count() > 0) {
+    await pg.locator('button:has-text("למדידה")').first().click();
+    await pg.waitForTimeout(400);
+    check(await pg.locator('.callout.warn:has-text("מדידה מחדש")').count() > 0,
+      're-test check: "למדידה" did not open the measurement card');
+    check(await pg.locator('#retest-pushups').count() > 0,
+      're-test check: the measurement card has no push-up field');
+  }
+
+  /* ---- declining has to actually stop the asking ---- */
+  await pg.locator('button:has-text("לא עכשיו")').first().click();
+  await pg.waitForTimeout(300);
+  check(await pg.locator('.callout.warn:has-text("מדידה מחדש")').count() === 0,
+    're-test check: the card is still up after "לא עכשיו"');
+  const snoozed = await state();
+  check(!!(snoozed.ui && snoozed.ui.retestSnoozeAt),
+    're-test check: "לא עכשיו" recorded nothing — the prompt returns on the next reload');
+  await pg.reload({ waitUntil: 'networkidle' });
+  await pg.waitForTimeout(400);
+  check(await pg.locator('.callout.warn:has-text("זמן למדוד מחדש")').count() === 0,
+    're-test check: the banner came back after a decline, one reload later');
+
+  /* ---- answering it has to change the training ---- */
+  // Straight to the tracking tab this time. The decline above left the app on
+  // that tab, so the plan-tab banner is not what is on screen — and the path
+  // from the banner to the card was already walked.
+  await backdate(30);
+  await pg.reload({ waitUntil: 'networkidle' });
+  await pg.waitForTimeout(400);
+  await pg.locator('.tabs button:has-text("מעקב")').first().click();
+  await pg.waitForTimeout(400);
+  check(await pg.locator('#retest-pushups').count() > 0,
+    're-test check: the tracking tab shows no measurement card when one is due');
+
+  const before = await pg.evaluate((k) => {
+    const s = JSON.parse(window.localStorage.getItem(k));
+    return s.program.days.flatMap((d) => d.slots.map((x) => (x.variants[0] || {}).exId));
+  }, KEY);
+
+  await pg.fill('#retest-pushups', '45');
+  await pg.fill('#retest-pullups', '12');
+  await pg.locator('button:has-text("עדכן ובנה מחדש")').first().click();
+  await pg.waitForTimeout(700);
+
+  const after = await state();
+  check(after.profile.benchmarks.pushups === 45,
+    `re-test check: submitting 45 push-ups stored ${after.profile.benchmarks.pushups}`);
+  check(Date.now() - Date.parse(after.profile.benchmarksAt) < 5 * 60 * 1000,
+    're-test check: the stamp was not refreshed, so the trainee is due again immediately');
+  check(after.ui.tab === 'progress',
+    `re-test check: submitting threw the trainee to the "${after.ui.tab}" tab, away from the line `
+    + 'saying what their measurement changed');
+
+  const afterIds = after.program.days.flatMap((d) => d.slots.map((x) => (x.variants[0] || {}).exId));
+  check(JSON.stringify(before) !== JSON.stringify(afterIds),
+    're-test check: going from 8 to 45 push-ups and 2 to 12 pull-ups rebuilt an identical programme');
+  check(/עלית רמה ב/.test(await pg.$eval('#app', (n) => n.textContent)),
+    're-test check: the numbers moved but nothing on screen said what they bought');
+  check(await pg.locator('.callout.warn:has-text("מדידה מחדש")').count() === 0,
+    're-test check: the card is still asking after it was answered');
+
+  /*
+   * And the same numbers again — the case the design is built around.
+   *
+   * Nothing is rebuilt when nothing moved, on purpose, so this path never
+   * re-renders the app. Which is how it shipped broken the first time: the
+   * tracking screen closes over the profile it was handed, so a re-test that
+   * changed no levels updated storage and left the card on screen still saying
+   * the numbers were four weeks old. The trainee measured, submitted, and was
+   * asked again by the same card.
+   */
+  await backdate(30);
+  await pg.reload({ waitUntil: 'networkidle' });
+  await pg.waitForTimeout(400);
+  await pg.locator('.tabs button:has-text("מעקב")').first().click();
+  await pg.waitForTimeout(400);
+  /*
+   * Marked rather than diffed.
+   *
+   * The first version of this compared the exercise IDs before and after and
+   * asserted they matched — which proves nothing, because generateProgram is
+   * deterministic and the same numbers produce the same programme whether or
+   * not it was rebuilt. Forcing the rebuild branch left the check green. This
+   * stamps a node inside #app instead: renderApp() clears that subtree, so the
+   * mark surviving IS the claim, directly observed.
+   */
+  await pg.evaluate(() => {
+    const m = document.createElement('span');
+    m.id = 'smoke-render-mark';
+    m.style.display = 'none';
+    document.querySelector('#app').appendChild(m);
+  });
+  await pg.fill('#retest-pushups', '45');
+  await pg.locator('button:has-text("עדכן ובנה מחדש")').first().click();
+  await pg.waitForTimeout(600);
+
+  check(await pg.locator('#retest-pushups').count() === 0,
+    're-test check: re-declaring the same numbers left the card on screen — the trainee measured, '
+    + 'answered, and is being asked again by the form they just submitted');
+  const same = await state();
+  check(Date.now() - Date.parse(same.profile.benchmarksAt) < 5 * 60 * 1000,
+    're-test check: an unchanged measurement did not restart the clock');
+  check(await pg.locator('#smoke-render-mark').count() === 1,
+    're-test check: re-declaring identical numbers tore down and rebuilt the whole app — measuring '
+    + 'and finding out nothing changed should not cost the trainee their screen');
+
+  /*
+   * And the way back in for somebody who skipped the questions.
+   *
+   * The four number fields existed only inside the questionnaire, so a trainee
+   * who declined them and later learned their push-up count had no way to tell
+   * the app short of redoing all ten steps. Simulated by clearing the numbers in
+   * storage rather than by driving the wizard past them, because fillStep fills
+   * every empty number field it finds — the harness cannot skip a question.
+   */
+  await pg.evaluate((k) => {
+    const s = JSON.parse(window.localStorage.getItem(k));
+    s.profile.benchmarks = { pushups: null, pullups: null, plankSec: null, dips: null };
+    s.profile.benchmarksAt = null;
+    s.ui.retestSnoozeAt = null;
+    window.localStorage.setItem(k, JSON.stringify(s));
+  }, KEY);
+  await pg.reload({ waitUntil: 'networkidle' });
+  await pg.waitForTimeout(400);
+  await pg.locator('.tabs button:has-text("מעקב")').first().click();
+  await pg.waitForTimeout(400);
+  check(await pg.locator('#retest-pushups').count() > 0,
+    're-test check: a trainee who gave no numbers has no way to enter them after the questionnaire');
+  check(await pg.locator('.callout:has-text("כוונון לפי מספרים")').count() > 0,
+    're-test check: the offer to somebody who never measured is missing or mislabelled');
+  check(await pg.locator('button:has-text("לא עכשיו")').count() === 0,
+    're-test check: the offer carries a "not now" — there is nothing to postpone, and hiding an '
+    + 'invitation that never nagged only removes the entry point');
+  await pg.fill('#retest-pushups', '30');
+  await pg.locator('button:has-text("כוונן לפי המספרים")').first().click();
+  await pg.waitForTimeout(700);
+  const opted = await state();
+  check(opted.profile.benchmarks.pushups === 30,
+    're-test check: the first-time offer did not store the number');
+  check(!!opted.profile.benchmarksAt,
+    're-test check: the first-time offer left no stamp, so the four-week cycle never starts');
+
+  check(errs.length === 0, `re-test check: page errors — ${errs.slice(0, 3).join(' | ')}`);
+  await ctx.close();
 }
 
 /*

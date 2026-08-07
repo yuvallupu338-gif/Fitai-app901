@@ -7,6 +7,7 @@
 import { h, signedNum } from '../core/dom.js';
 import { buildPhases, progressionModel, projectTargets } from '../engine/progression.js';
 import { assessGoal, commitmentNote } from '../engine/targets.js';
+import { RETEST_DAYS, hasBenchmarks, daysUntilRetest } from '../engine/benchmarks.js';
 import * as store from '../core/store.js';
 
 const GROUP_HE = {
@@ -123,6 +124,27 @@ export function renderGuide(root, program, profile) {
         model.cards.map((c) => h('div.card',
           c.k ? h('span.k', c.k) : null, h('h4', c.title), h('p', c.body)))));
     }
+  }
+
+  /*
+   * When the exercise levels get re-decided.
+   *
+   * This tab explains the plan to its owner, and the fact that it re-decides
+   * itself belonged here: somebody who thinks the levels were set once has no
+   * reason to read the prompt four weeks later as anything but busywork.
+   *
+   * Only the cadence, not which numbers were read — benchmarkNote() already
+   * says that, and generator.js puts it in program.notes where the plan tab
+   * shows it. Repeating the same paragraph on two screens is the sort of thing
+   * that makes an app feel like it is padding.
+   */
+  if (safe(() => hasBenchmarks(profile), false)) {
+    const left = safe(() => daysUntilRetest(profile), null);
+    view.appendChild(h('p.note', { style: { marginTop: '14px' } }, left === null
+      ? `המספרים שהרמות נקבעו מהם בני יותר מ־${RETEST_DAYS} יום. בלשונית "מעקב" יש טופס קצר `
+        + 'למדוד מחדש, ומשם הרמות מתעדכנות.'
+      : `כל ${RETEST_DAYS} יום אני מבקש את המספרים שוב ומעדכן את הרמות — `
+        + `המדידה הבאה בעוד ${left} ימים.`));
   }
 
   /* ---- phases ---- */

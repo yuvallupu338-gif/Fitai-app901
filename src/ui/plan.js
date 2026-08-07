@@ -6,14 +6,16 @@
 import { h, clear, announce } from '../core/dom.js';
 import { exerciseCard, releaseAll } from './exercise.js';
 import { restDayTasks, restNote } from '../engine/restday.js';
+import { retestBanner } from './retest.js';
 import * as store from '../core/store.js';
 
 const LETTERS = ['א', 'ב', 'ג', 'ד', 'ה', 'ו', 'ש'];
 const NAMES = ['ראשון', 'שני', 'שלישי', 'רביעי', 'חמישי', 'שישי', 'שבת'];
 const TIME_HE = { morning: 'בוקר', noon: 'צהריים', evening: 'ערב' };
 
-export function renderPlan(root, program, profile) {
+export function renderPlan(root, program, profile, opts) {
   const view = h('section');
+  const o = opts || {};
   root.appendChild(view);
 
   function draw() {
@@ -44,6 +46,17 @@ export function renderPlan(root, program, profile) {
     view.appendChild(weekStrip(program, active, activeRest, pickDay, pickRest));
 
     view.appendChild(weekFoot(program, profile));
+
+    /*
+     * The four-week re-test prompt. It sits on this tab because this is where
+     * everybody lands; the form itself is in the tracking tab, which is where a
+     * measurement belongs. Wrapped in a try because a prompt is never worth
+     * taking the session down for.
+     */
+    try {
+      const nudge = retestBanner(profile, st.ui, () => { if (o.onGoTo) o.onGoTo('progress'); });
+      if (nudge && o.onGoTo) view.appendChild(nudge);
+    } catch (e) { console.error(e); }
 
     if (activeRest !== null) {
       view.appendChild(restDayView(program, profile, activeRest, draw));

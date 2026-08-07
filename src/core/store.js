@@ -79,6 +79,8 @@ const EMPTY = {
     activeDay: 0,        // index into program.days
     restDayMeals: false,
     tab: 'plan',         // 'plan' | 'nutrition' | 'progress' | 'guide'
+    retestSnoozeAt: null, // ISO stamp of a "not now" on the four-week re-test
+    retestMoved: null,    // retestDelta() result, read once by the tracking tab
   },
   picks: {},             // "dayId:slotKey" -> variant index
   overrides: {},         // "dayId:slotKey" -> Prescription, from "too easy"/"too hard"

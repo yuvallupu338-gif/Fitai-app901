@@ -139,8 +139,15 @@ function build(profile) {
  * keeps startedAt, the completion ticks, the logged sets and the weight history:
  * the person did that work, and a change of emphasis is not a reason to erase it.
  */
-function rebuild(profile) {
+function rebuild(profile, opts) {
   const p = normalizeProfile(profile);
+  /*
+   * keepTab is for a rebuild the trainee started somewhere other than the plan
+   * — the four-week re-test lives in the tracking tab, and throwing them to a
+   * different screen the moment they submit hides the sentence saying what
+   * their new numbers changed.
+   */
+  const keepTab = !!(opts && opts.keepTab);
   try {
     const program = generateProgram(p);
     const nutrition = p.wantsNutrition ? nutritionPlan(p) : null;
@@ -148,7 +155,7 @@ function rebuild(profile) {
       profile: p,
       program,
       nutrition,
-      ui: Object.assign({}, store.get().ui, { tab: 'plan', activeDay: 0 }),
+      ui: Object.assign({}, store.get().ui, keepTab ? {} : { tab: 'plan', activeDay: 0 }),
     });
     renderApp();
     announce('התוכנית נבנתה מחדש');
@@ -223,7 +230,7 @@ function renderApp() {
     store.set({ ui: Object.assign({}, store.get().ui, { tab }) });
 
     try {
-      if (tab === 'plan') renderPlan(body, program, profile);
+      if (tab === 'plan') renderPlan(body, program, profile, { onGoTo: (t) => show(t) });
       else if (tab === 'nutrition' && nutrition) renderNutrition(body, nutrition, profile);
       else if (tab === 'scan') {
         renderScanTab(body, Object.assign({}, profile), {
@@ -234,7 +241,12 @@ function renderApp() {
           onRebuild: (next) => rebuild(next),
         });
       } else if (tab === 'guide') renderGuide(body, program, profile);
-      else if (tab === 'progress') renderProgress(body, program, profile);
+      else if (tab === 'progress') {
+        renderProgress(body, program, profile, {
+          onProfileChange: (next) => store.set({ profile: normalizeProfile(next) }),
+          onRebuild: (next, o) => rebuild(next, o),
+        });
+      }
     } catch (e) {
       console.error(e);
       body.appendChild(h('p.empty', 'לא הצלחתי להציג את המסך הזה. נסה מסך אחר.'));

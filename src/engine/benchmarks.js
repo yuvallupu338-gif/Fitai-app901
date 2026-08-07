@@ -96,6 +96,114 @@ export function hasBenchmarks(profile) {
   return Object.keys(LADDERS).some((k) => repsOf(profile, k) !== null);
 }
 
+/*
+ * How long a set of numbers stays believable.
+ *
+ * Four weeks is short enough that a beginner's push-ups have moved — they gain
+ * fastest at the start, which is exactly when a stale number costs the most —
+ * and long enough that re-testing is not itself the training. It also lands on
+ * the deload cadence, so the week somebody is told to back off is the week they
+ * are asked to measure.
+ *
+ * Counted in days rather than in programme weeks on purpose. currentWeek() is
+ * derived from startedAt and keeps counting whether or not anybody trained; a
+ * trainee who did nothing for a fortnight should not be asked to re-test on a
+ * schedule that pretended they did. Days since the numbers were last recorded
+ * is the honest clock.
+ */
+export const RETEST_DAYS = 28;
+
+const DAY_MS = 24 * 60 * 60 * 1000;
+
+/** Days since the trainee last recorded their numbers, or null if never. */
+export function daysSinceBenchmarks(profile, now) {
+  const at = profile && profile.benchmarksAt;
+  if (!at) return null;
+  const t = Date.parse(at);
+  if (!Number.isFinite(t)) return null;
+  const ms = (now === undefined ? Date.now() : now) - t;
+  return Math.max(0, Math.floor(ms / DAY_MS));
+}
+
+/**
+ * True when it is time to ask for the numbers again.
+ *
+ * Never true for somebody who gave none in the first place: the app should not
+ * open by nagging for a re-test of a measurement that was skipped. They are
+ * asked at the start, and if they declined, the tier carries the plan. The
+ * tracking tab still keeps a quiet, unprompted way in for them — declining is
+ * not the same as being locked out — but that is an offer, not this.
+ */
+export function retestDue(profile, now) {
+  if (!hasBenchmarks(profile)) return false;
+  const days = daysSinceBenchmarks(profile, now);
+  /*
+   * Numbers with no stamp are of unknown age, and unknown is not fresh. Every
+   * profile built before this cycle existed is in exactly that state — it has
+   * four numbers and nothing saying when they were true — so returning false
+   * here would mean every trainee already using the app is never asked again.
+   * Asking once costs a card; the answer starts the clock properly.
+   */
+  if (days === null) return true;
+  return days >= RETEST_DAYS;
+}
+
+/** Days remaining until the next re-test, or null when it is already due. */
+export function daysUntilRetest(profile, now) {
+  if (!hasBenchmarks(profile)) return null;
+  const days = daysSinceBenchmarks(profile, now);
+  if (days === null) return null;
+  return days >= RETEST_DAYS ? null : RETEST_DAYS - days;
+}
+
+/*
+ * How long "not now" lasts.
+ *
+ * A prompt with no way to decline is a prompt that gets answered with a guess,
+ * and a guessed push-up count is worse than a stale real one — the whole point
+ * of reading these numbers is that they are measured. So declining is allowed,
+ * and it has to actually stop the asking or it is not a decline.
+ *
+ * A week, not forever: the trainee is being asked to find ten minutes and a
+ * floor, which is a scheduling problem rather than a refusal, and the answer to
+ * "not today" is usually "next week" rather than "never".
+ */
+export const RETEST_SNOOZE_DAYS = 7;
+
+/** True when a "not now" from this timestamp has run out (or never happened). */
+export function snoozeExpired(snoozedAt, now) {
+  if (!snoozedAt) return true;
+  const t = Date.parse(snoozedAt);
+  if (!Number.isFinite(t)) return true;
+  const at = now === undefined ? Date.now() : now;
+  /* A stamp from the future is a broken clock or an edited backup, not a
+     snooze that lasts until then. */
+  if (t > at) return true;
+  return at - t >= RETEST_SNOOZE_DAYS * DAY_MS;
+}
+
+/**
+ * What changes if these new numbers are accepted, per pattern.
+ *
+ * Returned rather than applied, so the trainee can be shown what a re-test
+ * bought before their plan is rewritten — and so nothing moves if the answer is
+ * that nothing moved. The commonest honest outcome of a re-test is "the same",
+ * and an app that rebuilds the whole week to say so is an app that punishes
+ * measuring.
+ */
+export function retestDelta(profile, nextBenchmarks) {
+  const after = Object.assign({}, profile, {
+    benchmarks: Object.assign({}, profile.benchmarks, nextBenchmarks),
+  });
+  const moved = [];
+  for (const pattern of Object.keys(SPEAKS_FOR)) {
+    const before = demonstratedLevel(profile, pattern);
+    const now = demonstratedLevel(after, pattern);
+    if (before !== now && now !== null) moved.push({ pattern, from: before, to: now });
+  }
+  return moved;
+}
+
 /**
  * A short Hebrew line naming what the app read, for the plan's own notes.
  *

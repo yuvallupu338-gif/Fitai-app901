@@ -6,17 +6,33 @@
 import { h, clear, announce, signedNum } from '../core/dom.js';
 import { weeklyPlanNote, progressionModel } from '../engine/progression.js';
 import { withholdsBodyNumbers } from '../engine/age.js';
+import { retestCard, retestSummary } from './retest.js';
 import * as store from '../core/store.js';
 
-export function renderProgress(root, program, profile) {
+export function renderProgress(root, program, profile, opts) {
   const view = h('section');
+  const o = opts || {};
   root.appendChild(view);
+
+  /* Survives a redraw so the "what changed" line is still there after the
+     numbers are saved and the card has gone. */
+  let lastMoved = null;
+
+  /*
+   * The profile can change under this screen without a rebuild. A re-test whose
+   * numbers moved no levels updates the stamp and nothing else — deliberately,
+   * so measuring and finding out you are where you were does not tear down the
+   * week. But draw() closes over the profile it was handed, so reading that one
+   * meant the card the trainee had just answered was still on screen, still
+   * saying the numbers were four weeks old.
+   */
+  let live = profile;
 
   function draw() {
     clear(view);
     const st = store.get();
     const week = store.currentWeek();
-    const model = safe(() => progressionModel(profile), null);
+    const model = safe(() => progressionModel(live), null);
     const isDeload = model && model.deloadEveryWeeks
       ? week % model.deloadEveryWeeks === 0 : false;
 
@@ -24,7 +40,7 @@ export function renderProgress(root, program, profile) {
     // why: they are still growing, so the number is supposed to rise. This tab
     // used to open with the opposite instruction and hand them a button for it.
     // Same plan, same screen-full, two contradicting answers.
-    const noBodyNumbers = withholdsBodyNumbers(profile);
+    const noBodyNumbers = withholdsBodyNumbers(live);
 
     view.appendChild(h('h3', 'מעקב'));
     view.appendChild(h('p.lead', noBodyNumbers
@@ -44,7 +60,44 @@ export function renderProgress(root, program, profile) {
       isDeload ? stat('דילואד', 'סוג השבוע', true) : null,
     ));
 
-    const note = safe(() => weeklyPlanNote(profile, week), '');
+    /* ---- four-week re-test ---- */
+    /*
+     * A rebuild re-runs renderApp from scratch, so a local variable cannot
+     * carry the result of the submit across it. The moved list is parked in
+     * ui, read once and cleared — the trainee measured, and the screen has to
+     * say what it bought rather than silently swap their exercises.
+     */
+    if (lastMoved === null && st.ui.retestMoved) {
+      lastMoved = st.ui.retestMoved;
+      store.set({ ui: Object.assign({}, store.get().ui, { retestMoved: null }) });
+    }
+    if (lastMoved) view.appendChild(retestSummary(lastMoved));
+
+    const card = safe(() => retestCard(live, st.ui, {
+      onApply: (next, moved) => {
+        /*
+         * Nothing is rebuilt when nothing moved. The commonest honest result
+         * of a re-test is "the same numbers", and an app that tears down the
+         * week to announce that is an app that charges you for measuring.
+         */
+        if (!moved.length) {
+          lastMoved = [];
+          live = next;
+          if (o.onProfileChange) o.onProfileChange(next);
+          draw();
+          return;
+        }
+        store.set({ ui: Object.assign({}, store.get().ui, { retestMoved: moved }) });
+        if (o.onRebuild) o.onRebuild(next, { keepTab: true });
+      },
+      onSnooze: () => {
+        store.set({ ui: Object.assign({}, store.get().ui, { retestSnoozeAt: new Date().toISOString() }) });
+        draw();
+      },
+    }), null);
+    if (card) view.appendChild(card);
+
+    const note = safe(() => weeklyPlanNote(live, week), '');
     if (note) view.appendChild(h('p.focus', { style: { marginTop: '18px' } }, note));
 
     /* ---- weight entry ---- */
@@ -57,7 +110,7 @@ export function renderProgress(root, program, profile) {
 
       const input = h('input', {
         type: 'number', inputmode: 'decimal', step: '0.1', min: '20', max: '300',
-        placeholder: String(profile.weightKg || ''),
+        placeholder: String(live.weightKg || ''),
       });
       view.appendChild(h('div.logrow', { style: { marginTop: '10px' } },
         input,
@@ -75,7 +128,7 @@ export function renderProgress(root, program, profile) {
       ));
 
       if (st.weights.length >= 2) {
-        view.appendChild(sparkline(st.weights, profile.targetWeightKg));
+        view.appendChild(sparkline(st.weights, live.targetWeightKg));
         const first = st.weights[0];
         const last = st.weights[st.weights.length - 1];
         const delta = last.kg - first.kg;
