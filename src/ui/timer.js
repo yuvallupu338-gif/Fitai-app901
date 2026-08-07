@@ -13,8 +13,7 @@
  * come back a minute short at exactly the moment the number has to be trusted.
  */
 
-import { h, announce } from '../core/dom.js';
-import { reduceMotion } from '../core/anim.js';
+import { h, announce, reduceMotion } from '../core/dom.js';
 
 const NS = 'http://www.w3.org/2000/svg';
 

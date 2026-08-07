@@ -12,6 +12,7 @@
 
 import { makeSvg, renderScene, lerpPose } from './rig.js';
 import { EASE } from './poses.js';
+import { reduceMotion } from './dom.js';
 
 /* ------------------------------------------------------------------ *
  * Motion curves
@@ -143,10 +144,6 @@ export function repKeys(rest, far, hold, opts) {
 const players = new Set();
 let rafId = 0;
 let globalPaused = false;
-
-const reduceMotion = typeof window !== 'undefined' && window.matchMedia
-  ? window.matchMedia('(prefers-reduced-motion: reduce)')
-  : { matches: false };
 
 let io = null;
 function observer() {

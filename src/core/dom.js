@@ -130,6 +130,21 @@ export function shrinkImage(file, maxPx, quality) {
 
 let liveRegion = null;
 /** Announce a message to screen readers without moving focus. */
+/*
+ * Whether the reader has asked the system for less movement.
+ *
+ * It lives here rather than in anim.js, where it was, because of what importing
+ * it costs. anim.js pulls in rig.js for the skeleton and poses.js for the easing
+ * table, so the rest timer — which wanted this to decide between repainting four
+ * times a second and once — was dragging 1,159 lines of inverse kinematics into
+ * every build to ask a media query a question.
+ *
+ * anim.js reads it from here now, so there is still one of it.
+ */
+export const reduceMotion = typeof window !== 'undefined' && window.matchMedia
+  ? window.matchMedia('(prefers-reduced-motion: reduce)')
+  : { matches: false };
+
 export function announce(msg) {
   if (!liveRegion) {
     liveRegion = h('div', { class: 'sr-only', 'aria-live': 'polite', 'aria-atomic': 'true' });
