@@ -128,33 +128,31 @@ of this app that most needed to not be clever: somebody who has never done a
 scapular pull wants to watch a person do one, and a search result does that
 better than anything generated here did.
 
-What it replaced is still in the repository, and the honest description of it is
-that it is no longer wired to anything. `src/core/rig.js` is a humanoid skeleton
-with two-link inverse kinematics, `src/data/clips.*.js` is 11,000 lines of
-keyframed poses, and together they animated every exercise as an SVG figure with
-no download weight and no network. It worked, the audits that cover it still
-pass, and no screen draws it.
+What it replaced is gone from the repository, not merely unwired. `rig.js` was a
+humanoid skeleton with two-link inverse kinematics, `poses.js` a base-pose
+library, `anim.js` a shared requestAnimationFrame player, and `clips.*.js` some
+11,000 lines of keyframed poses that animated every exercise as an SVG figure
+with no download weight and no network. With the two audits that covered them and
+the clip-assignment map, that is 14,500 lines deleted.
 
-That is a deliberate state, not an oversight, and it has one practical
-consequence worth knowing: the animation modules are **not in the bundle**.
-`tools/build-single.js` walks the import graph from `src/app.js`, so anything
-unreachable from there is simply absent — the single file is 966 KB rather than
-1,008 KB because of it. What is still checked in and still audited is not
-therefore shipped, and `grep` on `dist/fitai.html` settles which is which faster
-than reading this paragraph.
+It worked, and it is worth being clear that it was not deleted for being broken.
+It was deleted because nothing drew it any more, and code that nothing draws
+still has to be read, kept compiling and kept honest by its audits every time
+something near it changes. The `anim` field came off all 269 exercises and out of
+the two engine modules that were still copying it into every prescription
+nobody read.
 
-The trap in that arrangement is a transitive import. `reduceMotion` — one
-`matchMedia` call — lived in `anim.js`, which imports `rig.js` for the skeleton
-and `poses.js` for the easing table, so the rest timer asking whether to repaint
-four times a second or once was pulling 1,159 lines of inverse kinematics into
-every build. It lives in `dom.js` now. Anything that wants a small utility out of
-the animation modules should move the utility, not reach for it.
+The history has it if it is ever wanted back: `git log -- src/core/rig.js`.
+Reviving it means restoring those files and importing the player in
+`src/ui/exercise.js`, which is where it was removed from.
 
-`docs/clip-assignments.json` still maps exercises to clips, `clip-audit.mjs`
-still checks their geometry, and `motion-audit.mjs` still checks they move.
-Deleting the lot is a reasonable decision and has not been taken; reviving it
-means importing the player from `src/ui/exercise.js` again, which is where it
-was removed from.
+One thing left behind is worth knowing, because it is the general shape of the
+trap. `reduceMotion` — a single `matchMedia` call asking whether the reader wants
+less movement — lived in `anim.js`, which imported `rig.js` and `poses.js`. The
+rest timer wanted it to decide between repainting four times a second and once,
+and was pulling 1,159 lines of inverse kinematics into every build to ask. It
+lives in `dom.js` now. Move a small utility out; do not reach into a large module
+for it.
 
 **Autoregulation** — every exercise carries "too easy" and "too hard" controls
 that move it up or down a rung and remember the choice. The step searches the
@@ -182,8 +180,8 @@ background, and there is no server of ours in the path.
 ```
 index.html
 src/
-  core/      store, dom helpers, brand — and the unwired rig, player and poses
-  data/      exercise database, warm-up demands, animation clips, registries
+  core/      store, dom helpers, brand
+  data/      exercise database, warm-up demands, and their registries
   engine/    volume, generator, progression, targets, nutrition, rest days, age
   intake/    question schema and validation
   ai/        provider table, the network client, and the free-text intake reader
@@ -192,8 +190,6 @@ src/
   styles/    design tokens and components
 tools/
   validate.js       cross-checks the data and engine layers
-  clip-audit.mjs    geometry, loops and distinctiveness of the animations
-  motion-audit.mjs  that a clip actually moves the joints it claims to
   vision-audit.mjs  proves a photo scan cannot break the engine's rules
   ai-audit.mjs      provider request shapes, and that a filled form stays legal
   smoke.mjs         drives the real app in Chromium
@@ -207,16 +203,14 @@ docs/
 
 ```bash
 node tools/validate.js                                  # data + engine contracts
-node tools/clip-audit.mjs                               # animation quality
-node tools/motion-audit.mjs                             # clips actually move
 node tools/vision-audit.mjs                             # photo-scan containment
 node tools/ai-audit.mjs                                 # providers + intake containment
 node tools/build-single.js                              # single-file bundle
 NODE_PATH=/opt/node22/lib/node_modules node tools/smoke.mjs --shots
 ```
 
-`validate.js` verifies exercise ids, animation references, equipment tokens and
-injury tags, then generates programs for four deliberately awkward profiles —
+`validate.js` verifies exercise ids, equipment tokens, injury tags and warm-up
+demands, then generates programs for four deliberately awkward profiles —
 including a 30-minute bodyweight session for someone with a bad back, a bad knee
 and a bad shoulder — and asserts each one is coherent and deterministic.
 
@@ -234,16 +228,6 @@ reappears in a ninety-year-old's warm-up while a table-driven check reports
 everything is fine. Every one of them has been watched fail on a deliberate
 mutation before being trusted; several caught bugs in their own fix.
 
-`clip-audit.mjs` samples every animation across its cycle and rejects joints
-that leave the canvas or pass through the floor, loops that jump, and clips that
-merely copy the family clip they were meant to replace — where "copy" means the
-same motion AND the same equipment, since a ring pull-up legitimately moves the
-body exactly like a bar pull-up. It also rejects a clip that poses a limb by
-joint angle in one key and by IK target in the next: the interpolator can only
-blend a field present in both, so it swaps at the midpoint and the limb
-teleports. That one is invisible to every other check and had been shipping in
-fifteen clips.
-
 `vision-audit.mjs` drives the photo-scan normaliser with garbage, hostile values
 and injection attempts, then asserts that the most aggressive read the schema
 allows still cannot add equipment, undo an injury filter, change the training
@@ -256,20 +240,23 @@ needs eyes, and that a hostile intake patch still yields a program with no
 equipment the user lacks and nothing contraindicated for a declared injury.
 
 `smoke.mjs` walks the intake wizard in a real browser, then checks that the plan
-renders, that the rig draws finite on-canvas geometry, that the figures actually
-move, and that swapping and ticking survive a reload.
+renders, that every exercise card carries a YouTube link pointing at the right
+search and opening away from the app, that the detail sheet still opens from the
+exercise name, that the age floor holds where a trainee meets it, and that
+swapping and ticking survive a reload.
 
-None of them is sufficient alone. An animation can pass every measurement and still
-be unrecognisable — a hip thrust that reads as someone lying on a bench passes
-geometry, loop and distinctiveness checks without complaint. Render the clips
-and look at them before believing the tools.
+None of them is sufficient alone, and the gap is not the kind a tool closes. A
+plan can satisfy every rule here and still be wrong for the person holding it —
+the right sets of the right movement in an order nobody would coach, or a
+sensible week that reads as a wall of text on a phone. Open it and use it before
+believing the tools.
 
 ## Adding to the exercise library
 
 Add an entry to the right file in `src/data/exercises.*.js` following the shape
-in `docs/CONTRACTS.md`. Set `anim` to an existing clip id, or leave it as the
-movement pattern name — every pattern has a generic fallback clip, so the audits
-stay green even though nothing currently draws them.
+in `docs/CONTRACTS.md`. Nothing needs drawing — the exercise card links to a
+YouTube search built from the Hebrew and English names, so a new movement is
+demonstrable the moment it has a name.
 
 A warm-up drill needs one more thing. Tag it `warmup` and give it an entry in
 `src/data/demands.js`, which says what the movement asks of a body apart from

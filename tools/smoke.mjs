@@ -3,8 +3,8 @@
  * smoke.mjs — drives the real app in a real browser.
  *
  * Walks the intake wizard by filling whatever fields each step declares, then
- * asserts the generated plan actually renders: tabs, exercise cards, live SVG
- * figures with finite coordinates, swap and tick behaviour, and every tab.
+ * asserts the generated plan actually renders: tabs, exercise cards, the YouTube
+ * demo links, the age floor, swap and tick behaviour, and every tab.
  *
  * Usage:
  *   node tools/smoke.mjs                 # serves the repo and tests index.html
@@ -214,7 +214,6 @@ async function main() {
   /* ---- welcome ---- */
   const welcome = await page.$('h1');
   check(!!welcome, 'welcome screen did not render an h1');
-  const demoFigures = await page.$$('.anim svg');
   if (SHOTS) await page.screenshot({ path: join(SHOT_DIR, '1-welcome.png'), fullPage: true });
 
   const start = await page.$('.btn.primary');

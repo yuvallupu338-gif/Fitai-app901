@@ -1416,7 +1416,6 @@ export function generateProgram(profile) {
           unit: ex.unit,
           unilateral: !!ex.unilateral,
           note,
-          anim: ex.anim,
           muscles: (ex.muscles.primary || []).slice(),
         };
       });
@@ -1461,7 +1460,6 @@ export function generateProgram(profile) {
             unit: ex.unit,
             unilateral: !!ex.unilateral,
             note: noteFor(p, ex, slot, rescue.risky),
-            anim: ex.anim,
             muscles: (ex.muscles.primary || []).slice(),
           }],
         });

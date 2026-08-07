@@ -106,13 +106,21 @@ Every exercise object, in every `src/data/exercises.*.js` file:
   unilateral: Boolean,          // true if prescribed "per side"
   contraindications: [String],  // INJURY TAGS this exercise stresses
   cues: [String],               // 1..3 short Hebrew coaching cues
-  anim: String,                 // clip id — MUST exist in a clips module,
-                                //   or be a PATTERN name for the generic fallback
   regressionOf: String|null,    // id of the harder variant, if any
   progressionTo: String|null,   // id of the next harder variant, if any
   tags: [String]                // free: 'compound','isolation','explosive','skill','warmup','finisher','cardio'
 }
 ```
+
+A drill tagged `warmup` needs one thing more: an entry in `src/data/demands.js`,
+either under `DEMANDS` with what it asks of a body beyond injury — `impact`,
+`floor`, `deep_knee`, `hang`, `balance` — or in `PLAIN_STANDING` if it asks
+nothing. `contraindications` says whether a movement hurts a part that already
+hurts; it says nothing about whether a healthy seventy-eight-year-old should be
+doing it, which is what the generator needs in order to build a warm-up that
+suits an age. `validate.js` requires every warm-up drill to appear in one list or
+the other, so "fine for anybody" is a decision somebody made rather than the
+default a new drill falls into by nobody looking.
 
 ### PATTERNS
 
@@ -143,85 +151,7 @@ Every exercise object, in every `src/data/exercises.*.js` file:
 
 ---
 
-## 3. Animation clips
-
-Every `src/data/clips.*.js` file exports a map of `clipId -> clip`.
-
-```js
-{
-  id: 'pushup',
-  duration: 2600,        // ms for one full cycle
-  ground: true,          // false for hanging clips (feet legitimately go below the floor)
-  hero: 0.0,             // normalised time of the "poster" frame (used when motion is reduced)
-  ease: 'inOut',         // default motion curve between keys — see CURVE in src/core/anim.js:
-                         //   'linear' | 'in' | 'out' | 'inOut'  generic
-                         //   'grind'      concentric with a sticking point: fast off the
-                         //                bottom, slowest through the MIDDLE, fast to lockout
-                         //   'settle'     lockout that overshoots ~4% and settles back
-                         //   'anticipate' loads ~4% backwards before it goes
-  props: [ ... ],        // see PROPS
-  keys: [
-    { t: 0,    pose: {...} },
-    { t: 0.45, pose: {...}, ease: 'out' },   // per-key override, applies to the segment ENDING here
-    { t: 1,    pose: {...} }                 // t:1 pose SHOULD equal the t:0 pose for a clean loop
-  ]
-}
-```
-
-- `t` values ascend, start at 0, end at 1.
-- Build poses with `p(BASE, {overrides})` from `src/core/poses.js`. Do not
-  hand-write every joint.
-- Build the KEYS of an ordinary rep with `repKeys(rest, far, hold, opts)` from
-  `src/core/anim.js` rather than writing `[rest, far, hold, rest]` by hand. It
-  gives the eccentric more time than the concentric, puts a key inside each
-  half, lags the spine behind the pelvis (`lag`) and bows the hand path off the
-  chord (`arc`). `opts.mode` says which half is the concentric: `'lower'` starts
-  at lockout (push-up, squat, bench), `'lift'` starts at the stretch (row, curl,
-  pull-up, calf raise).
-- **Angle continuity:** interpolation is linear on raw numbers. If a limb sits
-  near ±180, keep the sign consistent across all keys of the clip.
-- Pin hands and feet with IK targets (`handL: {x, y, bend}`) whenever they touch
-  something — a bar, the floor, a bench. FK arrays are for free-floating limbs.
-- **`bend` never changes inside a clip.** It selects WHICH of the two IK
-  solutions a joint uses, and `lerpPose` copies it from the first key of a
-  segment instead of interpolating it, so a different value on a later key makes
-  the joint snap to the other solution rather than blend towards it.
-- **`spread` never changes inside a clip either.** It is a camera choice, not a
-  joint: interpolating it rotates the figure between profile and head-on
-  mid-rep, which is a cut, not a movement.
-- What a foot PINS is its ankle; what the viewer sees touching the ground is the
-  toe, 6.5 units away at whatever angle `footL`/`footR` sets. They coincide only
-  for a flat foot. `node tools/clip-audit.mjs` checks all of the above.
-- Read `src/core/rig.js` and `src/core/poses.js` before writing clips. The
-  coordinate system, the base pose library and the IK helper are all documented
-  there.
-
-### PROPS catalogue
-
-```js
-{ type:'bar',      x, y, w, posts }         // pull-up bar; posts:false hides uprights
-{ type:'dipbars',  x, y, w, gap }
-{ type:'wall',     x, y0, y1 }
-{ type:'bench',    x, y, w, h, legs }
-{ type:'box',      x, y, w, h }
-{ type:'rings',    x, y, w, y0 }            // y = ring centre height
-{ type:'band',     x0, y0, x1, y1, sag }
-{ type:'machine',  x, y, w, h }
-{ type:'mat',      x, w }
-```
-
-Loads held in the hands are set on the **pose**, not the props:
-`pose.load = 'dumbbell' | 'kettlebell' | 'barbell' | 'plate'`.
-
-### Required generic clips
-
-`clips.index.js` resolves `exercise.anim` first as a clip id, then as a pattern
-name. Therefore a clip must exist for **every pattern name** listed above. These
-generic clips are owned by the legs/core agent (see task briefs).
-
----
-
-## 4. Engine modules
+## 3. Engine modules
 
 ### `src/engine/volume.js`
 
@@ -287,7 +217,6 @@ Slot = {
 Prescription = {
   exId, name, nameEn, sets, reps, rest, tempo|null, level, unit, unilateral,
   note: String,                // Hebrew — one line of why/how
-  anim: String,
   muscles: [String]
 }
 ```
@@ -303,7 +232,7 @@ Hard requirements:
 - Session slot count must fit `sessionBudget().maxSlots`.
 - Deterministic: same profile in → same program out. **No `Math.random()`.**
   Use a seeded shuffle keyed off a hash of the profile if you need variety.
-- Every `variants` array is non-empty; every `anim` resolves.
+- Every `variants` array is non-empty.
 
 ### `src/engine/progression.js`
 
@@ -400,7 +329,7 @@ availability → equipment/location → limitations → current state → nutrit
 
 ---
 
-## 5. Style
+## 4. Style
 
 Design tokens live in `src/styles/tokens.css` and mirror the reference document:
 night `#0E1520`, steel `#182435`, line `#2C3D57`, chalk `#EAF0F8`,
@@ -408,11 +337,11 @@ dim `#8298B4`, amber `#FFB13C`, cyan `#56D9CE`.
 Fonts: `Secular One` (display), `Assistant` (body), `IBM Plex Mono` (numbers).
 Do not introduce new colours in engine or data modules — they emit data, not markup.
 
-## 6. Self-check before you finish
+## 5. Self-check before you finish
 
 ```
 node --check <your-file>
 node --input-type=module -e "import('./<your-file>').then(m=>console.log(Object.keys(m)))"
 ```
-Then run `node tools/validate.js` if it exists — it cross-checks ids, anim
-references, equipment tokens and required exports.
+Then run `node tools/validate.js` if it exists — it cross-checks ids, equipment
+tokens, injury tags, warm-up demands and required exports.
