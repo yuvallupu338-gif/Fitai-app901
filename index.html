@@ -1012,8 +1012,8 @@ function passwordStrength(value) {
 
 /* ---------- הרשמה ---------- */
 /**
- * ההרשמה מבקשת רק את ההכרחי: שם, שם משתמש וסיסמה שהמשתמש ממציא.
- * העיר נבחרת מאוחר יותר בהגדרות הפרופיל, וההפיכה לבעל עסק נעשית משם.
+ * הרשמה בשני שדות: שם וסיסמה שהמשתמש ממציא.
+ * שם המשתמש נגזר מהשם במסד ומוצג למשתמש, כי איתו הוא יתחבר בפעם הבאה.
  */
 function screenRegister() {
   if (session) { location.hash = '#/'; return ''; }
@@ -1021,56 +1021,39 @@ function screenRegister() {
   setTimeout(bindRegisterForm);
 
   return `
-    <div style="max-width:420px;margin-inline:auto">
-      ${pageHeader('יצירת חשבון', 'בלי אימייל ובלי אימות טלפון — רק שם וסיסמה')}
+    <div style="max-width:400px;margin-inline:auto">
+      ${pageHeader('יצירת חשבון', 'בלי אימייל ובלי טלפון — שם וסיסמה, וזהו')}
       <form class="card p stack" id="form-register" novalidate>
         <p class="err" id="reg-error" role="alert"></p>
 
         <div class="field">
-          <label for="fullName">השם שלכם *</label>
-          <input class="input" id="fullName" autocomplete="name" required />
-          <p class="err" id="err-fullName"></p>
-        </div>
-
-        <div class="field">
-          <label for="reg-username">שם משתמש *</label>
-          <input class="input" id="reg-username" autocomplete="username" required />
-          <p class="hint">זה השם שאיתו תתחברו. אפשר להמציא — בעברית או באנגלית.</p>
+          <label for="fullName">איך קוראים לך?</label>
+          <input class="input" id="fullName" autocomplete="name" required
+            placeholder="לדוגמה: דנה כהן" style="font-size:1.05rem" />
           <p class="sm" id="username-status" aria-live="polite"></p>
         </div>
 
         <div class="field">
-          <label for="reg-password">סיסמה *</label>
+          <label for="reg-password">סיסמה שתמציאו</label>
           <div style="position:relative">
             <input class="input" id="reg-password" type="password" autocomplete="new-password" required
-              style="padding-inline-end:2.6rem" />
+              style="padding-inline-end:2.6rem;font-size:1.05rem" />
             <button type="button" class="btn ghost icon" data-toggle="reg-password" aria-label="הצגת הסיסמה"
               style="position:absolute;inset-inline-end:4px;top:50%;transform:translateY(-50%)">👁</button>
           </div>
           <div class="meter"><i id="pw-meter" style="width:0"></i></div>
           <p class="sm" id="pw-label" aria-live="polite"></p>
-          <ul class="hint" style="padding-inline-start:1.1rem;margin:0" id="pw-rules">
-            <li id="rule-len">לפחות שמונה תווים</li>
-            <li id="rule-letter">לפחות אות אחת</li>
-            <li id="rule-digit">לפחות ספרה אחת</li>
-          </ul>
+          <p class="hint">לפחות שמונה תווים, אות אחת וספרה אחת.
+            לחצו על העין כדי לוודא שהקלדתם נכון.</p>
         </div>
 
-        <div class="field">
-          <label for="confirm">אימות סיסמה *</label>
-          <input class="input" id="confirm" type="password" autocomplete="new-password" required />
-          <p class="err" id="err-confirm"></p>
-        </div>
-
-        <label class="row" style="align-items:flex-start;gap:.5rem;font-weight:400">
-          <input type="checkbox" id="terms" required style="margin-top:.3rem" />
-          <span class="sm">אני מאשר/ת את תנאי השימוש ומתחייב/ת לא לפרסם תמונות של לקוחות ללא הסכמתם.</span>
-        </label>
-
-        <button class="btn block" id="reg-submit" type="submit">יצירת חשבון</button>
+        <button class="btn block" id="reg-submit" type="submit" style="font-size:1rem;padding:.75rem">
+          יצירת חשבון
+        </button>
 
         <p class="tiny muted center">
-          את העיר ואת שאר הפרטים אפשר להשלים אחר כך בהגדרות הפרופיל.
+          ביצירת החשבון אתם מאשרים את תנאי השימוש ומתחייבים לא לפרסם
+          תמונות של לקוחות ללא הסכמתם.
         </p>
       </form>
 
@@ -1090,64 +1073,49 @@ function bindRegisterForm() {
     $('#pw-meter').style.background = `hsl(${s.color})`;
     $('#pw-label').textContent = password.value ? s.label : '';
     $('#pw-label').style.color = `hsl(${s.color})`;
-    const mark = (id, good) => {
-      const el = $(id);
-      el.style.color = good ? 'hsl(var(--success))' : '';
-      el.style.textDecoration = good ? 'line-through' : '';
-    };
-    mark('#rule-len', password.value.length >= 8);
-    mark('#rule-letter', s.hasLetter);
-    mark('#rule-digit', s.hasDigit);
   });
 
-  // בדיקת זמינות שם המשתמש תוך כדי הקלדה
-  let checkTimer;
-  const usernameInput = $('#reg-username');
-  usernameInput?.addEventListener('input', () => {
-    clearTimeout(checkTimer);
-    const value = usernameInput.value.trim();
+  // מציג בזמן אמת את שם המשתמש שייגזר, כדי שלא יהיו הפתעות בהתחברות.
+  let timer;
+  const nameInput = $('#fullName');
+  nameInput?.addEventListener('input', () => {
+    clearTimeout(timer);
+    const value = nameInput.value.trim();
     const status = $('#username-status');
+    if (value.length < 2) { status.textContent = ''; return; }
 
-    if (value.length < 3) { status.textContent = ''; return; }
-    status.textContent = 'בודק…';
-    status.style.color = '';
-
-    checkTimer = setTimeout(async () => {
-      const { data, error } = await db.rpc('username_available', { p_username: value });
-      if (error) { status.textContent = ''; return; }
-      status.textContent = data ? 'שם המשתמש פנוי 🎉' : 'שם המשתמש כבר תפוס';
-      status.style.color = data ? 'hsl(var(--success))' : 'hsl(var(--destructive))';
-    }, 350);
+    timer = setTimeout(async () => {
+      const { data, error } = await db.rpc('derive_username', { p_name: value });
+      if (error || !data) { status.textContent = ''; return; }
+      status.innerHTML = `תתחברו בפעם הבאה עם: <strong dir="auto">${esc(data)}</strong>`;
+      status.style.color = 'hsl(var(--muted-foreground))';
+    }, 300);
   });
 
   $('#form-register')?.addEventListener('submit', async (e) => {
     e.preventDefault();
     const errorBox = $('#reg-error');
     errorBox.textContent = '';
-    $$('.err').forEach((el) => { if (el.id.startsWith('err-')) el.textContent = ''; });
 
     const fullName = $('#fullName').value.trim();
-    const username = $('#reg-username').value.trim();
     const pass = $('#reg-password').value;
-    const confirm = $('#confirm').value;
-    let bad = false;
 
-    if (fullName.length < 2) { $('#err-fullName').textContent = 'יש להזין שם'; bad = true; }
-    if (!passwordStrength(pass).ok) { errorBox.textContent = 'הסיסמה חייבת לכלול שמונה תווים, אות וספרה'; bad = true; }
-    if (pass !== confirm) { $('#err-confirm').textContent = 'הסיסמאות אינן זהות'; bad = true; }
-    if (!$('#terms').checked) { errorBox.textContent = 'יש לאשר את תנאי השימוש'; bad = true; }
-    if (bad) return;
+    if (fullName.length < 2) { errorBox.textContent = 'יש להזין שם'; return; }
+    if (!passwordStrength(pass).ok) {
+      errorBox.textContent = 'הסיסמה חייבת לכלול שמונה תווים, אות וספרה';
+      return;
+    }
 
     await withBusy($('#reg-submit'), async () => {
-      const { data, error } = await db.rpc('auth_register', {
-        p_full_name: fullName, p_username: username, p_password: pass,
+      const { data, error } = await db.rpc('auth_register_simple', {
+        p_name: fullName, p_password: pass,
       });
       if (error) { errorBox.textContent = errorMessage(error); return; }
 
       setSession(data.token, data.profile);
       await restoreSession();
       renderShell();
-      showRecoveryCode(data.recovery_code, true);
+      showRecoveryCode(data.recovery_code, true, data.username);
     });
   });
 }
@@ -1156,11 +1124,16 @@ function bindRegisterForm() {
  * מציג את קוד השחזור.
  * זו ההזדמנות היחידה לראות אותו — במסד נשמר רק ה־hash שלו.
  */
-function showRecoveryCode(code, isNew) {
+function showRecoveryCode(code, isNew, username) {
   $('#main').innerHTML = `
     <div class="fade" style="max-width:460px;margin-inline:auto">
       ${pageHeader(isNew ? 'החשבון נוצר 🎉' : 'קוד שחזור חדש')}
       <section class="card p stack">
+        ${username ? `<div class="card p" style="background:hsl(var(--muted));box-shadow:none">
+          <p class="sm">שם המשתמש שלך להתחברות:</p>
+          <p style="font-size:1.15rem;font-weight:800" dir="auto">${esc(username)}</p>
+        </div>` : ''}
+
         <h2>קוד השחזור האישי שלך</h2>
         <p class="sm muted">אין לנו את האימייל שלכם, ולכן זו הדרך היחידה לאפס סיסמה.
           שמרו את הקוד במקום בטוח — <strong>הוא מוצג פעם אחת בלבד</strong>.</p>

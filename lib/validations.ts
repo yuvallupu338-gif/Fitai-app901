@@ -32,21 +32,24 @@ export const registerSchema = z
       .trim()
       .min(2, 'יש להזין שם')
       .max(80, 'השם ארוך מדי'),
-    username: usernameSchema,
+    // שם המשתמש נגזר מהשם כשאינו נשלח — ההרשמה מבקשת שם וסיסמה בלבד.
+    username: usernameSchema.optional(),
     // מחרוזת ריקה מהטופס נחשבת כ"לא נבחרה עיר" ולא כערך לא תקין.
     cityId: z.preprocess(
       (value) => (value === '' || value === undefined ? null : value),
       z.string().uuid('יש לבחור עיר מהרשימה').nullable(),
     ),
     password: passwordSchema,
-    confirmPassword: z.string({ required_error: 'יש לאמת את הסיסמה' }),
+    // אין שדה אימות בטופס — כפתור הצגת הסיסמה ממלא את התפקיד.
+    // אם בכל זאת נשלח אימות, הוא חייב להתאים.
+    confirmPassword: z.string().optional(),
     avatarUrl: z.string().url().optional().nullable(),
     birthDate: z.string().optional().nullable(),
     acceptTerms: z.literal(true, {
       errorMap: () => ({ message: 'יש לאשר את תנאי השימוש' }),
     }),
   })
-  .refine((data) => data.password === data.confirmPassword, {
+  .refine((data) => !data.confirmPassword || data.password === data.confirmPassword, {
     message: 'הסיסמאות אינן תואמות',
     path: ['confirmPassword'],
   });

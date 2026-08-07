@@ -48,6 +48,16 @@ export async function checkUsernameAvailability(username: string): Promise<Actio
   });
 }
 
+/** מציג את שם המשתמש שייגזר מהשם — לתצוגה בטופס ההרשמה. */
+export async function previewUsername(name: string): Promise<ActionResult<{ username: string }>> {
+  return guard(async () => {
+    const admin = createAdminClient();
+    const { data, error } = await admin.rpc('derive_username', { p_name: name });
+    if (error || typeof data !== 'string') return fail('לא הצלחנו לגזור שם משתמש');
+    return ok({ username: data });
+  });
+}
+
 export type RegisterResult = {
   recoveryCode: string;
   username: string;
@@ -63,17 +73,30 @@ export async function registerAction(input: unknown): Promise<ActionResult<Regis
       return fail('בוצעו יותר מדי הרשמות מהכתובת הזו. נסו שוב בעוד שעה.');
     }
 
-    const { fullName, username, cityId, password, avatarUrl, birthDate } = parsed.data;
+    const { fullName, cityId, password, avatarUrl, birthDate } = parsed.data;
     const admin = createAdminClient();
 
-    const { data: taken } = await admin
-      .from('usernames')
-      .select('username')
-      .ilike('username', username)
-      .maybeSingle();
+    // ההרשמה מבקשת שם וסיסמה בלבד. כשלא נשלח שם משתמש הוא נגזר מהשם
+    // בתוך המסד, כך שבדיקת הייחודיות והיצירה קורות יחד.
+    let username = parsed.data.username;
 
-    if (taken) {
-      return fail('שם המשתמש כבר תפוס', { username: ['שם המשתמש כבר תפוס'] });
+    if (!username) {
+      const { data: derived, error: deriveError } = await admin
+        .rpc('derive_username', { p_name: fullName });
+      if (deriveError || typeof derived !== 'string') {
+        throw new Error(deriveError?.message ?? 'גזירת שם המשתמש נכשלה');
+      }
+      username = derived;
+    } else {
+      const { data: taken } = await admin
+        .from('usernames')
+        .select('username')
+        .ilike('username', username)
+        .maybeSingle();
+
+      if (taken) {
+        return fail('שם המשתמש כבר תפוס', { username: ['שם המשתמש כבר תפוס'] });
+      }
     }
 
     // העיר אינה חובה בהרשמה. אם נשלחה – היא חייבת להיות אמיתית.

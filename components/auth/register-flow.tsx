@@ -5,7 +5,7 @@ import { useRouter } from 'next/navigation';
 import { useForm } from 'react-hook-form';
 import { zodResolver } from '@hookform/resolvers/zod';
 import { toast } from 'sonner';
-import { AlertCircle, Check, Copy, Loader2, ShieldCheck, X } from 'lucide-react';
+import { AlertCircle, Check, Copy, ShieldCheck } from 'lucide-react';
 import { Button } from '@/components/ui/button';
 import { Input } from '@/components/ui/input';
 import { Checkbox } from '@/components/ui/checkbox';
@@ -15,7 +15,7 @@ import { Card } from '@/components/ui/card';
 import { PasswordInput, PasswordStrength } from '@/components/shared/password-input';
 import { SingleImageUploader } from '@/components/shared/image-uploader';
 import { registerSchema, type RegisterInput } from '@/lib/validations';
-import { checkUsernameAvailability, registerAction } from '@/lib/actions/auth';
+import { previewUsername, registerAction } from '@/lib/actions/auth';
 
 type Step = 'details' | 'recovery';
 
@@ -64,55 +64,41 @@ function DetailsStep({
   setServerError: (value: string | null) => void;
   onSuccess: (recoveryCode: string) => void;
 }) {
-  const [usernameState, setUsernameState] = React.useState<'idle' | 'checking' | 'available' | 'taken'>('idle');
-
   const form = useForm<RegisterInput>({
     resolver: zodResolver(registerSchema),
     defaultValues: {
       fullName: '',
-      username: '',
-      cityId: '',
+      cityId: null,
       password: '',
-      confirmPassword: '',
       avatarUrl: null,
       birthDate: null,
-      acceptTerms: false as unknown as true,
+      acceptTerms: true,
     },
   });
 
-  const username = form.watch('username');
+  const fullName = form.watch('fullName');
   const password = form.watch('password');
   const avatarUrl = form.watch('avatarUrl');
+  const [derived, setDerived] = React.useState('');
 
-  // בדיקת תפיסת שם המשתמש תוך כדי הקלדה (עם השהיה קצרה).
+  // מציג בזמן אמת את שם המשתמש שייגזר, כדי שלא יהיו הפתעות בהתחברות.
   React.useEffect(() => {
-    if (!username || username.trim().length < 3) {
-      setUsernameState('idle');
+    if (!fullName || fullName.trim().length < 2) {
+      setDerived('');
       return undefined;
     }
-
-    setUsernameState('checking');
     const timer = setTimeout(async () => {
-      const result = await checkUsernameAvailability(username.trim());
-      if (!result.ok) {
-        setUsernameState('idle');
-        return;
-      }
-      setUsernameState(result.data.available ? 'available' : 'taken');
-    }, 450);
-
+      const result = await previewUsername(fullName.trim());
+      setDerived(result.ok ? result.data.username : '');
+    }, 350);
     return () => clearTimeout(timer);
-  }, [username]);
+  }, [fullName]);
 
   const onSubmit = form.handleSubmit(async (values) => {
     setServerError(null);
 
-    if (usernameState === 'taken') {
-      form.setError('username', { message: 'שם המשתמש כבר תפוס' });
-      return;
-    }
-
-    const result = await registerAction(values);
+    // אישור התנאים מוצג כטקסט מתחת לכפתור ולא כתיבת סימון.
+    const result = await registerAction({ ...values, acceptTerms: true as const });
 
     if (!result.ok) {
       setServerError(result.error);
@@ -132,7 +118,7 @@ function DetailsStep({
       <div className="space-y-2 text-center">
         <h1 className="text-2xl font-bold">יצירת חשבון</h1>
         <p className="text-sm text-muted-foreground">
-          בלי אימייל ובלי אימות טלפון. רק שם משתמש וסיסמה.
+          בלי אימייל ובלי טלפון — שם וסיסמה, וזהו.
         </p>
       </div>
 
@@ -156,81 +142,28 @@ function DetailsStep({
           />
         </div>
 
-        <Field label="שם מלא" htmlFor="fullName" error={form.formState.errors.fullName?.message} required>
+        <Field
+          label="איך קוראים לך?"
+          htmlFor="fullName"
+          error={form.formState.errors.fullName?.message}
+          required
+          hint={derived ? `תתחברו בפעם הבאה עם: ${derived}` : undefined}
+        >
           <Input id="fullName" autoComplete="name" placeholder="לדוגמה: דנה כהן" {...form.register('fullName')} />
         </Field>
 
-        <Field
-          label="שם משתמש"
-          htmlFor="username"
-          required
-          error={form.formState.errors.username?.message}
-          hint="באמצעותו תתחברו לאפליקציה. אפשר בעברית או באנגלית."
-        >
-          <div className="relative">
-            <Input
-              id="username"
-              autoComplete="username"
-              dir="auto"
-              className="pe-10"
-              placeholder="dana_beauty"
-              {...form.register('username')}
-            />
-            <span className="absolute end-3 top-1/2 -translate-y-1/2">
-              {usernameState === 'checking' ? (
-                <Loader2 className="size-4 animate-spin text-muted-foreground" aria-hidden />
-              ) : usernameState === 'available' ? (
-                <Check className="size-4 text-success" aria-label="שם המשתמש פנוי" />
-              ) : usernameState === 'taken' ? (
-                <X className="size-4 text-destructive" aria-label="שם המשתמש תפוס" />
-              ) : null}
-            </span>
-          </div>
-        </Field>
-
-        {usernameState === 'taken' ? (
-          <p className="-mt-2 text-xs font-medium text-destructive">שם המשתמש כבר תפוס, אפשר לנסות שם אחר</p>
-        ) : null}
-        {usernameState === 'available' ? (
-          <p className="-mt-2 text-xs font-medium text-success">שם המשתמש פנוי 🎉</p>
-        ) : null}
-
-        <Field label="סיסמה" htmlFor="password" required error={form.formState.errors.password?.message}>
+        <Field label="סיסמה שתמציאו" htmlFor="password" required error={form.formState.errors.password?.message}>
           <PasswordInput id="password" autoComplete="new-password" {...form.register('password')} />
         </Field>
         <PasswordStrength password={password} />
-
-        <Field
-          label="אימות סיסמה"
-          htmlFor="confirmPassword"
-          required
-          error={form.formState.errors.confirmPassword?.message}
-        >
-          <PasswordInput id="confirmPassword" autoComplete="new-password" {...form.register('confirmPassword')} />
-        </Field>
-
-        <div className="flex items-start gap-2">
-          <Checkbox
-            id="acceptTerms"
-            checked={form.watch('acceptTerms')}
-            onCheckedChange={(checked) =>
-              form.setValue('acceptTerms', (checked === true) as true, { shouldValidate: true })
-            }
-          />
-          <Label htmlFor="acceptTerms" className="cursor-pointer text-sm font-normal leading-relaxed">
-            אני מאשר/ת את תנאי השימוש ואת מדיניות הפרטיות, ומתחייב/ת לא לפרסם תמונות של לקוחות ללא הסכמתם.
-          </Label>
-        </div>
-        {form.formState.errors.acceptTerms ? (
-          <p className="text-xs font-medium text-destructive">{form.formState.errors.acceptTerms.message}</p>
-        ) : null}
 
         <Button type="submit" block size="lg" loading={form.formState.isSubmitting}>
           יצירת חשבון
         </Button>
 
         <p className="text-center text-xs text-muted-foreground">
-          את העיר ואת שאר הפרטים אפשר להשלים אחר כך בהגדרות הפרופיל.
+          ביצירת החשבון אתם מאשרים את תנאי השימוש ומתחייבים לא לפרסם תמונות של לקוחות ללא הסכמתם.
+          את העיר ואת שאר הפרטים אפשר להשלים אחר כך בהגדרות.
         </p>
       </form>
     </>

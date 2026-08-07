@@ -2706,6 +2706,7 @@ export type Database = {
       auth_login: { Args: Record<string, unknown>; Returns: unknown };
       auth_me: { Args: Record<string, unknown>; Returns: unknown };
       auth_register: { Args: Record<string, unknown>; Returns: unknown };
+      auth_register_simple: { Args: Record<string, unknown>; Returns: unknown };
       auth_reset_password: { Args: Record<string, unknown>; Returns: unknown };
       auth_rotate_recovery_code: { Args: Record<string, unknown>; Returns: unknown };
       available_slots: { Args: Record<string, unknown>; Returns: unknown };
@@ -2717,6 +2718,7 @@ export type Database = {
       consume_rate_limit: { Args: Record<string, unknown>; Returns: unknown };
       create_notification: { Args: Record<string, unknown>; Returns: unknown };
       current_profile_id: { Args: Record<string, unknown>; Returns: unknown };
+      derive_username: { Args: Record<string, unknown>; Returns: unknown };
       direct_pair_key: { Args: Record<string, unknown>; Returns: unknown };
       display_name: { Args: Record<string, unknown>; Returns: unknown };
       feed_posts: { Args: Record<string, unknown>; Returns: unknown };
@@ -2779,6 +2781,7 @@ export type Database = {
       set_updated_at: { Args: Record<string, unknown>; Returns: unknown };
       sign_jwt: { Args: Record<string, unknown>; Returns: unknown };
       similar_professionals: { Args: Record<string, unknown>; Returns: unknown };
+      slugify_username: { Args: Record<string, unknown>; Returns: unknown };
       stamp_post_published_at: { Args: Record<string, unknown>; Returns: unknown };
       strip_marks: { Args: Record<string, unknown>; Returns: unknown };
       sync_is_professional: { Args: Record<string, unknown>; Returns: unknown };
