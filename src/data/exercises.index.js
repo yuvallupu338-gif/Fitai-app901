@@ -39,11 +39,30 @@ export function conflictsInjury(profile, ex) {
  * is not always one word: dips are called both מקבילים and דיפס in this library,
  * and a single substring cannot reach both.
  */
+/*
+ * A term shorter than two characters is not a refusal.
+ *
+ * This matches as a substring of the exercise name, which is what lets one chip
+ * reach a whole family — and what makes a one-letter term a wildcard. Every
+ * chip the questionnaire offers is a word; nothing legitimate arrives here at
+ * length 1.
+ *
+ * The free-text intake is what made this matter. `avoid` is the only free
+ * string a model can put into the engine, its schema is
+ * `{type:'array', items:{type:'string'}}`, and normalizePatch only caps the
+ * length and the count. A schema-valid response of ten common Hebrew letters —
+ * ה, ו, י, א, ר … — matched every exercise in the library, and the plan came
+ * out with four days, zero exercises, and a note still announcing "73 סטים
+ * עובדים בשבוע". The user's own pasted paragraph is the model's input, so the
+ * realistic trigger is injection, not a malfunctioning model.
+ */
+const MIN_AVOID_TERM = 2;
+
 export function isAvoided(profile, ex) {
   const list = (profile.avoid || [])
     .flatMap((s) => String(s).toLowerCase().split('|'))
     .map((s) => s.trim())
-    .filter(Boolean);
+    .filter((s) => s.length >= MIN_AVOID_TERM);
   if (!list.length) return false;
   const hay = `${ex.name} ${ex.nameEn}`.toLowerCase();
   return list.some((a) => hay.includes(a) || a.includes(ex.nameEn.toLowerCase()));
