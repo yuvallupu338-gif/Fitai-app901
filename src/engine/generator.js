@@ -19,7 +19,7 @@
  */
 
 import {
-  MIN_AGE, MAX_AGE,
+  MIN_AGE, MAX_AGE, withholdsHeavyLoad,
   easesImpact, needsStandingOption, needsLongerWarmup, warmsFast, stretchHoldSeconds,
 } from './age.js';
 import { asks } from '../data/demands.js';
@@ -1065,7 +1065,7 @@ function noteFor(profile, ex, slot, risky) {
 
   let note = baseNote(profile, ex, slot);
   const age = clampInt(profile.age, MIN_AGE, MAX_AGE, 30);
-  if (slot.role === 'main' && age < 16 && ex.level >= 3) {
+  if (slot.role === 'main' && withholdsHeavyLoad(profile) && ex.level >= 3) {
     note = `${note} בגיל הזה טכניקה קודמת למשקל.`;
   } else if (ex.unilateral && slot.role !== 'core' && note.indexOf('לכל צד') < 0) {
     note = `${note} מתחילים בצד החלש וקובעים לפיו את החזרות.`;
@@ -1248,7 +1248,7 @@ function buildNotes(profile, ctx) {
   } else if (injuries.length) {
     out.push('כל תרגיל בתוכנית נבחר כך שלא יטען ישירות את המגבלות שדיווחת עליהן. כאב חד באימון הוא תמיד סיבה לעצור, לא להמשיך.');
   }
-  if (age < 16) {
+  if (withholdsHeavyLoad(profile)) {
     out.push('מתחת לגיל 16 הדגש הוא על טכניקה, טווח מלא ומשקל גוף — לא על עומס. שווה שמאמן יראה את התנועות פעם אחת, ושרופא ידע שאתה מתאמן.');
   }
   if (age >= 55) {

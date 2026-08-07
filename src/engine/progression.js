@@ -20,7 +20,7 @@
  */
 
 import { candidates, hashProfile, rotate } from '../data/exercises.index.js';
-import { withholdsFatLoss } from './age.js';
+import { withholdsFatLoss, withholdsHeavyLoad } from './age.js';
 
 /* ------------------------------------------------------------------ *
  * Small helpers
@@ -359,7 +359,7 @@ function loadJump(profile, k) {
   const bw = num(profile.weightKg, 70);
   const age = num(profile.age, 30);
   let jump = k.barbell ? 5 : 2.5;
-  if (bw < 60 || age < 16 || age >= 68) jump = jump / 2;
+  if (bw < 60 || withholdsHeavyLoad(profile) || age >= 68) jump = jump / 2;
   if (!k.barbell && !k.freeWeights && k.machines) jump = Math.max(jump, 2.5);
   return jump;
 }

@@ -273,21 +273,51 @@ try {
     'src/engine/volume.js',         // recovery curve: 65 / 55 / 15 is dosing, not policy
     'src/vision/analyze.js',        // scan gate, states its own constant
   ]);
+  /*
+   * Three ways to write the same mistake, and comments are not one of them.
+   *
+   * The pattern only caught `age < 16`. `16 > p.age` reads identically to a
+   * human and slipped straight through, and so did the thing somebody actually
+   * writes when they are being tidy — `const KID = 16` followed by
+   * `age < KID`, which is the literal moved one line up.
+   *
+   * Comments are stripped first. This check fired on the sentence in
+   * exercises.index.js describing the very bug it exists to prevent, which is
+   * the most annoying possible false positive: it punishes writing down what
+   * went wrong.
+   */
+  const stripComments = (src) => src
+    .replace(/\/\*[\s\S]*?\*\//g, ' ')
+    .replace(/(^|[^:])\/\/[^\n]*/g, '$1 ');
+
   const AGE_CMP = /\bage\s*[<>]=?\s*(\d{1,2})\b|\bage\)\s*[<>]=?\s*(\d{1,2})\b/g;
+  const AGE_REVERSED = /\b(\d{1,2})\s*[<>]=?\s*[A-Za-z_$][\w$]*\.?age\b/g;
+  const AGE_CONST = /\b(?:const|let|var)\s+[A-Z_][A-Z0-9_]*\s*=\s*(\d{1,2})\s*;?[^\n]*/g;
+
   const walk = (dir) => {
     for (const f of readdirSync(resolve(ROOT, dir), { withFileTypes: true })) {
       const rel = `${dir}/${f.name}`;
       if (f.isDirectory()) { walk(rel); continue; }
       if (!/\.js$/.test(f.name)) continue;
       if (ALLOWED.has(rel)) continue;
-      const src = readFileSync(resolve(ROOT, rel), 'utf8');
-      let m;
-      AGE_CMP.lastIndex = 0;
-      while ((m = AGE_CMP.exec(src))) {
-        const n = Number(m[1] || m[2]);
+      const src = stripComments(readFileSync(resolve(ROOT, rel), 'utf8'));
+      const flag = (n, how) => {
         if (n >= 10 && n <= 25) {
-          err(`${rel} compares age against ${n} directly — import the rule from `
+          err(`${rel} ${how} ${n} directly — import the rule from `
             + `src/engine/age.js instead, so two screens cannot disagree about the same person`);
+        }
+      };
+      let m;
+      for (const [re, how] of [[AGE_CMP, 'compares age against'], [AGE_REVERSED, 'compares age against']]) {
+        re.lastIndex = 0;
+        while ((m = re.exec(src))) flag(Number(m[1] || m[2]), how);
+      }
+      // A named constant only counts when the file also tests an age against it.
+      AGE_CONST.lastIndex = 0;
+      while ((m = AGE_CONST.exec(src))) {
+        const name = m[0].match(/\b(?:const|let|var)\s+([A-Z_][A-Z0-9_]*)/)[1];
+        if (new RegExp(`\\bage\\s*[<>]=?\\s*${name}\\b|\\b${name}\\s*[<>]=?\\s*[A-Za-z_$][\\w$]*\\.?age\\b`).test(src)) {
+          flag(Number(m[1]), `holds an age threshold in a local constant (${name} =)`);
         }
       }
     }
@@ -393,8 +423,28 @@ try {
           for (const t of tasks) {
             const def = byId.get(t.id);
             if (!def) { err(`rest task ${t.id} is not in the catalogue`); continue; }
-            if (injury && def.hurts.indexOf(injury) >= 0) {
-              err(`${goal}/${injury}: rest task "${def.title}" is contraindicated for ${injury}`);
+            /*
+             * Stated here rather than read off def.hurts.
+             *
+             * allowed() filters with exactly that field, so asking it whether a
+             * task is safe could only confirm restday.js agrees with itself:
+             * emptying every hurts list left this check green while a
+             * knee-injured trainee's rest week came back "walk 3km, skip rope
+             * ten minutes, cycle twenty". The age half of the same block got
+             * this right — it names jump_rope_10 and stairs_10 itself — and the
+             * injury half did not.
+             */
+            const HURTS = {
+              // Landing, loaded knee flexion, and changing direction at speed.
+              knee: ['jump_rope_10', 'stairs_10', 'walk_hills', 'ball_game'],
+              ankle: ['jump_rope_10', 'walk_hills', 'ball_game'],
+              hip: ['walk_hills', 'ball_game'],
+              lower_back: ['jump_rope_10', 'carry_walk'],
+              shoulder: ['swim_20'],
+            };
+            if (injury && (HURTS[injury] || []).indexOf(t.id) >= 0) {
+              err(`${goal}/${injury}: rest task "${def.title}" loads a declared ${injury} `
+                + `on a recovery day, which the whole week was built to avoid`);
             }
             for (const q of def.needs) {
               if (!owned.has(q)) err(`${goal}/${location}: rest task "${def.title}" needs ${q}, which this profile lacks`);
@@ -1041,9 +1091,28 @@ try {
               goal, experience, daysPerWeek: days, minutesPerSession: minutes,
               location: 'home_weights',
             }));
-            const b = v.sessionBudget(p);
+            /*
+             * The budget is worked out here, not read from sessionBudget().
+             *
+             * It used to call it — the same function weeklyVolume() uses to
+             * decide the capacity — so the check could only ever confirm the two
+             * agreed. Inflating sessionBudget's own output by 2.5x left the
+             * suite green while a 30-minute session was handed 15.7 working sets
+             * at 150 seconds of rest, with the note calling it "within the 10–20
+             * effective sets range".
+             *
+             * The shares below are restated from volume.js on purpose, the same
+             * way PACE is. If somebody retunes one, this fails until they have
+             * decided the other on purpose too.
+             */
+            const warmupMin = Math.max(5, Math.min(12, Math.round(minutes * 0.15)));
+            const finisherShare = (goal === 'fatloss' || goal === 'fitness' || goal === 'sport') ? 0.09 : 0.05;
+            const finisherMin = Math.max(2, Math.min(8, Math.round(minutes * finisherShare)));
+            const mainMin = Math.max(10, minutes - warmupMin - finisherMin);
+            const goalAdj = goal === 'strength' ? -1 : (goal === 'fatloss' ? 1 : 0);
+            const maxSlots = Math.max(3, Math.min(11, Math.round(2.2 + 0.085 * minutes + goalAdj)));
             const vol = v.weeklyVolume(p);
-            const capacity = Math.min(b.mainMin / PACE[goal], b.maxSlots * 3.0) * days;
+            const capacity = Math.min(mainMin / PACE[goal], maxSlots * 3.0) * days;
             checked++;
 
             if (vol.total > capacity + ROUNDING) {
@@ -1055,10 +1124,51 @@ try {
                 err(`${goal} ${minutes}min x${days}: ${g} came out at ${vol[g]} sets — not a whole number`);
               }
             }
-            // Shrinking a floor must not delete the movement pattern.
+            /*
+             * No movement pattern reduced to a token.
+             *
+             * This asserted >= 1 and had no margin: delete every floor and the
+             * week still came back above it, so the assertion held while the
+             * thing it was thought to guard was gone. Raised to volume.js's own
+             * stated line — "under 3 sets a week is not training, it is
+             * decoration", which is what the floors were set to.
+             *
+             * Worth writing down what measuring it showed: across every
+             * questionnaire-reachable configuration the minimum is push 4, pull
+             * 4, legs 5, core 2 — with the floors and with every floor deleted,
+             * identically. The weights carry it, and survivors()' floors bind
+             * only at the 20-25 minute sessions that arrive on an imported
+             * profile, which is exactly where feasibleFloors then scales them
+             * back down.
+             *
+             * So no mutation of the floors can move a real user's plan, and this
+             * check is not evidence that they work. It asserts the property that
+             * matters — the pattern is trained, not gestured at — and is
+             * deliberately indifferent to which mechanism delivers it.
+             */
             for (const g of KEEP) {
-              if (!(vol[g] >= 1)) {
-                err(`${goal} ${minutes}min x${days}: ${g} has ${vol[g]} sets — the week lost a movement pattern`);
+              const min = g === 'core' ? 2 : 3;
+              if (vol[g] >= min) continue;
+              /*
+               * Asserted where the app offers the configuration, reported where
+               * it merely accepts one. The questionnaire's shortest session is
+               * 30 minutes; 20 and 25 arrive only on an imported profile, and at
+               * two 20-minute sessions the clock affords about 8 sets against
+               * four patterns that want 11. Something has to be under the line
+               * there, and scaling the floors down is the least bad of the
+               * options — the alternative is dropping a movement pattern
+               * entirely.
+               *
+               * Failing the build for it would be asserting a policy the
+               * arithmetic cannot meet. Staying silent would be pretending the
+               * week is fine. So it says so and moves on.
+               */
+              if (minutes >= 30) {
+                err(`${goal} ${minutes}min x${days}: ${g} has ${vol[g]} sets, under the ${min} `
+                  + `that volume.js calls the line between training and decoration`);
+              } else {
+                warn(`${goal} ${minutes}min x${days}: ${g} gets ${vol[g]} sets — under the ${min} `
+                  + `volume.js calls training, but the clock affords no more. Not reachable from the questionnaire.`);
               }
             }
           }

@@ -7027,6 +7027,7 @@ const { PUSH } = __m["src/data/exercises.push.js"];
 const { PULL } = __m["src/data/exercises.pull.js"];
 const { LEGS } = __m["src/data/exercises.legs.js"];
 const { CORE } = __m["src/data/exercises.core.js"];
+const { withholdsHeavyLoad } = __m["src/engine/age.js"];
 
 const EXERCISES = [].concat(PUSH, PULL, LEGS, CORE);
 
@@ -7128,6 +7129,29 @@ function matchesTrack(ex, track) {
 }
 
 /** Difficulty ceiling implied by experience — keeps novices off level 5 skills. */
+/*
+ * The hardest tier this profile may be offered.
+ *
+ * Experience sets it, and age lowers it. That second half did not exist:
+ * withholdsHeavyLoad and HEAVY_LOAD_FROM carry the most carefully argued
+ * comment in age.js — growth plates are open, connective tissue is the limiting
+ * factor, "this does not stop anyone training hard, it stops the plan chasing a
+ * one-rep max" — and nothing in the engine had ever asked either of them. Only
+ * tools/validate.js did. The under-16 rule existed as three bare `age < 16`
+ * literals in generator.js and progression.js, and every one of them appended a
+ * sentence to a note. Not one changed what was prescribed.
+ *
+ * So a fourteen-year-old who ticked "intermediate" was offered exactly what a
+ * thirty-year-old was. Level 5 in this library is the muscle-up, the front
+ * lever, pseudo-planche push-ups, the full nordic curl and the weighted
+ * pull-up — the calisthenics equivalent of a maximal lift, and one of them is
+ * literally added load. Level 4 is archer push-ups, wall handstands, ring work
+ * and wide-grip pull-ups: demanding, and not that.
+ *
+ * Capping at 4 rather than lower is the whole point of the threshold's own
+ * wording. A strong fifteen-year-old keeps everything except the tier that asks
+ * a still-open growth plate for a maximum.
+ */
 function levelCap(profile) {
   switch (profile.experience) {
     case 'beginner': return 2;
@@ -7135,6 +7159,27 @@ function levelCap(profile) {
     case 'intermediate': return 4;
     default: return 5;
   }
+}
+
+/*
+ * The tier nothing may go above, whatever else is asked for.
+ *
+ * Separate from levelCap because they are different kinds of limit. levelCap is
+ * a preference derived from experience and candidates() deliberately allows one
+ * tier of headroom above it; an explicit maxLevel overrides it outright, and
+ * candidatesOrFallback relaxes it on purpose when a pattern would otherwise
+ * come out empty. All three are correct for experience and all three are wrong
+ * for a growth plate.
+ *
+ * The first attempt at this put the age rule inside levelCap, and it did
+ * nothing at all: `levelCap(profile) + 1` turned a cap of 4 straight back into
+ * 5, and a 14-year-old was still prescribed muscle-ups. Verified before and
+ * after — identical. This applies last, to whatever number the rest arrived at.
+ */
+const HEAVY_LOAD_CEILING = 4;
+
+function levelCeiling(profile) {
+  return withholdsHeavyLoad(profile) ? HEAVY_LOAD_CEILING : 5;
 }
 
 /**
@@ -7151,7 +7196,8 @@ function levelCap(profile) {
  */
 function candidates(profile, opts) {
   const o = opts || {};
-  const cap = o.maxLevel !== undefined ? o.maxLevel : levelCap(profile) + 1;
+  const asked = o.maxLevel !== undefined ? o.maxLevel : levelCap(profile) + 1;
+  const cap = Math.min(asked, levelCeiling(profile));
   return EXERCISES
     .filter((e) => (!o.pattern || e.pattern === o.pattern))
     .filter((e) => (!o.patterns || o.patterns.includes(e.pattern)))
@@ -7178,6 +7224,8 @@ function candidatesOrFallback(profile, opts) {
   // yield long before a level ceiling, and far before an injury rule.
   list = candidates(profile, Object.assign({}, opts, { ignoreTrack: true }));
   if (list.length) return { list, risky: false };
+  // Relaxing the ceiling is safe here: candidates() clamps by levelCeiling last,
+  // so asking for 5 on a minor's behalf still comes back at 4.
   list = candidates(profile, Object.assign({}, opts, { ignoreTrack: true, maxLevel: 5 }));
   if (list.length) return { list, risky: false };
   list = candidates(profile, Object.assign({}, opts, { ignoreTrack: true, maxLevel: 5, allowInjuryRisk: true }));
@@ -7217,6 +7265,7 @@ function rotate(list, seed) {
     "isAvoided": isAvoided,
     "matchesTrack": matchesTrack,
     "levelCap": levelCap,
+    "levelCeiling": levelCeiling,
     "candidates": candidates,
     "candidatesOrFallback": candidatesOrFallback,
     "hashProfile": hashProfile,
@@ -7245,7 +7294,7 @@ __m["src/engine/generator.js"] = (function () {
  * not ours. Nothing here uses Math.random(); variety comes from hashProfile().
  */
 
-const { MIN_AGE, MAX_AGE, easesImpact, needsStandingOption, needsLongerWarmup, warmsFast, stretchHoldSeconds, } = __m["src/engine/age.js"];
+const { MIN_AGE, MAX_AGE, withholdsHeavyLoad, easesImpact, needsStandingOption, needsLongerWarmup, warmsFast, stretchHoldSeconds, } = __m["src/engine/age.js"];
 const { asks } = __m["src/data/demands.js"];
 
 const { candidates, candidatesOrFallback, conflictsInjury, hashProfile, rotate, } = __m["src/data/exercises.index.js"];
@@ -8287,7 +8336,7 @@ function noteFor(profile, ex, slot, risky) {
 
   let note = baseNote(profile, ex, slot);
   const age = clampInt(profile.age, MIN_AGE, MAX_AGE, 30);
-  if (slot.role === 'main' && age < 16 && ex.level >= 3) {
+  if (slot.role === 'main' && withholdsHeavyLoad(profile) && ex.level >= 3) {
     note = `${note} בגיל הזה טכניקה קודמת למשקל.`;
   } else if (ex.unilateral && slot.role !== 'core' && note.indexOf('לכל צד') < 0) {
     note = `${note} מתחילים בצד החלש וקובעים לפיו את החזרות.`;
@@ -8470,7 +8519,7 @@ function buildNotes(profile, ctx) {
   } else if (injuries.length) {
     out.push('כל תרגיל בתוכנית נבחר כך שלא יטען ישירות את המגבלות שדיווחת עליהן. כאב חד באימון הוא תמיד סיבה לעצור, לא להמשיך.');
   }
-  if (age < 16) {
+  if (withholdsHeavyLoad(profile)) {
     out.push('מתחת לגיל 16 הדגש הוא על טכניקה, טווח מלא ומשקל גוף — לא על עומס. שווה שמאמן יראה את התנועות פעם אחת, ושרופא ידע שאתה מתאמן.');
   }
   if (age >= 55) {
@@ -9135,7 +9184,10 @@ const GOAL_HE = {
    answer a question about two numbers. */
 function fatLossDisallowed(profile) {
   const age = Number(profile && profile.age);
-  if (withholdsFatLoss({ age })) return true;
+  // Asked of the profile, not of a number reconstructed from it: Number(null)
+  // is 0, and handing 0 to a gate written to reject a missing age turns "we do
+  // not know" into "twelve years under eighteen".
+  if (withholdsFatLoss(profile)) return true;
   const h = Number(profile && profile.heightCm);
   const w = Number(profile && profile.weightKg);
   if (!Number.isFinite(h) || !Number.isFinite(w) || h <= 0) return false;
@@ -11275,6 +11327,7 @@ __m["src/vision/analyze.js"] = (function () {
  */
 
 const { callTool, imageBlock, dataUrlBytes, AiError, choiceFor } = __m["src/ai/client.js"];
+const { PHOTO_SCAN_FROM, withholdsPhotoScan, withholdsFatLoss } = __m["src/engine/age.js"];
 const { SYSTEM, TOOL, PATTERNS, buildMessage } = __m["src/vision/prompt.js"];
 
 const PATTERN_SET = new Set(PATTERNS);
@@ -11287,12 +11340,24 @@ const MAX_IMAGE_BYTES = 3 * 1024 * 1024;
  * Who may run this at all.
  *
  * The scan asks for a photograph of a body in tight clothing and sends it to a
- * third party. The questionnaire accepts ages from 10. Those two facts together
- * are the whole argument for this gate — and the app already KNOWS the age, so
- * leaving the decision to a model guessing from the picture was choosing the
- * least reliable instrument available over the answer sitting in the profile.
+ * third party. That is the whole argument for the gate — and the app already
+ * KNOWS the age, so leaving the decision to a model guessing from the picture
+ * was choosing the least reliable instrument available over the answer sitting
+ * in the profile.
+ *
+ * The threshold comes from age.js now. It was a local `const MIN_SCAN_AGE = 18`
+ * beside a local `Number.isFinite(age) && age < 18`, which is the same rule
+ * written twice and, worse, written differently: Number(null) is 0 and 0 is
+ * finite, so a profile with no age was refused here while the questionnaire
+ * showed it the photo fields. Conservative, and still two files disagreeing
+ * about the same person. The comment above the gates in age.js — an unknown age
+ * is treated as an adult — is the policy; this file was quietly voting against
+ * it.
+ *
+ * The sentence claiming "the questionnaire accepts ages from 10" went with it.
+ * It has been 12 since the app moved, and a stale number in a safety comment is
+ * how the next person gets the threshold wrong.
  */
-const MIN_SCAN_AGE = 18;
 
 /*
  * Below this the app will not carry a fat-loss recommendation, whatever the
@@ -11311,8 +11376,7 @@ function bmiOf(profile) {
 
 /** True when a fat-loss steer must not be shown, whoever suggested it. */
 function fatLossBlocked(profile) {
-  const age = Number(profile && profile.age);
-  if (Number.isFinite(age) && age < 18) return true;
+  if (withholdsFatLoss(profile)) return true;
   const bmi = bmiOf(profile);
   return bmi !== null && bmi < UNDERWEIGHT_BMI;
 }
@@ -11322,12 +11386,11 @@ function fatLossBlocked(profile) {
  * before the photos are even chosen, rather than after they are uploaded.
  */
 function scanEligibility(profile) {
-  const age = Number(profile && profile.age);
-  if (Number.isFinite(age) && age < MIN_SCAN_AGE) {
+  if (withholdsPhotoScan(profile)) {
     return {
       ok: false,
       kind: 'underage',
-      he: `סריקת התמונות פתוחה מגיל ${MIN_SCAN_AGE}. `
+      he: `סריקת התמונות פתוחה מגיל ${PHOTO_SCAN_FROM}. `
         + 'זה לא קשור לתוכנית — היא נבנית לך במלואה בלי הסריקה, בדיוק כמו לכל אחד אחר.',
     };
   }
@@ -14308,7 +14371,12 @@ const TASKS = [
     id: 'walk_hills',
     title: 'הליכה 30 דקות בעלייה',
     body: 'רחוב משופע או הליכון בשיפוע 6–8. העלייה מעלה דופק בלי הזעזוע שיש בריצה.',
-    load: 'moderate', needs: [], hurts: ['knee', 'ankle'], maxAge: 70,
+    // 'hip' was missing while the flat 5 km walk beside it carries it. Half an
+    // hour at a 6–8% grade asks considerably more of hip flexion and extension
+    // than the same half hour on the level, so if one of them is a problem for
+    // a declared hip, this is the one. Found by the audit disagreeing with the
+    // table rather than reading it.
+    load: 'moderate', needs: [], hurts: ['knee', 'ankle', 'hip'], maxAge: 70,
   },
   {
     id: 'row_15',
@@ -14978,7 +15046,7 @@ __m["src/engine/progression.js"] = (function () {
  */
 
 const { candidates, hashProfile, rotate } = __m["src/data/exercises.index.js"];
-const { withholdsFatLoss } = __m["src/engine/age.js"];
+const { withholdsFatLoss, withholdsHeavyLoad } = __m["src/engine/age.js"];
 
 /* ------------------------------------------------------------------ *
  * Small helpers
@@ -15317,7 +15385,7 @@ function loadJump(profile, k) {
   const bw = num(profile.weightKg, 70);
   const age = num(profile.age, 30);
   let jump = k.barbell ? 5 : 2.5;
-  if (bw < 60 || age < 16 || age >= 68) jump = jump / 2;
+  if (bw < 60 || withholdsHeavyLoad(profile) || age >= 68) jump = jump / 2;
   if (!k.barbell && !k.freeWeights && k.machines) jump = Math.max(jump, 2.5);
   return jump;
 }

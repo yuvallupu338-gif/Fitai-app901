@@ -7,6 +7,7 @@ import { PUSH } from './exercises.push.js';
 import { PULL } from './exercises.pull.js';
 import { LEGS } from './exercises.legs.js';
 import { CORE } from './exercises.core.js';
+import { withholdsHeavyLoad } from '../engine/age.js';
 
 export const EXERCISES = [].concat(PUSH, PULL, LEGS, CORE);
 
@@ -108,6 +109,29 @@ export function matchesTrack(ex, track) {
 }
 
 /** Difficulty ceiling implied by experience — keeps novices off level 5 skills. */
+/*
+ * The hardest tier this profile may be offered.
+ *
+ * Experience sets it, and age lowers it. That second half did not exist:
+ * withholdsHeavyLoad and HEAVY_LOAD_FROM carry the most carefully argued
+ * comment in age.js — growth plates are open, connective tissue is the limiting
+ * factor, "this does not stop anyone training hard, it stops the plan chasing a
+ * one-rep max" — and nothing in the engine had ever asked either of them. Only
+ * tools/validate.js did. The under-16 rule existed as three bare `age < 16`
+ * literals in generator.js and progression.js, and every one of them appended a
+ * sentence to a note. Not one changed what was prescribed.
+ *
+ * So a fourteen-year-old who ticked "intermediate" was offered exactly what a
+ * thirty-year-old was. Level 5 in this library is the muscle-up, the front
+ * lever, pseudo-planche push-ups, the full nordic curl and the weighted
+ * pull-up — the calisthenics equivalent of a maximal lift, and one of them is
+ * literally added load. Level 4 is archer push-ups, wall handstands, ring work
+ * and wide-grip pull-ups: demanding, and not that.
+ *
+ * Capping at 4 rather than lower is the whole point of the threshold's own
+ * wording. A strong fifteen-year-old keeps everything except the tier that asks
+ * a still-open growth plate for a maximum.
+ */
 export function levelCap(profile) {
   switch (profile.experience) {
     case 'beginner': return 2;
@@ -115,6 +139,27 @@ export function levelCap(profile) {
     case 'intermediate': return 4;
     default: return 5;
   }
+}
+
+/*
+ * The tier nothing may go above, whatever else is asked for.
+ *
+ * Separate from levelCap because they are different kinds of limit. levelCap is
+ * a preference derived from experience and candidates() deliberately allows one
+ * tier of headroom above it; an explicit maxLevel overrides it outright, and
+ * candidatesOrFallback relaxes it on purpose when a pattern would otherwise
+ * come out empty. All three are correct for experience and all three are wrong
+ * for a growth plate.
+ *
+ * The first attempt at this put the age rule inside levelCap, and it did
+ * nothing at all: `levelCap(profile) + 1` turned a cap of 4 straight back into
+ * 5, and a 14-year-old was still prescribed muscle-ups. Verified before and
+ * after — identical. This applies last, to whatever number the rest arrived at.
+ */
+const HEAVY_LOAD_CEILING = 4;
+
+export function levelCeiling(profile) {
+  return withholdsHeavyLoad(profile) ? HEAVY_LOAD_CEILING : 5;
 }
 
 /**
@@ -131,7 +176,8 @@ export function levelCap(profile) {
  */
 export function candidates(profile, opts) {
   const o = opts || {};
-  const cap = o.maxLevel !== undefined ? o.maxLevel : levelCap(profile) + 1;
+  const asked = o.maxLevel !== undefined ? o.maxLevel : levelCap(profile) + 1;
+  const cap = Math.min(asked, levelCeiling(profile));
   return EXERCISES
     .filter((e) => (!o.pattern || e.pattern === o.pattern))
     .filter((e) => (!o.patterns || o.patterns.includes(e.pattern)))
@@ -158,6 +204,8 @@ export function candidatesOrFallback(profile, opts) {
   // yield long before a level ceiling, and far before an injury rule.
   list = candidates(profile, Object.assign({}, opts, { ignoreTrack: true }));
   if (list.length) return { list, risky: false };
+  // Relaxing the ceiling is safe here: candidates() clamps by levelCeiling last,
+  // so asking for 5 on a minor's behalf still comes back at 4.
   list = candidates(profile, Object.assign({}, opts, { ignoreTrack: true, maxLevel: 5 }));
   if (list.length) return { list, risky: false };
   list = candidates(profile, Object.assign({}, opts, { ignoreTrack: true, maxLevel: 5, allowInjuryRisk: true }));

@@ -17,6 +17,7 @@
  */
 
 import { callTool, imageBlock, dataUrlBytes, AiError, choiceFor } from '../ai/client.js';
+import { PHOTO_SCAN_FROM, withholdsPhotoScan, withholdsFatLoss } from '../engine/age.js';
 import { SYSTEM, TOOL, PATTERNS, buildMessage } from './prompt.js';
 
 const PATTERN_SET = new Set(PATTERNS);
@@ -29,12 +30,24 @@ const MAX_IMAGE_BYTES = 3 * 1024 * 1024;
  * Who may run this at all.
  *
  * The scan asks for a photograph of a body in tight clothing and sends it to a
- * third party. The questionnaire accepts ages from 10. Those two facts together
- * are the whole argument for this gate — and the app already KNOWS the age, so
- * leaving the decision to a model guessing from the picture was choosing the
- * least reliable instrument available over the answer sitting in the profile.
+ * third party. That is the whole argument for the gate — and the app already
+ * KNOWS the age, so leaving the decision to a model guessing from the picture
+ * was choosing the least reliable instrument available over the answer sitting
+ * in the profile.
+ *
+ * The threshold comes from age.js now. It was a local `const MIN_SCAN_AGE = 18`
+ * beside a local `Number.isFinite(age) && age < 18`, which is the same rule
+ * written twice and, worse, written differently: Number(null) is 0 and 0 is
+ * finite, so a profile with no age was refused here while the questionnaire
+ * showed it the photo fields. Conservative, and still two files disagreeing
+ * about the same person. The comment above the gates in age.js — an unknown age
+ * is treated as an adult — is the policy; this file was quietly voting against
+ * it.
+ *
+ * The sentence claiming "the questionnaire accepts ages from 10" went with it.
+ * It has been 12 since the app moved, and a stale number in a safety comment is
+ * how the next person gets the threshold wrong.
  */
-const MIN_SCAN_AGE = 18;
 
 /*
  * Below this the app will not carry a fat-loss recommendation, whatever the
@@ -53,8 +66,7 @@ function bmiOf(profile) {
 
 /** True when a fat-loss steer must not be shown, whoever suggested it. */
 export function fatLossBlocked(profile) {
-  const age = Number(profile && profile.age);
-  if (Number.isFinite(age) && age < 18) return true;
+  if (withholdsFatLoss(profile)) return true;
   const bmi = bmiOf(profile);
   return bmi !== null && bmi < UNDERWEIGHT_BMI;
 }
@@ -64,12 +76,11 @@ export function fatLossBlocked(profile) {
  * before the photos are even chosen, rather than after they are uploaded.
  */
 export function scanEligibility(profile) {
-  const age = Number(profile && profile.age);
-  if (Number.isFinite(age) && age < MIN_SCAN_AGE) {
+  if (withholdsPhotoScan(profile)) {
     return {
       ok: false,
       kind: 'underage',
-      he: `סריקת התמונות פתוחה מגיל ${MIN_SCAN_AGE}. `
+      he: `סריקת התמונות פתוחה מגיל ${PHOTO_SCAN_FROM}. `
         + 'זה לא קשור לתוכנית — היא נבנית לך במלואה בלי הסריקה, בדיוק כמו לכל אחד אחר.',
     };
   }

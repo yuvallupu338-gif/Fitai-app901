@@ -97,7 +97,12 @@ const TASKS = [
     id: 'walk_hills',
     title: 'הליכה 30 דקות בעלייה',
     body: 'רחוב משופע או הליכון בשיפוע 6–8. העלייה מעלה דופק בלי הזעזוע שיש בריצה.',
-    load: 'moderate', needs: [], hurts: ['knee', 'ankle'], maxAge: 70,
+    // 'hip' was missing while the flat 5 km walk beside it carries it. Half an
+    // hour at a 6–8% grade asks considerably more of hip flexion and extension
+    // than the same half hour on the level, so if one of them is a problem for
+    // a declared hip, this is the one. Found by the audit disagreeing with the
+    // table rather than reading it.
+    load: 'moderate', needs: [], hurts: ['knee', 'ankle', 'hip'], maxAge: 70,
   },
   {
     id: 'row_15',
