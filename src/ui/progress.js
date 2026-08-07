@@ -84,7 +84,7 @@ export function renderProgress(root, program, profile) {
           signedNum(`${delta > 0 ? '+' : ''}${Math.round(delta * 10) / 10}`),
           ` ק״ג מאז ${formatDate(first.date)}.`));
       } else {
-        view.appendChild(h('p.empty', 'שתי שקילות ומעלה — ותופיע כאן גרף מגמה.'));
+        view.appendChild(h('p.empty', 'שתי שקילות ומעלה — ויופיע כאן גרף מגמה.'));
       }
     }
 

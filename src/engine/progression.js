@@ -577,7 +577,7 @@ export function projectTargets(profile) {
   /* ---- horizontal push, in reps ---- */
   const pushups = benchOf(p, 'pushups');
   rows.push({
-    label: 'שכיבות שמיכה',
+    label: 'שכיבות סמיכה',
     today: pushups === null ? '—' : `${Math.round(pushups)}`,
     target: pushups === null
       ? '3×12 מלאות, חזה לרצפה'
@@ -613,61 +613,41 @@ export function projectTargets(profile) {
       : (plank >= 110 ? 'להוסיף קושי, לא זמן' : `${growSeconds(Math.round(plank), weeks, exp)} שנ׳`),
   });
 
+  /*
+   * The kilogram rows are gone.
+   *
+   * Every one of them sat behind `k.barbell || k.machines || k.freeWeights`,
+   * and kit() reads the equipment on exercises the registry will actually
+   * return. This app is calisthenics-only: matchesTrack removes every loaded
+   * movement, no equipment list it offers contains a barbell, and a check
+   * confirms zero loaded exercises are reachable for any profile. So the
+   * condition was permanently false and the rows were unreachable — which is
+   * why a user who typed a 220 kg squat saw "today: —" beside a bodyweight
+   * target, and why a 13-year-old was shown a "ציר ירכיים · today 80 ק״ג" row
+   * echoing a number nothing had used.
+   *
+   * The questionnaire has stopped asking for the three lifts, so there is
+   * nothing left to echo either.
+   */
+
   /* ---- squat ---- */
-  const squatKg = benchOf(p, 'squatKg');
-  const squatLoaded = candidates(p, { pattern: 'squat' })
-    .some((e) => (e.equipment || []).some((q) => q === 'barbell' || q === 'machines' || q === 'dumbbells' || q === 'kettlebell'));
-  if (squatKg !== null && (k.barbell || k.machines || k.freeWeights)) {
-    rows.push({
-      label: 'סקוואט',
-      today: `${round1(squatKg)} ק״ג`,
-      target: `${round1(growKg(squatKg, weeks, exp, false, age))} ק״ג`,
-    });
-  } else if (squatLoaded && !teen) {
-    rows.push({
-      label: 'סקוואט',
-      today: squatKg === null ? '—' : `${round1(squatKg)} ק״ג`,
-      target: '3×8 עם עומס יציב, ירך מתחת למקבילים',
-    });
-  } else {
-    rows.push({
-      label: 'סקוואט משקל גוף',
-      today: '—',
-      target: teen ? '3×15 עמוק ובשליטה' : '3×20 עמוק, עקבים על הרצפה',
-    });
-  }
+  rows.push({
+    label: 'סקוואט משקל גוף',
+    today: '—',
+    target: teen ? '3×15 עמוק ובשליטה' : '3×20 עמוק, עקבים על הרצפה',
+  });
 
   /* ---- hinge ---- */
-  const dlKg = benchOf(p, 'deadliftKg');
-  if (dlKg !== null && (k.barbell || k.freeWeights || k.machines)) {
-    rows.push({
-      label: 'דדליפט',
-      today: `${round1(dlKg)} ק״ג`,
-      target: `${round1(growKg(dlKg, weeks, exp, false, age))} ק״ג`,
-    });
-  } else if (candidates(p, { pattern: 'hinge' }).length) {
+  if (candidates(p, { pattern: 'hinge' }).length) {
     rows.push({
       label: 'ציר ירכיים',
-      today: dlKg === null ? '—' : `${round1(dlKg)} ק״ג`,
+      today: '—',
       target: teen ? '3×10 בגב ניטרלי, בלי עומס' : '3×10 בשליטה, גב ניטרלי לאורך כל הטווח',
     });
   }
 
   /* ---- press ---- */
-  const benchKg = benchOf(p, 'benchKg');
-  if (benchKg !== null && (k.barbell || k.freeWeights || k.machines)) {
-    rows.push({
-      label: 'לחיצת חזה',
-      today: `${round1(benchKg)} ק״ג`,
-      target: `${round1(growKg(benchKg, weeks, exp, true, age))} ק״ג`,
-    });
-  } else if (k.freeWeights || k.barbell || k.machines) {
-    rows.push({
-      label: 'לחיצת חזה',
-      today: benchKg === null ? '—' : `${round1(benchKg)} ק״ג`,
-      target: '3×10 בשליטה, ירידה של 2 שניות',
-    });
-  } else if (candidates(p, { pattern: 'vertical_push' }).length) {
+  if (candidates(p, { pattern: 'vertical_push' }).length) {
     rows.push({
       label: 'לחיצה מעל הראש',
       today: '—',
