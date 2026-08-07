@@ -19,6 +19,7 @@
  */
 
 import { demonstratedLevel, benchmarkNote } from './benchmarks.js';
+import { effectiveGoal } from './holds.js';
 import {
   MIN_AGE, MAX_AGE, withholdsHeavyLoad,
   easesImpact, needsStandingOption, needsLongerWarmup, warmsFast, stretchHoldSeconds,
@@ -589,8 +590,19 @@ function clampInt(v, lo, hi, d) {
   return Math.max(lo, Math.min(hi, Math.round(numOr(v, d))));
 }
 
+/*
+ * The goal the plan is actually built for, not the chip that was ticked.
+ *
+ * effectiveGoal() rewrites fatloss to fitness whenever the app is refusing to
+ * run a deficit — a minor, an underweight adult, a declared pregnancy, a
+ * declared eating-disorder history. Without it this file shaped a 14-year-old's
+ * entire week as a cut and then told him, on the tab he opens every day,
+ * "הגירעון הקלורי מוריד את המשקל" — three lines from a nutrition tab saying
+ * there is deliberately no calorie counting here.
+ */
 function goalOf(profile) {
-  return SCHEME[profile.goal] ? profile.goal : 'fitness';
+  const g = effectiveGoal(profile);
+  return SCHEME[g] ? g : 'fitness';
 }
 
 function experienceOf(profile) {
@@ -909,9 +921,34 @@ function restrictPool(pool, role) {
   return { pool: out, demoted: false, onlyWarmups };
 }
 
+/*
+ * The sibling-pattern fallback, which for its whole life had never run once.
+ *
+ * SIBLING_PATTERNS exists so that a pattern with nothing safe in it can hand its
+ * sets to a neighbour, and the header comment explains the intent with a
+ * shoulder example. It was dead code. candidatesOrFallback is documented as
+ * "never returns empty for a pattern that exists in the DB" — it gets there by
+ * relaxing the injury filter — so the first iteration always returned and the
+ * sibling list was never reached. Instrumented across 3,840 profiles including
+ * eight simultaneous injuries: tried zero times.
+ *
+ * What that produced: a 17-year-old footballer who declared a knee injury opened
+ * all three sessions of every week with maximal vertical jumps. Every one of the
+ * eight plyo movements in the library is knee- and ankle-contraindicated, so
+ * there was no clean option, so the filter gave way — and both offered swap
+ * alternatives were knee-contraindicated too, which makes "if it doesn't feel
+ * right, swap it" advice with nowhere to go. The note beside it called it "the
+ * gentlest version, minimal load, pain-free range"; the exercise's own note in
+ * this file calls it קפיצה מקסימלית.
+ *
+ * So the pass structure changes rather than the fallback: ask every pattern for
+ * a clean pool first, and only accept a warned one after the neighbours have
+ * also come up empty. An injured trainee gets the sets moved, not the warning.
+ */
 function poolFor(profile, pattern, primaryInDay, role) {
   const tried = [pattern].concat(SIBLING_PATTERNS[pattern] || []);
-  for (const pat of tried) {
+
+  const attempt = (pat, allowRisky) => {
     /*
      * Raise the ceiling to what the trainee has shown for this pattern.
      *
@@ -926,14 +963,33 @@ function poolFor(profile, pattern, primaryInDay, role) {
     const shown = demonstratedLevel(profile, pat);
     const opts = shown === null ? { pattern: pat } : { pattern: pat, maxLevel: shown + 1 };
     const res = candidatesOrFallback(profile, opts);
+    if (res.risky && !allowRisky) return null;
     const pool = res.list.filter((e) => !primaryInDay.has(e.id));
-    if (!pool.length) continue;
+    if (!pool.length) return null;
     const restricted = restrictPool(pool, role);
-    if (restricted.pool.length) {
-      return { pool: restricted.pool, risky: res.risky, demoted: restricted.demoted, thin: restricted.onlyWarmups };
-    }
+    if (!restricted.pool.length) return null;
+    return {
+      pool: restricted.pool,
+      risky: res.risky,
+      demoted: restricted.demoted,
+      thin: restricted.onlyWarmups,
+      /* Which pattern actually filled the slot, so a caller can say the sets
+         moved instead of silently labelling a squat as plyo work. */
+      pattern: pat,
+    };
+  };
+
+  for (const pat of tried) {
+    const clean = attempt(pat, false);
+    if (clean) return clean;
   }
-  return { pool: [], risky: false, demoted: false, thin: false };
+  // Every neighbour is contraindicated too. Now, and only now, take the warned
+  // option — and it keeps res.risky, so the caller still prints the caution.
+  for (const pat of tried) {
+    const risky = attempt(pat, true);
+    if (risky) return risky;
+  }
+  return { pool: [], risky: false, demoted: false, thin: false, pattern };
 }
 
 function pickFamily(profile, slot, ctx) {

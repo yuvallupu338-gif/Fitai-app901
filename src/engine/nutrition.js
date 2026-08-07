@@ -21,7 +21,8 @@
  * Food is Israeli home food with household measures, not grams on a scale.
  */
 
-import { withholdsBodyNumbers, withholdsFatLoss } from './age.js';
+import { withholdsBodyNumbers } from './age.js';
+import { fatLossHold, kcalFloor, medicalFlags } from './holds.js';
 
 /* ------------------------------------------------------------------ *
  * Food bank
@@ -363,40 +364,54 @@ function strategy(profile) {
   let hold = null;
   const w = profile.weightKg;
   switch (profile.goal) {
-    case 'fatloss':
+    case 'fatloss': {
       /*
-       * Under 18 there is no deficit, whatever the goal chip says.
+       * Every reason not to run a deficit now lives in holds.js and is asked
+       * once, here and by targets.js and generator.js and volume.js.
        *
-       * This used to say "targets.js refuses to put an under-18 into a
-       * deficit" and leave it there. targets.js does refuse — but only when a
-       * target weight was entered, because that is the only thing it is asked
-       * about. A seventeen-year-old who picked "חיטוב" and left the target
-       * blank came through here and was handed 2210 kcal against a TDEE of
-       * 2720: a real 510 kcal deficit, with weekly weigh-in check-ins beside
-       * it, on the same screen as a heading that calls them a minor.
-       *
-       * Two files agreeing about a rule and neither of them enforcing it is
-       * the shape of every age bug in this app so far. This one asks.
+       * It started as the under-18 rule alone, in this switch. The rule was
+       * right and its home was wrong: because only this file knew, the goal tab
+       * printed "היעד ריאלי" and a dated ladder down to 47 kg for a BMI-17.6
+       * woman while this branch quietly held her at maintenance. And because
+       * only age was ever checked here, a declared pregnancy — an intake chip,
+       * offered to every non-male profile — came through untouched and was
+       * handed a 430 kcal deficit with no mention of pregnancy in the plan.
        */
-      if (withholdsFatLoss(profile)) { hold = 'minor'; break; }
-      // Being underweight is the same refusal for a different reason: under
-      // BMI 18.5 there is no fat to spend, so the deficit comes out of muscle,
-      // bone and hormones instead. Whether to diet anyway is a conversation
-      // with a doctor, and an app that has seen two numbers does not get to
-      // open it.
-      if (bmiOf(profile) < 18.5) { hold = 'underweight'; break; }
+      const h = fatLossHold(profile);
+      if (h) { hold = h.reason; break; }
       wanted = -Math.round(Math.min(tdee * 0.22, (0.006 * w * 7700) / 7));
       break;
+    }
     case 'muscle': wanted = Math.round(Math.min(tdee * 0.12, (0.003 * w * 7700) / 7)); break;
     case 'strength': wanted = Math.round(tdee * 0.05); break;
     case 'sport': wanted = Math.round(tdee * 0.03); break;
     default: wanted = 0;
   }
 
-  // A deficit is meant to come out of the day's activity, not out of what the
-  // body spends lying still. Without this floor a light, short, twice-a-week
-  // adult was handed 970 kcal — a number no dietitian would write down, and one
-  // this file arrived at purely by taking 22% of an already small TDEE.
+  /*
+   * Two floors, and they answer different questions.
+   *
+   * The BMR floor says a deficit comes out of the day's activity rather than
+   * out of what the body spends lying still. That is the right principle and it
+   * was the only floor here — which turned out to be no floor at all for small
+   * bodies, because the lowest activity factor is 1.30 and 1.30 × 0.78 = 1.014.
+   * Every low-activity fat-loss client was therefore pinned to roughly their
+   * own BMR with the deficit eating the entire activity allowance: a 62-year-old
+   * woman at 152 cm and 58 kg training twice a week came out at 1,070 kcal, and
+   * a 90-year-old at 790.
+   *
+   * The absolute floor says that below roughly 1,200 kcal for women and 1,500
+   * for men you cannot assemble the micronutrients out of food at all, whatever
+   * the arithmetic upstream believes. When it bites, the plan does not quietly
+   * obey a smaller deficit — it flips to maintenance and says so, because a
+   * body that small needs a dietitian rather than a better formula.
+   */
+  const floor = kcalFloor(profile);
+  if (wanted < 0 && tdee + wanted < floor) {
+    if (tdee < floor) { wanted = 0; hold = 'small_budget'; }
+    else wanted = floor - tdee;
+  }
+
   const kcal = Math.round(Math.max(tdee + wanted, bmr) / 10) * 10;
 
   // Report the change that survived the floor and the rounding: this is the
@@ -532,7 +547,7 @@ export function nutritionPlan(profile) {
     plate: plate(p, minor),
     meals: served,
     eatingOut: eatingOut(p, minor, cutting),
-    checkins: checkins(p, minor, cutting),
+    checkins: checkins(p, minor, cutting, strat),
     warnings: warnings(p, minor, strat, thin),
   };
 }
@@ -707,7 +722,7 @@ function eatingOutVeg(vegan, cutting) {
   return out;
 }
 
-function checkins(p, minor, cutting) {
+function checkins(p, minor, cutting, strat) {
   /*
    * The markers are the diet. A weekly weigh-in and "stuck for three weeks?
    * drop a snack" are what dieting consists of once you delete the calorie
@@ -743,6 +758,43 @@ function checkins(p, minor, cutting) {
     ];
   }
 
+  /*
+   * The same reasoning as the minor branch, for two adult profiles the minor
+   * branch does not cover.
+   *
+   * A weekly weigh-in and "drop a snack if it's stuck" ARE the diet once you
+   * delete the calorie count. Somebody who declared an eating-disorder history
+   * was being handed both — under a paragraph saying this plan deliberately has
+   * no weigh-ins — and somebody who declared a pregnancy was handed both too.
+   * Holding the calorie target and leaving the behaviours on screen withholds
+   * the number and prescribes the disorder.
+   */
+  const noScale = !!(strat && (strat.hold === 'eating_disorder' || strat.hold === 'pregnancy'));
+  if (noScale) {
+    return [
+      {
+        k: 'קביעות',
+        title: 'ארוחות בשעות קבועות',
+        body: 'שלוש ארוחות ונשנוש או שניים, בערך באותן שעות כל יום. הקביעות היא מה שעובד כאן — לא מה שקורה על המאזניים.',
+      },
+      {
+        k: 'המספרים באימון',
+        title: 'עוד חזרה, עוד שנייה בפלאנק',
+        body: 'זו העדות שיש כאן. אם המספרים באימון עולים משבוע לשבוע, אתה אוכל מספיק.',
+      },
+      {
+        k: 'אנרגיה',
+        title: 'איך אחר הצהריים',
+        body: 'עייפות כבדה אחרי הצהריים היא כמעט תמיד ארוחה חסרה. נשנוש בין הצהריים לאימון פותר את זה.',
+      },
+      {
+        k: 'עם מי',
+        title: 'המספרים נקבעים מול איש מקצוע',
+        body: 'האפליקציה בונה כאן תפריט אחזקה ולא יעד ירידה. אם צריך יעד — הוא נקבע עם הדיאטנית או הצוות שמלווה אותך, ולא כאן.',
+      },
+    ];
+  }
+
   const out = [
     {
       k: 'שקילה',
@@ -757,9 +809,16 @@ function checkins(p, minor, cutting) {
         : 'שבועיים־שלושה בלי תזוזה? תוסיף עוד נשנוש ביום. בדרך כלל הבעיה היא ארוחת הבוקר.',
     },
     {
+      /*
+       * "עוד 2.5 ק״ג" was the marker in an app with no weights in it. Every
+       * location and experience combination returns loadJumpKg = 0 — the
+       * registry is calisthenics-only and progression.js says so on the next tab
+       * ("בלי משקולות המשקל לא עולה, הקושי עולה"). A trainee taking this
+       * literally waits for a number that will never appear.
+       */
       k: 'אם המספרים באימון עולים',
       title: 'אתה בכיוון',
-      body: 'עוד חזרה, עוד 2.5 ק״ג — זו עדות טובה יותר מכל מספר על המאזניים.',
+      body: 'עוד חזרה, עוד שנייה בפלאנק, או וריאציה קשה יותר — זו עדות טובה יותר מכל מספר על המאזניים.',
     },
   ];
   if (cutting) {
@@ -782,12 +841,41 @@ function warnings(p, minor, strat, thin) {
       out.push('ציינת ירידה במשקל כמטרה. בגיל הזה זה קורה דרך הגובה והשריר ולא דרך פחות אוכל — המספר על המאזניים אמור לעלות בזמן שההרכב משתנה. אם יש חשש רפואי סביב המשקל, זו שיחה עם רופא ולא עם אפליקציה.');
     }
   } else {
-    // Only claim the numbers are an estimate when there are numbers.
-    if (strat) out.push('המספרים כאן הם הערכה מנוסחה, לא מדידה. הם נקודת פתיחה — הגוף על המאזניים ובמראה הוא המדד האמיתי.');
+    /*
+     * Only claim the numbers are an estimate when there are numbers.
+     *
+     * The tail of this sentence used to read "הגוף על המאזניים ובמראה הוא המדד
+     * האמיתי" — the scale and the mirror as the gold standard. That is the
+     * single behaviour eating-disorder recovery spends months undoing, and it
+     * was printing directly above the paragraph telling somebody who declared an
+     * anorexia history that this plan deliberately has no weigh-ins. Performance
+     * and how clothes fit are better evidence for everybody, and they are the
+     * only safe framing for the profile that needed it most.
+     */
+    if (strat) {
+      out.push('המספרים כאן הם הערכה מנוסחה, לא מדידה. הם נקודת פתיחה — מה שקורה באימון, '
+        + 'איך הבגדים יושבים ואיך האנרגיה שלך לאורך היום הם המדד האמיתי.');
+    }
     if (strat && strat.hold === 'minor') {
       out.push('בחרת חיטוב, והתוכנית מכוונת לאחזקה ולא לירידה. מתחת לגיל 18 גירעון קלורי מכוון בא על חשבון גובה, צפיפות עצם והורמונים — דברים שנקבעים עכשיו ולא חוזרים. השינוי בהרכב הגוף בגיל הזה מגיע מהאימון, מהחלבון ומהשינה. אם יש סיבה רפואית לרדת במשקל — זה שיחה עם רופא, לא עם אפליקציה.');
     } else if (strat && strat.hold === 'underweight') {
       out.push('המשקל שלך נמוך ביחס לגובה, ולכן התוכנית מכוונת לאחזקה ולא לירידה. אין כאן מספיק שומן שגירעון יכול לקחת ממנו, והוא ייקח במקומו משריר, משינה ומהורמונים. אם בכל זאת חשוב לך לרדת — תעשה את זה מול דיאטן.');
+    } else if (strat && (strat.hold === 'pregnancy' || strat.hold === 'eating_disorder')) {
+      // The reason is carried by the hold itself so this file and holds.js
+      // cannot drift into saying two different things about the same refusal.
+      const h = fatLossHold(p);
+      if (h) out.push(h.he);
+    } else if (strat && strat.hold === 'small_budget') {
+      /*
+       * Not a hold on a body, a hold on the arithmetic: maintenance itself is
+       * already at or under the floor, so there is no deficit to take. Said
+       * plainly rather than by quietly serving maintenance, because a trainee
+       * who asked to lose weight and got a maintenance number deserves to know
+       * the app decided rather than miscalculated.
+       */
+      out.push(`התחזוקה שלך מוערכת בסביבות ${strat.tdee} קק״ל, וזה כבר קרוב לרצפה שממנה אי אפשר `
+        + 'להרכיב את הוויטמינים והמינרלים מהאוכל. לכן אין כאן גירעון: ירידה במשקל מגוף קטן '
+        + 'נבנית מול דיאטנית, ומה שכן עובד כאן זה להוסיף אימונים והליכה במקום להוריד אוכל.');
     } else if (p.goal === 'fatloss') {
       out.push('גירעון גדול יותר לא נותן תוצאה מהירה יותר לאורך זמן — הוא רק מוריד שריר ומעלה את הסיכוי שתפרוש.');
     }
@@ -797,7 +885,22 @@ function warnings(p, minor, strat, thin) {
     // the person told us they cannot eat.
     out.push('ההגבלות שציינת מוציאות חלק גדול מהמאגר, ובעיקר את מקורות החלבון, ולכן נשארו כאן פחות חלופות מהרגיל. מה שמופיע מתאים לך — אבל שווה לבנות עם דיאטן עוד אופציות, במיוחד לחלבון, לברזל, לאבץ ולסידן.');
   }
-  if (String(p.medical || '').trim() || String(p.supplements || '').trim()) {
+  /*
+   * The medical free text is read, not just acknowledged.
+   *
+   * This used to be one boilerplate sentence for every possible answer. Same
+   * output for "אני לוקח ויטמין D" and for "היסטוריה של אנורקסיה, במעקב
+   * פסיכיאטרי" — and the second of those was handed a 364 kcal deficit, a
+   * weekly weigh-in and "הורד נשנוש אחד ביום". A keyword screen will miss
+   * things; not looking at all misses everything.
+   */
+  const flags = medicalFlags(p);
+  for (const f of flags) {
+    // The refusal already printed its own sentence above; don't say it twice.
+    if (strat && strat.hold === f.key) continue;
+    out.push(f.he);
+  }
+  if (!flags.length && (String(p.medical || '').trim() || String(p.supplements || '').trim())) {
     out.push('ציינת מצב רפואי או תוספים. שווה לעבור על התוכנית התזונתית עם רופא או דיאטן לפני שמתחילים.');
   }
   if ((p.diet || []).includes('vegan')) {

@@ -1533,6 +1533,266 @@ try {
   } catch (e) { err(`age-bounds check could not run: ${e.message}`); }
 }
 
+
+/*
+ * The refusals, from a review committee that ran the engine rather than read it.
+ *
+ * Four reviewers — a coach, a dietitian, a coach-dietitian and a UI specialist —
+ * were pointed at the app and told to reproduce everything they claimed. What
+ * came back was not a list of typos. The three worst were:
+ *
+ *   a declared pregnancy produced a 430 kcal deficit, and the word "pregnancy"
+ *   appeared nowhere else in the plan;
+ *
+ *   there was no absolute calorie floor, so an ordinary 62-year-old woman
+ *   training twice a week was handed 1,070 kcal and a 90-year-old 790;
+ *
+ *   "היסטוריה של אנורקסיה, במעקב פסיכיאטרי" typed into the medical field
+ *   produced a deficit, a weekly weigh-in, and "הורד נשנוש אחד ביום".
+ *
+ * Each is now a hold in holds.js. Each is checked here, because the shape of
+ * every one of these bugs was a rule that existed in one file and was never
+ * asked by the others.
+ */
+{
+  try {
+    const schema = await load('src/intake/schema.js');
+    const nut = await load('src/engine/nutrition.js');
+    const holds = await load('src/engine/holds.js');
+    const targets = await load('src/engine/targets.js');
+    const gen = await load('src/engine/generator.js');
+    const registry = await load('src/data/exercises.index.js');
+
+    const mk = (over) => schema.normalizeProfile(Object.assign(schema.defaults(), {
+      age: 30, sex: 'female', heightCm: 165, weightKg: 68, goal: 'fatloss',
+      experience: 'beginner', daysPerWeek: 3, minutesPerSession: 60,
+      location: 'home_bodyweight', wantsNutrition: true,
+    }, over));
+    const strat = (over) => nut.nutritionPlan(mk(over)).strategy;
+
+    // 1. Nobody the app refuses to diet is put in a deficit, by any route.
+    const REFUSED = [
+      ['a declared pregnancy', { injuries: ['pregnancy'] }],
+      ['pregnancy in the medical text', { medical: 'שבוע 22 להריון' }],
+      ['a declared eating-disorder history', { age: 22, weightKg: 55, medical: 'היסטוריה של אנורקסיה' }],
+      ['an underweight adult', { heightCm: 170, weightKg: 51 }],
+      ['a 15-year-old', { age: 15 }],
+    ];
+    for (const [who, over] of REFUSED) {
+      // Under 16 there is no strategy object at all — the plan carries no
+      // calorie numbers by design. That is the strongest refusal there is, not
+      // a missing one, so null passes here.
+      const s = strat(over);
+      if (s && s.deltaKcal < 0) {
+        err(`${who} was put in a ${-s.deltaKcal} kcal deficit — fatLossHold did not reach nutrition.js`);
+      }
+      // And the goal engine has to agree, or one tab cheers while the other refuses.
+      const g = targets.assessGoal(mk(Object.assign({ targetWeightKg: 47, targetDate: '2027-06-01' }, over)));
+      if (g.realistic) {
+        err(`${who} was told the weight-loss target is realistic — targets.js and nutrition.js disagree, `
+          + 'which is how a BMI-17.6 woman got "היעד ריאלי" over a dated ladder to 47.5 kg');
+      }
+    }
+
+    // 2. The absolute floor holds for every body the questionnaire can describe.
+    {
+      /*
+       * Written out here rather than read from holds.js on purpose.
+       *
+       * The first version of this asked holds.kcalFloor() for the number to
+       * compare against, which is the same constant nutrition.js applies — so
+       * the check could only ever confirm the two agreed with each other.
+       * Dropping the floor to 600/700 left it green. These are the clinical
+       * values the finding was about: below roughly 1,200 kcal for women and
+       * 1,500 for men you cannot assemble the micronutrients out of food, and
+       * that fact does not move because a constant in the app did.
+       */
+      const CLINICAL_FLOOR = { female: 1200, male: 1500 };
+      let worst = null;
+      for (const age of [18, 45, 62, 75, 90]) {
+        for (const sex of ['female', 'male']) {
+          for (const h of [148, 158, 170, 185]) {
+            for (const w of [45, 58, 70, 95]) {
+              for (const days of [2, 3, 6]) {
+                for (const min of [20, 45, 90]) {
+                  const s = strat({ age, sex, heightCm: h, weightKg: w, daysPerWeek: days, minutesPerSession: min });
+                  if (!s) continue;
+                  const floor = CLINICAL_FLOOR[sex];
+                  if (s.deltaKcal < 0 && s.kcal < floor && (worst === null || s.kcal < worst.kcal)) {
+                    worst = { age, sex, h, w, days, min, kcal: s.kcal, floor };
+                  }
+                }
+              }
+            }
+          }
+        }
+      }
+      if (worst) {
+        err(`a deficit of ${worst.kcal} kcal was prescribed to a ${worst.age}-year-old ${worst.sex} `
+          + `(${worst.h} cm, ${worst.w} kg, ${worst.days}x${worst.min}) against a floor of ${worst.floor}`);
+      }
+    }
+
+    // 3. The medical screen reads the answer, and does not fire on a substring.
+    //    'לב' lives inside 'שלב', which is how a kidney patient was handed a
+    //    beta-blocker warning.
+    const keys = (t) => holds.medicalFlags({ medical: t }).map((f) => f.key).sort().join(',');
+    const SCREEN = [
+      ['היסטוריה של אנורקסיה, במעקב פסיכיאטרי', 'eating_disorder'],
+      ['אי ספיקת כליות שלב 3', 'kidney'],
+      ['סוכרת סוג 1, אינסולין לנטוס', 'diabetes'],
+      ['אחרי צנתור, קומדין', 'anticoagulant,heart'],
+      ['מחלת לב', 'heart'],
+      ['שלב 2 של השיקום', ''],
+      ['לוקח ויטמין D', ''],
+      ['', ''],
+    ];
+    for (const [text, want] of SCREEN) {
+      const got = keys(text);
+      if (got !== want) err(`medicalFlags(${JSON.stringify(text)}) = "${got}", expected "${want}"`);
+    }
+
+    // 4. A held plan is not SHAPED like a diet either — not the note on the plan
+    //    tab, not the volume distribution, not the rest-day list.
+    for (const [who, over] of REFUSED) {
+      const p = mk(over);
+      const notes = gen.generateProgram(p).notes || [];
+      if (notes.some((n) => /הגירעון הקלורי מוריד את המשקל/.test(n))) {
+        err(`${who} is told on the plan tab that the calorie deficit takes the weight off, `
+          + 'while the nutrition tab refuses to build one');
+      }
+    }
+
+    // 5. No exercise loads a declared injury while a clean alternative exists
+    //    anywhere in the pattern or its siblings. The knee case is the one that
+    //    mattered: all eight plyo movements are knee-contraindicated, so a
+    //    footballer with a bad knee opened every session on maximal jumps.
+    {
+      let loaded = 0;
+      let example = null;
+      for (const inj of ['knee', 'shoulder', 'lower_back', 'wrist', 'ankle', 'hip']) {
+        for (const goal of ['sport', 'fitness', 'muscle', 'strength']) {
+          for (const age of [17, 35, 68]) {
+            const p = mk({
+              injuries: [inj], goal, age, sex: 'male', heightCm: 175, weightKg: 72,
+              experience: 'intermediate', equipment: ['pullup_bar'],
+            });
+            for (const day of gen.generateProgram(p).days) {
+              for (const slot of day.slots) {
+                const v = (slot.variants || [])[0];
+                if (!v) continue;
+                const ex = registry.byId(v.exId);
+                if (!ex || !(ex.contraindications || []).includes(inj)) continue;
+                loaded++;
+                if (!example) example = `${inj}/${goal}/age ${age}: ${ex.id}`;
+              }
+            }
+          }
+        }
+      }
+      if (loaded) {
+        err(`${loaded} exercise(s) load a declared injury (e.g. ${example}) — poolFor accepted a `
+          + 'warned pattern without first asking its siblings, which is what put maximal vertical '
+          + 'jumps into a knee-injured athlete three times a week');
+      }
+    }
+
+    // 6. And the healthy adult is untouched by all of it.
+    {
+      const ok = strat({ sex: 'male', heightCm: 178, weightKg: 95 });
+      if (ok.deltaKcal >= 0) err('a healthy 95 kg adult asking for fat loss got no deficit at all');
+      const plyo = gen.generateProgram(mk({
+        age: 17, sex: 'male', heightCm: 175, weightKg: 68, goal: 'sport',
+        experience: 'intermediate', equipment: ['pullup_bar'],
+      })).days.some((d) => d.slots.some((s) => {
+        const v = (s.variants || [])[0];
+        const ex = v && registry.byId(v.exId);
+        return ex && ex.pattern === 'plyo';
+      }));
+      if (!plyo) err('an uninjured athlete on the sport goal lost plyometrics entirely — the injury '
+        + 'fix was applied to everybody');
+    }
+  } catch (e) { err(`committee-findings check could not run: ${e.message}`); }
+}
+
+
+/*
+ * The tick week and the drawn week have to be the same week.
+ *
+ * They were not. weekKey() stamped an ISO week (Monday-start) while every
+ * screen draws the week Sunday-first — the strip is א,ב,ג,ד,ה,ו,ש and the
+ * default training days are [0, 2, 4], Sunday/Tuesday/Thursday. So Sunday, the
+ * first day of the user's week and the first day of the Israeli working week,
+ * belonged to the PREVIOUS key: a full session ticked on Sunday read back as
+ * 0/21 on Monday morning, with the seven ticks still in storage under a key the
+ * app would never ask for again.
+ *
+ * Checked here rather than in the browser because it is arithmetic, and because
+ * the failure is invisible on five days out of seven — exactly the shape of bug
+ * that comes back.
+ */
+{
+  try {
+    const g = globalThis;
+    const hadWindow = 'window' in g;
+    if (!hadWindow) {
+      const mem = {};
+      g.window = {
+        localStorage: {
+          getItem: (k) => (k in mem ? mem[k] : null),
+          setItem: (k, v) => { mem[k] = String(v); },
+          removeItem: (k) => { delete mem[k]; },
+        },
+      };
+    }
+    const store = await load('src/core/store.js');
+    if (!store) throw new Error('store.js did not load');
+
+    /*
+     * The week the UI draws, derived from plan.js's own LETTERS array rather
+     * than restated: index 0 is א = Sunday. If that ever changes, this check
+     * follows it instead of quietly disagreeing.
+     */
+    const plan = await load('src/ui/plan.js');
+    const firstDrawnWeekday = plan && plan.LETTERS ? plan.LETTERS.indexOf('א') : 0;
+    if (firstDrawnWeekday !== 0) {
+      err(`the week strip no longer starts on Sunday (א is at index ${firstDrawnWeekday}) — `
+        + 'weekKey must be re-derived to match it');
+    }
+
+    // Every seven-day run starting on the drawn first day must share one key.
+    for (const start of ['2026-08-09', '2026-01-04', '2025-12-28', '2026-12-27', '2027-02-28']) {
+      const base = new Date(`${start}T09:00:00`);
+      if (base.getDay() !== firstDrawnWeekday) {
+        err(`the ${start} fixture is not the day the strip starts on — fixture is wrong, not the code`);
+        continue;
+      }
+      const keys = [];
+      for (let i = 0; i < 7; i++) {
+        const d = new Date(base.getFullYear(), base.getMonth(), base.getDate() + i);
+        keys.push(store.weekKey(d));
+      }
+      const distinct = Array.from(new Set(keys));
+      if (distinct.length !== 1) {
+        const NAMES = ['ראשון', 'שני', 'שלישי', 'רביעי', 'חמישי', 'שישי', 'שבת'];
+        const flip = keys.findIndex((k, i) => i > 0 && k !== keys[i - 1]);
+        err(`the week beginning ${start} spans ${distinct.length} tick keys — it changes on `
+          + `${NAMES[flip]}, so anything ticked before then is unreachable for the rest of the week`);
+      }
+    }
+
+    // And the day before the drawn week must be a DIFFERENT key, or ticks would
+    // never expire and last week's session would count as this week's.
+    {
+      const sun = new Date(2026, 7, 9, 9);
+      const satBefore = new Date(2026, 7, 8, 9);
+      if (store.weekKey(sun) === store.weekKey(satBefore)) {
+        err('Saturday and the following Sunday share a tick key — weeks never roll over');
+      }
+    }
+  } catch (e) { err(`tick-week check could not run: ${e.message}`); }
+}
+
 /* ---------------- report ---------------- */
 
 console.log(`exercises: ${allEx.size}`);

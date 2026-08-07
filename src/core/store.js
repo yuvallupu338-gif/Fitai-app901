@@ -142,15 +142,35 @@ export function reset() {
  * Derived keys
  * ------------------------------------------------------------------ */
 
-/** ISO-ish week stamp, e.g. "2026-W31". Used to scope completion ticks. */
+/*
+ * The week a tick belongs to, stamped as the date of the Sunday it starts on.
+ *
+ * This was an ISO week — Monday to Sunday — while every screen in the app draws
+ * the week Sunday to Saturday: the strip runs א,ב,ג,ד,ה,ו,ש, and the default
+ * training days are [0, 2, 4], which is Sunday, Tuesday, Thursday.
+ *
+ * So the first day of the user's displayed week was the last day of the key's
+ * week, and the two disagreed by exactly one day in the direction that destroys
+ * work. Verified against a mocked clock: finish and tick a full session on
+ * Sunday, reopen on Monday, and the counter reads 0/21 with every day cell
+ * empty. The seven ticks are still in localStorage — they are keyed to a week
+ * the app will never ask for again.
+ *
+ * That is the app's own market, on the app's own default schedule, on the day
+ * the Israeli working week begins.
+ *
+ * The stamp is the Sunday's calendar date rather than a week number because a
+ * week number needs a year rule (ISO's "week containing the first Thursday")
+ * and getting that subtly wrong is what caused this. A date has no edge case.
+ * Changing the format orphans at most one week of existing ticks, which is the
+ * cheapest possible fix for a bug that was already discarding them.
+ */
 export function weekKey(d) {
   const date = d ? new Date(d) : new Date();
-  const t = new Date(Date.UTC(date.getFullYear(), date.getMonth(), date.getDate()));
-  const day = t.getUTCDay() || 7;
-  t.setUTCDate(t.getUTCDate() + 4 - day);
-  const yearStart = new Date(Date.UTC(t.getUTCFullYear(), 0, 1));
-  const week = Math.ceil(((t - yearStart) / 86400000 + 1) / 7);
-  return `${t.getUTCFullYear()}-W${String(week).padStart(2, '0')}`;
+  const sunday = new Date(date.getFullYear(), date.getMonth(), date.getDate() - date.getDay());
+  const m = String(sunday.getMonth() + 1).padStart(2, '0');
+  const day = String(sunday.getDate()).padStart(2, '0');
+  return `${sunday.getFullYear()}-${m}-${day}`;
 }
 
 export function todayKey(d) {

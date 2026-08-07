@@ -10,7 +10,8 @@
  * bodyweight, because a 60kg and a 110kg person cannot lose the same kilos.
  */
 
-import { growthAllowanceKgPerWeek, isMinor } from './age.js';
+import { growthAllowanceKgPerWeek, isMinor, withholdsBodyNumbers } from './age.js';
+import { fatLossHold } from './holds.js';
 
 const DAY = 86400000;
 
@@ -153,14 +154,30 @@ export function assessGoal(profile) {
    */
   const minor = isMinor(p);
 
-  /* ---- under-18 fat loss gets steered, not encouraged ---- */
-  if (minor && losing) {
+  /* ---- every reason the app will not run a deficit gets steered, not encouraged ---- */
+  /*
+   * This branch used to test the age alone, and it was the only test here. So
+   * nutrition.js quietly held a 26-year-old woman at BMI 17.6 on maintenance and
+   * explained why in a paragraph at the bottom of a tab she may never open —
+   * while THIS file returned realistic:true, a verdict reading "קצב שאפשר
+   * להחזיק", and a four-row dated ladder down to 47.5 kg that the guide tab
+   * renders under the heading "היעד ריאלי". Four surfaces cheering, one
+   * refusing, and the refusal was the quiet one.
+   *
+   * The reasons now live in holds.js and both files ask it, so a refusal cannot
+   * be added to one and forgotten in the other. The verdict text comes from the
+   * hold itself for the same reason.
+   */
+  const held = losing ? fatLossHold(p) : null;
+  if (held) {
     base.realistic = false;
     base.suggestedTargetKg = round1(start);
     base.suggestedDate = p.targetDate;
-    base.verdict = 'בגיל הזה הגוף עוד גדל, וגירעון קלורי מכוון פוגע בגדילה ובאנרגיה. '
-      + 'המסלול הנכון הוא לשמור על המשקל ולתת לגובה ולשריר לעשות את העבודה — ההרכב משתנה גם בלי שהמספר יורד. '
-      + 'אם יש חשש רפואי לגבי המשקל, זו שיחה עם רופא, לא עם אפליקציה.';
+    base.verdict = held.reason === 'minor'
+      ? 'בגיל הזה הגוף עוד גדל, וגירעון קלורי מכוון פוגע בגדילה ובאנרגיה. '
+        + 'המסלול הנכון הוא לשמור על המשקל ולתת לגובה ולשריר לעשות את העבודה — ההרכב משתנה גם בלי שהמספר יורד. '
+        + 'אם יש חשש רפואי לגבי המשקל, זו שיחה עם רופא, לא עם אפליקציה.'
+      : held.he;
     base.milestones = monthlyMilestones(now, weeks, start, start, p);
     return base;
   }
@@ -282,10 +299,19 @@ function formatHe(d) {
 
 export function facts(profile) {
   const p = profile || {};
-  const out = [
-    { label: 'משקל היום', value: `${round1(p.weightKg)} ק״ג` },
-  ];
-  if (p.targetWeightKg) out.push({ label: 'יעד', value: `${round1(p.targetWeightKg)} ק״ג` });
+  /*
+   * The masthead is on screen 100% of the time, above every tab, and it was the
+   * one component that never asked about age. So a fourteen-year-old read
+   * "משקל היום 68 ק״ג · יעד 60 ק״ג" in bold, permanently, directly above the two
+   * tabs that deliberately refuse him body numbers: the nutrition tab explaining
+   * that the number is supposed to RISE because he is still growing, and the
+   * tracking tab where the weight field is removed outright rather than merely
+   * discouraged. Height stays — it is the number he wants to go up.
+   */
+  const noBodyNumbers = withholdsBodyNumbers(p);
+  const out = [];
+  if (!noBodyNumbers) out.push({ label: 'משקל היום', value: `${round1(p.weightKg)} ק״ג` });
+  if (p.targetWeightKg && !noBodyNumbers) out.push({ label: 'יעד', value: `${round1(p.targetWeightKg)} ק״ג` });
   out.push(
     { label: 'גובה', value: `${p.heightCm} ס״מ` },
     { label: 'שינה', value: `${p.sleepHours} שעות` },

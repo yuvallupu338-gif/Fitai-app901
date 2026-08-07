@@ -18,6 +18,7 @@
 
 import { hashProfile, rotate } from '../data/exercises.index.js';
 import { withholdsBodyNumbers, IMPACT_EASES_FROM } from './age.js';
+import { effectiveGoal } from './holds.js';
 
 /*
  * The catalogue.
@@ -157,7 +158,11 @@ export function restDayTasks(profile, restDayIndexes) {
   const rest = (restDayIndexes || []).slice().sort((a, b) => a - b);
   if (!rest.length) return [];
 
-  const goal = PREFERENCE[p.goal] ? p.goal : 'fitness';
+  // The chip is not the plan. A minor on a maintenance plan was still given
+  // the fat-loss rest-day list, whose first entry is a 50-minute 5 km walk —
+  // step-chasing, on a plan that explicitly is not chasing steps.
+  const eff = effectiveGoal(p);
+  const goal = PREFERENCE[eff] ? eff : 'fitness';
   const pool = TASKS.filter((t) => allowed(t, p));
   if (!pool.length) return [];
 

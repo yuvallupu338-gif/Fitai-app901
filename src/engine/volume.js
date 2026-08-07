@@ -13,6 +13,7 @@
  */
 
 import { MIN_AGE, MAX_AGE, SLOWER_RECOVERY_FROM, MUCH_SLOWER_RECOVERY_FROM } from './age.js';
+import { effectiveGoal } from './holds.js';
 
 /* Groups the whole engine talks in. These keys are the weeklyVolume() result. */
 const GROUPS = ['push', 'pull', 'legs', 'core', 'arms', 'shoulders', 'calves', 'conditioning'];
@@ -65,8 +66,13 @@ function hoursHe(v) {
   return Number.isInteger(n) ? String(n) : String(Math.round(n * 10) / 10);
 }
 
+/* Same question, same answer, same reason as generator.js: a plan that is not
+   in a deficit must not be SHAPED like one. Reading the raw chip gave a
+   14-year-old conditioning 10 / push 12 / arms 4 — the volume distribution for
+   preserving muscle in a cut that the nutrition engine refuses to build. */
 function goalOf(profile) {
-  return GOAL_BASE[profile && profile.goal] ? profile.goal : 'fitness';
+  const g = effectiveGoal(profile);
+  return GOAL_BASE[g] ? g : 'fitness';
 }
 
 function experienceOf(profile) {
