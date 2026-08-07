@@ -310,6 +310,9 @@ footer {
 .chip.time { background: var(--cyan-wash); color: var(--cyan); border-color: rgba(86, 217, 206, .22); }
 .chip.rest { background: transparent; color: var(--dim); border-color: var(--line); }
 .chip.warn { background: rgba(255, 122, 133, .1); color: var(--rose); border-color: rgba(255, 122, 133, .28); }
+/* Same treatment for the welcome fact chip that reports storage is unavailable. */
+.fact.warn { color: var(--rose); border-color: rgba(255, 122, 133, .28); }
+.fact.warn b { color: var(--rose); }
 
 /* ---------------- cards ---------------- */
 .cards { display: grid; grid-template-columns: repeat(auto-fit, minmax(210px, 1fr)); gap: var(--gap); }
@@ -1283,226 +1286,6 @@ function announce(msg) {
     "signedNum": signedNum,
     "reduceMotion": reduceMotion,
     "announce": announce,
-  };
-})();
-
-__m["src/core/store.js"] = (function () {
-/*
- * store.js — persistent app state with a tiny pub/sub.
- *
- * Everything lives under one localStorage key. If storage is unavailable
- * (private mode, file://, quota) we degrade to an in-memory copy so the app
- * still works for the session instead of throwing.
- */
-
-const KEY = 'fitai.v1';
-
-const memory = { data: null };
-
-function read() {
-  try {
-    const raw = window.localStorage.getItem(KEY);
-    if (raw) return JSON.parse(raw);
-  } catch (e) { /* fall through */ }
-  return memory.data;
-}
-
-function write(data) {
-  memory.data = data;
-  try {
-    window.localStorage.setItem(KEY, JSON.stringify(data));
-    return true;
-  } catch (e) {
-    return false;
-  }
-}
-
-const EMPTY = {
-  version: 1,
-  stage: 'welcome',      // 'welcome' | 'intake' | 'plan'
-  step: 0,               // intake step index
-  profile: null,
-  program: null,
-  nutrition: null,
-  ui: {
-    activeDay: 0,        // index into program.days
-    restDayMeals: false,
-    tab: 'plan',         // 'plan' | 'nutrition' | 'progress' | 'guide'
-  },
-  picks: {},             // "dayId:slotKey" -> variant index
-  overrides: {},         // "dayId:slotKey" -> Prescription, from "too easy"/"too hard"
-  done: {},              // "YYYY-Www:dayId:slotKey" -> 1
-  logs: {},              // "YYYY-MM-DD:dayId:slotKey" -> [{reps, weight, rpe}]
-  weights: [],           // [{date:'YYYY-MM-DD', kg:Number}]
-  startedAt: null,
-};
-
-let state = normalize(read());
-const subs = new Set();
-
-function normalize(raw) {
-  const s = Object.assign({}, EMPTY, raw || {});
-  s.ui = Object.assign({}, EMPTY.ui, s.ui);
-  for (const k of ['picks', 'done', 'logs', 'overrides']) if (!s[k] || typeof s[k] !== 'object') s[k] = {};
-  if (!Array.isArray(s.weights)) s.weights = [];
-  return s;
-}
-
-function get() {
-  return state;
-}
-
-function set(patch) {
-  state = normalize(Object.assign({}, state, typeof patch === 'function' ? patch(state) : patch));
-  write(state);
-  emit();
-  return state;
-}
-
-/** Mutate in place then persist — for deep edits where a patch is clumsy. */
-function update(fn) {
-  fn(state);
-  write(state);
-  emit();
-  return state;
-}
-
-function subscribe(fn) {
-  subs.add(fn);
-  return () => subs.delete(fn);
-}
-
-function emit() {
-  for (const fn of subs) {
-    try { fn(state); } catch (e) { console.error(e); }
-  }
-}
-
-function reset() {
-  state = normalize(null);
-  try { window.localStorage.removeItem(KEY); } catch (e) { /* ignore */ }
-  memory.data = null;
-  emit();
-}
-
-/* ------------------------------------------------------------------ *
- * Derived keys
- * ------------------------------------------------------------------ */
-
-/** ISO-ish week stamp, e.g. "2026-W31". Used to scope completion ticks. */
-function weekKey(d) {
-  const date = d ? new Date(d) : new Date();
-  const t = new Date(Date.UTC(date.getFullYear(), date.getMonth(), date.getDate()));
-  const day = t.getUTCDay() || 7;
-  t.setUTCDate(t.getUTCDate() + 4 - day);
-  const yearStart = new Date(Date.UTC(t.getUTCFullYear(), 0, 1));
-  const week = Math.ceil(((t - yearStart) / 86400000 + 1) / 7);
-  return `${t.getUTCFullYear()}-W${String(week).padStart(2, '0')}`;
-}
-
-function todayKey(d) {
-  const date = d ? new Date(d) : new Date();
-  const m = String(date.getMonth() + 1).padStart(2, '0');
-  const day = String(date.getDate()).padStart(2, '0');
-  return `${date.getFullYear()}-${m}-${day}`;
-}
-
-/** Which program week are we in (1-based), based on startedAt. */
-function currentWeek() {
-  if (!state.startedAt) return 1;
-  const ms = Date.now() - new Date(state.startedAt).getTime();
-  return Math.max(1, Math.floor(ms / (7 * 86400000)) + 1);
-}
-
-/* ------------------------------------------------------------------ *
- * Common operations
- * ------------------------------------------------------------------ */
-
-function pickOf(dayId, slotKey) {
-  return state.picks[`${dayId}:${slotKey}`] || 0;
-}
-
-function setPick(dayId, slotKey, v) {
-  update((s) => { s.picks[`${dayId}:${slotKey}`] = v; });
-}
-
-function overrideOf(dayId, slotKey) {
-  return state.overrides[`${dayId}:${slotKey}`] || null;
-}
-
-function setOverride(dayId, slotKey, prescription) {
-  update((s) => {
-    const k = `${dayId}:${slotKey}`;
-    if (prescription) s.overrides[k] = prescription;
-    else delete s.overrides[k];
-  });
-}
-
-function isDone(dayId, slotKey) {
-  return !!state.done[`${weekKey()}:${dayId}:${slotKey}`];
-}
-
-function setDone(dayId, slotKey, v) {
-  update((s) => {
-    const k = `${weekKey()}:${dayId}:${slotKey}`;
-    if (v) s.done[k] = 1; else delete s.done[k];
-  });
-}
-
-function logSet(dayId, slotKey, entry) {
-  update((s) => {
-    const k = `${todayKey()}:${dayId}:${slotKey}`;
-    if (!s.logs[k]) s.logs[k] = [];
-    s.logs[k].push(entry);
-  });
-}
-
-function logsFor(dayId, slotKey, date) {
-  return state.logs[`${todayKey(date)}:${dayId}:${slotKey}`] || [];
-}
-
-function addWeight(kg, date) {
-  update((s) => {
-    const d = todayKey(date);
-    const existing = s.weights.find((w) => w.date === d);
-    if (existing) existing.kg = kg;
-    else s.weights.push({ date: d, kg });
-    s.weights.sort((a, b) => a.date.localeCompare(b.date));
-  });
-}
-
-function exportJson() {
-  return JSON.stringify(state, null, 2);
-}
-
-function importJson(text) {
-  const parsed = JSON.parse(text);
-  state = normalize(parsed);
-  write(state);
-  emit();
-  return state;
-}
-
-  return {
-    "get": get,
-    "set": set,
-    "update": update,
-    "subscribe": subscribe,
-    "reset": reset,
-    "weekKey": weekKey,
-    "todayKey": todayKey,
-    "currentWeek": currentWeek,
-    "pickOf": pickOf,
-    "setPick": setPick,
-    "overrideOf": overrideOf,
-    "setOverride": setOverride,
-    "isDone": isDone,
-    "setDone": setDone,
-    "logSet": logSet,
-    "logsFor": logsFor,
-    "addWeight": addWeight,
-    "exportJson": exportJson,
-    "importJson": importJson,
   };
 })();
 
@@ -10335,6 +10118,303 @@ function formatHeDate(d) {
   };
 })();
 
+__m["src/core/store.js"] = (function () {
+/*
+ * store.js — persistent app state with a tiny pub/sub.
+ *
+ * Everything lives under one localStorage key. If storage is unavailable
+ * (private mode, file://, quota) we degrade to an in-memory copy so the app
+ * still works for the session instead of throwing.
+ */
+
+const { normalizeProfile } = __m["src/intake/schema.js"];
+
+const KEY = 'fitai.v1';
+
+const memory = { data: null };
+
+function read() {
+  try {
+    const raw = window.localStorage.getItem(KEY);
+    if (raw) return JSON.parse(raw);
+  } catch (e) { /* fall through */ }
+  return memory.data;
+}
+
+/*
+ * Whether this device is actually keeping anything.
+ *
+ * write() has always returned false when localStorage refuses — private
+ * browsing, a full quota, file:// on some browsers — and all twenty-four call
+ * sites ignored it. The app then behaved perfectly for a whole session while
+ * saying, in four places, that the plan is saved on the device: the welcome
+ * footer, the tracking tab, the set logger, and an announcement after a photo.
+ * One reload and the questionnaire came back empty.
+ *
+ * Falling back to memory is the right behaviour — the session still works, and
+ * refusing to run would help nobody. Claiming it is saved is not. This records
+ * the truth so the UI can say it before somebody spends ten steps on a
+ * questionnaire they are about to lose.
+ */
+let storageWorks = true;
+
+function write(data) {
+  memory.data = data;
+  try {
+    window.localStorage.setItem(KEY, JSON.stringify(data));
+    return true;
+  } catch (e) {
+    storageWorks = false;
+    return false;
+  }
+}
+
+/*
+ * Asked once at load rather than waited for, because the first real write
+ * happens after the first question is answered and the warning belongs before
+ * it. Writes and removes its own key so it cannot disturb a stored plan.
+ */
+(function probeStorage() {
+  try {
+    const k = `${KEY}.probe`;
+    window.localStorage.setItem(k, '1');
+    window.localStorage.removeItem(k);
+  } catch (e) {
+    storageWorks = false;
+  }
+}());
+
+/** False when nothing typed into this app will survive a reload. */
+function persists() {
+  return storageWorks;
+}
+
+const EMPTY = {
+  version: 1,
+  stage: 'welcome',      // 'welcome' | 'intake' | 'plan'
+  step: 0,               // intake step index
+  profile: null,
+  program: null,
+  nutrition: null,
+  ui: {
+    activeDay: 0,        // index into program.days
+    restDayMeals: false,
+    tab: 'plan',         // 'plan' | 'nutrition' | 'progress' | 'guide'
+  },
+  picks: {},             // "dayId:slotKey" -> variant index
+  overrides: {},         // "dayId:slotKey" -> Prescription, from "too easy"/"too hard"
+  done: {},              // "YYYY-Www:dayId:slotKey" -> 1
+  logs: {},              // "YYYY-MM-DD:dayId:slotKey" -> [{reps, weight, rpe}]
+  weights: [],           // [{date:'YYYY-MM-DD', kg:Number}]
+  startedAt: null,
+};
+
+let state = normalize(read());
+const subs = new Set();
+
+function normalize(raw) {
+  const s = Object.assign({}, EMPTY, raw || {});
+  s.ui = Object.assign({}, EMPTY.ui, s.ui);
+  for (const k of ['picks', 'done', 'logs', 'overrides']) if (!s[k] || typeof s[k] !== 'object') s[k] = {};
+  if (!Array.isArray(s.weights)) s.weights = [];
+  return s;
+}
+
+function get() {
+  return state;
+}
+
+function set(patch) {
+  state = normalize(Object.assign({}, state, typeof patch === 'function' ? patch(state) : patch));
+  write(state);
+  emit();
+  return state;
+}
+
+/** Mutate in place then persist — for deep edits where a patch is clumsy. */
+function update(fn) {
+  fn(state);
+  write(state);
+  emit();
+  return state;
+}
+
+function subscribe(fn) {
+  subs.add(fn);
+  return () => subs.delete(fn);
+}
+
+function emit() {
+  for (const fn of subs) {
+    try { fn(state); } catch (e) { console.error(e); }
+  }
+}
+
+function reset() {
+  state = normalize(null);
+  try { window.localStorage.removeItem(KEY); } catch (e) { /* ignore */ }
+  memory.data = null;
+  emit();
+}
+
+/* ------------------------------------------------------------------ *
+ * Derived keys
+ * ------------------------------------------------------------------ */
+
+/** ISO-ish week stamp, e.g. "2026-W31". Used to scope completion ticks. */
+function weekKey(d) {
+  const date = d ? new Date(d) : new Date();
+  const t = new Date(Date.UTC(date.getFullYear(), date.getMonth(), date.getDate()));
+  const day = t.getUTCDay() || 7;
+  t.setUTCDate(t.getUTCDate() + 4 - day);
+  const yearStart = new Date(Date.UTC(t.getUTCFullYear(), 0, 1));
+  const week = Math.ceil(((t - yearStart) / 86400000 + 1) / 7);
+  return `${t.getUTCFullYear()}-W${String(week).padStart(2, '0')}`;
+}
+
+function todayKey(d) {
+  const date = d ? new Date(d) : new Date();
+  const m = String(date.getMonth() + 1).padStart(2, '0');
+  const day = String(date.getDate()).padStart(2, '0');
+  return `${date.getFullYear()}-${m}-${day}`;
+}
+
+/** Which program week are we in (1-based), based on startedAt. */
+function currentWeek() {
+  if (!state.startedAt) return 1;
+  const ms = Date.now() - new Date(state.startedAt).getTime();
+  return Math.max(1, Math.floor(ms / (7 * 86400000)) + 1);
+}
+
+/* ------------------------------------------------------------------ *
+ * Common operations
+ * ------------------------------------------------------------------ */
+
+function pickOf(dayId, slotKey) {
+  return state.picks[`${dayId}:${slotKey}`] || 0;
+}
+
+function setPick(dayId, slotKey, v) {
+  update((s) => { s.picks[`${dayId}:${slotKey}`] = v; });
+}
+
+function overrideOf(dayId, slotKey) {
+  return state.overrides[`${dayId}:${slotKey}`] || null;
+}
+
+function setOverride(dayId, slotKey, prescription) {
+  update((s) => {
+    const k = `${dayId}:${slotKey}`;
+    if (prescription) s.overrides[k] = prescription;
+    else delete s.overrides[k];
+  });
+}
+
+function isDone(dayId, slotKey) {
+  return !!state.done[`${weekKey()}:${dayId}:${slotKey}`];
+}
+
+function setDone(dayId, slotKey, v) {
+  update((s) => {
+    const k = `${weekKey()}:${dayId}:${slotKey}`;
+    if (v) s.done[k] = 1; else delete s.done[k];
+  });
+}
+
+function logSet(dayId, slotKey, entry) {
+  update((s) => {
+    const k = `${todayKey()}:${dayId}:${slotKey}`;
+    if (!s.logs[k]) s.logs[k] = [];
+    s.logs[k].push(entry);
+  });
+}
+
+function logsFor(dayId, slotKey, date) {
+  return state.logs[`${todayKey(date)}:${dayId}:${slotKey}`] || [];
+}
+
+function addWeight(kg, date) {
+  update((s) => {
+    const d = todayKey(date);
+    const existing = s.weights.find((w) => w.date === d);
+    if (existing) existing.kg = kg;
+    else s.weights.push({ date: d, kg });
+    s.weights.sort((a, b) => a.date.localeCompare(b.date));
+  });
+}
+
+function exportJson() {
+  return JSON.stringify(state, null, 2);
+}
+
+/*
+ * Restore from a backup, without letting any JSON file become the app's state.
+ *
+ * This used to be JSON.parse followed by Object.assign over the empty state.
+ * Two things followed from that.
+ *
+ * A file that was not a backup was accepted. `{"hello":"world"}` merged
+ * cleanly, wrote itself to localStorage and reloaded the page: profile,
+ * programme, every completion tick, every logged set and the whole weight
+ * history, gone, from the button that sounds like the safe one. The button two
+ * places along that says "start over" asks for confirmation; this one did not.
+ *
+ * And the profile inside a real backup was never re-normalised, so age 9 came
+ * through as 9. age.js says everything downstream clamps to MIN_AGE precisely
+ * so a hand-edited or imported profile cannot smuggle an age the plan was never
+ * designed around — that was true of the questionnaire path and false here,
+ * which is the only path where somebody can type the number themselves.
+ *
+ * Throwing on a file that is not a backup is the point: the caller shows the
+ * error and the existing state is still there to go back to.
+ */
+function importJson(text) {
+  const parsed = JSON.parse(text);
+  if (!parsed || typeof parsed !== 'object' || Array.isArray(parsed)) {
+    throw new Error('not a FitAI backup: expected an object');
+  }
+  // A backup always carries at least one of these. A file with none of them is
+  // somebody's shopping list, and merging it would erase a year of training.
+  const looksLikeBackup = ['profile', 'program', 'nutrition', 'logs', 'weights', 'done', 'version']
+    .some((k) => k in parsed);
+  if (!looksLikeBackup) {
+    throw new Error('not a FitAI backup: no profile, programme or history in it');
+  }
+
+  const next = normalize(parsed);
+  if (next.profile && typeof next.profile === 'object') {
+    next.profile = normalizeProfile(next.profile);
+  }
+  state = next;
+  write(state);
+  emit();
+  return state;
+}
+
+  return {
+    "persists": persists,
+    "get": get,
+    "set": set,
+    "update": update,
+    "subscribe": subscribe,
+    "reset": reset,
+    "weekKey": weekKey,
+    "todayKey": todayKey,
+    "currentWeek": currentWeek,
+    "pickOf": pickOf,
+    "setPick": setPick,
+    "overrideOf": overrideOf,
+    "setOverride": setOverride,
+    "isDone": isDone,
+    "setDone": setDone,
+    "logSet": logSet,
+    "logsFor": logsFor,
+    "addWeight": addWeight,
+    "exportJson": exportJson,
+    "importJson": importJson,
+  };
+})();
+
 __m["src/ai/providers.js"] = (function () {
 /*
  * providers.js — the model vendors this app can talk to, and the shape each one
@@ -12897,13 +12977,54 @@ function renderWizard(root, onDone) {
     return section;
   }
 
+  /*
+   * A field, with its label actually attached to its control.
+   *
+   * The label was a div. No `for`, no `id`, no aria-labelledby, and control()
+   * emits bare inputs — so a screen reader on the first step read out three
+   * consecutive spin buttons with no names at all, which are age, height and
+   * weight. The one field that did get a name got "· לא חובה", the optional
+   * marker, because that was the nearest text.
+   *
+   * The error message had the same problem from the other side: it is a
+   * sibling span, so nothing tied it to the field it describes, and the only
+   * signal was a generic "יש שדה שדורש תיקון" that does not say which.
+   *
+   * The ids are derived from the field key, which schema.js already guarantees
+   * is unique per step, so there is nothing new to keep in sync.
+   */
   function field(f) {
     const bad = !!errors[f.key];
     const wrap = h('div.field' + (bad ? '.bad' : ''));
-    wrap.appendChild(h('div.flabel', f.label, f.required === false ? h('span', { style: { color: 'var(--dimmer)', fontWeight: '400', fontSize: '13px' } }, ' · לא חובה') : null));
-    if (f.help) wrap.appendChild(h('p.help', f.help));
-    wrap.appendChild(control(f));
-    if (bad) wrap.appendChild(h('span.err', errors[f.key]));
+    const labelId = `flabel-${f.key}`;
+    const errId = `ferr-${f.key}`;
+    const helpId = `fhelp-${f.key}`;
+
+    wrap.appendChild(h('div.flabel', { id: labelId }, f.label,
+      f.required === false ? h('span', { style: { color: 'var(--dimmer)', fontWeight: '400', fontSize: '13px' } }, ' · לא חובה') : null));
+    if (f.help) wrap.appendChild(h('p.help', { id: helpId }, f.help));
+
+    const node = control(f);
+    // The label names the control, and the help and error describe it. Applied
+    // to whatever control() produced rather than inside every branch of it, so
+    // a new field type cannot be added without a name.
+    const target = node.matches && node.matches('input, textarea, select')
+      ? node : node.querySelector && node.querySelector('input, textarea, select');
+    if (target) {
+      target.setAttribute('aria-labelledby', labelId);
+      const describedBy = [f.help ? helpId : null, bad ? errId : null].filter(Boolean).join(' ');
+      if (describedBy) target.setAttribute('aria-describedby', describedBy);
+      if (bad) target.setAttribute('aria-invalid', 'true');
+    } else if (node.setAttribute) {
+      // Chip sets, day pickers and scales are groups of buttons rather than one
+      // control; they get the label as a group name instead.
+      node.setAttribute('role', 'group');
+      node.setAttribute('aria-labelledby', labelId);
+      if (bad) node.setAttribute('aria-describedby', errId);
+    }
+
+    wrap.appendChild(node);
+    if (bad) wrap.appendChild(h('span.err', { id: errId }, errors[f.key]));
     return wrap;
   }
 
@@ -16276,7 +16397,10 @@ function renderProgress(root, program, profile) {
     /* ---- data controls ---- */
     view.appendChild(h('div.rule'));
     view.appendChild(h('h3', 'הנתונים שלך'));
-    view.appendChild(h('p.lead', 'הכול נשמר במכשיר הזה בלבד — לא נשלח לשום שרת. גיבוי הוא באחריותך.'));
+    view.appendChild(h('p.lead', store.persists()
+      ? 'הכול נשמר במכשיר הזה בלבד — לא נשלח לשום שרת. גיבוי הוא באחריותך.'
+      : 'הדפדפן הזה לא מרשה לשמור מידע, כנראה גלישה פרטית. שום דבר כאן לא ישרוד רענון — '
+        + 'אם אתה רוצה לשמור את התוכנית, ייצא גיבוי עכשיו ופתח אותו בחלון רגיל.'));
     view.appendChild(h('div.toolbar',
       h('button.btn', {
         type: 'button',
@@ -16295,9 +16419,34 @@ function renderProgress(root, program, profile) {
           file.addEventListener('change', () => {
             const f = file.files && file.files[0];
             if (!f) return;
+            /*
+             * Restoring replaces everything: profile, programme, ticks, logged
+             * sets, weight history. It asked for none of that — and the button
+             * two places along that says "start over" does ask. The one that
+             * sounds safe was the one that wiped a year without a word.
+             *
+             * The failure was screen-reader only too, through announce(), so a
+             * sighted user who picked the wrong file saw the page do nothing at
+             * all and had no way to know whether it had worked.
+             */
+            const hasWork = st.program || (st.weights || []).length
+              || Object.keys(st.done || {}).length || Object.keys(st.logs || {}).length;
+            if (hasWork && !window.confirm(
+              'שחזור מגיבוי מחליף את כל מה שיש כאן — התוכנית, הסימונים, הסטים שרשמת וההיסטוריה. '
+              + 'אי אפשר לבטל. להמשיך?')) return;
+
             f.text().then((t) => {
               try { store.importJson(t); location.reload(); }
-              catch (e) { announce('הקובץ לא תקין'); }
+              catch (e) {
+                announce('הקובץ לא תקין');
+                const box = h('p.err', { role: 'alert' },
+                  'הקובץ הזה הוא לא גיבוי של FitAI, ולכן שום דבר לא השתנה. '
+                  + 'קובץ גיבוי נוצר מהכפתור "ייצוא גיבוי" ליד.');
+                const holder = view.querySelector('.toolbar') || view;
+                const old = holder.querySelector('.err');
+                if (old) old.remove();
+                holder.appendChild(box);
+              }
             });
           });
           document.body.appendChild(file);
@@ -17266,9 +17415,21 @@ function renderWelcome() {
     h('div.facts', { style: { marginTop: '26px' } },
       h('span.fact', 'שאלון של ', h('b', '3 דק׳')),
       h('span.fact', 'תוכנית מלאה ', h('b', 'מיידית')),
-      h('span.fact', 'נשמר ', h('b', 'במכשיר')),
+      store.persists()
+        ? h('span.fact', 'נשמר ', h('b', 'במכשיר'))
+        : h('span.fact.warn', 'לא נשמר ', h('b', 'בגלישה פרטית')),
       h('span.fact', 'סריקת תמונות ', h('b', 'עם AI')),
     ),
+    /*
+     * Said here, before the ten steps, rather than discovered after them.
+     * The app works fine without storage for one session; what it must not do
+     * is promise otherwise and let somebody build a plan they will lose on the
+     * next reload.
+     */
+    store.persists() ? null : h('p.err', { role: 'status', style: { marginTop: '22px' } },
+      'הדפדפן הזה לא מרשה לשמור מידע — כנראה גלישה פרטית. אפשר לבנות תוכנית והיא תעבוד '
+      + 'עכשיו, אבל היא תיעלם ברגע שתסגור או תרענן את הדף. בחלון רגיל הכול נשמר.'),
+
     h('div.toolbar', { style: { marginTop: '30px' } },
       h('button.btn.primary.lg', {
         type: 'button',

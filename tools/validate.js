@@ -826,6 +826,71 @@ try {
 }
 
 /*
+ * A backup restore must not accept a file that is not a backup.
+ *
+ * importJson was JSON.parse then Object.assign over the empty state, so
+ * {"hello":"world"} merged cleanly, wrote itself to localStorage and reloaded
+ * the page — profile, programme, every tick, every logged set and the whole
+ * weight history gone, from the button that sounds like the safe one.
+ *
+ * And a real backup's profile was never re-normalised, so age 9 survived. The
+ * comment in age.js says everything downstream clamps so an imported profile
+ * cannot smuggle an age the plan was never designed around; that was true of
+ * the questionnaire and false of the one path where somebody types the number.
+ */
+{
+  try {
+    const age = await load('src/engine/age.js');
+    // store.js touches window.localStorage at import time.
+    const g = globalThis;
+    const hadWindow = 'window' in g;
+    if (!hadWindow) {
+      const mem = {};
+      g.window = {
+        localStorage: {
+          getItem: (k) => (k in mem ? mem[k] : null),
+          setItem: (k, v) => { mem[k] = String(v); },
+          removeItem: (k) => { delete mem[k]; },
+        },
+      };
+    }
+    const store = await load('src/core/store.js');
+    if (!store) throw new Error('store.js did not load');
+
+    store.set({
+      stage: 'plan',
+      profile: { age: 30, heightCm: 175, weightKg: 75 },
+      program: { days: [] },
+      weights: [{ date: '2026-01-01', kg: 80 }],
+    });
+    const before = JSON.stringify(store.get());
+
+    for (const junk of ['{"hello":"world"}', '[1,2,3]', '"a string"', 'null', '42', '{}']) {
+      let accepted = false;
+      try { store.importJson(junk); accepted = true; } catch (e) { /* refused, as it should be */ }
+      if (accepted) err(`importJson accepted ${junk} — restoring a non-backup wipes the trainee's history`);
+    }
+    if (JSON.stringify(store.get()) !== before) {
+      err('a refused import still changed the stored state — the refusal is not atomic');
+    }
+
+    // A real backup must have its profile put through normalizeProfile.
+    for (const smuggled of [9, 3, 200, null, '  ']) {
+      store.importJson(JSON.stringify({
+        version: 1, stage: 'plan', program: { days: [] },
+        profile: { age: smuggled, heightCm: 170, weightKg: 60, goal: 'muscle' },
+      }));
+      const got = store.get().profile.age;
+      if (!(got >= age.MIN_AGE && got <= age.MAX_AGE)) {
+        err(`importJson let age ${JSON.stringify(smuggled)} through as ${got} — outside `
+          + `${age.MIN_AGE}-${age.MAX_AGE}, which every engine downstream assumes`);
+      }
+    }
+    if (!hadWindow) delete g.window;
+  } catch (e) { err(`backup-restore check could not run: ${e.message}`); }
+}
+
+/*
  * "This is too easy" must not hand back something dangerous.
  *
  * The control steps an exercise up a rung. It took the next variant in the

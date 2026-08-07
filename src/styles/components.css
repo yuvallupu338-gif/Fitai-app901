@@ -60,6 +60,9 @@
 .chip.time { background: var(--cyan-wash); color: var(--cyan); border-color: rgba(86, 217, 206, .22); }
 .chip.rest { background: transparent; color: var(--dim); border-color: var(--line); }
 .chip.warn { background: rgba(255, 122, 133, .1); color: var(--rose); border-color: rgba(255, 122, 133, .28); }
+/* Same treatment for the welcome fact chip that reports storage is unavailable. */
+.fact.warn { color: var(--rose); border-color: rgba(255, 122, 133, .28); }
+.fact.warn b { color: var(--rose); }
 
 /* ---------------- cards ---------------- */
 .cards { display: grid; grid-template-columns: repeat(auto-fit, minmax(210px, 1fr)); gap: var(--gap); }

@@ -62,9 +62,21 @@ function renderWelcome() {
     h('div.facts', { style: { marginTop: '26px' } },
       h('span.fact', 'שאלון של ', h('b', '3 דק׳')),
       h('span.fact', 'תוכנית מלאה ', h('b', 'מיידית')),
-      h('span.fact', 'נשמר ', h('b', 'במכשיר')),
+      store.persists()
+        ? h('span.fact', 'נשמר ', h('b', 'במכשיר'))
+        : h('span.fact.warn', 'לא נשמר ', h('b', 'בגלישה פרטית')),
       h('span.fact', 'סריקת תמונות ', h('b', 'עם AI')),
     ),
+    /*
+     * Said here, before the ten steps, rather than discovered after them.
+     * The app works fine without storage for one session; what it must not do
+     * is promise otherwise and let somebody build a plan they will lose on the
+     * next reload.
+     */
+    store.persists() ? null : h('p.err', { role: 'status', style: { marginTop: '22px' } },
+      'הדפדפן הזה לא מרשה לשמור מידע — כנראה גלישה פרטית. אפשר לבנות תוכנית והיא תעבוד '
+      + 'עכשיו, אבל היא תיעלם ברגע שתסגור או תרענן את הדף. בחלון רגיל הכול נשמר.'),
+
     h('div.toolbar', { style: { marginTop: '30px' } },
       h('button.btn.primary.lg', {
         type: 'button',
