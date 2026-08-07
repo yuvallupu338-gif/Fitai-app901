@@ -1,0 +1,120 @@
+<!DOCTYPE html>
+<html lang="he" dir="rtl">
+<head>
+<meta charset="utf-8">
+<meta name="viewport" content="width=device-width, initial-scale=1, viewport-fit=cover, user-scalable=no">
+<meta name="theme-color" content="#000000">
+<meta name="description" content="פלטפורמר בסגנון סופר מריו — 100 שלבים, פיזיקה של ה־NES, הכל נצבע ומנוגן בדפדפן.">
+<title>סופר לב · 100 שלבים</title>
+
+<link rel="icon" href="data:image/svg+xml,<svg xmlns='http://www.w3.org/2000/svg' viewBox='0 0 32 32'><rect width='32' height='32' fill='%235C94FC'/><rect x='6' y='6' width='20' height='20' fill='%23E45C10'/><rect x='10' y='10' width='4' height='4' fill='%23FFF'/><rect x='18' y='10' width='4' height='4' fill='%23FFF'/><rect x='10' y='19' width='12' height='3' fill='%23FFF'/></svg>">
+
+<style>
+  :root { color-scheme: dark; }
+  * { box-sizing: border-box; }
+  html, body {
+    margin: 0; padding: 0; height: 100%; overflow: hidden;
+    background: #000; color: #d8dee9;
+    font-family: ui-monospace, "SF Mono", Menlo, Consolas, monospace;
+    -webkit-tap-highlight-color: transparent;
+  }
+  /* The whole game is one canvas. Everything around it is chrome that gets
+     out of the way — the point of the page is the 256x240 picture. */
+  #stage {
+    position: fixed; inset: 0;
+    display: flex; align-items: center; justify-content: center;
+    background: #000;
+    touch-action: none;
+  }
+  canvas#screen {
+    display: block;
+    image-rendering: pixelated;
+    image-rendering: crisp-edges;
+    background: #000;
+    /* Sized in JS: as large as the window allows, snapped to a whole multiple
+       of 256x240 when that is close, so the picture fills the screen without
+       the art turning to mush. See fit() in src/main.js. */
+  }
+  #hint {
+    position: fixed; inset-inline: 0; bottom: 6px;
+    text-align: center; font-size: 11px; line-height: 1.7;
+    color: #55606f; pointer-events: none; user-select: none;
+  }
+  #hint b { color: #7d8899; font-weight: 600; }
+  #hint .pad { color: #6f9a72; }
+  /* Hidden in fullscreen and on short windows: the picture is the point. */
+  @media (max-height: 560px) { #hint { display: none; } }
+  :fullscreen #hint, :fullscreen #fullscreen { display: none; }
+
+  /* Fullscreen button. Sits out of the way and stays reachable. */
+  #fullscreen {
+    position: fixed; inset-inline-end: 10px; top: 10px;
+    width: 34px; height: 34px; padding: 0;
+    display: flex; align-items: center; justify-content: center;
+    border: 1px solid #ffffff26; border-radius: 8px;
+    background: #ffffff10; color: #8b95a5; cursor: pointer;
+    font: inherit; font-size: 15px; line-height: 1;
+  }
+  #fullscreen:hover { background: #ffffff1f; color: #d8dee9; }
+
+  /* Touch pad. Only shown on devices that actually have touch — a mouse user
+     gets nothing over the picture. */
+  #pad { display: none; }
+  body.touch #pad {
+    display: block; position: fixed; inset: 0; pointer-events: none;
+  }
+  #pad button {
+    position: absolute; pointer-events: auto;
+    border: 2px solid #ffffff30; background: #ffffff14; color: #fff;
+    border-radius: 999px; font: inherit; font-size: 20px; font-weight: 700;
+    width: 62px; height: 62px; padding: 0;
+    display: flex; align-items: center; justify-content: center;
+    backdrop-filter: blur(2px);
+    user-select: none; touch-action: none;
+  }
+  #pad button:active, #pad button.on { background: #ffffff3d; border-color: #ffffff70; }
+  #pad .left  { inset-inline-start: 16px; bottom: 90px; }
+  #pad .right { inset-inline-start: 92px; bottom: 90px; }
+  #pad .down  { inset-inline-start: 54px; bottom: 22px; }
+  #pad .up    { inset-inline-start: 54px; bottom: 158px; }
+  #pad .b     { inset-inline-end: 100px; bottom: 40px; background: #ff5a4a24; border-color: #ff8a7a55; }
+  #pad .a     { inset-inline-end: 20px;  bottom: 96px; background: #4aff7a24; border-color: #7aff9a55; }
+  #pad .start { inset-inline-end: 20px;  top: 16px; width: auto; height: 34px; padding: 0 14px; font-size: 13px; }
+
+  /* Shown only if the browser cannot run the game at all. */
+  #fallback { position: fixed; inset: 0; display: none; padding: 32px;
+    align-items: center; justify-content: center; text-align: center; line-height: 1.8; }
+</style>
+</head>
+<body>
+
+<div id="stage"><canvas id="screen" width="256" height="240"></canvas></div>
+
+<button id="fullscreen" type="button" title="מסך מלא (F)" aria-label="מסך מלא">⛶</button>
+
+<div id="hint">
+  <b>←→</b> ללכת · <b>Z / Shift</b> לרוץ ולירות · <b>X / ↑ / רווח</b> לקפוץ ·
+  <b>↓</b> להתכופף · <b>Enter</b> התחלה/פאוזה · <b>F</b> מסך מלא · <b>M</b> השתקה
+  <br>
+  <span class="pad">אפשר לחבר שלט (USB או Bluetooth) — לוחצים כפתור אחד בשלט והוא מתחבר לבד</span>
+</div>
+
+<div id="pad" aria-hidden="true">
+  <button class="left"  data-key="left">◀</button>
+  <button class="right" data-key="right">▶</button>
+  <button class="up"    data-key="up">▲</button>
+  <button class="down"  data-key="down">▼</button>
+  <button class="b"     data-key="b">B</button>
+  <button class="a"     data-key="a">A</button>
+  <button class="start" data-key="start">START</button>
+</div>
+
+<noscript>
+  <p style="padding:40px;text-align:center">המשחק דורש JavaScript.</p>
+</noscript>
+
+<div id="fallback"></div>
+
+<script type="module" src="src/main.js"></script>
+</body>
+</html>
