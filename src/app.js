@@ -15,6 +15,7 @@ import { renderNutrition } from './ui/nutrition.js';
 import { renderGuide } from './ui/guide.js';
 import { renderProgress } from './ui/progress.js';
 import { renderScanTab } from './ui/scan.js';
+import { renderReveal } from './ui/reveal.js';
 import { releaseAll } from './ui/exercise.js';
 import { normalizeProfile } from './intake/schema.js';
 
@@ -125,8 +126,21 @@ function build(profile) {
         startedAt: store.get().startedAt || new Date().toISOString(),
         ui: Object.assign({}, store.get().ui, { tab: 'plan', activeDay: 0 }),
       });
-      renderApp();
-      announce('התוכנית מוכנה');
+      /*
+       * The reveal runs AFTER the state is committed, never instead of it.
+       *
+       * The plan exists and is saved by this line; what follows is presentation.
+       * If renderReveal throws, is skipped, or the browser refuses to animate,
+       * renderApp() still runs and the trainee still has their programme — the
+       * screen is decoration and is wired so it cannot become a dependency.
+       */
+      clear(root);
+      try {
+        renderReveal(root, profile, program, () => renderApp());
+      } catch (e) {
+        console.error(e);
+        renderApp();
+      }
     } catch (e) {
       console.error(e);
       renderFailure(e, profile);

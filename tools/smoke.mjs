@@ -136,8 +136,28 @@ async function fillStep(page, answers) {
   }
 }
 
+/*
+ * The reveal sits between the last question and the plan, for about two
+ * seconds. Every driver here looks for `.tabs` to know it arrived, so without
+ * this they all report "the wizard never reached the plan" — the screen is
+ * fine and the harness is early.
+ *
+ * Waited out rather than skipped, because sitting through it is what a trainee
+ * does and because a check that always dismisses it would never notice if it
+ * stopped ending on its own.
+ */
+async function settleReveal(page) {
+  if (!(await page.$('.reveal'))) return;
+  for (let i = 0; i < 60; i++) {
+    await page.waitForTimeout(100);
+    if (await page.$('.tabs')) return;
+  }
+}
+
 async function runWizard(page, answers) {
   for (let i = 0; i < 16; i++) {
+    if (await page.$('.tabs')) return true;
+    await settleReveal(page);
     if (await page.$('.tabs')) return true;
     const next = await page.$('.wiznav .btn.primary');
     if (!next) return !!(await page.$('.tabs'));
@@ -429,8 +449,199 @@ async function main() {
   await checkTabsOnNarrowPhones(browser, target);
   await checkDifficultyControlsAreHittable(browser, target);
   await checkRetestCycle(browser, target);
+  await checkReveal(browser, target);
 
   await finish(browser, server);
+}
+
+/*
+ * The reveal screen, driven for real.
+ *
+ * It exists because generateProgram + nutritionPlan finish in 1.3–2.3ms, so
+ * there is nothing to wait for and a progress bar would be the app pretending
+ * to compute. What it shows instead are numbers read off the finished
+ * programme. Three things therefore have to hold, and none of them can be
+ * checked by reading the file:
+ *
+ *   it ends by itself — a decorative screen that can strand somebody between
+ *   the questionnaire and their plan is worse than no screen;
+ *   it can be skipped, because "ערוך תשובות ובנה מחדש" comes through here too
+ *   and the tenth time is the one that decides whether this was a good idea;
+ *   the numbers on it are the real ones, not placeholders left counting.
+ */
+async function checkReveal(browser, target) {
+  const answers = {
+    date: new Date(Date.now() + 200 * 86400000).toISOString().slice(0, 10),
+    number: 3, text: '', days: 3, clickFirstChip: false, optionText: {},
+    numbers: {
+      גיל: 30, גובה: 178, משקל: 85, יעד: 80,
+      אימונים: 4, דקות: 60, שינה: 7, ארוחות: 4,
+      'שכיבות': 20, 'מתח': 6, 'פלאנק': 60,
+    },
+  };
+
+  /* ---- it renders, shows real numbers, and ends on its own ---- */
+  {
+    const ctx = await browser.newContext({ viewport: { width: 390, height: 844 } });
+    const pg = await ctx.newPage();
+    const errs = [];
+    pg.on('pageerror', (e) => errs.push(e.message));
+    await pg.goto(target, { waitUntil: 'networkidle' });
+    const start = await pg.$('.btn.primary');
+    if (start) { await start.click(); await pg.waitForTimeout(300); }
+
+    // Walk the wizard by hand up to the last Continue, so we can catch the
+    // reveal mid-flight instead of waiting it out the way runWizard does.
+    let sawReveal = false;
+    let mid = [];
+    for (let i = 0; i < 16; i++) {
+      if (await pg.$('.tabs')) break;
+      const next = await pg.$('.wiznav .btn.primary');
+      if (!next) break;
+      await fillStep(pg, answers);
+      const again = await pg.$('.wiznav .btn.primary');
+      if (!again) break;
+      await again.click();
+      await pg.waitForTimeout(120);
+      if (await pg.$('.reveal')) {
+        sawReveal = true;
+        /*
+         * Sampled until the screen goes, keeping the LAST reading rather than
+         * one taken at a fixed delay.
+         *
+         * The first version of this read at 500ms and compared the result
+         * against the finished programme, which failed: [98, 11, 0] is row one
+         * done, row two mid-count toward 15, row three not yet started. The
+         * numbers were right and the stopwatch was wrong. Useful accident — it
+         * is also direct proof the count-up is genuinely animating rather than
+         * printing its final value and calling it motion.
+         */
+        for (let k = 0; k < 60; k++) {
+          const snap = await pg.$$eval('.reveal-n', (ns) => ns.map((n) => n.textContent)).catch(() => null);
+          if (!snap || !snap.length) break;
+          mid = snap;
+          if (await pg.$('.tabs')) break;
+          await pg.waitForTimeout(100);
+        }
+        break;
+      }
+      await pg.waitForTimeout(140);
+    }
+
+    check(sawReveal, 'the reveal screen never appeared between the questionnaire and the plan');
+
+    if (sawReveal) {
+      check(mid.length >= 1 && mid.length <= 3,
+        `the reveal showed ${mid.length} numbers — it is capped at 3 so it stays a beat, not a slideshow`);
+      check(mid.every((n) => /^\d+$/.test(n)),
+        `a reveal number is not a plain integer: ${JSON.stringify(mid)}`);
+
+      // It has to end on its own, without a click.
+      let landed = false;
+      for (let i = 0; i < 60; i++) {
+        await pg.waitForTimeout(100);
+        if (await pg.$('.tabs')) { landed = true; break; }
+      }
+      check(landed, 'the reveal never ended on its own — a trainee is stranded between the '
+        + 'questionnaire and their plan with no way forward but a reload');
+
+      if (landed) {
+        /*
+         * And the numbers it showed have to be the programme's real ones. This
+         * is the whole justification for the screen: it pauses in order to say
+         * something true. Read back out of storage after the fact, against the
+         * same expressions reveal.js uses.
+         */
+        const real = await pg.evaluate(() => {
+          const s = JSON.parse(window.localStorage.getItem('fitai.v1') || '{}');
+          const slots = (s.program.days || []).flatMap((d) => d.slots || []);
+          const leads = new Set();
+          const all = new Set();
+          for (const x of slots) {
+            const vs = x.variants || [];
+            if (vs[0]) leads.add(vs[0].exId);
+            for (const v of vs) all.add(v.exId);
+          }
+          return { picked: leads.size, sets: s.program.volume.total };
+        });
+        const shown = mid.map(Number);
+        for (const [what, n] of [['picked exercises', real.picked], ['weekly sets', real.sets]]) {
+          if (!shown.includes(n)) {
+            check(false, `the reveal never showed the real ${what} (${n}); it showed `
+              + `${JSON.stringify(shown)} — the screen's only justification is that its numbers are true`);
+          }
+        }
+        const overflow = await pg.evaluate(() =>
+          document.documentElement.scrollWidth - document.documentElement.clientWidth);
+        check(overflow <= 2, `the page scrolls horizontally by ${overflow}px after the reveal`);
+      }
+    }
+    check(errs.length === 0, `reveal: page errors — ${errs.slice(0, 3).join(' | ')}`);
+    await ctx.close();
+  }
+
+  /* ---- a tap ends it immediately ---- */
+  {
+    const ctx = await browser.newContext({ viewport: { width: 390, height: 844 }, hasTouch: true, isMobile: true });
+    const pg = await ctx.newPage();
+    await pg.goto(target, { waitUntil: 'networkidle' });
+    const start = await pg.$('.btn.primary');
+    if (start) { await start.tap().catch(() => start.click()); await pg.waitForTimeout(300); }
+    for (let i = 0; i < 16; i++) {
+      if (await pg.$('.tabs') || await pg.$('.reveal')) break;
+      const next = await pg.$('.wiznav .btn.primary');
+      if (!next) break;
+      await fillStep(pg, answers);
+      const again = await pg.$('.wiznav .btn.primary');
+      if (!again) break;
+      await again.click();
+      await pg.waitForTimeout(200);
+    }
+    if (await pg.$('.reveal')) {
+      const hint = await pg.$('.reveal-skip');
+      check(!!hint, 'the reveal is skippable but says nothing about it — an escape hatch nobody '
+        + 'can see is not an escape hatch');
+      await pg.locator('.reveal').tap().catch(() => pg.click('.reveal'));
+      await pg.waitForTimeout(250);
+      check(await pg.$('.tabs') !== null,
+        'tapping the reveal did not skip it — it advertises "הקש כדי לדלג" and then ignores the tap');
+    } else {
+      notes.push('reveal skip check: the reveal was not on screen to tap');
+    }
+    await ctx.close();
+  }
+
+  /* ---- reduced motion is the end state, not a faster animation ---- */
+  {
+    const ctx = await browser.newContext({ viewport: { width: 390, height: 844 }, reducedMotion: 'reduce' });
+    const pg = await ctx.newPage();
+    await pg.goto(target, { waitUntil: 'networkidle' });
+    const start = await pg.$('.btn.primary');
+    if (start) { await start.click(); await pg.waitForTimeout(300); }
+    for (let i = 0; i < 16; i++) {
+      if (await pg.$('.tabs') || await pg.$('.reveal')) break;
+      const next = await pg.$('.wiznav .btn.primary');
+      if (!next) break;
+      await fillStep(pg, answers);
+      const again = await pg.$('.wiznav .btn.primary');
+      if (!again) break;
+      await again.click();
+      await pg.waitForTimeout(200);
+    }
+    if (await pg.$('.reveal')) {
+      // Immediately, with no wait: every number final and every row visible.
+      const nums = await pg.$$eval('.reveal-n', (ns) => ns.map((n) => n.textContent));
+      const off = await pg.$$eval('.reveal-row', (rs) => rs.filter((r) => !r.classList.contains('on')).length);
+      check(!nums.includes('0'),
+        `reduced motion still starts the count at 0 (${JSON.stringify(nums)}) — it should be the end state`);
+      check(off === 0, `${off} reveal row(s) start hidden under prefers-reduced-motion`);
+    } else {
+      notes.push('reduced-motion reveal check: screen not caught in flight');
+    }
+    for (let i = 0; i < 40 && !(await pg.$('.tabs')); i++) await pg.waitForTimeout(100);
+    check(await pg.$('.tabs') !== null, 'the reveal never ended under prefers-reduced-motion');
+    await ctx.close();
+  }
 }
 
 /*
