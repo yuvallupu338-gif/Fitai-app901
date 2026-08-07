@@ -20,6 +20,7 @@
  */
 
 import { candidates, hashProfile, rotate } from '../data/exercises.index.js';
+import { withholdsFatLoss } from './age.js';
 
 /* ------------------------------------------------------------------ *
  * Small helpers
@@ -38,8 +39,29 @@ function clampInt(v, lo, hi, d) {
   return Math.max(lo, Math.min(hi, n));
 }
 
+/*
+ * The goal this plan is actually executing, which is not always the chip.
+ *
+ * Everything in this file is narrative: phase titles, the progression cards,
+ * the weekly note. None of it picks an exercise. So it has to describe the plan
+ * that was built, and under 18 the plan that was built is not a diet —
+ * nutrition.js holds a minor at maintenance whatever the chip says.
+ *
+ * It used to read the chip. A thirteen-year-old who picked חיטוב was given a
+ * phase map opening "קובעים ימים קבועים ומתחילים גירעון מתון. שקילה אחת בשבוע,
+ * אותו יום ואותה שעה" — on the same plan whose nutrition tab said, correctly,
+ * that there is deliberately no calorie counting and no weekly weighing here.
+ * Both sentences were written honestly. Neither knew about the other, which is
+ * the sentence at the top of age.js describing the bug it was created to stop.
+ *
+ * Mapping to fitness rather than inventing a fourth phase table is deliberate:
+ * a minor who wants to lean out is running a training plan at maintenance, and
+ * that is exactly what the fitness track already describes.
+ */
 function goalOf(p) {
-  return GOALS.indexOf(p && p.goal) >= 0 ? p.goal : 'fitness';
+  const goal = GOALS.indexOf(p && p.goal) >= 0 ? p.goal : 'fitness';
+  if (goal === 'fatloss' && withholdsFatLoss(p)) return 'fitness';
+  return goal;
 }
 
 function expOf(p) {

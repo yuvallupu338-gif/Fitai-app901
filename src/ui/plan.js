@@ -27,13 +27,21 @@ export function renderPlan(root, program, profile) {
     const activeRest = Number.isInteger(st.ui.activeRest) && !trainDays.has(st.ui.activeRest)
       ? st.ui.activeRest : null;
 
-    view.appendChild(weekStrip(program, active, activeRest, (i) => {
+    /*
+     * Named, because the strip is built in two places — here and again in
+     * refreshChrome after a tick — and the two used to disagree about what the
+     * arguments were.
+     */
+    const pickDay = (i) => {
       store.set({ ui: Object.assign({}, store.get().ui, { activeDay: i, activeRest: null }) });
       draw();
-    }, (wd) => {
+    };
+    const pickRest = (wd) => {
       store.set({ ui: Object.assign({}, store.get().ui, { activeRest: wd }) });
       draw();
-    }));
+    };
+
+    view.appendChild(weekStrip(program, active, activeRest, pickDay, pickRest));
 
     view.appendChild(weekFoot(program, profile));
 
@@ -121,12 +129,21 @@ export function renderPlan(root, program, profile) {
         h('ul', program.notes.map((n) => h('li', n)))));
     }
 
+    /*
+     * Rebuild the week strip so a tick shows up on the day cells.
+     *
+     * The arguments have to match weekStrip's, and once they did not: this
+     * passed the pick handler third, where `activeRest` lives, leaving `onPick`
+     * and `onRest` undefined. Nothing failed at that moment — it failed the
+     * next time somebody touched the strip, which is why it survived. Tick one
+     * exercise, tap a different day, and the day cells were dead for the rest
+     * of the session with `onPick is not a function` in a console nobody has
+     * open. That is the first thing anyone does on this tab.
+     */
     function refreshChrome() {
       const strip = view.querySelector('.week');
-      if (strip) strip.replaceWith(weekStrip(program, active, (i) => {
-        store.set({ ui: Object.assign({}, store.get().ui, { activeDay: i }) });
-        draw();
-      }));
+      if (!strip) return;
+      strip.replaceWith(weekStrip(program, active, activeRest, pickDay, pickRest));
     }
   }
 

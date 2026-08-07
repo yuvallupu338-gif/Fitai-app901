@@ -31,7 +31,7 @@ const { normalizePatch, TOOL: INTAKE_TOOL } = await load('src/ai/intake.js');
 const { imageBlock, choiceFor } = await load('src/ai/client.js');
 const { normalizeProfile, EQUIPMENT_OPTIONS, INJURY_OPTIONS } = await load('src/intake/schema.js');
 const { generateProgram } = await load('src/engine/generator.js');
-const { byId } = await load('src/data/exercises.index.js');
+const { byId, candidates } = await load('src/data/exercises.index.js');
 
 const problems = [];
 let checks = 0;
@@ -256,9 +256,16 @@ for (const base of BASES) {
           if (!(ex.equipment || []).every((q) => owned.has(q))) {
             problems.push(`${base.location}: ${ex.id} needs ${ex.equipment}, user owns ${[...owned]}`);
           }
+          /* See the note in vision-audit.mjs — same defect, same repair. A
+           * contraindicated pick is legitimate only when the registry has
+           * nothing clean for that pattern, which is asked here rather than
+           * inferred from the caution the generator wrote alongside it. */
           for (const inj of merged.injuries) {
-            if ((ex.contraindicated || []).includes(inj)) {
-              problems.push(`${base.location}: ${ex.id} is contraindicated for ${inj}`);
+            if (!(ex.contraindications || []).includes(inj)) continue;
+            const clean = candidates(merged, { pattern: ex.pattern });
+            if (clean.length) {
+              problems.push(`${base.location}: ${ex.id} loads a declared ${inj} while `
+                + `${clean.length} clean option(s) existed for ${ex.pattern}`);
             }
           }
         }

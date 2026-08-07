@@ -3,7 +3,7 @@
  * Everything here is stored on the device only.
  */
 
-import { h, clear, announce } from '../core/dom.js';
+import { h, clear, announce, signedNum } from '../core/dom.js';
 import { weeklyPlanNote, progressionModel } from '../engine/progression.js';
 import { withholdsBodyNumbers } from '../engine/age.js';
 import * as store from '../core/store.js';
@@ -80,7 +80,9 @@ export function renderProgress(root, program, profile) {
         const last = st.weights[st.weights.length - 1];
         const delta = last.kg - first.kg;
         view.appendChild(h('p.lead',
-          `${st.weights.length} שקילות · שינוי כולל ${delta > 0 ? '+' : ''}${Math.round(delta * 10) / 10} ק״ג מאז ${formatDate(first.date)}.`));
+          `${st.weights.length} שקילות · שינוי כולל `,
+          signedNum(`${delta > 0 ? '+' : ''}${Math.round(delta * 10) / 10}`),
+          ` ק״ג מאז ${formatDate(first.date)}.`));
       } else {
         view.appendChild(h('p.empty', 'שתי שקילות ומעלה — ותופיע כאן גרף מגמה.'));
       }

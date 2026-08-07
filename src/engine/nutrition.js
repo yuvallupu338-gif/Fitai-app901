@@ -21,7 +21,7 @@
  * Food is Israeli home food with household measures, not grams on a scale.
  */
 
-import { withholdsBodyNumbers } from './age.js';
+import { withholdsBodyNumbers, withholdsFatLoss } from './age.js';
 
 /* ------------------------------------------------------------------ *
  * Food bank
@@ -364,11 +364,26 @@ function strategy(profile) {
   const w = profile.weightKg;
   switch (profile.goal) {
     case 'fatloss':
-      // targets.js refuses to put an under-18 into a deficit. Being underweight
-      // is the same refusal for a different reason: under BMI 18.5 there is no
-      // fat to spend, so the deficit comes out of muscle, bone and hormones
-      // instead. Whether to diet anyway is a conversation with a doctor, and an
-      // app that has seen two numbers does not get to open it.
+      /*
+       * Under 18 there is no deficit, whatever the goal chip says.
+       *
+       * This used to say "targets.js refuses to put an under-18 into a
+       * deficit" and leave it there. targets.js does refuse — but only when a
+       * target weight was entered, because that is the only thing it is asked
+       * about. A seventeen-year-old who picked "חיטוב" and left the target
+       * blank came through here and was handed 2210 kcal against a TDEE of
+       * 2720: a real 510 kcal deficit, with weekly weigh-in check-ins beside
+       * it, on the same screen as a heading that calls them a minor.
+       *
+       * Two files agreeing about a rule and neither of them enforcing it is
+       * the shape of every age bug in this app so far. This one asks.
+       */
+      if (withholdsFatLoss(profile)) { hold = 'minor'; break; }
+      // Being underweight is the same refusal for a different reason: under
+      // BMI 18.5 there is no fat to spend, so the deficit comes out of muscle,
+      // bone and hormones instead. Whether to diet anyway is a conversation
+      // with a doctor, and an app that has seen two numbers does not get to
+      // open it.
       if (bmiOf(profile) < 18.5) { hold = 'underweight'; break; }
       wanted = -Math.round(Math.min(tdee * 0.22, (0.006 * w * 7700) / 7));
       break;
@@ -428,7 +443,9 @@ function strategy(profile) {
       + (deltaKcal === 0
         ? (hold === 'underweight'
           ? 'המשקל שלך כבר בקצה התחתון של הטווח לגובה, ולכן אין כאן גירעון אלא אחזקה. מכאן ההרכב משתנה מהאימון ומהחלבון, לא מהמאזניים.'
-          : 'ללא גירעון או עודף — אחזקה.')
+          : hold === 'minor'
+            ? 'בגיל הזה הגוף עוד בונה גובה, עצם ומסה, וגירעון מכוון לוקח מכל השלושה. לכן זו אחזקה — ההרכב משתנה מהאימון ומהחלבון.'
+            : 'ללא גירעון או עודף — אחזקה.')
         : `${deltaKcal < 0 ? 'גירעון' : 'עודף'} של ${Math.abs(deltaKcal)} קק״ל ביום, בקצב שאפשר להחזיק לאורך זמן.`)
       + (trimmed ? ' הגירעון קוצר כדי שהיעד לא ירד מתחת למטבוליזם במנוחה.' : ''),
   };
@@ -767,7 +784,9 @@ function warnings(p, minor, strat, thin) {
   } else {
     // Only claim the numbers are an estimate when there are numbers.
     if (strat) out.push('המספרים כאן הם הערכה מנוסחה, לא מדידה. הם נקודת פתיחה — הגוף על המאזניים ובמראה הוא המדד האמיתי.');
-    if (strat && strat.hold === 'underweight') {
+    if (strat && strat.hold === 'minor') {
+      out.push('בחרת חיטוב, והתוכנית מכוונת לאחזקה ולא לירידה. מתחת לגיל 18 גירעון קלורי מכוון בא על חשבון גובה, צפיפות עצם והורמונים — דברים שנקבעים עכשיו ולא חוזרים. השינוי בהרכב הגוף בגיל הזה מגיע מהאימון, מהחלבון ומהשינה. אם יש סיבה רפואית לרדת במשקל — זה שיחה עם רופא, לא עם אפליקציה.');
+    } else if (strat && strat.hold === 'underweight') {
       out.push('המשקל שלך נמוך ביחס לגובה, ולכן התוכנית מכוונת לאחזקה ולא לירידה. אין כאן מספיק שומן שגירעון יכול לקחת ממנו, והוא ייקח במקומו משריר, משינה ומהורמונים. אם בכל זאת חשוב לך לרדת — תעשה את זה מול דיאטן.');
     } else if (p.goal === 'fatloss') {
       out.push('גירעון גדול יותר לא נותן תוצאה מהירה יותר לאורך זמן — הוא רק מוריד שריר ומעלה את הסיכוי שתפרוש.');

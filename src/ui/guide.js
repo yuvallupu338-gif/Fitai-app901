@@ -4,7 +4,7 @@
  * reference document carried, generated from the profile instead of hardcoded.
  */
 
-import { h } from '../core/dom.js';
+import { h, signedNum } from '../core/dom.js';
 import { buildPhases, progressionModel, projectTargets } from '../engine/progression.js';
 import { assessGoal, commitmentNote } from '../engine/targets.js';
 import * as store from '../core/store.js';
@@ -60,9 +60,9 @@ export function renderGuide(root, program, profile) {
       h('div.facts', { style: { marginTop: '12px' } },
         h('span.fact', 'שבועות ', h('b', String(goal.weeks))),
         Number.isFinite(goal.kgDelta) && goal.kgDelta !== 0
-          ? h('span.fact', 'שינוי ', h('b', `${goal.kgDelta > 0 ? '+' : ''}${round1(goal.kgDelta)} ק״ג`)) : null,
+          ? h('span.fact', 'שינוי ', h('b', signedNum(`${goal.kgDelta > 0 ? '+' : ''}${round1(goal.kgDelta)}`), ' ק״ג')) : null,
         Number.isFinite(goal.ratePerWeekKg) && goal.ratePerWeekKg !== 0
-          ? h('span.fact', 'קצב ', h('b', `${round2(goal.ratePerWeekKg)} ק״ג/שבוע`)) : null,
+          ? h('span.fact', 'קצב ', h('b', signedNum(String(round2(goal.ratePerWeekKg))), ' ק״ג/שבוע')) : null,
         goal.suggestedTargetKg ? h('span.fact', 'ריאלי יותר ', h('b', `${round1(goal.suggestedTargetKg)} ק״ג`)) : null,
         h('span.fact', 'התמסרות ', h('b', `${profile.commitment || 3}/5`)),
       ),
