@@ -18,6 +18,7 @@
  * not ours. Nothing here uses Math.random(); variety comes from hashProfile().
  */
 
+import { demonstratedLevel, benchmarkNote } from './benchmarks.js';
 import {
   MIN_AGE, MAX_AGE, withholdsHeavyLoad,
   easesImpact, needsStandingOption, needsLongerWarmup, warmsFast, stretchHoldSeconds,
@@ -805,8 +806,23 @@ function roleFor(pattern, compoundIndex) {
   return compoundIndex < 2 ? 'main' : 'secondary';
 }
 
-function desiredLevel(profile, role) {
-  const base = { beginner: 1.7, returning: 2.4, intermediate: 3.2, advanced: 4.2 }[experienceOf(profile)];
+/*
+ * The level to aim at for this slot.
+ *
+ * Experience sets a baseline and the declared reps override it for the pattern
+ * they speak for. A rep count is a specific claim about a specific movement and
+ * a better witness than a tier somebody picked from four options — especially
+ * since the ladder has no rung between "under 3 months" and "a year or more",
+ * so nine months of honest training has nothing truthful to select.
+ *
+ * Per pattern, not globally: 40 push-ups says nothing about anybody's pull-ups.
+ * The role nudge still applies on top, so a main slot sits slightly above an
+ * accessory one at the same demonstrated level.
+ */
+function desiredLevel(profile, role, pattern) {
+  const tier = { beginner: 1.7, returning: 2.4, intermediate: 3.2, advanced: 4.2 }[experienceOf(profile)];
+  const shown = pattern ? demonstratedLevel(profile, pattern) : null;
+  const base = shown === null ? tier : shown;
   const byRole = { skill: 0.5, main: 0.3, secondary: 0, accessory: -0.3, core: 0, finisher: -0.3 }[role] || 0;
   const age = clampInt(profile.age, MIN_AGE, MAX_AGE, 30);
   const injuries = (profile.injuries || []).length;
@@ -896,7 +912,20 @@ function restrictPool(pool, role) {
 function poolFor(profile, pattern, primaryInDay, role) {
   const tried = [pattern].concat(SIBLING_PATTERNS[pattern] || []);
   for (const pat of tried) {
-    const res = candidatesOrFallback(profile, { pattern: pat });
+    /*
+     * Raise the ceiling to what the trainee has shown for this pattern.
+     *
+     * levelCap() is derived from the experience tier, and aiming higher is
+     * useless if the pool was filtered before the aiming happened — a declared
+     * 35 push-ups would still have met a pool that stopped at level 2. Asking
+     * for one rung above the demonstrated level leaves the usual headroom.
+     *
+     * candidates() clamps by levelCeiling() last, so this cannot lift a minor
+     * past the age cap however many reps they report.
+     */
+    const shown = demonstratedLevel(profile, pat);
+    const opts = shown === null ? { pattern: pat } : { pattern: pat, maxLevel: shown + 1 };
+    const res = candidatesOrFallback(profile, opts);
     const pool = res.list.filter((e) => !primaryInDay.has(e.id));
     if (!pool.length) continue;
     const restricted = restrictPool(pool, role);
@@ -922,7 +951,7 @@ function pickFamily(profile, slot, ctx) {
     return { family: gentle.slice(0, Math.min(3, gentle.length)), risky: true, demoted: res.demoted, thin: res.thin };
   }
 
-  const want = desiredLevel(profile, slot.role);
+  const want = desiredLevel(profile, slot.role, slot.pattern);
   const seed = seedOf(ctx.hash, `${ctx.dayId}:${slot.pattern}:${slot.occurrence}`);
   const spun = rotate(pool, seed);
 
@@ -1237,6 +1266,17 @@ function buildCooldown(profile) {
 function buildNotes(profile, ctx) {
   const out = [];
   const age = clampInt(profile.age, MIN_AGE, MAX_AGE, 30);
+
+  /*
+   * Say that the numbers were read.
+   *
+   * The plan is about to be harder than the experience tier alone would give —
+   * somebody who ticked "beginner" and typed 35 push-ups gets diamond push-ups
+   * rather than knee push-ups. Without a sentence that looks like the app
+   * ignoring their answer, when it is the opposite.
+   */
+  const bmNote = benchmarkNote(profile);
+  if (bmNote) out.push(bmNote);
   const sleep = numOr(profile.sleepHours, 7.5);
   const stress = clampInt(profile.stress, 1, 5, 3);
   const injuries = profile.injuries || [];
