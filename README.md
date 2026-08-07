@@ -360,6 +360,15 @@ window.YOFI_SUPABASE_ANON_KEY = 'eyJhbGciOi…';
 > **אל תזינו את `service_role`.** רק `anon` — הוא היחיד שמיועד לדפדפן,
 > והוא מוגן במלואו על ידי RLS.
 
+> **רוצים אפליקציה מלאה בבעלי מקצוע?** אחרי `setup.sql` הדביקו גם את
+> `supabase/agents.sql` — 300 בעלי מקצוע נוספים (180 בתחום השיער, 120 בתחום
+> הציפורניים) עם שירותים, מחירים, שעות פעילות ותיקי עבודות. הסיסמה לכולם
+> `Agent1234`. גם הוא אידמפוטנטי.
+>
+> מי שיש לו Node יכול לייצר אותם בעצמו בכמות אחרת:
+> `npm run agents -- --barbers 50 --manicurists 30`, ולמחוק עם
+> `node scripts/generate-professionals.mjs --clean`.
+
 `setup.sql` **אידמפוטנטי** — אפשר להריץ אותו שוב בבטחה, הוא אינו מוחק נתונים קיימים.
 הוא נוצר אוטומטית מהמיגרציות; אחרי שינוי בהן הריצו `npm run build:sql`.
 
@@ -393,6 +402,8 @@ npm run check       # שניהם
 npm run db:reset    # מיגרציות + זריעה מחדש
 npm run db:types    # יצירת types/database.ts מהסכמה האמיתית
 npm run build:sql   # הרכבת supabase/setup.sql מהמיגרציות
+npm run agents      # יצירת 300 בעלי מקצוע (180 שיער, 120 ציפורניים)
+npm run agents:export  # ייצוא בעלי המקצוע שנוצרו ל־supabase/agents.sql
 ```
 
 ---

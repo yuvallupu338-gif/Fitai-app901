@@ -14,7 +14,9 @@
     "db:seed": "node scripts/db-seed.mjs",
     "db:reset": "node scripts/db-push.mjs --with-seed",
     "db:types": "node scripts/gen-types.mjs types/database.ts",
-    "build:sql": "node scripts/build-setup-sql.mjs"
+    "build:sql": "node scripts/build-setup-sql.mjs",
+    "agents": "node scripts/generate-professionals.mjs",
+    "agents:export": "node scripts/export-agents.mjs"
   },
   "dependencies": {
     "@hookform/resolvers": "^3.9.1",
