@@ -15171,13 +15171,12 @@ function exerciseCard(day, slot, index, onChange) {
     }, `${String(index).padStart(2, '0')} · ${v.name}`),
     v.nameEn ? h('div.name-en', v.nameEn) : null,
     h('div.prescr',
-      h('span.chip', String(v.sets)),
-      h('span.chip' + (v.unit === 'time' ? '.time' : ''), v.reps),
+      h('span.chip', setsChip(v)),
+      repsChip(v),
       restChip(v),
       v.tempo ? h('span.chip.rest', `טמפו ${v.tempo}`) : null,
-      /* The effort chip is amber, not muted like tempo and rest, because on a
-         hypertrophy plan it is the instruction that decides whether the set did
-         anything — the rep range on its own does not say how hard it was. */
+      /* Amber, not muted like tempo and rest: where it appears it IS the
+         prescription, and repsChip has stood down for it. */
       v.effort ? h('span.chip.effort', v.effort) : null,
       logs.length ? h('span.setpill', `${logs.length} סטים נרשמו`) : null,
     ),
@@ -15228,6 +15227,36 @@ function exerciseCard(day, slot, index, onChange) {
  * whose rest text holds no readable interval falls back to the plain chip it
  * always was.
  */
+/*
+ * A rep range and "to failure" are two prescriptions, and only one of them can
+ * be followed.
+ *
+ * "3×6–10 עד כישלון" asks the trainee to stop at ten and to keep going until
+ * they cannot — and whichever they obey, the card was wrong about the other.
+ * The rep range was already the weaker half: on a bodyweight movement at the
+ * right leverage the count falls out of the effort, and where the leverage is
+ * wrong the range is the thing that hides it. That was how "8–12 to failure"
+ * reached somebody who could do thirty.
+ *
+ * So where an effort instruction is present it replaces the range, and the
+ * set count grows a unit so the line still reads as a prescription rather than
+ * a bare number. Everything without an effort line — time-based holds, the
+ * finishing movements past position seven, every other goal — keeps its range,
+ * because there the range is all the trainee has.
+ */
+function prescribesEffort(v) {
+  return !!v.effort && /כישלון/.test(v.effort);
+}
+
+function setsChip(v) {
+  return prescribesEffort(v) ? `${v.sets} סטים` : String(v.sets);
+}
+
+function repsChip(v) {
+  if (prescribesEffort(v)) return null;
+  return h('span.chip' + (v.unit === 'time' ? '.time' : ''), v.reps);
+}
+
 function restChip(v) {
   if (!v.rest) return null;
   if (!parseRest(v.rest)) return h('span.chip.rest', `מנוחה ${v.rest}`);
@@ -15373,13 +15402,12 @@ function openDetail(day, slot, pick, onChange) {
     h('h3', { style: { marginTop: '14px' } }, v.name),
     v.nameEn ? h('div.name-en', { style: { marginBottom: '10px' } }, v.nameEn) : null,
     h('div.prescr',
-      h('span.chip', String(v.sets)),
-      h('span.chip' + (v.unit === 'time' ? '.time' : ''), v.reps),
+      h('span.chip', setsChip(v)),
+      repsChip(v),
       restChip(v),
       v.tempo ? h('span.chip.rest', `טמפו ${v.tempo}`) : null,
-      /* The effort chip is amber, not muted like tempo and rest, because on a
-         hypertrophy plan it is the instruction that decides whether the set did
-         anything — the rep range on its own does not say how hard it was. */
+      /* Amber, not muted like tempo and rest: where it appears it IS the
+         prescription, and repsChip has stood down for it. */
       v.effort ? h('span.chip.effort', v.effort) : null,
     ),
     v.note ? h('p.note' + (String(v.note).startsWith('⚠︎') ? '.caution' : ''), v.note) : null,
@@ -15765,6 +15793,22 @@ const FIELDS = STEPS
   .filter((f) => typeof f.key === 'string' && f.key.startsWith('bm_'))
   .map((f) => ({ key: f.key.slice(3), label: f.label, unit: f.unit, min: f.min, max: f.max }));
 
+/*
+ * The questions, named from the same place the form is built from.
+ *
+ * This sentence was hand-written as "שכיבות סמיכה, מתח, מקבילים ופלאנק" and
+ * then a fifth benchmark was added — so the form asked five things and the
+ * prompt promised four, with the squat missing. The comment on FIELDS above
+ * predicted exactly this ("a hand-copied list drifts the moment a fifth
+ * benchmark is added"); the code obeyed the rule and the prose beside it did
+ * not. Now neither can.
+ */
+function fieldList() {
+  const names = FIELDS.map((f) => String(f.label).replace(/ ברצף$/, ''));
+  if (names.length < 2) return names.join('');
+  return `${names.slice(0, -1).join(', ')} ו${names[names.length - 1]}`;
+}
+
 /** Should the re-test card be on screen right now? */
 function retestVisible(profile, ui, now) {
   return retestDue(profile, now) && snoozeExpired(ui && ui.retestSnoozeAt, now);
@@ -15785,7 +15829,7 @@ function retestBanner(profile, ui, onGo, now) {
     h('h4', 'זמן למדוד מחדש'),
     h('p', days === null
       ? 'המספרים שהתוכנית בנויה עליהם נרשמו לפני זמן לא ידוע. בדיקה קצרה ואני מעדכן את הרמות.'
-      : `עברו ${days} ימים מאז שמדדת. שכיבות סמיכה, מתח, מקבילים ופלאנק — `
+      : `עברו ${days} ימים מאז שמדדת. ${fieldList()} — `
         + 'כמה דקות, ואני מעדכן את הרמות לפי המספרים החדשים.'),
     h('div.toolbar', { style: { margin: '12px 0 0' } },
       h('button.btn.primary', { type: 'button', onclick: onGo }, 'למדידה'),
@@ -15887,9 +15931,17 @@ function retestCard(profile, ui, handlers, now) {
           benchmarks: Object.assign({}, profile.benchmarks, next),
           benchmarksAt: new Date(now === undefined ? Date.now() : now).toISOString(),
         });
-        announce(moved.length
-          ? `המספרים עודכנו. ${moved.length} דפוסי תנועה זזים רמה, התוכנית נבנית מחדש.`
-          : 'המספרים עודכנו. הרמות נשארות כפי שהן.');
+        /*
+         * Announced only when nothing downstream will announce over it.
+         *
+         * A rebuild fires its own "התוכנית נבנתה מחדש" about eight milliseconds
+         * later, and a polite live region rewritten that fast speaks only the
+         * second one — so a screen-reader user heard "the plan was rebuilt" and
+         * learned nothing about what their measurement bought, with focus on
+         * body and no cursor near the summary either. When a rebuild is coming,
+         * the caller owns the announcement and says the whole thing.
+         */
+        if (!moved.length) announce('המספרים עודכנו. הרמות נשארות כפי שהן.');
         if (cb.onApply) cb.onApply(updated, moved);
       },
     }, never ? 'כוונן לפי המספרים' : 'עדכן ובנה מחדש'),
@@ -16165,6 +16217,16 @@ function renderPlan(root, program, profile, opts) {
       const strip = view.querySelector('.week');
       if (!strip) return;
       strip.replaceWith(weekStrip(program, active, activeRest, pickDay, pickRest));
+      /*
+       * The footer counts the same ticks the strip just redrew, and it was not
+       * being redrawn with it. Tick five exercises: the day cell fills to 100%,
+       * every check turns on, storage holds five — and the line fourteen pixels
+       * below still reads 0/15. Both in the viewport at once, on the main tab,
+       * on the primary interaction, every session. It corrected only when
+       * something else forced a full draw.
+       */
+      const foot = view.querySelector('.weekfoot');
+      if (foot) foot.replaceWith(weekFoot(program, profile));
     }
   }
 
@@ -18042,6 +18104,10 @@ function renderProgress(root, program, profile, opts) {
           return;
         }
         store.set({ ui: Object.assign({}, store.get().ui, { retestMoved: moved }) });
+        /* Said here, before the rebuild, because rebuild() announces its own
+           generic line and a polite region rewritten milliseconds later speaks
+           only the last one. One combined sentence, once. */
+        announce(`המספרים עודכנו. ${moved.length} דפוסי תנועה זזים רמה, התוכנית נבנית מחדש.`);
         if (o.onRebuild) o.onRebuild(next, { keepTab: true });
       },
       onSnooze: () => {
@@ -18341,6 +18407,10 @@ function revealFacts(profile, program) {
     push: Number.isFinite(vol.push) ? vol.push : null,
     pull: Number.isFinite(vol.pull) ? vol.pull : null,
     legs: Number.isFinite(vol.legs) ? vol.legs : null,
+    /* Everything the three named groups leave out, so the line can close. */
+    rest: (Number.isFinite(total) && Number.isFinite(vol.push)
+      && Number.isFinite(vol.pull) && Number.isFinite(vol.legs))
+      ? total - vol.push - vol.pull - vol.legs : 0,
     warmup: (program && program.warmup && program.warmup.length) || null,
     weeks: (program && program.meta && program.meta.weeksTotal) || null,
   };
@@ -18372,8 +18442,19 @@ function revealLines(f) {
   if (f.sets) {
     out.push({
       n: f.sets,
+      /*
+       * The breakdown has to add up to the headline or it should not be there.
+       *
+       * It named push, pull and legs beside a total that also contains core,
+       * arms, shoulders, calves and conditioning — so a reader who adds the
+       * three came up thirteen short. On the one screen whose entire
+       * justification is that its numbers are true, an arithmetic invitation
+       * that fails is exactly the wrong kind of friction. The remainder is
+       * named rather than dropped.
+       */
       label: f.push && f.pull && f.legs
         ? `סטים עובדים בשבוע · ${f.push} דחיפה, ${f.pull} משיכה, ${f.legs} רגליים`
+          + (f.rest > 0 ? `, ${f.rest} ליבה וכל השאר` : '')
         : 'סטים עובדים בשבוע',
     });
   }

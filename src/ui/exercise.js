@@ -79,13 +79,12 @@ export function exerciseCard(day, slot, index, onChange) {
     }, `${String(index).padStart(2, '0')} · ${v.name}`),
     v.nameEn ? h('div.name-en', v.nameEn) : null,
     h('div.prescr',
-      h('span.chip', String(v.sets)),
-      h('span.chip' + (v.unit === 'time' ? '.time' : ''), v.reps),
+      h('span.chip', setsChip(v)),
+      repsChip(v),
       restChip(v),
       v.tempo ? h('span.chip.rest', `טמפו ${v.tempo}`) : null,
-      /* The effort chip is amber, not muted like tempo and rest, because on a
-         hypertrophy plan it is the instruction that decides whether the set did
-         anything — the rep range on its own does not say how hard it was. */
+      /* Amber, not muted like tempo and rest: where it appears it IS the
+         prescription, and repsChip has stood down for it. */
       v.effort ? h('span.chip.effort', v.effort) : null,
       logs.length ? h('span.setpill', `${logs.length} סטים נרשמו`) : null,
     ),
@@ -136,6 +135,36 @@ export function exerciseCard(day, slot, index, onChange) {
  * whose rest text holds no readable interval falls back to the plain chip it
  * always was.
  */
+/*
+ * A rep range and "to failure" are two prescriptions, and only one of them can
+ * be followed.
+ *
+ * "3×6–10 עד כישלון" asks the trainee to stop at ten and to keep going until
+ * they cannot — and whichever they obey, the card was wrong about the other.
+ * The rep range was already the weaker half: on a bodyweight movement at the
+ * right leverage the count falls out of the effort, and where the leverage is
+ * wrong the range is the thing that hides it. That was how "8–12 to failure"
+ * reached somebody who could do thirty.
+ *
+ * So where an effort instruction is present it replaces the range, and the
+ * set count grows a unit so the line still reads as a prescription rather than
+ * a bare number. Everything without an effort line — time-based holds, the
+ * finishing movements past position seven, every other goal — keeps its range,
+ * because there the range is all the trainee has.
+ */
+function prescribesEffort(v) {
+  return !!v.effort && /כישלון/.test(v.effort);
+}
+
+function setsChip(v) {
+  return prescribesEffort(v) ? `${v.sets} סטים` : String(v.sets);
+}
+
+function repsChip(v) {
+  if (prescribesEffort(v)) return null;
+  return h('span.chip' + (v.unit === 'time' ? '.time' : ''), v.reps);
+}
+
 function restChip(v) {
   if (!v.rest) return null;
   if (!parseRest(v.rest)) return h('span.chip.rest', `מנוחה ${v.rest}`);
@@ -281,13 +310,12 @@ export function openDetail(day, slot, pick, onChange) {
     h('h3', { style: { marginTop: '14px' } }, v.name),
     v.nameEn ? h('div.name-en', { style: { marginBottom: '10px' } }, v.nameEn) : null,
     h('div.prescr',
-      h('span.chip', String(v.sets)),
-      h('span.chip' + (v.unit === 'time' ? '.time' : ''), v.reps),
+      h('span.chip', setsChip(v)),
+      repsChip(v),
       restChip(v),
       v.tempo ? h('span.chip.rest', `טמפו ${v.tempo}`) : null,
-      /* The effort chip is amber, not muted like tempo and rest, because on a
-         hypertrophy plan it is the instruction that decides whether the set did
-         anything — the rep range on its own does not say how hard it was. */
+      /* Amber, not muted like tempo and rest: where it appears it IS the
+         prescription, and repsChip has stood down for it. */
       v.effort ? h('span.chip.effort', v.effort) : null,
     ),
     v.note ? h('p.note' + (String(v.note).startsWith('⚠︎') ? '.caution' : ''), v.note) : null,

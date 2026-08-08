@@ -87,6 +87,10 @@ export function revealFacts(profile, program) {
     push: Number.isFinite(vol.push) ? vol.push : null,
     pull: Number.isFinite(vol.pull) ? vol.pull : null,
     legs: Number.isFinite(vol.legs) ? vol.legs : null,
+    /* Everything the three named groups leave out, so the line can close. */
+    rest: (Number.isFinite(total) && Number.isFinite(vol.push)
+      && Number.isFinite(vol.pull) && Number.isFinite(vol.legs))
+      ? total - vol.push - vol.pull - vol.legs : 0,
     warmup: (program && program.warmup && program.warmup.length) || null,
     weeks: (program && program.meta && program.meta.weeksTotal) || null,
   };
@@ -118,8 +122,19 @@ export function revealLines(f) {
   if (f.sets) {
     out.push({
       n: f.sets,
+      /*
+       * The breakdown has to add up to the headline or it should not be there.
+       *
+       * It named push, pull and legs beside a total that also contains core,
+       * arms, shoulders, calves and conditioning — so a reader who adds the
+       * three came up thirteen short. On the one screen whose entire
+       * justification is that its numbers are true, an arithmetic invitation
+       * that fails is exactly the wrong kind of friction. The remainder is
+       * named rather than dropped.
+       */
       label: f.push && f.pull && f.legs
         ? `סטים עובדים בשבוע · ${f.push} דחיפה, ${f.pull} משיכה, ${f.legs} רגליים`
+          + (f.rest > 0 ? `, ${f.rest} ליבה וכל השאר` : '')
         : 'סטים עובדים בשבוע',
     });
   }

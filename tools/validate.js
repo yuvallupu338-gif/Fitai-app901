@@ -2754,6 +2754,130 @@ try {
   } catch (e) { err(`movement rep-cap check could not run: ${e.message}`); }
 }
 
+
+/*
+ * A rep range and "to failure" cannot both be on the card.
+ *
+ * "3x6-10 עד כישלון" asks the trainee to stop at ten and to keep going until
+ * they cannot, and whichever they obey the card was wrong about the other. The
+ * range was already the weaker half: on a bodyweight movement at the right
+ * leverage the count falls out of the effort, and where the leverage is wrong
+ * the range is what hides it — that is how "8-12 to failure" reached somebody
+ * who could do thirty.
+ *
+ * Checked against exercise.js rather than the engine, because the engine keeps
+ * `reps` for its own time budget and it is the CARD that must not print both.
+ */
+{
+  try {
+    const src = readFileSync(resolve(ROOT, 'src/ui/exercise.js'), 'utf8');
+    /* The gate has to exist and the reps chip has to go through it. Read as
+       source because rendering needs a DOM; the shape is what matters. */
+    /* Anchored on the open paren. Without it, renaming the function to
+       prescribesEffortX still matched — the same substring trap that has now
+       bitten this session three times, twice in Hebrew and once in English. */
+    if (!/function prescribesEffort\(/.test(src)) {
+      err('exercise.js no longer has a prescribesEffort gate — a rep range and a to-failure '
+        + 'instruction can both reach the card');
+    }
+    if (!/function repsChip\(/.test(src) || !/if \(prescribesEffort\(v\)\) return null;/.test(src)) {
+      err('repsChip no longer stands down for an effort instruction');
+    }
+    /* And nothing may render v.reps directly any more, which is how it would
+       creep back: a third render site added later that skips the helper. */
+    const direct = (src.match(/h\('span\.chip[^)]*?,\s*v\.reps\)/g) || []);
+    if (direct.length) {
+      err(`${direct.length} place(s) in exercise.js still render v.reps directly instead of through `
+        + 'repsChip — the range will print beside "עד כישלון" there');
+    }
+  } catch (e) { err(`card prescription check could not run: ${e.message}`); }
+}
+
+
+/*
+ * The re-test prompt must name every question the form asks.
+ *
+ * The sentence was hand-written as "שכיבות סמיכה, מתח, מקבילים ופלאנק", a fifth
+ * benchmark was added a few commits later, and the prompt promised four while
+ * the form asked five. retest.js' own comment predicted it — "a hand-copied
+ * list drifts the moment a fifth benchmark is added" — and the code obeyed that
+ * rule while the prose beside it did not.
+ */
+{
+  try {
+    const src = readFileSync(resolve(ROOT, 'src/ui/retest.js'), 'utf8');
+    const schema = await load('src/intake/schema.js');
+    const bm = (schema.STEPS || [])
+      .reduce((acc, st) => acc.concat(st.fields || []), [])
+      .filter((f) => typeof f.key === 'string' && f.key.startsWith('bm_'));
+    if (!bm.length) err('the questionnaire has no benchmark questions left');
+
+    /* Any benchmark label written into retest.js as a literal is a hand-copy
+       waiting to drift — the prompt has to derive from STEPS like the form. */
+    for (const f of bm) {
+      const bare = String(f.label).replace(/ ברצף$/, '');
+      const literal = new RegExp(`['\`][^'\`]*${bare}[^'\`]*['\`]`);
+      if (literal.test(src) && !/fieldList\(/.test(src)) {
+        err(`retest.js names "${bare}" as a literal instead of deriving the list from STEPS`);
+      }
+    }
+    if (!/function fieldList\(/.test(src)) {
+      err('retest.js no longer derives its question list from the form — the prompt and the form '
+        + 'will disagree the next time a benchmark is added');
+    }
+    if (!/\$\{fieldList\(\)\}/.test(src)) {
+      err('fieldList() exists but the prompt does not use it');
+    }
+  } catch (e) { err(`retest prompt check could not run: ${e.message}`); }
+}
+
+/*
+ * The reveal's breakdown has to add up to its own headline.
+ *
+ * It named push, pull and legs beside a total that also contains core, arms,
+ * shoulders, calves and conditioning, so a reader who added the three came up
+ * thirteen short. On the one screen whose entire justification is that its
+ * numbers are true, an arithmetic invitation that fails is the wrong friction.
+ */
+{
+  try {
+    const schema = await load('src/intake/schema.js');
+    const gen = await load('src/engine/generator.js');
+    const reveal = await load('src/ui/reveal.js');
+    let bad = null;
+    for (const goal of ['muscle', 'fatloss', 'strength', 'fitness']) {
+      for (const [d, m] of [[2, 30], [3, 60], [5, 75], [6, 90]]) {
+        const p = schema.normalizeProfile(Object.assign(schema.defaults(), {
+          age: 30, sex: 'male', heightCm: 178, weightKg: 82, goal,
+          experience: 'intermediate', daysPerWeek: d, minutesPerSession: m,
+          location: 'home_bodyweight',
+        }));
+        const program = gen.generateProgram(p);
+        const f = reveal.revealFacts(p, program);
+        if (!f.sets || !f.push) continue;
+        /*
+         * Read off the rendered LINE, not off revealFacts.
+         *
+         * The first version summed the fact object, which stayed correct when
+         * the label stopped printing the remainder — so deleting the very text
+         * this check is about passed green. What the trainee can add up is the
+         * sentence, so the sentence is what gets added up.
+         */
+        const line = reveal.revealLines(f).find((l) => l.n === f.sets);
+        if (!line) { if (!bad) bad = `${goal} ${d}x${m}: no line carries the weekly set total`; continue; }
+        const nums = (String(line.label).match(/\d+/g) || []).map(Number);
+        if (!nums.length) continue;
+        const named = nums.reduce((x, y) => x + y, 0);
+        if (named !== f.sets && !bad) {
+          bad = `${goal} ${d}x${m}: the line reads "${line.label}" — its numbers sum to ${named} `
+            + `beside a headline of ${f.sets}`;
+        }
+      }
+    }
+    if (bad) err(`${bad} — the breakdown invites a subtraction that does not close`);
+  } catch (e) { err(`reveal arithmetic check could not run: ${e.message}`); }
+}
+
 /* ---------------- report ---------------- */
 
 console.log(`exercises: ${allEx.size}`);

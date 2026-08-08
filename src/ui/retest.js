@@ -49,6 +49,22 @@ const FIELDS = STEPS
   .filter((f) => typeof f.key === 'string' && f.key.startsWith('bm_'))
   .map((f) => ({ key: f.key.slice(3), label: f.label, unit: f.unit, min: f.min, max: f.max }));
 
+/*
+ * The questions, named from the same place the form is built from.
+ *
+ * This sentence was hand-written as "שכיבות סמיכה, מתח, מקבילים ופלאנק" and
+ * then a fifth benchmark was added — so the form asked five things and the
+ * prompt promised four, with the squat missing. The comment on FIELDS above
+ * predicted exactly this ("a hand-copied list drifts the moment a fifth
+ * benchmark is added"); the code obeyed the rule and the prose beside it did
+ * not. Now neither can.
+ */
+function fieldList() {
+  const names = FIELDS.map((f) => String(f.label).replace(/ ברצף$/, ''));
+  if (names.length < 2) return names.join('');
+  return `${names.slice(0, -1).join(', ')} ו${names[names.length - 1]}`;
+}
+
 /** Should the re-test card be on screen right now? */
 export function retestVisible(profile, ui, now) {
   return retestDue(profile, now) && snoozeExpired(ui && ui.retestSnoozeAt, now);
@@ -69,7 +85,7 @@ export function retestBanner(profile, ui, onGo, now) {
     h('h4', 'זמן למדוד מחדש'),
     h('p', days === null
       ? 'המספרים שהתוכנית בנויה עליהם נרשמו לפני זמן לא ידוע. בדיקה קצרה ואני מעדכן את הרמות.'
-      : `עברו ${days} ימים מאז שמדדת. שכיבות סמיכה, מתח, מקבילים ופלאנק — `
+      : `עברו ${days} ימים מאז שמדדת. ${fieldList()} — `
         + 'כמה דקות, ואני מעדכן את הרמות לפי המספרים החדשים.'),
     h('div.toolbar', { style: { margin: '12px 0 0' } },
       h('button.btn.primary', { type: 'button', onclick: onGo }, 'למדידה'),
@@ -171,9 +187,17 @@ export function retestCard(profile, ui, handlers, now) {
           benchmarks: Object.assign({}, profile.benchmarks, next),
           benchmarksAt: new Date(now === undefined ? Date.now() : now).toISOString(),
         });
-        announce(moved.length
-          ? `המספרים עודכנו. ${moved.length} דפוסי תנועה זזים רמה, התוכנית נבנית מחדש.`
-          : 'המספרים עודכנו. הרמות נשארות כפי שהן.');
+        /*
+         * Announced only when nothing downstream will announce over it.
+         *
+         * A rebuild fires its own "התוכנית נבנתה מחדש" about eight milliseconds
+         * later, and a polite live region rewritten that fast speaks only the
+         * second one — so a screen-reader user heard "the plan was rebuilt" and
+         * learned nothing about what their measurement bought, with focus on
+         * body and no cursor near the summary either. When a rebuild is coming,
+         * the caller owns the announcement and says the whole thing.
+         */
+        if (!moved.length) announce('המספרים עודכנו. הרמות נשארות כפי שהן.');
         if (cb.onApply) cb.onApply(updated, moved);
       },
     }, never ? 'כוונן לפי המספרים' : 'עדכן ובנה מחדש'),

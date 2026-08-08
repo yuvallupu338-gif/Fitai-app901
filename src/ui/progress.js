@@ -88,6 +88,10 @@ export function renderProgress(root, program, profile, opts) {
           return;
         }
         store.set({ ui: Object.assign({}, store.get().ui, { retestMoved: moved }) });
+        /* Said here, before the rebuild, because rebuild() announces its own
+           generic line and a polite region rewritten milliseconds later speaks
+           only the last one. One combined sentence, once. */
+        announce(`המספרים עודכנו. ${moved.length} דפוסי תנועה זזים רמה, התוכנית נבנית מחדש.`);
         if (o.onRebuild) o.onRebuild(next, { keepTab: true });
       },
       onSnooze: () => {

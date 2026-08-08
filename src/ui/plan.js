@@ -157,6 +157,16 @@ export function renderPlan(root, program, profile, opts) {
       const strip = view.querySelector('.week');
       if (!strip) return;
       strip.replaceWith(weekStrip(program, active, activeRest, pickDay, pickRest));
+      /*
+       * The footer counts the same ticks the strip just redrew, and it was not
+       * being redrawn with it. Tick five exercises: the day cell fills to 100%,
+       * every check turns on, storage holds five — and the line fourteen pixels
+       * below still reads 0/15. Both in the viewport at once, on the main tab,
+       * on the primary interaction, every session. It corrected only when
+       * something else forced a full draw.
+       */
+      const foot = view.querySelector('.weekfoot');
+      if (foot) foot.replaceWith(weekFoot(program, profile));
     }
   }
 
