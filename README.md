@@ -76,6 +76,11 @@ the parser has to get right, each found by running a Hebrew corpus through it:
 - A bare number on a food priced by weight means grams, never servings. Reading
   `10 שקדים` as ten 30g portions returns 1,640 kcal for a handful of almonds.
 
+The checker searches foods the user saved by hand (`myFoods`) alongside the
+bank, since the one dish someone bothered to enter themselves is exactly the one
+they will type again. Those rows carry no bank index, so the diary's
+edit-portion button stays off them rather than pointing past the end of FOODDB.
+
 **Icons.** One logo, three renders, because one bitmap cannot serve a 42px
 header box and a 512px launcher tile. `LOGO_MARK` is the glyph full-bleed on the
 brand's navy, used for the header, the favicon and the `any` manifest icon;
