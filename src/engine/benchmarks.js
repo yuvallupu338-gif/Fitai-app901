@@ -60,7 +60,18 @@ const LADDERS = {
    * It is still enormously better than what it replaces, which was nothing at
    * all: legs came from the experience tier and never moved again.
    */
-  squats: [[60, 4], [40, 3], [20, 2], [0, 1]],
+  /*
+   * Capped at 3, not 4. The first version stopped at 5 to keep a squat count
+   * away from the pistol and the full nordic; the final review showed the
+   * danger sits one rung lower than that assumed. Level 4 in this library is
+   * already the skater squat and the nordic negative, and 60 air squats was
+   * promoting a self-declared BEGINNER to both — in a programme that had
+   * judged the same person level 2 everywhere the evidence was push-ups or
+   * pull-ups. An endurance result does not predict a maximal single-leg squat
+   * or a controlled maximal eccentric. Level 4 legs is earned through "קל לי",
+   * which is a claim about the exercise actually in front of them.
+   */
+  squats: [[45, 3], [25, 2], [0, 1]],
 };
 
 /* Which declared number speaks for which movement pattern. */

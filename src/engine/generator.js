@@ -905,7 +905,21 @@ const SIBLING_PATTERNS = {
   hinge: ['squat', 'lunge'],
   lunge: ['squat', 'hinge'],
   calf: ['plyo', 'lunge'],
-  plyo: ['conditioning', 'squat'],
+  /*
+   * squat first, conditioning last — and that order is not cosmetic.
+   *
+   * The sport goal puts a plyo pattern at the FRONT of every leg day, and every
+   * plyo movement in the library is knee- and ankle-contraindicated. So a
+   * trainee who declares either one hands all their leg slots to a sibling —
+   * and with conditioning listed first, PATTERN_GROUP quietly reclassified
+   * those sets from `legs` to `conditioning`. Measured: 16 of 48 sport profiles
+   * with a declared knee or ankle received a week with ZERO leg sets. A
+   * twelve-year-old with a bad knee got no squat, no lunge and no hinge at all,
+   * which is the opposite of what a knee needs.
+   *
+   * The sets belong to the legs. A squat and a lunge are where they should go.
+   */
+  plyo: ['squat', 'lunge', 'conditioning'],
   arms_biceps: ['horizontal_pull', 'vertical_pull'],
   arms_triceps: ['horizontal_push', 'vertical_push'],
   shoulders_lateral: ['vertical_push', 'shoulders_rear'],
@@ -1137,6 +1151,29 @@ function tempoFor(profile, ex, role) {
   return null;
 }
 
+/*
+ * Movements whose rep range is a property of the movement, not of the goal.
+ *
+ * The nordic family is the case that forced this. Today's isolation relaxation
+ * put it into the hinge pool, which was right — it is the best hamstring work
+ * available without weights — but restrictPool demotes the hinge to `accessory`
+ * on every calisthenics profile (measured: 1,604 of 1,604 hinge slots), so it
+ * inherited the accessory range of 10-15, shifted to 8-13 at level 4+.
+ *
+ * Published nordic protocols run 2-3 sets of 3-6 reps, built up over weeks,
+ * with explicit warnings about the DOMS when the dose is stepped too fast.
+ * 8-13 reps of a maximal eccentric at a five-second tempo is roughly triple the
+ * top of any accepted dose, and it was reaching an ordinary uninjured adult on
+ * a two-day week. "Stop two reps short of failure" is also not a coachable
+ * instruction on a movement almost nobody can do three of.
+ */
+const REPS_BY_ID = {
+  nordic_curl: '3–5',
+  nordic_negative: '3–6',
+  band_assisted_nordic: '4–8',
+  nordic_lean: '6–10',
+};
+
 function prescribe(profile, ex, slot) {
   const goal = goalOf(profile);
   const table = SCHEME[goal][slot.role] || SCHEME[goal].main;
@@ -1174,6 +1211,11 @@ function prescribe(profile, ex, slot) {
     && slot.role !== 'finisher' && ex.pattern !== 'conditioning' && ex.pattern !== 'plyo') {
     reps = TAIL_REPS;
   }
+
+  /* A movement-specific range overrides the goal's, and overrides the level
+     shift with it — the shift exists to make a hard movement's range sane, and
+     these ranges are already the sane one. */
+  if (REPS_BY_ID[ex.id]) reps = REPS_BY_ID[ex.id];
 
   if (ex.unilateral) reps = `${reps} לכל צד`;
 

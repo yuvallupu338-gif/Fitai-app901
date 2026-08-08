@@ -71,15 +71,40 @@ export const UNDERWEIGHT_BMI = 18.5;
 const MEDICAL_FLAGS = [
   {
     key: 'eating_disorder',
-    terms: ['אנורקסיה', 'בולימיה', 'הפרעת אכילה', 'הפרעות אכילה', 'אכילה כפייתית',
-      'anorexia', 'bulimia', 'eating disorder', 'binge eating', 'arfid'],
+    /*
+     * Widened to the vocabulary people actually type. The first list held the
+     * two diagnosis names and missed every description: the binge and purge
+     * words, the ב/ת variant of a phrase already in the list, and amenorrhoea —
+     * which is the strongest RED-S flag there is in a training context and the
+     * thing somebody is most likely to mention without naming a disorder.
+     */
+    terms: ['אנורקסיה', 'בולימיה', 'הפרעת אכילה', 'הפרעות אכילה', 'הפרעה באכילה',
+      'אכילה כפייתית', 'בולמוס', 'זלילה', 'משלשלים', 'מקיאה', 'להקיא', 'אורתורקסיה',
+      'אין לי מחזור', 'הפסקתי לקבל מחזור',
+      'anorexia', 'bulimia', 'eating disorder', 'binge eating', 'arfid', 'ednos',
+      'purging', 'amenorrhea', 'amenorrhoea'],
     he: 'ציינת היסטוריה של הפרעת אכילה. התוכנית כאן מכוונת לאחזקה ולא לירידה, ואין בה '
       + 'שקילות שבועיות או הוראה לקצץ אוכל — תוכנית ירידה במשקל במצב הזה נבנית עם הצוות '
       + 'המטפל שלך, לא עם אפליקציה.',
   },
   {
     key: 'pregnancy',
-    terms: ['הריון', 'הרה', 'מיניקה', 'הנקה', 'pregnan', 'breastfeed', 'lactat', 'nursing'],
+    /*
+     * Three-letter Hebrew fragments do not belong here, and 'הרה' was the
+     * proof: it lives inside אזהרה, הזהרה, במהרה and הרהרתי, so "אזהרה על
+     * תרופה" produced a full pregnancy hold — refusing the deficit, removing
+     * the weigh-ins and reshaping the training week. Strictly worse than the
+     * לב/שלב bug, which only added a wrong sentence. 'הריון' catches every real
+     * case on its own.
+     *
+     * Same for unanchored English roots: 'lactat' matched "lactate threshold"
+     * and 'nursing' matched "nursing student", both from people describing
+     * their training and their job. And 'מניקה' is added because 'מיניקה' was
+     * a misspelling — the correct Hebrew was not in the list at all, so the
+     * commonest way to say it in this country was never caught.
+     */
+    terms: ['הריון', 'בהריון', 'מניקה', 'מיניקה', 'הנקה', 'ילדתי',
+      'pregnan', 'breastfeeding', 'expecting a baby', 'post partum', 'postpartum'],
     he: 'ציינת הריון או הנקה. אין כאן גירעון קלורי בכוונה — בהריון הוא לא מומלץ, וההנקה '
       + 'דורשת תוספת. הצרכים בתקופה הזאת (חומצה פולית, ברזל, סידן, יוד) והמזונות שכדאי '
       + 'להיזהר מהם הם שיחה עם המיילדת או הדיאטנית שלך.',
@@ -123,13 +148,49 @@ const MEDICAL_FLAGS = [
   },
 ];
 
-/** Every medical flag this free text trips, as {key, he}. Empty when none. */
+/*
+ * Phrases that mean the opposite. "לא בהריון ולא מתכננת" contains הריון, and
+ * matching it produced a pregnancy hold for somebody explicitly saying they are
+ * not pregnant. A substring screen cannot parse negation, so the narrow fix is
+ * to drop the sentence the negation sits in rather than to try.
+ */
+const NEGATORS = ['לא ', 'אין ', 'ללא ', 'שולל', 'no ', 'not ', 'never ', 'without ', 'denies'];
+
+/**
+ * Every medical flag this free text trips, as {key, he}. Empty when none.
+ *
+ * The fields are searched together — people put medical facts wherever the box
+ * is, and an allergy or a surgery mentioned in the wrong one used to be read by
+ * nothing at all.
+ */
 export function medicalFlags(profile) {
-  const raw = `${(profile && profile.medical) || ''} ${(profile && profile.supplements) || ''}`
-    .toLowerCase();
+  const p = profile || {};
+  const raw = `${p.medical || ''} . ${p.supplements || ''} . ${p.surgeries || ''}`.toLowerCase();
   if (!raw.trim()) return [];
-  return MEDICAL_FLAGS.filter((f) => f.terms.some((t) => raw.includes(t)))
-    .map((f) => ({ key: f.key, he: f.he }));
+  /* Split into clauses so a negation only clears its own sentence, not the
+     whole answer — "לא בהריון, אבל יש סוכרת" must still flag the diabetes. */
+  const clauses = raw.split(/[.,;\n]|\bאבל\b|\bו?אך\b/).map((c) => c.trim()).filter(Boolean);
+  const hit = new Set();
+  for (const c of clauses) {
+    const negated = NEGATORS.some((n) => c.includes(n));
+    for (const f of MEDICAL_FLAGS) {
+      for (const t of f.terms) {
+        if (!c.includes(t)) continue;
+        /*
+         * A term that is itself phrased as a negation survives the negation
+         * rule. "אין לי מחזור" is grammatically a denial and clinically a
+         * finding — it is the strongest RED-S signal in the whole list, and the
+         * first version of this screen dropped it precisely because it starts
+         * with אין. The negator has to be somewhere other than inside the thing
+         * being matched.
+         */
+        const selfNegating = NEGATORS.some((n) => t.includes(n.trim()));
+        if (negated && !selfNegating) continue;
+        hit.add(f.key);
+      }
+    }
+  }
+  return MEDICAL_FLAGS.filter((f) => hit.has(f.key)).map((f) => ({ key: f.key, he: f.he }));
 }
 
 /*
@@ -159,7 +220,10 @@ export function fatLossHold(profile) {
     };
   }
   if (declaresPregnancy(profile)) {
-    return { reason: 'pregnancy', he: MEDICAL_FLAGS[1].he };
+    /* Looked up by key, not by index. MEDICAL_FLAGS[1] was correct today and
+       silently wrong the first time anybody reorders the list. */
+    const preg = MEDICAL_FLAGS.find((f) => f.key === 'pregnancy');
+    return { reason: 'pregnancy', he: preg.he };
   }
   const flagged = medicalFlags(profile).find((f) => f.key === 'eating_disorder' || f.key === 'pregnancy');
   if (flagged) return { reason: flagged.key, he: flagged.he };

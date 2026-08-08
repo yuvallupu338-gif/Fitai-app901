@@ -363,7 +363,24 @@ function strategy(profile) {
   let wanted = 0;
   let hold = null;
   const w = profile.weightKg;
-  switch (profile.goal) {
+  /*
+   * The holds are asked BEFORE the goal switch, not inside the fatloss branch.
+   *
+   * They lived inside `case 'fatloss'`, which meant every protection in this
+   * file was conditional on the trainee having ticked "ירידה בשומן". A pregnant
+   * woman who ticked "כושר כללי" — far the likelier choice — came through with
+   * hold null, weekly weigh-in check-ins, and not one word about pregnancy
+   * anywhere in the plan. On "עלייה במסה" she was handed a deliberate 212 kcal
+   * surplus. Somebody with a declared eating-disorder history, the same.
+   *
+   * A body that must not be put in a deficit must not be put in a surplus by
+   * an app either: neither number belongs to a questionnaire in these cases.
+   * The plan is built at maintenance and says why.
+   */
+  const held = fatLossHold(profile);
+  if (held) {
+    hold = held.reason;
+  } else switch (profile.goal) {
     case 'fatloss': {
       /*
        * Every reason not to run a deficit now lives in holds.js and is asked
@@ -377,8 +394,6 @@ function strategy(profile) {
        * offered to every non-male profile — came through untouched and was
        * handed a 430 kcal deficit with no mention of pregnancy in the plan.
        */
-      const h = fatLossHold(profile);
-      if (h) { hold = h.reason; break; }
       wanted = -Math.round(Math.min(tdee * 0.22, (0.006 * w * 7700) / 7));
       break;
     }
@@ -406,10 +421,33 @@ function strategy(profile) {
    * obey a smaller deficit — it flips to maintenance and says so, because a
    * body that small needs a dietitian rather than a better formula.
    */
+  /*
+   * The floor guards the number PRINTED, not only the deficit that produced it.
+   *
+   * It used to be gated on `wanted < 0`, so it never ran when a body hold had
+   * already zeroed the change or when the goal was anything but fat loss. Swept
+   * across 118,800 profiles: 6,471 printed a target below the app's own stated
+   * floor and 5,803 of those printed it with no explanation at all — a
+   * 72-year-old woman at 150 cm on "כושר כללי" was handed 1,130 kcal labelled
+   * "ללא גירעון או עודף — אחזקה". The clinical claim in the constant is about
+   * intake, and this now tests intake.
+   */
   const floor = kcalFloor(profile);
-  if (wanted < 0 && tdee + wanted < floor) {
-    if (tdee < floor) { wanted = 0; hold = 'small_budget'; }
-    else wanted = floor - tdee;
+  let belowFloor = false;
+  if (tdee + wanted < floor) {
+    if (tdee < floor) {
+      wanted = 0;
+      /*
+       * Recorded separately from `hold`, because another hold may already have
+       * fired and holds are first-match-wins. A 90-year-old woman at 42 kg is
+       * held as `underweight` AND sits under the floor, and keying the
+       * explanation off the hold meant she was shown 1,130 kcal with no mention
+       * of the floor at all. The two facts are both true and she should be told
+       * both.
+       */
+      belowFloor = true;
+      if (!hold) hold = 'small_budget';
+    } else if (wanted < 0) wanted = floor - tdee;
   }
 
   const kcal = Math.round(Math.max(tdee + wanted, bmr) / 10) * 10;
@@ -453,6 +491,7 @@ function strategy(profile) {
     fatG,
     deltaKcal,
     hold,
+    belowFloor,
     basis: `חושב לפי נוסחת מיפלין־סנט ז׳ור: מטבוליזם במנוחה ${bmr} קק״ל, `
       + `מוכפל ב־${factor} (${FACTOR_HE[factor] || 'פעילות'}) לפי ${profile.daysPerWeek} אימונים של ${profile.minutesPerSession} דקות. `
       + (deltaKcal === 0
@@ -769,7 +808,19 @@ function checkins(p, minor, cutting, strat) {
    * Holding the calorie target and leaving the behaviours on screen withholds
    * the number and prescribes the disorder.
    */
-  const noScale = !!(strat && (strat.hold === 'eating_disorder' || strat.hold === 'pregnancy'));
+  /*
+   * Keyed on the declared conditions, not on which hold happened to win.
+   *
+   * fatLossHold is first-match-wins, so a 17-year-old with declared bulimia
+   * came back as hold 'minor' — and this line, testing the hold, put the weekly
+   * weigh-in card back in front of her. 16-17 is peak incidence, and the minor
+   * branch above only covers under-16, so that whole band fell between the two
+   * gates. The flags are the fact; the hold is only which fact was reported.
+   */
+  const flags = medicalFlags(p).map((f) => f.key);
+  const noScale = (strat && (strat.hold === 'eating_disorder' || strat.hold === 'pregnancy'))
+    || flags.includes('eating_disorder') || flags.includes('pregnancy')
+    || ((p.injuries || []).indexOf('pregnancy') >= 0);
   if (noScale) {
     return [
       {
@@ -865,7 +916,19 @@ function warnings(p, minor, strat, thin) {
       // cannot drift into saying two different things about the same refusal.
       const h = fatLossHold(p);
       if (h) out.push(h.he);
-    } else if (strat && strat.hold === 'small_budget') {
+    } else if (p.goal === 'fatloss') {
+      out.push('גירעון גדול יותר לא נותן תוצאה מהירה יותר לאורך זמן — הוא רק מוריד שריר ומעלה את הסיכוי שתפרוש.');
+    }
+  }
+  /*
+   * The floor sentence stands on its own rather than sitting in the hold chain.
+   *
+   * It was an `else if` after the underweight and pregnancy branches, so a
+   * 90-year-old woman at 42 kg — held as underweight AND under the floor — had
+   * the first branch swallow the second and was shown 1,130 kcal with no
+   * mention of the floor. Both facts are true about her and she is told both.
+   */
+  if (strat && strat.belowFloor) {
       /*
        * Not a hold on a body, a hold on the arithmetic: maintenance itself is
        * already at or under the floor, so there is no deficit to take. Said
@@ -876,10 +939,8 @@ function warnings(p, minor, strat, thin) {
       out.push(`התחזוקה שלך מוערכת בסביבות ${strat.tdee} קק״ל, וזה כבר קרוב לרצפה שממנה אי אפשר `
         + 'להרכיב את הוויטמינים והמינרלים מהאוכל. לכן אין כאן גירעון: ירידה במשקל מגוף קטן '
         + 'נבנית מול דיאטנית, ומה שכן עובד כאן זה להוסיף אימונים והליכה במקום להוריד אוכל.');
-    } else if (p.goal === 'fatloss') {
-      out.push('גירעון גדול יותר לא נותן תוצאה מהירה יותר לאורך זמן — הוא רק מוריד שריר ומעלה את הסיכוי שתפרוש.');
-    }
   }
+
   if (thin) {
     // Better to say the plan came out narrow than to quietly pad it with food
     // the person told us they cannot eat.

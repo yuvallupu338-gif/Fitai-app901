@@ -1900,11 +1900,25 @@ try {
     //    levels across the range is what tells "it reads the number" apart from
     //    "it has two modes".
     {
+      /*
+       * Two distinct levels, not three.
+       *
+       * The bar was three when the squats ladder ran to 4. A final review showed
+       * that rung was dangerous — level 4 down here is the skater squat and the
+       * nordic negative, and 60 air squats was promoting a self-declared
+       * beginner to both — so the ladder now stops at 3. With the experience
+       * floor at 2, that leaves exactly two reachable levels, and this bar moves
+       * to match rather than the safety cap moving to satisfy the bar.
+       *
+       * Two is a thin signal and it is worth saying so: a squat count buys one
+       * rung of movement, not a range. That is the honest ceiling on what an
+       * endurance test can evidence about a maximal single-leg movement.
+       */
       const seen = new Set();
       for (const n of [0, 10, 20, 35, 55, 90]) seen.add(topLevel(mk({ bm_squats: n }), LEGS));
-      if (seen.size < 3) {
+      if (seen.size < 2) {
         err(`squat counts from 0 to 90 produced only ${seen.size} distinct leg level(s) `
-          + `(${[...seen].sort().join(',')}) — the ladder is not being walked`);
+          + `(${[...seen].sort().join(',')}) — the ladder is not being walked at all`);
       }
     }
 
@@ -2478,6 +2492,266 @@ try {
       }
     }
   } catch (e) { err(`effort-ramp and goal-copy check could not run: ${e.message}`); }
+}
+
+
+/*
+ * The holds have to reach every goal, every surface, and every way of saying it.
+ *
+ * The previous round put them in one branch of one function, and a final review
+ * found the hole: fatLossHold was consulted only inside `case 'fatloss'`, so
+ * every protection in the file was conditional on the trainee having ticked
+ * "ירידה בשומן". A pregnant woman who ticked "כושר כללי" — far the likelier
+ * choice — came through with hold null, weekly weigh-in cards and not one word
+ * about pregnancy. On "עלייה במסה" she was handed a deliberate surplus.
+ *
+ * Three more of the same shape: a 17-year-old with declared bulimia came back
+ * as hold 'minor', which displaced the eating-disorder hold and put the weigh-in
+ * card back; assessGoal returned before its hold check whenever no target weight
+ * was entered, which is the default path; and 'הרה' — three letters, inside
+ * אזהרה and במהרה — produced a full pregnancy hold for somebody typing about a
+ * drug warning.
+ */
+{
+  try {
+    const schema = await load('src/intake/schema.js');
+    const nut = await load('src/engine/nutrition.js');
+    const holds = await load('src/engine/holds.js');
+    const targets = await load('src/engine/targets.js');
+
+    const mk = (over) => schema.normalizeProfile(Object.assign(schema.defaults(), {
+      age: 30, sex: 'female', heightCm: 165, weightKg: 65, goal: 'fatloss',
+      experience: 'beginner', daysPerWeek: 3, minutesPerSession: 60,
+      location: 'home_bodyweight', wantsNutrition: true,
+    }, over));
+
+    const HELD = [
+      ['a declared pregnancy', { injuries: ['pregnancy'] }],
+      ['pregnancy in the medical text', { medical: 'אני בהריון שבוע 22' }],
+      ['a declared eating-disorder history', { medical: 'אנורקסיה בעבר' }],
+      ['declared bulimia at 17', { age: 17, medical: 'בולימיה' }],
+      ['an underweight adult', { heightCm: 170, weightKg: 48 }],
+    ];
+
+    // 1. Every goal, not just fat loss. A body that must not be put in a deficit
+    //    must not be put in a surplus by an app either.
+    for (const [who, over] of HELD) {
+      for (const goal of ['fatloss', 'muscle', 'strength', 'fitness', 'sport']) {
+        const plan = nut.nutritionPlan(mk(Object.assign({ goal }, over)));
+        const st = plan.strategy;
+        if (st && st.deltaKcal !== 0) {
+          err(`${who} on the "${goal}" goal got a ${st.deltaKcal} kcal change — the holds were `
+            + 'reachable only from the fatloss branch');
+        }
+        if (!st) continue;
+        // And the scale card must be gone whatever the hold ended up being
+        // called, because the flag is the fact and the hold is only which fact
+        // was reported first.
+        const scaled = (plan.checkins || []).some((c) => /שקיל/.test(`${c.k} ${c.title}`));
+        const bodyHold = /pregnancy|eating_disorder/.test(String(st.hold))
+          || holds.medicalFlags(mk(over)).some((f) => f.key === 'pregnancy' || f.key === 'eating_disorder')
+          || (over.injuries || []).includes('pregnancy');
+        if (bodyHold && scaled) {
+          err(`${who} on "${goal}" is still shown a weekly weigh-in card — the check keyed on which `
+            + 'hold won rather than on what was declared');
+        }
+      }
+    }
+
+    // 2. The goal engine agrees, including on the default path where no target
+    //    weight was entered at all.
+    for (const [who, over] of HELD) {
+      for (const target of [null, 55]) {
+        const g = targets.assessGoal(mk(Object.assign({ targetWeightKg: target }, over)));
+        if (g.realistic) {
+          err(`${who}${target === null ? ' with no target weight' : ''} is told the goal is `
+            + 'realistic — the guide tab renders that under a green "היעד ריאלי" heading');
+        }
+      }
+    }
+
+    // 3. The printed calorie target respects the floor whatever produced it —
+    //    not only when a deficit produced it.
+    {
+      const CLINICAL_FLOOR = { female: 1200, male: 1500 };
+      let worst = null;
+      for (const goal of ['fatloss', 'muscle', 'strength', 'fitness', 'sport']) {
+        for (const age of [16, 30, 55, 72, 90]) {
+          for (const sex of ['female', 'male']) {
+            for (const h of [148, 160, 175]) {
+              for (const w of [42, 55, 70]) {
+                const plan = nut.nutritionPlan(mk({ goal, age, sex, heightCm: h, weightKg: w }));
+                const st = plan.strategy;
+                if (!st) continue;
+                const floor = CLINICAL_FLOOR[sex];
+                /* Asked of the warning the trainee actually reads, not of a
+                   flag the same module sets — a flag check here could only
+                   confirm nutrition.js agrees with itself. */
+                const explained = (plan.warnings || []).some((wn) => /רצפה|התחזוקה שלך מוערכת/.test(wn));
+                if (st.kcal < floor && !explained && (worst === null || st.kcal < worst.kcal)) {
+                  worst = { goal, age, sex, h, w, kcal: st.kcal, floor };
+                }
+              }
+            }
+          }
+        }
+      }
+      if (worst) {
+        err(`a ${worst.age}-year-old ${worst.sex} (${worst.h} cm, ${worst.w} kg) on "${worst.goal}" `
+          + `is shown ${worst.kcal} kcal against a floor of ${worst.floor}, with no explanation — `
+          + 'the floor guards the deficit and not the number actually printed');
+      }
+    }
+
+    // 4. The free-text screen: the traps, and the vocabulary people really use.
+    const keys = (t) => holds.medicalFlags({ medical: t }).map((f) => f.key).sort().join(',');
+    for (const [text, want] of [
+      // must NOT fire — three-letter fragments and unanchored roots
+      ['אזהרה על תרופה', ''],
+      ['במהרה אחזור לפעילות', ''],
+      ['הרהרתי לגבי ניתוח', ''],
+      ['I train at lactate threshold', ''],
+      ['I am a nursing student, long shifts', ''],
+      // must NOT fire — negation
+      ['לא בהריון ולא מתכננת', ''],
+      ['אין לי בעיות רפואיות', ''],
+      // must fire — the words people actually type
+      ['אני בהריון שבוע 22', 'pregnancy'],
+      ['אני מניקה', 'pregnancy'],
+      ['בולמוסי אכילה', 'eating_disorder'],
+      ['אני מקיאה אחרי ארוחות', 'eating_disorder'],
+      ['אין לי מחזור כבר שנה', 'eating_disorder'],
+      ['אי ספיקת כליות שלב 3', 'kidney'],
+      // negation must clear only its own clause
+      ['לא בהריון, אבל יש סוכרת', 'diabetes'],
+    ]) {
+      const got = keys(text);
+      if (got !== want) {
+        err(`medicalFlags(${JSON.stringify(text)}) = "${got}", expected "${want}"`);
+      }
+    }
+
+    // 5. And none of it leaked onto a healthy adult.
+    for (const [who, over] of [
+      ['a healthy 30-year-old woman', {}],
+      ['a healthy 28-year-old man on muscle', { sex: 'male', heightCm: 178, weightKg: 72, goal: 'muscle' }],
+      ['somebody taking vitamin D', { medical: 'לוקח ויטמין D' }],
+    ]) {
+      const plan = nut.nutritionPlan(mk(over));
+      const st = plan.strategy;
+      if (!st) { err(`${who} got no calorie strategy at all`); continue; }
+      if (st.hold) err(`${who} was held for reason "${st.hold}"`);
+      if (over.goal === 'muscle' && st.deltaKcal <= 0) err(`${who} got no surplus`);
+      if (!over.goal && st.deltaKcal >= 0) err(`${who} asking for fat loss got no deficit`);
+    }
+  } catch (e) { err(`hold-coverage check could not run: ${e.message}`); }
+}
+
+
+/*
+ * A declared injury must never cost somebody a body part.
+ *
+ * The sport goal puts a plyo pattern at the front of every leg day, and every
+ * plyo movement in the library is knee- and ankle-contraindicated. So a trainee
+ * declaring either handed all their leg slots to a sibling pattern — and
+ * SIBLING_PATTERNS.plyo listed `conditioning` first, whose PATTERN_GROUP is
+ * `conditioning` rather than `legs`. The sets changed body part silently.
+ *
+ * Measured before the fix: 16 of 48 sport profiles with a declared knee or
+ * ankle received a week containing ZERO lower-body sets. A twelve-year-old with
+ * a bad knee got no squat, no lunge and no hinge at all, which is the opposite
+ * of what a knee needs. It was a side effect of a correct safety fix — the
+ * exercises were right to remove and the sets were wrong to lose.
+ */
+{
+  try {
+    const schema = await load('src/intake/schema.js');
+    const gen = await load('src/engine/generator.js');
+    const registry = await load('src/data/exercises.index.js');
+    /* plyo counts as lower-body work: a jump squat is leg training, and the
+       point of this check is whether the LIMB is trained, not which pattern
+       label the set carries. */
+    const LOWER = ['squat', 'hinge', 'lunge', 'plyo'];
+
+    let worst = null;
+    for (const goal of ['sport', 'fatloss', 'muscle', 'strength', 'fitness']) {
+      for (const injuries of [['knee'], ['ankle'], ['knee', 'ankle'], ['hip'], ['lower_back'], []]) {
+        for (const age of [12, 17, 30, 68]) {
+          for (const [d, m] of [[2, 30], [3, 60], [4, 60], [6, 90]]) {
+            const p = schema.normalizeProfile(Object.assign(schema.defaults(), {
+              age, sex: 'male', heightCm: 175, weightKg: 70, goal, injuries,
+              experience: 'intermediate', daysPerWeek: d, minutesPerSession: m,
+              location: 'home_bodyweight', sport: 'כדורגל',
+            }));
+            let lower = 0;
+            for (const day of gen.generateProgram(p).days) {
+              for (const slot of day.slots) {
+                const v = (slot.variants || [])[0];
+                if (!v) continue;
+                const ex = registry.byId(v.exId);
+                if (ex && LOWER.includes(ex.pattern)) lower += v.sets;
+              }
+            }
+            if (!lower && !worst) worst = { goal, injuries, age, d, m };
+          }
+        }
+      }
+    }
+    if (worst) {
+      err(`a ${worst.age}-year-old on "${worst.goal}" declaring `
+        + `${JSON.stringify(worst.injuries)} at ${worst.d}x${worst.m} receives a week with ZERO `
+        + 'lower-body sets — the injury filter took the exercises and the sibling fallback let the '
+        + 'sets change body part instead of changing movement');
+    }
+  } catch (e) { err(`limb-coverage check could not run: ${e.message}`); }
+}
+
+/*
+ * Movements whose safe rep range is a property of the movement.
+ *
+ * The nordic family entered the hinge pool when the isolation filter was
+ * relaxed — correctly, it is the best hamstring work available without weights
+ * — but restrictPool demotes every calisthenics hinge slot to `accessory`, so
+ * it inherited an accessory range built for cable flyes: nordic_curl and
+ * nordic_negative shipped at 8-13 reps. Published protocols run 2-3 sets of
+ * 3-6, with explicit warnings about the DOMS when the dose is stepped too fast.
+ */
+{
+  try {
+    const schema = await load('src/intake/schema.js');
+    const gen = await load('src/engine/generator.js');
+    const registry = await load('src/data/exercises.index.js');
+    /* Stated here rather than read from REPS_BY_ID, which is the table under
+       test — reading it back could only confirm the module agrees with itself. */
+    const MAX_REPS = { nordic_curl: 5, nordic_negative: 6, band_assisted_nordic: 8, nordic_lean: 10 };
+    const bad = [];
+    for (const exp of ['beginner', 'intermediate', 'advanced']) {
+      for (const [d, m] of [[2, 30], [4, 60], [6, 90]]) {
+        for (const loc of ['home_bodyweight', 'full_gym']) {
+          const p = schema.normalizeProfile(Object.assign(schema.defaults(), {
+            age: 32, sex: 'male', heightCm: 178, weightKg: 78, goal: 'muscle',
+            experience: exp, daysPerWeek: d, minutesPerSession: m, location: loc,
+          }));
+          for (const day of gen.generateProgram(p).days) {
+            for (const slot of day.slots) {
+              const v = (slot.variants || [])[0];
+              if (!v) continue;
+              const ex = registry.byId(v.exId);
+              if (!ex || MAX_REPS[ex.id] === undefined) continue;
+              const top = parseInt(String(v.reps).split('–')[1] || String(v.reps), 10);
+              if (Number.isFinite(top) && top > MAX_REPS[ex.id]) {
+                bad.push(`${ex.id} at ${v.reps} (max ${MAX_REPS[ex.id]})`);
+              }
+            }
+          }
+        }
+      }
+    }
+    if (bad.length) {
+      err(`${bad[0]} — a maximal eccentric at triple the published dose. The rep range for these `
+        + 'is a property of the movement, not of the slot role it happened to land in');
+    }
+  } catch (e) { err(`movement rep-cap check could not run: ${e.message}`); }
 }
 
 /* ---------------- report ---------------- */

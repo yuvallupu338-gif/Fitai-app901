@@ -1774,15 +1774,40 @@ const UNDERWEIGHT_BMI = 18.5;
 const MEDICAL_FLAGS = [
   {
     key: 'eating_disorder',
-    terms: ['אנורקסיה', 'בולימיה', 'הפרעת אכילה', 'הפרעות אכילה', 'אכילה כפייתית',
-      'anorexia', 'bulimia', 'eating disorder', 'binge eating', 'arfid'],
+    /*
+     * Widened to the vocabulary people actually type. The first list held the
+     * two diagnosis names and missed every description: the binge and purge
+     * words, the ב/ת variant of a phrase already in the list, and amenorrhoea —
+     * which is the strongest RED-S flag there is in a training context and the
+     * thing somebody is most likely to mention without naming a disorder.
+     */
+    terms: ['אנורקסיה', 'בולימיה', 'הפרעת אכילה', 'הפרעות אכילה', 'הפרעה באכילה',
+      'אכילה כפייתית', 'בולמוס', 'זלילה', 'משלשלים', 'מקיאה', 'להקיא', 'אורתורקסיה',
+      'אין לי מחזור', 'הפסקתי לקבל מחזור',
+      'anorexia', 'bulimia', 'eating disorder', 'binge eating', 'arfid', 'ednos',
+      'purging', 'amenorrhea', 'amenorrhoea'],
     he: 'ציינת היסטוריה של הפרעת אכילה. התוכנית כאן מכוונת לאחזקה ולא לירידה, ואין בה '
       + 'שקילות שבועיות או הוראה לקצץ אוכל — תוכנית ירידה במשקל במצב הזה נבנית עם הצוות '
       + 'המטפל שלך, לא עם אפליקציה.',
   },
   {
     key: 'pregnancy',
-    terms: ['הריון', 'הרה', 'מיניקה', 'הנקה', 'pregnan', 'breastfeed', 'lactat', 'nursing'],
+    /*
+     * Three-letter Hebrew fragments do not belong here, and 'הרה' was the
+     * proof: it lives inside אזהרה, הזהרה, במהרה and הרהרתי, so "אזהרה על
+     * תרופה" produced a full pregnancy hold — refusing the deficit, removing
+     * the weigh-ins and reshaping the training week. Strictly worse than the
+     * לב/שלב bug, which only added a wrong sentence. 'הריון' catches every real
+     * case on its own.
+     *
+     * Same for unanchored English roots: 'lactat' matched "lactate threshold"
+     * and 'nursing' matched "nursing student", both from people describing
+     * their training and their job. And 'מניקה' is added because 'מיניקה' was
+     * a misspelling — the correct Hebrew was not in the list at all, so the
+     * commonest way to say it in this country was never caught.
+     */
+    terms: ['הריון', 'בהריון', 'מניקה', 'מיניקה', 'הנקה', 'ילדתי',
+      'pregnan', 'breastfeeding', 'expecting a baby', 'post partum', 'postpartum'],
     he: 'ציינת הריון או הנקה. אין כאן גירעון קלורי בכוונה — בהריון הוא לא מומלץ, וההנקה '
       + 'דורשת תוספת. הצרכים בתקופה הזאת (חומצה פולית, ברזל, סידן, יוד) והמזונות שכדאי '
       + 'להיזהר מהם הם שיחה עם המיילדת או הדיאטנית שלך.',
@@ -1826,13 +1851,49 @@ const MEDICAL_FLAGS = [
   },
 ];
 
-/** Every medical flag this free text trips, as {key, he}. Empty when none. */
+/*
+ * Phrases that mean the opposite. "לא בהריון ולא מתכננת" contains הריון, and
+ * matching it produced a pregnancy hold for somebody explicitly saying they are
+ * not pregnant. A substring screen cannot parse negation, so the narrow fix is
+ * to drop the sentence the negation sits in rather than to try.
+ */
+const NEGATORS = ['לא ', 'אין ', 'ללא ', 'שולל', 'no ', 'not ', 'never ', 'without ', 'denies'];
+
+/**
+ * Every medical flag this free text trips, as {key, he}. Empty when none.
+ *
+ * The fields are searched together — people put medical facts wherever the box
+ * is, and an allergy or a surgery mentioned in the wrong one used to be read by
+ * nothing at all.
+ */
 function medicalFlags(profile) {
-  const raw = `${(profile && profile.medical) || ''} ${(profile && profile.supplements) || ''}`
-    .toLowerCase();
+  const p = profile || {};
+  const raw = `${p.medical || ''} . ${p.supplements || ''} . ${p.surgeries || ''}`.toLowerCase();
   if (!raw.trim()) return [];
-  return MEDICAL_FLAGS.filter((f) => f.terms.some((t) => raw.includes(t)))
-    .map((f) => ({ key: f.key, he: f.he }));
+  /* Split into clauses so a negation only clears its own sentence, not the
+     whole answer — "לא בהריון, אבל יש סוכרת" must still flag the diabetes. */
+  const clauses = raw.split(/[.,;\n]|\bאבל\b|\bו?אך\b/).map((c) => c.trim()).filter(Boolean);
+  const hit = new Set();
+  for (const c of clauses) {
+    const negated = NEGATORS.some((n) => c.includes(n));
+    for (const f of MEDICAL_FLAGS) {
+      for (const t of f.terms) {
+        if (!c.includes(t)) continue;
+        /*
+         * A term that is itself phrased as a negation survives the negation
+         * rule. "אין לי מחזור" is grammatically a denial and clinically a
+         * finding — it is the strongest RED-S signal in the whole list, and the
+         * first version of this screen dropped it precisely because it starts
+         * with אין. The negator has to be somewhere other than inside the thing
+         * being matched.
+         */
+        const selfNegating = NEGATORS.some((n) => t.includes(n.trim()));
+        if (negated && !selfNegating) continue;
+        hit.add(f.key);
+      }
+    }
+  }
+  return MEDICAL_FLAGS.filter((f) => hit.has(f.key)).map((f) => ({ key: f.key, he: f.he }));
 }
 
 /*
@@ -1862,7 +1923,10 @@ function fatLossHold(profile) {
     };
   }
   if (declaresPregnancy(profile)) {
-    return { reason: 'pregnancy', he: MEDICAL_FLAGS[1].he };
+    /* Looked up by key, not by index. MEDICAL_FLAGS[1] was correct today and
+       silently wrong the first time anybody reorders the list. */
+    const preg = MEDICAL_FLAGS.find((f) => f.key === 'pregnancy');
+    return { reason: 'pregnancy', he: preg.he };
   }
   const flagged = medicalFlags(profile).find((f) => f.key === 'eating_disorder' || f.key === 'pregnancy');
   if (flagged) return { reason: flagged.key, he: flagged.he };
@@ -2684,7 +2748,18 @@ const LADDERS = {
    * It is still enormously better than what it replaces, which was nothing at
    * all: legs came from the experience tier and never moved again.
    */
-  squats: [[60, 4], [40, 3], [20, 2], [0, 1]],
+  /*
+   * Capped at 3, not 4. The first version stopped at 5 to keep a squat count
+   * away from the pistol and the full nordic; the final review showed the
+   * danger sits one rung lower than that assumed. Level 4 in this library is
+   * already the skater squat and the nordic negative, and 60 air squats was
+   * promoting a self-declared BEGINNER to both — in a programme that had
+   * judged the same person level 2 everywhere the evidence was push-ups or
+   * pull-ups. An endurance result does not predict a maximal single-leg squat
+   * or a controlled maximal eccentric. Level 4 legs is earned through "קל לי",
+   * which is a claim about the exercise actually in front of them.
+   */
+  squats: [[45, 3], [25, 2], [0, 1]],
 };
 
 /* Which declared number speaks for which movement pattern. */
@@ -8818,7 +8893,21 @@ const SIBLING_PATTERNS = {
   hinge: ['squat', 'lunge'],
   lunge: ['squat', 'hinge'],
   calf: ['plyo', 'lunge'],
-  plyo: ['conditioning', 'squat'],
+  /*
+   * squat first, conditioning last — and that order is not cosmetic.
+   *
+   * The sport goal puts a plyo pattern at the FRONT of every leg day, and every
+   * plyo movement in the library is knee- and ankle-contraindicated. So a
+   * trainee who declares either one hands all their leg slots to a sibling —
+   * and with conditioning listed first, PATTERN_GROUP quietly reclassified
+   * those sets from `legs` to `conditioning`. Measured: 16 of 48 sport profiles
+   * with a declared knee or ankle received a week with ZERO leg sets. A
+   * twelve-year-old with a bad knee got no squat, no lunge and no hinge at all,
+   * which is the opposite of what a knee needs.
+   *
+   * The sets belong to the legs. A squat and a lunge are where they should go.
+   */
+  plyo: ['squat', 'lunge', 'conditioning'],
   arms_biceps: ['horizontal_pull', 'vertical_pull'],
   arms_triceps: ['horizontal_push', 'vertical_push'],
   shoulders_lateral: ['vertical_push', 'shoulders_rear'],
@@ -9050,6 +9139,29 @@ function tempoFor(profile, ex, role) {
   return null;
 }
 
+/*
+ * Movements whose rep range is a property of the movement, not of the goal.
+ *
+ * The nordic family is the case that forced this. Today's isolation relaxation
+ * put it into the hinge pool, which was right — it is the best hamstring work
+ * available without weights — but restrictPool demotes the hinge to `accessory`
+ * on every calisthenics profile (measured: 1,604 of 1,604 hinge slots), so it
+ * inherited the accessory range of 10-15, shifted to 8-13 at level 4+.
+ *
+ * Published nordic protocols run 2-3 sets of 3-6 reps, built up over weeks,
+ * with explicit warnings about the DOMS when the dose is stepped too fast.
+ * 8-13 reps of a maximal eccentric at a five-second tempo is roughly triple the
+ * top of any accepted dose, and it was reaching an ordinary uninjured adult on
+ * a two-day week. "Stop two reps short of failure" is also not a coachable
+ * instruction on a movement almost nobody can do three of.
+ */
+const REPS_BY_ID = {
+  nordic_curl: '3–5',
+  nordic_negative: '3–6',
+  band_assisted_nordic: '4–8',
+  nordic_lean: '6–10',
+};
+
 function prescribe(profile, ex, slot) {
   const goal = goalOf(profile);
   const table = SCHEME[goal][slot.role] || SCHEME[goal].main;
@@ -9087,6 +9199,11 @@ function prescribe(profile, ex, slot) {
     && slot.role !== 'finisher' && ex.pattern !== 'conditioning' && ex.pattern !== 'plyo') {
     reps = TAIL_REPS;
   }
+
+  /* A movement-specific range overrides the goal's, and overrides the level
+     shift with it — the shift exists to make a hard movement's range sane, and
+     these ranges are already the sane one. */
+  if (REPS_BY_ID[ex.id]) reps = REPS_BY_ID[ex.id];
 
   if (ex.unilateral) reps = `${reps} לכל צד`;
 
@@ -17350,6 +17467,32 @@ function assessGoal(profile) {
     milestones: [],
   };
 
+  /*
+   * The holds are asked BEFORE the no-target early return.
+   *
+   * Target weight is optional and labelled so. This return therefore fires for
+   * most held profiles, and it fired before anything checked them: a pregnant
+   * woman, a 14-year-old and an adult with a declared eating-disorder history
+   * all got realistic:true and the same verdict, rendered by the guide tab
+   * under the green heading "היעד ריאלי" — telling somebody in recovery to
+   * measure her waist circumference, which is a body-checking instruction, and
+   * telling a pregnant woman the same, which is nonsense. The hold check lower
+   * down was unreachable for exactly the profiles it was written for.
+   */
+  const heldEarly = fatLossHold(p);
+  if (heldEarly && (target === null || !start || target < start)) {
+    base.realistic = false;
+    base.suggestedTargetKg = start ? round1(start) : null;
+    base.suggestedDate = p.targetDate;
+    base.verdict = heldEarly.reason === 'minor'
+      ? 'בגיל הזה הגוף עוד גדל, וגירעון קלורי מכוון פוגע בגדילה ובאנרגיה. '
+        + 'המסלול הנכון הוא לשמור על המשקל ולתת לגובה ולשריר לעשות את העבודה — ההרכב משתנה גם בלי שהמספר יורד. '
+        + 'אם יש חשש רפואי לגבי המשקל, זו שיחה עם רופא, לא עם אפליקציה.'
+      : heldEarly.he;
+    base.milestones = start ? monthlyMilestones(now, weeks, start, start, p) : [];
+    return base;
+  }
+
   /* ---- no target weight: judge the timeline against the goal ---- */
   if (target === null || !start) {
     base.verdict = qualitativeVerdict(p, weeks);
@@ -18728,7 +18871,24 @@ function strategy(profile) {
   let wanted = 0;
   let hold = null;
   const w = profile.weightKg;
-  switch (profile.goal) {
+  /*
+   * The holds are asked BEFORE the goal switch, not inside the fatloss branch.
+   *
+   * They lived inside `case 'fatloss'`, which meant every protection in this
+   * file was conditional on the trainee having ticked "ירידה בשומן". A pregnant
+   * woman who ticked "כושר כללי" — far the likelier choice — came through with
+   * hold null, weekly weigh-in check-ins, and not one word about pregnancy
+   * anywhere in the plan. On "עלייה במסה" she was handed a deliberate 212 kcal
+   * surplus. Somebody with a declared eating-disorder history, the same.
+   *
+   * A body that must not be put in a deficit must not be put in a surplus by
+   * an app either: neither number belongs to a questionnaire in these cases.
+   * The plan is built at maintenance and says why.
+   */
+  const held = fatLossHold(profile);
+  if (held) {
+    hold = held.reason;
+  } else switch (profile.goal) {
     case 'fatloss': {
       /*
        * Every reason not to run a deficit now lives in holds.js and is asked
@@ -18742,8 +18902,6 @@ function strategy(profile) {
        * offered to every non-male profile — came through untouched and was
        * handed a 430 kcal deficit with no mention of pregnancy in the plan.
        */
-      const h = fatLossHold(profile);
-      if (h) { hold = h.reason; break; }
       wanted = -Math.round(Math.min(tdee * 0.22, (0.006 * w * 7700) / 7));
       break;
     }
@@ -18771,10 +18929,33 @@ function strategy(profile) {
    * obey a smaller deficit — it flips to maintenance and says so, because a
    * body that small needs a dietitian rather than a better formula.
    */
+  /*
+   * The floor guards the number PRINTED, not only the deficit that produced it.
+   *
+   * It used to be gated on `wanted < 0`, so it never ran when a body hold had
+   * already zeroed the change or when the goal was anything but fat loss. Swept
+   * across 118,800 profiles: 6,471 printed a target below the app's own stated
+   * floor and 5,803 of those printed it with no explanation at all — a
+   * 72-year-old woman at 150 cm on "כושר כללי" was handed 1,130 kcal labelled
+   * "ללא גירעון או עודף — אחזקה". The clinical claim in the constant is about
+   * intake, and this now tests intake.
+   */
   const floor = kcalFloor(profile);
-  if (wanted < 0 && tdee + wanted < floor) {
-    if (tdee < floor) { wanted = 0; hold = 'small_budget'; }
-    else wanted = floor - tdee;
+  let belowFloor = false;
+  if (tdee + wanted < floor) {
+    if (tdee < floor) {
+      wanted = 0;
+      /*
+       * Recorded separately from `hold`, because another hold may already have
+       * fired and holds are first-match-wins. A 90-year-old woman at 42 kg is
+       * held as `underweight` AND sits under the floor, and keying the
+       * explanation off the hold meant she was shown 1,130 kcal with no mention
+       * of the floor at all. The two facts are both true and she should be told
+       * both.
+       */
+      belowFloor = true;
+      if (!hold) hold = 'small_budget';
+    } else if (wanted < 0) wanted = floor - tdee;
   }
 
   const kcal = Math.round(Math.max(tdee + wanted, bmr) / 10) * 10;
@@ -18818,6 +18999,7 @@ function strategy(profile) {
     fatG,
     deltaKcal,
     hold,
+    belowFloor,
     basis: `חושב לפי נוסחת מיפלין־סנט ז׳ור: מטבוליזם במנוחה ${bmr} קק״ל, `
       + `מוכפל ב־${factor} (${FACTOR_HE[factor] || 'פעילות'}) לפי ${profile.daysPerWeek} אימונים של ${profile.minutesPerSession} דקות. `
       + (deltaKcal === 0
@@ -19134,7 +19316,19 @@ function checkins(p, minor, cutting, strat) {
    * Holding the calorie target and leaving the behaviours on screen withholds
    * the number and prescribes the disorder.
    */
-  const noScale = !!(strat && (strat.hold === 'eating_disorder' || strat.hold === 'pregnancy'));
+  /*
+   * Keyed on the declared conditions, not on which hold happened to win.
+   *
+   * fatLossHold is first-match-wins, so a 17-year-old with declared bulimia
+   * came back as hold 'minor' — and this line, testing the hold, put the weekly
+   * weigh-in card back in front of her. 16-17 is peak incidence, and the minor
+   * branch above only covers under-16, so that whole band fell between the two
+   * gates. The flags are the fact; the hold is only which fact was reported.
+   */
+  const flags = medicalFlags(p).map((f) => f.key);
+  const noScale = (strat && (strat.hold === 'eating_disorder' || strat.hold === 'pregnancy'))
+    || flags.includes('eating_disorder') || flags.includes('pregnancy')
+    || ((p.injuries || []).indexOf('pregnancy') >= 0);
   if (noScale) {
     return [
       {
@@ -19230,7 +19424,19 @@ function warnings(p, minor, strat, thin) {
       // cannot drift into saying two different things about the same refusal.
       const h = fatLossHold(p);
       if (h) out.push(h.he);
-    } else if (strat && strat.hold === 'small_budget') {
+    } else if (p.goal === 'fatloss') {
+      out.push('גירעון גדול יותר לא נותן תוצאה מהירה יותר לאורך זמן — הוא רק מוריד שריר ומעלה את הסיכוי שתפרוש.');
+    }
+  }
+  /*
+   * The floor sentence stands on its own rather than sitting in the hold chain.
+   *
+   * It was an `else if` after the underweight and pregnancy branches, so a
+   * 90-year-old woman at 42 kg — held as underweight AND under the floor — had
+   * the first branch swallow the second and was shown 1,130 kcal with no
+   * mention of the floor. Both facts are true about her and she is told both.
+   */
+  if (strat && strat.belowFloor) {
       /*
        * Not a hold on a body, a hold on the arithmetic: maintenance itself is
        * already at or under the floor, so there is no deficit to take. Said
@@ -19241,10 +19447,8 @@ function warnings(p, minor, strat, thin) {
       out.push(`התחזוקה שלך מוערכת בסביבות ${strat.tdee} קק״ל, וזה כבר קרוב לרצפה שממנה אי אפשר `
         + 'להרכיב את הוויטמינים והמינרלים מהאוכל. לכן אין כאן גירעון: ירידה במשקל מגוף קטן '
         + 'נבנית מול דיאטנית, ומה שכן עובד כאן זה להוסיף אימונים והליכה במקום להוריד אוכל.');
-    } else if (p.goal === 'fatloss') {
-      out.push('גירעון גדול יותר לא נותן תוצאה מהירה יותר לאורך זמן — הוא רק מוריד שריר ומעלה את הסיכוי שתפרוש.');
-    }
   }
+
   if (thin) {
     // Better to say the plan came out narrow than to quietly pad it with food
     // the person told us they cannot eat.

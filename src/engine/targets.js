@@ -99,6 +99,32 @@ export function assessGoal(profile) {
     milestones: [],
   };
 
+  /*
+   * The holds are asked BEFORE the no-target early return.
+   *
+   * Target weight is optional and labelled so. This return therefore fires for
+   * most held profiles, and it fired before anything checked them: a pregnant
+   * woman, a 14-year-old and an adult with a declared eating-disorder history
+   * all got realistic:true and the same verdict, rendered by the guide tab
+   * under the green heading "היעד ריאלי" — telling somebody in recovery to
+   * measure her waist circumference, which is a body-checking instruction, and
+   * telling a pregnant woman the same, which is nonsense. The hold check lower
+   * down was unreachable for exactly the profiles it was written for.
+   */
+  const heldEarly = fatLossHold(p);
+  if (heldEarly && (target === null || !start || target < start)) {
+    base.realistic = false;
+    base.suggestedTargetKg = start ? round1(start) : null;
+    base.suggestedDate = p.targetDate;
+    base.verdict = heldEarly.reason === 'minor'
+      ? 'בגיל הזה הגוף עוד גדל, וגירעון קלורי מכוון פוגע בגדילה ובאנרגיה. '
+        + 'המסלול הנכון הוא לשמור על המשקל ולתת לגובה ולשריר לעשות את העבודה — ההרכב משתנה גם בלי שהמספר יורד. '
+        + 'אם יש חשש רפואי לגבי המשקל, זו שיחה עם רופא, לא עם אפליקציה.'
+      : heldEarly.he;
+    base.milestones = start ? monthlyMilestones(now, weeks, start, start, p) : [];
+    return base;
+  }
+
   /* ---- no target weight: judge the timeline against the goal ---- */
   if (target === null || !start) {
     base.verdict = qualitativeVerdict(p, weeks);
