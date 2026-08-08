@@ -2035,14 +2035,19 @@ const GOAL_BASE = {
 const MIN_PER_SET = { strength: 3.2, muscle: 2.6, fatloss: 2.0, fitness: 2.1, sport: 2.2 };
 
 /*
- * Upper bound per muscle group. A beginner does not need 20 sets of chest.
+ * The two lowest tiers were given some of their volume back.
  *
- * Lowered with the base, and it matters more than the base does: at the long
- * shapes these ARE the prescription. An advanced trainee at 6x90 came out at
- * exactly 20/20/20 — pinned here, not derived from GOAL_BASE — so changing the
- * base alone left the heaviest, most fatigue-exposed users almost untouched.
+ * The whole cut was justified by "every rep-based hypertrophy set is now taken
+ * to failure or within two reps of it". Measured afterwards, that is false for
+ * exactly the tiers that paid most: a beginner and a returning trainee receive
+ * ZERO to-failure sets — effortFor puts both in the careful bucket — and they
+ * were still charged the full 21-23% reduction for an intensity increase they
+ * never get. For them volume, not proximity to failure, is the driver.
+ *
+ * Not all the way back to 14/16: they keep the part of the cut that was about
+ * time and exercise count rather than about failure.
  */
-const CEILING = { beginner: 11, returning: 12, intermediate: 14, advanced: 16 };
+const CEILING = { beginner: 13, returning: 13, intermediate: 14, advanced: 16 };
 
 const GOAL_HE = {
   fatloss: 'ירידה בשומן', muscle: 'עלייה במסה', strength: 'כוח',
@@ -2942,14 +2947,25 @@ function retestDelta(profile, nextBenchmarks) {
  * imply, and it should say why rather than let it look like a mistake.
  */
 function benchmarkNote(profile) {
+  /*
+   * Every number that was read, named — including the squat.
+   *
+   * This listed push-ups, dips, pull-ups and plank and was written before the
+   * fifth benchmark existed. So the sentence explaining why the plan is harder
+   * than the ticked tier omitted the one number that had moved the trainee's
+   * entire lower body from level 2 to level 3. Same drift as the re-test
+   * prompt, same week.
+   */
   const parts = [];
   const push = repsOf(profile, 'pushups');
   const dips = repsOf(profile, 'dips');
   const pull = repsOf(profile, 'pullups');
   const plank = repsOf(profile, 'plankSec');
+  const squats = repsOf(profile, 'squats');
   if (push !== null) parts.push(`${push} שכיבות סמיכה`);
   if (dips !== null) parts.push(`${dips} מקבילים`);
   if (pull !== null) parts.push(`${pull} מתח`);
+  if (squats !== null) parts.push(`${squats} סקוואט`);
   if (plank !== null) parts.push(`פלאנק ${plank} שנ׳`);
   if (!parts.length) return '';
   return `רמת התרגילים נקבעה מהמספרים שדיווחת — ${parts.join(', ')} — ולא רק מהוותק שסימנת. `
@@ -8582,6 +8598,12 @@ function numOr(v, d) {
   return Number.isFinite(n) ? n : d;
 }
 
+/* Same rule as volume.js hoursHe(): 6.5 must survive the trip as "6.5". */
+function hoursHe(v) {
+  const n = numOr(v, 0);
+  return Number.isInteger(n) ? String(n) : String(Math.round(n * 10) / 10);
+}
+
 function clampInt(v, lo, hi, d) {
   return Math.max(lo, Math.min(hi, Math.round(numOr(v, d))));
 }
@@ -9595,7 +9617,14 @@ function buildNotes(profile, ctx) {
     out.push('בגיל הזה החימום הוא לא המלצה. שתי דקות נוספות בהתחלה שוות יותר מכל סט נוסף בסוף.');
   }
   if (sleep < 7) {
-    out.push(`${Math.round(sleep)} שעות שינה מגבילות את ההתקדמות יותר מכל משתנה אחר בתוכנית. חצי שעה נוספת שווה יותר מתוספת אימון.`);
+    /*
+   * Quoted, not rounded. volume.js has hoursHe() for exactly this and a comment
+   * explaining why: rounding 6.5 up to "7 שעות" both quotes the trainee a
+   * number they never gave and names the very value that would NOT have cost
+   * them any volume — the rule turns over at 7. So the guide tab said 6.5 and
+   * the plan tab said 7, about the same person, on the same day.
+   */
+  out.push(`${hoursHe(sleep)} שעות שינה מגבילות את ההתקדמות יותר מכל משתנה אחר בתוכנית. חצי שעה נוספת שווה יותר מתוספת אימון.`);
   }
   if (stress >= 4) {
     out.push('בשבוע לחוץ במיוחד — הורד סט מכל תרגיל במקום לוותר על האימון. אימון קצר עדיף על ויתור.');
@@ -17551,7 +17580,16 @@ function assessGoal(profile) {
         + 'המסלול הנכון הוא לשמור על המשקל ולתת לגובה ולשריר לעשות את העבודה — ההרכב משתנה גם בלי שהמספר יורד. '
         + 'אם יש חשש רפואי לגבי המשקל, זו שיחה עם רופא, לא עם אפליקציה.'
       : heldEarly.he;
-    base.milestones = start ? monthlyMilestones(now, weeks, start, start, p) : [];
+    /*
+     * No dated weight table for somebody the app withholds body numbers from.
+     *
+     * facts() was gated on withholdsBodyNumbers and the guide tab was not — so a
+     * 14-year-old still read his own 68 kg five times, in a milestone table
+     * under a heading about his target. The header fix covered the smaller of
+     * the two surfaces.
+     */
+    base.milestones = (start && !withholdsBodyNumbers(p))
+      ? monthlyMilestones(now, weeks, start, start, p) : [];
     return base;
   }
 
@@ -17634,7 +17672,7 @@ function assessGoal(profile) {
         + 'המסלול הנכון הוא לשמור על המשקל ולתת לגובה ולשריר לעשות את העבודה — ההרכב משתנה גם בלי שהמספר יורד. '
         + 'אם יש חשש רפואי לגבי המשקל, זו שיחה עם רופא, לא עם אפליקציה.'
       : held.he;
-    base.milestones = monthlyMilestones(now, weeks, start, start, p);
+    base.milestones = withholdsBodyNumbers(p) ? [] : monthlyMilestones(now, weeks, start, start, p);
     return base;
   }
 

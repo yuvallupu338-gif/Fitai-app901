@@ -121,7 +121,16 @@ export function assessGoal(profile) {
         + 'המסלול הנכון הוא לשמור על המשקל ולתת לגובה ולשריר לעשות את העבודה — ההרכב משתנה גם בלי שהמספר יורד. '
         + 'אם יש חשש רפואי לגבי המשקל, זו שיחה עם רופא, לא עם אפליקציה.'
       : heldEarly.he;
-    base.milestones = start ? monthlyMilestones(now, weeks, start, start, p) : [];
+    /*
+     * No dated weight table for somebody the app withholds body numbers from.
+     *
+     * facts() was gated on withholdsBodyNumbers and the guide tab was not — so a
+     * 14-year-old still read his own 68 kg five times, in a milestone table
+     * under a heading about his target. The header fix covered the smaller of
+     * the two surfaces.
+     */
+    base.milestones = (start && !withholdsBodyNumbers(p))
+      ? monthlyMilestones(now, weeks, start, start, p) : [];
     return base;
   }
 
@@ -204,7 +213,7 @@ export function assessGoal(profile) {
         + 'המסלול הנכון הוא לשמור על המשקל ולתת לגובה ולשריר לעשות את העבודה — ההרכב משתנה גם בלי שהמספר יורד. '
         + 'אם יש חשש רפואי לגבי המשקל, זו שיחה עם רופא, לא עם אפליקציה.'
       : held.he;
-    base.milestones = monthlyMilestones(now, weeks, start, start, p);
+    base.milestones = withholdsBodyNumbers(p) ? [] : monthlyMilestones(now, weeks, start, start, p);
     return base;
   }
 

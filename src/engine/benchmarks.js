@@ -254,14 +254,25 @@ export function retestDelta(profile, nextBenchmarks) {
  * imply, and it should say why rather than let it look like a mistake.
  */
 export function benchmarkNote(profile) {
+  /*
+   * Every number that was read, named — including the squat.
+   *
+   * This listed push-ups, dips, pull-ups and plank and was written before the
+   * fifth benchmark existed. So the sentence explaining why the plan is harder
+   * than the ticked tier omitted the one number that had moved the trainee's
+   * entire lower body from level 2 to level 3. Same drift as the re-test
+   * prompt, same week.
+   */
   const parts = [];
   const push = repsOf(profile, 'pushups');
   const dips = repsOf(profile, 'dips');
   const pull = repsOf(profile, 'pullups');
   const plank = repsOf(profile, 'plankSec');
+  const squats = repsOf(profile, 'squats');
   if (push !== null) parts.push(`${push} שכיבות סמיכה`);
   if (dips !== null) parts.push(`${dips} מקבילים`);
   if (pull !== null) parts.push(`${pull} מתח`);
+  if (squats !== null) parts.push(`${squats} סקוואט`);
   if (plank !== null) parts.push(`פלאנק ${plank} שנ׳`);
   if (!parts.length) return '';
   return `רמת התרגילים נקבעה מהמספרים שדיווחת — ${parts.join(', ')} — ולא רק מהוותק שסימנת. `

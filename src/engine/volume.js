@@ -61,14 +61,19 @@ const GOAL_BASE = {
 const MIN_PER_SET = { strength: 3.2, muscle: 2.6, fatloss: 2.0, fitness: 2.1, sport: 2.2 };
 
 /*
- * Upper bound per muscle group. A beginner does not need 20 sets of chest.
+ * The two lowest tiers were given some of their volume back.
  *
- * Lowered with the base, and it matters more than the base does: at the long
- * shapes these ARE the prescription. An advanced trainee at 6x90 came out at
- * exactly 20/20/20 — pinned here, not derived from GOAL_BASE — so changing the
- * base alone left the heaviest, most fatigue-exposed users almost untouched.
+ * The whole cut was justified by "every rep-based hypertrophy set is now taken
+ * to failure or within two reps of it". Measured afterwards, that is false for
+ * exactly the tiers that paid most: a beginner and a returning trainee receive
+ * ZERO to-failure sets — effortFor puts both in the careful bucket — and they
+ * were still charged the full 21-23% reduction for an intensity increase they
+ * never get. For them volume, not proximity to failure, is the driver.
+ *
+ * Not all the way back to 14/16: they keep the part of the cut that was about
+ * time and exercise count rather than about failure.
  */
-const CEILING = { beginner: 11, returning: 12, intermediate: 14, advanced: 16 };
+const CEILING = { beginner: 13, returning: 13, intermediate: 14, advanced: 16 };
 
 const GOAL_HE = {
   fatloss: 'ירידה בשומן', muscle: 'עלייה במסה', strength: 'כוח',

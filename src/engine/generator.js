@@ -594,6 +594,12 @@ function numOr(v, d) {
   return Number.isFinite(n) ? n : d;
 }
 
+/* Same rule as volume.js hoursHe(): 6.5 must survive the trip as "6.5". */
+function hoursHe(v) {
+  const n = numOr(v, 0);
+  return Number.isInteger(n) ? String(n) : String(Math.round(n * 10) / 10);
+}
+
 function clampInt(v, lo, hi, d) {
   return Math.max(lo, Math.min(hi, Math.round(numOr(v, d))));
 }
@@ -1607,7 +1613,14 @@ function buildNotes(profile, ctx) {
     out.push('בגיל הזה החימום הוא לא המלצה. שתי דקות נוספות בהתחלה שוות יותר מכל סט נוסף בסוף.');
   }
   if (sleep < 7) {
-    out.push(`${Math.round(sleep)} שעות שינה מגבילות את ההתקדמות יותר מכל משתנה אחר בתוכנית. חצי שעה נוספת שווה יותר מתוספת אימון.`);
+    /*
+   * Quoted, not rounded. volume.js has hoursHe() for exactly this and a comment
+   * explaining why: rounding 6.5 up to "7 שעות" both quotes the trainee a
+   * number they never gave and names the very value that would NOT have cost
+   * them any volume — the rule turns over at 7. So the guide tab said 6.5 and
+   * the plan tab said 7, about the same person, on the same day.
+   */
+  out.push(`${hoursHe(sleep)} שעות שינה מגבילות את ההתקדמות יותר מכל משתנה אחר בתוכנית. חצי שעה נוספת שווה יותר מתוספת אימון.`);
   }
   if (stress >= 4) {
     out.push('בשבוע לחוץ במיוחד — הורד סט מכל תרגיל במקום לוותר על האימון. אימון קצר עדיף על ויתור.');
