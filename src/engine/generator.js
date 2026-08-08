@@ -730,6 +730,28 @@ function layout(profile, vol, budget, split) {
   }
   const priority = GROUP_PRIORITY[goal] || GROUP_PRIORITY.fitness;
 
+  /*
+   * Slots that are not already owed to a group's own set count.
+   *
+   * Two rules below both want slots. One is a requirement — a group holding T
+   * sets under a cap of C needs ceil(T/C) exercises to put them in, or the
+   * remainder is dropped. The other is a preference: a group the split trains
+   * on three days looks better appearing on all three than twice. The
+   * preference was unconditional and outranked the requirement by running
+   * first, in priority order — core took a third slot for six sets that fit in
+   * two, and calves, last in the order, was left with one slot for five sets
+   * and lost two of them off the end.
+   *
+   * So the preference is paid for out of what is left after every group's
+   * requirement is counted, and buys nothing when that is nothing.
+   */
+  const slotsNeeded = (g) => {
+    const t = numOr(vol[g], 0);
+    return t < 2 ? 0 : Math.max(1, Math.ceil(t / setsCeiling(goal)));
+  };
+  let spare = days.length * budget.maxSlots
+    - priority.reduce((n, g) => n + slotsNeeded(g), 0);
+
   for (const group of priority) {
     const target = numOr(vol[group], 0);
     if (target < 2) continue;
@@ -746,13 +768,35 @@ function layout(profile, vol, budget, split) {
     const mostSlots = Math.max(1, Math.floor(target / 2));   // >= 2 sets each
     const leastSlots = Math.max(1, Math.ceil(target / setsCeiling(goal)));  // <= the goal's own cap
     let want = clampInt(target / perSlot, leastSlots, mostSlots, 1);
-    // A group the split trains on several days should show up on all of them.
-    want = Math.max(want, Math.min(eligible.length, mostSlots));
+    // A group the split trains on several days should show up on all of them —
+    // out of spare slots, never out of another group's sets.
+    const bump = Math.min(Math.min(eligible.length, mostSlots) - want, Math.max(0, spare));
+    if (bump > 0) { want += bump; spare -= bump; }
     want = Math.min(want, 8);
 
     for (let k = 0; k < want; k++) {
-      const open = eligible.filter((d) => d.picks.length < budget.maxSlots);
-      if (!open.length) break;
+      let open = eligible.filter((d) => d.picks.length < budget.maxSlots);
+      /*
+       * A group whose own days are full does not give its sets up while the
+       * week still has room for them.
+       *
+       * The fallback below this loop catches a group the split never mentions;
+       * it does not catch the commoner case, which is a group the split trains
+       * on one day where that day filled first. The sets then vanished, and
+       * the week finished under its target with empty slots still on the
+       * board — measured, three 45-minute muscle sessions used 13 of 15
+       * available slots and delivered 37 sets against a printed 41.
+       *
+       * Widening to the emptiest day with room is the same trade the fallback
+       * already makes, for the same reason: a pull exercise on a leg day is a
+       * compromise, and a pull group with nowhere to go is a hole.
+       */
+      if (!open.length) {
+        open = days.filter((d) => d.picks.length < budget.maxSlots);
+        if (!open.length) break;
+        if (!fallbackPattern) fallbackPattern = GROUP_PATTERN[group];
+        if (!fallbackPattern) break;
+      }
       open.sort((a, b) => {
         const ga = a.picks.filter((s) => s.group === group).length;
         const gb = b.picks.filter((s) => s.group === group).length;
@@ -802,29 +846,87 @@ function layout(profile, vol, budget, split) {
     d.picks.sort((a, b) => a.order - b.order || a.occurrence - b.occurrence);
   }
 
-  // A session with one or two exercises is not a session. When the week's
-  // volume is small — short slots on a busy schedule — spread the same sets
-  // over more movements instead of piling them onto two. distributeSets below
-  // then thins the sets automatically, so total weekly volume is unchanged.
+  /*
+   * A session with one or two exercises is not a session. When the week's
+   * volume is small — short slots on a busy schedule — spread the same sets
+   * over more movements instead of piling them onto two.
+   *
+   * "distributeSets below then thins the sets automatically, so total weekly
+   * volume is unchanged" is what this used to say, and it is not true.
+   * distributeSets floors every slot at 2 and cannot go under, so a slot added
+   * here costs the week two sets whether or not the group that owns it has two
+   * left to spend. Measured across 1,200 shapes: 160 of them delivered more
+   * than they planned, by three sets on average — and every one of the worst
+   * cases was six thirty-minute sessions, where six days padded to four
+   * movements each forces 48 sets against a target of 40.
+   *
+   * So the floor still applies, but only to groups that can pay for it. A
+   * pattern is a candidate while its group still has two unspent sets; when
+   * nothing on the day can afford another movement the day stays short, which
+   * is the honest answer — the alternative is a week that quietly does 20%
+   * more work than the volume model, the recovery curve and the printed note
+   * all say it does.
+   */
   const slotFloor = Math.min(4, budget.maxSlots);
-  for (const d of days) {
-    if (d.picks.length >= slotFloor) continue;
-    let pats = d.def.patterns.filter((pat) => numOr(vol[PATTERN_GROUP[pat]], 0) >= 2);
-    if (!pats.length) pats = d.def.patterns.slice();
-    let guard = 0;
-    while (d.picks.length < slotFloor && d.picks.length < budget.maxSlots && pats.length && guard++ < 12) {
-      const unused = pats.filter((pat) => !d.picks.some((s) => s.pattern === pat));
-      const pattern = unused.length ? unused[0] : pats[d.picks.length % pats.length];
-      d.picks.push({
-        group: PATTERN_GROUP[pattern] || 'core',
-        pattern,
-        occurrence: d.picks.filter((s) => s.pattern === pattern).length,
-        order: d.def.patterns.indexOf(pattern),
-        seq: d.picks.length,
-      });
+  const spent = {};
+  for (const d of days) for (const s of d.picks) spent[s.group] = (spent[s.group] || 0) + 2;
+  const affords = (pat) => {
+    const g = PATTERN_GROUP[pat] || 'core';
+    return numOr(vol[g], 0) - (spent[g] || 0) >= 2;
+  };
+  const padOnce = (d) => {
+    let pats = d.def.patterns.filter(affords);
+    /*
+     * When the day's own patterns are all spent, borrow one that is not.
+     *
+     * Same trade as the group loop above and the same reason: six 30-minute
+     * strength sessions left one day holding two exercises while other groups
+     * still had sets to give, purely because the split had not listed those
+     * patterns on that day. A borrowed movement sorts to the end of the
+     * session, where an accessory belongs.
+     */
+    if (!pats.length) {
+      pats = Object.keys(PATTERN_GROUP)
+        .filter((pat) => affords(pat) && !d.picks.some((s) => s.pattern === pat));
     }
-    d.picks.sort((a, b) => a.order - b.order || a.occurrence - b.occurrence);
+    if (!pats.length) return false;
+    const unused = pats.filter((pat) => !d.picks.some((s) => s.pattern === pat));
+    const pattern = unused.length ? unused[0] : pats[d.picks.length % pats.length];
+    const group = PATTERN_GROUP[pattern] || 'core';
+    const own = d.def.patterns.indexOf(pattern);
+    spent[group] = (spent[group] || 0) + 2;
+    d.picks.push({
+      group,
+      pattern,
+      occurrence: d.picks.filter((s) => s.pattern === pattern).length,
+      order: own >= 0 ? own : 98,
+      seq: d.picks.length,
+    });
+    return true;
+  };
+  /*
+   * Round by round across the week, not day by day.
+   *
+   * Filling each day to the floor before moving to the next spends the week's
+   * remaining sets on whoever is first in the list: at six thirty-minute
+   * sessions the early days reached four movements and the last one came out
+   * with a single exercise on it, which is precisely the thing this floor
+   * exists to prevent. A round-robin brings every day to three before any day
+   * gets its fourth, so what the week cannot afford is one movement missing
+   * from several sessions rather than a whole session missing from the week.
+   */
+  for (let level = 1; level <= slotFloor; level++) {
+    let moved = true;
+    let guard = 0;
+    while (moved && guard++ < 24) {
+      moved = false;
+      for (const d of days) {
+        if (d.picks.length >= level || d.picks.length >= budget.maxSlots) continue;
+        if (padOnce(d)) moved = true;
+      }
+    }
   }
+  for (const d of days) d.picks.sort((a, b) => a.order - b.order || a.occurrence - b.occurrence);
 
   // Sets per slot: the group's weekly total, spread over the slots it earned,
   // first occurrences (the heavy ones) getting the bigger share.

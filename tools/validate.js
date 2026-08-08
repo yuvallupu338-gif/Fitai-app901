@@ -2324,26 +2324,68 @@ try {
       }
     }
 
-    // 3. The plan delivers what it promises. Planning 3.4 sets per slot against
-    //    a cap of 3 meant it structurally could not, and every shape came in
-    //    8-13% under its own printed target.
-    for (const [label, over] of [
-      ['intermediate 4x60', {}],
-      ['intermediate 5x75', { daysPerWeek: 5, minutesPerSession: 75 }],
-      ['advanced 6x90', { experience: 'advanced', daysPerWeek: 6, minutesPerSession: 90 }],
-    ]) {
-      const p = mk(over);
-      const target = vol.weeklyVolume(p).total;
-      let delivered = 0;
-      for (const d of gen.generateProgram(p).days) {
-        for (const s of d.slots) {
-          const v = (s.variants || [])[0];
-          if (v) delivered += v.sets;
+    /*
+     * 3. The plan delivers what it promises — exactly, on every shape.
+     *
+     * This tested three shapes and allowed 5% either way, which is how a
+     * mismatch on 212 of 1,200 shapes went unseen. Two mechanisms, opposite
+     * directions, and each needed its own repair:
+     *
+     * OVER. distributeSets floors every exercise at 2 sets and cannot go under,
+     * so the "no session under four movements" rule was charging the week two
+     * sets per padded slot whether or not the group owning it had two left. Six
+     * thirty-minute sessions padded to four movements forced 48 sets against a
+     * target of 40. 160 shapes over-delivered, by three on average.
+     *
+     * UNDER. Sets are allocated per group and a group holding T sets needs
+     * ceil(T/cap) exercises to put them in, so the week's slot bill is the sum
+     * of those ceilings and not total/cap — 43 sets across seven groups wants
+     * 17 slots in a week that has 15. The volume model did not know that and
+     * promised totals the layout could not lay out; whichever group sorted last
+     * paid the difference, silently. 52 shapes, 3.6 sets on average.
+     *
+     * Exact equality now, and the whole grid. A tolerance here is a place for
+     * the next one of these to hide: the number is printed in the plan's note,
+     * counted again by the reveal screen, and measured against by progression,
+     * so "close enough" is three different lies of different sizes.
+     */
+    {
+      let mismatched = 0;
+      let thin = 0;
+      const FLOOR = 3;
+      for (const goal of ['muscle', 'strength', 'fatloss', 'fitness', 'sport']) {
+        for (const experience of ['beginner', 'returning', 'intermediate', 'advanced']) {
+          for (const daysPerWeek of [2, 3, 4, 5, 6]) {
+            for (const minutesPerSession of [30, 45, 60, 75, 90, 120]) {
+              const p = mk({ goal, experience, daysPerWeek, minutesPerSession });
+              const target = vol.weeklyVolume(p).total;
+              const program = gen.generateProgram(p);
+              let delivered = 0;
+              for (const d of program.days) {
+                let onDay = 0;
+                for (const s of d.slots) {
+                  const v = (s.variants || [])[0];
+                  if (v) { delivered += v.sets; onDay += 1; }
+                }
+                /*
+                 * The floor the padding exists for, restated so that closing
+                 * the over-delivery cannot be paid for with empty sessions —
+                 * the first attempt at it left eight days holding a single
+                 * exercise, which is a worse plan than a 20% overshoot.
+                 */
+                if (onDay < FLOOR && thin++ < 3) {
+                  err(`${goal} ${experience} ${daysPerWeek}x${minutesPerSession}: a session holds `
+                    + `${onDay} exercise(s) — under ${FLOOR} it is not a session`);
+                }
+              }
+              if (delivered !== target && mismatched++ < 4) {
+                err(`${goal} ${experience} ${daysPerWeek}x${minutesPerSession}: the plan promises `
+                  + `${target} weekly sets and delivers ${delivered} — the note, the reveal and `
+                  + 'progression all quote the promise');
+              }
+            }
+          }
         }
-      }
-      if (delivered < target * 0.95) {
-        err(`${label}: the plan promises ${target} weekly sets and delivers ${delivered} `
-          + `(${Math.round((delivered / target) * 100)}%) — SETS_PER_SLOT is above SETS_CEILING`);
       }
     }
 

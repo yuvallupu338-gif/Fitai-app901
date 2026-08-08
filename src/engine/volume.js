@@ -241,6 +241,79 @@ function ceilingsFor(exp) {
 
 const NO_FLOOR = { push: 0, pull: 0, legs: 0, core: 0, arms: 0, shoulders: 0, calves: 0, conditioning: 0 };
 
+/*
+ * The most sets one exercise may carry, restated from the generator.
+ *
+ * It lives there because it is a training decision that pairs with the effort
+ * instruction — three sets taken to failure is a full dose and the fourth buys
+ * fatigue. It is needed here because a week is not a pool of sets, it is a
+ * pool of SLOTS, and a group wanting 4 sets under a cap of 3 occupies two of
+ * them whether or not it uses the sixth. Restated rather than imported: the
+ * generator already imports this module and a cycle between the two is worth
+ * avoiding for a number that changes once a year. tools/validate.js holds the
+ * two against each other, and against the literal 3 and 5.
+ */
+const SETS_PER_SLOT_CAP = { muscle: 3 };
+const SETS_PER_SLOT_CAP_DEFAULT = 5;
+
+function slotCapOf(goal) {
+  return SETS_PER_SLOT_CAP[goal] !== undefined ? SETS_PER_SLOT_CAP[goal] : SETS_PER_SLOT_CAP_DEFAULT;
+}
+
+/*
+ * How many exercise slots a week of this shape actually occupies.
+ *
+ * Not total/cap. Sets are handed out per group, so a group is charged
+ * ceil(its own total / cap) slots and the remainders do not pool: push 9, pull
+ * 9, legs 9, core 4, arms 4, shoulders 4, calves 4 is 43 sets, which looks like
+ * 15 slots at a cap of 3 and is really 17.
+ */
+function slotsUsed(v, perSlot) {
+  return GROUPS.reduce((n, g) => n + (v[g] > 0 ? Math.ceil(v[g] / perSlot) : 0), 0);
+}
+
+/*
+ * Shave the week down until the slots it needs are slots the sessions have.
+ *
+ * The volume model sized the week against the clock and against the trainee's
+ * recovery, and both of those are real — but neither of them knows that sets
+ * arrive in exercises. weeklyVolume was promising totals the layout could not
+ * lay out: at three 45-minute sessions it asked for 43 sets across seventeen
+ * slots in a week with fifteen, and the generator, allocating by group in
+ * priority order, simply ran out — shoulders and calves came up short and the
+ * plan quietly delivered 41 against a printed 43.
+ *
+ * Silently short is the worst of the three options. The number is printed in
+ * the plan's own note, read again by the reveal screen, and it is what
+ * progression measures against; a target nothing can hit is a target that
+ * makes every one of those wrong. So the week is trimmed here, where the model
+ * can do it deliberately and evenly, rather than at the end of a priority list
+ * where whichever group sorts last pays the whole bill.
+ *
+ * One set at a time, from whichever group frees a slot by losing it — a group
+ * sitting one set past a multiple of the cap gives up a whole slot for a single
+ * set, and taking it from there costs the week least. Floors are respected, so
+ * this can decline to reach the bound; the generator's own ceiling still holds
+ * the line if it does.
+ */
+function fitToSlots(v, floors, perSlot, slots) {
+  const out = Object.assign({}, v);
+  let guard = 0;
+  while (slotsUsed(out, perSlot) > slots && guard++ < 400) {
+    let best = null;
+    for (const g of GROUPS) {
+      if (!(out[g] > 0) || out[g] - 1 < num(floors[g], 0)) continue;
+      const frees = Math.ceil(out[g] / perSlot) - Math.ceil((out[g] - 1) / perSlot);
+      if (!best || frees > best.frees || (frees === best.frees && out[g] > out[best.g])) {
+        best = { g, frees };
+      }
+    }
+    if (!best) break;
+    out[best.g] -= 1;
+  }
+  return out;
+}
+
 /**
  * Hand out exactly `total` sets in proportion to `weights`, nobody above its
  * ceiling and nobody below its floor.
@@ -529,6 +602,10 @@ export function weeklyVolume(profile) {
   // the total the neutral one came to. That equality is the sentence the note
   // says out loud, so it is enforced here rather than hoped for — see
   // roundToTotal for what happens when a floor makes it impossible.
+  /* What the sessions can actually lay out, in exercises. */
+  const perSlot = slotCapOf(goal);
+  const slots = days * budget.maxSlots;
+
   let vol;
   let moved = false;
   if (emphasised) {
@@ -536,17 +613,24 @@ export function weeklyVolume(profile) {
     // keep list is read off the neutral week either way, so the two weeks
     // differ in where the sets went and never in how many there are to place.
     const flat = survivors(base, base).weights;
-    const neutral = roundSets(distribute(flat, sum, caps, kept.floors), caps, kept.floors);
+    const neutral = fitToSlots(
+      roundSets(distribute(flat, sum, caps, kept.floors), caps, kept.floors),
+      kept.floors, perSlot, slots,
+    );
     const target = GROUPS.reduce((n, g) => n + neutral[g], 0);
-    vol = roundToTotal(out, target, caps, kept.floors);
+    vol = fitToSlots(roundToTotal(out, target, caps, kept.floors), kept.floors, perSlot, slots);
     // A scan that leans on a group already sitting on its ceiling, in a week
     // where the groups it would take from are on theirs too, has nowhere to
     // move sets to and correctly changes nothing. The note is keyed on this
     // rather than on the multipliers, so it cannot announce an effect that the
     // arithmetic refused to produce.
+    //
+    // Both weeks are trimmed to the slot bound before the comparison, or a
+    // steered week could differ from an untrimmed neutral one only in sets that
+    // neither of them was ever going to deliver.
     moved = GROUPS.some((g) => vol[g] !== neutral[g]);
   } else {
-    vol = roundSets(out, caps, kept.floors);
+    vol = fitToSlots(roundSets(out, caps, kept.floors), kept.floors, perSlot, slots);
   }
 
   vol.total = GROUPS.reduce((n, g) => n + vol[g], 0);
