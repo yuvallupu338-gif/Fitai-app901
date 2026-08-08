@@ -1779,7 +1779,7 @@ function paintThemeButton() {
 
 /** מצייר את הניווט. במצב בעל מקצוע מתווספים הקישורים המקצועיים. */
 function paintNav() {
-  const here = location.hash || '#/';
+  const here = (location.hash || '#/').split('?')[0] || '#/';
   const active = (path) => (path === '#/' ? here === '#/' || here === '' : here.startsWith(path));
 
   $('#bottom-links').innerHTML = NAV.map((n) => `
@@ -1867,6 +1867,12 @@ let renderToken = 0;
 
 async function router() {
   const hash = location.hash || '#/';
+
+  // מפרידים את מחרוזת השאילתה מהנתיב. קישורים כמו
+  // ‎#/book/<id>?service=<id>‎ נושאים פרמטרים, והנתיב עצמו הוא מה
+  // שצריך להתאים לדפוסי הנתב. המסכים קוראים את הפרמטרים מ־location.
+  const path = hash.split('?')[0] || '#/';
+
   unsubscribeAll();
   paintNav();
 
@@ -1874,14 +1880,14 @@ async function router() {
   const token = ++renderToken;
 
   // מסכים שמחייבים התחברות
-  const needsAuth = !PUBLIC_ROUTES.includes(hash) && !/^#\/u\//.test(hash) && hash !== '#/';
+  const needsAuth = !PUBLIC_ROUTES.includes(path) && !/^#\/u\//.test(path) && path !== '#/';
   if (needsAuth && !session) {
     location.hash = '#/login';
     return;
   }
 
   for (const [pattern, handler] of ROUTES) {
-    const match = hash.match(pattern);
+    const match = path.match(pattern);
     if (!match) continue;
 
     main.innerHTML = skeletonList(2);
