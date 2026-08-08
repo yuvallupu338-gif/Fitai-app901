@@ -28,6 +28,24 @@ Or open the prebuilt single file, which works straight off the disk:
 open dist/fitai.html
 ```
 
+### app/index.html
+
+A second, separately authored app lives at `app/index.html`: the FitAI coach —
+skill tree, nutrition bank, guided workout session, machine catalogue — as one
+self-contained file with its media, fonts and brand marks inlined. It shares no
+code with `src/`, keeps its own state under the `fitai_v1` localStorage key, and
+opens straight off the disk like `dist/fitai.html` does.
+
+It is skinned to the same reference document the rest of the repo follows: a
+near-black ground, one gold accent used for every emphasis, heavy display type
+and 20–22px card corners. The palette lives entirely in the `:root` block at the
+top of its `<style>` — surfaces, the accent pair, and `--accent-ink` for gold
+that is read as type rather than used as a fill. Both themes are driven from
+those tokens, so no rule hard-codes a surface.
+
+It is 25 MB because 97% of it is base64: 63 WebP exercise demos, 319 food and
+machine photos, the Rubik subsets and the logo marks.
+
 ### On GitHub Pages
 
 Pages serves a project site from a subpath (`/Fitai-app901/`, not a domain
@@ -179,6 +197,8 @@ background, and there is no server of ours in the path.
 
 ```
 index.html
+app/
+  index.html        the standalone FitAI coach, self-contained and skinned
 src/
   core/      store, dom helpers, brand
   data/      exercise database, warm-up demands, and their registries
