@@ -763,7 +763,25 @@ function layout(profile, vol, budget, split) {
   const perSlot = SETS_PER_SLOT[goal];
   const days = split.days.map((d) => ({ def: d, picks: [] }));
 
-  const patternsOfGroup = (d, group) => d.def.patterns.filter((pat) => PATTERN_GROUP[pat] === group);
+  /*
+   * A jump is not the leg movement of the day.
+   *
+   * plyo belongs to the legs group for volume accounting, which is right — a
+   * box jump is leg work. It is not leg STRENGTH work, and when a lower-body
+   * day earns exactly one leg slot the day's own pattern order decided which
+   * movement that was: a sport split lists plyo first, so "תחתון א׳" shipped a
+   * box jump, a crunch and a finisher, with no squat, hinge or lunge anywhere
+   * on it. Measured against the commit before this work, split-named leg days
+   * with no squat, hinge or lunge went from 0 to 75.
+   *
+   * So plyo sorts last within its group. It still gets its slot whenever the
+   * day earns a second one — which is where a jump belongs, after the strength
+   * movement rather than instead of it.
+   */
+  const LAST_IN_GROUP = ['plyo'];
+  const patternsOfGroup = (d, group) => d.def.patterns
+    .filter((pat) => PATTERN_GROUP[pat] === group)
+    .sort((a, b) => (LAST_IN_GROUP.indexOf(a) >= 0 ? 1 : 0) - (LAST_IN_GROUP.indexOf(b) >= 0 ? 1 : 0));
 
   /*
    * Every pattern the app knows for a group, not just the ones this day's split
@@ -801,6 +819,10 @@ function layout(profile, vol, budget, split) {
     const t = numOr(vol[g], 0);
     return t < 1 ? 0 : Math.max(1, Math.ceil(t / setsCeiling(goal)));
   };
+  /* How many slots each group has taken so far, so the widening above can tell
+     a day that still owes its own groups from one that is genuinely free. */
+  const placed = {};
+  for (const g of priority) placed[g] = 0;
   let spare = days.length * budget.maxSlots
     - priority.reduce((n, g) => n + slotsNeeded(g), 0);
 
@@ -848,7 +870,26 @@ function layout(profile, vol, budget, split) {
        * compromise, and a pull group with nowhere to go is a hole.
        */
       if (!open.length) {
-        open = days.filter((d) => d.picks.length < budget.maxSlots);
+        /*
+         * ...but never out of a day that still owes slots to its own groups.
+         *
+         * The first version of this widening took any day with room, and
+         * groups run in priority order, so pushing and pulling spilled onto
+         * the leg day and filled it before legs was reached. Measured against
+         * the commit before this work: split-named leg days delivering no
+         * squat, hinge or lunge went from 0 to 75 — a day the plan calls
+         * "רגליים" with no leg strength movement on it, which is a worse
+         * failure than the missing sets the widening was added to recover.
+         *
+         * So a day is only borrowable once every group its own split names has
+         * the slots it needs there. Legs keeps its leg day; a group with
+         * nowhere else to go still gets the room that is genuinely spare.
+         */
+        const owed = (d) => priority.reduce((n, g) => {
+          if (g === group || placed[g] >= slotsNeeded(g)) return n;
+          return patternsOfGroup(d, g).length ? n + 1 : n;
+        }, 0);
+        open = days.filter((d) => d.picks.length + owed(d) < budget.maxSlots);
         if (!open.length) break;
         if (!fallbackPattern) fallbackPattern = GROUP_PATTERN[group];
         if (!fallbackPattern) break;
@@ -886,6 +927,7 @@ function layout(profile, vol, budget, split) {
         order = sibling >= 0 ? sibling + 0.5 : 98;
       }
 
+      placed[group] = (placed[group] || 0) + 1;
       d.picks.push({
         group,
         pattern,

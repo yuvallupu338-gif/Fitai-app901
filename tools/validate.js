@@ -2383,6 +2383,7 @@ try {
     {
       let mismatched = 0;
       let thin = 0;
+      let legless = 0;
       const FLOOR = 3;
       /*
        * The recovery axes, which this grid could not see.
@@ -2429,6 +2430,34 @@ try {
                  */
                 if (onDay < FLOOR) thin += 1;
               }
+              /*
+               * A day the plan calls a leg day trains legs.
+               *
+               * plyo sits in the legs group for volume accounting and is not
+               * leg strength work, so a lower-body day that earned exactly one
+               * leg slot could ship a box jump and nothing else — measured, 75
+               * split-named leg days across this grid with no squat, hinge or
+               * lunge on them, against 0 before the slot work. The split names
+               * the day; the day has to honour it.
+               */
+              for (const d of program.days) {
+                const name = String(d.name || d.title || '');
+                if (!/רגל|תחתון/.test(name)) continue;
+                const pats = (d.slots || [])
+                  .map((sl) => (sl.variants || [])[0])
+                  .filter(Boolean)
+                  .map((v) => { const ex = registry.byId(v.exId); return ex && ex.pattern; });
+                if (!pats.length) continue;
+                if (!pats.some((x) => x === 'squat' || x === 'hinge' || x === 'lunge')) {
+                  legless += 1;
+                  if (legless <= 2) {
+                    err(`${goal} ${experience} ${daysPerWeek}x${minutesPerSession} age${rec.age}: `
+                      + `"${name}" carries ${pats.join(', ')} — a leg day with no squat, hinge or `
+                      + 'lunge on it');
+                  }
+                }
+              }
+
               if (delivered !== target && mismatched++ < 4) {
                 err(`${goal} ${experience} ${daysPerWeek}x${minutesPerSession} age${rec.age} `
                   + `sleep${rec.sleepHours} stress${rec.stress}: the plan promises ${target} weekly `
