@@ -709,6 +709,7 @@ function goBack(fallback) {
 
 const ROUTES = [
   [/^#?\/?$/,                        () => (session ? screenFeed() : screenLanding())],
+  [/^#\/connect$/,                   screenConnect],
   [/^#\/login$/,                     screenLogin],
   [/^#\/register$/,                  screenRegister],
   [/^#\/recover$/,                   screenRecover],
@@ -735,7 +736,7 @@ const ROUTES = [
   [/^#\/admin$/,                     screenAdmin],
 ];
 
-const PUBLIC_ROUTES = ['#/login', '#/register', '#/recover', '#/search'];
+const PUBLIC_ROUTES = ['#/login', '#/register', '#/recover', '#/search', '#/connect'];
 
 let renderToken = 0;
 
@@ -746,6 +747,16 @@ async function router() {
 
   const main = $('#main');
   const token = ++renderToken;
+
+  // בלי חיבור למסד אין מה להציג. במקום מסך שגיאה מבלבל — הסבר קצר
+  // ומעבר למסך החיבור. מסך החיבור עצמו כמובן נשאר נגיש.
+  if (!db && hash !== '#/connect') {
+    main.innerHTML = `<div class="fade">${pageHeader('יופי')}
+      ${emptyState('🔌', 'האפליקציה אינה מחוברת למסד נתונים',
+        'כל התוכן — בעלי המקצוע, הפוסטים וההזמנות — מגיע ממסד הנתונים שלכם.',
+        `<a class="btn" href="#/connect">חיבור למסד הנתונים</a>`)}</div>`;
+    return;
+  }
 
   // מסכים שמחייבים התחברות
   const needsAuth = !PUBLIC_ROUTES.includes(hash) && !/^#\/u\//.test(hash) && hash !== '#/';
@@ -4424,6 +4435,11 @@ async function screenSettings() {
       <h2>ניהול</h2><a class="btn outline block" href="#/admin">פאנל הניהול</a></section>` : ''}
 
     <section class="card p stack" style="margin-top:1rem">
+      <h2>מסד הנתונים</h2>
+      <a class="btn outline block" href="#/connect">הגדרות החיבור</a>
+    </section>
+
+    <section class="card p stack" style="margin-top:1rem">
       <button class="btn ghost block" id="do-logout" style="color:hsl(var(--destructive))">
         ${icon('logout', 17)} התנתקות</button>
     </section>`;
@@ -4645,66 +4661,71 @@ async function screenAdmin() {
    21. הפעלה
    ========================================================== */
 
-/** מסך הגדרה חד־פעמי — מוצג רק אם לא הוזנו פרטי החיבור. */
-function renderSetup() {
-  $('#app').innerHTML = `
-    <div class="shell" style="max-width:520px">
-      <div style="margin-top:2rem">
-        <h1 style="text-align:center">💄 יופי</h1>
-        <p class="muted center sm" style="margin-bottom:1rem">חיבור חד־פעמי למסד הנתונים</p>
+/**
+ * טופס החיבור למסד הנתונים.
+ *
+ * אינו מסך פתיחה: האפליקציה נפתחת כרגיל, וכשאין חיבור מוצג במסך
+ * הראשי הסבר קצר עם כפתור לכאן. אפשר להגיע לכאן גם מההגדרות.
+ */
+function screenConnect() {
+  setTimeout(() => {
+    $('#cfg-save')?.addEventListener('click', () => {
+      const url = $('#cfg-url').value.trim().replace(/\/$/, '');
+      const key = $('#cfg-key').value.trim();
 
-        <section class="card p stack" style="background:hsl(var(--accent))">
-          <h2>למה צריך את זה?</h2>
-          <p class="sm">הקובץ הזה הוא <strong>הממשק</strong> של האפליקציה. המשתמשים,
-            בעלי המקצוע, הפוסטים וההזמנות נשמרים <strong>במסד נתונים</strong> — כך שכל מי
-            שנכנס רואה את אותו מידע מעודכן, וכלום לא נעלם כשסוגרים את הדפדפן.</p>
-          <p class="sm">שתי השורות למטה פשוט אומרות לקובץ <strong>לאיזה מסד להתחבר</strong>.
-            מזינים אותן פעם אחת בלבד.</p>
-        </section>
+      if (!/^https?:\/\/.+/.test(url)) { toastBad('כתובת הפרויקט אינה תקינה'); return; }
+      if (key.length < 20) { toastBad('המפתח אינו תקין'); return; }
+      if (key.includes('service_role')) { toastBad('אין להשתמש במפתח service_role בדפדפן'); return; }
 
-        <section class="card p stack" style="margin-top:.75rem">
-          <p class="sm"><strong>מאיפה לוקחים את הערכים?</strong></p>
-          <ol class="sm" style="margin:0;padding-inline-start:1.2rem">
-            <li>נכנסים ל־<span dir="ltr">supabase.com</span> ופותחים את הפרויקט שלכם
-              (אם אין — יוצרים אחד, בחינם).</li>
-            <li>בתפריט: <strong>Project Settings → API</strong>.</li>
-            <li>מעתיקים משם את שני הערכים לשדות כאן.</li>
-          </ol>
+      localStorage.setItem('yofi.url', url);
+      localStorage.setItem('yofi.key', key);
+      location.reload();
+    });
 
-          <div class="field"><label for="cfg-url">Project URL</label>
-            <input class="input" id="cfg-url" dir="ltr" placeholder="https://xxxx.supabase.co" /></div>
-
-          <div class="field"><label for="cfg-key">anon public key</label>
-            <input class="input" id="cfg-key" dir="ltr" placeholder="eyJhbGciOi…" />
-            <p class="hint">המפתח הארוך שמסומן <span dir="ltr">anon</span> / <span dir="ltr">public</span>.</p></div>
-
-          <button class="btn block" id="cfg-save">שמירה והתחלה</button>
-
-          <p class="tiny muted">
-            שני הערכים האלה ציבוריים ומיועדים לדפדפן — הם מוגנים על ידי Row Level Security
-            ואינם מאפשרים לראות או לשנות דבר שהמשתמש המחובר אינו רשאי לו.
-            <strong>אין להזין כאן את מפתח ה־service_role.</strong>
-          </p>
-          <p class="tiny muted">
-            הערכים נשמרים בדפדפן שלכם בלבד. מפתחים שרוצים לדלג על המסך הזה יכולים לקבע
-            אותם בקוד — ראו את ההערה בראש הקובץ.
-          </p>
-        </section>
-      </div>
-    </div>`;
-
-  $('#cfg-save').addEventListener('click', () => {
-    const url = $('#cfg-url').value.trim().replace(/\/$/, '');
-    const key = $('#cfg-key').value.trim();
-
-    if (!/^https?:\/\/.+/.test(url)) { toastBad('כתובת הפרויקט אינה תקינה'); return; }
-    if (key.length < 20) { toastBad('המפתח אינו תקין'); return; }
-    if (key.includes('service_role')) { toastBad('אין להשתמש במפתח service_role בדפדפן'); return; }
-
-    localStorage.setItem('yofi.url', url);
-    localStorage.setItem('yofi.key', key);
-    location.reload();
+    $('#cfg-clear')?.addEventListener('click', () => {
+      localStorage.removeItem('yofi.url');
+      localStorage.removeItem('yofi.key');
+      localStorage.removeItem(TOKEN_KEY);
+      location.reload();
+    });
   });
+
+  const connected = Boolean(CONFIG.SUPABASE_URL && CONFIG.SUPABASE_ANON_KEY);
+
+  return `
+    ${backHeader('חיבור למסד הנתונים')}
+
+    <section class="card p stack">
+      ${connected
+        ? `<p class="sm"><span class="badge ok">מחובר</span></p>
+           <p class="sm muted" dir="ltr" style="word-break:break-all">${esc(CONFIG.SUPABASE_URL)}</p>`
+        : `<p class="sm">כאן מחברים את האפליקציה למסד הנתונים שלכם. עד אז לא יוצג תוכן.</p>`}
+
+      <ol class="sm muted" style="margin:0;padding-inline-start:1.2rem">
+        <li><span dir="ltr">supabase.com</span> → הפרויקט שלכם</li>
+        <li><strong>Project Settings → API</strong></li>
+        <li>מעתיקים את שני הערכים לשדות כאן</li>
+      </ol>
+
+      <div class="field"><label for="cfg-url">Project URL</label>
+        <input class="input" id="cfg-url" dir="ltr" placeholder="https://xxxx.supabase.co"
+          value="${esc(CONFIG.SUPABASE_URL || '')}" /></div>
+
+      <div class="field"><label for="cfg-key">anon public key</label>
+        <input class="input" id="cfg-key" dir="ltr" placeholder="eyJhbGciOi…"
+          value="${esc(CONFIG.SUPABASE_ANON_KEY || '')}" />
+        <p class="hint">המפתח הארוך שמסומן <span dir="ltr">anon</span> / <span dir="ltr">public</span>.
+          <strong>לא</strong> ה־service_role.</p></div>
+
+      <button class="btn block" id="cfg-save">שמירה</button>
+      ${connected ? `<button class="btn ghost block" id="cfg-clear">ניקוי החיבור</button>` : ''}
+
+      <p class="tiny muted">
+        שני הערכים ציבוריים ומיועדים לדפדפן — הם מוגנים על ידי Row Level Security.
+        הם נשמרים בדפדפן שלכם בלבד. אפשר גם לקבע אותם בראש הקובץ, ואז המסך הזה
+        לא יידרש כלל.
+      </p>
+    </section>`;
 }
 
 /** טוען את ספריית Supabase מ־CDN. */
@@ -4720,8 +4741,6 @@ function loadSupabaseLibrary() {
 }
 
 async function boot() {
-  if (!CONFIG.SUPABASE_URL || !CONFIG.SUPABASE_ANON_KEY) { renderSetup(); return; }
-
   try {
     await loadSupabaseLibrary();
   } catch {
@@ -4732,22 +4751,27 @@ async function boot() {
     return;
   }
 
-  db = makeClient(null);
+  const configured = Boolean(CONFIG.SUPABASE_URL && CONFIG.SUPABASE_ANON_KEY);
 
-  try {
-    await restoreSession();
-  } catch (error) {
-    console.error('שחזור הסשן נכשל:', error);
+  // בלי הגדרות אין למי לפנות, אבל האפליקציה עדיין נפתחת: המעטפת,
+  // הניווט והעיצוב נטענים, והנתב מציג הסבר עם מעבר למסך החיבור.
+  if (configured) {
+    db = makeClient(null);
+    try {
+      await restoreSession();
+    } catch (error) {
+      console.error('שחזור הסשן נכשל:', error);
+    }
   }
 
   renderShell();
   await router();
   if (session) refreshUnread();
 
-  // בדיקת חיבור בסיסית — נותנת הודעה ברורה במקום מסך ריק
-  const { error } = await db.from('cities').select('id').limit(1);
-  if (error) {
-    toastBad(`חיבור למסד הנתונים נכשל: ${errorMessage(error)}`);
+  if (configured) {
+    // בדיקת חיבור בסיסית — נותנת הודעה ברורה במקום מסך ריק
+    const { error } = await db.from('cities').select('id').limit(1);
+    if (error) toastBad(`חיבור למסד הנתונים נכשל: ${errorMessage(error)}`);
   }
 }
 
