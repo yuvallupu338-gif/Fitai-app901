@@ -1226,91 +1226,111 @@ const FAILURE_EXERCISES = 3;
 const BACKOFF_EXERCISES = 4;
 const TAIL_REPS = '6–8';
 
+/*
+ * The same shape for everybody, one notch further from failure for the people
+ * who should not be reaching it.
+ *
+ * A child used to get a single flat "stop two short" on every movement of every
+ * session, which is safe and says nothing: it does not teach that the first
+ * movement of the day is the one worth spending on, and by the fifth it is
+ * asking for effort the session has already spent. Effort is distributed
+ * whether or not the card admits it, and a fourteen-year-old learning that
+ * early is worth more than the one rep of margin it costs.
+ *
+ * So the careful tier gets the ramp too, shifted: two in reserve where an adult
+ * gets failure, three where an adult gets two. Never closer to failure than the
+ * flat rule already allowed, so nothing here loosens what shipped — the front
+ * of the session is unchanged and the back half backs off further.
+ *
+ * The recovery consultant on this would go further and put minors at three in
+ * reserve on the compounds as well, on the grounds that a body changing lever
+ * lengths month to month wants margin exactly where the load is highest. That
+ * is a defensible stricter line and it is not the one taken here; two in
+ * reserve on the first three is what the app already prescribed, and this
+ * change is not the place to quietly tighten it.
+ */
+const EFFORT_LADDER = [
+  'עד כישלון',
+  'עצור 2 חזרות לפני כישלון',
+  'עצור 3 חזרות לפני כישלון',
+];
+
 function effortFor(profile, ex, slot, goal) {
   if (goal !== 'muscle') return null;
   if (ex.unit !== 'reps') return null;
   if (slot.role === 'finisher' || ex.pattern === 'conditioning' || ex.pattern === 'plyo') return null;
 
   /*
-   * Above level 3 the failed rep is not a hard rep, it is a fall.
+   * Past the back-off window the card asks for reps and nothing else: those
+   * sets are finishing the session, not adding to it.
+   */
+  const at = numOr(slot.position, 0);
+  if (at >= FAILURE_EXERCISES + BACKOFF_EXERCISES) return null;
+
+  /*
+   * Position sets the tier, and every safety rule below can only RAISE it.
    *
-   * This shipped "עד כישלון" on a muscle-up, a wall handstand push-up and a
-   * nordic negative — a failed muscle-up is a drop through the transition, a
-   * failed wall HSPU is a collapse onto the head, and a nordic negative is the
-   * highest-force eccentric in the library performed by definition without
-   * control. No profile earns this, however strong: the ceiling is a fact about
-   * the movement, not about the person holding it.
+   * These used to be early returns handing back a fixed "stop two short", which
+   * is a floor in the first half of the session and a ceiling in the second: a
+   * sixteen-year-old holding a level-4 movement at position five was pulled
+   * from three reps in reserve back to two by the rule that was supposed to be
+   * protecting them. A guard that can loosen the prescription is not a guard.
    */
-  if (ex.level > FAILURE_SAFE_LEVEL) return 'עצור 2 חזרות לפני כישלון';
+  let tier = at < FAILURE_EXERCISES ? 0 : 1;
 
   /*
-   * And never on something that already loads a declared injury. Defence in
-   * depth rather than a live rule — since the sibling-pattern fix, no
-   * contraindicated exercise reaches a slot at all — but the registry swapping
-   * the exercise and nothing swapping the effort is exactly how this went wrong
-   * the first time, when a profile declaring an elbow AND a shoulder received
-   * 22 of 23 slots at "to failure".
-   */
-  if (conflictsInjury(profile, ex)) return 'עצור 2 חזרות לפני כישלון';
-
-  /*
-   * Who is holding the reps.
+   * One notch out for everybody who should not be reaching failure at all.
    *
    * The original rule was minors and returning trainees, and it had the
    * never-trained beginner exactly backwards: somebody who has never held the
-   * pattern at all was sent to failure while somebody rebuilding one was not.
-   * The stated reason — a pattern learned at failure is learned wrong — applies
+   * pattern was sent to failure while somebody rebuilding one was not. The
+   * stated reason — a pattern learned at failure is learned wrong — applies
    * with more force to the person who has not learned it yet.
    *
    * Sleep and stress are here and not only in the volume model because at
-   * RIR 0-2 they are the wrong variable to cut. Somebody on five hours' sleep
-   * should train nearly as much and less hard; the volume model was doing the
-   * exact reverse.
+   * RIR 0-2 they are the wrong variable to cut: somebody on five hours' sleep
+   * should train nearly as much and less hard, and the volume model was doing
+   * the exact reverse.
    */
   const age = numOr(profile.age, 30);
-  const careful = age < FAILURE_FROM_AGE
+  if (age < FAILURE_FROM_AGE
     || age >= FAILURE_UNTIL_AGE
     || experienceOf(profile) === 'returning'
     || experienceOf(profile) === 'beginner'
     || numOr(profile.sleepHours, 7) < RECOVERED_SLEEP
-    || numOr(profile.stress, 3) >= CALM_ENOUGH_STRESS;
-  if (careful) return 'עצור 2 חזרות לפני כישלון';
+    || numOr(profile.stress, 3) >= CALM_ENOUGH_STRESS) tier += 1;
 
   /*
-   * Do not tell somebody to fail on a movement they cannot fail.
-   *
-   * A trainee declaring 32 push-ups was given knee push-ups at 3x6-10 "to
-   * failure" — he can do sixty. That is not a hard instruction, it is an
-   * arithmetically impossible one, and the honest response to reading it is to
-   * stop believing the card.
+   * Above level 3 the failed rep is not a hard rep, it is a fall. This shipped
+   * "עד כישלון" on a muscle-up, a wall handstand push-up and a nordic negative:
+   * a failed muscle-up is a drop through the transition, a failed wall HSPU
+   * lands on the head, a nordic negative is the highest-force eccentric in the
+   * library performed by definition without control. No profile earns it,
+   * however strong — the ceiling is a fact about the movement.
+   */
+  if (ex.level > FAILURE_SAFE_LEVEL) tier = Math.max(tier, 1);
+
+  /*
+   * Nor on anything already loading a declared injury. Defence in depth rather
+   * than a live rule — since the sibling-pattern fix no contraindicated
+   * exercise reaches a slot — but the registry swapping the exercise while
+   * nothing swapped the effort is how this went wrong the first time, when a
+   * profile declaring an elbow AND a shoulder got 22 of 23 slots at failure.
+   */
+  if (conflictsInjury(profile, ex)) tier = Math.max(tier, 1);
+
+  /*
+   * And never tell somebody to fail on a movement they cannot fail. A trainee
+   * declaring 32 push-ups was given knee push-ups at 3x6-10 "to failure" — he
+   * can do sixty. Not a hard instruction, an arithmetically impossible one, and
+   * the honest response to reading it is to stop believing the card.
    */
   const shown = demonstratedLevel(profile, ex.pattern);
   if (shown !== null && ex.level < shown) {
     return 'קל ממה שדיווחת — עשה את החזרות ועבור לגרסה קשה יותר';
   }
 
-  /*
-   * Effort ramps down across the session, by position.
-   *
-   * The first three movements are the ones the trainee arrives fresh for, and a
-   * set to true failure is worth most while the technique still holds. By the
-   * fourth the cost of a failed rep is climbing faster than its value, so the
-   * target backs off to two in reserve. Past the seventh the job is finishing
-   * the session, not adding to it, and the card asks for reps instead.
-   *
-   * Position rather than role: a slot's role varies with the day's pattern
-   * order, and what matters here is how much of the session is already behind
-   * you.
-   *
-   * Everything above is a cap on this, never a floor. A fourteen-year-old, a
-   * never-trained beginner, somebody on five hours' sleep and anybody holding a
-   * level-4 movement still stops short — being first in the session is not a
-   * reason to fail, only permission to when every other test already said yes.
-   */
-  const at = numOr(slot.position, 0);
-  if (at < FAILURE_EXERCISES) return 'עד כישלון';
-  if (at < FAILURE_EXERCISES + BACKOFF_EXERCISES) return 'עצור 2 חזרות לפני כישלון';
-  return null;
+  return EFFORT_LADDER[Math.min(tier, EFFORT_LADDER.length - 1)];
 }
 
 /* ------------------------------------------------------------------ *

@@ -2344,8 +2344,8 @@ try {
                 + `failure — past ${AT_FAILURE} the target backs off to two in reserve`);
             }
             if (x.v.effort === BACKOFF) sawBackoff = true;
-          } else if (x.v.effort === FAILURE) {
-            err(`${x.ex.id} is movement ${i + 1} and is told to go to failure — past `
+          } else if (x.v.effort) {
+            err(`${x.ex.id} is movement ${i + 1} and carries "${x.v.effort}" — past `
               + `${AT_BACKOFF} the card asks for reps only`);
           }
         });
@@ -2353,24 +2353,77 @@ try {
       if (!sawFailure) err('no movement anywhere gets the failure instruction for a trainee who '
         + 'clears every gate — the ramp has switched the feature off');
       if (!sawBackoff) err('no movement gets the back-off instruction — the ramp has only one tier');
+
+      /*
+       * The tail tier needs a session long enough to reach it. The default
+       * shapes top out around six movements, so a check built only on those
+       * cannot see position eight at all — the first version of this missed a
+       * mutation that removed the tail entirely. The longest session the muscle
+       * goal can produce is eleven, at 3x120.
+       */
+      let sawTail = false;
+      for (const day of sessions(mk({ experience: 'advanced', daysPerWeek: 3, minutesPerSession: 120, location: 'home_bodyweight' }))) {
+        day.forEach((x, i) => {
+          if (i < AT_BACKOFF) return;
+          sawTail = true;
+          if (x.v.effort) {
+            err(`${x.ex && x.ex.id} is movement ${i + 1} of a long session and carries `
+              + `"${x.v.effort}" — past ${AT_BACKOFF} the card asks for reps and nothing else`);
+          }
+        });
+      }
+      if (!sawTail) {
+        warn('no session long enough to test the tail tier — the position ramp past '
+          + `${AT_BACKOFF} movements is untested`);
+      }
     }
 
-    // 2. And the gates still cap it. Position must not promote anybody.
+    /*
+     * 2. The careful tier gets the same SHAPE, one notch further out — and
+     *    never closer to failure than the flat rule it replaced.
+     *
+     * A child used to get one flat instruction on every movement of every
+     * session, which is safe and teaches nothing: effort is distributed whether
+     * or not the card admits it. The front of the session is unchanged at two
+     * in reserve; the back half now backs off to three.
+     */
+    const CAREFUL_FRONT = 'עצור 2 חזרות לפני כישלון';
+    const CAREFUL_BACK = 'עצור 3 חזרות לפני כישלון';
     for (const [who, over] of [
-      ['a 15-year-old', { age: 15, experience: 'beginner' }],
+      ['a 14-year-old', { age: 14, experience: 'beginner' }],
+      ['a 16-year-old', { age: 16, experience: 'intermediate' }],
       ['a 70-year-old', { age: 70 }],
       ['a never-trained beginner', { experience: 'beginner' }],
       ['somebody returning after a layoff', { experience: 'returning' }],
       ['somebody sleeping 5 hours', { sleepHours: 5 }],
       ['somebody at stress 5/5', { stress: 5 }],
     ]) {
+      let front = 0;
+      let back = 0;
       for (const day of sessions(mk(over))) {
-        for (let i = 0; i < Math.min(AT_FAILURE, day.length); i++) {
-          if (day[i].v.effort === FAILURE) {
+        day.forEach((x, i) => {
+          if (!x.v.effort) return;
+          if (x.v.effort === FAILURE) {
             err(`${who} is told "${FAILURE}" at position ${i + 1} — the position ramp is `
               + 'overriding a safety gate, which is exactly backwards');
+            return;
           }
-        }
+          if (i < AT_FAILURE) {
+            if (x.v.effort !== CAREFUL_FRONT) {
+              err(`${who} is told "${x.v.effort}" at position ${i + 1}; the careful ramp opens on `
+                + `"${CAREFUL_FRONT}"`);
+            } else front++;
+          } else if (i < AT_BACKOFF) {
+            if (x.v.effort !== CAREFUL_BACK) {
+              err(`${who} is told "${x.v.effort}" at position ${i + 1}; past ${AT_FAILURE} the `
+                + `careful ramp backs off to "${CAREFUL_BACK}"`);
+            } else back++;
+          }
+        });
+      }
+      if (!front || !back) {
+        err(`${who} never sees both tiers of the careful ramp (front ${front}, back ${back}) — it `
+          + 'has collapsed back to one flat instruction for the whole session');
       }
     }
 
