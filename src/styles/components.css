@@ -887,3 +887,12 @@ body.resting .modal-back { padding-bottom: 96px; }
 @media (prefers-reduced-motion: reduce) {
   .reveal-row { opacity: 1; transform: none; transition: none; }
 }
+
+/* The proximity-to-failure instruction on a hypertrophy plan. Amber rather than
+   the muted grey of tempo and rest: with sets capped at three, how close to
+   failure the set went is what decides whether it did anything, so it is not
+   secondary information. */
+.chip.effort {
+  background: var(--amber-wash); color: var(--amber);
+  border-color: rgba(255, 177, 60, .3); white-space: normal;
+}

@@ -68,7 +68,16 @@ const TASKS = [
     id: 'swim_20',
     title: 'שחייה 20 דקות',
     body: 'הדבר הכי קל על המפרקים שיש. גם מי שלא יודע לשחות טוב — 20 דקות של תנועה במים עושות את העבודה.',
-    load: 'easy', needs: [], hurts: [],
+    /*
+     * Easy on the joints is true of the knees, the hips and the back, and it is
+     * why this is here — it is the standard recommendation for exactly those.
+     * It is not true of the shoulder. Freestyle is an overhead movement
+     * repeated a few hundred times per length, and "the easiest thing there is
+     * on the joints" offered to somebody who declared a shoulder problem is the
+     * app's own recovery day working against the week it just built to protect
+     * that shoulder.
+     */
+    load: 'easy', needs: [], hurts: ['shoulder'],
   },
   {
     id: 'mobility_10',

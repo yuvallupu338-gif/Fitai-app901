@@ -21,7 +21,7 @@
 import { demonstratedLevel, benchmarkNote } from './benchmarks.js';
 import { effectiveGoal } from './holds.js';
 import {
-  MIN_AGE, MAX_AGE, withholdsHeavyLoad,
+  MIN_AGE, MAX_AGE, withholdsHeavyLoad, isMinor,
   easesImpact, needsStandingOption, needsLongerWarmup, warmsFast, stretchHoldSeconds,
 } from './age.js';
 import { asks } from '../data/demands.js';
@@ -622,16 +622,41 @@ function seedOf(hash, salt) {
 }
 
 /** n integers in [2,5] summing to total, biggest first (the main lift). */
-function distributeSets(total, n) {
+/*
+ * The most sets any one exercise may carry, by goal.
+ *
+ * Five everywhere except hypertrophy, which is capped at three.
+ *
+ * That is a training decision, not a formatting one. A set taken to failure or
+ * within a rep or two of it is worth far more per set than one left four reps
+ * short, and it costs proportionally more to recover from — so the honest
+ * version of "train hard" is fewer sets, not the same number done harder. Three
+ * sets of a movement pushed to that point is a full dose; the fourth and fifth
+ * are the ones that buy fatigue rather than growth.
+ *
+ * It pairs with the effort line in prescribe(): the cap and the instruction to
+ * go to 0-2 reps in reserve are the same decision, and neither is safe without
+ * the other. Capping sets while still telling somebody to stop four reps short
+ * would just be a smaller programme.
+ */
+const SETS_CEILING = { muscle: 3 };
+const SETS_CEILING_DEFAULT = 5;
+
+function setsCeiling(goal) {
+  return SETS_CEILING[goal] !== undefined ? SETS_CEILING[goal] : SETS_CEILING_DEFAULT;
+}
+
+function distributeSets(total, n, goal) {
+  const cap = setsCeiling(goal);
   const out = new Array(n).fill(2);
   let left = Math.max(0, Math.round(total) - 2 * n);
   let i = 0;
   let guard = 0;
   while (left > 0 && guard < 200) {
-    if (out[i] < 5) { out[i] += 1; left -= 1; }
+    if (out[i] < cap) { out[i] += 1; left -= 1; }
     i = (i + 1) % n;
     guard += 1;
-    if (out.every((v) => v >= 5)) break;
+    if (out.every((v) => v >= cap)) break;
   }
   return out;
 }
@@ -799,7 +824,7 @@ function layout(profile, vol, budget, split) {
   for (const [group, entries] of byGroup) {
     entries.sort((a, b) => a.slot.occurrence - b.slot.occurrence
       || days.indexOf(a.day) - days.indexOf(b.day));
-    const sets = distributeSets(numOr(vol[group], entries.length * 3), entries.length);
+    const sets = distributeSets(numOr(vol[group], entries.length * 3), entries.length, goalOf(profile));
     entries.forEach((e, i) => { e.slot.sets = sets[i]; });
   }
 
@@ -1136,9 +1161,44 @@ function prescribe(profile, ex, slot) {
     reps,
     rest: restText(restSec),
     tempo: tempoFor(profile, ex, slot.role),
+    effort: effortFor(profile, ex, slot, goal),
     restSec,
     workSec,
   };
+}
+
+/*
+ * How close to failure to take the set. Hypertrophy only.
+ *
+ * A rep range on its own does not say how hard the set was, and for growth that
+ * is the variable that matters most: 10 reps stopped four short of failure and
+ * 10 reps taken to the last one you can complete are different sets doing
+ * different amounts. With sets capped at three, saying it becomes necessary
+ * rather than optional — three easy sets is not a smaller hard week, it is a
+ * week that does nothing.
+ *
+ * Two exceptions, and both are about who is holding the reps rather than how
+ * many there are.
+ *
+ * Under 18, and coming back after a layoff, it is 2 reps in reserve and not
+ * failure. Not because a growth plate objects to effort — it does not, and the
+ * app already caps the level rather than the intensity — but because the rep
+ * that fails is the one where the technique goes, and a movement pattern
+ * learned at failure is learned wrong. The same is true of anybody rebuilding a
+ * pattern they used to have.
+ *
+ * Time-based holds and conditioning get nothing. "To failure" on a plank means
+ * lying down, which is not the instruction, and on a finisher it is a way to
+ * ruin the next session rather than improve this one.
+ */
+function effortFor(profile, ex, slot, goal) {
+  if (goal !== 'muscle') return null;
+  if (ex.unit !== 'reps') return null;
+  if (slot.role === 'finisher' || ex.pattern === 'conditioning' || ex.pattern === 'plyo') return null;
+
+  const careful = isMinor(profile) || experienceOf(profile) === 'returning';
+  if (careful) return 'עצור 2 חזרות לפני כישלון';
+  return 'עד כישלון או חזרה־שתיים לפניו';
 }
 
 /* ------------------------------------------------------------------ *
@@ -1530,6 +1590,7 @@ export function generateProgram(profile) {
           reps: rx.reps,
           rest: rx.rest,
           tempo: rx.tempo,
+          effort: rx.effort,
           level: ex.level,
           unit: ex.unit,
           unilateral: !!ex.unilateral,

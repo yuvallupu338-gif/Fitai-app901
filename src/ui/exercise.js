@@ -83,6 +83,10 @@ export function exerciseCard(day, slot, index, onChange) {
       h('span.chip' + (v.unit === 'time' ? '.time' : ''), v.reps),
       restChip(v),
       v.tempo ? h('span.chip.rest', `טמפו ${v.tempo}`) : null,
+      /* The effort chip is amber, not muted like tempo and rest, because on a
+         hypertrophy plan it is the instruction that decides whether the set did
+         anything — the rep range on its own does not say how hard it was. */
+      v.effort ? h('span.chip.effort', v.effort) : null,
       logs.length ? h('span.setpill', `${logs.length} סטים נרשמו`) : null,
     ),
     v.note ? h('p.note' + (String(v.note).startsWith('⚠︎') ? '.caution' : ''), v.note) : null,
@@ -281,6 +285,10 @@ export function openDetail(day, slot, pick, onChange) {
       h('span.chip' + (v.unit === 'time' ? '.time' : ''), v.reps),
       restChip(v),
       v.tempo ? h('span.chip.rest', `טמפו ${v.tempo}`) : null,
+      /* The effort chip is amber, not muted like tempo and rest, because on a
+         hypertrophy plan it is the instruction that decides whether the set did
+         anything — the rep range on its own does not say how hard it was. */
+      v.effort ? h('span.chip.effort', v.effort) : null,
     ),
     v.note ? h('p.note' + (String(v.note).startsWith('⚠︎') ? '.caution' : ''), v.note) : null,
     ex && ex.cues && ex.cues.length

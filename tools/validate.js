@@ -411,10 +411,23 @@ try {
     for (const goal of ['fatloss', 'muscle', 'strength', 'fitness', 'sport']) {
       for (const injury of [null].concat(INJURIES)) {
         for (const location of ['full_gym', 'home_bodyweight']) {
+          /*
+           * targetDate is pinned, and that is not cosmetic.
+           *
+           * defaults() sets it to six months from today, hashProfile() folds it
+           * in, and restDayTasks() rotates the tail of its list by that hash —
+           * so the fourth and fifth tasks a profile is offered change with the
+           * calendar. This check therefore passed or failed depending on the day
+           * it ran, and it is how a real gap survived: swim_20 carried no
+           * shoulder contraindication for months and the check only reached it
+           * on the days the rotation happened to surface it. A date makes the
+           * grid fixed, so a hole is found the first time rather than eventually.
+           */
           const p = schema.normalizeProfile(Object.assign(schema.defaults(), {
             age: 30, heightCm: 178, weightKg: 76, goal, experience: 'intermediate',
             daysPerWeek: 3, minutesPerSession: 60, location,
             injuries: injury ? [injury] : [],
+            targetDate: '2027-01-01',
           }));
           const restIdx = [0, 1, 2, 3];
           const tasks = rd.restDayTasks(p, restIdx);
@@ -1952,6 +1965,133 @@ try {
       }
     }
   } catch (e) { err(`leg-progression check could not run: ${e.message}`); }
+}
+
+
+/*
+ * Hypertrophy is 2-3 sets taken close to failure, and the two halves of that
+ * are one decision.
+ *
+ * A rep range does not say how hard the set was, and for growth that is the
+ * variable that matters most: ten reps stopped four short of failure and ten
+ * reps taken to the last one you can complete are different sets doing different
+ * amounts of work. So the sets are capped at three AND the card says how close
+ * to failure to go — because capping alone is just a smaller programme, and the
+ * instruction alone on five sets is a week nobody recovers from.
+ */
+{
+  try {
+    const schema = await load('src/intake/schema.js');
+    const gen = await load('src/engine/generator.js');
+    const registry = await load('src/data/exercises.index.js');
+
+    const mk = (over) => schema.normalizeProfile(Object.assign(schema.defaults(), {
+      age: 30, sex: 'male', heightCm: 178, weightKg: 82, goal: 'muscle',
+      experience: 'intermediate', daysPerWeek: 4, minutesPerSession: 60,
+      location: 'home_weights',
+    }, over));
+
+    const leads = (p) => gen.generateProgram(p).days
+      .flatMap((d) => d.slots.map((s) => ({ slot: s, v: (s.variants || [])[0] })))
+      .filter((x) => x.v);
+
+    /*
+     * The ceiling is written out here rather than read from the generator.
+     * Asking the module what its own cap is could only confirm it agrees with
+     * itself — the same circular shape that let the calorie floor and the
+     * growth-plate ceiling pass while broken. Three is the number the request
+     * was for.
+     */
+    const MUSCLE_MAX_SETS = 3;
+    const MUSCLE_MIN_SETS = 2;
+
+    // 1. Two or three sets, everywhere, on every shape a muscle goal can take.
+    for (const shape of [
+      { daysPerWeek: 3, minutesPerSession: 45 },
+      { daysPerWeek: 4, minutesPerSession: 60 },
+      { daysPerWeek: 5, minutesPerSession: 75 },
+      { daysPerWeek: 6, minutesPerSession: 90 },
+      { daysPerWeek: 2, minutesPerSession: 30 },
+    ]) {
+      for (const exp of ['beginner', 'returning', 'intermediate', 'advanced']) {
+        const bad = leads(mk(Object.assign({ experience: exp }, shape)))
+          .filter((x) => x.v.sets > MUSCLE_MAX_SETS || x.v.sets < MUSCLE_MIN_SETS);
+        if (bad.length) {
+          const w = bad[0];
+          err(`muscle/${exp} ${shape.daysPerWeek}x${shape.minutesPerSession}: ${w.v.exId} was given `
+            + `${w.v.sets} sets — hypertrophy is ${MUSCLE_MIN_SETS}-${MUSCLE_MAX_SETS} taken close `
+            + 'to failure, and a fourth set at that intensity buys fatigue rather than growth');
+        }
+      }
+    }
+
+    // 2. And every rep-based working set says how close to failure to go, or the
+    //    cap is just a smaller programme.
+    {
+      const rep = leads(mk({})).filter((x) => {
+        const ex = registry.byId(x.v.exId);
+        return ex && ex.unit === 'reps' && x.slot.role !== 'finisher'
+          && ex.pattern !== 'conditioning' && ex.pattern !== 'plyo';
+      });
+      const silent = rep.filter((x) => !x.v.effort);
+      if (!rep.length) err('the effort check found no rep-based muscle sets to inspect');
+      else if (silent.length) {
+        err(`${silent.length} of ${rep.length} rep-based hypertrophy sets carry no proximity-to-`
+          + `failure instruction (e.g. ${silent[0].v.exId}) — the rep range alone does not say `
+          + 'whether the set did anything');
+      }
+    }
+
+    // 3. Minors and returning trainees are told to stop short, not to fail. The
+    //    rep that fails is the one where technique goes, and a pattern learned
+    //    at failure is learned wrong.
+    for (const [who, over] of [
+      ['a 15-year-old', { age: 15, experience: 'beginner' }],
+      ['a 17-year-old', { age: 17, experience: 'intermediate' }],
+      ['somebody returning after a layoff', { experience: 'returning' }],
+    ]) {
+      const efforts = leads(mk(over)).map((x) => x.v.effort).filter(Boolean);
+      if (!efforts.length) { err(`${who} on a muscle goal got no effort instruction at all`); continue; }
+      /*
+       * Matched on "עד כישלון" — permission to reach failure — rather than on
+       * the absence of "לפני". Both strings contain לפני ("עצור 2 חזרות לפני
+       * כישלון" and "עד כישלון או חזרה־שתיים לפניו"), so the first version of
+       * this could not tell them apart and passed while minors were being sent
+       * to failure. Hebrew substrings inside Hebrew substrings, again.
+       */
+      const toFailure = efforts.filter((e) => /עד כישלון/.test(e));
+      if (toFailure.length) {
+        err(`${who} is told "${toFailure[0]}" — at that stage the set should stop short of failure, `
+          + 'because the rep that fails is the one where the technique goes');
+      }
+    }
+
+    // 4. No other goal grew an effort line or lost its set range. Strength in
+    //    particular still needs its heavy low-rep sets.
+    for (const goal of ['strength', 'fatloss', 'fitness', 'sport']) {
+      const l = leads(mk({ goal }));
+      if (l.some((x) => x.v.effort)) {
+        err(`the ${goal} goal grew a proximity-to-failure instruction — it is a hypertrophy rule`);
+      }
+      if (goal === 'strength' && !l.some((x) => x.v.sets > MUSCLE_MAX_SETS)) {
+        err('the strength goal lost its heavy sets — the hypertrophy cap leaked across goals');
+      }
+    }
+
+    // 5. Time-based work never says "to failure". On a plank that means lying
+    //    down, which is not the instruction.
+    {
+      const timed = leads(mk({})).filter((x) => {
+        const ex = registry.byId(x.v.exId);
+        return ex && ex.unit !== 'reps';
+      });
+      const wrong = timed.filter((x) => x.v.effort);
+      if (wrong.length) {
+        err(`${wrong[0].v.exId} is measured in ${registry.byId(wrong[0].v.exId).unit} and still `
+          + 'carries a to-failure instruction');
+      }
+    }
+  } catch (e) { err(`hypertrophy set-and-effort check could not run: ${e.message}`); }
 }
 
 /* ---------------- report ---------------- */
