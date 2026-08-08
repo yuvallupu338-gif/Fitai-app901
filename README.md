@@ -56,6 +56,26 @@ The other goals are untouched: חיטוב carries no RIR line, and שריר+חי
 progression cue follow the same rule, so a set logged at RIR 0 reads as on
 target on mass and as a caution everywhere else.
 
+**Per-meal targets and the dish checker.** Every meal card states its own band —
+`815–1,035 קל׳ · חלבון 42 ג׳ ומעלה` — rather than a single number, because a real
+portion lands in a range. The band is ±12% around that meal's share of the day
+(`dayDist`); protein gets a floor instead of a band, since overshooting protein
+at one meal is not the failure worth flagging.
+
+Each card also opens a checker you type into — `סטייק 250 גרם סוג אנטריקוט` —
+which parses the quantity, unit and food, resolves it against the 208-item food
+bank, and says whether it fits: over, under, or on target, with the portion that
+would land exactly on the band and what is still open afterwards. Three things
+the parser has to get right, each found by running a Hebrew corpus through it:
+
+- Plurals. The bank stores singulars and users type plurals, so both sides are
+  stemmed — otherwise `2 ביצים` finds nothing at all.
+- Stemming is lossy, so a literal hit outranks a stemmed one and short stems
+  cannot lead a prefix match. Without the first, `חלב` resolves to חלבה; without
+  the second, `משהו שלא קיים` resolves to קישוא.
+- A bare number on a food priced by weight means grams, never servings. Reading
+  `10 שקדים` as ten 30g portions returns 1,640 kcal for a handful of almonds.
+
 **Icons.** One logo, three renders, because one bitmap cannot serve a 42px
 header box and a 512px launcher tile. `LOGO_MARK` is the glyph full-bleed on the
 brand's navy, used for the header, the favicon and the `any` manifest icon;
