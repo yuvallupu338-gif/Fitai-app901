@@ -2218,6 +2218,37 @@ try {
     }
 
     /*
+     * 1a. The two copies of the per-slot cap agree, and agree with the numbers.
+     *
+     * volume.js sizes the week's slot bill with its own SETS_PER_SLOT_CAP and
+     * generator.js spends it with SETS_CEILING. They must be the same table or
+     * the model budgets slots the layout cannot use. A comment in volume.js
+     * promised this very check existed; it did not, and mutating
+     * SETS_PER_SLOT_CAP_DEFAULT from 5 to 6 left the suite green — so the
+     * comment was the only thing holding the two together, and comments do not
+     * run. 3 and 5 are written out because asking either module for the number
+     * to compare against would only confirm it agrees with itself.
+     */
+    {
+      const MUSCLE_CAP = 3;
+      const OTHER_CAP = 5;
+      for (const [goal, want] of [['muscle', MUSCLE_CAP], ['strength', OTHER_CAP],
+        ['fatloss', OTHER_CAP], ['fitness', OTHER_CAP], ['sport', OTHER_CAP]]) {
+        const inVolume = vol.slotCapOf ? vol.slotCapOf(goal) : null;
+        const inGenerator = gen.setsCeiling ? gen.setsCeiling(goal) : null;
+        if (inVolume === null || inGenerator === null) {
+          err('slotCapOf/setsCeiling are not exported — the two copies of the per-slot cap '
+            + 'cannot be held against each other');
+          break;
+        }
+        if (inVolume !== want || inGenerator !== want) {
+          err(`the ${goal} goal caps an exercise at ${inGenerator} sets in generator.js and `
+            + `budgets slots at ${inVolume} in volume.js; the agreed number is ${want}`);
+        }
+      }
+    }
+
+    /*
      * 1b. And nothing the cut touched fell off the week entirely.
      *
      * survivors() drops any small group whose neutral week comes out under 3
@@ -2353,11 +2384,34 @@ try {
       let mismatched = 0;
       let thin = 0;
       const FLOOR = 3;
+      /*
+       * The recovery axes, which this grid could not see.
+       *
+       * mk() pins age 30, sleep 7 and stress 3, so every profile it builds is
+       * perfectly recovered — and the session floor is exactly the assertion
+       * that breaks when they are not. Measured after the first attempt at
+       * this: 17.6% of 30-minute profiles held a session under three exercises
+       * once age, sleep and stress moved, one of them a whole week of four
+       * movements across two days, and this check stayed green throughout
+       * because none of those profiles was on its grid.
+       *
+       * A fourth nested loop over the full cross-product would be 50,000
+       * programmes and minutes of wall time, so the recovery variants are a
+       * short list rather than a sweep — the badly-recovering short session is
+       * where the failure lives, and it is what the list is made of.
+       */
+      const RECOVERY = [
+        { age: 30, sleepHours: 7, stress: 3 },
+        { age: 50, sleepHours: 6.5, stress: 5 },
+        { age: 70, sleepHours: 5, stress: 5 },
+        { age: 16, sleepHours: 9, stress: 1 },
+      ];
       for (const goal of ['muscle', 'strength', 'fatloss', 'fitness', 'sport']) {
         for (const experience of ['beginner', 'returning', 'intermediate', 'advanced']) {
           for (const daysPerWeek of [2, 3, 4, 5, 6]) {
             for (const minutesPerSession of [30, 45, 60, 75, 90, 120]) {
-              const p = mk({ goal, experience, daysPerWeek, minutesPerSession });
+              for (const rec of RECOVERY) {
+              const p = mk(Object.assign({ goal, experience, daysPerWeek, minutesPerSession }, rec));
               const target = vol.weeklyVolume(p).total;
               const program = gen.generateProgram(p);
               let delivered = 0;
@@ -2373,19 +2427,36 @@ try {
                  * the first attempt at it left eight days holding a single
                  * exercise, which is a worse plan than a 20% overshoot.
                  */
-                if (onDay < FLOOR && thin++ < 3) {
-                  err(`${goal} ${experience} ${daysPerWeek}x${minutesPerSession}: a session holds `
-                    + `${onDay} exercise(s) — under ${FLOOR} it is not a session`);
-                }
+                if (onDay < FLOOR) thin += 1;
               }
               if (delivered !== target && mismatched++ < 4) {
-                err(`${goal} ${experience} ${daysPerWeek}x${minutesPerSession}: the plan promises `
-                  + `${target} weekly sets and delivers ${delivered} — the note, the reveal and `
-                  + 'progression all quote the promise');
+                err(`${goal} ${experience} ${daysPerWeek}x${minutesPerSession} age${rec.age} `
+                  + `sleep${rec.sleepHours} stress${rec.stress}: the plan promises ${target} weekly `
+                  + `sets and delivers ${delivered} — the note and the reveal quote the promise`);
+              }
               }
             }
           }
         }
+      }
+      /*
+       * A hard cap on the thin sessions rather than zero.
+       *
+       * Some weeks genuinely cannot make three movements a day: two 30-minute
+       * hypertrophy sessions for a badly-recovering trainee come to 11 sets
+       * across four funded groups, and hypertrophy's own floor of 2 sets per
+       * exercise puts six slots out of reach. The honest options there are a
+       * short session or a card that lies about its dose, and the card wins.
+       *
+       * So the assertion is a budget, set just above what the engine currently
+       * produces on this grid. It caught the regression that made it 17.6%, it
+       * will catch the next one, and it cannot be satisfied by quietly letting
+       * more sessions shrink.
+       */
+      const THIN_BUDGET = 70;
+      if (thin > THIN_BUDGET) {
+        err(`${thin} sessions across this grid hold fewer than ${FLOOR} exercises, over a budget `
+          + `of ${THIN_BUDGET} — the floor is being paid for out of session shape again`);
       }
     }
 
@@ -2975,8 +3046,35 @@ try {
       ['אני מקיאה אחרי ארוחות', 'eating_disorder'],
       ['אין לי מחזור כבר שנה', 'eating_disorder'],
       ['אי ספיקת כליות שלב 3', 'kidney'],
-      // negation must clear only its own clause
+      /*
+       * Negation must clear only its own clause — and the clause has to end
+       * where Hebrew ends it, not only where a comma does.
+       *
+       * This line existed with the comma, and passed, while the אבל branch it
+       * was written to exercise had never once executed: \b is defined against
+       * [A-Za-z0-9_], so \bאבל\b can never match. Every case below without
+       * punctuation was silently broken — "לא מעשנת ואני בהריון" produced no
+       * pregnancy hold and a 418 kcal deficit. The comma version is kept and
+       * the punctuation-free versions are the check.
+       */
       ['לא בהריון, אבל יש סוכרת', 'diabetes'],
+      ['לא בהריון אבל יש סוכרת', 'diabetes'],
+      ['אין לי אלרגיות אך אני נוטלת קומדין', 'anticoagulant'],
+      ['no allergies but I have type 1 diabetes', 'diabetes'],
+      ['לא מעשנת ואני בהריון', 'pregnancy'],
+      ['לא מעשנת, לא שותה ויש לי היסטוריה של אנורקסיה', 'eating_disorder'],
+      ['אין בעיות ואובחנתי עם בולימיה', 'eating_disorder'],
+      ['לא עברתי ניתוחים ואני סובלת מאי ספיקת כליות', 'kidney'],
+      /*
+       * And the other direction, which is what makes the ו split non-trivial:
+       * these are ONE refusal listing two things, and cutting them in two hands
+       * a flag straight back to somebody who just denied it. A bare noun after
+       * ו keeps the denial; anything that looks like a new predicate does not.
+       */
+      ['אין לי סוכרת ולחץ דם', ''],
+      ['אין אנורקסיה ובולימיה', ''],
+      ['ללא בעיות כליות ולב', ''],
+      ['אין בעיות לב וכליות', ''],
     ]) {
       const got = keys(text);
       if (got !== want) {
@@ -3226,6 +3324,34 @@ try {
             if (v && Number.isFinite(Number(v.sets))) delivered += Number(v.sets);
           }
         }
+        /*
+         * And the same assertion against a program built to disagree with
+         * itself.
+         *
+         * The check below compares revealFacts to the cards, which was a real
+         * test right up until the layout was fixed to deliver exactly what the
+         * plan promises. Now the two sources agree everywhere, so reading
+         * either one passes: mutating reveal.js back to `program.volume.total`
+         * survives the whole suite. A check that can only pass is not a check.
+         *
+         * So one synthetic program carries a volume block that lies about its
+         * own slots. Nothing reaches this state in production — that is the
+         * point — but it is the only way to state which of the two the screen
+         * is required to read.
+         */
+        const lying = {
+          days: [{ slots: [{ variants: [{ exId: 'pushup', sets: 3 }] },
+            { variants: [{ exId: 'bodyweight_squat', sets: 4 }] }] }],
+          volume: { total: 99, push: 40, pull: 30, legs: 20 },
+          meta: {},
+        };
+        const off = reveal.revealFacts(p, lying);
+        if (off.sets !== 7) {
+          err(`revealFacts read ${off.sets} weekly sets from a program whose cards hold 7 and `
+            + 'whose volume block claims 99 — the reveal is quoting the plan\'s target, not the '
+            + 'plan');
+        }
+
         if ((f.sets || 0) !== delivered) {
           err(`${goal} ${d}x${m}: the reveal announces ${f.sets} weekly sets and the cards behind `
             + `it hold ${delivered} — the screen whose whole defence is that its numbers are `

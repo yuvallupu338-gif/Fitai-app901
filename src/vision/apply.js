@@ -18,7 +18,8 @@
  * nothing itself — emphasisSummary needs it to say what a read actually changed.
  */
 
-import { withholdsFatLoss, stillDeveloping } from '../engine/age.js';
+import { stillDeveloping } from '../engine/age.js';
+import { fatLossHold } from '../engine/holds.js';
 
 import { weeklyVolume } from '../engine/volume.js';
 import { PATTERN_GROUP } from '../engine/generator.js';
@@ -361,19 +362,23 @@ const GOAL_HE = {
   fatloss: 'ירידה בשומן', muscle: 'עלייה במסה', strength: 'כוח', fitness: 'כושר כללי',
 };
 
-/* Duplicated rather than imported: apply.js is the pure layer the engine and the
-   audits load, and it must not pull in the network client's dependency chain to
-   answer a question about two numbers. */
+/*
+ * Asked of holds.js rather than worked out again here.
+ *
+ * The old comment said this was duplicated to keep apply.js off the network
+ * client's dependency chain, which was a good reason for not importing
+ * analyze.js and no reason at all for not importing holds.js — holds.js is
+ * pure arithmetic over a profile and pulls in age.js and nothing else.
+ *
+ * What the duplicate cost: it knew about age and BMI, which is two of the four
+ * reasons the app refuses a deficit, and it never learned the other two.
+ * Measured, a profile declaring pregnancy or a history of anorexia was offered
+ * a one-tap button switching its goal to fat loss, with the model's own
+ * argument for it printed underneath, while every engine downstream went on
+ * refusing to build one.
+ */
 function fatLossDisallowed(profile) {
-  const age = Number(profile && profile.age);
-  // Asked of the profile, not of a number reconstructed from it: Number(null)
-  // is 0, and handing 0 to a gate written to reject a missing age turns "we do
-  // not know" into "twelve years under eighteen".
-  if (withholdsFatLoss(profile)) return true;
-  const h = Number(profile && profile.heightCm);
-  const w = Number(profile && profile.weightKg);
-  if (!Number.isFinite(h) || !Number.isFinite(w) || h <= 0) return false;
-  return w / ((h / 100) ** 2) < 18.5;
+  return fatLossHold(profile) !== null;
 }
 
 /**

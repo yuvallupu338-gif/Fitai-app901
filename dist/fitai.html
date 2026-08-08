@@ -1190,198 +1190,6 @@ const LOGO = 'data:image/webp;base64,UklGRv52AABXRUJQVlA4WAoAAAAwAAAAUwEAgQAASUN
   };
 })();
 
-__m["src/core/dom.js"] = (function () {
-/* dom.js — minimal element helpers. No framework, no build step. */
-
-/**
- * h('div.card', {attrs}, ...children)
- * Tag supports `tag.class.class#id` shorthand. Children may be nodes,
- * strings (inserted as TEXT, never HTML), arrays, or null.
- */
-function h(spec, attrs, ...children) {
-  const m = /^([a-zA-Z0-9-]+)?((?:[.#][\w-]+)*)$/.exec(spec);
-  const tag = (m && m[1]) || 'div';
-  const node = document.createElement(tag);
-  if (m && m[2]) {
-    for (const token of m[2].match(/[.#][\w-]+/g) || []) {
-      if (token[0] === '.') node.classList.add(token.slice(1));
-      else node.id = token.slice(1);
-    }
-  }
-  if (attrs && typeof attrs === 'object' && !(attrs instanceof Node) && !Array.isArray(attrs)) {
-    for (const k in attrs) {
-      const v = attrs[k];
-      if (v === null || v === undefined || v === false) continue;
-      if (k === 'class') node.className = [node.className, v].filter(Boolean).join(' ');
-      else if (k === 'style' && typeof v === 'object') Object.assign(node.style, v);
-      else if (k.startsWith('on') && typeof v === 'function') node.addEventListener(k.slice(2).toLowerCase(), v);
-      else if (k === 'text') node.textContent = v;
-      else if (k === 'html') node.innerHTML = v;
-      else if (v === true) node.setAttribute(k, '');
-      else node.setAttribute(k, v);
-    }
-  } else if (attrs !== null && attrs !== undefined) {
-    children.unshift(attrs);
-  }
-  append(node, children);
-  return node;
-}
-
-function append(node, children) {
-  for (const c of children) {
-    if (c === null || c === undefined || c === false) continue;
-    if (Array.isArray(c)) append(node, c);
-    else if (c instanceof Node) node.appendChild(c);
-    else node.appendChild(document.createTextNode(String(c)));
-  }
-  return node;
-}
-
-function clear(node) {
-  while (node.firstChild) node.removeChild(node.firstChild);
-  return node;
-}
-
-function qs(sel, root) {
-  return (root || document).querySelector(sel);
-}
-
-function qsa(sel, root) {
-  return Array.from((root || document).querySelectorAll(sel));
-}
-
-/** Focus-trapped, escape-closable overlay. Returns a close() function. */
-function modal(content, opts) {
-  const o = opts || {};
-  const box = h('div.modal-box', { role: 'dialog', 'aria-modal': 'true', 'aria-label': o.label || '' }, content);
-  const back = h('div.modal-back', { onclick: (e) => { if (e.target === back) close(); } }, box);
-  const prev = document.activeElement;
-
-  function onKey(e) {
-    if (e.key === 'Escape') { close(); return; }
-    if (e.key !== 'Tab') return;
-    const f = qsa('button,[href],input,select,textarea,[tabindex]:not([tabindex="-1"])', box)
-      .filter((n) => !n.disabled && n.offsetParent !== null);
-    if (!f.length) return;
-    const first = f[0];
-    const last = f[f.length - 1];
-    if (e.shiftKey && document.activeElement === first) { e.preventDefault(); last.focus(); }
-    else if (!e.shiftKey && document.activeElement === last) { e.preventDefault(); first.focus(); }
-  }
-
-  function close() {
-    document.removeEventListener('keydown', onKey);
-    back.remove();
-    document.body.style.overflow = '';
-    if (prev && prev.focus) prev.focus();
-    if (o.onClose) o.onClose();
-  }
-
-  document.addEventListener('keydown', onKey);
-  document.body.appendChild(back);
-  document.body.style.overflow = 'hidden';
-  const target = qs('button,input,select,textarea', box);
-  if (target) {
-    target.focus();
-  } else {
-    box.setAttribute('tabindex', '-1');
-    box.focus();
-  }
-  return close;
-}
-
-/**
- * Reads an image file and returns a downscaled JPEG data URL.
- *
- * Phone photos are several megabytes and localStorage holds about five in
- * total, so storing an original would break the app on the second picture.
- * Lives here rather than in the wizard because the scan screen picks photos too,
- * and two copies of a resize routine drift.
- */
-function shrinkImage(file, maxPx, quality) {
-  return new Promise((resolve, reject) => {
-    const url = URL.createObjectURL(file);
-    const img = new Image();
-    img.onload = () => {
-      try {
-        const scale = Math.min(1, maxPx / Math.max(img.width, img.height));
-        const canvas = document.createElement('canvas');
-        canvas.width = Math.max(1, Math.round(img.width * scale));
-        canvas.height = Math.max(1, Math.round(img.height * scale));
-        canvas.getContext('2d').drawImage(img, 0, 0, canvas.width, canvas.height);
-        URL.revokeObjectURL(url);
-        resolve(canvas.toDataURL('image/jpeg', quality));
-      } catch (e) {
-        URL.revokeObjectURL(url);
-        reject(e);
-      }
-    };
-    img.onerror = () => { URL.revokeObjectURL(url); reject(new Error('unreadable image')); };
-    img.src = url;
-  });
-}
-
-let liveRegion = null;
-/** Announce a message to screen readers without moving focus. */
-/*
- * A number that carries a sign, kept together in an RTL paragraph.
- *
- * Digits render left-to-right inside Hebrew text, which is right — "76" is
- * always "76". A leading + or − is not a digit though; it is a neutral, and in
- * an RTL run it gets pulled to the far side of the digits it belongs to. So
- * "-1.5 ק״ג" displays as "1.5-" and "+30" as "30+": the sign detaches from its
- * own number and lands where a reader has no reason to attach it back.
- *
- * Ranges do NOT need this and must not be wrapped in it. "8–12" displays as
- * "12–8", and that is correct — a Hebrew reader scans right-to-left, meets 8
- * first and 12 second, and reads "8 to 12". Both numbers stay intact. Forcing
- * that to LTR would be the actual bug.
- *
- * timer.js worked this out first, for the rest clock, and fixed it in place.
- * This is the same fix with a name, so the next signed number gets it too.
- */
-function signedNum(text) {
-  return h('span', { dir: 'ltr' }, String(text));
-}
-
-/*
- * Whether the reader has asked the system for less movement.
- *
- * It lives here rather than in anim.js, where it was, because of what importing
- * it costs. anim.js pulls in rig.js for the skeleton and poses.js for the easing
- * table, so the rest timer — which wanted this to decide between repainting four
- * times a second and once — was dragging 1,159 lines of inverse kinematics into
- * every build to ask a media query a question.
- *
- * anim.js reads it from here now, so there is still one of it.
- */
-const reduceMotion = typeof window !== 'undefined' && window.matchMedia
-  ? window.matchMedia('(prefers-reduced-motion: reduce)')
-  : { matches: false };
-
-function announce(msg) {
-  if (!liveRegion) {
-    liveRegion = h('div', { class: 'sr-only', 'aria-live': 'polite', 'aria-atomic': 'true' });
-    document.body.appendChild(liveRegion);
-  }
-  liveRegion.textContent = '';
-  setTimeout(() => { liveRegion.textContent = msg; }, 30);
-}
-
-  return {
-    "h": h,
-    "append": append,
-    "clear": clear,
-    "qs": qs,
-    "qsa": qsa,
-    "modal": modal,
-    "shrinkImage": shrinkImage,
-    "signedNum": signedNum,
-    "reduceMotion": reduceMotion,
-    "announce": announce,
-  };
-})();
-
 __m["src/engine/age.js"] = (function () {
 /*
  * age.js — every place the app treats a young trainee differently, and why.
@@ -1859,6 +1667,74 @@ const MEDICAL_FLAGS = [
  */
 const NEGATORS = ['לא ', 'אין ', 'ללא ', 'שולל', 'no ', 'not ', 'never ', 'without ', 'denies'];
 
+/*
+ * Where one clause ends and the next begins.
+ *
+ * This was `/[.,;\n]|\bאבל\b|\bו?אך\b/`, and the two Hebrew alternations in it
+ * have never matched anything. \b in JavaScript is defined against [A-Za-z0-9_],
+ * so every Hebrew letter is a non-word character and \bאבל\b asks for a boundary
+ * between two non-word characters, which does not exist. Verified directly:
+ * /\bאבל\b/.test('יש אבל כן') is false where /\babc\b/.test('x abc y') is true.
+ *
+ * Only the punctuation branch was live, and Hebrew does not need punctuation to
+ * join clauses — it prefixes ו to the next word. So one לא or אין anywhere in a
+ * sentence cleared every condition after it:
+ *
+ *   "לא מעשנת, לא שותה, יש לי היסטוריה של אנורקסיה"  -> eating_disorder hold
+ *   "לא מעשנת, לא שותה ויש לי היסטוריה של אנורקסיה"  -> nothing, and a 411 kcal
+ *                                                       deficit with a weekly
+ *                                                       weigh-in attached
+ *
+ * One character apart. Same for "לא מעשנת ואני בהריון", and — the sting — for
+ * the exact sentence the old comment offered as its worked example, once the
+ * comma is dropped: "לא בהריון אבל יש לי סוכרת" flagged nothing at all. The
+ * check in tools/validate.js wrote that example WITH the comma, so it passed on
+ * the punctuation branch and the branch it was written to test never ran.
+ */
+const CLAUSE_BREAK = /[.,;\n]|\s+אבל\s+|\s+ו?אך\s+|\s+but\s+/;
+
+/*
+ * A vav-prefixed word starts a new clause — unless it is just the next item in
+ * a list.
+ *
+ * Splitting on every " ו" fixes the misses and breaks the denials: "אין לי
+ * סוכרת ולחץ דם" is one refusal of two things, and cutting it in two hands back
+ * a cardiac flag to somebody who just denied it. Measured, that phrasing family
+ * was 4 false positives out of 5.
+ *
+ * What separates them is whether the fragment is a new predicate or a bare noun.
+ * "ואני בהריון", "ואובחנתי עם בולימיה", "ורופא אמר" are sentences; "ולחץ דם",
+ * "ובולימיה", "וכליות" are list items. So the split always happens and the
+ * NEGATION is what carries: only a short fragment with no sign of a predicate
+ * inherits the previous clause's denial.
+ *
+ * The default is deliberately the flagging one. A fragment long enough to be a
+ * sentence, or carrying any opener, stands on its own — so a phrasing this list
+ * has not seen produces a false flag rather than a missed condition. A false
+ * flag costs somebody a warning they did not need. The other direction costs a
+ * pregnant woman a calorie deficit.
+ */
+const LIST_ITEM_WORDS = 3;
+const CLAUSE_OPENER = /אני|אנחנו|יש |היה|הייתי|זה |גם |אצלי|סובל|מאובחן|אובחנ|נוטל|לוקח|לקחתי|עברתי|קיבלתי|התחלתי|רופא|i have|i am|i've/;
+
+/** The text split into clauses, each marked with whether it inherits negation. */
+function clausesOf(raw) {
+  const out = [];
+  for (const hard of raw.split(CLAUSE_BREAK).map((c) => c.trim()).filter(Boolean)) {
+    const bits = hard.split(/\s+ו(?=[א-ת])/);
+    out.push({ text: bits[0].trim(), inherits: false });
+    for (const b of bits.slice(1)) {
+      const text = b.trim();
+      if (!text) continue;
+      out.push({
+        text,
+        inherits: text.split(/\s+/).length <= LIST_ITEM_WORDS && !CLAUSE_OPENER.test(text),
+      });
+    }
+  }
+  return out;
+}
+
 /**
  * Every medical flag this free text trips, as {key, he}. Empty when none.
  *
@@ -1871,11 +1747,15 @@ function medicalFlags(profile) {
   const raw = `${p.medical || ''} . ${p.supplements || ''} . ${p.surgeries || ''}`.toLowerCase();
   if (!raw.trim()) return [];
   /* Split into clauses so a negation only clears its own sentence, not the
-     whole answer — "לא בהריון, אבל יש סוכרת" must still flag the diabetes. */
-  const clauses = raw.split(/[.,;\n]|\bאבל\b|\bו?אך\b/).map((c) => c.trim()).filter(Boolean);
+     whole answer — "לא בהריון אבל יש סוכרת" must still flag the diabetes, with
+     or without the comma. See CLAUSE_BREAK for why it used to need one. */
   const hit = new Set();
-  for (const c of clauses) {
-    const negated = NEGATORS.some((n) => c.includes(n));
+  let carried = false;
+  for (const clause of clausesOf(raw)) {
+    const c = clause.text;
+    const own = NEGATORS.some((n) => c.includes(n));
+    const negated = own || (clause.inherits && carried);
+    carried = clause.inherits ? negated : own;
     for (const f of MEDICAL_FLAGS) {
       for (const t of f.terms) {
         if (!c.includes(t)) continue;
@@ -1968,6 +1848,198 @@ function effectiveGoal(profile) {
     "medicalFlags": medicalFlags,
     "fatLossHold": fatLossHold,
     "effectiveGoal": effectiveGoal,
+  };
+})();
+
+__m["src/core/dom.js"] = (function () {
+/* dom.js — minimal element helpers. No framework, no build step. */
+
+/**
+ * h('div.card', {attrs}, ...children)
+ * Tag supports `tag.class.class#id` shorthand. Children may be nodes,
+ * strings (inserted as TEXT, never HTML), arrays, or null.
+ */
+function h(spec, attrs, ...children) {
+  const m = /^([a-zA-Z0-9-]+)?((?:[.#][\w-]+)*)$/.exec(spec);
+  const tag = (m && m[1]) || 'div';
+  const node = document.createElement(tag);
+  if (m && m[2]) {
+    for (const token of m[2].match(/[.#][\w-]+/g) || []) {
+      if (token[0] === '.') node.classList.add(token.slice(1));
+      else node.id = token.slice(1);
+    }
+  }
+  if (attrs && typeof attrs === 'object' && !(attrs instanceof Node) && !Array.isArray(attrs)) {
+    for (const k in attrs) {
+      const v = attrs[k];
+      if (v === null || v === undefined || v === false) continue;
+      if (k === 'class') node.className = [node.className, v].filter(Boolean).join(' ');
+      else if (k === 'style' && typeof v === 'object') Object.assign(node.style, v);
+      else if (k.startsWith('on') && typeof v === 'function') node.addEventListener(k.slice(2).toLowerCase(), v);
+      else if (k === 'text') node.textContent = v;
+      else if (k === 'html') node.innerHTML = v;
+      else if (v === true) node.setAttribute(k, '');
+      else node.setAttribute(k, v);
+    }
+  } else if (attrs !== null && attrs !== undefined) {
+    children.unshift(attrs);
+  }
+  append(node, children);
+  return node;
+}
+
+function append(node, children) {
+  for (const c of children) {
+    if (c === null || c === undefined || c === false) continue;
+    if (Array.isArray(c)) append(node, c);
+    else if (c instanceof Node) node.appendChild(c);
+    else node.appendChild(document.createTextNode(String(c)));
+  }
+  return node;
+}
+
+function clear(node) {
+  while (node.firstChild) node.removeChild(node.firstChild);
+  return node;
+}
+
+function qs(sel, root) {
+  return (root || document).querySelector(sel);
+}
+
+function qsa(sel, root) {
+  return Array.from((root || document).querySelectorAll(sel));
+}
+
+/** Focus-trapped, escape-closable overlay. Returns a close() function. */
+function modal(content, opts) {
+  const o = opts || {};
+  const box = h('div.modal-box', { role: 'dialog', 'aria-modal': 'true', 'aria-label': o.label || '' }, content);
+  const back = h('div.modal-back', { onclick: (e) => { if (e.target === back) close(); } }, box);
+  const prev = document.activeElement;
+
+  function onKey(e) {
+    if (e.key === 'Escape') { close(); return; }
+    if (e.key !== 'Tab') return;
+    const f = qsa('button,[href],input,select,textarea,[tabindex]:not([tabindex="-1"])', box)
+      .filter((n) => !n.disabled && n.offsetParent !== null);
+    if (!f.length) return;
+    const first = f[0];
+    const last = f[f.length - 1];
+    if (e.shiftKey && document.activeElement === first) { e.preventDefault(); last.focus(); }
+    else if (!e.shiftKey && document.activeElement === last) { e.preventDefault(); first.focus(); }
+  }
+
+  function close() {
+    document.removeEventListener('keydown', onKey);
+    back.remove();
+    document.body.style.overflow = '';
+    if (prev && prev.focus) prev.focus();
+    if (o.onClose) o.onClose();
+  }
+
+  document.addEventListener('keydown', onKey);
+  document.body.appendChild(back);
+  document.body.style.overflow = 'hidden';
+  const target = qs('button,input,select,textarea', box);
+  if (target) {
+    target.focus();
+  } else {
+    box.setAttribute('tabindex', '-1');
+    box.focus();
+  }
+  return close;
+}
+
+/**
+ * Reads an image file and returns a downscaled JPEG data URL.
+ *
+ * Phone photos are several megabytes and localStorage holds about five in
+ * total, so storing an original would break the app on the second picture.
+ * Lives here rather than in the wizard because the scan screen picks photos too,
+ * and two copies of a resize routine drift.
+ */
+function shrinkImage(file, maxPx, quality) {
+  return new Promise((resolve, reject) => {
+    const url = URL.createObjectURL(file);
+    const img = new Image();
+    img.onload = () => {
+      try {
+        const scale = Math.min(1, maxPx / Math.max(img.width, img.height));
+        const canvas = document.createElement('canvas');
+        canvas.width = Math.max(1, Math.round(img.width * scale));
+        canvas.height = Math.max(1, Math.round(img.height * scale));
+        canvas.getContext('2d').drawImage(img, 0, 0, canvas.width, canvas.height);
+        URL.revokeObjectURL(url);
+        resolve(canvas.toDataURL('image/jpeg', quality));
+      } catch (e) {
+        URL.revokeObjectURL(url);
+        reject(e);
+      }
+    };
+    img.onerror = () => { URL.revokeObjectURL(url); reject(new Error('unreadable image')); };
+    img.src = url;
+  });
+}
+
+let liveRegion = null;
+/** Announce a message to screen readers without moving focus. */
+/*
+ * A number that carries a sign, kept together in an RTL paragraph.
+ *
+ * Digits render left-to-right inside Hebrew text, which is right — "76" is
+ * always "76". A leading + or − is not a digit though; it is a neutral, and in
+ * an RTL run it gets pulled to the far side of the digits it belongs to. So
+ * "-1.5 ק״ג" displays as "1.5-" and "+30" as "30+": the sign detaches from its
+ * own number and lands where a reader has no reason to attach it back.
+ *
+ * Ranges do NOT need this and must not be wrapped in it. "8–12" displays as
+ * "12–8", and that is correct — a Hebrew reader scans right-to-left, meets 8
+ * first and 12 second, and reads "8 to 12". Both numbers stay intact. Forcing
+ * that to LTR would be the actual bug.
+ *
+ * timer.js worked this out first, for the rest clock, and fixed it in place.
+ * This is the same fix with a name, so the next signed number gets it too.
+ */
+function signedNum(text) {
+  return h('span', { dir: 'ltr' }, String(text));
+}
+
+/*
+ * Whether the reader has asked the system for less movement.
+ *
+ * It lives here rather than in anim.js, where it was, because of what importing
+ * it costs. anim.js pulls in rig.js for the skeleton and poses.js for the easing
+ * table, so the rest timer — which wanted this to decide between repainting four
+ * times a second and once — was dragging 1,159 lines of inverse kinematics into
+ * every build to ask a media query a question.
+ *
+ * anim.js reads it from here now, so there is still one of it.
+ */
+const reduceMotion = typeof window !== 'undefined' && window.matchMedia
+  ? window.matchMedia('(prefers-reduced-motion: reduce)')
+  : { matches: false };
+
+function announce(msg) {
+  if (!liveRegion) {
+    liveRegion = h('div', { class: 'sr-only', 'aria-live': 'polite', 'aria-atomic': 'true' });
+    document.body.appendChild(liveRegion);
+  }
+  liveRegion.textContent = '';
+  setTimeout(() => { liveRegion.textContent = msg; }, 30);
+}
+
+  return {
+    "h": h,
+    "append": append,
+    "clear": clear,
+    "qs": qs,
+    "qsa": qsa,
+    "modal": modal,
+    "shrinkImage": shrinkImage,
+    "signedNum": signedNum,
+    "reduceMotion": reduceMotion,
+    "announce": announce,
   };
 })();
 
@@ -2225,7 +2297,8 @@ const NO_FLOOR = { push: 0, pull: 0, legs: 0, core: 0, arms: 0, shoulders: 0, ca
  * them whether or not it uses the sixth. Restated rather than imported: the
  * generator already imports this module and a cycle between the two is worth
  * avoiding for a number that changes once a year. tools/validate.js holds the
- * two against each other, and against the literal 3 and 5.
+ * two against each other, and against the literal 3 and 5 — check 1a in the
+ * hypertrophy volume block.
  */
 const SETS_PER_SLOT_CAP = { muscle: 3 };
 const SETS_PER_SLOT_CAP_DEFAULT = 5;
@@ -2272,18 +2345,57 @@ function slotsUsed(v, perSlot) {
  */
 function fitToSlots(v, floors, perSlot, slots) {
   const out = Object.assign({}, v);
+  const taken = {};
+  /*
+   * Where the scan for a group to trim starts.
+   *
+   * Freeing one exercise slot costs a single group two sets when it sits one
+   * past a multiple of the cap — the first set frees nothing and the second
+   * frees the slot — so somebody has to take the whole cut and no ordering
+   * can spread it. What ordering CAN decide is who, and scanning GROUPS from
+   * index 0 every time meant the answer was push, every time: measured, push
+   * finished below pull in 118 of 8,640 muscle weeks and pull below push in
+   * none, with 2x60 shipping push 6 against pull 8 at every experience tier.
+   *
+   * So the scan starts at a different place depending on the week's own size.
+   * It is still fully deterministic — the same profile always gets the same
+   * plan — but across the population the cut lands on pushing, pulling and
+   * legs in turn rather than on pressing alone.
+   */
+  const start = Math.abs(Math.round(num(v.total, GROUPS.reduce((n, g) => n + num(v[g], 0), 0)))) % GROUPS.length;
+  const order = GROUPS.slice(start).concat(GROUPS.slice(0, start));
   let guard = 0;
   while (slotsUsed(out, perSlot) > slots && guard++ < 400) {
     let best = null;
-    for (const g of GROUPS) {
+    for (const g of order) {
       if (!(out[g] > 0) || out[g] - 1 < num(floors[g], 0)) continue;
       const frees = Math.ceil(out[g] / perSlot) - Math.ceil((out[g] - 1) / perSlot);
-      if (!best || frees > best.frees || (frees === best.frees && out[g] > out[best.g])) {
-        best = { g, frees };
-      }
+      /*
+       * Ties break on the biggest RELATIVE loss, not on position in GROUPS.
+       *
+       * `out[g] > out[best.g]` looks like "take from the largest", and it is —
+       * but push, pull and legs are funded identically on the muscle goal, so
+       * the comparison is a tie almost every time and a strict > hands it to
+       * whichever group GROUPS lists first. That is push, always. Measured
+       * across 8,640 muscle profiles: push finished below pull in 118 of them
+       * and pull finished below push in none, and at 2x60 every experience tier
+       * shipped push 6 against pull 8 — a 25% pressing deficit nobody decided
+       * on, in a calisthenics app.
+       *
+       * So the first tie-break is which group has given up least so far, which
+       * rotates the trimming across equals instead of billing one of them for
+       * all of it; size only decides when two have contributed the same.
+       */
+      const gave = taken[g] || 0;
+      const better = !best
+        || frees > best.frees
+        || (frees === best.frees && gave < best.gave)
+        || (frees === best.frees && gave === best.gave && out[g] > out[best.g]);
+      if (better) best = { g, frees, gave };
     }
     if (!best) break;
     out[best.g] -= 1;
+    taken[best.g] = (taken[best.g] || 0) + 1;
   }
   return out;
 }
@@ -2504,7 +2616,16 @@ function weeklyVolume(profile) {
      * charging them here would charge the same limit twice — `capacity` is
      * already built from the clock.
      */
-    const recovery = f.rest * f.load * f.years;
+    /*
+     * Capped at 1, because the sentence above says the clock is an upper bound
+     * and f.rest is 1.04 at eight and a half hours' sleep. Uncapped, a
+     * well-rested trainee on six 30-minute sessions was given 57 sets against a
+     * clock that affords 53 — 24.7 minutes of work in a 23-minute main block —
+     * while the note under it read "זה מה שבאמת נכנס בזמן שיש". Recovery
+     * decides where UNDER the clock to sit; it does not buy time that is not
+     * there.
+     */
+    const recovery = Math.min(1, f.rest * f.load * f.years);
     const k = (capacity * recovery) / sum;
     for (const g of GROUPS) base[g] *= k;
     sum = capacity * recovery;
@@ -2796,6 +2917,7 @@ function splitFor(profile) {
 
   return {
     "sessionBudget": sessionBudget,
+    "slotCapOf": slotCapOf,
     "weeklyVolume": weeklyVolume,
     "splitFor": splitFor,
   };
@@ -8771,17 +8893,69 @@ function seedOf(hash, salt) {
 const SETS_CEILING = { muscle: 3 };
 const SETS_CEILING_DEFAULT = 5;
 
+/*
+ * The fewest movements that make a session.
+ *
+ * Below three it stops reading as a workout and starts reading as a bug — and
+ * for good reason, since two exercises cannot cover a day's patterns. This is
+ * the bar the single-set fallback exists to reach and the bar tools/validate.js
+ * asserts across age, sleep and stress.
+ */
+const SESSION_FLOOR = 3;
+
+/*
+ * The fewest sets one exercise may carry, by goal.
+ *
+ * One, except on hypertrophy, where the card says in writing "2-3 סטים
+ * לתרגיל" and the whole failure-proximity model is built on that being the
+ * dose. A single set is the release valve that lets a lean week reach three
+ * movements a day; on the muscle goal that valve is closed, because using it
+ * would make the plan contradict the sentence the trainee chose the goal from.
+ * Measured, leaving it open put a 1-set exercise into 352 muscle weeks.
+ *
+ * The cost is a handful of two-exercise hypertrophy sessions at 30 minutes for
+ * badly-recovering trainees, and that is the right way round: a short session
+ * is a visible compromise, a card that lies about its own dose is not.
+ */
+const SETS_FLOOR = { muscle: 2 };
+const SETS_FLOOR_DEFAULT = 1;
+
+function setsFloor(goal) {
+  return SETS_FLOOR[goal] !== undefined ? SETS_FLOOR[goal] : SETS_FLOOR_DEFAULT;
+}
+
 function setsCeiling(goal) {
   return SETS_CEILING[goal] !== undefined ? SETS_CEILING[goal] : SETS_CEILING_DEFAULT;
 }
 
+/*
+ * Hand a group's weekly sets out over the exercises it earned.
+ *
+ * This started every slot at 2 and could not go under, which made two of the
+ * app's rules quietly incompatible. A session must hold at least three
+ * movements; a week must deliver exactly the sets it prints. At two 30-minute
+ * sessions for a 50-year-old sleeping badly the week is 11 sets, three
+ * movements a day is six slots, and six slots at a floor of 2 is 12 — so one
+ * of the two rules had to give, and the one that gave was the session: 17.6%
+ * of 30-minute profiles came out with a day holding two exercises, one of them
+ * a whole week of four movements across two days.
+ *
+ * A single set is the honest release valve. It is a real prescription in a
+ * genuinely lean week — it keeps the movement pattern in the week without
+ * adding fatigue the trainee has not got — and it costs nothing anywhere else,
+ * because the round-robin below produces byte-identical output whenever the
+ * group can afford 2 each. Only the slots the week genuinely cannot fund at 2
+ * come out at 1.
+ */
 function distributeSets(total, n, goal) {
   const cap = setsCeiling(goal);
-  const out = new Array(n).fill(2);
-  let left = Math.max(0, Math.round(total) - 2 * n);
+  const floor = setsFloor(goal);
+  const want = Math.max(n * floor, Math.round(total));
+  const out = new Array(n).fill(floor);
+  let left = want - n * floor;
   let i = 0;
   let guard = 0;
-  while (left > 0 && guard < 200) {
+  while (left > 0 && guard < 400) {
     if (out[i] < cap) { out[i] += 1; left -= 1; }
     i = (i + 1) % n;
     guard += 1;
@@ -8862,14 +9036,18 @@ function layout(profile, vol, budget, split) {
    */
   const slotsNeeded = (g) => {
     const t = numOr(vol[g], 0);
-    return t < 2 ? 0 : Math.max(1, Math.ceil(t / setsCeiling(goal)));
+    return t < 1 ? 0 : Math.max(1, Math.ceil(t / setsCeiling(goal)));
   };
   let spare = days.length * budget.maxSlots
     - priority.reduce((n, g) => n + slotsNeeded(g), 0);
 
   for (const group of priority) {
     const target = numOr(vol[group], 0);
-    if (target < 2) continue;
+    /* One set is a small dose, not an absent one. This skipped at <2 while
+       distributeSets floored at 2, so a group trimmed to a single set was
+       funded by the plan and never placed on it — 63 of 30,000 profiles
+       delivered one set under target, always core. */
+    if (target < 1) continue;
 
     let eligible = days.filter((d) => patternsOfGroup(d, group).length > 0);
     let fallbackPattern = null;
@@ -8985,12 +9163,27 @@ function layout(profile, vol, budget, split) {
   const slotFloor = Math.min(4, budget.maxSlots);
   const spent = {};
   for (const d of days) for (const s of d.picks) spent[s.group] = (spent[s.group] || 0) + 2;
-  const affords = (pat) => {
+  /*
+   * Two spare sets if anyone has them, one if nobody does.
+   *
+   * distributeSets can now put a single set on a movement, which is what lets
+   * a lean week reach three exercises a day at all. But a single set is a
+   * last resort and not a first choice: asking only for one spare set put
+   * 1-set exercises into 90-minute weeks that had plenty of room to fund two,
+   * and on the hypertrophy goal that contradicts the card in writing — it
+   * promises 2-3 sets per exercise, which is the dose the whole failure-
+   * proximity model is built on.
+   *
+   * So the day is offered every pattern that can pay properly first, and only
+   * a day that would otherwise finish under the floor reaches for the cheap
+   * one.
+   */
+  const affords = (pat, least) => {
     const g = PATTERN_GROUP[pat] || 'core';
-    return numOr(vol[g], 0) - (spent[g] || 0) >= 2;
+    return numOr(vol[g], 0) - (spent[g] || 0) >= least;
   };
-  const padOnce = (d) => {
-    let pats = d.def.patterns.filter(affords);
+  const padOnce = (d, least) => {
+    let pats = d.def.patterns.filter((pat) => affords(pat, least));
     /*
      * When the day's own patterns are all spent, borrow one that is not.
      *
@@ -9002,14 +9195,14 @@ function layout(profile, vol, budget, split) {
      */
     if (!pats.length) {
       pats = Object.keys(PATTERN_GROUP)
-        .filter((pat) => affords(pat) && !d.picks.some((s) => s.pattern === pat));
+        .filter((pat) => affords(pat, least) && !d.picks.some((s) => s.pattern === pat));
     }
     if (!pats.length) return false;
     const unused = pats.filter((pat) => !d.picks.some((s) => s.pattern === pat));
     const pattern = unused.length ? unused[0] : pats[d.picks.length % pats.length];
     const group = PATTERN_GROUP[pattern] || 'core';
     const own = d.def.patterns.indexOf(pattern);
-    spent[group] = (spent[group] || 0) + 2;
+    spent[group] = (spent[group] || 0) + least;
     d.picks.push({
       group,
       pattern,
@@ -9030,14 +9223,19 @@ function layout(profile, vol, budget, split) {
    * gets its fourth, so what the week cannot afford is one movement missing
    * from several sessions rather than a whole session missing from the week.
    */
-  for (let level = 1; level <= slotFloor; level++) {
-    let moved = true;
-    let guard = 0;
-    while (moved && guard++ < 24) {
-      moved = false;
-      for (const d of days) {
-        if (d.picks.length >= level || d.picks.length >= budget.maxSlots) continue;
-        if (padOnce(d)) moved = true;
+  for (const least of [2, setsFloor(goal)]) {
+    for (let level = 1; level <= slotFloor; level++) {
+      /* The single-set pass only rescues days under the floor; it never adds
+         a fourth movement the week cannot fund properly. */
+      if (least < 2 && level > SESSION_FLOOR) break;
+      let moved = true;
+      let guard = 0;
+      while (moved && guard++ < 24) {
+        moved = false;
+        for (const d of days) {
+          if (d.picks.length >= level || d.picks.length >= budget.maxSlots) continue;
+          if (padOnce(d, least)) moved = true;
+        }
       }
     }
   }
@@ -10169,6 +10367,7 @@ function trainingDayIndex(profile, daysPerWeek, dayNo) {
 
   return {
     "PATTERN_GROUP": PATTERN_GROUP,
+    "setsCeiling": setsCeiling,
     "generateProgram": generateProgram,
   };
 })();
@@ -10194,7 +10393,8 @@ __m["src/vision/apply.js"] = (function () {
  * nothing itself — emphasisSummary needs it to say what a read actually changed.
  */
 
-const { withholdsFatLoss, stillDeveloping } = __m["src/engine/age.js"];
+const { stillDeveloping } = __m["src/engine/age.js"];
+const { fatLossHold } = __m["src/engine/holds.js"];
 
 const { weeklyVolume } = __m["src/engine/volume.js"];
 const { PATTERN_GROUP } = __m["src/engine/generator.js"];
@@ -10537,19 +10737,23 @@ const GOAL_HE = {
   fatloss: 'ירידה בשומן', muscle: 'עלייה במסה', strength: 'כוח', fitness: 'כושר כללי',
 };
 
-/* Duplicated rather than imported: apply.js is the pure layer the engine and the
-   audits load, and it must not pull in the network client's dependency chain to
-   answer a question about two numbers. */
+/*
+ * Asked of holds.js rather than worked out again here.
+ *
+ * The old comment said this was duplicated to keep apply.js off the network
+ * client's dependency chain, which was a good reason for not importing
+ * analyze.js and no reason at all for not importing holds.js — holds.js is
+ * pure arithmetic over a profile and pulls in age.js and nothing else.
+ *
+ * What the duplicate cost: it knew about age and BMI, which is two of the four
+ * reasons the app refuses a deficit, and it never learned the other two.
+ * Measured, a profile declaring pregnancy or a history of anorexia was offered
+ * a one-tap button switching its goal to fat loss, with the model's own
+ * argument for it printed underneath, while every engine downstream went on
+ * refusing to build one.
+ */
 function fatLossDisallowed(profile) {
-  const age = Number(profile && profile.age);
-  // Asked of the profile, not of a number reconstructed from it: Number(null)
-  // is 0, and handing 0 to a gate written to reject a missing age turns "we do
-  // not know" into "twelve years under eighteen".
-  if (withholdsFatLoss(profile)) return true;
-  const h = Number(profile && profile.heightCm);
-  const w = Number(profile && profile.weightKg);
-  if (!Number.isFinite(h) || !Number.isFinite(w) || h <= 0) return false;
-  return w / ((h / 100) ** 2) < 18.5;
+  return fatLossHold(profile) !== null;
 }
 
 /**
@@ -12825,7 +13029,8 @@ __m["src/vision/analyze.js"] = (function () {
  */
 
 const { callTool, imageBlock, dataUrlBytes, AiError, choiceFor } = __m["src/ai/client.js"];
-const { PHOTO_SCAN_FROM, withholdsPhotoScan, withholdsFatLoss } = __m["src/engine/age.js"];
+const { PHOTO_SCAN_FROM, withholdsPhotoScan } = __m["src/engine/age.js"];
+const { fatLossHold } = __m["src/engine/holds.js"];
 const { SYSTEM, TOOL, PATTERNS, buildMessage } = __m["src/vision/prompt.js"];
 
 const PATTERN_SET = new Set(PATTERNS);
@@ -12857,26 +13062,24 @@ const MAX_IMAGE_BYTES = 3 * 1024 * 1024;
  * how the next person gets the threshold wrong.
  */
 
-/*
- * Below this the app will not carry a fat-loss recommendation, whatever the
- * model returns. 18.5 is the conventional underweight threshold; the point is
- * not diagnostic precision but that an app must never assemble restriction plus
- * cardio for someone already under it.
+/**
+ * True when a fat-loss steer must not be shown, whoever suggested it.
+ *
+ * This used to re-derive the answer from age and BMI, which is two of the four
+ * reasons the app has for refusing a deficit. The other two are the medical
+ * ones, and they are the reasons the refusal exists at all: measured, a profile
+ * declaring pregnancy — by chip or in free text — and a profile declaring a
+ * history of anorexia were both offered a one-tap button changing their goal to
+ * fat loss, with the model's own argument for it underneath. The engine went on
+ * refusing the deficit downstream, so the app's position was that she may not
+ * have it and may be invited to ask.
+ *
+ * holds.js exists so there is one home for every refusal to run a deficit, and
+ * a second copy of a safety rule is a copy that will drift. It drifted here
+ * within one cycle of being written.
  */
-const UNDERWEIGHT_BMI = 18.5;
-
-function bmiOf(profile) {
-  const h = Number(profile && profile.heightCm);
-  const w = Number(profile && profile.weightKg);
-  if (!Number.isFinite(h) || !Number.isFinite(w) || h <= 0) return null;
-  return w / ((h / 100) ** 2);
-}
-
-/** True when a fat-loss steer must not be shown, whoever suggested it. */
 function fatLossBlocked(profile) {
-  if (withholdsFatLoss(profile)) return true;
-  const bmi = bmiOf(profile);
-  return bmi !== null && bmi < UNDERWEIGHT_BMI;
+  return fatLossHold(profile) !== null;
 }
 
 /**
@@ -19940,6 +20143,7 @@ __m["src/app.js"] = (function () {
  */
 
 const { LOGO } = __m["src/core/brand.js"];
+const { effectiveGoal } = __m["src/engine/holds.js"];
 const { h, clear, qs, announce } = __m["src/core/dom.js"];
 const store = __m["src/core/store.js"];
 
@@ -20208,10 +20412,21 @@ function planHeader(profile, program) {
   let chips = [];
   try { chips = facts(profile) || []; } catch (e) { console.error(e); }
 
+  /*
+   * The effective goal, not the chip the user tapped.
+   *
+   * effectiveGoal() rewrites fatloss to fitness for a minor, a pregnancy, a
+   * declared eating disorder or a BMI under 18.5, and every engine asks it —
+   * generator, volume, progression, restday, targets. This did not, so the
+   * masthead announced "ירידה בשומן" in the h1 above every tab while the plan
+   * underneath was a general-fitness week and the food tab was at maintenance.
+   * The one line on screen 100% of the time was the one line still quoting the
+   * refused goal back at the person it was refused for.
+   */
   const goalWord = {
     fatloss: 'ירידה בשומן', muscle: 'עלייה במסה', strength: 'כוח',
     fitness: 'כושר כללי', sport: profile.sport || 'ספורט',
-  }[profile.goal] || 'כושר';
+  }[effectiveGoal(profile)] || 'כושר';
 
   return h('header', { style: { padding: '28px 0 6px' } },
     h('div.eyebrow', [

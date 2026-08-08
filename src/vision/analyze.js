@@ -17,7 +17,8 @@
  */
 
 import { callTool, imageBlock, dataUrlBytes, AiError, choiceFor } from '../ai/client.js';
-import { PHOTO_SCAN_FROM, withholdsPhotoScan, withholdsFatLoss } from '../engine/age.js';
+import { PHOTO_SCAN_FROM, withholdsPhotoScan } from '../engine/age.js';
+import { fatLossHold } from '../engine/holds.js';
 import { SYSTEM, TOOL, PATTERNS, buildMessage } from './prompt.js';
 
 const PATTERN_SET = new Set(PATTERNS);
@@ -49,26 +50,24 @@ const MAX_IMAGE_BYTES = 3 * 1024 * 1024;
  * how the next person gets the threshold wrong.
  */
 
-/*
- * Below this the app will not carry a fat-loss recommendation, whatever the
- * model returns. 18.5 is the conventional underweight threshold; the point is
- * not diagnostic precision but that an app must never assemble restriction plus
- * cardio for someone already under it.
+/**
+ * True when a fat-loss steer must not be shown, whoever suggested it.
+ *
+ * This used to re-derive the answer from age and BMI, which is two of the four
+ * reasons the app has for refusing a deficit. The other two are the medical
+ * ones, and they are the reasons the refusal exists at all: measured, a profile
+ * declaring pregnancy — by chip or in free text — and a profile declaring a
+ * history of anorexia were both offered a one-tap button changing their goal to
+ * fat loss, with the model's own argument for it underneath. The engine went on
+ * refusing the deficit downstream, so the app's position was that she may not
+ * have it and may be invited to ask.
+ *
+ * holds.js exists so there is one home for every refusal to run a deficit, and
+ * a second copy of a safety rule is a copy that will drift. It drifted here
+ * within one cycle of being written.
  */
-const UNDERWEIGHT_BMI = 18.5;
-
-function bmiOf(profile) {
-  const h = Number(profile && profile.heightCm);
-  const w = Number(profile && profile.weightKg);
-  if (!Number.isFinite(h) || !Number.isFinite(w) || h <= 0) return null;
-  return w / ((h / 100) ** 2);
-}
-
-/** True when a fat-loss steer must not be shown, whoever suggested it. */
 export function fatLossBlocked(profile) {
-  if (withholdsFatLoss(profile)) return true;
-  const bmi = bmiOf(profile);
-  return bmi !== null && bmi < UNDERWEIGHT_BMI;
+  return fatLossHold(profile) !== null;
 }
 
 /**

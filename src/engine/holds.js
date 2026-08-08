@@ -156,6 +156,74 @@ const MEDICAL_FLAGS = [
  */
 const NEGATORS = ['לא ', 'אין ', 'ללא ', 'שולל', 'no ', 'not ', 'never ', 'without ', 'denies'];
 
+/*
+ * Where one clause ends and the next begins.
+ *
+ * This was `/[.,;\n]|\bאבל\b|\bו?אך\b/`, and the two Hebrew alternations in it
+ * have never matched anything. \b in JavaScript is defined against [A-Za-z0-9_],
+ * so every Hebrew letter is a non-word character and \bאבל\b asks for a boundary
+ * between two non-word characters, which does not exist. Verified directly:
+ * /\bאבל\b/.test('יש אבל כן') is false where /\babc\b/.test('x abc y') is true.
+ *
+ * Only the punctuation branch was live, and Hebrew does not need punctuation to
+ * join clauses — it prefixes ו to the next word. So one לא or אין anywhere in a
+ * sentence cleared every condition after it:
+ *
+ *   "לא מעשנת, לא שותה, יש לי היסטוריה של אנורקסיה"  -> eating_disorder hold
+ *   "לא מעשנת, לא שותה ויש לי היסטוריה של אנורקסיה"  -> nothing, and a 411 kcal
+ *                                                       deficit with a weekly
+ *                                                       weigh-in attached
+ *
+ * One character apart. Same for "לא מעשנת ואני בהריון", and — the sting — for
+ * the exact sentence the old comment offered as its worked example, once the
+ * comma is dropped: "לא בהריון אבל יש לי סוכרת" flagged nothing at all. The
+ * check in tools/validate.js wrote that example WITH the comma, so it passed on
+ * the punctuation branch and the branch it was written to test never ran.
+ */
+const CLAUSE_BREAK = /[.,;\n]|\s+אבל\s+|\s+ו?אך\s+|\s+but\s+/;
+
+/*
+ * A vav-prefixed word starts a new clause — unless it is just the next item in
+ * a list.
+ *
+ * Splitting on every " ו" fixes the misses and breaks the denials: "אין לי
+ * סוכרת ולחץ דם" is one refusal of two things, and cutting it in two hands back
+ * a cardiac flag to somebody who just denied it. Measured, that phrasing family
+ * was 4 false positives out of 5.
+ *
+ * What separates them is whether the fragment is a new predicate or a bare noun.
+ * "ואני בהריון", "ואובחנתי עם בולימיה", "ורופא אמר" are sentences; "ולחץ דם",
+ * "ובולימיה", "וכליות" are list items. So the split always happens and the
+ * NEGATION is what carries: only a short fragment with no sign of a predicate
+ * inherits the previous clause's denial.
+ *
+ * The default is deliberately the flagging one. A fragment long enough to be a
+ * sentence, or carrying any opener, stands on its own — so a phrasing this list
+ * has not seen produces a false flag rather than a missed condition. A false
+ * flag costs somebody a warning they did not need. The other direction costs a
+ * pregnant woman a calorie deficit.
+ */
+const LIST_ITEM_WORDS = 3;
+const CLAUSE_OPENER = /אני|אנחנו|יש |היה|הייתי|זה |גם |אצלי|סובל|מאובחן|אובחנ|נוטל|לוקח|לקחתי|עברתי|קיבלתי|התחלתי|רופא|i have|i am|i've/;
+
+/** The text split into clauses, each marked with whether it inherits negation. */
+function clausesOf(raw) {
+  const out = [];
+  for (const hard of raw.split(CLAUSE_BREAK).map((c) => c.trim()).filter(Boolean)) {
+    const bits = hard.split(/\s+ו(?=[א-ת])/);
+    out.push({ text: bits[0].trim(), inherits: false });
+    for (const b of bits.slice(1)) {
+      const text = b.trim();
+      if (!text) continue;
+      out.push({
+        text,
+        inherits: text.split(/\s+/).length <= LIST_ITEM_WORDS && !CLAUSE_OPENER.test(text),
+      });
+    }
+  }
+  return out;
+}
+
 /**
  * Every medical flag this free text trips, as {key, he}. Empty when none.
  *
@@ -168,11 +236,15 @@ export function medicalFlags(profile) {
   const raw = `${p.medical || ''} . ${p.supplements || ''} . ${p.surgeries || ''}`.toLowerCase();
   if (!raw.trim()) return [];
   /* Split into clauses so a negation only clears its own sentence, not the
-     whole answer — "לא בהריון, אבל יש סוכרת" must still flag the diabetes. */
-  const clauses = raw.split(/[.,;\n]|\bאבל\b|\bו?אך\b/).map((c) => c.trim()).filter(Boolean);
+     whole answer — "לא בהריון אבל יש סוכרת" must still flag the diabetes, with
+     or without the comma. See CLAUSE_BREAK for why it used to need one. */
   const hit = new Set();
-  for (const c of clauses) {
-    const negated = NEGATORS.some((n) => c.includes(n));
+  let carried = false;
+  for (const clause of clausesOf(raw)) {
+    const c = clause.text;
+    const own = NEGATORS.some((n) => c.includes(n));
+    const negated = own || (clause.inherits && carried);
+    carried = clause.inherits ? negated : own;
     for (const f of MEDICAL_FLAGS) {
       for (const t of f.terms) {
         if (!c.includes(t)) continue;

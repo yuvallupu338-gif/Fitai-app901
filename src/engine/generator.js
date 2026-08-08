@@ -656,17 +656,69 @@ function seedOf(hash, salt) {
 const SETS_CEILING = { muscle: 3 };
 const SETS_CEILING_DEFAULT = 5;
 
-function setsCeiling(goal) {
+/*
+ * The fewest movements that make a session.
+ *
+ * Below three it stops reading as a workout and starts reading as a bug — and
+ * for good reason, since two exercises cannot cover a day's patterns. This is
+ * the bar the single-set fallback exists to reach and the bar tools/validate.js
+ * asserts across age, sleep and stress.
+ */
+const SESSION_FLOOR = 3;
+
+/*
+ * The fewest sets one exercise may carry, by goal.
+ *
+ * One, except on hypertrophy, where the card says in writing "2-3 סטים
+ * לתרגיל" and the whole failure-proximity model is built on that being the
+ * dose. A single set is the release valve that lets a lean week reach three
+ * movements a day; on the muscle goal that valve is closed, because using it
+ * would make the plan contradict the sentence the trainee chose the goal from.
+ * Measured, leaving it open put a 1-set exercise into 352 muscle weeks.
+ *
+ * The cost is a handful of two-exercise hypertrophy sessions at 30 minutes for
+ * badly-recovering trainees, and that is the right way round: a short session
+ * is a visible compromise, a card that lies about its own dose is not.
+ */
+const SETS_FLOOR = { muscle: 2 };
+const SETS_FLOOR_DEFAULT = 1;
+
+function setsFloor(goal) {
+  return SETS_FLOOR[goal] !== undefined ? SETS_FLOOR[goal] : SETS_FLOOR_DEFAULT;
+}
+
+export function setsCeiling(goal) {
   return SETS_CEILING[goal] !== undefined ? SETS_CEILING[goal] : SETS_CEILING_DEFAULT;
 }
 
+/*
+ * Hand a group's weekly sets out over the exercises it earned.
+ *
+ * This started every slot at 2 and could not go under, which made two of the
+ * app's rules quietly incompatible. A session must hold at least three
+ * movements; a week must deliver exactly the sets it prints. At two 30-minute
+ * sessions for a 50-year-old sleeping badly the week is 11 sets, three
+ * movements a day is six slots, and six slots at a floor of 2 is 12 — so one
+ * of the two rules had to give, and the one that gave was the session: 17.6%
+ * of 30-minute profiles came out with a day holding two exercises, one of them
+ * a whole week of four movements across two days.
+ *
+ * A single set is the honest release valve. It is a real prescription in a
+ * genuinely lean week — it keeps the movement pattern in the week without
+ * adding fatigue the trainee has not got — and it costs nothing anywhere else,
+ * because the round-robin below produces byte-identical output whenever the
+ * group can afford 2 each. Only the slots the week genuinely cannot fund at 2
+ * come out at 1.
+ */
 function distributeSets(total, n, goal) {
   const cap = setsCeiling(goal);
-  const out = new Array(n).fill(2);
-  let left = Math.max(0, Math.round(total) - 2 * n);
+  const floor = setsFloor(goal);
+  const want = Math.max(n * floor, Math.round(total));
+  const out = new Array(n).fill(floor);
+  let left = want - n * floor;
   let i = 0;
   let guard = 0;
-  while (left > 0 && guard < 200) {
+  while (left > 0 && guard < 400) {
     if (out[i] < cap) { out[i] += 1; left -= 1; }
     i = (i + 1) % n;
     guard += 1;
@@ -747,14 +799,18 @@ function layout(profile, vol, budget, split) {
    */
   const slotsNeeded = (g) => {
     const t = numOr(vol[g], 0);
-    return t < 2 ? 0 : Math.max(1, Math.ceil(t / setsCeiling(goal)));
+    return t < 1 ? 0 : Math.max(1, Math.ceil(t / setsCeiling(goal)));
   };
   let spare = days.length * budget.maxSlots
     - priority.reduce((n, g) => n + slotsNeeded(g), 0);
 
   for (const group of priority) {
     const target = numOr(vol[group], 0);
-    if (target < 2) continue;
+    /* One set is a small dose, not an absent one. This skipped at <2 while
+       distributeSets floored at 2, so a group trimmed to a single set was
+       funded by the plan and never placed on it — 63 of 30,000 profiles
+       delivered one set under target, always core. */
+    if (target < 1) continue;
 
     let eligible = days.filter((d) => patternsOfGroup(d, group).length > 0);
     let fallbackPattern = null;
@@ -870,12 +926,27 @@ function layout(profile, vol, budget, split) {
   const slotFloor = Math.min(4, budget.maxSlots);
   const spent = {};
   for (const d of days) for (const s of d.picks) spent[s.group] = (spent[s.group] || 0) + 2;
-  const affords = (pat) => {
+  /*
+   * Two spare sets if anyone has them, one if nobody does.
+   *
+   * distributeSets can now put a single set on a movement, which is what lets
+   * a lean week reach three exercises a day at all. But a single set is a
+   * last resort and not a first choice: asking only for one spare set put
+   * 1-set exercises into 90-minute weeks that had plenty of room to fund two,
+   * and on the hypertrophy goal that contradicts the card in writing — it
+   * promises 2-3 sets per exercise, which is the dose the whole failure-
+   * proximity model is built on.
+   *
+   * So the day is offered every pattern that can pay properly first, and only
+   * a day that would otherwise finish under the floor reaches for the cheap
+   * one.
+   */
+  const affords = (pat, least) => {
     const g = PATTERN_GROUP[pat] || 'core';
-    return numOr(vol[g], 0) - (spent[g] || 0) >= 2;
+    return numOr(vol[g], 0) - (spent[g] || 0) >= least;
   };
-  const padOnce = (d) => {
-    let pats = d.def.patterns.filter(affords);
+  const padOnce = (d, least) => {
+    let pats = d.def.patterns.filter((pat) => affords(pat, least));
     /*
      * When the day's own patterns are all spent, borrow one that is not.
      *
@@ -887,14 +958,14 @@ function layout(profile, vol, budget, split) {
      */
     if (!pats.length) {
       pats = Object.keys(PATTERN_GROUP)
-        .filter((pat) => affords(pat) && !d.picks.some((s) => s.pattern === pat));
+        .filter((pat) => affords(pat, least) && !d.picks.some((s) => s.pattern === pat));
     }
     if (!pats.length) return false;
     const unused = pats.filter((pat) => !d.picks.some((s) => s.pattern === pat));
     const pattern = unused.length ? unused[0] : pats[d.picks.length % pats.length];
     const group = PATTERN_GROUP[pattern] || 'core';
     const own = d.def.patterns.indexOf(pattern);
-    spent[group] = (spent[group] || 0) + 2;
+    spent[group] = (spent[group] || 0) + least;
     d.picks.push({
       group,
       pattern,
@@ -915,14 +986,19 @@ function layout(profile, vol, budget, split) {
    * gets its fourth, so what the week cannot afford is one movement missing
    * from several sessions rather than a whole session missing from the week.
    */
-  for (let level = 1; level <= slotFloor; level++) {
-    let moved = true;
-    let guard = 0;
-    while (moved && guard++ < 24) {
-      moved = false;
-      for (const d of days) {
-        if (d.picks.length >= level || d.picks.length >= budget.maxSlots) continue;
-        if (padOnce(d)) moved = true;
+  for (const least of [2, setsFloor(goal)]) {
+    for (let level = 1; level <= slotFloor; level++) {
+      /* The single-set pass only rescues days under the floor; it never adds
+         a fourth movement the week cannot fund properly. */
+      if (least < 2 && level > SESSION_FLOOR) break;
+      let moved = true;
+      let guard = 0;
+      while (moved && guard++ < 24) {
+        moved = false;
+        for (const d of days) {
+          if (d.picks.length >= level || d.picks.length >= budget.maxSlots) continue;
+          if (padOnce(d, least)) moved = true;
+        }
       }
     }
   }

@@ -6,6 +6,7 @@
  */
 
 import { LOGO } from './core/brand.js';
+import { effectiveGoal } from './engine/holds.js';
 import { h, clear, qs, announce } from './core/dom.js';
 import * as store from './core/store.js';
 
@@ -274,10 +275,21 @@ function planHeader(profile, program) {
   let chips = [];
   try { chips = facts(profile) || []; } catch (e) { console.error(e); }
 
+  /*
+   * The effective goal, not the chip the user tapped.
+   *
+   * effectiveGoal() rewrites fatloss to fitness for a minor, a pregnancy, a
+   * declared eating disorder or a BMI under 18.5, and every engine asks it —
+   * generator, volume, progression, restday, targets. This did not, so the
+   * masthead announced "ירידה בשומן" in the h1 above every tab while the plan
+   * underneath was a general-fitness week and the food tab was at maintenance.
+   * The one line on screen 100% of the time was the one line still quoting the
+   * refused goal back at the person it was refused for.
+   */
   const goalWord = {
     fatloss: 'ירידה בשומן', muscle: 'עלייה במסה', strength: 'כוח',
     fitness: 'כושר כללי', sport: profile.sport || 'ספורט',
-  }[profile.goal] || 'כושר';
+  }[effectiveGoal(profile)] || 'כושר';
 
   return h('header', { style: { padding: '28px 0 6px' } },
     h('div.eyebrow', [

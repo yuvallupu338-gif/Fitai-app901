@@ -251,12 +251,13 @@ const NO_FLOOR = { push: 0, pull: 0, legs: 0, core: 0, arms: 0, shoulders: 0, ca
  * them whether or not it uses the sixth. Restated rather than imported: the
  * generator already imports this module and a cycle between the two is worth
  * avoiding for a number that changes once a year. tools/validate.js holds the
- * two against each other, and against the literal 3 and 5.
+ * two against each other, and against the literal 3 and 5 — check 1a in the
+ * hypertrophy volume block.
  */
 const SETS_PER_SLOT_CAP = { muscle: 3 };
 const SETS_PER_SLOT_CAP_DEFAULT = 5;
 
-function slotCapOf(goal) {
+export function slotCapOf(goal) {
   return SETS_PER_SLOT_CAP[goal] !== undefined ? SETS_PER_SLOT_CAP[goal] : SETS_PER_SLOT_CAP_DEFAULT;
 }
 
@@ -298,18 +299,57 @@ function slotsUsed(v, perSlot) {
  */
 function fitToSlots(v, floors, perSlot, slots) {
   const out = Object.assign({}, v);
+  const taken = {};
+  /*
+   * Where the scan for a group to trim starts.
+   *
+   * Freeing one exercise slot costs a single group two sets when it sits one
+   * past a multiple of the cap — the first set frees nothing and the second
+   * frees the slot — so somebody has to take the whole cut and no ordering
+   * can spread it. What ordering CAN decide is who, and scanning GROUPS from
+   * index 0 every time meant the answer was push, every time: measured, push
+   * finished below pull in 118 of 8,640 muscle weeks and pull below push in
+   * none, with 2x60 shipping push 6 against pull 8 at every experience tier.
+   *
+   * So the scan starts at a different place depending on the week's own size.
+   * It is still fully deterministic — the same profile always gets the same
+   * plan — but across the population the cut lands on pushing, pulling and
+   * legs in turn rather than on pressing alone.
+   */
+  const start = Math.abs(Math.round(num(v.total, GROUPS.reduce((n, g) => n + num(v[g], 0), 0)))) % GROUPS.length;
+  const order = GROUPS.slice(start).concat(GROUPS.slice(0, start));
   let guard = 0;
   while (slotsUsed(out, perSlot) > slots && guard++ < 400) {
     let best = null;
-    for (const g of GROUPS) {
+    for (const g of order) {
       if (!(out[g] > 0) || out[g] - 1 < num(floors[g], 0)) continue;
       const frees = Math.ceil(out[g] / perSlot) - Math.ceil((out[g] - 1) / perSlot);
-      if (!best || frees > best.frees || (frees === best.frees && out[g] > out[best.g])) {
-        best = { g, frees };
-      }
+      /*
+       * Ties break on the biggest RELATIVE loss, not on position in GROUPS.
+       *
+       * `out[g] > out[best.g]` looks like "take from the largest", and it is —
+       * but push, pull and legs are funded identically on the muscle goal, so
+       * the comparison is a tie almost every time and a strict > hands it to
+       * whichever group GROUPS lists first. That is push, always. Measured
+       * across 8,640 muscle profiles: push finished below pull in 118 of them
+       * and pull finished below push in none, and at 2x60 every experience tier
+       * shipped push 6 against pull 8 — a 25% pressing deficit nobody decided
+       * on, in a calisthenics app.
+       *
+       * So the first tie-break is which group has given up least so far, which
+       * rotates the trimming across equals instead of billing one of them for
+       * all of it; size only decides when two have contributed the same.
+       */
+      const gave = taken[g] || 0;
+      const better = !best
+        || frees > best.frees
+        || (frees === best.frees && gave < best.gave)
+        || (frees === best.frees && gave === best.gave && out[g] > out[best.g]);
+      if (better) best = { g, frees, gave };
     }
     if (!best) break;
     out[best.g] -= 1;
+    taken[best.g] = (taken[best.g] || 0) + 1;
   }
   return out;
 }
@@ -530,7 +570,16 @@ export function weeklyVolume(profile) {
      * charging them here would charge the same limit twice — `capacity` is
      * already built from the clock.
      */
-    const recovery = f.rest * f.load * f.years;
+    /*
+     * Capped at 1, because the sentence above says the clock is an upper bound
+     * and f.rest is 1.04 at eight and a half hours' sleep. Uncapped, a
+     * well-rested trainee on six 30-minute sessions was given 57 sets against a
+     * clock that affords 53 — 24.7 minutes of work in a 23-minute main block —
+     * while the note under it read "זה מה שבאמת נכנס בזמן שיש". Recovery
+     * decides where UNDER the clock to sit; it does not buy time that is not
+     * there.
+     */
+    const recovery = Math.min(1, f.rest * f.load * f.years);
     const k = (capacity * recovery) / sum;
     for (const g of GROUPS) base[g] *= k;
     sum = capacity * recovery;
