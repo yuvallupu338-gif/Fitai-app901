@@ -46,6 +46,23 @@ those tokens, so no rule hard-codes a surface.
 It is 25 MB because 97% of it is base64: 63 WebP exercise demos, 319 food and
 machine photos, the Rubik subsets and the logo marks.
 
+**Set intensity on the mass goal.** Picking מסה prescribes every working set at
+RIR 0-2 — to failure, or one to two reps short of it — and that holds through
+the accumulation and peak weeks of the mesocycle. Two modes keep their own
+lighter prescription on purpose: the deload week exists to shed fatigue, and the
+return-from-layoff ramp to rebuild tolerance, so neither is trained to failure.
+The other goals are untouched: חיטוב carries no RIR line, and שריר+חיטוב and
+שמירה stay at RIR 1-2, or 2-3 from level 7. The per-set logging field and the
+progression cue follow the same rule, so a set logged at RIR 0 reads as on
+target on mass and as a caution everywhere else.
+
+**Icons.** One logo, three renders, because one bitmap cannot serve a 42px
+header box and a 512px launcher tile. `LOGO_MARK` is the glyph full-bleed on the
+brand's navy, used for the header, the favicon and the `any` manifest icon;
+`LOGO_MASK` is the same glyph at 46% so an Android squircle crop cannot clip it;
+`LOGO_FULL` is the wide lockup, for the splash only. The wide lockup used to be
+declared as a 512×512 maskable icon, which a launcher squashes.
+
 ### On GitHub Pages
 
 Pages serves a project site from a subpath (`/Fitai-app901/`, not a domain
