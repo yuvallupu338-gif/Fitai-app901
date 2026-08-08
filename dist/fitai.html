@@ -1937,7 +1937,30 @@ const SMALL = ['arms', 'shoulders', 'calves', 'conditioning'];
  */
 const GOAL_BASE = {
   strength: { push: 13, pull: 13, legs: 15, core: 6, arms: 5, shoulders: 5, calves: 4, conditioning: 3 },
-  muscle: { push: 16, pull: 16, legs: 15, core: 7, arms: 8, shoulders: 6, calves: 5, conditioning: 2 },
+  /*
+   * Cut to match the intensity, on a three-consultant consensus.
+   *
+   * Every rep-based hypertrophy set is now taken to failure or within two reps
+   * of it. All three advisors independently returned push 12 / pull 12 /
+   * legs 12 / core 6 / calves 4, and the honest reason is fatigue and time
+   * rather than stimulus overshoot: the failure-vs-non-failure meta-analyses
+   * (Grgic 2022, Refalo 2023) find the hypertrophy difference trivial-to-small,
+   * while the recovery cost of a set to failure is well established at 24-48h
+   * against 6-24h. So the stimulus per set went up modestly and the bill went up
+   * a lot, and 16 / 1.3 is 12.
+   *
+   * arms 8 -> 5 is the largest single cut and it is not about RIR at all.
+   * Counting primary AND secondary exposure across a generated week, the
+   * triceps already receive 18 sets and the shoulders 21 against the chest's 9 —
+   * in a plan whose largest allocated group is "push". Direct arm work is being
+   * added on top of a bill the compounds have already paid.
+   *
+   * Not 4: at 4 the small groups fall under the survivors() bar and vanish
+   * entirely on short weeks. Measured — arms, shoulders AND calves all came out
+   * at 0 for a beginner at 3x45, which reads as broken rather than as lean.
+   * At 5 they survive at 3, which is a real dose.
+   */
+  muscle: { push: 12, pull: 12, legs: 12, core: 6, arms: 5, shoulders: 5, calves: 4, conditioning: 3 },
   fatloss: { push: 12, pull: 12, legs: 13, core: 8, arms: 4, shoulders: 4, calves: 3, conditioning: 10 },
   fitness: { push: 12, pull: 12, legs: 12, core: 8, arms: 4, shoulders: 4, calves: 3, conditioning: 7 },
   sport: { push: 10, pull: 12, legs: 14, core: 8, arms: 3, shoulders: 3, calves: 3, conditioning: 9 },
@@ -1947,8 +1970,15 @@ const GOAL_BASE = {
    after it, and the walking and loading around it. Strength rests long. */
 const MIN_PER_SET = { strength: 3.2, muscle: 2.6, fatloss: 2.0, fitness: 2.1, sport: 2.2 };
 
-/* Upper bound per muscle group. A beginner does not need 20 sets of chest. */
-const CEILING = { beginner: 14, returning: 16, intermediate: 18, advanced: 20 };
+/*
+ * Upper bound per muscle group. A beginner does not need 20 sets of chest.
+ *
+ * Lowered with the base, and it matters more than the base does: at the long
+ * shapes these ARE the prescription. An advanced trainee at 6x90 came out at
+ * exactly 20/20/20 — pinned here, not derived from GOAL_BASE — so changing the
+ * base alone left the heaviest, most fatigue-exposed users almost untouched.
+ */
+const CEILING = { beginner: 11, returning: 12, intermediate: 14, advanced: 16 };
 
 const GOAL_HE = {
   fatloss: 'ירידה בשומן', muscle: 'עלייה במסה', strength: 'כוח',
@@ -2036,7 +2066,16 @@ function sessionBudget(profile) {
   const mainMin = Math.max(10, minutes - warmupMin - finisherMin);
 
   // 30 min -> 5, 45 -> 6, 60 -> 7, 75 -> 9, 90 -> 10 slots, before the goal nudge.
-  const goalAdj = goal === 'strength' ? -1 : (goal === 'fatloss' ? 1 : 0);
+  /*
+   * Hypertrophy loses a slot for the same reason strength has always lost one.
+   *
+   * distributeSets() floors every exercise at 2, so delivered volume can never
+   * fall below 2x the exercise count and cutting the target alone does nothing
+   * once you are near that floor. And a 7-movement upper day where every set
+   * goes to failure is 7 cold-start fatigue spikes on a 9-minute warm-up
+   * budget — the exercise count drives overuse harder than the set count does.
+   */
+  const goalAdj = (goal === 'strength' || goal === 'muscle') ? -1 : (goal === 'fatloss' ? 1 : 0);
   const maxSlots = clampInt(2.2 + 0.085 * minutes + goalAdj, 3, 11, 6);
 
   return { warmupMin, mainMin, finisherMin, maxSlots };
@@ -2317,8 +2356,21 @@ function weeklyVolume(profile) {
      * length already describe how much work fits and how much a trainee can
      * handle — reusing them would charge the same limit twice.
      */
-    const recovery = f.rest * f.load * f.years;
-    const k = Math.min(1.3, (capacity * 0.85 * recovery) / Math.max(1, sum));
+    /*
+     * The recovery term used to appear here too, and it cancelled itself out.
+     *
+     * `sum` is already proportional to recovery — every group is
+     * GOAL_BASE[g] * f.total, and f.total contains f.years — so multiplying the
+     * numerator by the same factor divided straight back out. Measured: k came
+     * to 1.164 at ages 25, 55, 68 and 80 alike, and a 25-year-old and an
+     * 80-year-old at 5x75 received push 18 / pull 18 / legs 18, identically.
+     * The age curve in this file asked for a 14% reduction and delivered 4%.
+     *
+     * The fill target drops from 0.85 to 0.70 for the same reason the volume
+     * did. The comment above already said extra time is worth more as rest than
+     * as sets; at RIR 0-2 that is emphatically true, and 0.85 contradicted it.
+     */
+    const k = Math.min(1.15, (capacity * 0.70) / Math.max(1, sum));
     if (k > 1) {
       for (const g of GROUPS) base[g] = Math.min(base[g] * k, caps[g]);
       sum = GROUPS.reduce((n, g) => n + base[g], 0);
@@ -16195,6 +16247,23 @@ function mealCard(meal, index, redraw) {
 
 __m["src/engine/progression.js"] = (function () {
 /*
+ * NOTE on the deload week, added when hypertrophy moved to RIR 0-2.
+ *
+ * generateProgram takes a profile and no week, so it cannot produce a different
+ * card on a deload week — week 1 and week 5 are byte-identical. That was a
+ * cosmetic gap while the plan carried no effort instruction. It stopped being
+ * cosmetic the moment the cards started printing "עד כישלון": the tracking tab
+ * said "אף סט לא עד כשל" in the same week the plan tab printed the opposite on
+ * every card, which is exactly the two-tabs-disagreeing failure this codebase
+ * treats as a cardinal sin.
+ *
+ * The text now says plainly that the cards do not change and the trainee has to
+ * make the cut themselves. That is true, and it is the honest stopgap. The real
+ * fix is generateProgram(profile, { week }) halving the sets and returning
+ * RIR 3 from effortFor on a deload week; it is a bigger change than a sentence
+ * and it is not done here.
+ */
+/*
  * progression.js — how the program moves forward.
  *
  * Four answers live here:
@@ -16629,7 +16698,7 @@ function cardsFor(profile, k, jump, deload) {
     body: k.loaded
       ? 'אותם תרגילים, בערך חצי מהסטים, ומשקל נמוך ב־10%. אף סט לא מגיע לכשל. '
         + 'זה לא שבוע אבוד — זה השבוע שבו כל מה שנבנה קודם מתממש.'
-      : 'אותם תרגילים, סט אחד פחות בכל אחד, וואריאציה אחת קלה יותר. אף סט לא עד כשל. '
+      : 'אותם תרגילים, סט אחד פחות בכל אחד, וואריאציה אחת קלה יותר. הכרטיסים עצמם לא משתנים השבוע — הורד אותם בעצמך, ואל תיקח שום סט לכישלון. '
         + 'הגוף מדביק את הפער, והשבוע שאחריו מרגיש קל יותר במשקל זהה.',
   });
 
@@ -16949,7 +17018,7 @@ function weeklyPlanNote(profile, week) {
   if (model.deloadEveryWeeks > 0 && w % model.deloadEveryWeeks === 0) {
     return `${head} — שבוע דילואד: ${k.loaded
       ? 'אותם תרגילים, בערך חצי מהסטים, ומשקל נמוך ב־10%. אף סט לא מגיע לכשל. אתה אמור לצאת מהאימון עם תחושה שיכולת עוד — זו כל המטרה.'
-      : 'אותם תרגילים, סט אחד פחות בכל אחד, וואריאציה אחת קלה יותר. אף סט לא עד כשל. השבוע הזה הוא מה שיאפשר לשבוע הבא להיות טוב.'}`;
+      : 'אותם תרגילים, סט אחד פחות בכל אחד, וואריאציה אחת קלה יותר. הכרטיסים עצמם לא משתנים השבוע — הורד אותם בעצמך, ואל תיקח שום סט לכישלון. השבוע הזה הוא מה שיאפשר לשבוע הבא להיות טוב.'}`;
   }
 
   if (w === 1) {

@@ -1,4 +1,21 @@
 /*
+ * NOTE on the deload week, added when hypertrophy moved to RIR 0-2.
+ *
+ * generateProgram takes a profile and no week, so it cannot produce a different
+ * card on a deload week — week 1 and week 5 are byte-identical. That was a
+ * cosmetic gap while the plan carried no effort instruction. It stopped being
+ * cosmetic the moment the cards started printing "עד כישלון": the tracking tab
+ * said "אף סט לא עד כשל" in the same week the plan tab printed the opposite on
+ * every card, which is exactly the two-tabs-disagreeing failure this codebase
+ * treats as a cardinal sin.
+ *
+ * The text now says plainly that the cards do not change and the trainee has to
+ * make the cut themselves. That is true, and it is the honest stopgap. The real
+ * fix is generateProgram(profile, { week }) halving the sets and returning
+ * RIR 3 from effortFor on a deload week; it is a bigger change than a sentence
+ * and it is not done here.
+ */
+/*
  * progression.js — how the program moves forward.
  *
  * Four answers live here:
@@ -433,7 +450,7 @@ function cardsFor(profile, k, jump, deload) {
     body: k.loaded
       ? 'אותם תרגילים, בערך חצי מהסטים, ומשקל נמוך ב־10%. אף סט לא מגיע לכשל. '
         + 'זה לא שבוע אבוד — זה השבוע שבו כל מה שנבנה קודם מתממש.'
-      : 'אותם תרגילים, סט אחד פחות בכל אחד, וואריאציה אחת קלה יותר. אף סט לא עד כשל. '
+      : 'אותם תרגילים, סט אחד פחות בכל אחד, וואריאציה אחת קלה יותר. הכרטיסים עצמם לא משתנים השבוע — הורד אותם בעצמך, ואל תיקח שום סט לכישלון. '
         + 'הגוף מדביק את הפער, והשבוע שאחריו מרגיש קל יותר במשקל זהה.',
   });
 
@@ -753,7 +770,7 @@ export function weeklyPlanNote(profile, week) {
   if (model.deloadEveryWeeks > 0 && w % model.deloadEveryWeeks === 0) {
     return `${head} — שבוע דילואד: ${k.loaded
       ? 'אותם תרגילים, בערך חצי מהסטים, ומשקל נמוך ב־10%. אף סט לא מגיע לכשל. אתה אמור לצאת מהאימון עם תחושה שיכולת עוד — זו כל המטרה.'
-      : 'אותם תרגילים, סט אחד פחות בכל אחד, וואריאציה אחת קלה יותר. אף סט לא עד כשל. השבוע הזה הוא מה שיאפשר לשבוע הבא להיות טוב.'}`;
+      : 'אותם תרגילים, סט אחד פחות בכל אחד, וואריאציה אחת קלה יותר. הכרטיסים עצמם לא משתנים השבוע — הורד אותם בעצמך, ואל תיקח שום סט לכישלון. השבוע הזה הוא מה שיאפשר לשבוע הבא להיות טוב.'}`;
   }
 
   if (w === 1) {

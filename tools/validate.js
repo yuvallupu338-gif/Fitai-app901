@@ -2094,6 +2094,196 @@ try {
   } catch (e) { err(`hypertrophy set-and-effort check could not run: ${e.message}`); }
 }
 
+
+/*
+ * The hypertrophy volume cut, and who may be told to go to failure.
+ *
+ * Three consultants ran the engine independently — a hypertrophy researcher, a
+ * calisthenics coach and a recovery specialist — and converged on the same
+ * majors. What they also found, and what these checks exist for, is that the
+ * cut does not happen by itself:
+ *
+ *   cutting GOAL_BASE alone was INERT. A fill-to-capacity step put the sets
+ *   straight back: base 12 came out as 14, 18 and 20;
+ *
+ *   the per-group CEILING, not the base, is the real prescription at long
+ *   session shapes — advanced 6x90 sat at exactly 20/20/20, pinned;
+ *
+ *   the recovery factor cancelled itself out inside that same step, so a
+ *   25-year-old and an 80-year-old received identical push/pull/legs.
+ *
+ * And the effort instruction was landing where it must not: on a muscle-up, a
+ * wall handstand push-up and a nordic negative, and on 22 of 23 slots for a
+ * profile declaring an elbow and a shoulder injury.
+ */
+{
+  try {
+    const schema = await load('src/intake/schema.js');
+    const gen = await load('src/engine/generator.js');
+    const vol = await load('src/engine/volume.js');
+    const registry = await load('src/data/exercises.index.js');
+
+    const mk = (over) => schema.normalizeProfile(Object.assign(schema.defaults(), {
+      age: 30, sex: 'male', heightCm: 178, weightKg: 82, goal: 'muscle',
+      experience: 'intermediate', daysPerWeek: 4, minutesPerSession: 60,
+      location: 'home_weights',
+    }, over));
+
+    /*
+     * Written out, not read from volume.js. Asking the module what its own
+     * ceiling is could only confirm it agrees with itself — the circular shape
+     * that already let the calorie floor and the growth-plate cap pass while
+     * broken. These are the numbers the consultation settled on.
+     */
+    const MAJOR_MAX = 16;
+    const TOTAL_MAX = 90;
+
+    // 1. The cut actually reaches the plan, at every shape including the ones
+    //    where the fill step used to undo it.
+    for (const [label, over] of [
+      ['beginner 3x45', { experience: 'beginner', daysPerWeek: 3, minutesPerSession: 45 }],
+      ['intermediate 4x60', {}],
+      ['intermediate 5x75', { daysPerWeek: 5, minutesPerSession: 75 }],
+      ['advanced 6x90', { experience: 'advanced', daysPerWeek: 6, minutesPerSession: 90 }],
+      ['advanced 6x120', { experience: 'advanced', daysPerWeek: 6, minutesPerSession: 120 }],
+    ]) {
+      const v = vol.weeklyVolume(mk(over));
+      for (const g of ['push', 'pull', 'legs']) {
+        if (v[g] > MAJOR_MAX) {
+          err(`${label}: ${g} came out at ${v[g]} weekly sets, above the ${MAJOR_MAX} agreed for `
+            + 'work taken to failure — the fill-to-capacity step is undoing the cut again');
+        }
+      }
+      if (v.total > TOTAL_MAX) {
+        err(`${label}: ${v.total} weekly sets total, above ${TOTAL_MAX}`);
+      }
+    }
+
+    // 2. Age reaches the prescription. It used to cancel out entirely.
+    {
+      const young = vol.weeklyVolume(mk({ age: 25, daysPerWeek: 5, minutesPerSession: 75 }));
+      const old = vol.weeklyVolume(mk({ age: 80, daysPerWeek: 5, minutesPerSession: 75 }));
+      if (old.push >= young.push) {
+        err(`an 80-year-old gets ${old.push} push sets against a 25-year-old's ${young.push} — the `
+          + 'recovery factor is cancelling itself out inside the fill step again');
+      }
+      if (old.total >= young.total * 0.95) {
+        err(`an 80-year-old's week is ${old.total} sets against a 25-year-old's ${young.total} — `
+          + 'under 5% apart, from an age curve that asks for 14%');
+      }
+    }
+
+    // 3. The plan delivers what it promises. Planning 3.4 sets per slot against
+    //    a cap of 3 meant it structurally could not, and every shape came in
+    //    8-13% under its own printed target.
+    for (const [label, over] of [
+      ['intermediate 4x60', {}],
+      ['intermediate 5x75', { daysPerWeek: 5, minutesPerSession: 75 }],
+      ['advanced 6x90', { experience: 'advanced', daysPerWeek: 6, minutesPerSession: 90 }],
+    ]) {
+      const p = mk(over);
+      const target = vol.weeklyVolume(p).total;
+      let delivered = 0;
+      for (const d of gen.generateProgram(p).days) {
+        for (const s of d.slots) {
+          const v = (s.variants || [])[0];
+          if (v) delivered += v.sets;
+        }
+      }
+      if (delivered < target * 0.95) {
+        err(`${label}: the plan promises ${target} weekly sets and delivers ${delivered} `
+          + `(${Math.round((delivered / target) * 100)}%) — SETS_PER_SLOT is above SETS_CEILING`);
+      }
+    }
+
+    /* ---- who may be told to go to failure ---- */
+    const failureSlots = (p) => {
+      const out = [];
+      for (const d of gen.generateProgram(p).days) {
+        for (const s of d.slots) {
+          const v = (s.variants || [])[0];
+          if (!v || !v.effort || !/עד כישלון/.test(v.effort)) continue;
+          out.push({ ex: registry.byId(v.exId), effort: v.effort });
+        }
+      }
+      return out;
+    };
+
+    // 4. Never above level 3. A failed muscle-up is a drop through the
+    //    transition; a failed wall handstand push-up lands on the head.
+    const FAILURE_SAFE_LEVEL = 3;
+    for (const over of [
+      { experience: 'advanced', daysPerWeek: 6, minutesPerSession: 90, bm_pushups: 60, bm_pullups: 18, bm_squats: 70, bm_dips: 30 },
+      { experience: 'intermediate', daysPerWeek: 5, minutesPerSession: 75, bm_pushups: 45, bm_pullups: 14 },
+      { experience: 'advanced', daysPerWeek: 4, minutesPerSession: 120, location: 'full_gym' },
+    ]) {
+      const high = failureSlots(mk(over)).filter((x) => x.ex && x.ex.level > FAILURE_SAFE_LEVEL);
+      if (high.length) {
+        err(`${high[0].ex.id} is level ${high[0].ex.level} and carries a to-failure instruction — `
+          + 'above level 3 the failed rep is a fall, not a hard rep, and no profile earns it');
+      }
+    }
+
+    // 5. Never on a movement that loads a declared injury.
+    for (const injuries of [['elbow', 'shoulder'], ['knee'], ['wrist'], ['lower_back']]) {
+      const hit = failureSlots(mk({ injuries }))
+        .filter((x) => x.ex && (x.ex.contraindications || []).some((c) => injuries.includes(c)));
+      if (hit.length) {
+        err(`${hit[0].ex.id} loads a declared ${injuries.join('/')} and is still told to go to `
+          + 'failure — the registry swapped the exercise and nothing swapped the effort');
+      }
+    }
+
+    // 6. And never for the people who should not be there at all. The original
+    //    rule had the never-trained beginner exactly backwards: sent to failure,
+    //    while somebody merely returning was not.
+    for (const [who, over] of [
+      ['a 14-year-old', { age: 14, experience: 'beginner' }],
+      ['a 17-year-old', { age: 17, experience: 'intermediate' }],
+      ['a 70-year-old', { age: 70 }],
+      ['a never-trained beginner', { experience: 'beginner' }],
+      ['somebody returning after a layoff', { experience: 'returning' }],
+      ['somebody sleeping 5 hours', { sleepHours: 5 }],
+      ['somebody at stress 5/5', { stress: 5 }],
+    ]) {
+      const hit = failureSlots(mk(over));
+      if (hit.length) {
+        err(`${who} is told "${hit[0].effort}" on ${hit[0].ex && hit[0].ex.id} — at RIR 0-2 this is `
+          + 'the population that should be training nearly as much and less hard, not the reverse');
+      }
+    }
+
+    // 7. The population the policy WAS written for still gets it, or the gate
+    //    has quietly turned the whole feature off.
+    {
+      const ok = failureSlots(mk({ age: 30, experience: 'intermediate', sleepHours: 7.5, stress: 2 }));
+      if (!ok.length) {
+        err('a well-recovered 30-year-old intermediate gets no to-failure sets at all — the safety '
+          + 'gate has switched off the instruction it was meant to aim');
+      }
+    }
+
+    // 8. And the app never tells somebody to fail on something they cannot fail.
+    {
+      const p = mk({ bm_pushups: 32, bm_pullups: 9, bm_squats: 40, bm_dips: 15, sleepHours: 7.5, stress: 2 });
+      for (const d of gen.generateProgram(p).days) {
+        for (const s of d.slots) {
+          const v = (s.variants || [])[0];
+          if (!v || !v.effort || !/עד כישלון/.test(v.effort)) continue;
+          const ex = registry.byId(v.exId);
+          if (!ex) continue;
+          const shown = (await load('src/engine/benchmarks.js')).demonstratedLevel(p, ex.pattern);
+          if (shown !== null && ex.level < shown) {
+            err(`${ex.id} is level ${ex.level} for a trainee who has demonstrated level ${shown} in `
+              + `${ex.pattern}, and is told to take it to failure — an arithmetically impossible `
+              + 'instruction, two contradictory sentences on one card');
+          }
+        }
+      }
+    }
+  } catch (e) { err(`hypertrophy volume and effort-gate check could not run: ${e.message}`); }
+}
+
 /* ---------------- report ---------------- */
 
 console.log(`exercises: ${allEx.size}`);
