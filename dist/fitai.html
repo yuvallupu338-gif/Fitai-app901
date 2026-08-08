@@ -2023,8 +2023,14 @@ const GOAL_BASE = {
    * entirely on short weeks. Measured — arms, shoulders AND calves all came out
    * at 0 for a beginner at 3x45, which reads as broken rather than as lean.
    * At 5 they survive at 3, which is a real dose.
+   *
+   * That paragraph was written, arms and shoulders were raised to 5 on it, and
+   * calves was left at 4 — so the sentence describing the fix was in the file
+   * above a line that had only two thirds of it. Measured again afterwards:
+   * calves came out at 0 in every two-session muscle week and in a beginner's
+   * three-session week, which is the exact failure the paragraph names. 5.
    */
-  muscle: { push: 12, pull: 12, legs: 12, core: 6, arms: 5, shoulders: 5, calves: 4, conditioning: 3 },
+  muscle: { push: 12, pull: 12, legs: 12, core: 6, arms: 5, shoulders: 5, calves: 5, conditioning: 3 },
   fatloss: { push: 12, pull: 12, legs: 13, core: 8, arms: 4, shoulders: 4, calves: 3, conditioning: 10 },
   fitness: { push: 12, pull: 12, legs: 12, core: 8, arms: 4, shoulders: 4, calves: 3, conditioning: 7 },
   sport: { push: 10, pull: 12, legs: 14, core: 8, arms: 3, shoulders: 3, calves: 3, conditioning: 9 },
@@ -2405,9 +2411,30 @@ function weeklyVolume(profile) {
   let sum = GROUPS.reduce((n, g) => n + base[g], 0);
   const timeBound = sum > capacity;
   if (timeBound && sum > 0) {
-    const k = capacity / sum;
+    /*
+     * The other half of the cancellation, and the worse half.
+     *
+     * The fill branch below was fixed for scaling a recovery-adjusted target
+     * back up to a flat share of the clock. This branch does the same thing in
+     * one line and completely: `capacity / sum` divides the recovery term
+     * straight out, and every profile short enough to be time-bound lands on
+     * exactly what the clock affords, whoever they are. Measured across the
+     * thirty shapes the questionnaire can produce, seven gave an eighty-year-old
+     * a week within 2% of a twenty-five-year-old's — all of them here, and all
+     * of them at 100% of the clock while the fill branch was carefully holding
+     * everyone else to 70%. The people the model most wanted to hold back were
+     * the only ones filling their sessions to the brim.
+     *
+     * So the clock stays an upper bound and recovery decides where under it to
+     * sit. Only the recovery terms, for the same reason the fill step gives:
+     * experience, frequency and session length describe how much work fits, and
+     * charging them here would charge the same limit twice — `capacity` is
+     * already built from the clock.
+     */
+    const recovery = f.rest * f.load * f.years;
+    const k = (capacity * recovery) / sum;
     for (const g of GROUPS) base[g] *= k;
-    sum = capacity;
+    sum = capacity * recovery;
   } else if (sum < capacity * 0.82) {
     /*
      * Long sessions, modest target: spend some of the spare time, but stay
@@ -9307,6 +9334,26 @@ const EFFORT_LADDER = [
   'עצור 3 חזרות לפני כישלון',
 ];
 
+/*
+ * What the card says when the movement is below what the trainee demonstrated.
+ *
+ * Two of them, because the reason to stop short is not the same reason. An
+ * adult stops because the set ran out of difficulty before it ran out of reps.
+ * Somebody the app has already decided should not be training to failure — a
+ * minor, a returning trainee, five hours' sleep, a loaded joint — stops because
+ * they should not be grinding a rep out at all, and that reason does not go
+ * away because the exercise turned out to be easy.
+ *
+ * Neither may contain the word כישלון. The card suppresses its rep range
+ * whenever the effort line mentions failure, on the grounds that "3×6–10 עד
+ * כישלון" is two instructions that disagree — but both of these lines say עשה
+ * את החזרות, and a card that asks for the reps and then hides how many is worse
+ * than the contradiction that rule was written to remove.
+ */
+const TOO_EASY = 'קל ממה שדיווחת — עשה את החזרות ועבור לגרסה קשה יותר';
+const TOO_EASY_CAREFUL = 'קל ממה שדיווחת — עשה את החזרות בשליטה ובלי לדחוף עד הסוף, '
+  + 'ועבור לגרסה קשה יותר';
+
 function effortFor(profile, ex, slot, goal) {
   if (goal !== 'muscle') return null;
   if (ex.unit !== 'reps') return null;
@@ -9376,10 +9423,33 @@ function effortFor(profile, ex, slot, goal) {
    * declaring 32 push-ups was given knee push-ups at 3x6-10 "to failure" — he
    * can do sixty. Not a hard instruction, an arithmetically impossible one, and
    * the honest response to reading it is to stop believing the card.
+   *
+   * It was an early return, which made it the one rule in this function that
+   * could LOWER the prescription rather than raise it — the exact defect the
+   * tier was introduced to remove, reintroduced four lines from the end. Two
+   * things went out with it.
+   *
+   * A twelve-year-old at position two lost "עצור 2 חזרות לפני כישלון", the only
+   * line on that card keeping a minor off a failed rep, and got a sentence about
+   * swapping the exercise instead. And above the failure-safe ceiling it
+   * answered a movement the app had just decided is too dangerous to fail on
+   * with "move to a harder version" — against the rule three paragraphs up
+   * which says in terms that no profile earns it, however strong, because the
+   * ceiling is a fact about the movement. The next version up from a nordic
+   * negative is the full nordic.
+   *
+   * So above the ceiling the ladder wins and this line is not printed at all:
+   * the honest answer to "you are stronger than this movement" when the
+   * movement is a nordic negative is still "do not take it to failure", and a
+   * trainee who really is past it moves with the level buttons on the card.
+   * Below the ceiling the line stays — somebody doing sixty knee push-ups does
+   * need telling — but it carries the tier's stance rather than discarding it,
+   * because "you cannot reach failure here" and "you should not be reaching for
+   * it anyway" are both true and only the first was being said.
    */
   const shown = demonstratedLevel(profile, ex.pattern);
-  if (shown !== null && ex.level < shown) {
-    return 'קל ממה שדיווחת — עשה את החזרות ועבור לגרסה קשה יותר';
+  if (shown !== null && ex.level < shown && ex.level <= FAILURE_SAFE_LEVEL) {
+    return tier === 0 ? TOO_EASY : TOO_EASY_CAREFUL;
   }
 
   return EFFORT_LADDER[Math.min(tier, EFFORT_LADDER.length - 1)];
@@ -10611,9 +10681,28 @@ const STEPS = [
           {
             value: 'muscle',
             label: 'עלייה במסה',
+            /*
+             * "שלושת התרגילים הראשונים עד כישלון" was a promise the engine
+             * keeps for one trainee in ten.
+             *
+             * The instruction is real and it is the shape of the session — but
+             * effortFor holds anybody under 18, over 64, new, returning,
+             * sleeping under 6.5 hours or sitting at 4+ stress one notch back
+             * from failure, and between them those cover most of the people who
+             * pick this goal. Measured over 4,000 muscle profiles: 10% ever see
+             * "עד כישלון" anywhere in their week, and 5% get a day with three
+             * of them. The card was describing the trainee the rule was written
+             * for rather than the reader.
+             *
+             * The ramp is what everybody gets, so the ramp is what it says: the
+             * first three are the heavy end of the day, and how close to failure
+             * that is depends on the answers. Nothing here is softer — it is
+             * the same prescription, told to the person actually reading it.
+             */
             desc: 'לעלות במשקל, בעיקר במסת שריר. זו המטרה היחידה כאן שבה המספר על המאזניים אמור '
               + 'לעלות — לאט, בערך רבע קילו בשבוע, כי מהר יותר מזה הוא שומן. האימון: 2–3 סטים '
-              + 'לתרגיל, שלושת התרגילים הראשונים עד כישלון והשאר קרוב אליו, מנוחות ארוכות. '
+              + 'לתרגיל, שלושת התרגילים הראשונים הם הקשים של היום — עד כישלון, או חזרה־שתיים '
+              + 'לפניו לפי הגיל, הוותק והשינה שדיווחת — והשאר קרוב לזה. מנוחות ארוכות. '
               + 'האוכל: עודף קלורי קטן וחלבון גבוה. בלי העודף אין ממה לבנות, ועם עודף גדול מדי '
               + 'בונים גם שומן.',
           },
@@ -18403,7 +18492,8 @@ __m["src/ui/reveal.js"] = (function () {
  */
 
 const { h, clear, announce, reduceMotion } = __m["src/core/dom.js"];
-const { EXERCISES, candidates } = __m["src/data/exercises.index.js"];
+const { EXERCISES, candidates, byId } = __m["src/data/exercises.index.js"];
+const { PATTERN_GROUP } = __m["src/engine/generator.js"];
 
 /*
  * The pacing.
@@ -18447,8 +18537,41 @@ function revealFacts(profile, program) {
   let passed = null;
   try { passed = candidates(profile, {}).length; } catch (e) { passed = null; }
 
-  const vol = (program && program.volume) || {};
-  const total = Number.isFinite(vol.total) ? vol.total : null;
+  /*
+   * The sets are counted off the cards, not read off program.volume.
+   *
+   * volume is the TARGET the week was planned against. What lands on the cards
+   * is that target after the generator has fitted it to whole sets, to the
+   * exercises that survived, and to the three-set ceiling — and the two
+   * disagree on 76 of 300 profile shapes, by as much as nine sets. A fitness
+   * beginner at 6x30 was told 43 while the plan in front of them held 52.
+   *
+   * That is a bad number to be wrong about here in particular. This screen is
+   * two seconds of animation whose only defence is that everything on it is
+   * true and checkable, and it is followed immediately by the screen holding
+   * the sets it is describing. So it counts them.
+   *
+   * Same for the breakdown: the whole reason the remainder is named is that a
+   * reader who adds the three parts should reach the headline, and three
+   * planned numbers under a counted total do not add up. The finished variant
+   * carries no pattern, so the group comes back through the registry.
+   */
+  let total = 0;
+  let push = 0;
+  let pull = 0;
+  let legs = 0;
+  for (const s of slots) {
+    const v = (s.variants || [])[0];
+    if (!v) continue;
+    const n = Number(v.sets);
+    if (!Number.isFinite(n) || n <= 0) continue;
+    total += n;
+    const ex = byId(v.exId);
+    const g = ex && PATTERN_GROUP[ex.pattern];
+    if (g === 'push') push += n;
+    else if (g === 'pull') pull += n;
+    else if (g === 'legs') legs += n;
+  }
 
   return {
     library: EXERCISES.length,
@@ -18457,16 +18580,14 @@ function revealFacts(profile, program) {
     /* Alternates only — the depth behind ⇄ that nobody ever sees. Stated as a
        total, never as a per-exercise promise: some slots have no alternate. */
     behindSwap: all.size > leads.size ? all.size - leads.size : null,
-    sets: total,
+    sets: total || null,
     days: days.length || null,
     split: (program && program.meta && program.meta.splitName) || null,
-    push: Number.isFinite(vol.push) ? vol.push : null,
-    pull: Number.isFinite(vol.pull) ? vol.pull : null,
-    legs: Number.isFinite(vol.legs) ? vol.legs : null,
+    push: push || null,
+    pull: pull || null,
+    legs: legs || null,
     /* Everything the three named groups leave out, so the line can close. */
-    rest: (Number.isFinite(total) && Number.isFinite(vol.push)
-      && Number.isFinite(vol.pull) && Number.isFinite(vol.legs))
-      ? total - vol.push - vol.pull - vol.legs : 0,
+    rest: total - push - pull - legs,
     warmup: (program && program.warmup && program.warmup.length) || null,
     weeks: (program && program.meta && program.meta.weeksTotal) || null,
   };

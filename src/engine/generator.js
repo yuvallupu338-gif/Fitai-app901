@@ -1303,6 +1303,26 @@ const EFFORT_LADDER = [
   'עצור 3 חזרות לפני כישלון',
 ];
 
+/*
+ * What the card says when the movement is below what the trainee demonstrated.
+ *
+ * Two of them, because the reason to stop short is not the same reason. An
+ * adult stops because the set ran out of difficulty before it ran out of reps.
+ * Somebody the app has already decided should not be training to failure — a
+ * minor, a returning trainee, five hours' sleep, a loaded joint — stops because
+ * they should not be grinding a rep out at all, and that reason does not go
+ * away because the exercise turned out to be easy.
+ *
+ * Neither may contain the word כישלון. The card suppresses its rep range
+ * whenever the effort line mentions failure, on the grounds that "3×6–10 עד
+ * כישלון" is two instructions that disagree — but both of these lines say עשה
+ * את החזרות, and a card that asks for the reps and then hides how many is worse
+ * than the contradiction that rule was written to remove.
+ */
+const TOO_EASY = 'קל ממה שדיווחת — עשה את החזרות ועבור לגרסה קשה יותר';
+const TOO_EASY_CAREFUL = 'קל ממה שדיווחת — עשה את החזרות בשליטה ובלי לדחוף עד הסוף, '
+  + 'ועבור לגרסה קשה יותר';
+
 function effortFor(profile, ex, slot, goal) {
   if (goal !== 'muscle') return null;
   if (ex.unit !== 'reps') return null;
@@ -1372,10 +1392,33 @@ function effortFor(profile, ex, slot, goal) {
    * declaring 32 push-ups was given knee push-ups at 3x6-10 "to failure" — he
    * can do sixty. Not a hard instruction, an arithmetically impossible one, and
    * the honest response to reading it is to stop believing the card.
+   *
+   * It was an early return, which made it the one rule in this function that
+   * could LOWER the prescription rather than raise it — the exact defect the
+   * tier was introduced to remove, reintroduced four lines from the end. Two
+   * things went out with it.
+   *
+   * A twelve-year-old at position two lost "עצור 2 חזרות לפני כישלון", the only
+   * line on that card keeping a minor off a failed rep, and got a sentence about
+   * swapping the exercise instead. And above the failure-safe ceiling it
+   * answered a movement the app had just decided is too dangerous to fail on
+   * with "move to a harder version" — against the rule three paragraphs up
+   * which says in terms that no profile earns it, however strong, because the
+   * ceiling is a fact about the movement. The next version up from a nordic
+   * negative is the full nordic.
+   *
+   * So above the ceiling the ladder wins and this line is not printed at all:
+   * the honest answer to "you are stronger than this movement" when the
+   * movement is a nordic negative is still "do not take it to failure", and a
+   * trainee who really is past it moves with the level buttons on the card.
+   * Below the ceiling the line stays — somebody doing sixty knee push-ups does
+   * need telling — but it carries the tier's stance rather than discarding it,
+   * because "you cannot reach failure here" and "you should not be reaching for
+   * it anyway" are both true and only the first was being said.
    */
   const shown = demonstratedLevel(profile, ex.pattern);
-  if (shown !== null && ex.level < shown) {
-    return 'קל ממה שדיווחת — עשה את החזרות ועבור לגרסה קשה יותר';
+  if (shown !== null && ex.level < shown && ex.level <= FAILURE_SAFE_LEVEL) {
+    return tier === 0 ? TOO_EASY : TOO_EASY_CAREFUL;
   }
 
   return EFFORT_LADDER[Math.min(tier, EFFORT_LADDER.length - 1)];

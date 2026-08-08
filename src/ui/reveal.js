@@ -27,7 +27,8 @@
  */
 
 import { h, clear, announce, reduceMotion } from '../core/dom.js';
-import { EXERCISES, candidates } from '../data/exercises.index.js';
+import { EXERCISES, candidates, byId } from '../data/exercises.index.js';
+import { PATTERN_GROUP } from '../engine/generator.js';
 
 /*
  * The pacing.
@@ -71,8 +72,41 @@ export function revealFacts(profile, program) {
   let passed = null;
   try { passed = candidates(profile, {}).length; } catch (e) { passed = null; }
 
-  const vol = (program && program.volume) || {};
-  const total = Number.isFinite(vol.total) ? vol.total : null;
+  /*
+   * The sets are counted off the cards, not read off program.volume.
+   *
+   * volume is the TARGET the week was planned against. What lands on the cards
+   * is that target after the generator has fitted it to whole sets, to the
+   * exercises that survived, and to the three-set ceiling — and the two
+   * disagree on 76 of 300 profile shapes, by as much as nine sets. A fitness
+   * beginner at 6x30 was told 43 while the plan in front of them held 52.
+   *
+   * That is a bad number to be wrong about here in particular. This screen is
+   * two seconds of animation whose only defence is that everything on it is
+   * true and checkable, and it is followed immediately by the screen holding
+   * the sets it is describing. So it counts them.
+   *
+   * Same for the breakdown: the whole reason the remainder is named is that a
+   * reader who adds the three parts should reach the headline, and three
+   * planned numbers under a counted total do not add up. The finished variant
+   * carries no pattern, so the group comes back through the registry.
+   */
+  let total = 0;
+  let push = 0;
+  let pull = 0;
+  let legs = 0;
+  for (const s of slots) {
+    const v = (s.variants || [])[0];
+    if (!v) continue;
+    const n = Number(v.sets);
+    if (!Number.isFinite(n) || n <= 0) continue;
+    total += n;
+    const ex = byId(v.exId);
+    const g = ex && PATTERN_GROUP[ex.pattern];
+    if (g === 'push') push += n;
+    else if (g === 'pull') pull += n;
+    else if (g === 'legs') legs += n;
+  }
 
   return {
     library: EXERCISES.length,
@@ -81,16 +115,14 @@ export function revealFacts(profile, program) {
     /* Alternates only — the depth behind ⇄ that nobody ever sees. Stated as a
        total, never as a per-exercise promise: some slots have no alternate. */
     behindSwap: all.size > leads.size ? all.size - leads.size : null,
-    sets: total,
+    sets: total || null,
     days: days.length || null,
     split: (program && program.meta && program.meta.splitName) || null,
-    push: Number.isFinite(vol.push) ? vol.push : null,
-    pull: Number.isFinite(vol.pull) ? vol.pull : null,
-    legs: Number.isFinite(vol.legs) ? vol.legs : null,
+    push: push || null,
+    pull: pull || null,
+    legs: legs || null,
     /* Everything the three named groups leave out, so the line can close. */
-    rest: (Number.isFinite(total) && Number.isFinite(vol.push)
-      && Number.isFinite(vol.pull) && Number.isFinite(vol.legs))
-      ? total - vol.push - vol.pull - vol.legs : 0,
+    rest: total - push - pull - legs,
     warmup: (program && program.warmup && program.warmup.length) || null,
     weeks: (program && program.meta && program.meta.weeksTotal) || null,
   };

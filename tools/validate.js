@@ -1027,9 +1027,29 @@ try {
       location: 'home_weights', equipment: ['bands', 'mat', 'pullup_bar', 'rings'],
     }, over));
 
-    const N = bench.RETEST_DAYS;
-    if (!Number.isInteger(N) || N < 7 || N > 120) {
-      err(`RETEST_DAYS is ${N} — a re-test cadence outside 7..120 days is not a cadence`);
+    /*
+     * Four weeks, written down.
+     *
+     * This read RETEST_DAYS out of the module and then checked the module
+     * against it, which can only ever confirm the constant equals itself: set
+     * it to 90 and every assertion below still passed, because they all moved
+     * with it. The one thing it could catch was a value outside 7..120, and
+     * "quarterly" is inside that.
+     *
+     * The cadence is not an implementation detail to be discovered. It was
+     * asked for as every four weeks, it is what the re-test card and the plan
+     * banner both promise in Hebrew, and it lands on the deload week on
+     * purpose — so 28 is stated here and the module is measured against it.
+     */
+    const N = 28;
+    const SNOOZE = 7;
+    if (bench.RETEST_DAYS !== N) {
+      err(`RETEST_DAYS is ${bench.RETEST_DAYS}, not the ${N} days the re-test was asked for and `
+        + 'the card promises');
+    }
+    if (bench.RETEST_SNOOZE_DAYS !== SNOOZE) {
+      err(`RETEST_SNOOZE_DAYS is ${bench.RETEST_SNOOZE_DAYS}, not the ${SNOOZE} days a "not now" `
+        + 'is meant to buy');
     }
 
     // 1. The clock fires on the day it says it does, and not before.
@@ -1070,7 +1090,7 @@ try {
     }
 
     // 5. "Not now" has to actually stop the asking, and has to wear off.
-    const S = bench.RETEST_SNOOZE_DAYS;
+    const S = SNOOZE;
     if (bench.snoozeExpired(agoDays(S - 1), NOW)) {
       err(`a "not now" expired after ${S - 1} days against RETEST_SNOOZE_DAYS=${S} — declining does nothing`);
     }
@@ -1920,6 +1940,30 @@ try {
         err(`squat counts from 0 to 90 produced only ${seen.size} distinct leg level(s) `
           + `(${[...seen].sort().join(',')}) — the ladder is not being walked at all`);
       }
+
+      /*
+       * And the top of that ladder, which nothing was stating.
+       *
+       * The paragraph above explains at length why the squat ladder stops at 3
+       * — level 4 down here is the skater squat and the nordic negative, and no
+       * count of the easiest movement in the pattern is evidence for a maximal
+       * single-leg squat or a controlled maximal eccentric. Then the only thing
+       * checked was that two distinct levels appear, which 3 and 4 satisfy just
+       * as well as 2 and 3. The reasoning was in the file and the number was
+       * not, so the rung the review removed could come back unnoticed.
+       *
+       * 3 written out, not read from LADDERS.squats: the ladder is the thing
+       * under test.
+       */
+      const SQUAT_CEILING = 3;
+      for (const n of [45, 60, 90, 150, 300]) {
+        const got = bench.demonstratedLevel(mk({ bm_squats: n }), 'squat');
+        if (got > SQUAT_CEILING) {
+          err(`${n} bodyweight squats demonstrate level ${got} legs, above the ${SQUAT_CEILING} `
+            + 'an endurance count can evidence — level 4 is the skater squat and the nordic '
+            + 'negative, which no number of air squats predicts');
+        }
+      }
     }
 
     // 3. Every pattern with a declared number must be able to move, or the
@@ -2173,6 +2217,65 @@ try {
       }
     }
 
+    /*
+     * 1b. And nothing the cut touched fell off the week entirely.
+     *
+     * survivors() drops any small group whose neutral week comes out under 3
+     * sets, on the sound reasoning that two sets of calves a week is decoration.
+     * That means the goal table's small numbers are not a dose, they are a bet
+     * on where the scaling lands — and the hypertrophy cut lost that bet. arms
+     * and shoulders were set to 5 with a comment saying in terms that 4 is not
+     * survivable, and calves was left at 4: measured afterwards it came out at
+     * ZERO in every two-session muscle week and in a beginner's three-session
+     * week. A hypertrophy plan with no calf work at all is not a lean plan,
+     * it is a missing one, and nothing in the UI said so.
+     *
+     * Dropping all three on a short week is not the defect — that is the drop
+     * rule doing its job, and on two 45-minute sessions the compounds really do
+     * carry the arms. The defect is dropping ONE of three groups the goal
+     * table funds identically, because that is not a decision anybody made; it
+     * is where the scaling happened to land. So the rule is that they live or
+     * die together, checked over every shape the questionnaire can produce,
+     * with the reference week pinned separately so "all three at zero
+     * everywhere" cannot satisfy it.
+     *
+     * Written out rather than read off GOAL_BASE, which would only ask the
+     * table whether it agrees with itself. Conditioning is deliberately not
+     * here: a hypertrophy week with no conditioning allocation is a training
+     * decision, and it is the one group this goal may leave out.
+     */
+    {
+      const ACCESSORY = ['arms', 'shoulders', 'calves'];
+      let split = 0;
+      for (const experience of ['beginner', 'returning', 'intermediate', 'advanced']) {
+        for (const daysPerWeek of [2, 3, 4, 5, 6]) {
+          for (const minutesPerSession of [30, 45, 60, 75, 90, 120]) {
+            const v = vol.weeklyVolume(mk({ experience, daysPerWeek, minutesPerSession }));
+            for (const g of ['push', 'pull', 'legs', 'core']) {
+              if (!(v[g] > 0)) {
+                err(`${experience} ${daysPerWeek}x${minutesPerSession} on a muscle goal trains `
+                  + `${g} zero times a week — a major pattern has fallen out of the plan`);
+              }
+            }
+            const alive = ACCESSORY.filter((g) => v[g] > 0);
+            if (alive.length && alive.length < ACCESSORY.length && split++ < 4) {
+              err(`${experience} ${daysPerWeek}x${minutesPerSession} on a muscle goal trains `
+                + `${alive.join(' and ')} but not ${ACCESSORY.filter((g) => !(v[g] > 0)).join(' or ')} `
+                + `(arms ${v.arms}, shoulders ${v.shoulders}, calves ${v.calves}) — these three are `
+                + 'funded the same and a week that keeps some of them is scaling, not a decision');
+            }
+          }
+        }
+      }
+      const ref = vol.weeklyVolume(mk({}));
+      for (const g of ACCESSORY) {
+        if (!(ref[g] > 0)) {
+          err(`the reference muscle week trains ${g} zero times — the live-or-die-together rule `
+            + 'above is being satisfied by dropping all three everywhere');
+        }
+      }
+    }
+
     // 2. Age reaches the prescription. It used to cancel out entirely.
     {
       const young = vol.weeklyVolume(mk({ age: 25, daysPerWeek: 5, minutesPerSession: 75 }));
@@ -2184,6 +2287,40 @@ try {
       if (old.total >= young.total * 0.95) {
         err(`an 80-year-old's week is ${old.total} sets against a 25-year-old's ${young.total} — `
           + 'under 5% apart, from an age curve that asks for 14%');
+      }
+
+      /*
+       * And on the shapes where the clock binds, which this was blind to.
+       *
+       * One shape was checked, 5x75, and it exercises the fill branch. The
+       * time-bound branch is the other half of the same function and it had the
+       * same defect in a worse form: `capacity / sum` divides the recovery term
+       * straight out, so every profile short on time landed on exactly what the
+       * clock affords, whoever they were. Seven of the thirty shapes the
+       * questionnaire can produce gave an eighty-year-old a week within 2% of a
+       * twenty-five-year-old's, and every one of them came through here.
+       *
+       * Two, three and four thirty-minute sessions are the shapes where the
+       * clock binds for the reference profile and for a poorly-recovering one
+       * alike — no crossover to argue about, so equality there means the model
+       * was cancelled rather than that the two genuinely met. All three recovery
+       * terms are checked, not only age: sleep and stress ride the same
+       * multiplier and would have gone out with it.
+       */
+      for (const [d, m] of [[2, 30], [3, 30], [4, 30]]) {
+        const ref = vol.weeklyVolume(mk({ age: 25, daysPerWeek: d, minutesPerSession: m }));
+        for (const [what, over] of [
+          ['an 80-year-old', { age: 80 }],
+          ['somebody sleeping 5 hours', { age: 25, sleepHours: 5 }],
+          ['somebody at stress 5/5', { age: 25, stress: 5 }],
+        ]) {
+          const got = vol.weeklyVolume(mk(Object.assign({ daysPerWeek: d, minutesPerSession: m }, over)));
+          if (got.total >= ref.total) {
+            err(`at ${d}x${m}, ${what} gets ${got.total} weekly sets against the reference `
+              + `profile's ${ref.total} — the clock is short enough to bind for both, so the `
+              + 'recovery model is being divided out by the time-bound branch');
+          }
+        }
       }
     }
 
@@ -2403,6 +2540,34 @@ try {
      */
     const CAREFUL_FRONT = 'עצור 2 חזרות לפני כישלון';
     const CAREFUL_BACK = 'עצור 3 חזרות לפני כישלון';
+
+    /*
+     * The two wordings for "this movement is below the number you declared".
+     *
+     * Written out here rather than imported, because the point of the check is
+     * that the engine and this file agree — reading the engine's own constant
+     * would only confirm it equals itself.
+     */
+    const TOO_EASY = 'קל ממה שדיווחת — עשה את החזרות ועבור לגרסה קשה יותר';
+    const TOO_EASY_CAREFUL = 'קל ממה שדיווחת — עשה את החזרות בשליטה ובלי לדחוף עד הסוף, '
+      + 'ועבור לגרסה קשה יותר';
+
+    /*
+     * Every fixture here was built from schema.defaults(), which leaves all five
+     * benchmark numbers null — so demonstratedLevel() returned null for every
+     * pattern and the branch that reads it could not execute inside this check
+     * at all. It was the branch that broke the rule: an early return that
+     * handed a twelve-year-old a sentence about swapping the exercise in place
+     * of the two-in-reserve instruction the careful tier had just set.
+     *
+     * So each careful profile is run twice. Without numbers, where the ramp
+     * must be visible in both its tiers; and with numbers strong enough that
+     * most movements come out below the trainee, where what matters is that the
+     * careful stance survived — a profile that should never be near failure
+     * must not be handed the adult wording just because the exercise is easy.
+     */
+    const STRONG = { bm_pushups: 55, bm_pullups: 14, bm_dips: 32, bm_plankSec: 200, bm_squats: 50 };
+    let sawTooEasyCareful = 0;
     for (const [who, over] of [
       ['a 14-year-old', { age: 14, experience: 'beginner' }],
       ['a 16-year-old', { age: 16, experience: 'intermediate' }],
@@ -2439,17 +2604,142 @@ try {
         err(`${who} never sees both tiers of the careful ramp (front ${front}, back ${back}) — it `
           + 'has collapsed back to one flat instruction for the whole session');
       }
+
+      /* Same person, now with numbers on the board. */
+      for (const day of sessions(mk(Object.assign({}, over, STRONG)))) {
+        day.forEach((x, i) => {
+          if (!x.v.effort) return;
+          if (x.v.effort === FAILURE) {
+            err(`${who} with strong benchmarks is told "${FAILURE}" at position ${i + 1} — `
+              + 'declared numbers are not a reason to lift a safety gate');
+          } else if (x.v.effort === TOO_EASY) {
+            err(`${who} is told "${TOO_EASY}" at position ${i + 1} — the adult wording. This `
+              + 'profile should not be reaching for the last rep, and the movement being easy '
+              + 'is not what changed that');
+          } else if (x.v.effort === TOO_EASY_CAREFUL) {
+            sawTooEasyCareful++;
+          }
+        });
+      }
+    }
+    if (!sawTooEasyCareful) {
+      err('no careful profile with strong benchmarks ever sees the too-easy line — the branch '
+        + 'that reads declared numbers is unreachable inside this check, which is how it went '
+        + 'wrong the first time');
     }
 
-    // 3. Level 4+ is never promoted by being early either.
+    /*
+     * 3. Level 4+ is never promoted by being early, and never by being easy.
+     *
+     * The second half is the one that needed a fixture built for it.
+     *
+     * "Move to a harder version" is the wrong sentence to print on a movement
+     * the app has just refused to let anybody take to failure: the step up from
+     * a nordic negative is the full nordic, and from a wall handstand push-up
+     * it is the free one. The ceiling is a fact about the movement; a large
+     * declared number is a fact about the trainee, and it does not repeal it.
+     * Somebody genuinely past a level-4 movement moves with the card's buttons.
+     *
+     * Reaching that case at all takes care. The trainee has to be at the TOP of
+     * a ladder — 50 push-ups, 15 pull-ups, a three-minute plank — and then be
+     * handed a movement at level 4 exactly, in a pattern one of those numbers
+     * speaks for. Level 5 does not count: nothing is above it, so the branch
+     * cannot fire there. The previous fixture declared no plank at all and drew
+     * only level-5 movements, so the intersection was empty and the check was
+     * decoration — removing the guard it protects changed nothing it could see.
+     */
     {
-      const p = mk({ experience: 'advanced', daysPerWeek: 6, bm_pushups: 60, bm_pullups: 18, bm_squats: 70, bm_dips: 30 });
-      for (const day of sessions(p)) {
-        for (const x of day) {
-          if (x.ex && x.ex.level > 3 && x.v.effort === FAILURE) {
-            err(`${x.ex.id} is level ${x.ex.level} and reached the failure instruction through the `
-              + 'position ramp — above level 3 the failed rep is a fall');
+      /*
+       * Pattern -> the questionnaire number that speaks for it, and the count
+       * at which that number puts somebody on the top rung. The standard
+       * calisthenics marks, written out: 50 push-ups, 15 pull-ups, a
+       * three-minute plank. Not read from benchmarks.js, because the check
+       * exists to confirm the two agree rather than to watch one agree with
+       * itself.
+       *
+       * Both halves are load-bearing. Counting level-4 movements in these
+       * patterns alone is not enough — a pattern whose number the fixture did
+       * not declare cannot fire the branch at all, and the first version of
+       * this counted two such movements and reported itself satisfied while a
+       * removed guard sailed through underneath.
+       *
+       * Squats are absent on purpose: their ladder stops at 3, so no leg
+       * movement can be below a demonstrated level and the intersection is
+       * empty by construction rather than by accident.
+       */
+      const TOPS_OUT = {
+        horizontal_push: ['bm_pushups', 50],
+        vertical_push: ['bm_pushups', 50],
+        arms_triceps: ['bm_pushups', 50],
+        vertical_pull: ['bm_pullups', 15],
+        horizontal_pull: ['bm_pullups', 15],
+        arms_biceps: ['bm_pullups', 15],
+        core_antiextension: ['bm_plankSec', 180],
+        core_flexion: ['bm_plankSec', 180],
+      };
+      const TOP_OF_LADDER = { bm_pushups: 60, bm_pullups: 18, bm_dips: 32, bm_plankSec: 200, bm_squats: 70 };
+      let reachable = 0;
+      let sawHighLevel = 0;
+      for (const over of [
+        { experience: 'advanced', daysPerWeek: 6 },
+        { experience: 'advanced', location: 'gym' },
+        { experience: 'advanced', location: 'home_bodyweight' },
+        { experience: 'advanced', daysPerWeek: 3, minutesPerSession: 120 },
+        { experience: 'advanced', location: 'gym', daysPerWeek: 6, minutesPerSession: 120 },
+      ]) {
+        for (const day of sessions(mk(Object.assign({}, TOP_OF_LADDER, over)))) {
+          for (const x of day) {
+            if (!x.ex || x.ex.level <= 3) continue;
+            sawHighLevel++;
+            /* Exactly 4, in a pattern this trainee has actually topped out:
+               the only shape where the too-easy branch can fire above the
+               ceiling. Level 5 cannot — nothing sits above it to be below. */
+            const top = TOPS_OUT[x.ex.pattern];
+            if (x.ex.level === 4 && top && (TOP_OF_LADDER[top[0]] || 0) >= top[1]) reachable++;
+            if (x.v.effort === FAILURE) {
+              err(`${x.ex.id} is level ${x.ex.level} and reached the failure instruction through `
+                + 'the position ramp — above level 3 the failed rep is a fall');
+            }
+            if (x.v.effort && x.v.effort.indexOf('קל ממה שדיווחת') === 0) {
+              err(`${x.ex.id} is level ${x.ex.level} and carries "${x.v.effort}" — above level 3 `
+                + 'the card must not answer a declared number by pointing further up');
+            }
           }
+        }
+      }
+      if (!sawHighLevel) {
+        err('no fixture here reached a level-4 movement — the ceiling rules above are untested');
+      }
+      if (!reachable) {
+        err('no fixture reached a level-4 movement in a pattern the trainee has topped out — the '
+          + 'too-easy branch cannot fire above the ceiling inside this check, so removing the '
+          + 'guard would pass it');
+      }
+    }
+
+    /*
+     * 3b. No effort line asks for the reps and then hides how many.
+     *
+     * The card drops its rep range whenever the effort line mentions failure,
+     * because "3×6–10 עד כישלון" is two instructions that disagree about where
+     * the set ends. That rule is right and it is a trap for anything worded
+     * near it: both too-easy lines say עשה את החזרות — do the reps — and if
+     * either ever mentions כישלון the card would swallow the only number that
+     * sentence depends on. Cheaper to state than to discover.
+     */
+    {
+      const seen = new Set();
+      for (const over of [{}, STRONG, Object.assign({ age: 14 }, STRONG),
+        Object.assign({ experience: 'beginner' }, STRONG), { age: 70 }]) {
+        for (const day of sessions(mk(over))) for (const x of day) {
+          if (x.v.effort) seen.add(x.v.effort);
+        }
+      }
+      if (!seen.size) err('the rep-suppression check found no effort lines to inspect');
+      for (const line of seen) {
+        if (/עשה את החזרות/.test(line) && /כישלון/.test(line)) {
+          err(`the effort line "${line}" asks for the reps and also names failure — the card `
+            + 'suppresses the rep range on the second and the trainee is left with neither');
         }
       }
     }
@@ -2487,6 +2777,27 @@ try {
           if (!/אוכל|קלור|חלבון|גירעון|עודף|אחזקה/.test(d)) {
             err(`the "${o.label}" goal never says what the eating looks like, which is where the `
               + 'goals actually diverge');
+          }
+
+          /*
+           * And it must not promise an intensity most readers will not get.
+           *
+           * This card said the first three exercises go to failure. effortFor
+           * holds anybody under 18, over 64, new, returning, short of sleep or
+           * high on stress one notch back from that, and measured over 4,000
+           * muscle profiles only 10% ever saw "עד כישלון" anywhere in their
+           * week. A goal description is the last thing somebody reads before
+           * committing to twelve weeks; it does not get to describe the
+           * exception.
+           *
+           * Checked as: name failure, name what it depends on. Not as a
+           * forbidden phrase — the instruction is real and the card should
+           * still say so.
+           */
+          if (/עד כישלון/.test(d) && !/לפי|תלוי|בהתאם/.test(d)) {
+            err(`the "${o.label}" goal promises "עד כישלון" with nothing saying it depends on `
+              + 'the answers — the safety gates hold roughly nine readers in ten one notch back '
+              + 'from it');
           }
         }
       }
@@ -2854,6 +3165,31 @@ try {
         }));
         const program = gen.generateProgram(p);
         const f = reveal.revealFacts(p, program);
+
+        /*
+         * And the headline has to be the sets the trainee is about to see.
+         *
+         * It was read off program.volume, which is the target the week was
+         * PLANNED against — before whole sets, before the exercises that
+         * survived, before the three-set ceiling. Measured across 300 profile
+         * shapes, 76 of them showed a headline the next screen contradicted, by
+         * up to nine sets. The internal arithmetic checked below was perfectly
+         * consistent the whole time, because every number in it came from the
+         * same wrong place.
+         */
+        let delivered = 0;
+        for (const day of program.days || []) {
+          for (const s of day.slots || []) {
+            const v = (s.variants || [])[0];
+            if (v && Number.isFinite(Number(v.sets))) delivered += Number(v.sets);
+          }
+        }
+        if ((f.sets || 0) !== delivered) {
+          err(`${goal} ${d}x${m}: the reveal announces ${f.sets} weekly sets and the cards behind `
+            + `it hold ${delivered} — the screen whose whole defence is that its numbers are `
+            + 'checkable is quoting the plan\'s target rather than the plan');
+        }
+
         if (!f.sets || !f.push) continue;
         /*
          * Read off the rendered LINE, not off revealFacts.

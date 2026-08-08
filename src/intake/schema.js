@@ -262,9 +262,28 @@ export const STEPS = [
           {
             value: 'muscle',
             label: 'עלייה במסה',
+            /*
+             * "שלושת התרגילים הראשונים עד כישלון" was a promise the engine
+             * keeps for one trainee in ten.
+             *
+             * The instruction is real and it is the shape of the session — but
+             * effortFor holds anybody under 18, over 64, new, returning,
+             * sleeping under 6.5 hours or sitting at 4+ stress one notch back
+             * from failure, and between them those cover most of the people who
+             * pick this goal. Measured over 4,000 muscle profiles: 10% ever see
+             * "עד כישלון" anywhere in their week, and 5% get a day with three
+             * of them. The card was describing the trainee the rule was written
+             * for rather than the reader.
+             *
+             * The ramp is what everybody gets, so the ramp is what it says: the
+             * first three are the heavy end of the day, and how close to failure
+             * that is depends on the answers. Nothing here is softer — it is
+             * the same prescription, told to the person actually reading it.
+             */
             desc: 'לעלות במשקל, בעיקר במסת שריר. זו המטרה היחידה כאן שבה המספר על המאזניים אמור '
               + 'לעלות — לאט, בערך רבע קילו בשבוע, כי מהר יותר מזה הוא שומן. האימון: 2–3 סטים '
-              + 'לתרגיל, שלושת התרגילים הראשונים עד כישלון והשאר קרוב אליו, מנוחות ארוכות. '
+              + 'לתרגיל, שלושת התרגילים הראשונים הם הקשים של היום — עד כישלון, או חזרה־שתיים '
+              + 'לפניו לפי הגיל, הוותק והשינה שדיווחת — והשאר קרוב לזה. מנוחות ארוכות. '
               + 'האוכל: עודף קלורי קטן וחלבון גבוה. בלי העודף אין ממה לבנות, ועם עודף גדול מדי '
               + 'בונים גם שומן.',
           },

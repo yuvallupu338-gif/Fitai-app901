@@ -49,8 +49,14 @@ const GOAL_BASE = {
    * entirely on short weeks. Measured — arms, shoulders AND calves all came out
    * at 0 for a beginner at 3x45, which reads as broken rather than as lean.
    * At 5 they survive at 3, which is a real dose.
+   *
+   * That paragraph was written, arms and shoulders were raised to 5 on it, and
+   * calves was left at 4 — so the sentence describing the fix was in the file
+   * above a line that had only two thirds of it. Measured again afterwards:
+   * calves came out at 0 in every two-session muscle week and in a beginner's
+   * three-session week, which is the exact failure the paragraph names. 5.
    */
-  muscle: { push: 12, pull: 12, legs: 12, core: 6, arms: 5, shoulders: 5, calves: 4, conditioning: 3 },
+  muscle: { push: 12, pull: 12, legs: 12, core: 6, arms: 5, shoulders: 5, calves: 5, conditioning: 3 },
   fatloss: { push: 12, pull: 12, legs: 13, core: 8, arms: 4, shoulders: 4, calves: 3, conditioning: 10 },
   fitness: { push: 12, pull: 12, legs: 12, core: 8, arms: 4, shoulders: 4, calves: 3, conditioning: 7 },
   sport: { push: 10, pull: 12, legs: 14, core: 8, arms: 3, shoulders: 3, calves: 3, conditioning: 9 },
@@ -431,9 +437,30 @@ export function weeklyVolume(profile) {
   let sum = GROUPS.reduce((n, g) => n + base[g], 0);
   const timeBound = sum > capacity;
   if (timeBound && sum > 0) {
-    const k = capacity / sum;
+    /*
+     * The other half of the cancellation, and the worse half.
+     *
+     * The fill branch below was fixed for scaling a recovery-adjusted target
+     * back up to a flat share of the clock. This branch does the same thing in
+     * one line and completely: `capacity / sum` divides the recovery term
+     * straight out, and every profile short enough to be time-bound lands on
+     * exactly what the clock affords, whoever they are. Measured across the
+     * thirty shapes the questionnaire can produce, seven gave an eighty-year-old
+     * a week within 2% of a twenty-five-year-old's — all of them here, and all
+     * of them at 100% of the clock while the fill branch was carefully holding
+     * everyone else to 70%. The people the model most wanted to hold back were
+     * the only ones filling their sessions to the brim.
+     *
+     * So the clock stays an upper bound and recovery decides where under it to
+     * sit. Only the recovery terms, for the same reason the fill step gives:
+     * experience, frequency and session length describe how much work fits, and
+     * charging them here would charge the same limit twice — `capacity` is
+     * already built from the clock.
+     */
+    const recovery = f.rest * f.load * f.years;
+    const k = (capacity * recovery) / sum;
     for (const g of GROUPS) base[g] *= k;
-    sum = capacity;
+    sum = capacity * recovery;
   } else if (sum < capacity * 0.82) {
     /*
      * Long sessions, modest target: spend some of the spare time, but stay
