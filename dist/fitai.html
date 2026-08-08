@@ -16682,6 +16682,7 @@ __m["src/engine/progression.js"] = (function () {
 
 const { candidates, hashProfile, rotate } = __m["src/data/exercises.index.js"];
 const { withholdsFatLoss, withholdsHeavyLoad } = __m["src/engine/age.js"];
+const { effectiveGoal } = __m["src/engine/holds.js"];
 
 /* ------------------------------------------------------------------ *
  * Small helpers
@@ -16719,9 +16720,26 @@ function clampInt(v, lo, hi, d) {
  * a minor who wants to lean out is running a training plan at maintenance, and
  * that is exactly what the fitness track already describes.
  */
+/*
+ * This file worked the remap out first and did it right — for age alone.
+ *
+ * That local test was written before holds.js existed, and it never learned the
+ * other reasons. So the phase map and the progression cards were the last
+ * surfaces still describing a cut to somebody the nutrition engine was holding
+ * at maintenance: a 26-year-old woman at BMI 17.6 with a declared
+ * eating-disorder history read "שבוע 1-4 התנעה — קובעים ימים קבועים ומתחילים
+ * גירעון מתון. שקילה אחת בשבוע", four more phases of the same, and a
+ * [גירעון] card. Five surfaces were named in holds.js' opening comment as the
+ * ones that green-lit her; this was the last two of them.
+ *
+ * effectiveGoal covers the age case too, so the old call is not lost — it is
+ * subsumed. generator.js, volume.js, restday.js and targets.js all ask the same
+ * question now.
+ */
 function goalOf(p) {
   const goal = GOALS.indexOf(p && p.goal) >= 0 ? p.goal : 'fitness';
-  if (goal === 'fatloss' && withholdsFatLoss(p)) return 'fitness';
+  const eff = effectiveGoal(p);
+  if (goal === 'fatloss' && eff !== 'fatloss') return GOALS.indexOf(eff) >= 0 ? eff : 'fitness';
   return goal;
 }
 

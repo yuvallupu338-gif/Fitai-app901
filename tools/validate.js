@@ -2878,6 +2878,81 @@ try {
   } catch (e) { err(`reveal arithmetic check could not run: ${e.message}`); }
 }
 
+
+/*
+ * Every surface that describes the plan has to agree about whether it is a cut.
+ *
+ * holds.js' opening comment names five surfaces that green-lit a BMI-17.6 woman
+ * while the nutrition tab held her at maintenance. Four rounds closed four of
+ * them; the phase map and the progression cards were the last, still reading
+ * "שבוע 1-4 התנעה — קובעים ימים קבועים ומתחילים גירעון מתון. שקילה אחת בשבוע"
+ * to somebody with a declared eating-disorder history.
+ *
+ * Asserted generically rather than per-file: any held profile, any surface.
+ */
+{
+  try {
+    const schema = await load('src/intake/schema.js');
+    const prog = await load('src/engine/progression.js');
+    const gen = await load('src/engine/generator.js');
+    const targets = await load('src/engine/targets.js');
+    const nut = await load('src/engine/nutrition.js');
+
+    const mk = (over) => schema.normalizeProfile(Object.assign(schema.defaults(), {
+      age: 26, sex: 'female', heightCm: 165, weightKg: 48, goal: 'fatloss',
+      experience: 'beginner', daysPerWeek: 4, minutesPerSession: 45,
+      location: 'home_bodyweight', wantsNutrition: true,
+    }, over));
+
+    /* Words that only belong on a plan that is actually running a deficit. */
+    const CUT_WORDS = /גירעון|שקילה אחת בשבוע|מורידים קלוריות|חיטוב/;
+
+    for (const [who, over] of [
+      ['a declared eating-disorder history', { medical: 'היסטוריה של אנורקסיה' }],
+      ['a declared pregnancy', { weightKg: 65, injuries: ['pregnancy'] }],
+      ['an underweight adult', {}],
+      ['a 14-year-old', { age: 14, weightKg: 60 }],
+    ]) {
+      const p = mk(over);
+      // nutrition must be holding, or the fixture is wrong rather than the code
+      const st = nut.nutritionPlan(p).strategy;
+      if (st && st.deltaKcal < 0) { err(`the ${who} fixture is not actually held`); continue; }
+
+      for (const ph of prog.buildPhases(p) || []) {
+        const text = `${ph.title} ${ph.desc}`;
+        if (CUT_WORDS.test(text)) {
+          err(`${who} is shown the phase "${ph.title}" reading "${String(ph.desc).slice(0, 60)}…" — `
+            + 'the guide tab still describes a cut the nutrition tab refuses to build');
+        }
+      }
+      for (const c of (prog.progressionModel(p).cards || [])) {
+        if (CUT_WORDS.test(`${c.k} ${c.title} ${c.body}`)) {
+          err(`${who} is shown the progression card "${c.k}", which is about running a deficit`);
+        }
+      }
+      for (const n of (gen.generateProgram(p).notes || [])) {
+        if (/הגירעון הקלורי מוריד את המשקל/.test(n)) {
+          err(`${who} is told on the plan tab that the calorie deficit takes the weight off`);
+        }
+      }
+      if (targets.assessGoal(p).realistic) {
+        err(`${who} is told the weight-loss goal is realistic`);
+      }
+    }
+
+    /* And the healthy adult still gets the cut language, or the gate has simply
+       switched the fat-loss goal off for everybody. */
+    {
+      const ok = mk({ weightKg: 72, medical: '' });
+      const phases = prog.buildPhases(ok) || [];
+      if (!phases.some((ph) => CUT_WORDS.test(`${ph.title} ${ph.desc}`))) {
+        err('a healthy adult asking for fat loss no longer sees a deficit phase anywhere — the '
+          + 'hold has been applied to everybody');
+      }
+    }
+  } catch (e) { err(`cut-language coverage check could not run: ${e.message}`); }
+}
+
 /* ---------------- report ---------------- */
 
 console.log(`exercises: ${allEx.size}`);
