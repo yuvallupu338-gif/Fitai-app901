@@ -16,7 +16,8 @@
     "db:types": "node scripts/gen-types.mjs types/database.ts",
     "build:sql": "node scripts/build-setup-sql.mjs",
     "agents": "node scripts/generate-professionals.mjs",
-    "agents:export": "node scripts/export-agents.mjs"
+    "agents:export": "node scripts/export-agents.mjs",
+    "demo:export": "node scripts/export-demo-data.mjs"
   },
   "dependencies": {
     "@hookform/resolvers": "^3.9.1",
