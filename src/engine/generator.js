@@ -74,7 +74,15 @@ const GROUP_PRIORITY = {
 };
 
 /** Sets one exercise carries, by goal. Strength stacks sets, fat loss spreads them. */
-const SETS_PER_SLOT = { strength: 4.0, muscle: 3.4, fatloss: 3.0, fitness: 3.0, sport: 3.2 };
+/*
+ * Sets planned per slot. muscle is 3.0 rather than 3.4 because SETS_CEILING
+ * caps it at 3: planning 3.4 and delivering at most 3 meant the programme could
+ * structurally never reach its own target. leastSlots below is the half of this
+ * pair that actually closes the gap; this half alone still leaves 6% short at
+ * advanced 6x90. Both are kept, because planning above your own cap is
+ * incoherent whether or not something downstream hides it.
+ */
+const SETS_PER_SLOT = { strength: 4.0, muscle: 3.0, fatloss: 3.0, fitness: 3.0, sport: 3.2 };
 
 const COMPOUND_PATTERNS = ['horizontal_push', 'vertical_push', 'horizontal_pull',
   'vertical_pull', 'squat', 'hinge', 'lunge'];
@@ -730,7 +738,7 @@ function layout(profile, vol, budget, split) {
     }
 
     const mostSlots = Math.max(1, Math.floor(target / 2));   // >= 2 sets each
-    const leastSlots = Math.max(1, Math.ceil(target / 5));   // <= 5 sets each
+    const leastSlots = Math.max(1, Math.ceil(target / setsCeiling(goal)));  // <= the goal's own cap
     let want = clampInt(target / perSlot, leastSlots, mostSlots, 1);
     // A group the split trains on several days should show up on all of them.
     want = Math.max(want, Math.min(eligible.length, mostSlots));
@@ -1155,6 +1163,18 @@ function prescribe(profile, ex, slot) {
     workSec = 40;
   }
 
+  /*
+   * Past the seventh movement the card asks for a fixed 6-8 rather than the
+   * goal's range: those sets are there to finish the session, and a wide range
+   * with no effort instruction beside it is the one combination that tells the
+   * trainee nothing at all.
+   */
+  if (goal === 'muscle' && ex.unit === 'reps'
+    && numOr(slot.position, 0) >= FAILURE_EXERCISES + BACKOFF_EXERCISES
+    && slot.role !== 'finisher' && ex.pattern !== 'conditioning' && ex.pattern !== 'plyo') {
+    reps = TAIL_REPS;
+  }
+
   if (ex.unilateral) reps = `${reps} לכל צד`;
 
   return {
@@ -1191,14 +1211,106 @@ function prescribe(profile, ex, slot) {
  * lying down, which is not the instruction, and on a finisher it is a way to
  * ruin the next session rather than improve this one.
  */
+const FAILURE_SAFE_LEVEL = 3;
+const RECOVERED_SLEEP = 6.5;
+const CALM_ENOUGH_STRESS = 4;
+const FAILURE_FROM_AGE = 18;
+const FAILURE_UNTIL_AGE = 65;
+
+/*
+ * How a hypertrophy session is divided: three movements at true failure, four
+ * more stopping two reps short, and anything past that finishing rather than
+ * accumulating.
+ */
+const FAILURE_EXERCISES = 3;
+const BACKOFF_EXERCISES = 4;
+const TAIL_REPS = '6–8';
+
 function effortFor(profile, ex, slot, goal) {
   if (goal !== 'muscle') return null;
   if (ex.unit !== 'reps') return null;
   if (slot.role === 'finisher' || ex.pattern === 'conditioning' || ex.pattern === 'plyo') return null;
 
-  const careful = isMinor(profile) || experienceOf(profile) === 'returning';
+  /*
+   * Above level 3 the failed rep is not a hard rep, it is a fall.
+   *
+   * This shipped "עד כישלון" on a muscle-up, a wall handstand push-up and a
+   * nordic negative — a failed muscle-up is a drop through the transition, a
+   * failed wall HSPU is a collapse onto the head, and a nordic negative is the
+   * highest-force eccentric in the library performed by definition without
+   * control. No profile earns this, however strong: the ceiling is a fact about
+   * the movement, not about the person holding it.
+   */
+  if (ex.level > FAILURE_SAFE_LEVEL) return 'עצור 2 חזרות לפני כישלון';
+
+  /*
+   * And never on something that already loads a declared injury. Defence in
+   * depth rather than a live rule — since the sibling-pattern fix, no
+   * contraindicated exercise reaches a slot at all — but the registry swapping
+   * the exercise and nothing swapping the effort is exactly how this went wrong
+   * the first time, when a profile declaring an elbow AND a shoulder received
+   * 22 of 23 slots at "to failure".
+   */
+  if (conflictsInjury(profile, ex)) return 'עצור 2 חזרות לפני כישלון';
+
+  /*
+   * Who is holding the reps.
+   *
+   * The original rule was minors and returning trainees, and it had the
+   * never-trained beginner exactly backwards: somebody who has never held the
+   * pattern at all was sent to failure while somebody rebuilding one was not.
+   * The stated reason — a pattern learned at failure is learned wrong — applies
+   * with more force to the person who has not learned it yet.
+   *
+   * Sleep and stress are here and not only in the volume model because at
+   * RIR 0-2 they are the wrong variable to cut. Somebody on five hours' sleep
+   * should train nearly as much and less hard; the volume model was doing the
+   * exact reverse.
+   */
+  const age = numOr(profile.age, 30);
+  const careful = age < FAILURE_FROM_AGE
+    || age >= FAILURE_UNTIL_AGE
+    || experienceOf(profile) === 'returning'
+    || experienceOf(profile) === 'beginner'
+    || numOr(profile.sleepHours, 7) < RECOVERED_SLEEP
+    || numOr(profile.stress, 3) >= CALM_ENOUGH_STRESS;
   if (careful) return 'עצור 2 חזרות לפני כישלון';
-  return 'עד כישלון או חזרה־שתיים לפניו';
+
+  /*
+   * Do not tell somebody to fail on a movement they cannot fail.
+   *
+   * A trainee declaring 32 push-ups was given knee push-ups at 3x6-10 "to
+   * failure" — he can do sixty. That is not a hard instruction, it is an
+   * arithmetically impossible one, and the honest response to reading it is to
+   * stop believing the card.
+   */
+  const shown = demonstratedLevel(profile, ex.pattern);
+  if (shown !== null && ex.level < shown) {
+    return 'קל ממה שדיווחת — עשה את החזרות ועבור לגרסה קשה יותר';
+  }
+
+  /*
+   * Effort ramps down across the session, by position.
+   *
+   * The first three movements are the ones the trainee arrives fresh for, and a
+   * set to true failure is worth most while the technique still holds. By the
+   * fourth the cost of a failed rep is climbing faster than its value, so the
+   * target backs off to two in reserve. Past the seventh the job is finishing
+   * the session, not adding to it, and the card asks for reps instead.
+   *
+   * Position rather than role: a slot's role varies with the day's pattern
+   * order, and what matters here is how much of the session is already behind
+   * you.
+   *
+   * Everything above is a cap on this, never a floor. A fourteen-year-old, a
+   * never-trained beginner, somebody on five hours' sleep and anybody holding a
+   * level-4 movement still stops short — being first in the session is not a
+   * reason to fail, only permission to when every other test already said yes.
+   */
+  const at = numOr(slot.position, 0);
+  if (at < FAILURE_EXERCISES) return 'עד כישלון';
+  if (at < FAILURE_EXERCISES + BACKOFF_EXERCISES) return 'עצור 2 חזרות לפני כישלון';
+  return null;
 }
 
 /* ------------------------------------------------------------------ *
@@ -1565,6 +1677,9 @@ export function generateProgram(profile) {
         occurrence: raw.occurrence,
         sets: clampInt(raw.sets, 1, 6, 3),
         role: roleFor(raw.pattern, compoundIndex),
+        /* How many movements are already behind this one today. effortFor ramps
+           the proximity-to-failure target down across the session with it. */
+        position: slots.length,
       };
       if (COMPOUND_PATTERNS.indexOf(raw.pattern) >= 0) compoundIndex += 1;
 

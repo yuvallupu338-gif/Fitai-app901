@@ -233,12 +233,65 @@ export const STEPS = [
     fields: [
       {
         key: 'goal', label: 'המטרה העיקרית', type: 'choice',
+        /*
+         * The descriptions are long on purpose.
+         *
+         * This one answer changes more than any other in the questionnaire: the
+         * split, the rep ranges, the rest between sets, the weekly set count,
+         * whether the plan runs a calorie deficit or a surplus, and how close to
+         * failure each set goes. It was being chosen off five four-word labels,
+         * and "כוח" versus "עלייה במסה" is not a distinction most people arrive
+         * already holding. Somebody who picks wrong here gets a coherent plan
+         * for a goal they do not have, and nothing later in the questionnaire
+         * asks again.
+         *
+         * Each one says the same three things in the same order: what happens to
+         * your body, what the training looks like, and what the eating looks
+         * like — because the third is where the goals really diverge and it is
+         * the part nobody expects to be different.
+         */
         options: [
-          { value: 'fatloss', label: 'ירידה בשומן', desc: 'לשמור על שריר, להוריד שומן' },
-          { value: 'muscle', label: 'עלייה במסה', desc: 'לבנות שריר וגודל' },
-          { value: 'strength', label: 'כוח', desc: 'להרים יותר, פחות דגש על גודל' },
-          { value: 'fitness', label: 'כושר כללי', desc: 'להרגיש טוב, לתפקד טוב' },
-          { value: 'sport', label: 'ספורט ספציפי', desc: 'אימון תומך לענף שאני עושה' },
+          {
+            value: 'fatloss',
+            label: 'ירידה בשומן',
+            desc: 'להוריד שומן ולשמור על השריר שיש. המשקל יורד — לאט, בערך חצי קילו בשבוע — '
+              + 'וההרכב משתנה יותר ממה שהמאזניים מראים. האימון: הרבה חזרות, מנוחות קצרות, '
+              + 'ואירובי בסוף. האוכל: גירעון קלורי מתון עם חלבון גבוה, כי הגירעון הוא מה שמוריד '
+              + 'את השומן והאימון הוא מה שמונע ממנו לקחת שריר בדרך.',
+          },
+          {
+            value: 'muscle',
+            label: 'עלייה במסה',
+            desc: 'לעלות במשקל, בעיקר במסת שריר. זו המטרה היחידה כאן שבה המספר על המאזניים אמור '
+              + 'לעלות — לאט, בערך רבע קילו בשבוע, כי מהר יותר מזה הוא שומן. האימון: 2–3 סטים '
+              + 'לתרגיל, שלושת התרגילים הראשונים עד כישלון והשאר קרוב אליו, מנוחות ארוכות. '
+              + 'האוכל: עודף קלורי קטן וחלבון גבוה. בלי העודף אין ממה לבנות, ועם עודף גדול מדי '
+              + 'בונים גם שומן.',
+          },
+          {
+            value: 'strength',
+            label: 'כוח',
+            desc: 'להיות חזק יותר בלי בהכרח להיות גדול יותר. הכוח עולה קודם כל דרך מערכת העצבים '
+              + 'ורק אחר כך דרך גודל, ולכן אפשר להתחזק משמעותית במשקל דומה. האימון: מעט חזרות '
+              + '(3–6), משקל או מינוף כבד, ומנוחות של 2–3 דקות — המנוחה הארוכה היא חלק מהאימון '
+              + 'ולא הפסקה ממנו. האוכל: בערך אחזקה. מתאים למי שרוצה ביצועים, לא מראה.',
+          },
+          {
+            value: 'fitness',
+            label: 'כושר כללי',
+            desc: 'להרגיש טוב ולתפקד טוב — לעלות במדרגות בלי להתנשף, להרים ילד, לא לכאוב בגב '
+              + 'אחרי יום ישיבה. בלי יעד מספרי ובלי דיאטה. האימון: תמהיל מאוזן של כוח, ליבה '
+              + 'ואירובי, בעצימות בינונית שאפשר להחזיק לאורך שנים. האוכל: אחזקה, בלי ספירה. '
+              + 'זו הבחירה הנכונה לרוב האנשים, וגם המקום הכי טוב להתחיל בו אם אתה לא בטוח.',
+          },
+          {
+            value: 'sport',
+            label: 'ספורט ספציפי',
+            desc: 'אימון שתומך בענף שאתה כבר עושה, ולא מתחרה בו. הדגש הוא על משיכה, ליבה '
+              + 'ויציבות — מה שמונע פציעות — ופחות על גודל. האימון: קצר, נפח נמוך, בלי לשרוף את '
+              + 'הרגליים לפני אימון או משחק. האוכל: אחזקה, עם פחמימות סביב הפעילות. אם הענף שלך '
+              + 'הוא כבר האימון העיקרי שלך — זו הבחירה.',
+          },
         ],
       },
       {

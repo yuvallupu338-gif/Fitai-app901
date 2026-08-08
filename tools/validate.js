@@ -2284,6 +2284,149 @@ try {
   } catch (e) { err(`hypertrophy volume and effort-gate check could not run: ${e.message}`); }
 }
 
+
+/*
+ * The hypertrophy session ramps effort down by position, and the safety gates
+ * cap it rather than the other way round.
+ *
+ * Three movements at true failure, four more stopping two short, then reps
+ * only. The direction is the point: a set to failure is worth most while the
+ * technique still holds, and by the eighth movement the job is finishing the
+ * session rather than adding to it.
+ *
+ * What must never happen is the ramp overriding a gate. Being first in the
+ * session is not a reason to fail — it is only permission to when age,
+ * experience, sleep, stress, the movement's level and the trainee's own
+ * declared numbers have all already said yes.
+ */
+{
+  try {
+    const schema = await load('src/intake/schema.js');
+    const gen = await load('src/engine/generator.js');
+    const registry = await load('src/data/exercises.index.js');
+
+    const mk = (over) => schema.normalizeProfile(Object.assign(schema.defaults(), {
+      age: 30, sex: 'male', heightCm: 178, weightKg: 82, goal: 'muscle',
+      experience: 'intermediate', daysPerWeek: 5, minutesPerSession: 90,
+      location: 'home_weights', sleepHours: 7.5, stress: 2,
+    }, over));
+
+    const FAILURE = 'עד כישלון';
+    const BACKOFF = 'עצור 2 חזרות לפני כישלון';
+    const AT_FAILURE = 3;
+    const AT_BACKOFF = 7;
+
+    const sessions = (p) => gen.generateProgram(p).days.map((d) => d.slots.map((s) => {
+      const v = (s.variants || [])[0];
+      return v ? { v, ex: registry.byId(v.exId), role: s.role } : null;
+    }).filter(Boolean));
+
+    // 1. A trainee who clears every gate gets the ramp, in order.
+    {
+      let sawFailure = false;
+      let sawBackoff = false;
+      for (const day of sessions(mk({}))) {
+        day.forEach((x, i) => {
+          const eligible = x.ex && x.ex.unit === 'reps' && x.ex.level <= 3
+            && x.role !== 'finisher' && x.ex.pattern !== 'conditioning' && x.ex.pattern !== 'plyo';
+          if (!eligible) return;
+          if (i < AT_FAILURE) {
+            if (x.v.effort === FAILURE) sawFailure = true;
+            else if (x.v.effort === BACKOFF) {
+              // Legitimate only if a gate lowered it — checked in 2 and 3.
+            } else if (x.v.effort) {
+              err(`position ${i + 1} of the session carries "${x.v.effort}" — the first `
+                + `${AT_FAILURE} movements are the failure block`);
+            }
+          } else if (i < AT_BACKOFF) {
+            if (x.v.effort === FAILURE) {
+              err(`${x.ex.id} is movement ${i + 1} of the session and is still told to go to `
+                + `failure — past ${AT_FAILURE} the target backs off to two in reserve`);
+            }
+            if (x.v.effort === BACKOFF) sawBackoff = true;
+          } else if (x.v.effort === FAILURE) {
+            err(`${x.ex.id} is movement ${i + 1} and is told to go to failure — past `
+              + `${AT_BACKOFF} the card asks for reps only`);
+          }
+        });
+      }
+      if (!sawFailure) err('no movement anywhere gets the failure instruction for a trainee who '
+        + 'clears every gate — the ramp has switched the feature off');
+      if (!sawBackoff) err('no movement gets the back-off instruction — the ramp has only one tier');
+    }
+
+    // 2. And the gates still cap it. Position must not promote anybody.
+    for (const [who, over] of [
+      ['a 15-year-old', { age: 15, experience: 'beginner' }],
+      ['a 70-year-old', { age: 70 }],
+      ['a never-trained beginner', { experience: 'beginner' }],
+      ['somebody returning after a layoff', { experience: 'returning' }],
+      ['somebody sleeping 5 hours', { sleepHours: 5 }],
+      ['somebody at stress 5/5', { stress: 5 }],
+    ]) {
+      for (const day of sessions(mk(over))) {
+        for (let i = 0; i < Math.min(AT_FAILURE, day.length); i++) {
+          if (day[i].v.effort === FAILURE) {
+            err(`${who} is told "${FAILURE}" at position ${i + 1} — the position ramp is `
+              + 'overriding a safety gate, which is exactly backwards');
+          }
+        }
+      }
+    }
+
+    // 3. Level 4+ is never promoted by being early either.
+    {
+      const p = mk({ experience: 'advanced', daysPerWeek: 6, bm_pushups: 60, bm_pullups: 18, bm_squats: 70, bm_dips: 30 });
+      for (const day of sessions(p)) {
+        for (const x of day) {
+          if (x.ex && x.ex.level > 3 && x.v.effort === FAILURE) {
+            err(`${x.ex.id} is level ${x.ex.level} and reached the failure instruction through the `
+              + 'position ramp — above level 3 the failed rep is a fall');
+          }
+        }
+      }
+    }
+
+    // 4. No other goal grew a ramp.
+    for (const goal of ['strength', 'fatloss', 'fitness', 'sport']) {
+      for (const day of sessions(mk({ goal }))) {
+        for (const x of day) {
+          if (x.v.effort) err(`the ${goal} goal carries "${x.v.effort}" — the ramp is hypertrophy only`);
+        }
+      }
+    }
+
+    /* ---- every goal explains itself ---- */
+    /*
+     * This one answer changes the split, the rep ranges, the rests, the weekly
+     * set count, whether the plan runs a deficit or a surplus, and how close to
+     * failure each set goes — and it was being chosen off five four-word labels.
+     */
+    {
+      const goalField = (schema.STEPS || [])
+        .reduce((acc, st) => acc.concat(st.fields || []), [])
+        .find((f) => f.key === 'goal');
+      if (!goalField) err('the goal question has disappeared from the questionnaire');
+      else {
+        for (const o of goalField.options || []) {
+          const d = String(o.desc || '');
+          if (d.length < 120) {
+            err(`the "${o.label}" goal is described in ${d.length} characters — this is the answer `
+              + 'that decides the split, the rests, the volume and whether the plan runs a deficit '
+              + 'or a surplus, and it cannot be picked correctly off a label');
+          }
+          // Each description has to reach the part people do not expect to
+          // differ: what the eating looks like.
+          if (!/אוכל|קלור|חלבון|גירעון|עודף|אחזקה/.test(d)) {
+            err(`the "${o.label}" goal never says what the eating looks like, which is where the `
+              + 'goals actually diverge');
+          }
+        }
+      }
+    }
+  } catch (e) { err(`effort-ramp and goal-copy check could not run: ${e.message}`); }
+}
+
 /* ---------------- report ---------------- */
 
 console.log(`exercises: ${allEx.size}`);
