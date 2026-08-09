@@ -211,6 +211,49 @@ async function main() {
   check(interactions.map, 'the route map opens');
   check(interactions.gate, 'a connecting door can be opened');
 
+  /* ---- getting off, and getting back on -------------------------------- */
+
+  /*
+   * The regression that matters most in this whole file. Stepping onto the
+   * platform used to re-board the player on the very next frame, silently
+   * making four of the seven endings unreachable, and it looked exactly like a
+   * doorway that would not let you out.
+   */
+  const doorway = await page.evaluate(() => {
+    const g = window.__lastTrain.game;
+    const p = g.player;
+    const side = g.world.doorSide;
+    g.world.driveDoors(10, side, 1, 100);          // force this side wide open
+
+    const spacing = 18.7;
+    p.outside = false;
+    p.sitting = null;
+    p.position[0] = 0;
+    p.position[1] = 0;
+    p.position[2] = spacing - 4.4;                  // car 1's rear doorway
+
+    let stepped = 0;
+    let boarded = 0;
+    const ctx = { allowExit: true, onStepOff: () => { stepped++; }, onBoard: () => { boarded++; } };
+
+    /* Walk straight out of the doorway for two thirds of a second. */
+    for (let i = 0; i < 40; i++) p._move(p.position[0] + side * 0.045, p.position[2], ctx);
+    const out = { stepped, boarded, outside: p.outside, x: Number(p.position[0].toFixed(2)) };
+
+    /* And straight back in again. */
+    for (let i = 0; i < 60; i++) p._move(p.position[0] - side * 0.045, p.position[2], ctx);
+    out.backIn = !p.outside;
+    out.boardedTotal = boarded;
+
+    p.outside = false;
+    p.position[0] = 0;
+    return out;
+  });
+  check(doorway.stepped === 1, `walking out of an open door steps off exactly once (${doorway.stepped})`);
+  check(doorway.outside === true && doorway.boarded === 0,
+    `the player stays on the platform once they are on it (outside=${doorway.outside}, re-boards=${doorway.boarded})`);
+  check(doorway.backIn === true, 'walking back through the door re-boards');
+
   await page.waitForTimeout(300);
   const overlayShown = await page.evaluate(() => !document.getElementById('overlay').hidden);
   check(overlayShown === false || overlayShown === true, 'the document overlay layer responds');

@@ -534,8 +534,11 @@ body.playing { cursor: none; }
   inset: 0;
   display: flex;
   flex-direction: column;
-  justify-content: center;
-  padding: 10vh 10vw;
+  /* Not `center`: once the text is taller than the viewport a centred flex
+     column overflows in both directions and the top — the title — becomes
+     unreachable, because you cannot scroll above the start of the box. */
+  justify-content: flex-start;
+  padding: 9vh 10vw 12vh;
   background: #000;
   overflow-y: auto;
 }
@@ -739,14 +742,17 @@ class Input {
     this.onEscape = null;
 
     this._onKeyDown = (e) => {
-      /* Let the browser have the keystroke while a text field has focus —
-         nothing in the game does, but the settings screen has sliders and a
-         seed box, and stealing Space there is maddening. */
-      if (isTextEntry(e.target)) return;
+      /* Escape is checked before anything else. It is the only way out of the
+         pause menu by keyboard, and the settings page is made entirely of the
+         focusable controls the text-entry guard below is written to protect —
+         so guarding first meant that touching any slider disabled Escape. */
       if (e.code === 'Escape') {
         if (this.onEscape) this.onEscape();
         return;
       }
+      /* Otherwise let the browser have the keystroke while a control has
+         focus; stealing Space or the arrow keys from a slider is maddening. */
+      if (isTextEntry(e.target)) return;
       if (e.repeat) return;
       if (!this.enabled) return;
       if (SWALLOW.has(e.code)) e.preventDefault();
@@ -1690,9 +1696,12 @@ class AudioEngine {
     this.buses.voice.gain.setTargetAtTime(settings.volumeVoice ?? 1, t, 0.02);
   }
 
-  /* 1 = normal, 0 = the bottom drops out. */
+  /* 1 = normal, 0 = the bottom drops out. `duckAmount` is what callers read
+     to decide whether they still owe the mix a restore, so it has to move
+     with the target and not stay at its constructed value. */
   duck(amount, seconds = 0.25) {
     this._duckTarget = clamp(amount, 0, 1);
+    this.duckAmount = this._duckTarget;
     if (!this.ready) return;
     const g = this.buses.duck.gain;
     g.cancelScheduledValues(this.now);
@@ -1865,8 +1874,15 @@ class AudioEngine {
     const ctx = this.ctx;
     const t = when || this.now;
     const src = ctx.createBufferSource();
-    src.buffer = this.noise[type] || this.noise.white;
+    const buffer = this.noise[type] || this.noise.white;
+    src.buffer = buffer;
     src.playbackRate.value = playbackRate;
+    /* The noise buffers are two to four seconds long and some of these sounds
+       — the brake, which runs for ten — are longer than that. A one-shot
+       source simply stops at the end of its buffer, so without looping the
+       envelope goes on describing a sound that finished seconds ago. */
+    const startOffset = Math.random() * Math.max(0, Math.min(1.2, buffer.duration - 0.3));
+    if (duration + 0.1 > buffer.duration - startOffset) src.loop = true;
 
     let node = src;
     let filterNode = null;
@@ -1887,7 +1903,7 @@ class AudioEngine {
     node.connect(g);
 
     this._route(g, bus, pan, reverb, far);
-    src.start(t, Math.random() * 1.2, duration + 0.05);
+    src.start(t, startOffset);
     src.stop(t + duration + 0.1);
     return { source: src, gain: g, filter: filterNode };
   }
@@ -2432,12 +2448,9 @@ const SOUNDS = {
     const t = o.when || e.now;
     /* Dual tone, two bursts, then a long wait — a phone nobody is answering. */
     for (const offset of [0, 0.9]) {
-      for (let i = 0; i < 8; i++) {
-        const when = t + offset + i * 0.025;
-        e.tone({ when, frequency: 440, duration: 0.4, type: 'sine', gain: 0.028, pan: o.pan ?? 0.5, far: o.far ?? 0.7, reverb: 0.4 });
-        e.tone({ when, frequency: 480, duration: 0.4, type: 'sine', gain: 0.028, pan: o.pan ?? 0.5, far: o.far ?? 0.7, reverb: 0.4 });
-        break;
-      }
+      const when = t + offset;
+      e.tone({ when, frequency: 440, duration: 0.4, type: 'sine', gain: 0.030, pan: o.pan ?? 0.5, far: o.far ?? 0.7, reverb: 0.4 });
+      e.tone({ when, frequency: 480, duration: 0.4, type: 'sine', gain: 0.030, pan: o.pan ?? 0.5, far: o.far ?? 0.7, reverb: 0.4 });
     }
   },
   knock(e, o) {
@@ -3227,7 +3240,7 @@ void main() {
      per cent, but at night, with a lit carriage on one side and a tunnel on
      the other, the eye reads the window as a mirror from almost every angle —
      and the reflection is a mechanic here, not a garnish. */
-  fres = mix(0.34, 1.0, fres);
+  fres = mix(0.30, 1.0, fres);
 
   vec4 smudge = texture(uSmudge, vUV);
   /* Condensation streaks drift down while the train is moving. */
@@ -3249,7 +3262,7 @@ void main() {
   /* Capped below opaque. A pane at a grazing angle really does mirror almost
      everything, but the near windows then become the brightest thing in the
      carriage and the eye never gets past them. */
-  float alpha = clamp(fres * uReflStrength * 1.25 + uSmudgeAmount * smudge.a * 0.25 + 0.10, 0.0, 0.88);
+  float alpha = clamp(fres * uReflStrength * 1.05 + uSmudgeAmount * smudge.a * 0.20 + 0.06, 0.0, 0.85);
   fragColor = vec4(color, alpha);
 }
 `;
@@ -3325,6 +3338,18 @@ float hash(vec2 p) {
   return fract((p.x + p.y) * p.x);
 }
 
+/*
+ * Soft shoulder. Everything under 0.7 is left exactly alone and everything
+ * above it is compressed toward white instead of hitting it. A carriage has
+ * two bare fluorescent tubes and a platform full of them in the same frame,
+ * and without this the tubes clip flat and drag every surface near them up
+ * with them — which is what turns a lit train into a white smear.
+ */
+vec3 shoulder(vec3 c) {
+  vec3 over = max(c - 0.70, vec3(0.0));
+  return min(c, vec3(0.70)) + over / (1.0 + over * 2.4);
+}
+
 void main() {
   vec2 uv = vUV;
   vec2 centered = uv - 0.5;
@@ -3350,6 +3375,7 @@ void main() {
   if (uBloomAmount > 0.0) {
     color += texture(uBloom, uv).rgb * uBloomAmount;
   }
+  color = shoulder(color);
 
   /* Cold night grade: lift the shadows toward blue, pull warmth out of the
      highlights so the fluorescent tubes stay clinical. */
@@ -4520,6 +4546,10 @@ class Renderer {
         prog.mat4('uModel', item.node.matrix);
         normalMatrix(this.normalMat, item.node.matrix);
         prog.mat3('uNormalMat', this.normalMat);
+        /* uWobble is per-node too. Leaving it on whatever the last opaque node
+           installed makes transparent geometry inherit the grab handles' sway. */
+        const wob = item.node.wobble;
+        prog.v4('uWobble', wob ? wob[0] : 0, wob ? wob[1] : 0, wob ? wob[2] : 0, wob ? wob[3] : 0);
         this._drawGroup(item.node, item.group, item.mat, prog);
       }
       gl.depthMask(true);
@@ -5138,17 +5168,22 @@ class Builder {
         t * (opts.tiles ?? 1), height * (opts.tilesV ?? 1));
       ring.push([top, bot]);
     }
+    /* Counter-clockwise seen from outside, matching box() and quad(). Wound
+       the other way a closed tube still has the right silhouette — you are
+       simply looking at the inside of its far wall, at the wrong depth and
+       with the wrong normal — which is exactly why this survived a long look
+       at every pole, handrail and limb in the game. */
     for (let i = 0; i < segments; i++) {
       const [t0, b0] = ring[i];
       const [t1, b1] = ring[i + 1];
-      idx.push(b0, b1, t1, b0, t1, t0);
+      idx.push(b0, t1, b1, b0, t0, t1);
     }
     if (opts.caps) {
       const capTop = this._vertex(0, half, 0, 0, 1, 0, 0.5, 0.5);
       const capBot = this._vertex(0, -half, 0, 0, -1, 0, 0.5, 0.5);
       for (let i = 0; i < segments; i++) {
-        idx.push(capTop, ring[i][0], ring[i + 1][0]);
-        idx.push(capBot, ring[i + 1][1], ring[i][1]);
+        idx.push(capTop, ring[i + 1][0], ring[i][0]);
+        idx.push(capBot, ring[i][1], ring[i + 1][1]);
       }
     }
     return this;
@@ -5178,8 +5213,10 @@ class Builder {
     for (let r = 0; r < rings; r++) {
       for (let s = 0; s < segments; s++) {
         const a = grid[r][s], b = grid[r + 1][s], c = grid[r + 1][s + 1], d = grid[r][s + 1];
-        if (r !== 0) idx.push(a, b, d);
-        if (r !== rings - 1) idx.push(b, c, d);
+        /* Same handedness fix as cylinder(): b runs south of a and d runs east
+           of it, so a->b->d is clockwise from outside. */
+        if (r !== 0) idx.push(a, d, b);
+        if (r !== rings - 1) idx.push(b, d, c);
       }
     }
     return this;
@@ -6262,7 +6299,7 @@ function platformLights(mesh, spec) {
       position: [side * (PLATFORM.innerX + 2.6), PLATFORM.wallTop - 0.5, z],
       radius: 12,
       color: spec.lightColor || [0.82, 0.86, 0.95],
-      intensity: alive ? (spec.lightIntensity ?? 0.5) * 2.6 : 0,
+      intensity: alive ? (spec.lightIntensity ?? 0.5) * 1.9 : 0,
       flicker: 1,
       enabled: alive,
       failing: !alive ? false : (spec.decay ?? 0) > 0.5 && i % 2 === 1,
@@ -6314,7 +6351,7 @@ function trainMaterials() {
   const glass = (side) => ({
     glass: side,
     glassTint: [0.030, 0.038, 0.052],
-    reflStrength: side === 'plain' ? 0.30 : 0.72,
+    reflStrength: side === 'plain' ? 0.32 : 0.95,
     smudge: 1,
     cull: false,
     transparent: true,
@@ -8245,8 +8282,13 @@ class Crowd {
       if (!state) continue;
       const person = this.people.get(def.id);
       if (!person) continue;
-      if (opts.immediate) person.setState(state);
-      else this.queueUnobserved(person, () => person.setState(state));
+      /* An arc entry that says where somebody is sitting is also saying that
+         they are on the train. Only `present: false` takes somebody off it —
+         without this default, reset() clears everyone and no arc ever puts the
+         six named passengers back, so the entire cast is invisible. */
+      const next = { present: true, ...state };
+      if (opts.immediate) person.setState(next);
+      else this.queueUnobserved(person, () => person.setState(next));
     }
 
     const want = EXTRA_COUNTS[Math.min(index, EXTRA_COUNTS.length - 1)] ?? 0;
@@ -8299,8 +8341,11 @@ class Crowd {
       item.age += dt;
       const point = item.point
         || (item.person ? pointOf(item.person) : { x: 0, z: carCenterZ(item.car ?? playerCar) });
-      const differentCar = item.car != null && item.car !== playerCar;
-      const hidden = force || differentCar || !isObserved(point, camera);
+      /* Being in another carriage is not the same as being out of sight: an
+         open gangway is a clear line down two more cars, and the connecting
+         doors are glazed. The cone test already rejects anything far enough
+         away, so it is the only test that runs. */
+      const hidden = force || !isObserved(point, camera);
       if (!hidden) continue;
       try { item.apply(); } catch (err) { console.warn('[crowd] queued change failed', err); }
       this.pending.splice(i, 1);
@@ -8335,6 +8380,13 @@ class Crowd {
   nodes(out = []) {
     for (const p of this.all()) p.nodes(out);
     return out;
+  }
+
+  /* Anybody at all, named or not. `get` only knows the named cast, and the
+     interaction layer offers the nameless ones too. */
+  find(id) {
+    if (this.people.has(id)) return this.people.get(id);
+    return this.all().find((p) => p.id === id) || null;
   }
 
   /* People close enough to be talked to. */
@@ -8463,6 +8515,11 @@ class Player {
     this.sitting = null;
     this.outside = false;
     this.bob = 0;
+    /* Both gates get set when a run ends. A new run that inherited them would
+       start with a camera that does not turn and legs that do not work. */
+    this.locked = false;
+    this.frozen = false;
+    this.stillTime = 0;
   }
 
   /* ---- movement -------------------------------------------------------- */
@@ -8582,7 +8639,10 @@ class Player {
     if (doorway && open > 0.7 && side === world.doorSide && Math.abs(nx) >= CAR.doorwayHalf - 0.001
       && world.platformZ != null && ctx.allowExit !== false) {
       this.outside = true;
-      this.position[0] = side * (CAR.halfWidth + 0.30);
+      /* Clear of the platform edge, not on it. Landing inside the re-board
+         threshold put the player straight back on the train on the next frame,
+         forever, which quietly made every "got off here" ending unreachable. */
+      this.position[0] = side * (PLATFORM.innerX + 0.55);
       this.position[2] = nz;
       ctx.onStepOff?.();
       return;
@@ -8662,6 +8722,10 @@ class Player {
 
   sit(car, slotIndex) {
     const slot = seatSlot(slotIndex);
+    /* Sitting is always inside. Reachable from the platform through an open
+       doorway, and leaving `outside` set there stalls the boarding phase and
+       hands the door-close decision the wrong answer. */
+    this.outside = false;
     this.sitting = { car, slot: slotIndex, yaw: slot.facing };
     this.position[0] = slot.x * 0.86;
     this.position[2] = carCenterZ(car) + slot.z;
@@ -8749,6 +8813,7 @@ __m["train/src/game/anomalies.js"] = (function () {
 
 const { clamp } = __m["train/src/core/math.js"];
 const { carCenterZ, seatSlot, CAR } = __m["train/src/world/dims.js"];
+const { AD_SLOTS } = __m["train/src/world/carriage.js"];
 
 /* Every entry: start(ctx) returns null (declined) or a handle with an optional
    update(dt, ctx) and end(ctx). `duration` is in seconds. */
@@ -8758,6 +8823,9 @@ const ANOMALIES = [
     weight: 4, min: 1, max: 6, cooldown: 34,
     start(ctx) {
       const car = ctx.playerCar;
+      /* Remembered, because another anomaly may already have this carriage in
+         the dark and restoring to a hardcoded "on" would cancel it. */
+      const wasOn = ctx.world.cars[car]?.lights.some((l) => l.enabled) ?? true;
       let t = 0;
       const pattern = ctx.rng.pick([
         [0.06, 0.10, 0.04, 0.22, 0.05],
@@ -8777,7 +8845,7 @@ const ANOMALIES = [
             ctx.world.setCarLights(car, on);
           }
         },
-        end() { ctx.world.setCarLights(car, true); },
+        end() { ctx.world.setCarLights(car, wasOn); },
       };
     },
   },
@@ -8787,6 +8855,8 @@ const ANOMALIES = [
     weight: 2, min: 2, max: 6, cooldown: 70,
     start(ctx) {
       const cars = ctx.world.cars.map((c) => c.index);
+      const wasOn = ctx.world.cars.map((c) => c.lights.some((l) => l.enabled));
+      const restore = () => cars.forEach((c, i) => ctx.world.setCarLights(c, wasOn[i]));
       ctx.sfx.play('lightsOut');
       ctx.audio.duck(0.25, 0.35);
       for (const c of cars) ctx.world.setCarLights(c, false);
@@ -8799,7 +8869,7 @@ const ANOMALIES = [
           t += dt;
           if (!restored && t >= hold) {
             restored = true;
-            for (const c of cars) ctx.world.setCarLights(c, true);
+            restore();
             ctx.audio.duck(1, 0.5);
             ctx.sfx.play('powerUp');
             /* Whatever changed, changed here. */
@@ -8807,7 +8877,7 @@ const ANOMALIES = [
           }
         },
         end() {
-          for (const c of cars) ctx.world.setCarLights(c, true);
+          restore();
           ctx.audio.duck(1, 0.4);
         },
       };
@@ -8939,8 +9009,11 @@ const ANOMALIES = [
     start(ctx) {
       const idle = ctx.crowd.extras.find((p) => !p.present);
       if (!idle) return null;
-      const behind = ctx.playerZ - Math.cos(ctx.playerYaw) * 2.2;
-      const x = -Math.sin(ctx.playerYaw) * 0.9;
+      /* camera.forward is (-sin yaw, ., -cos yaw), so *behind* the player is
+         plus cos on Z and plus sin on X. Getting this backwards put the figure
+         two metres in front of them, in full view. */
+      const behind = ctx.playerZ + Math.cos(ctx.playerYaw) * 2.2;
+      const x = Math.sin(ctx.playerYaw) * 0.9;
       ctx.queueUnobserved(idle, () => {
         idle.present = true;
         idle.customPos = [clamp(x, -0.6, 0.6), 0, behind];
@@ -9103,10 +9176,16 @@ const ANOMALIES = [
     start(ctx) {
       const slot = ctx.rng.int(0, 3);
       const car = ctx.playerCar;
+      if (!ctx.world.cars[car]) return null;
       const spec = ctx.rng.pick(ALTERED_ADS);
-      const ad = ctx.world.cars[car];
-      if (!ad) return null;
-      const target = { x: 0, z: carCenterZ(car) };
+      /* The panel, not the middle of the carriage. Gating on the car centre
+         let the poster change while the player was standing in front of it. */
+      const place = AD_SLOTS[slot];
+      const target = {
+        x: place.side * (CAR.halfWidth - 0.1),
+        y: 2.02,
+        z: carCenterZ(car) + place.z,
+      };
       ctx.queueUnobservedCar(car, () => ctx.world.setAd(car, slot, spec), target);
       return { duration: 0.1 };
     },
@@ -9173,10 +9252,11 @@ const ANOMALIES = [
     start(ctx) {
       const target = ctx.rng.bool() ? ctx.playerCar + 1 : ctx.playerCar - 1;
       if (target < 0 || target >= ctx.world.carCount) return null;
+      const wasOn = ctx.world.cars[target]?.lights.some((l) => l.enabled) ?? true;
       ctx.world.setCarLights(target, false);
       return {
         duration: ctx.rng.float(10, 26),
-        end() { ctx.world.setCarLights(target, true); },
+        end() { ctx.world.setCarLights(target, wasOn); },
       };
     },
   },
@@ -9205,7 +9285,10 @@ const ANOMALIES = [
     weight: 2, min: 3, max: 6, cooldown: 120,
     start(ctx) {
       ctx.flags.clockCorrupt = true;
-      return { duration: 30 };
+      return {
+        duration: 30,
+        end() { ctx.flags.clockCorrupt = false; },
+      };
     },
   },
 
@@ -9240,10 +9323,14 @@ const ANOMALIES = [
       const stranger = ctx.crowd.get('stranger');
       if (!stranger || !stranger.present) return null;
       const slot = seatSlot(stranger.seat);
-      /* Two seats nearer, each time, and never while looked at. */
-      const nearer = stranger.seat + (slot.z > ctx.playerZ - carCenterZ(stranger.car) ? -2 : 2);
+      /* The slot list runs one whole side and then the other, so stepping over
+         index 26 does not move somebody two seats along — it moves them to the
+         far end of the opposite bench. Stay within the side he is already on. */
+      const bench = stranger.seat < 27 ? 0 : 27;
+      const step = slot.z > ctx.playerZ - carCenterZ(stranger.car) ? -2 : 2;
+      const nearer = clamp(stranger.seat + step, bench, bench + 26);
       ctx.queueUnobserved(stranger, () => {
-        stranger.seat = clamp(nearer, 0, 53);
+        stranger.seat = nearer;
         stranger.watch = Math.min(1, stranger.watch + 0.15);
       });
       return { duration: 0.1 };
@@ -10109,7 +10196,10 @@ class Game {
        standing. The first thing the player does in this game is choose to get
        on it. */
     const side = STATIONS[0].side;
-    this.player.reset(carCenterZ(1) - 1.2);
+    /* Standing at a doorway, not beside a sealed panel. The first thing the
+       player does is walk in, and making them find the door first reads as the
+       game not letting them on. */
+    this.player.reset(carCenterZ(1) + CAR.doorZ[0]);
     this.player.outside = true;
     this.player.position[0] = side * (PLATFORM.innerX + 1.1);
     this.player.position[1] = PLATFORM.topY;
@@ -10136,6 +10226,8 @@ class Game {
     this.state.clues = new Set(save.clues || []);
     this.state.flags = { ...save.flags };
     this.state.strangerTalks = save.strangerTalks || 0;
+    this.state.strangerSaid = { ...(save.strangerSaid || {}) };
+    this.state.spokenTo = { ...(save.spokenTo || {}) };
     this.state.sitCount = save.sitCount || 0;
     this.state.doorwayStations = new Set(save.doorwayStations || []);
     this.state.routeStage = save.routeStage || 0;
@@ -10178,6 +10270,11 @@ class Game {
       clues: [...this.state.clues],
       flags: this.state.flags,
       strangerTalks: this.state.strangerTalks,
+      /* Which of his lines have already been heard, and who else has been
+         spoken to. Without these a resumed run replays the stranger from the
+         top and counts every repeat as new. */
+      strangerSaid: this.state.strangerSaid,
+      spokenTo: this.state.spokenTo,
       sitCount: this.state.sitCount,
       doorwayStations: [...this.state.doorwayStations],
       routeStage: this.state.routeStage,
@@ -10507,6 +10604,8 @@ class Game {
     this.phase = 'ending';
     this.phaseTime = 0;
     this.endingSpeed = decision === 'stay' ? 0.55 : 0;
+    this.player.frozen = true;
+    this.player.locked = true;
     this.director.clear(this._anomalyContext());
     this.audio.duck(0.25, 2.2);
     this.sfx.play('stinger', { caption: false });
@@ -10579,7 +10678,7 @@ class Game {
 
     /* Seats near enough to sit on. Generating all fifty-four every frame is
        cheap, but only the ones within reach are worth testing. */
-    if (!this.player.sitting) {
+    if (!this.player.sitting && !this.player.outside) {
       const base = carCenterZ(car);
       for (const slot of SEAT_SLOTS) {
         const z = base + slot.z;
@@ -10781,7 +10880,9 @@ class Game {
 
   _talkTo(id) {
     const st = this.state;
-    const person = this.crowd.get(id);
+    /* `find`, not `get`: the interaction layer offers the nameless passengers
+       too, and they do not live in the named-cast map. */
+    const person = this.crowd.find(id);
     if (!person) return;
     if (id === 'stranger') {
       const index = clamp(st.stationIndex, 0, STRANGER_LINES.length - 1);
@@ -10804,6 +10905,7 @@ class Game {
     const count = st.spokenTo[id] || 0;
     st.spokenTo[id] = count + 1;
     this.events.emit('speech', { speaker: '', text: passengerLine(id, count) });
+    if (Math.random() < 0.35) this.sfx.play('cloth', { caption: false, pan: 0 });
   }
 
   /* ---- support systems --------------------------------------------------- */
@@ -10927,6 +11029,24 @@ class Game {
       setDisplayOverride: (text, corrupt) => this.setDisplayOverride(text, corrupt),
       bumpRouteStage: () => this.bumpRouteStage(),
     };
+  }
+
+  /* Abandoning a run mid-anomaly. Every live handle gets its end() so nothing
+     it changed — a dark carriage, a raised grain target, a frozen reflection —
+     survives into the next run through the fx object, which outlives the run. */
+  abort() {
+    if (!this.running) return;
+    this.director?.clear(this._anomalyContext());
+    this.fx.grainTarget = 1;
+    this.fx.desaturateTarget = 0;
+    this.fx.pulseTarget = 0;
+    this.fx.distort = 0;
+    this.avatar.delay = 0;
+    this.avatar.frozen = false;
+    this.world.cameraTracking = false;
+    this.world.handlesFrozen = false;
+    this.setDisplayOverride(null);
+    this.running = false;
   }
 
   /* ---- render ------------------------------------------------------------ */
@@ -11984,8 +12104,12 @@ function boot() {
   });
 
   overlay.onClose = () => {
+    /* Cleared unconditionally. Dismissing a document from any state other than
+       play — quitting to the menu with one open, for instance — used to leave
+       the flag set, and the next run began with a player who could not look
+       around. */
+    if (game) game.player.locked = false;
     if (mode !== 'playing') return;
-    game.player.locked = false;
     /* The click that dismissed the overlay is still in the buffer. Without a
        beat of cooldown the same click interacts with whatever the crosshair
        happens to be resting on the moment the paper comes away. */
@@ -12040,10 +12164,25 @@ function boot() {
 
 function frame(dt) {
   simClock += dt;
-  if (mode === 'menu' || mode === 'ending') {
+  if (mode === 'menu') {
     backdrop?.update(dt, simClock);
     backdrop?.render();
     audio.updateAmbient(dt, 0, { doorsOpen: true, hvac: true });
+    return;
+  }
+
+  /* An ending is a shot, not a screen. The game keeps running — and keeps
+     fading — for the three and a half seconds between the last decision and
+     the card, and only then does the platform come back underneath it. */
+  if (mode === 'ending') {
+    if (backdrop?.active) {
+      backdrop.update(dt, simClock);
+      backdrop.render();
+      audio.updateAmbient(dt, 0, { doorsOpen: true, hvac: true });
+    } else {
+      game.update(dt, null, simClock);
+      game.render();
+    }
     return;
   }
 
@@ -12075,7 +12214,10 @@ function toMenu() {
   input.releaseLock();
   input.enabled = false;
   document.body.classList.remove('playing');
-  if (game?.running) game.running = false;
+  /* Not just `running = false`: a run abandoned mid-anomaly has to hand back
+     whatever that anomaly was holding. */
+  game?.abort();
+  audio.duck(1, 0.4);
   backdrop?.enter();
   menu.showMain({ hasSave: hasSave() });
   saveProfile(profile);
@@ -12085,6 +12227,9 @@ function toMenu() {
 function startRun({ nightmare = false } = {}) {
   audio.init();
   audio.resume();
+  /* Pausing ducks the whole mix; quitting from the pause menu straight into a
+     new run used to start it at a quarter volume. */
+  audio.duck(1, 0.3);
   clearSave();
   backdrop?.leave();
   menu.close();
@@ -12100,6 +12245,7 @@ function resumeSave() {
   if (!save) { startRun({}); return; }
   audio.init();
   audio.resume();
+  audio.duck(1, 0.3);
   backdrop?.leave();
   menu.close();
   hud.show(true);

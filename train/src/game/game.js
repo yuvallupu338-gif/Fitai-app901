@@ -136,7 +136,10 @@ export class Game {
        standing. The first thing the player does in this game is choose to get
        on it. */
     const side = STATIONS[0].side;
-    this.player.reset(carCenterZ(1) - 1.2);
+    /* Standing at a doorway, not beside a sealed panel. The first thing the
+       player does is walk in, and making them find the door first reads as the
+       game not letting them on. */
+    this.player.reset(carCenterZ(1) + CAR.doorZ[0]);
     this.player.outside = true;
     this.player.position[0] = side * (PLATFORM.innerX + 1.1);
     this.player.position[1] = PLATFORM.topY;
@@ -615,7 +618,7 @@ export class Game {
 
     /* Seats near enough to sit on. Generating all fifty-four every frame is
        cheap, but only the ones within reach are worth testing. */
-    if (!this.player.sitting) {
+    if (!this.player.sitting && !this.player.outside) {
       const base = carCenterZ(car);
       for (const slot of SEAT_SLOTS) {
         const z = base + slot.z;
