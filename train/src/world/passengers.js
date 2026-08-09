@@ -118,6 +118,43 @@ function bodyAO(sitting, hipY, chestY) {
 }
 
 /*
+ * A shoe. Four pieces: a sole that runs the whole length, an upper over the
+ * middle of it, a lower toe box and a heel counter behind. A single box in
+ * dark leather reads as a brick, and a seated passenger puts both of them
+ * squarely in the aisle at eye level for anyone standing up.
+ */
+function shoe(b, x, y, z, W, S) {
+  b.push();
+  b.translate(x, y, z);
+  /* Sole, proud of the upper on every side. */
+  b.push();
+  b.translate(0, -0.024 * S, 0);
+  b.roundedBox(0.106 * W, 0.020 * S, 0.250 * S, 0.010, { tiles: 3 });
+  b.pop();
+  /* The upper over the instep, tallest at the back. */
+  b.push();
+  b.translate(0, 0.006 * S, -0.020 * S);
+  b.roundedBox(0.098 * W, 0.052 * S, 0.150 * S, 0.022, { tiles: 3 });
+  b.pop();
+  /* Toe: lower and narrower, so the shoe tapers to a front instead of ending
+     in a wall. */
+  b.push();
+  b.translate(0, -0.006 * S, 0.088 * S);
+  b.roundedBox(0.084 * W, 0.034 * S, 0.090 * S, 0.016, { tiles: 3 });
+  b.pop();
+  /* Heel counter and the block under it. */
+  b.push();
+  b.translate(0, 0.020 * S, -0.088 * S);
+  b.roundedBox(0.092 * W, 0.058 * S, 0.078 * S, 0.020, { tiles: 3 });
+  b.pop();
+  b.push();
+  b.translate(0, -0.036 * S, -0.082 * S);
+  b.box(0.090 * W, 0.020 * S, 0.070 * S, { tiles: 3 });
+  b.pop();
+  b.pop();
+}
+
+/*
  * Builds one body in one pose. Origin is on the floor between the feet, +Z is
  * the direction the passenger faces.
  *
@@ -155,12 +192,7 @@ export function buildBody(gl, materials, typeKey, pose, opts = {}) {
       joint(b, knee, 0.076 * W);
       joint(b, hip, 0.098 * W);
       b.material('shoes');
-      b.push();
-      b.translate(s * (hipX + 0.03), 0.040 * S, ankleZ + 0.055 * S);
-      b.box(0.105 * W, 0.060 * S, 0.245 * S, { tiles: 3 });
-      b.translate(0, 0.028 * S, -0.075 * S);
-      b.box(0.098 * W, 0.050 * S, 0.095 * S, { tiles: 3 });   // heel counter
-      b.pop();
+      shoe(b, s * (hipX + 0.03), 0.040 * S, ankleZ + 0.055 * S, W, S);
       b.material('legs');
     }
   } else {
@@ -172,12 +204,7 @@ export function buildBody(gl, materials, typeKey, pose, opts = {}) {
       limb(b, knee, ankle, 0.072 * W, 0.054 * W);
       joint(b, knee, 0.074 * W);
       b.material('shoes');
-      b.push();
-      b.translate(s * (hipX + 0.01), 0.040 * S, 0.048 * S);
-      b.box(0.104 * W, 0.062 * S, 0.255 * S, { tiles: 3 });
-      b.translate(0, 0.030 * S, -0.078 * S);
-      b.box(0.098 * W, 0.052 * S, 0.098 * S, { tiles: 3 });
-      b.pop();
+      shoe(b, s * (hipX + 0.01), 0.040 * S, 0.048 * S, W, S);
       b.material('legs');
     }
   }

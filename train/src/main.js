@@ -221,6 +221,8 @@ function startRun({ nightmare = false } = {}) {
   hud.show(true);
   input.enabled = true;
   mode = 'playing';
+  profile.ridesStarted = (profile.ridesStarted || 0) + 1;
+  saveProfile(profile);
   game.startNew({ nightmare, seed: randomSeed() });
   input.requestLock();
 }

@@ -45,6 +45,20 @@ export const DEFAULT_MATERIAL = {
   reflectOnly: false,
 };
 
+/*
+ * Base exposure.
+ *
+ * The lighting rig is built around surfaces reading correctly under it, and
+ * the result is a carriage lit like an operating theatre: the median pixel
+ * came out of the scene pass at about 0.67, which is daylight. Grading that
+ * down with contrast alone crushed everything below the pivot to black while
+ * the walls stayed white, which is exactly the picture a player cannot read.
+ * One multiply here — before the bright pass, so the bloom thresholds against
+ * the exposed image and stops treating the whole carriage as a light source —
+ * puts the night back without touching a single lamp.
+ */
+export const BASE_EXPOSURE = 0.48;
+
 export class Renderer {
   constructor(canvas, settings) {
     this.canvas = canvas;
@@ -382,11 +396,13 @@ export class Renderer {
     gl.disable(gl.DEPTH_TEST);
     gl.disable(gl.BLEND);
 
+    const exposure = BASE_EXPOSURE * (fx.exposure ?? 1);
     const bloomAmount = this.settings.bloom ? (fx.bloom ?? 0.55) : 0;
     if (bloomAmount > 0) {
       this.bloomA.bind();
       const bright = this.brightProgram.use();
       bright.tex('uSource', this.sceneTarget.texture);
+      bright.f('uExposure', exposure);
       bright.f('uThreshold', fx.bloomThreshold ?? 0.74);
       bright.f('uKnee', 0.35);
       this.quad.draw();
@@ -417,7 +433,7 @@ export class Renderer {
     comp.f('uGrain', (this.settings.grain ?? 1) * (fx.grain ?? 1));
     comp.f('uSharpen', this.settings.sharpen ?? 0.5);
     comp.f('uContrast', this.settings.contrast ?? 1);
-    comp.f('uExposure', fx.exposure ?? 1);
+    comp.f('uExposure', exposure);
     comp.v2('uTexel', 1 / this.width, 1 / this.height);
     comp.f('uVignette', (this.settings.vignette ?? 1) * (fx.vignette ?? 0.62));
     comp.f('uChromatic', (this.settings.chromatic ?? 1) * (fx.chromatic ?? 1));

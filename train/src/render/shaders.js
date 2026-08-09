@@ -253,9 +253,13 @@ in vec2 vUV;
 uniform sampler2D uSource;
 uniform float uThreshold;
 uniform float uKnee;
+uniform float uExposure;
 out vec4 fragColor;
 void main() {
-  vec3 c = texture(uSource, vUV).rgb;
+  /* Thresholded after exposure, the same as the composite sees it. Against the
+     raw scene the whole carriage sat above the threshold and the "bloom" was a
+     blurred copy of the entire frame laid back over itself. */
+  vec3 c = texture(uSource, vUV).rgb * uExposure;
   float lum = dot(c, vec3(0.2126, 0.7152, 0.0722));
   float w = clamp((lum - uThreshold) / max(uKnee, 0.0001), 0.0, 1.0);
   fragColor = vec4(c * w, 1.0);
@@ -320,8 +324,24 @@ float hash(vec2 p) {
  * with them — which is what turns a lit train into a white smear.
  */
 vec3 shoulder(vec3 c) {
-  vec3 over = max(c - 0.58, vec3(0.0));
-  return min(c, vec3(0.58)) + over / (1.0 + over * 2.6);
+  vec3 over = max(c - 0.66, vec3(0.0));
+  return min(c, vec3(0.66)) + over / (1.0 + over * 2.2);
+}
+
+/*
+ * Soft toe. Whatever the contrast pushes below the toe height comes back as a
+ * very dark value instead of as a hole: the curve keeps its slope at the knee
+ * and decays from there, so it never actually reaches zero. A carriage with
+ * holes punched in it is a carriage whose shape the player cannot read, and
+ * the corners of this one are where the game keeps everything worth seeing.
+ */
+vec3 toe(vec3 c, float t) {
+  /* The exponent is clamped at zero before exp sees it. Unclamped, a highlight
+     at 0.7 asks for exp(24) — which overflows mediump to infinity, and
+     mix(inf, c, 1.0) is NaN, not c. The whole ceiling came back as flat red
+     and green confetti. */
+  vec3 e = min((c - t) / t, vec3(0.0));
+  return mix(t * exp(e), c, step(vec3(t), c));
 }
 
 void main() {
@@ -369,7 +389,10 @@ void main() {
   if (uBloomAmount > 0.0) {
     color += texture(uBloom, uv).rgb * uBloomAmount;
   }
-  color = shoulder(color);
+  /* The shoulder used to live here, ahead of the grade, so the contrast below
+     was working on an image whose highlights had already been flattened into
+     one another. It is at the end of the chain now, where a tone curve
+     belongs. */
 
   /* Cold night grade: lift the shadows toward blue, pull warmth out of the
      highlights so the fluorescent tubes stay clinical. */
@@ -383,12 +406,17 @@ void main() {
     graded = mix(graded, vec3(g), uDesaturate);
   }
 
-  /* Contrast around a low pivot: the blacks come down, the lit surfaces come
-     up, and the flat blue-grey band the whole carriage used to sit in
-     separates into a floor, a wall and a light. */
-  graded = (graded - 0.5) * uContrast + 0.5 - (uContrast - 1.0) * 0.16;
-  graded = max(graded, vec3(0.0));
+  /*
+   * Contrast around the level this carriage actually sits at, which is a long
+   * way below mid-grey. Pivoting at 0.5 subtracted from nearly every pixel in
+   * the frame: the seats, the floor and the passengers clipped to black while
+   * the only two things above the pivot — the ceiling and the tubes — blew
+   * out, and the picture came apart into a white lid over a black box.
+   */
+  graded = (graded - 0.34) * uContrast + 0.34;
+  graded = toe(graded, 0.028);
   graded *= uBrightness;
+  graded = shoulder(graded);
 
   float vig = 1.0 - uVignette * smoothstep(0.18, 0.78, r2) * 1.05;
   vig -= uPulse * smoothstep(0.05, 0.6, r2) * 0.5;

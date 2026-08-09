@@ -118,32 +118,133 @@ body.playing { cursor: none; }
 
 .crosshair.hidden span { opacity: 0; }
 
+/*
+ * The interaction prompt. It used to be thin uppercase text with a shadow,
+ * floating on whatever happened to be behind it — which in a carriage is a
+ * white wall about half the time, and it vanished. It has a plate now, and it
+ * is a third larger.
+ */
 .prompt {
   position: absolute;
   left: 50%;
-  top: calc(50% + 34px);
+  top: calc(50% + 42px);
   transform: translateX(-50%);
+  display: flex;
+  align-items: center;
+  gap: 0.6em;
+  padding: 0.42em 0.9em 0.42em 0.55em;
+  background: rgba(6, 8, 11, 0.72);
+  border: 1px solid rgba(255, 176, 58, 0.28);
+  border-radius: 4px;
+  backdrop-filter: blur(3px);
   font-family: var(--cond);
-  font-size: 0.95em;
+  font-size: 1.22em;
   letter-spacing: 0.10em;
   text-transform: uppercase;
-  color: var(--ink);
-  text-shadow: 0 1px 6px rgba(0, 0, 0, 0.95);
+  color: #fff;
+  text-shadow: 0 1px 4px rgba(0, 0, 0, 0.9);
   white-space: nowrap;
   opacity: 0;
   transition: opacity 120ms ease;
 }
-.prompt.show { opacity: 0.92; }
+.prompt.show { opacity: 1; }
 .prompt .key {
   display: inline-block;
-  min-width: 1.5em;
-  padding: 0.05em 0.35em;
-  margin-right: 0.5em;
-  border: 1px solid rgba(232, 236, 239, 0.45);
-  border-radius: 3px;
-  font-size: 0.85em;
+  min-width: 1.9em;
+  padding: 0.14em 0.4em;
+  border: 1px solid rgba(255, 176, 58, 0.75);
+  border-radius: 4px;
+  background: rgba(255, 176, 58, 0.14);
+  color: var(--amber);
+  font-size: 0.82em;
+  font-weight: 700;
   text-align: center;
 }
+.prompt .label { color: rgba(255, 255, 255, 0.72); }
+
+/*
+ * Hints. Bottom-left, out of the way of the subtitles, and written in the same
+ * voice as everything else. They appear once, on a first run, and can be
+ * turned off — but the game does have to say what its one rule is, because
+ * nothing else in it ever will.
+ */
+.hints {
+  position: absolute;
+  left: 3.2vw;
+  bottom: 4vh;
+  display: flex;
+  flex-direction: column;
+  gap: 0.5em;
+  max-width: min(46ch, 42vw);
+}
+/* Scoped to .hints on purpose — the menu buttons already have a `.hint`
+   subtitle span of their own and must not pick up the plate. */
+.hints .hint {
+  padding: 0.7em 1.05em;
+  background: rgba(6, 8, 11, 0.82);
+  border-left: 2px solid var(--amber);
+  color: var(--ink);
+  font-size: 1.02rem;
+  line-height: 1.5;
+  text-shadow: 0 1px 3px #000;
+  box-shadow: 0 6px 22px rgba(0, 0, 0, 0.55);
+  animation: hintIn 420ms ease both;
+}
+.hints .hint .keys {
+  display: block;
+  font-family: var(--cond);
+  letter-spacing: 0.2em;
+  text-transform: uppercase;
+  font-size: 0.8em;
+  color: var(--amber);
+  margin-bottom: 0.3em;
+}
+.hints .hint.leaving { animation: fadeOut 500ms ease both; }
+@keyframes hintIn { from { opacity: 0; transform: translateX(-14px); } to { opacity: 1; transform: none; } }
+
+/*
+ * The instructions page. Two columns on anything wide enough, because a player
+ * who has to scroll to find the key that opens a door is a player who does not
+ * find it.
+ */
+.howto { display: grid; gap: 2.2em 4vw; align-items: start; }
+@media (min-width: 900px) { .howto { grid-template-columns: minmax(0, 1.05fr) minmax(0, 1fr); } }
+.howto h3 {
+  font-family: var(--cond);
+  letter-spacing: 0.28em;
+  text-transform: uppercase;
+  font-size: 0.74rem;
+  color: var(--amber-dim);
+  margin: 2.2em 0 1.1em;
+}
+.howto > div > h3:first-child { margin-top: 0; }
+.howto .rule { margin-top: 0; }
+
+/* The controls list: a plain two-column list. */
+.controls { display: grid; grid-template-columns: max-content 1fr; gap: 0.62em 1.5em; max-width: 66ch; align-items: baseline; }
+.controls dt {
+  font-family: var(--cond);
+  letter-spacing: 0.16em;
+  text-transform: uppercase;
+  font-size: 0.86rem;
+  color: var(--amber);
+  white-space: nowrap;
+}
+.controls dd { margin: 0; color: var(--ink-dim); font-size: 0.95rem; line-height: 1.5; }
+.rule {
+  max-width: 62ch;
+  margin: 2.6em 0 0;
+  padding: 1.2em 1.4em;
+  border: 1px solid var(--line);
+  border-left: 2px solid var(--amber);
+  background: rgba(255, 176, 58, 0.04);
+  line-height: 1.7;
+  color: var(--ink);
+}
+.rule strong { color: var(--amber); font-weight: 400; }
+.rule p { margin: 0 0 0.9em; }
+.rule p:last-child { margin-bottom: 0; }
+.fineprint { max-width: 62ch; margin: 2.8em 0 0; color: var(--ink-faint); font-size: 0.88rem; line-height: 1.6; }
 
 .captions {
   position: absolute;
@@ -451,6 +552,12 @@ body.playing { cursor: none; }
   overflow-y: auto;
   background: linear-gradient(180deg, rgba(4,5,7,0.94), rgba(4,5,7,0.98));
 }
+/* A sub-page covers the menu rather than replacing it, and the plate under it
+   is deliberately not quite opaque so the platform still moves behind. Six per
+   cent of a five-inch title is still legible, so the screen it came from is
+   taken out of the document flow while a page is up. */
+.menu:has(.page) .menu-inner,
+.menu:has(.page) > .corner { display: none; }
 .page h2 {
   font-family: var(--cond);
   font-size: clamp(1.5rem, 3.4vw, 2.4rem);
@@ -619,6 +726,7 @@ body.playing { cursor: none; }
     <div id="prompt" class="prompt" hidden></div>
     <div id="captions" class="captions" aria-live="polite"></div>
     <div id="toasts" class="toasts" aria-live="polite"></div>
+    <div id="hints" class="hints" aria-live="polite"></div>
     <div id="stationcard" class="stationcard" hidden></div>
   </div>
 
@@ -1115,6 +1223,7 @@ const DEFAULT_SETTINGS = {
   contrast: 1.3,
   sharpen: 0.5,
   antialias: true,
+  hints: true,
   subtitles: true,
   subtitleSize: 1,
   soundCaptions: true,
@@ -1164,6 +1273,7 @@ const DEFAULT_PROFILE = {
   achievements: {},     // id -> timestamp
   codex: {},            // clue id -> timestamp first found
   runsCompleted: 0,
+  ridesStarted: 0,
   nightmareUnlocked: false,
   nightmareCompleted: false,
   version: 1,
@@ -3355,9 +3465,13 @@ in vec2 vUV;
 uniform sampler2D uSource;
 uniform float uThreshold;
 uniform float uKnee;
+uniform float uExposure;
 out vec4 fragColor;
 void main() {
-  vec3 c = texture(uSource, vUV).rgb;
+  /* Thresholded after exposure, the same as the composite sees it. Against the
+     raw scene the whole carriage sat above the threshold and the "bloom" was a
+     blurred copy of the entire frame laid back over itself. */
+  vec3 c = texture(uSource, vUV).rgb * uExposure;
   float lum = dot(c, vec3(0.2126, 0.7152, 0.0722));
   float w = clamp((lum - uThreshold) / max(uKnee, 0.0001), 0.0, 1.0);
   fragColor = vec4(c * w, 1.0);
@@ -3422,8 +3536,24 @@ float hash(vec2 p) {
  * with them — which is what turns a lit train into a white smear.
  */
 vec3 shoulder(vec3 c) {
-  vec3 over = max(c - 0.58, vec3(0.0));
-  return min(c, vec3(0.58)) + over / (1.0 + over * 2.6);
+  vec3 over = max(c - 0.66, vec3(0.0));
+  return min(c, vec3(0.66)) + over / (1.0 + over * 2.2);
+}
+
+/*
+ * Soft toe. Whatever the contrast pushes below the toe height comes back as a
+ * very dark value instead of as a hole: the curve keeps its slope at the knee
+ * and decays from there, so it never actually reaches zero. A carriage with
+ * holes punched in it is a carriage whose shape the player cannot read, and
+ * the corners of this one are where the game keeps everything worth seeing.
+ */
+vec3 toe(vec3 c, float t) {
+  /* The exponent is clamped at zero before exp sees it. Unclamped, a highlight
+     at 0.7 asks for exp(24) — which overflows mediump to infinity, and
+     mix(inf, c, 1.0) is NaN, not c. The whole ceiling came back as flat red
+     and green confetti. */
+  vec3 e = min((c - t) / t, vec3(0.0));
+  return mix(t * exp(e), c, step(vec3(t), c));
 }
 
 void main() {
@@ -3471,7 +3601,10 @@ void main() {
   if (uBloomAmount > 0.0) {
     color += texture(uBloom, uv).rgb * uBloomAmount;
   }
-  color = shoulder(color);
+  /* The shoulder used to live here, ahead of the grade, so the contrast below
+     was working on an image whose highlights had already been flattened into
+     one another. It is at the end of the chain now, where a tone curve
+     belongs. */
 
   /* Cold night grade: lift the shadows toward blue, pull warmth out of the
      highlights so the fluorescent tubes stay clinical. */
@@ -3485,12 +3618,17 @@ void main() {
     graded = mix(graded, vec3(g), uDesaturate);
   }
 
-  /* Contrast around a low pivot: the blacks come down, the lit surfaces come
-     up, and the flat blue-grey band the whole carriage used to sit in
-     separates into a floor, a wall and a light. */
-  graded = (graded - 0.5) * uContrast + 0.5 - (uContrast - 1.0) * 0.16;
-  graded = max(graded, vec3(0.0));
+  /*
+   * Contrast around the level this carriage actually sits at, which is a long
+   * way below mid-grey. Pivoting at 0.5 subtracted from nearly every pixel in
+   * the frame: the seats, the floor and the passengers clipped to black while
+   * the only two things above the pivot — the ceiling and the tubes — blew
+   * out, and the picture came apart into a white lid over a black box.
+   */
+  graded = (graded - 0.34) * uContrast + 0.34;
+  graded = toe(graded, 0.028);
   graded *= uBrightness;
+  graded = shoulder(graded);
 
   float vig = 1.0 - uVignette * smoothstep(0.18, 0.78, r2) * 1.05;
   vig -= uPulse * smoothstep(0.05, 0.6, r2) * 0.5;
@@ -4645,6 +4783,20 @@ const DEFAULT_MATERIAL = {
   reflectOnly: false,
 };
 
+/*
+ * Base exposure.
+ *
+ * The lighting rig is built around surfaces reading correctly under it, and
+ * the result is a carriage lit like an operating theatre: the median pixel
+ * came out of the scene pass at about 0.67, which is daylight. Grading that
+ * down with contrast alone crushed everything below the pivot to black while
+ * the walls stayed white, which is exactly the picture a player cannot read.
+ * One multiply here — before the bright pass, so the bloom thresholds against
+ * the exposed image and stops treating the whole carriage as a light source —
+ * puts the night back without touching a single lamp.
+ */
+const BASE_EXPOSURE = 0.48;
+
 class Renderer {
   constructor(canvas, settings) {
     this.canvas = canvas;
@@ -4982,11 +5134,13 @@ class Renderer {
     gl.disable(gl.DEPTH_TEST);
     gl.disable(gl.BLEND);
 
+    const exposure = BASE_EXPOSURE * (fx.exposure ?? 1);
     const bloomAmount = this.settings.bloom ? (fx.bloom ?? 0.55) : 0;
     if (bloomAmount > 0) {
       this.bloomA.bind();
       const bright = this.brightProgram.use();
       bright.tex('uSource', this.sceneTarget.texture);
+      bright.f('uExposure', exposure);
       bright.f('uThreshold', fx.bloomThreshold ?? 0.74);
       bright.f('uKnee', 0.35);
       this.quad.draw();
@@ -5017,7 +5171,7 @@ class Renderer {
     comp.f('uGrain', (this.settings.grain ?? 1) * (fx.grain ?? 1));
     comp.f('uSharpen', this.settings.sharpen ?? 0.5);
     comp.f('uContrast', this.settings.contrast ?? 1);
-    comp.f('uExposure', fx.exposure ?? 1);
+    comp.f('uExposure', exposure);
     comp.v2('uTexel', 1 / this.width, 1 / this.height);
     comp.f('uVignette', (this.settings.vignette ?? 1) * (fx.vignette ?? 0.62));
     comp.f('uChromatic', (this.settings.chromatic ?? 1) * (fx.chromatic ?? 1));
@@ -5156,6 +5310,7 @@ const TMP_A = mat4();
 
   return {
     "DEFAULT_MATERIAL": DEFAULT_MATERIAL,
+    "BASE_EXPOSURE": BASE_EXPOSURE,
     "Renderer": Renderer,
     "Camera": Camera,
   };
@@ -6853,6 +7008,43 @@ function bodyAO(sitting, hipY, chestY) {
 }
 
 /*
+ * A shoe. Four pieces: a sole that runs the whole length, an upper over the
+ * middle of it, a lower toe box and a heel counter behind. A single box in
+ * dark leather reads as a brick, and a seated passenger puts both of them
+ * squarely in the aisle at eye level for anyone standing up.
+ */
+function shoe(b, x, y, z, W, S) {
+  b.push();
+  b.translate(x, y, z);
+  /* Sole, proud of the upper on every side. */
+  b.push();
+  b.translate(0, -0.024 * S, 0);
+  b.roundedBox(0.106 * W, 0.020 * S, 0.250 * S, 0.010, { tiles: 3 });
+  b.pop();
+  /* The upper over the instep, tallest at the back. */
+  b.push();
+  b.translate(0, 0.006 * S, -0.020 * S);
+  b.roundedBox(0.098 * W, 0.052 * S, 0.150 * S, 0.022, { tiles: 3 });
+  b.pop();
+  /* Toe: lower and narrower, so the shoe tapers to a front instead of ending
+     in a wall. */
+  b.push();
+  b.translate(0, -0.006 * S, 0.088 * S);
+  b.roundedBox(0.084 * W, 0.034 * S, 0.090 * S, 0.016, { tiles: 3 });
+  b.pop();
+  /* Heel counter and the block under it. */
+  b.push();
+  b.translate(0, 0.020 * S, -0.088 * S);
+  b.roundedBox(0.092 * W, 0.058 * S, 0.078 * S, 0.020, { tiles: 3 });
+  b.pop();
+  b.push();
+  b.translate(0, -0.036 * S, -0.082 * S);
+  b.box(0.090 * W, 0.020 * S, 0.070 * S, { tiles: 3 });
+  b.pop();
+  b.pop();
+}
+
+/*
  * Builds one body in one pose. Origin is on the floor between the feet, +Z is
  * the direction the passenger faces.
  *
@@ -6890,12 +7082,7 @@ function buildBody(gl, materials, typeKey, pose, opts = {}) {
       joint(b, knee, 0.076 * W);
       joint(b, hip, 0.098 * W);
       b.material('shoes');
-      b.push();
-      b.translate(s * (hipX + 0.03), 0.040 * S, ankleZ + 0.055 * S);
-      b.box(0.105 * W, 0.060 * S, 0.245 * S, { tiles: 3 });
-      b.translate(0, 0.028 * S, -0.075 * S);
-      b.box(0.098 * W, 0.050 * S, 0.095 * S, { tiles: 3 });   // heel counter
-      b.pop();
+      shoe(b, s * (hipX + 0.03), 0.040 * S, ankleZ + 0.055 * S, W, S);
       b.material('legs');
     }
   } else {
@@ -6907,12 +7094,7 @@ function buildBody(gl, materials, typeKey, pose, opts = {}) {
       limb(b, knee, ankle, 0.072 * W, 0.054 * W);
       joint(b, knee, 0.074 * W);
       b.material('shoes');
-      b.push();
-      b.translate(s * (hipX + 0.01), 0.040 * S, 0.048 * S);
-      b.box(0.104 * W, 0.062 * S, 0.255 * S, { tiles: 3 });
-      b.translate(0, 0.030 * S, -0.078 * S);
-      b.box(0.098 * W, 0.052 * S, 0.098 * S, { tiles: 3 });
-      b.pop();
+      shoe(b, s * (hipX + 0.01), 0.040 * S, 0.048 * S, W, S);
       b.material('legs');
     }
   }
@@ -8515,7 +8697,7 @@ const CAST = [
     body: 'average',
     head: 'cap',
     glasses: true,
-    colors: { coat: [0.20, 0.21, 0.24], legs: [0.16, 0.16, 0.19], shoes: [0.07, 0.07, 0.08], hair: [0.18, 0.16, 0.15], skin: [0.76, 0.62, 0.53] },
+    colors: { coat: [0.36, 0.38, 0.43], legs: [0.24, 0.24, 0.28], shoes: [0.12, 0.12, 0.13], hair: [0.26, 0.23, 0.21], skin: [0.76, 0.62, 0.53] },
     arc: {
       0: { car: 1, seat: 12, pose: 'sitRead' },
       1: { car: 1, seat: 12, pose: 'sitRead', upsideDown: true },
@@ -8532,7 +8714,7 @@ const CAST = [
     label: 'the one who has been awake too long',
     body: 'slim',
     head: 'short',
-    colors: { coat: [0.15, 0.18, 0.26], legs: [0.13, 0.13, 0.15], shoes: [0.08, 0.07, 0.07], hair: [0.10, 0.09, 0.09], skin: [0.72, 0.58, 0.50] },
+    colors: { coat: [0.27, 0.32, 0.46], legs: [0.21, 0.21, 0.24], shoes: [0.13, 0.12, 0.12], hair: [0.15, 0.13, 0.13], skin: [0.72, 0.58, 0.50] },
     arc: {
       0: { car: 1, seat: 30, pose: 'sitSlump' },
       1: { car: 1, seat: 30, pose: 'sitSlump' },
@@ -8550,7 +8732,7 @@ const CAST = [
     body: 'small',
     head: 'scarf',
     glasses: true,
-    colors: { coat: [0.30, 0.24, 0.18], legs: [0.20, 0.18, 0.16], shoes: [0.10, 0.09, 0.08], hair: [0.72, 0.71, 0.70], gear: [0.42, 0.20, 0.22], skin: [0.80, 0.68, 0.60] },
+    colors: { coat: [0.50, 0.41, 0.30], legs: [0.30, 0.27, 0.24], shoes: [0.15, 0.14, 0.12], hair: [0.78, 0.77, 0.76], gear: [0.56, 0.27, 0.29], skin: [0.80, 0.68, 0.60] },
     arc: {
       0: { car: 2, seat: 6, pose: 'sitHandsFolded' },
       1: { car: 2, seat: 6, pose: 'sitHandsFolded' },
@@ -8567,7 +8749,7 @@ const CAST = [
     label: 'the one with the headphones',
     body: 'slim',
     head: 'headphones',
-    colors: { coat: [0.24, 0.26, 0.28], legs: [0.14, 0.16, 0.22], shoes: [0.60, 0.60, 0.62], hair: [0.13, 0.11, 0.10], gear: [0.08, 0.08, 0.09], skin: [0.74, 0.60, 0.52] },
+    colors: { coat: [0.42, 0.45, 0.49], legs: [0.22, 0.25, 0.34], shoes: [0.68, 0.68, 0.70], hair: [0.18, 0.16, 0.15], gear: [0.13, 0.13, 0.15], skin: [0.74, 0.60, 0.52] },
     arc: {
       0: { car: 2, seat: 35, pose: 'sitPhone' },
       1: { car: 2, seat: 35, pose: 'sitPhone' },
@@ -8584,7 +8766,7 @@ const CAST = [
     label: 'the one who is asleep',
     body: 'heavy',
     head: 'long',
-    colors: { coat: [0.22, 0.26, 0.20], legs: [0.15, 0.15, 0.16], shoes: [0.09, 0.09, 0.10], hair: [0.24, 0.18, 0.14], skin: [0.78, 0.63, 0.55] },
+    colors: { coat: [0.37, 0.43, 0.33], legs: [0.23, 0.23, 0.25], shoes: [0.14, 0.14, 0.15], hair: [0.33, 0.25, 0.19], skin: [0.78, 0.63, 0.55] },
     arc: {
       0: { car: 3, seat: 17, pose: 'sitSlump' },
       1: { car: 3, seat: 17, pose: 'sitSlump' },
@@ -8602,8 +8784,8 @@ const CAST = [
     body: 'tall',
     head: 'hood',
     colors: {
-      coat: [0.08, 0.08, 0.10], legs: [0.07, 0.07, 0.08], shoes: [0.05, 0.05, 0.06],
-      hair: [0.05, 0.05, 0.06], skin: [0.26, 0.24, 0.24],
+      coat: [0.12, 0.12, 0.15], legs: [0.10, 0.10, 0.12], shoes: [0.07, 0.07, 0.08],
+      hair: [0.07, 0.07, 0.08], skin: [0.34, 0.31, 0.31],
     },
     /* Always at the far end of whichever car the player boarded, always in the
        last seat, and never asleep. */
@@ -8623,12 +8805,12 @@ const CAST = [
 /* Extras: nameless, and they behave. They exist so that the carriage feels
    used at the start and conspicuously unused later. */
 const EXTRA_APPEARANCES = [
-  { cut: 'short', body: 'average', head: 'short', colors: { coat: [0.26, 0.22, 0.28], legs: [0.14, 0.14, 0.16], shoes: [0.08, 0.08, 0.09], hair: [0.16, 0.12, 0.10], skin: [0.76, 0.62, 0.54] } },
-  { cut: 'puffer', body: 'heavy', head: 'cap', glasses: true, colors: { coat: [0.16, 0.22, 0.24], legs: [0.17, 0.17, 0.18], shoes: [0.09, 0.09, 0.10], hair: [0.12, 0.10, 0.09], skin: [0.70, 0.56, 0.48] } },
-  { cut: 'long', body: 'slim', head: 'long', colors: { coat: [0.30, 0.18, 0.20], legs: [0.13, 0.14, 0.17], shoes: [0.10, 0.10, 0.11], hair: [0.30, 0.22, 0.16], skin: [0.79, 0.65, 0.57] } },
-  { cut: 'short', body: 'tall', head: 'bald', glasses: true, colors: { coat: [0.18, 0.19, 0.19], legs: [0.12, 0.12, 0.13], shoes: [0.07, 0.07, 0.08], hair: [0.30, 0.28, 0.26], skin: [0.72, 0.59, 0.52] } },
-  { cut: 'puffer', body: 'small', head: 'hood', colors: { coat: [0.14, 0.16, 0.22], legs: [0.12, 0.12, 0.14], shoes: [0.08, 0.08, 0.09], hair: [0.10, 0.09, 0.09], skin: [0.75, 0.61, 0.53] } },
-  { cut: 'long', body: 'average', head: 'scarf', colors: { coat: [0.22, 0.20, 0.16], legs: [0.15, 0.14, 0.13], shoes: [0.09, 0.08, 0.08], hair: [0.20, 0.16, 0.13], gear: [0.24, 0.30, 0.34], skin: [0.77, 0.63, 0.55] } },
+  { cut: 'short', body: 'average', head: 'short', colors: { coat: [0.43, 0.37, 0.46], legs: [0.22, 0.22, 0.25], shoes: [0.13, 0.13, 0.14], hair: [0.22, 0.17, 0.14], skin: [0.76, 0.62, 0.54] } },
+  { cut: 'puffer', body: 'heavy', head: 'cap', glasses: true, colors: { coat: [0.28, 0.38, 0.41], legs: [0.26, 0.26, 0.28], shoes: [0.14, 0.14, 0.15], hair: [0.17, 0.15, 0.14], skin: [0.70, 0.56, 0.48] } },
+  { cut: 'long', body: 'slim', head: 'long', colors: { coat: [0.52, 0.31, 0.34], legs: [0.21, 0.22, 0.26], shoes: [0.15, 0.15, 0.16], hair: [0.40, 0.30, 0.22], skin: [0.79, 0.65, 0.57] } },
+  { cut: 'short', body: 'tall', head: 'bald', glasses: true, colors: { coat: [0.62, 0.58, 0.50], legs: [0.20, 0.20, 0.22], shoes: [0.12, 0.12, 0.13], hair: [0.38, 0.35, 0.32], skin: [0.72, 0.59, 0.52] } },
+  { cut: 'puffer', body: 'small', head: 'hood', colors: { coat: [0.25, 0.28, 0.39], legs: [0.20, 0.20, 0.23], shoes: [0.13, 0.13, 0.14], hair: [0.15, 0.14, 0.14], skin: [0.75, 0.61, 0.53] } },
+  { cut: 'long', body: 'average', head: 'scarf', colors: { coat: [0.38, 0.34, 0.27], legs: [0.24, 0.23, 0.21], shoes: [0.14, 0.13, 0.13], hair: [0.28, 0.22, 0.18], gear: [0.35, 0.44, 0.50], skin: [0.77, 0.63, 0.55] } },
 ];
 
 /* How many nameless passengers are aboard at each stop. It only goes down. */
@@ -10748,6 +10930,7 @@ class Game {
     this._displayText = '';
     this._displayOverride = null;
     this.interactCooldown = 0;
+    this._hints = new Set();
     this._interactables = [];
     this._nodeScratch = [];
     this._avatarTrail = [];
@@ -10831,6 +11014,10 @@ class Game {
     this.dwell = 999;
     this.fx.fade = 1;
     this.running = true;
+    /* Each journey gets the hints once. Without this a second ride in the same
+       tab starts with no instructions at all, which is the one thing the game
+       is not allowed to be coy about. */
+    this._hints.clear();
     this.events.emit('run:start', { nightmare, seed: this.seed });
     this.achievements.unlock('boarded');
     return this;
@@ -10869,6 +11056,7 @@ class Game {
     this.dwell = STATIONS[index].dwell;
     this.fx.fade = 1;
     this.running = true;
+    this._hints.clear();
     this.events.emit('run:start', { nightmare: this.nightmare, seed: this.seed, resumed: true });
     return this;
   }
@@ -10931,6 +11119,18 @@ class Game {
     this.director.reset(index);
     if (!initial) this.props.spawnForStation(index, this.state.clues);
     this.sfxCorruption(index);
+  }
+
+  /*
+   * Says a thing once, ever, in a run. The game is built on refusing to
+   * explain itself, and that only works if the two things it does have to say
+   * — which keys, and what the decision is — are said plainly and then never
+   * again.
+   */
+  hint(id, keys, text, duration = 9) {
+    if (this._hints.has(id)) return;
+    this._hints.add(id);
+    this.events.emit('hint', { keys, text, duration });
   }
 
   sfxCorruption(index) {
@@ -11023,6 +11223,18 @@ class Game {
       case 'boarding': {
         this.fx.fade = damp(this.fx.fade, 0, 1.2, dt);
         world.speed = 0;
+        if (this.phaseTime > 1.2) {
+          this.hint('move', 'W A S D — move · mouse — look',
+            'Central, ten to one in the morning. The last train is standing at the platform.');
+        }
+        if (this.phaseTime > 8 && this.player.outside) {
+          this.hint('board', 'walk in through the open doors',
+            'Nothing leaves without you. Take as long as you like.');
+        }
+        if (!this.player.outside) {
+          this.hint('interact', 'E — look at things',
+            'The crosshair opens when there is something worth looking at. Most of it is only a train.');
+        }
         if (this.phaseTime > 1.6 && !this.state.flags.introChime) {
           this.state.flags.introChime = true;
           this.sfx.play('doorChime');
@@ -11055,6 +11267,15 @@ class Game {
         this.fx.fade = damp(this.fx.fade, 0, 1.6, dt);
         const remaining = this.dwell - this.phaseTime;
 
+        /* The one rule, said once, at the first station where obeying it or
+           ignoring it actually leads somewhere different. After this the game
+           never explains itself again. */
+        if (this.state.stationIndex > 0 && this.phaseTime > 1.4) {
+          this.hint('decide', 'the doors are open',
+            'Walk out onto the platform to get off here. Stay aboard and the train carries you to the next stop. '
+            + 'That choice, at every station, is the whole game.', 14);
+        }
+
         if (remaining <= CLOSE_WARNING && !this.state.flags.closeWarned) {
           this.state.flags.closeWarned = true;
           if (!station.silent) {
@@ -11063,6 +11284,10 @@ class Game {
               : 'Please stand clear of the doors. The doors are closing.', { chime: false });
           }
           this.sfx.play('doorAlarm');
+          if (this.state.stationIndex > 0) {
+            this.hint('closing', 'the doors are closing',
+              'Staying where you are is a decision as well.', 6);
+          }
         }
         if (remaining <= CLOSE_TIME) {
           const moved = world.driveDoors(dt, station.side, 0, 0.5);
@@ -11096,6 +11321,10 @@ class Game {
 
       case 'traveling': {
         world.speed = 1;
+        if (this.phaseTime > 7) {
+          this.hint('between', 'E — sit down · TAB — journal · ESC — pause',
+            'Nothing needs doing between stations. The display above the connecting door says where you are going.');
+        }
         const leg = (this.station.legSeconds ?? 70) * (this.nightmare ? 0.86 : 1);
         if (this.phaseTime >= leg) {
           this._beginArrival();
@@ -11771,6 +12000,8 @@ class Hud {
     this.captions = root.querySelector('#captions');
     this.toasts = root.querySelector('#toasts');
     this.stationcard = root.querySelector('#stationcard');
+    this.hints = root.querySelector('#hints');
+    this.hintEls = [];
 
     this.lines = [];
     this.lastPromptKey = '';
@@ -11784,12 +12015,13 @@ class Hud {
       events.on('clue', ({ clue, total, of }) => this.toast('Found', `${clue.title} · ${total} of ${of}`)),
       events.on('achievement', (def) => this.toast('Achievement', def.name)),
       events.on('station', ({ station }) => this.showStation(station)),
+      events.on('hint', (payload) => this.hint(payload)),
     ];
   }
 
   show(on) {
     this.root.hidden = !on;
-    if (!on) this.clearCaptions();
+    if (!on) { this.clearCaptions(); this.clearHints(); }
   }
 
   update(hover, opts = {}) {
@@ -11806,7 +12038,8 @@ class Hud {
     const key = `${hover.verb}|${hover.label}`;
     if (key !== this.lastPromptKey) {
       this.lastPromptKey = key;
-      this.prompt.innerHTML = `<span class="key">E</span>${escapeHtml(hover.verb || 'Use')} — ${escapeHtml(hover.label || '')}`;
+      this.prompt.innerHTML = `<span class="key">E</span>${escapeHtml(hover.verb || 'Use')}`
+        + `<span class="label">${escapeHtml(hover.label || '')}</span>`;
     }
     this.prompt.hidden = false;
     this.prompt.classList.add('show');
@@ -11853,6 +12086,43 @@ class Hud {
     this.lines.length = 0;
   }
 
+  /*
+   * A hint. Bottom-left, one at a time, and gone after its welcome. The game
+   * explains nothing about itself except how to work the controls and what
+   * the one decision is; everything else it refuses to say, which only works
+   * if those two things are said clearly.
+   */
+  hint({ keys, text, duration = 8 }) {
+    if (this.settings.hints === false) return;
+    const el = document.createElement('div');
+    el.className = 'hint';
+    el.innerHTML = (keys ? `<span class="keys">${escapeHtml(keys)}</span>` : '')
+      + escapeHtml(text);
+    this.hints.appendChild(el);
+    this.hintEls.push(el);
+    while (this.hintEls.length > 2) this._retireHint(this.hintEls.shift());
+    el.__timer = setTimeout(() => {
+      const i = this.hintEls.indexOf(el);
+      if (i >= 0) this.hintEls.splice(i, 1);
+      this._retireHint(el);
+    }, duration * 1000);
+  }
+
+  _retireHint(el) {
+    if (!el || !el.parentNode) return;
+    clearTimeout(el.__timer);
+    el.classList.add('leaving');
+    setTimeout(() => el.remove(), 520);
+  }
+
+  clearHints() {
+    for (const el of this.hintEls) {
+      clearTimeout(el.__timer);
+      el.remove();
+    }
+    this.hintEls.length = 0;
+  }
+
   toast(kind, name) {
     const el = document.createElement('div');
     el.className = 'toast';
@@ -11883,6 +12153,7 @@ class Hud {
   dispose() {
     for (const off of this.off) off();
     this.clearCaptions();
+    this.clearHints();
   }
 }
 
@@ -12107,6 +12378,7 @@ class Menu {
           <button class="btn" data-act="play">Play</button>
           <button class="btn" data-act="continue"${hasSave ? '' : ' disabled'}>Continue${hasSave ? '' : '<span class="hint">no journey in progress</span>'}</button>
           ${nightmare ? '<button class="btn" data-act="nightmare">Nightmare Mode<span class="hint">the line is not the same twice</span></button>' : ''}
+          <button class="btn" data-act="howto">How to Play</button>
           <button class="btn" data-act="journal">Journal</button>
           <button class="btn" data-act="settings">Settings</button>
           <button class="btn" data-act="credits">Credits</button>
@@ -12120,6 +12392,7 @@ class Menu {
       play: () => this.cb.onPlay({ nightmare: false }),
       continue: () => this.cb.onContinue(),
       nightmare: () => this.cb.onPlay({ nightmare: true }),
+      howto: () => this.showHowTo('main'),
       journal: () => this.showJournal('main'),
       settings: () => this.showSettings('main'),
       credits: () => this.showCredits('main'),
@@ -12138,6 +12411,7 @@ class Menu {
         <p class="tagline">${escapeHtml(runState?.stationName || '')}</p>
         <div class="buttons">
           <button class="btn" data-act="resume">Resume</button>
+          <button class="btn" data-act="howto">How to Play</button>
           <button class="btn" data-act="journal">Journal</button>
           <button class="btn" data-act="settings">Settings</button>
           <button class="btn" data-act="menu">Leave the train<span class="hint">return to the main menu — the journey is saved at each station</span></button>
@@ -12148,6 +12422,7 @@ class Menu {
     `;
     this._wire({
       resume: () => this.cb.onResume(),
+      howto: () => this.showHowTo('pause'),
       journal: () => this.showJournal('pause'),
       settings: () => this.showSettings('pause'),
       menu: () => this.cb.onQuitToMenu(),
@@ -12201,6 +12476,7 @@ class Menu {
           slider('resolutionScale', 'Resolution scale', 0.5, 1.5, 0.05, s.resolutionScale, pct),
         ])}
         ${group('Reading', [
+          toggle('hints', 'Show hints', 'The short amber lines at the bottom left that explain the controls and the one decision. They appear a handful of times on the first journey and never say anything about what is on the train.'),
           toggle('subtitles', 'Subtitles'),
           toggle('soundCaptions', 'Caption sounds', 'Describes sounds you cannot see the cause of. It will tell you that there are footsteps in the next carriage. It will not tell you whose.'),
           slider('subtitleSize', 'Subtitle size', 0.8, 1.8, 0.05, s.subtitleSize, pct),
@@ -12254,6 +12530,76 @@ class Menu {
         }
       }
       this.cb.onSettingsChanged(this.settings);
+    });
+  }
+
+  /* ---- how to play ------------------------------------------------------ */
+
+  /*
+   * The only page in the game that explains anything. It explains the keys and
+   * it explains the decision, because those are the two things a player cannot
+   * discover by being frightened. It does not explain a single thing that is
+   * on the train.
+   */
+  showHowTo(from) {
+    this._open(from === 'pause' ? 'pause' : 'main');
+    const page = document.createElement('div');
+    page.className = 'page';
+    page.innerHTML = `
+      <h2>How to Play</h2>
+      <div class="sub">two minutes of instructions and then nothing is explained again</div>
+
+      <div class="howto">
+        <div>
+          <div class="rule">
+            <p>You are riding the last train of the night. It calls at seven stations.</p>
+            <p>At every station the doors open for about half a minute. In that time you
+            can stay in your seat, walk the carriage, look at things — or
+            <strong>step down onto the platform</strong>.</p>
+            <p><strong>Walking out of the open doors ends your journey there.</strong>
+            Staying aboard when they close carries you to the next stop. That single
+            choice, made seven times, is the entire game, and it is the only thing
+            that decides how tonight ends.</p>
+            <p>There is nothing to collect, nothing to fight and nothing to solve.
+            There is no way to lose, only different ways to arrive.</p>
+          </div>
+
+          <h3>What to watch</h3>
+          <dl class="controls">
+            <dt>The crosshair</dt><dd>It opens when something can be used, and a line at the bottom of the screen says what it is.</dd>
+            <dt>The display</dt><dd>Above the connecting doors: the next station, the time, and how long the doors have left.</dd>
+            <dt>The passengers</dt><dd>They are not puzzles. Look at them anyway.</dd>
+            <dt>The windows</dt><dd>Between stations the glass reflects the carriage back at you. It is usually accurate.</dd>
+          </dl>
+        </div>
+
+        <div>
+          <h3>Controls</h3>
+          <dl class="controls">
+            <dt>W A S D</dt><dd>Walk. The carriage is narrow; you will not fall over.</dd>
+            <dt>Mouse</dt><dd>Look. Click the picture once to give the game the mouse; press Escape to take it back.</dd>
+            <dt>Shift</dt><dd>Walk faster. There is never any need to.</dd>
+            <dt>Ctrl / C</dt><dd>Crouch, for looking under the seats.</dd>
+            <dt>E</dt><dd>Use whatever the crosshair has opened around: sit down, read a poster, press the alarm, speak to someone, open a connecting door.</dd>
+            <dt>Tab</dt><dd>The journal — what you have found, where the line goes, how nights have ended.</dd>
+            <dt>Escape</dt><dd>Pause. Settings, and the way back to the platform.</dd>
+          </dl>
+
+          <p class="fineprint">If any of this is hard to read, everything on screen can be
+          resized, brightened or turned off in Settings — including these hints, the
+          subtitles and the crosshair.</p>
+        </div>
+      </div>
+
+      <div class="buttons back">
+        <button class="btn" data-act="settings">Settings</button>
+        <button class="btn" data-act="back">Back</button>
+      </div>
+    `;
+    this.root.appendChild(page);
+    this._wire({
+      settings: () => this.showSettings(from),
+      back: () => (from === 'pause' ? this.showPause(this.runState) : this.showMain({ hasSave: this.cb.hasSave() })),
     });
   }
 
@@ -12550,6 +12896,10 @@ class Backdrop {
       fade: 1, fadeColor: [0, 0, 0], grain: 1.15, vignette: 0.80,
       chromatic: 1, distort: 0.10, bloom: 0.7, brightness: 1,
       desaturate: 0.12, pulse: 0, scanline: 0, bloomThreshold: 0.55,
+      /* The menu is a deserted platform behind a title, and a platform the
+         player cannot see is just a black rectangle behind a title. It gets a
+         stop and a half more exposure than the carriage. */
+      exposure: 1.55,
     };
   }
 
@@ -12860,6 +13210,8 @@ function startRun({ nightmare = false } = {}) {
   hud.show(true);
   input.enabled = true;
   mode = 'playing';
+  profile.ridesStarted = (profile.ridesStarted || 0) + 1;
+  saveProfile(profile);
   game.startNew({ nightmare, seed: randomSeed() });
   input.requestLock();
 }

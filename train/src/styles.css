@@ -107,32 +107,133 @@ body.playing { cursor: none; }
 
 .crosshair.hidden span { opacity: 0; }
 
+/*
+ * The interaction prompt. It used to be thin uppercase text with a shadow,
+ * floating on whatever happened to be behind it — which in a carriage is a
+ * white wall about half the time, and it vanished. It has a plate now, and it
+ * is a third larger.
+ */
 .prompt {
   position: absolute;
   left: 50%;
-  top: calc(50% + 34px);
+  top: calc(50% + 42px);
   transform: translateX(-50%);
+  display: flex;
+  align-items: center;
+  gap: 0.6em;
+  padding: 0.42em 0.9em 0.42em 0.55em;
+  background: rgba(6, 8, 11, 0.72);
+  border: 1px solid rgba(255, 176, 58, 0.28);
+  border-radius: 4px;
+  backdrop-filter: blur(3px);
   font-family: var(--cond);
-  font-size: 0.95em;
+  font-size: 1.22em;
   letter-spacing: 0.10em;
   text-transform: uppercase;
-  color: var(--ink);
-  text-shadow: 0 1px 6px rgba(0, 0, 0, 0.95);
+  color: #fff;
+  text-shadow: 0 1px 4px rgba(0, 0, 0, 0.9);
   white-space: nowrap;
   opacity: 0;
   transition: opacity 120ms ease;
 }
-.prompt.show { opacity: 0.92; }
+.prompt.show { opacity: 1; }
 .prompt .key {
   display: inline-block;
-  min-width: 1.5em;
-  padding: 0.05em 0.35em;
-  margin-right: 0.5em;
-  border: 1px solid rgba(232, 236, 239, 0.45);
-  border-radius: 3px;
-  font-size: 0.85em;
+  min-width: 1.9em;
+  padding: 0.14em 0.4em;
+  border: 1px solid rgba(255, 176, 58, 0.75);
+  border-radius: 4px;
+  background: rgba(255, 176, 58, 0.14);
+  color: var(--amber);
+  font-size: 0.82em;
+  font-weight: 700;
   text-align: center;
 }
+.prompt .label { color: rgba(255, 255, 255, 0.72); }
+
+/*
+ * Hints. Bottom-left, out of the way of the subtitles, and written in the same
+ * voice as everything else. They appear once, on a first run, and can be
+ * turned off — but the game does have to say what its one rule is, because
+ * nothing else in it ever will.
+ */
+.hints {
+  position: absolute;
+  left: 3.2vw;
+  bottom: 4vh;
+  display: flex;
+  flex-direction: column;
+  gap: 0.5em;
+  max-width: min(46ch, 42vw);
+}
+/* Scoped to .hints on purpose — the menu buttons already have a `.hint`
+   subtitle span of their own and must not pick up the plate. */
+.hints .hint {
+  padding: 0.7em 1.05em;
+  background: rgba(6, 8, 11, 0.82);
+  border-left: 2px solid var(--amber);
+  color: var(--ink);
+  font-size: 1.02rem;
+  line-height: 1.5;
+  text-shadow: 0 1px 3px #000;
+  box-shadow: 0 6px 22px rgba(0, 0, 0, 0.55);
+  animation: hintIn 420ms ease both;
+}
+.hints .hint .keys {
+  display: block;
+  font-family: var(--cond);
+  letter-spacing: 0.2em;
+  text-transform: uppercase;
+  font-size: 0.8em;
+  color: var(--amber);
+  margin-bottom: 0.3em;
+}
+.hints .hint.leaving { animation: fadeOut 500ms ease both; }
+@keyframes hintIn { from { opacity: 0; transform: translateX(-14px); } to { opacity: 1; transform: none; } }
+
+/*
+ * The instructions page. Two columns on anything wide enough, because a player
+ * who has to scroll to find the key that opens a door is a player who does not
+ * find it.
+ */
+.howto { display: grid; gap: 2.2em 4vw; align-items: start; }
+@media (min-width: 900px) { .howto { grid-template-columns: minmax(0, 1.05fr) minmax(0, 1fr); } }
+.howto h3 {
+  font-family: var(--cond);
+  letter-spacing: 0.28em;
+  text-transform: uppercase;
+  font-size: 0.74rem;
+  color: var(--amber-dim);
+  margin: 2.2em 0 1.1em;
+}
+.howto > div > h3:first-child { margin-top: 0; }
+.howto .rule { margin-top: 0; }
+
+/* The controls list: a plain two-column list. */
+.controls { display: grid; grid-template-columns: max-content 1fr; gap: 0.62em 1.5em; max-width: 66ch; align-items: baseline; }
+.controls dt {
+  font-family: var(--cond);
+  letter-spacing: 0.16em;
+  text-transform: uppercase;
+  font-size: 0.86rem;
+  color: var(--amber);
+  white-space: nowrap;
+}
+.controls dd { margin: 0; color: var(--ink-dim); font-size: 0.95rem; line-height: 1.5; }
+.rule {
+  max-width: 62ch;
+  margin: 2.6em 0 0;
+  padding: 1.2em 1.4em;
+  border: 1px solid var(--line);
+  border-left: 2px solid var(--amber);
+  background: rgba(255, 176, 58, 0.04);
+  line-height: 1.7;
+  color: var(--ink);
+}
+.rule strong { color: var(--amber); font-weight: 400; }
+.rule p { margin: 0 0 0.9em; }
+.rule p:last-child { margin-bottom: 0; }
+.fineprint { max-width: 62ch; margin: 2.8em 0 0; color: var(--ink-faint); font-size: 0.88rem; line-height: 1.6; }
 
 .captions {
   position: absolute;
@@ -440,6 +541,12 @@ body.playing { cursor: none; }
   overflow-y: auto;
   background: linear-gradient(180deg, rgba(4,5,7,0.94), rgba(4,5,7,0.98));
 }
+/* A sub-page covers the menu rather than replacing it, and the plate under it
+   is deliberately not quite opaque so the platform still moves behind. Six per
+   cent of a five-inch title is still legible, so the screen it came from is
+   taken out of the document flow while a page is up. */
+.menu:has(.page) .menu-inner,
+.menu:has(.page) > .corner { display: none; }
 .page h2 {
   font-family: var(--cond);
   font-size: clamp(1.5rem, 3.4vw, 2.4rem);

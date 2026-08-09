@@ -71,6 +71,7 @@ export class Menu {
           <button class="btn" data-act="play">Play</button>
           <button class="btn" data-act="continue"${hasSave ? '' : ' disabled'}>Continue${hasSave ? '' : '<span class="hint">no journey in progress</span>'}</button>
           ${nightmare ? '<button class="btn" data-act="nightmare">Nightmare Mode<span class="hint">the line is not the same twice</span></button>' : ''}
+          <button class="btn" data-act="howto">How to Play</button>
           <button class="btn" data-act="journal">Journal</button>
           <button class="btn" data-act="settings">Settings</button>
           <button class="btn" data-act="credits">Credits</button>
@@ -84,6 +85,7 @@ export class Menu {
       play: () => this.cb.onPlay({ nightmare: false }),
       continue: () => this.cb.onContinue(),
       nightmare: () => this.cb.onPlay({ nightmare: true }),
+      howto: () => this.showHowTo('main'),
       journal: () => this.showJournal('main'),
       settings: () => this.showSettings('main'),
       credits: () => this.showCredits('main'),
@@ -102,6 +104,7 @@ export class Menu {
         <p class="tagline">${escapeHtml(runState?.stationName || '')}</p>
         <div class="buttons">
           <button class="btn" data-act="resume">Resume</button>
+          <button class="btn" data-act="howto">How to Play</button>
           <button class="btn" data-act="journal">Journal</button>
           <button class="btn" data-act="settings">Settings</button>
           <button class="btn" data-act="menu">Leave the train<span class="hint">return to the main menu — the journey is saved at each station</span></button>
@@ -112,6 +115,7 @@ export class Menu {
     `;
     this._wire({
       resume: () => this.cb.onResume(),
+      howto: () => this.showHowTo('pause'),
       journal: () => this.showJournal('pause'),
       settings: () => this.showSettings('pause'),
       menu: () => this.cb.onQuitToMenu(),
@@ -165,6 +169,7 @@ export class Menu {
           slider('resolutionScale', 'Resolution scale', 0.5, 1.5, 0.05, s.resolutionScale, pct),
         ])}
         ${group('Reading', [
+          toggle('hints', 'Show hints', 'The short amber lines at the bottom left that explain the controls and the one decision. They appear a handful of times on the first journey and never say anything about what is on the train.'),
           toggle('subtitles', 'Subtitles'),
           toggle('soundCaptions', 'Caption sounds', 'Describes sounds you cannot see the cause of. It will tell you that there are footsteps in the next carriage. It will not tell you whose.'),
           slider('subtitleSize', 'Subtitle size', 0.8, 1.8, 0.05, s.subtitleSize, pct),
@@ -218,6 +223,76 @@ export class Menu {
         }
       }
       this.cb.onSettingsChanged(this.settings);
+    });
+  }
+
+  /* ---- how to play ------------------------------------------------------ */
+
+  /*
+   * The only page in the game that explains anything. It explains the keys and
+   * it explains the decision, because those are the two things a player cannot
+   * discover by being frightened. It does not explain a single thing that is
+   * on the train.
+   */
+  showHowTo(from) {
+    this._open(from === 'pause' ? 'pause' : 'main');
+    const page = document.createElement('div');
+    page.className = 'page';
+    page.innerHTML = `
+      <h2>How to Play</h2>
+      <div class="sub">two minutes of instructions and then nothing is explained again</div>
+
+      <div class="howto">
+        <div>
+          <div class="rule">
+            <p>You are riding the last train of the night. It calls at seven stations.</p>
+            <p>At every station the doors open for about half a minute. In that time you
+            can stay in your seat, walk the carriage, look at things — or
+            <strong>step down onto the platform</strong>.</p>
+            <p><strong>Walking out of the open doors ends your journey there.</strong>
+            Staying aboard when they close carries you to the next stop. That single
+            choice, made seven times, is the entire game, and it is the only thing
+            that decides how tonight ends.</p>
+            <p>There is nothing to collect, nothing to fight and nothing to solve.
+            There is no way to lose, only different ways to arrive.</p>
+          </div>
+
+          <h3>What to watch</h3>
+          <dl class="controls">
+            <dt>The crosshair</dt><dd>It opens when something can be used, and a line at the bottom of the screen says what it is.</dd>
+            <dt>The display</dt><dd>Above the connecting doors: the next station, the time, and how long the doors have left.</dd>
+            <dt>The passengers</dt><dd>They are not puzzles. Look at them anyway.</dd>
+            <dt>The windows</dt><dd>Between stations the glass reflects the carriage back at you. It is usually accurate.</dd>
+          </dl>
+        </div>
+
+        <div>
+          <h3>Controls</h3>
+          <dl class="controls">
+            <dt>W A S D</dt><dd>Walk. The carriage is narrow; you will not fall over.</dd>
+            <dt>Mouse</dt><dd>Look. Click the picture once to give the game the mouse; press Escape to take it back.</dd>
+            <dt>Shift</dt><dd>Walk faster. There is never any need to.</dd>
+            <dt>Ctrl / C</dt><dd>Crouch, for looking under the seats.</dd>
+            <dt>E</dt><dd>Use whatever the crosshair has opened around: sit down, read a poster, press the alarm, speak to someone, open a connecting door.</dd>
+            <dt>Tab</dt><dd>The journal — what you have found, where the line goes, how nights have ended.</dd>
+            <dt>Escape</dt><dd>Pause. Settings, and the way back to the platform.</dd>
+          </dl>
+
+          <p class="fineprint">If any of this is hard to read, everything on screen can be
+          resized, brightened or turned off in Settings — including these hints, the
+          subtitles and the crosshair.</p>
+        </div>
+      </div>
+
+      <div class="buttons back">
+        <button class="btn" data-act="settings">Settings</button>
+        <button class="btn" data-act="back">Back</button>
+      </div>
+    `;
+    this.root.appendChild(page);
+    this._wire({
+      settings: () => this.showSettings(from),
+      back: () => (from === 'pause' ? this.showPause(this.runState) : this.showMain({ hasSave: this.cb.hasSave() })),
     });
   }
 

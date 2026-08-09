@@ -25,7 +25,7 @@ export const CAST = [
     body: 'average',
     head: 'cap',
     glasses: true,
-    colors: { coat: [0.20, 0.21, 0.24], legs: [0.16, 0.16, 0.19], shoes: [0.07, 0.07, 0.08], hair: [0.18, 0.16, 0.15], skin: [0.76, 0.62, 0.53] },
+    colors: { coat: [0.36, 0.38, 0.43], legs: [0.24, 0.24, 0.28], shoes: [0.12, 0.12, 0.13], hair: [0.26, 0.23, 0.21], skin: [0.76, 0.62, 0.53] },
     arc: {
       0: { car: 1, seat: 12, pose: 'sitRead' },
       1: { car: 1, seat: 12, pose: 'sitRead', upsideDown: true },
@@ -42,7 +42,7 @@ export const CAST = [
     label: 'the one who has been awake too long',
     body: 'slim',
     head: 'short',
-    colors: { coat: [0.15, 0.18, 0.26], legs: [0.13, 0.13, 0.15], shoes: [0.08, 0.07, 0.07], hair: [0.10, 0.09, 0.09], skin: [0.72, 0.58, 0.50] },
+    colors: { coat: [0.27, 0.32, 0.46], legs: [0.21, 0.21, 0.24], shoes: [0.13, 0.12, 0.12], hair: [0.15, 0.13, 0.13], skin: [0.72, 0.58, 0.50] },
     arc: {
       0: { car: 1, seat: 30, pose: 'sitSlump' },
       1: { car: 1, seat: 30, pose: 'sitSlump' },
@@ -60,7 +60,7 @@ export const CAST = [
     body: 'small',
     head: 'scarf',
     glasses: true,
-    colors: { coat: [0.30, 0.24, 0.18], legs: [0.20, 0.18, 0.16], shoes: [0.10, 0.09, 0.08], hair: [0.72, 0.71, 0.70], gear: [0.42, 0.20, 0.22], skin: [0.80, 0.68, 0.60] },
+    colors: { coat: [0.50, 0.41, 0.30], legs: [0.30, 0.27, 0.24], shoes: [0.15, 0.14, 0.12], hair: [0.78, 0.77, 0.76], gear: [0.56, 0.27, 0.29], skin: [0.80, 0.68, 0.60] },
     arc: {
       0: { car: 2, seat: 6, pose: 'sitHandsFolded' },
       1: { car: 2, seat: 6, pose: 'sitHandsFolded' },
@@ -77,7 +77,7 @@ export const CAST = [
     label: 'the one with the headphones',
     body: 'slim',
     head: 'headphones',
-    colors: { coat: [0.24, 0.26, 0.28], legs: [0.14, 0.16, 0.22], shoes: [0.60, 0.60, 0.62], hair: [0.13, 0.11, 0.10], gear: [0.08, 0.08, 0.09], skin: [0.74, 0.60, 0.52] },
+    colors: { coat: [0.42, 0.45, 0.49], legs: [0.22, 0.25, 0.34], shoes: [0.68, 0.68, 0.70], hair: [0.18, 0.16, 0.15], gear: [0.13, 0.13, 0.15], skin: [0.74, 0.60, 0.52] },
     arc: {
       0: { car: 2, seat: 35, pose: 'sitPhone' },
       1: { car: 2, seat: 35, pose: 'sitPhone' },
@@ -94,7 +94,7 @@ export const CAST = [
     label: 'the one who is asleep',
     body: 'heavy',
     head: 'long',
-    colors: { coat: [0.22, 0.26, 0.20], legs: [0.15, 0.15, 0.16], shoes: [0.09, 0.09, 0.10], hair: [0.24, 0.18, 0.14], skin: [0.78, 0.63, 0.55] },
+    colors: { coat: [0.37, 0.43, 0.33], legs: [0.23, 0.23, 0.25], shoes: [0.14, 0.14, 0.15], hair: [0.33, 0.25, 0.19], skin: [0.78, 0.63, 0.55] },
     arc: {
       0: { car: 3, seat: 17, pose: 'sitSlump' },
       1: { car: 3, seat: 17, pose: 'sitSlump' },
@@ -112,8 +112,8 @@ export const CAST = [
     body: 'tall',
     head: 'hood',
     colors: {
-      coat: [0.08, 0.08, 0.10], legs: [0.07, 0.07, 0.08], shoes: [0.05, 0.05, 0.06],
-      hair: [0.05, 0.05, 0.06], skin: [0.26, 0.24, 0.24],
+      coat: [0.12, 0.12, 0.15], legs: [0.10, 0.10, 0.12], shoes: [0.07, 0.07, 0.08],
+      hair: [0.07, 0.07, 0.08], skin: [0.34, 0.31, 0.31],
     },
     /* Always at the far end of whichever car the player boarded, always in the
        last seat, and never asleep. */
@@ -133,12 +133,12 @@ export const CAST = [
 /* Extras: nameless, and they behave. They exist so that the carriage feels
    used at the start and conspicuously unused later. */
 export const EXTRA_APPEARANCES = [
-  { cut: 'short', body: 'average', head: 'short', colors: { coat: [0.26, 0.22, 0.28], legs: [0.14, 0.14, 0.16], shoes: [0.08, 0.08, 0.09], hair: [0.16, 0.12, 0.10], skin: [0.76, 0.62, 0.54] } },
-  { cut: 'puffer', body: 'heavy', head: 'cap', glasses: true, colors: { coat: [0.16, 0.22, 0.24], legs: [0.17, 0.17, 0.18], shoes: [0.09, 0.09, 0.10], hair: [0.12, 0.10, 0.09], skin: [0.70, 0.56, 0.48] } },
-  { cut: 'long', body: 'slim', head: 'long', colors: { coat: [0.30, 0.18, 0.20], legs: [0.13, 0.14, 0.17], shoes: [0.10, 0.10, 0.11], hair: [0.30, 0.22, 0.16], skin: [0.79, 0.65, 0.57] } },
-  { cut: 'short', body: 'tall', head: 'bald', glasses: true, colors: { coat: [0.18, 0.19, 0.19], legs: [0.12, 0.12, 0.13], shoes: [0.07, 0.07, 0.08], hair: [0.30, 0.28, 0.26], skin: [0.72, 0.59, 0.52] } },
-  { cut: 'puffer', body: 'small', head: 'hood', colors: { coat: [0.14, 0.16, 0.22], legs: [0.12, 0.12, 0.14], shoes: [0.08, 0.08, 0.09], hair: [0.10, 0.09, 0.09], skin: [0.75, 0.61, 0.53] } },
-  { cut: 'long', body: 'average', head: 'scarf', colors: { coat: [0.22, 0.20, 0.16], legs: [0.15, 0.14, 0.13], shoes: [0.09, 0.08, 0.08], hair: [0.20, 0.16, 0.13], gear: [0.24, 0.30, 0.34], skin: [0.77, 0.63, 0.55] } },
+  { cut: 'short', body: 'average', head: 'short', colors: { coat: [0.43, 0.37, 0.46], legs: [0.22, 0.22, 0.25], shoes: [0.13, 0.13, 0.14], hair: [0.22, 0.17, 0.14], skin: [0.76, 0.62, 0.54] } },
+  { cut: 'puffer', body: 'heavy', head: 'cap', glasses: true, colors: { coat: [0.28, 0.38, 0.41], legs: [0.26, 0.26, 0.28], shoes: [0.14, 0.14, 0.15], hair: [0.17, 0.15, 0.14], skin: [0.70, 0.56, 0.48] } },
+  { cut: 'long', body: 'slim', head: 'long', colors: { coat: [0.52, 0.31, 0.34], legs: [0.21, 0.22, 0.26], shoes: [0.15, 0.15, 0.16], hair: [0.40, 0.30, 0.22], skin: [0.79, 0.65, 0.57] } },
+  { cut: 'short', body: 'tall', head: 'bald', glasses: true, colors: { coat: [0.62, 0.58, 0.50], legs: [0.20, 0.20, 0.22], shoes: [0.12, 0.12, 0.13], hair: [0.38, 0.35, 0.32], skin: [0.72, 0.59, 0.52] } },
+  { cut: 'puffer', body: 'small', head: 'hood', colors: { coat: [0.25, 0.28, 0.39], legs: [0.20, 0.20, 0.23], shoes: [0.13, 0.13, 0.14], hair: [0.15, 0.14, 0.14], skin: [0.75, 0.61, 0.53] } },
+  { cut: 'long', body: 'average', head: 'scarf', colors: { coat: [0.38, 0.34, 0.27], legs: [0.24, 0.23, 0.21], shoes: [0.14, 0.13, 0.13], hair: [0.28, 0.22, 0.18], gear: [0.35, 0.44, 0.50], skin: [0.77, 0.63, 0.55] } },
 ];
 
 /* How many nameless passengers are aboard at each stop. It only goes down. */

@@ -60,6 +60,10 @@ export class Backdrop {
       fade: 1, fadeColor: [0, 0, 0], grain: 1.15, vignette: 0.80,
       chromatic: 1, distort: 0.10, bloom: 0.7, brightness: 1,
       desaturate: 0.12, pulse: 0, scanline: 0, bloomThreshold: 0.55,
+      /* The menu is a deserted platform behind a title, and a platform the
+         player cannot see is just a black rectangle behind a title. It gets a
+         stop and a half more exposure than the carriage. */
+      exposure: 1.55,
     };
   }
 

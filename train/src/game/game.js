@@ -68,6 +68,7 @@ export class Game {
     this._displayText = '';
     this._displayOverride = null;
     this.interactCooldown = 0;
+    this._hints = new Set();
     this._interactables = [];
     this._nodeScratch = [];
     this._avatarTrail = [];
@@ -151,6 +152,10 @@ export class Game {
     this.dwell = 999;
     this.fx.fade = 1;
     this.running = true;
+    /* Each journey gets the hints once. Without this a second ride in the same
+       tab starts with no instructions at all, which is the one thing the game
+       is not allowed to be coy about. */
+    this._hints.clear();
     this.events.emit('run:start', { nightmare, seed: this.seed });
     this.achievements.unlock('boarded');
     return this;
@@ -189,6 +194,7 @@ export class Game {
     this.dwell = STATIONS[index].dwell;
     this.fx.fade = 1;
     this.running = true;
+    this._hints.clear();
     this.events.emit('run:start', { nightmare: this.nightmare, seed: this.seed, resumed: true });
     return this;
   }
@@ -251,6 +257,18 @@ export class Game {
     this.director.reset(index);
     if (!initial) this.props.spawnForStation(index, this.state.clues);
     this.sfxCorruption(index);
+  }
+
+  /*
+   * Says a thing once, ever, in a run. The game is built on refusing to
+   * explain itself, and that only works if the two things it does have to say
+   * — which keys, and what the decision is — are said plainly and then never
+   * again.
+   */
+  hint(id, keys, text, duration = 9) {
+    if (this._hints.has(id)) return;
+    this._hints.add(id);
+    this.events.emit('hint', { keys, text, duration });
   }
 
   sfxCorruption(index) {
@@ -343,6 +361,18 @@ export class Game {
       case 'boarding': {
         this.fx.fade = damp(this.fx.fade, 0, 1.2, dt);
         world.speed = 0;
+        if (this.phaseTime > 1.2) {
+          this.hint('move', 'W A S D — move · mouse — look',
+            'Central, ten to one in the morning. The last train is standing at the platform.');
+        }
+        if (this.phaseTime > 8 && this.player.outside) {
+          this.hint('board', 'walk in through the open doors',
+            'Nothing leaves without you. Take as long as you like.');
+        }
+        if (!this.player.outside) {
+          this.hint('interact', 'E — look at things',
+            'The crosshair opens when there is something worth looking at. Most of it is only a train.');
+        }
         if (this.phaseTime > 1.6 && !this.state.flags.introChime) {
           this.state.flags.introChime = true;
           this.sfx.play('doorChime');
@@ -375,6 +405,15 @@ export class Game {
         this.fx.fade = damp(this.fx.fade, 0, 1.6, dt);
         const remaining = this.dwell - this.phaseTime;
 
+        /* The one rule, said once, at the first station where obeying it or
+           ignoring it actually leads somewhere different. After this the game
+           never explains itself again. */
+        if (this.state.stationIndex > 0 && this.phaseTime > 1.4) {
+          this.hint('decide', 'the doors are open',
+            'Walk out onto the platform to get off here. Stay aboard and the train carries you to the next stop. '
+            + 'That choice, at every station, is the whole game.', 14);
+        }
+
         if (remaining <= CLOSE_WARNING && !this.state.flags.closeWarned) {
           this.state.flags.closeWarned = true;
           if (!station.silent) {
@@ -383,6 +422,10 @@ export class Game {
               : 'Please stand clear of the doors. The doors are closing.', { chime: false });
           }
           this.sfx.play('doorAlarm');
+          if (this.state.stationIndex > 0) {
+            this.hint('closing', 'the doors are closing',
+              'Staying where you are is a decision as well.', 6);
+          }
         }
         if (remaining <= CLOSE_TIME) {
           const moved = world.driveDoors(dt, station.side, 0, 0.5);
@@ -416,6 +459,10 @@ export class Game {
 
       case 'traveling': {
         world.speed = 1;
+        if (this.phaseTime > 7) {
+          this.hint('between', 'E — sit down · TAB — journal · ESC — pause',
+            'Nothing needs doing between stations. The display above the connecting door says where you are going.');
+        }
         const leg = (this.station.legSeconds ?? 70) * (this.nightmare ? 0.86 : 1);
         if (this.phaseTime >= leg) {
           this._beginArrival();

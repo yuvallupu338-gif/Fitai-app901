@@ -84,6 +84,7 @@ export const DEFAULT_SETTINGS = {
   contrast: 1.3,
   sharpen: 0.5,
   antialias: true,
+  hints: true,
   subtitles: true,
   subtitleSize: 1,
   soundCaptions: true,
@@ -133,6 +134,7 @@ export const DEFAULT_PROFILE = {
   achievements: {},     // id -> timestamp
   codex: {},            // clue id -> timestamp first found
   runsCompleted: 0,
+  ridesStarted: 0,
   nightmareUnlocked: false,
   nightmareCompleted: false,
   version: 1,

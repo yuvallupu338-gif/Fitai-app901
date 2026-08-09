@@ -18,6 +18,8 @@ export class Hud {
     this.captions = root.querySelector('#captions');
     this.toasts = root.querySelector('#toasts');
     this.stationcard = root.querySelector('#stationcard');
+    this.hints = root.querySelector('#hints');
+    this.hintEls = [];
 
     this.lines = [];
     this.lastPromptKey = '';
@@ -31,12 +33,13 @@ export class Hud {
       events.on('clue', ({ clue, total, of }) => this.toast('Found', `${clue.title} · ${total} of ${of}`)),
       events.on('achievement', (def) => this.toast('Achievement', def.name)),
       events.on('station', ({ station }) => this.showStation(station)),
+      events.on('hint', (payload) => this.hint(payload)),
     ];
   }
 
   show(on) {
     this.root.hidden = !on;
-    if (!on) this.clearCaptions();
+    if (!on) { this.clearCaptions(); this.clearHints(); }
   }
 
   update(hover, opts = {}) {
@@ -53,7 +56,8 @@ export class Hud {
     const key = `${hover.verb}|${hover.label}`;
     if (key !== this.lastPromptKey) {
       this.lastPromptKey = key;
-      this.prompt.innerHTML = `<span class="key">E</span>${escapeHtml(hover.verb || 'Use')} — ${escapeHtml(hover.label || '')}`;
+      this.prompt.innerHTML = `<span class="key">E</span>${escapeHtml(hover.verb || 'Use')}`
+        + `<span class="label">${escapeHtml(hover.label || '')}</span>`;
     }
     this.prompt.hidden = false;
     this.prompt.classList.add('show');
@@ -100,6 +104,43 @@ export class Hud {
     this.lines.length = 0;
   }
 
+  /*
+   * A hint. Bottom-left, one at a time, and gone after its welcome. The game
+   * explains nothing about itself except how to work the controls and what
+   * the one decision is; everything else it refuses to say, which only works
+   * if those two things are said clearly.
+   */
+  hint({ keys, text, duration = 8 }) {
+    if (this.settings.hints === false) return;
+    const el = document.createElement('div');
+    el.className = 'hint';
+    el.innerHTML = (keys ? `<span class="keys">${escapeHtml(keys)}</span>` : '')
+      + escapeHtml(text);
+    this.hints.appendChild(el);
+    this.hintEls.push(el);
+    while (this.hintEls.length > 2) this._retireHint(this.hintEls.shift());
+    el.__timer = setTimeout(() => {
+      const i = this.hintEls.indexOf(el);
+      if (i >= 0) this.hintEls.splice(i, 1);
+      this._retireHint(el);
+    }, duration * 1000);
+  }
+
+  _retireHint(el) {
+    if (!el || !el.parentNode) return;
+    clearTimeout(el.__timer);
+    el.classList.add('leaving');
+    setTimeout(() => el.remove(), 520);
+  }
+
+  clearHints() {
+    for (const el of this.hintEls) {
+      clearTimeout(el.__timer);
+      el.remove();
+    }
+    this.hintEls.length = 0;
+  }
+
   toast(kind, name) {
     const el = document.createElement('div');
     el.className = 'toast';
@@ -130,6 +171,7 @@ export class Hud {
   dispose() {
     for (const off of this.off) off();
     this.clearCaptions();
+    this.clearHints();
   }
 }
 

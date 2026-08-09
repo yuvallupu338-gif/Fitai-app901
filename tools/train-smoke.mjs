@@ -121,9 +121,53 @@ async function main() {
   check(backdropStats.calls > 0, `the menu backdrop draws (${backdropStats.calls} calls)`);
   if (SHOTS) await page.screenshot({ path: `${SHOT_DIR}/01-menu.png` });
 
+  /* ---- how to play ----------------------------------------------------- */
+
+  /* The instructions page is the only thing in the game that explains the
+     game, so it is worth a check that it is reachable and that it states the
+     rule and the keys. */
+  await page.evaluate(() => {
+    const btn = [...document.querySelectorAll('.menu .btn')]
+      .find((b) => b.dataset.act === 'howto');
+    btn?.click();
+  });
+  await page.waitForTimeout(220);
+  const howto = await page.evaluate(() => {
+    const page_ = document.querySelector('.menu .page');
+    if (!page_) return null;
+    return {
+      heading: page_.querySelector('h2')?.textContent || '',
+      rule: page_.querySelector('.rule')?.textContent || '',
+      keys: [...page_.querySelectorAll('.controls dt')].map((d) => d.textContent.trim()),
+    };
+  });
+  check(howto && /how to play/i.test(howto.heading), 'the how-to-play page opens from the menu');
+  check(howto && /platform/i.test(howto.rule) && /next stop/i.test(howto.rule),
+    'it states the one rule: step off, or stay on');
+  check(howto && howto.keys.includes('W A S D') && howto.keys.includes('E'),
+    `it lists the controls (${howto?.keys.length ?? 0} rows)`);
+  if (SHOTS) await page.screenshot({ path: `${SHOT_DIR}/01b-howto.png` });
+  await page.evaluate(() => {
+    [...document.querySelectorAll('.menu .btn')].find((b) => b.dataset.act === 'back')?.click();
+  });
+  await page.waitForTimeout(220);
+
   /* ---- start a run ----------------------------------------------------- */
 
   await page.evaluate(() => {
+    /* Recorded from before the run starts, because a hint is on screen for
+       nine seconds and a software-rendered frame can take two. Watching the
+       DOM as well as the event proves the HUD is the thing that put it up. */
+    window.__hints = { events: [], rendered: 0 };
+    window.__lastTrain.events.on('hint', (p) => window.__hints.events.push(p));
+    new MutationObserver((records) => {
+      for (const r of records) {
+        for (const node of r.addedNodes) {
+          if (node.nodeType === 1 && node.classList.contains('hint')) window.__hints.rendered++;
+        }
+      }
+    }).observe(document.getElementById('hints'), { childList: true });
+
     window.__lastTrain.startRun({ nightmare: false });
     /* Put the player aboard directly; the intro is a walk through a doorway
        and a headless browser has no legs. */
@@ -161,6 +205,37 @@ async function main() {
   check(inCar.passengers >= 4, `there are passengers aboard (${inCar.passengers})`);
   check(inCar.props >= 1, `there is something to find (${inCar.props} props)`);
   check(inCar.interactables > 10, `there is something to interact with (${inCar.interactables})`);
+
+  /* The opening hints. They are the only thing telling a first-time player
+     which keys move them, so if they stop reaching the screen the game is
+     unplayable for exactly the people who need them. */
+  /* The sim advances one clamped frame at a time and software rendering makes
+     those frames slow, so the boarding phase is stepped forward deliberately
+     rather than waited out. */
+  await page.evaluate(() => window.__lastTrain.setSubSteps(8));
+  await page.waitForFunction(() => window.__hints.events.length >= 2, null, { timeout: 30000 })
+    .catch(() => {});
+  await page.evaluate(() => window.__lastTrain.setSubSteps(1));
+
+  const hintState = await page.evaluate(() => {
+    /* Measured on a real element in the real container, so the check reads the
+       size the player actually gets rather than the one in the stylesheet. */
+    const probe = document.createElement('div');
+    probe.className = 'hint';
+    probe.innerHTML = '<span class="keys">W A S D</span>probe';
+    document.getElementById('hints').appendChild(probe);
+    const cs = getComputedStyle(probe);
+    const size = parseFloat(cs.fontSize);
+    const bg = cs.backgroundColor;
+    probe.remove();
+    return { ...window.__hints, size, bg };
+  });
+  check(hintState.events.length >= 2, `the opening hints fire (${hintState.events.length})`);
+  check(hintState.events.some((h) => /W A S D/.test(h.keys || '')), 'a hint names the movement keys');
+  check(hintState.rendered >= 2, `the HUD puts them on screen (${hintState.rendered})`);
+  check(hintState.size >= 15, `hints are large enough to read (${hintState.size}px)`);
+  check(!/rgba\(0, 0, 0, 0\)/.test(hintState.bg), `hints sit on a plate, not bare glass (${hintState.bg})`);
+
   if (SHOTS) {
     await page.screenshot({ path: `${SHOT_DIR}/02-carriage.png` });
     /* Side-on, so the window glass and what it is reflecting are both in
