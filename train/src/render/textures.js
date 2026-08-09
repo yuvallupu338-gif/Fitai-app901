@@ -327,22 +327,6 @@ export function lightPanelTexture() {
   return canvas;
 }
 
-export function clothTexture(rng) {
-  const S = 256;
-  const { canvas, ctx } = makeCanvas(S, S);
-  fill(ctx, S, S, '#ffffff');
-  for (let i = 0; i < 3000; i++) {
-    ctx.fillStyle = `rgba(0,0,0,${rng.float(0, 0.10)})`;
-    ctx.fillRect(rng.float(0, S), rng.float(0, S), rng.float(1, 3), 1);
-  }
-  for (let y = 0; y < S; y += 4) {
-    ctx.fillStyle = 'rgba(0,0,0,0.035)';
-    ctx.fillRect(0, y, S, 1);
-  }
-  grain(ctx, S, S, 8, rng);
-  return canvas;
-}
-
 export function skinTexture(rng) {
   const S = 128;
   const { canvas, ctx } = makeCanvas(S, S);
@@ -362,74 +346,243 @@ export function skinTexture(rng) {
  * cartoon it stops being unsettling when it turns to look at you.
  */
 export function faceTexture(rng, opts = {}) {
-  const W = 512, H = 256;
+  const W = 1024, H = 512;
   const { canvas, ctx } = makeCanvas(W, H);
-  fill(ctx, W, H, '#ffffff');
+  /* Not pure white. A face is the brightest thing in the carriage after the
+     tubes, and starting it at 1.0 puts every bit of modelling on it into the
+     part of the curve where the highlight roll-off flattens everything. */
+  fill(ctx, W, H, '#efe2d8');
 
+  /* The sphere builder puts +Z — the direction a passenger faces — at u=0.25,
+     so the face is drawn a quarter of the way across. Feature spacing is in
+     degrees of that sphere: a 63mm interpupillary distance on a 98mm skull is
+     18.7 degrees off centre, which is 0.052 of the wrap. Drawn any narrower —
+     and it was — the eyes sit too close together and the face reads as a doll
+     from the one distance the player actually looks at it. */
   const cx = W * 0.25;
   const eyeY = H * 0.40;
-  const eyeDx = W * 0.036;
+  const eyeDx = W * 0.050;
   const open = opts.eyesOpen ?? 1;
   const stare = opts.stare ?? 0;
+  const eyeW = W * 0.028;
+  const eyeH = H * 0.020 * open;
 
-  ctx.fillStyle = 'rgba(0,0,0,0.06)';
-  ctx.beginPath();
-  ctx.ellipse(cx, eyeY + H * 0.05, W * 0.09, H * 0.14, 0, 0, Math.PI * 2);
-  ctx.fill();
+  /* Modelling: the planes of a face, painted rather than sculpted. Temples and
+     cheeks recede, the brow and the bridge of the nose catch the ceiling
+     tubes, and there is a shadow under the jaw. */
+  const shade = (x, y, rx, ry, alpha, rot = 0) => {
+    const g = ctx.createRadialGradient(x, y, 0, x, y, Math.max(rx, ry));
+    g.addColorStop(0, `rgba(96,72,62,${alpha})`);
+    g.addColorStop(1, 'rgba(96,72,62,0)');
+    ctx.save();
+    ctx.translate(x, y);
+    ctx.rotate(rot);
+    ctx.scale(rx / Math.max(rx, ry), ry / Math.max(rx, ry));
+    ctx.fillStyle = g;
+    ctx.beginPath();
+    ctx.arc(0, 0, Math.max(rx, ry), 0, Math.PI * 2);
+    ctx.fill();
+    ctx.restore();
+  };
+  const light = (x, y, rx, ry, alpha) => {
+    const g = ctx.createRadialGradient(x, y, 0, x, y, Math.max(rx, ry));
+    g.addColorStop(0, `rgba(255,252,248,${alpha})`);
+    g.addColorStop(1, 'rgba(255,252,248,0)');
+    ctx.save();
+    ctx.translate(x, y);
+    ctx.scale(rx / Math.max(rx, ry), ry / Math.max(rx, ry));
+    ctx.fillStyle = g;
+    ctx.beginPath();
+    ctx.arc(0, 0, Math.max(rx, ry), 0, Math.PI * 2);
+    ctx.fill();
+    ctx.restore();
+  };
+
+  for (const side of [-1, 1]) {
+    shade(cx + side * W * 0.098, eyeY + H * 0.02, W * 0.05, H * 0.20, 0.16);   // temple
+    shade(cx + side * W * 0.068, eyeY + H * 0.115, W * 0.038, H * 0.10, 0.11); // cheek hollow
+  }
+  shade(cx, eyeY + H * 0.30, W * 0.075, H * 0.10, 0.20);                        // under the jaw
+  light(cx, eyeY - H * 0.13, W * 0.070, H * 0.09, 0.22);                        // forehead
+  light(cx, eyeY + H * 0.055, W * 0.014, H * 0.055, 0.20);                      // bridge
 
   for (const side of [-1, 1]) {
     const ex = cx + side * eyeDx;
-    /* Socket shadow */
-    const g = ctx.createRadialGradient(ex, eyeY, 1, ex, eyeY, W * 0.033);
-    g.addColorStop(0, `rgba(20,18,20,${0.55 + stare * 0.3})`);
-    g.addColorStop(1, 'rgba(20,18,20,0)');
-    ctx.fillStyle = g;
-    ctx.fillRect(ex - W * 0.04, eyeY - H * 0.07, W * 0.08, H * 0.14);
+
+    /* Orbit: a soft socket, deeper above than below. */
+    shade(ex, eyeY - H * 0.006, W * 0.040, H * 0.052, 0.30 + stare * 0.16);
+    shade(ex, eyeY + H * 0.030, W * 0.030, H * 0.022, 0.13);                    // eye bag
 
     if (open > 0.05) {
-      ctx.fillStyle = '#e9e6e2';
+      /* Sclera, clipped by the lids rather than drawn as a bare almond. */
+      ctx.save();
       ctx.beginPath();
-      ctx.ellipse(ex, eyeY, W * 0.017, H * 0.017 * open, 0, 0, Math.PI * 2);
-      ctx.fill();
-      ctx.fillStyle = opts.irisColor || '#2a2622';
+      ctx.ellipse(ex, eyeY, eyeW, eyeH, 0, 0, Math.PI * 2);
+      ctx.clip();
+      ctx.fillStyle = '#e6e2dc';
+      ctx.fillRect(ex - eyeW, eyeY - eyeH, eyeW * 2, eyeH * 2);
+
+      const gaze = (opts.gaze || 0) * W * 0.010;
+      ctx.fillStyle = opts.irisColor || '#4a3a2c';
       ctx.beginPath();
-      ctx.ellipse(ex + (opts.gaze || 0) * W * 0.008, eyeY, W * 0.0085, H * 0.014 * open, 0, 0, Math.PI * 2);
+      ctx.arc(ex + gaze, eyeY + H * 0.001, eyeW * 0.52, 0, Math.PI * 2);
       ctx.fill();
-      ctx.fillStyle = '#000';
+      ctx.strokeStyle = 'rgba(20,14,10,0.55)';
+      ctx.lineWidth = 2.4;
+      ctx.stroke();
+      ctx.fillStyle = '#0b0a09';
       ctx.beginPath();
-      ctx.ellipse(ex + (opts.gaze || 0) * W * 0.008, eyeY, W * 0.004, H * 0.007 * open, 0, 0, Math.PI * 2);
+      ctx.arc(ex + gaze, eyeY + H * 0.001, eyeW * 0.24, 0, Math.PI * 2);
       ctx.fill();
+      /* One catchlight, up and to the left, from the tube overhead. */
+      ctx.fillStyle = 'rgba(255,255,255,0.85)';
+      ctx.beginPath();
+      ctx.arc(ex + gaze - eyeW * 0.20, eyeY - eyeH * 0.32, eyeW * 0.12, 0, Math.PI * 2);
+      ctx.fill();
+      /* Upper lid shadow across the top of the eye. */
+      ctx.fillStyle = 'rgba(60,44,36,0.34)';
+      ctx.fillRect(ex - eyeW, eyeY - eyeH, eyeW * 2, eyeH * 0.72);
+      ctx.restore();
+
+      /* Lash line and lower lid. */
+      ctx.strokeStyle = 'rgba(30,22,18,0.70)';
+      ctx.lineWidth = 3.2;
+      ctx.beginPath();
+      ctx.ellipse(ex, eyeY, eyeW, eyeH, 0, Math.PI * 1.02, Math.PI * 1.98);
+      ctx.stroke();
+      ctx.strokeStyle = 'rgba(120,90,76,0.34)';
+      ctx.lineWidth = 2;
+      ctx.beginPath();
+      ctx.ellipse(ex, eyeY, eyeW * 0.96, eyeH * 0.96, 0, Math.PI * 0.06, Math.PI * 0.94);
+      ctx.stroke();
+    } else {
+      /* Shut: a lid with a crease, not an absence. */
+      ctx.strokeStyle = 'rgba(40,30,24,0.62)';
+      ctx.lineWidth = 3.4;
+      ctx.beginPath();
+      ctx.moveTo(ex - eyeW, eyeY);
+      ctx.quadraticCurveTo(ex, eyeY + H * 0.012, ex + eyeW, eyeY);
+      ctx.stroke();
     }
-    /* Brow */
-    ctx.strokeStyle = `rgba(40,32,28,${0.35 + stare * 0.25})`;
-    ctx.lineWidth = 3.5;
-    ctx.beginPath();
-    ctx.moveTo(ex - W * 0.022, eyeY - H * 0.055 + stare * 4);
-    ctx.lineTo(ex + W * 0.022, eyeY - H * 0.048);
-    ctx.stroke();
+
+    /* Brow: strokes, not a bar. Angled down toward the nose when staring. */
+    const browY = eyeY - H * 0.062 + stare * H * 0.014;
+    ctx.strokeStyle = opts.browColor || 'rgba(48,36,28,0.62)';
+    ctx.lineCap = 'round';
+    for (let i = 0; i < 14; i++) {
+      const t = i / 13;
+      const bx = ex + (t - 0.5) * eyeW * 2.5;
+      const lift = Math.sin(t * Math.PI) * H * 0.012;
+      ctx.lineWidth = 2.2 + Math.sin(t * Math.PI) * 1.6;
+      ctx.beginPath();
+      ctx.moveTo(bx, browY - lift + side * (t - 0.5) * stare * H * 0.02);
+      ctx.lineTo(bx + side * 3, browY - lift - H * 0.014);
+      ctx.stroke();
+    }
+    ctx.lineCap = 'butt';
   }
 
-  /* Nose shadow and mouth */
-  ctx.strokeStyle = 'rgba(60,45,40,0.20)';
-  ctx.lineWidth = 3;
-  ctx.beginPath();
-  ctx.moveTo(cx, eyeY + H * 0.02);
-  ctx.lineTo(cx - W * 0.006, eyeY + H * 0.10);
-  ctx.stroke();
+  /* Nose: a shadow down one side, a tip highlight, two nostrils. */
+  const noseY = eyeY + H * 0.135;
+  shade(cx - W * 0.016, eyeY + H * 0.085, W * 0.013, H * 0.075, 0.26);
+  light(cx + W * 0.004, noseY - H * 0.012, W * 0.012, H * 0.024, 0.26);
+  shade(cx, noseY + H * 0.026, W * 0.026, H * 0.014, 0.22);
+  ctx.fillStyle = 'rgba(40,28,22,0.55)';
+  for (const side of [-1, 1]) {
+    ctx.beginPath();
+    ctx.ellipse(cx + side * W * 0.013, noseY + H * 0.014, W * 0.006, H * 0.007, side * 0.4, 0, Math.PI * 2);
+    ctx.fill();
+  }
 
-  ctx.strokeStyle = `rgba(70,45,45,${opts.mouthOpen ? 0.5 : 0.28})`;
-  ctx.lineWidth = opts.mouthOpen ? 7 : 3.5;
+  /* Mouth: a shadowed seam with a lower lip that catches light. */
+  const mouthY = eyeY + H * 0.225;
+  const mouthW = W * 0.038;
+  ctx.strokeStyle = `rgba(78,48,44,${opts.mouthOpen ? 0.62 : 0.42})`;
+  ctx.lineWidth = opts.mouthOpen ? 9 : 4;
+  ctx.lineCap = 'round';
   ctx.beginPath();
-  const mouthY = eyeY + H * 0.17;
-  ctx.moveTo(cx - W * 0.026, mouthY);
-  ctx.quadraticCurveTo(cx, mouthY + (opts.smile || 0) * 8, cx + W * 0.026, mouthY);
+  ctx.moveTo(cx - mouthW, mouthY);
+  ctx.quadraticCurveTo(cx, mouthY + (opts.smile || 0) * 10, cx + mouthW, mouthY);
   ctx.stroke();
+  ctx.lineCap = 'butt';
+  light(cx, mouthY + H * 0.026, W * 0.030, H * 0.014, 0.20);
+  shade(cx, mouthY + H * 0.058, W * 0.024, H * 0.016, 0.16);
+  for (const side of [-1, 1]) {
+    shade(cx + side * (mouthW + W * 0.006), mouthY + H * 0.004, W * 0.010, H * 0.012, 0.24);
+  }
+
+  if (opts.stubble) {
+    const r = rng || new Rng(3);
+    ctx.fillStyle = 'rgba(40,34,30,0.5)';
+    for (let i = 0; i < 1400; i++) {
+      const a = r.float(-1, 1);
+      const x = cx + a * W * 0.085;
+      const y = mouthY + r.float(-H * 0.06, H * 0.10) - Math.abs(a) * H * 0.05;
+      ctx.globalAlpha = r.float(0.05, 0.22);
+      ctx.fillRect(x, y, 1.6, 1.6);
+    }
+    ctx.globalAlpha = 1;
+  }
 
   if (rng) {
-    blotches(ctx, W, H, 10, rng, { color: 'rgba(0,0,0,0.04)', min: 10, max: 40 });
-    grain(ctx, W, H, 8, rng);
+    blotches(ctx, W, H, 14, rng, { color: 'rgba(120,80,64,0.05)', min: 14, max: 60 });
+    grain(ctx, W, H, 7, rng);
   }
   return canvas;
+}
+
+/*
+ * Woven fabric. Kept white so the per-passenger colour multiplies through it;
+ * all the information is in the weave and in the soft vertical drape, which is
+ * what stops a coat from reading as a solid-colour box.
+ */
+export function fabricTexture(rng, opts = {}) {
+  const S = 512;
+  const { canvas, ctx } = makeCanvas(S, S);
+  fill(ctx, S, S, '#ffffff');
+
+  const pitch = opts.pitch || 5;
+  for (let y = 0; y < S; y += pitch) {
+    ctx.fillStyle = `rgba(0,0,0,${opts.weave ?? 0.06})`;
+    ctx.fillRect(0, y, S, Math.max(1, pitch * 0.34));
+  }
+  for (let x = 0; x < S; x += pitch) {
+    ctx.fillStyle = `rgba(0,0,0,${(opts.weave ?? 0.06) * 0.7})`;
+    ctx.fillRect(x, 0, Math.max(1, pitch * 0.28), S);
+  }
+
+  /* Drape. Broad soft bands running down the cloth, with a highlight on one
+     side of each so they read as folds rather than as stripes. */
+  const folds = opts.folds ?? 7;
+  for (let i = 0; i < folds; i++) {
+    const x = rng.float(0, S);
+    const w = rng.float(S * 0.05, S * 0.16);
+    const g = ctx.createLinearGradient(x - w, 0, x + w, 0);
+    g.addColorStop(0, 'rgba(0,0,0,0)');
+    g.addColorStop(0.42, `rgba(0,0,0,${rng.float(0.05, 0.13)})`);
+    g.addColorStop(0.58, `rgba(255,255,255,${rng.float(0.05, 0.12)})`);
+    g.addColorStop(1, 'rgba(255,255,255,0)');
+    ctx.fillStyle = g;
+    ctx.fillRect(x - w, 0, w * 2, S);
+  }
+  for (let i = 0; i < (opts.creases ?? 5); i++) {
+    const y = rng.float(0, S);
+    const h = rng.float(S * 0.02, S * 0.07);
+    const g = ctx.createLinearGradient(0, y - h, 0, y + h);
+    g.addColorStop(0, 'rgba(0,0,0,0)');
+    g.addColorStop(0.5, `rgba(0,0,0,${rng.float(0.04, 0.09)})`);
+    g.addColorStop(1, 'rgba(0,0,0,0)');
+    ctx.fillStyle = g;
+    ctx.fillRect(0, y - h, S, h * 2);
+  }
+
+  blotches(ctx, S, S, 10, rng, { color: 'rgba(0,0,0,0.05)', min: 30, max: 120 });
+  grain(ctx, S, S, opts.noise ?? 9, rng);
+  return canvas;
+}
+
+export function clothTexture(rng) {
+  return fabricTexture(rng, { pitch: 4, weave: 0.05, folds: 5, creases: 4, noise: 8 });
 }
 
 /* ---- signage, ads and screens --------------------------------------- */
@@ -848,10 +1001,11 @@ export class TextureSet {
     this._add('asphalt', wetAsphaltTexture(r('asphalt')));
     this._add('lightPanel', lightPanelTexture());
     this._add('cloth', clothTexture(r('cloth')));
+    this._add('coatCloth', fabricTexture(r('coat'), { pitch: 7, weave: 0.07, folds: 9, creases: 6, noise: 10 }));
     this._add('skin', skinTexture(r('skin')));
-    this._add('face', faceTexture(r('face')), { clamp: true });
-    this._add('faceStare', faceTexture(r('faceStare'), { stare: 1, gaze: 0 }), { clamp: true });
-    this._add('faceClosed', faceTexture(r('faceClosed'), { eyesOpen: 0.06 }), { clamp: true });
+    this._add('face', faceTexture(r('face'), { stubble: true }), { clamp: true });
+    this._add('faceStare', faceTexture(r('faceStare'), { stare: 1, gaze: 0, stubble: true }), { clamp: true });
+    this._add('faceClosed', faceTexture(r('faceClosed'), { eyesOpen: 0 }), { clamp: true });
     this._add('newspaper', newspaperTexture(r('news')), { clamp: true });
   }
 

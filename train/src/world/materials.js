@@ -60,10 +60,20 @@ export function trainMaterials() {
     ad3: { map: 'ad:3', specular: 0.22, shininess: 40 },
 
     /* people */
-    coat: { map: 'cloth', color: [0.22, 0.24, 0.30], specular: 0.05, shininess: 10 },
+    coat: { map: 'coatCloth', color: [0.22, 0.24, 0.30], specular: 0.05, shininess: 10 },
     legs: { map: 'cloth', color: [0.14, 0.15, 0.18], specular: 0.04 },
     shoes: { map: 'cloth', color: [0.06, 0.06, 0.07], specular: 0.22, shininess: 40 },
-    skin: { map: 'face', color: [0.78, 0.64, 0.56], specular: 0.10, shininess: 22 },
+    /* `skin` carries the face and belongs to the one sphere that is the head.
+       Everything else made of skin — the jaw, the nose, the ears, the hands —
+       uses `skinPlain`, because a sphere textured with a face gets a whole
+       small face on it, and a nose wearing one is not the effect. */
+    skin: { map: 'face', color: [0.70, 0.57, 0.50], specular: 0.10, shininess: 22 },
+    skinPlain: { map: 'skin', color: [0.70, 0.57, 0.50], specular: 0.10, shininess: 22 },
+    /* Named apart from `lens`, which is the security camera's and is nearly
+       black; one `lens` key for both would have put a spectacle lens on the
+       camera or a camera lens on a passenger, depending on the order. */
+    spectacle: { map: null, color: [0.58, 0.66, 0.74], specular: 0.85, shininess: 120, transparent: true, alpha: 0.26, cull: false },
+    spectacleFrame: { map: 'metal', color: [0.09, 0.09, 0.11], specular: 0.45, shininess: 60 },
     hair: { map: 'cloth', color: [0.14, 0.11, 0.10], specular: 0.10, shininess: 18 },
     gear: { map: 'cloth', color: [0.10, 0.10, 0.12], specular: 0.20 },
     prop: { map: 'newspaper', specular: 0.04 },

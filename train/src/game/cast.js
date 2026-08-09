@@ -23,6 +23,7 @@ export const CAST = [
     label: 'the man with the newspaper',
     body: 'average',
     head: 'cap',
+    glasses: true,
     colors: { coat: [0.20, 0.21, 0.24], legs: [0.16, 0.16, 0.19], shoes: [0.07, 0.07, 0.08], hair: [0.18, 0.16, 0.15], skin: [0.76, 0.62, 0.53] },
     arc: {
       0: { car: 1, seat: 12, pose: 'sitRead' },
@@ -55,6 +56,7 @@ export const CAST = [
     label: 'the elderly passenger',
     body: 'small',
     head: 'scarf',
+    glasses: true,
     colors: { coat: [0.30, 0.24, 0.18], legs: [0.20, 0.18, 0.16], shoes: [0.10, 0.09, 0.08], hair: [0.72, 0.71, 0.70], gear: [0.42, 0.20, 0.22], skin: [0.80, 0.68, 0.60] },
     arc: {
       0: { car: 2, seat: 6, pose: 'sitHandsFolded' },
@@ -126,9 +128,9 @@ export const CAST = [
    used at the start and conspicuously unused later. */
 export const EXTRA_APPEARANCES = [
   { body: 'average', head: 'short', colors: { coat: [0.26, 0.22, 0.28], legs: [0.14, 0.14, 0.16], shoes: [0.08, 0.08, 0.09], hair: [0.16, 0.12, 0.10], skin: [0.76, 0.62, 0.54] } },
-  { body: 'heavy', head: 'cap', colors: { coat: [0.16, 0.22, 0.24], legs: [0.17, 0.17, 0.18], shoes: [0.09, 0.09, 0.10], hair: [0.12, 0.10, 0.09], skin: [0.70, 0.56, 0.48] } },
+  { body: 'heavy', head: 'cap', glasses: true, colors: { coat: [0.16, 0.22, 0.24], legs: [0.17, 0.17, 0.18], shoes: [0.09, 0.09, 0.10], hair: [0.12, 0.10, 0.09], skin: [0.70, 0.56, 0.48] } },
   { body: 'slim', head: 'long', colors: { coat: [0.30, 0.18, 0.20], legs: [0.13, 0.14, 0.17], shoes: [0.10, 0.10, 0.11], hair: [0.30, 0.22, 0.16], skin: [0.79, 0.65, 0.57] } },
-  { body: 'tall', head: 'bald', colors: { coat: [0.18, 0.19, 0.19], legs: [0.12, 0.12, 0.13], shoes: [0.07, 0.07, 0.08], hair: [0.30, 0.28, 0.26], skin: [0.72, 0.59, 0.52] } },
+  { body: 'tall', head: 'bald', glasses: true, colors: { coat: [0.18, 0.19, 0.19], legs: [0.12, 0.12, 0.13], shoes: [0.07, 0.07, 0.08], hair: [0.30, 0.28, 0.26], skin: [0.72, 0.59, 0.52] } },
   { body: 'small', head: 'hood', colors: { coat: [0.14, 0.16, 0.22], legs: [0.12, 0.12, 0.14], shoes: [0.08, 0.08, 0.09], hair: [0.10, 0.09, 0.09], skin: [0.75, 0.61, 0.53] } },
   { body: 'average', head: 'scarf', colors: { coat: [0.22, 0.20, 0.16], legs: [0.15, 0.14, 0.13], shoes: [0.09, 0.08, 0.08], hair: [0.20, 0.16, 0.13], gear: [0.24, 0.30, 0.34], skin: [0.77, 0.63, 0.55] } },
 ];
@@ -170,18 +172,20 @@ export class Passenger {
 
   _applyColors() {
     const c = this.def.colors || {};
-    for (const key of ['coat', 'legs', 'shoes', 'skin', 'hair', 'gear']) {
-      if (!c[key]) continue;
+    const set = (node, key, color) => {
       const base = this.materials[key];
-      if (!base) continue;
-      const target = key === 'hair' || key === 'gear' ? this.headNode : this.bodyNode;
-      target.overrides[key] = { ...base, color: c[key] };
-      if (key === 'skin' || key === 'hair' || key === 'gear') {
-        this.headNode.overrides[key] = { ...base, color: c[key] };
-      }
-      if (key === 'skin') {
-        this.bodyNode.overrides.skin = { ...base, color: c[key], map: 'skin' };
-      }
+      if (base) node.overrides[key] = { ...base, color };
+    };
+    for (const key of ['coat', 'legs', 'shoes']) if (c[key]) set(this.bodyNode, key, c[key]);
+    for (const key of ['hair', 'gear']) if (c[key]) set(this.headNode, key, c[key]);
+    if (c.skin) {
+      /* Only one group in the whole figure wears the face — the head's `skin`.
+         Hands, neck, jaw, nose and ears are `skinPlain` and have to be tinted
+         to match it, or a passenger ends up with a head one colour and a pair
+         of hands another. */
+      set(this.headNode, 'skin', c.skin);
+      set(this.headNode, 'skinPlain', c.skin);
+      set(this.bodyNode, 'skinPlain', c.skin);
     }
   }
 
@@ -213,7 +217,7 @@ export class Passenger {
   update(dt, time, camera, opts = {}) {
     const sitting = SITTING_POSES.has(this.pose);
     const body = this.meshes.body(this.def.body, this.pose);
-    const head = this.meshes.head(this.def.head);
+    const head = this.meshes.head(this.def.head, this.def.glasses);
     this.bodyNode.mesh = body;
     this.headNode.mesh = head;
 

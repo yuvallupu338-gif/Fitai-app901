@@ -82,11 +82,39 @@ function limb(b, from, to, r0, r1, segments = 10) {
   b.pop();
 }
 
-function joint(b, at, r) {
+function joint(b, at, r, segs = 10) {
   b.push();
   b.translate(at[0], at[1], at[2]);
-  b.sphere(r, 8, 6);
+  b.sphere(r, segs, Math.max(6, Math.round(segs * 0.7)));
   b.pop();
+}
+
+/*
+ * Baked occlusion for a body, in the same spirit as the carriage's: entirely
+ * faked, and the single cheapest thing that stops a figure reading as a set of
+ * pale shapes stuck together. Under the chin, inside the arms, under the lap
+ * and along anything facing the floor.
+ */
+function bodyAO(sitting, hipY, chestY) {
+  return (x, y, z, nx, ny, nz) => {
+    let ao = 1;
+    /* Down-facing surfaces see the floor and not much else. */
+    if (ny < -0.15) ao *= 0.68 + 0.32 * (1 + ny);
+    /* The trough between the arms and the ribs. */
+    const inner = Math.max(0, 0.20 - Math.abs(x));
+    if (y > hipY && y < chestY) ao *= 1 - inner * 0.9;
+    /* Under the chin, where a collar is. */
+    const throat = 1 - Math.min(1, Math.abs(y - chestY) / 0.16);
+    if (throat > 0 && Math.abs(x) < 0.09 && z > -0.02) ao *= 1 - throat * 0.34;
+    /* The lap, and the shadow a seated body casts into its own knees. */
+    if (sitting && y < hipY + 0.10 && z > 0.05) ao *= 0.78;
+    if (sitting && Math.abs(x) < 0.09 && y < hipY + 0.06) ao *= 0.74;
+    /* Backs sit against a seat back. */
+    if (z < -0.06) ao *= 0.86;
+    /* Everything below the knee is in the well under the bench. */
+    ao *= 0.74 + 0.26 * Math.min(1, y / 0.55);
+    return Math.max(0.30, Math.min(1, ao));
+  };
 }
 
 /*
@@ -100,7 +128,7 @@ function joint(b, at, r) {
 export function buildBody(gl, materials, typeKey, pose) {
   const type = BODY_TYPES[typeKey] || BODY_TYPES.average;
   const b = new Builder();
-  b.ao = 0.92;
+  b.ao = 1;
   const S = type.scale;
   const W = type.width;
 
@@ -108,6 +136,7 @@ export function buildBody(gl, materials, typeKey, pose) {
   const seatY = 0.44 * S;
   const hipY = sitting ? seatY + 0.06 * S : 0.92 * S;
   const shoulderY = sitting ? seatY + 0.50 * S : 1.42 * S;
+  b.aoFn = bodyAO(sitting, hipY, shoulderY);
   const shoulderX = 0.185 * W * type.shoulder;
   const hipX = 0.10 * W;
 
@@ -183,6 +212,40 @@ export function buildBody(gl, materials, typeKey, pose) {
   b.roundedBox(0.30 * W, 0.165 * S, 0.24 * W * type.belly, 0.04, { tiles: 2 });
   b.pop();
 
+  /* The front of the coat: a seam down the middle, two lapels folded back off
+     it, and three buttons. Flat-fronted outerwear is the thing that most makes
+     a low-polygon figure look like a mannequin, and none of this costs more
+     than a few dozen triangles. */
+  const frontZ = chest[2] + 0.118 * W * type.belly;
+  const torsoH = chest[1] - hipY;
+  b.push();
+  b.translate(0, hipY + torsoH * 0.5, frontZ);
+  b.rotateX(-lean * 0.9);
+  b.box(0.014 * W, torsoH * 1.02, 0.014, { tiles: 4 });
+  b.pop();
+  for (const s of [-1, 1]) {
+    b.push();
+    b.translate(s * 0.062 * W, chest[1] - 0.115 * S, frontZ + 0.004);
+    b.rotateZ(s * 0.30);
+    b.rotateY(s * 0.20);
+    b.box(0.085 * W, 0.24 * S, 0.012, { tiles: 3 });
+    b.pop();
+    /* Pocket flap. */
+    b.push();
+    b.translate(s * 0.098 * W, hipY + torsoH * 0.26, frontZ - 0.004);
+    b.box(0.088 * W, 0.036 * S, 0.010, { tiles: 3 });
+    b.pop();
+  }
+  b.material('spectacleFrame');
+  for (let i = 0; i < 3; i++) {
+    b.push();
+    b.translate(0, chest[1] - (0.20 + i * 0.115) * S, frontZ + 0.010);
+    b.rotateX(Math.PI / 2);
+    b.cylinder(0.011 * W, 0.011 * W, 0.006, 8, { caps: true });
+    b.pop();
+  }
+  b.material('coat');
+
   /* --- collar and neck --- */
   b.push();
   b.translate(0, chest[1] + 0.005 * S, chest[2]);
@@ -190,8 +253,8 @@ export function buildBody(gl, materials, typeKey, pose) {
   b.cylinder(0.078 * W, 0.086 * W, 0.055 * S, 12, { caps: false });
   b.pop();
 
-  b.material('skin');
-  limb(b, [0, chest[1] - 0.02 * S, chest[2]], [0, chest[1] + 0.10 * S, chest[2] + 0.01], 0.054 * W, 0.050 * W, 10);
+  b.material('skinPlain');
+  limb(b, [0, chest[1] - 0.02 * S, chest[2]], [0, chest[1] + 0.12 * S, chest[2] + 0.01], 0.056 * W, 0.050 * W, 12);
 
   /* --- arms --- */
   const arms = ARM_POSES[pose] || ARM_POSES.sit;
@@ -217,7 +280,7 @@ export function buildBody(gl, materials, typeKey, pose) {
       wrist[1] + (elbow[1] - wrist[1]) * 0.13,
       wrist[2] + (elbow[2] - wrist[2]) * 0.13,
     ], 0.053 * W);
-    b.material('skin');
+    b.material('skinPlain');
     /* Hand: a flattened block with a thumb, which at two metres is the
        difference between an arm and a tube. */
     const hand = [
@@ -287,31 +350,44 @@ const ARM_POSES = {
  * passenger's expression can be swapped by pointing the skin group's map at a
  * different face without rebuilding anything.
  */
-export function buildHead(gl, materials, style) {
+export function buildHead(gl, materials, style, opts = {}) {
   const b = new Builder();
-  b.ao = 0.95;
+  b.ao = 1;
+  /* Occlusion for a head: the underside of the jaw, the back of the neck and
+     the sockets around the eyes, all of which a bare sphere lacks entirely. */
+  b.aoFn = (x, y, z) => {
+    let ao = 1;
+    if (y < -0.03) ao *= 0.74 + 0.26 * Math.min(1, (y + 0.13) / 0.10);   // under the jaw
+    if (z < -0.02) ao *= 0.90;                                            // back of the skull
+    return Math.max(0.45, Math.min(1, ao));
+  };
 
+  /* The one sphere that wears the face. */
   b.material('skin');
   b.push();
-  b.sphere(0.098, 22, 16, { scaleZ: 1.06, scaleY: 1.14 });
+  b.sphere(0.098, 28, 20, { scaleZ: 1.06, scaleY: 1.14 });
   b.pop();
-  /* Jaw and chin: a skull is not a ball, and a ball is what a passenger looks
-     like at the far end of a carriage. */
+
+  b.material('skinPlain');
+  /*
+   * Jaw and nose, and nothing else.
+   *
+   * These have to stay *inside* the head sphere everywhere except at the
+   * silhouette, because the head sphere is the only part of a passenger that
+   * wears the face. A brow ridge lived here briefly and stuck two centimetres
+   * out in front at eye height, across the full width of the skull — so every
+   * passenger in the game had a blank white head, and it looked for all the
+   * world like a texture that had failed to load.
+   */
   b.push();
-  b.translate(0, -0.052, 0.014);
-  b.scale(0.88, 0.62, 0.94);
-  b.sphere(0.092, 16, 12);
+  b.translate(0, -0.055, 0.004);
+  b.scale(0.86, 0.60, 0.90);
+  b.sphere(0.088, 16, 12);
   b.pop();
-  /* Brow ridge, and a nose you can see in profile. */
   b.push();
-  b.translate(0, 0.028, 0.082);
-  b.scale(1, 0.42, 0.5);
-  b.sphere(0.078, 14, 10);
-  b.pop();
-  b.push();
-  b.translate(0, -0.010, 0.098);
-  b.scale(0.32, 0.55, 0.55);
-  b.sphere(0.044, 10, 8);
+  b.translate(0, -0.012, 0.092);
+  b.scale(0.30, 0.52, 0.50);
+  b.sphere(0.040, 10, 8);
   b.pop();
   /* Ears, which matter only because their absence is noticeable in profile. */
   for (const s of [-1, 1]) {
@@ -322,40 +398,90 @@ export function buildHead(gl, materials, style) {
     b.pop();
   }
 
+  /*
+   * Hair, hats and hoods, all built to one rule: nothing may sit closer to the
+   * camera than the head sphere anywhere in the face region, because the head
+   * sphere is the only part of a passenger wearing a face. A cap dome that
+   * reaches down past the eyes, or a peak at eye height rather than brow
+   * height, does not shade a face — it deletes it.
+   *
+   * The head sphere is radius 0.098 with 1.14 on Y and 1.06 on Z, so its front
+   * is at z = 0.104 at eye level (y = 0.035) and its widest is x = 0.098.
+   * Every number below is checked against those two.
+   */
   b.material('hair');
   switch (style) {
     case 'bald':
       break;
     case 'long':
+      /* A mass at the back and a crown, rather than a dome over everything. */
       b.push();
-      b.translate(0, 0.008, -0.012);
-      b.sphere(0.104, 14, 10, { scaleY: 1.14, scaleZ: 1.04 });
+      b.translate(0, 0.010, -0.040);
+      b.sphere(0.105, 18, 13, { scaleY: 1.06, scaleZ: 0.85 });
       b.pop();
       b.push();
-      b.translate(0, -0.10, -0.055);
-      b.box(0.19, 0.22, 0.10, { tiles: 3 });
+      b.translate(0, 0.055, -0.010);
+      b.sphere(0.100, 18, 12, { scaleY: 0.70 });
+      b.pop();
+      /* Fall of hair down the back and past the jaw on both sides. */
+      b.push();
+      b.translate(0, -0.095, -0.052);
+      b.scale(1, 1, 0.62);
+      b.sphere(0.098, 14, 11, { scaleY: 1.5 });
+      b.pop();
+      for (const s of [-1, 1]) {
+        b.push();
+        b.translate(s * 0.082, -0.055, -0.012);
+        b.scale(0.55, 1.5, 0.85);
+        b.sphere(0.052, 10, 8);
+        b.pop();
+      }
+      /* A fringe, so the hairline is not a bald curve. */
+      b.push();
+      b.translate(0, 0.052, 0.058);
+      b.scale(1, 0.42, 0.55);
+      b.sphere(0.095, 14, 10);
       b.pop();
       break;
     case 'cap':
+      /* Crown sat high with a fast taper, so its edge is at the hairline. */
       b.push();
-      b.translate(0, 0.045, -0.005);
-      b.sphere(0.104, 14, 8, { scaleY: 0.62 });
+      b.translate(0, 0.062, -0.004);
+      b.sphere(0.104, 20, 12, { scaleY: 0.55 });
       b.pop();
+      /* Peak at brow height. Anything lower is a blindfold. */
       b.push();
-      b.translate(0, 0.028, 0.098);
-      b.box(0.17, 0.014, 0.09, { tiles: 3 });
+      b.translate(0, 0.050, 0.098);
+      b.rotateX(0.18);
+      b.box(0.170, 0.012, 0.080, { tiles: 3 });
+      b.pop();
+      /* The seam band round the base, tucked just inside the skull. */
+      b.push();
+      b.translate(0, 0.046, -0.004);
+      b.rotateX(Math.PI / 2);
+      b.cylinder(0.101, 0.101, 0.020, 18, { caps: false });
       b.pop();
       break;
     case 'hood':
+      /* Pulled back off the face, so there is a face in there to not quite
+         see. A hood centred on the head simply replaces it with a larger
+         head. */
       b.push();
-      b.translate(0, 0.012, -0.030);
-      b.sphere(0.132, 14, 10, { scaleY: 1.10, scaleZ: 1.10 });
+      b.translate(0, 0.014, -0.052);
+      b.sphere(0.134, 20, 14, { scaleY: 1.06, scaleZ: 0.95 });
+      b.pop();
+      /* The rim of the opening. */
+      b.push();
+      b.translate(0, 0.014, 0.036);
+      b.rotateX(-0.14);
+      b.rotateZ(Math.PI / 2);
+      b.cylinder(0.106, 0.106, 0.026, 20, { caps: false });
       b.pop();
       break;
     case 'headphones':
       b.push();
-      b.translate(0, 0.035, -0.006);
-      b.sphere(0.101, 14, 9, { scaleY: 0.98 });
+      b.translate(0, 0.050, -0.010);
+      b.sphere(0.101, 18, 12, { scaleY: 0.78 });
       b.pop();
       b.material('gear');
       for (const s of [-1, 1]) {
@@ -373,8 +499,8 @@ export function buildHead(gl, materials, style) {
       break;
     case 'scarf':
       b.push();
-      b.translate(0, 0.030, -0.008);
-      b.sphere(0.103, 14, 9, { scaleY: 1.02 });
+      b.translate(0, 0.046, -0.010);
+      b.sphere(0.100, 18, 12, { scaleY: 0.86 });
       b.pop();
       b.material('gear');
       b.push();
@@ -384,17 +510,55 @@ export function buildHead(gl, materials, style) {
       b.pop();
       break;
     default: /* short */
-      /* Sat back off the forehead. A hair cap centred on the skull swallows
-         the face, which is most of why these heads read as dark lumps. */
       b.push();
-      b.translate(0, 0.030, -0.016);
-      b.sphere(0.103, 18, 12, { scaleY: 0.98, scaleZ: 1.02 });
+      b.translate(0, 0.050, -0.014);
+      b.sphere(0.103, 20, 14, { scaleY: 0.80, scaleZ: 1.00 });
       b.pop();
+      /* Sideburns, out at the ears where nothing can be in front of a face. */
+      for (const s of [-1, 1]) {
+        b.push();
+        b.translate(s * 0.086, -0.026, -0.002);
+        b.scale(0.30, 1.0, 0.55);
+        b.sphere(0.042, 9, 7);
+        b.pop();
+      }
       break;
+  }
+
+  /* Spectacles. A strong silhouette cue at the distance passengers are
+     usually seen from, and the fastest way to tell two of them apart. */
+  if (opts.glasses) {
+    b.material('spectacleFrame');
+    for (const s of [-1, 1]) {
+      b.push();
+      b.translate(s * 0.036, 0.010, 0.088);
+      b.rotateX(Math.PI / 2);
+      b.cylinder(0.030, 0.030, 0.006, 14, { caps: false });
+      b.pop();
+    }
+    b.push();
+    b.translate(0, 0.010, 0.098);
+    b.box(0.020, 0.005, 0.005, { tiles: 1 });
+    b.pop();
+    for (const s of [-1, 1]) {
+      b.push();
+      b.translate(s * 0.076, 0.012, 0.040);
+      b.rotateY(s * 0.9);
+      b.box(0.075, 0.005, 0.005, { tiles: 1 });
+      b.pop();
+    }
+    b.material('spectacle');
+    for (const s of [-1, 1]) {
+      b.push();
+      b.translate(s * 0.036, 0.010, 0.086);
+      b.panel(0.055, 0.048, { doubleSided: true });
+      b.pop();
+    }
   }
 
   const mesh = b.build(gl, materials);
   mesh.style = style;
+  mesh.glasses = Boolean(opts.glasses);
   return mesh;
 }
 
@@ -450,11 +614,12 @@ export class PassengerMeshCache {
     return mesh;
   }
 
-  head(style) {
-    let mesh = this.heads.get(style);
+  head(style, glasses = false) {
+    const key = `${style}${glasses ? '+glasses' : ''}`;
+    let mesh = this.heads.get(key);
     if (!mesh) {
-      mesh = buildHead(this.gl, this.materials, style);
-      this.heads.set(style, mesh);
+      mesh = buildHead(this.gl, this.materials, style, { glasses });
+      this.heads.set(key, mesh);
     }
     return mesh;
   }
