@@ -4,3 +4,4 @@ node_modules/
 dist/train-shots/
 dist/look/
 dist/isolate/
+dist/gallery/
