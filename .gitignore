@@ -1,3 +1,6 @@
 dist/shots/
 node_modules/
 .DS_Store
+dist/train-shots/
+dist/look/
+dist/isolate/

@@ -188,12 +188,14 @@ src/
   vision/    photo-scan prompt, response normaliser, plan translation
   ui/        wizard, quickstart, plan, exercise cards, nutrition, guide, scan
   styles/    design tokens and components
+train/       THE LAST TRAIN — see below; shares nothing with the app above
 tools/
   validate.js       cross-checks the data and engine layers
   vision-audit.mjs  proves a photo scan cannot break the engine's rules
   ai-audit.mjs      provider request shapes, and that a filled form stays legal
   smoke.mjs         drives the real app in Chromium
-  build-single.js   bundles everything into dist/fitai.html
+  train-smoke.mjs   rides the whole line in Chromium and checks it arrives
+  build-single.js   bundles either app into one HTML file
   fetch-fonts.js    regenerates the embedded font subsets
 docs/
   CONTRACTS.md      the binding module spec
@@ -281,3 +283,154 @@ body — no calorie target, no macro split, no weekly weigh-in — because a wee
 number that rises is what growing looks like, and teaching a child to read that
 as failure is the harm. Under 18 it will not build a calorie deficit whatever the
 goal chip says, and the photo scan does not run at all. None of that is a setting.
+
+---
+
+# THE LAST TRAIN
+
+`train/` is a first-person psychological horror game. It has nothing to do with
+the app above and shares no code with it; it lives here because it was asked
+for here, and it is kept behind its own directory and its own entry point so
+that neither can break the other.
+
+```bash
+npx http-server -p 8080 .            # then open http://localhost:8080/train/
+open dist/lasttrain.html             # or the single-file build, straight off disk
+```
+
+It needs WebGL 2 and a pointer that can be locked, which means a desktop
+browser. There is no build step, no dependency, no asset download and no
+network call of any kind.
+
+## What it is
+
+You are on the last service on Line 4, the 00:47, and at every station you make
+one decision with your feet: step onto the platform before the doors close, or
+stay where you are. Seven stops, seven endings, and no indication which of them
+you are heading for.
+
+The first ten minutes are an ordinary train ride. That is the design. A
+carriage that is wrong from the first frame has nothing left to spend, so
+Central is a working station with people on it, Riverside is the same station
+with one thing different, and by the fourth stop there is no pretence left.
+
+## The rule everything is built to
+
+**Nothing announces itself.** There is no message that says a passenger moved.
+The passenger moves — while the player is looking somewhere else — and the game
+never mentions it again.
+
+That is enforced in code rather than trusted to authoring. `queueUnobserved` in
+`src/game/crowd.js` takes a change and a place, and applies it on the first
+frame where that place is outside the player's cone of vision or in a carriage
+they cannot currently see into. Nothing forces it through. Stare at one seat
+for four minutes and that seat will stay exactly as it is, which is correct and,
+after a while, considerably worse.
+
+The corollary is that every anomaly has to survive being missed. A player
+looking the other way loses nothing they needed, and a player who *was* looking
+gets no confirmation that they were right.
+
+## How it is made
+
+Everything is generated on the machine it runs on.
+
+**Renderer** — a hand-written WebGL 2 forward renderer in `src/render/`. A
+bounded point-light array (a carriage is a corridor lit by six fluorescent
+strips; nothing else reaches it), occlusion baked into vertex colours instead of
+shadow maps, and planar reflections in the window glass. The reflections are not
+decoration: one anomaly desynchronises the player's reflection from the player,
+and that only lands if the reflection is otherwise exact. Post is bloom, a cold
+grade, aberration, grain and an ordered dither — without the dither every
+gradient in a dark carriage bands into visible steps.
+
+**Surfaces** — every texture is drawn with the 2D canvas API at load, in
+`src/render/textures.js`: the moquette, the studded floor, the enamel station
+signs, the route map, the dot-matrix display, the advertisements. That is not
+only about having no assets. A texture you can redraw is a texture you can lie
+with, and an advertisement whose wording changes between two stations is one of
+the few horror beats that works better the less it is pointed at.
+
+**Sound** — synthesised with the Web Audio API in `src/audio/`. Rail joints are
+scheduled from the train's speed, so the rhythm slows continuously as it brakes;
+the carriage reverb is a generated impulse response; and the public-address
+voice is a formant synthesiser driven by the syllable count of the line it is
+reading, band-limited to something the size of a plastic speaker. It is not
+text-to-speech on purpose — it is identical on every machine, it cannot be
+understood without the subtitle (so the player *reads* the announcements, and
+the game changes what the announcements say), and it can be degraded
+continuously as the night gets worse. Real system speech is still offered in
+settings for players who prefer it.
+
+Silence is treated as a cue rather than the absence of one: several anomalies
+take the entire bed out in a fifth of a second and hold it there.
+
+**The world** — the train never moves. The tunnel and the platform slide past
+it, which is how every train scene has ever been shot and which keeps the
+player's collision problem to "a corridor" rather than "a corridor on a moving
+reference frame". Four cars share one mesh and differ by material override, so
+changing what is on the wall of car three costs nothing.
+
+## Endings
+
+Seven, and none of them is labelled good or bad. Which one you get depends on
+where you stepped off, what you picked up, and whether you ever spoke to
+anybody. Getting off at the station with your own name on it is only *home* if
+you had some way of knowing it was yours — otherwise it is the same mistake
+everyone else on that train made. Staying on to the terminus resolves three
+different ways depending on a conversation you were never told to have.
+
+Fifteen readable objects are scattered across the four cars. They are written to
+a rule as well: a clue may be specific, dated and mundane, and it may sit
+*adjacent* to the answer, but it never states it. The game never confirms
+whether you assembled the story.
+
+Finishing once unlocks Nightmare Mode, which keeps the line and the script
+exactly as they are — the writing names these stations — and takes away the
+rhythm instead: you no longer know which side the doors will open on, or how
+long you have once they do, and the anomalies come far more often.
+
+## Accessibility and comfort
+
+Subtitles, and separate captions for sounds whose source you cannot see.
+Independent volumes for the train, the effects and the announcements. Head
+movement, film grain, lens aberration and vignette can each be turned down or
+off, and nothing in the game depends on any of them. Brightness is a slider
+with an instruction attached: set it so you can just make out the far end of the
+carriage.
+
+There is no gore and no jump scare built on a sudden loud noise. The content is
+sustained unease, darkness, isolation and implied death.
+
+## Checking it
+
+```bash
+NODE_PATH=/opt/node22/lib/node_modules node tools/train-smoke.mjs
+NODE_PATH=/opt/node22/lib/node_modules node tools/train-smoke.mjs --shots
+node tools/build-single.js train                        # dist/lasttrain.html
+```
+
+`train-smoke.mjs` does not check that the code loads. A 3D game is exactly the
+kind of thing that loads cleanly and then draws a black rectangle, so it boots
+the game in Chromium, asserts the renderer is emitting geometry and lights,
+picks something up, sits down, pulls the alarm, rides the entire line at
+accelerated simulation speed, and asserts that the journey reaches an ending
+with the state that ending is supposed to depend on. It also fails on WebGL
+warnings — the bug that made every surface in the game render black was a
+`texture unit out of range` warning and nothing else.
+
+## Layout
+
+```
+train/
+  index.html
+  src/
+    core/     math, seeded rng, storage, input, the frame clock, events
+    render/   gl wrapper, shaders, geometry builder, procedural textures, renderer
+    audio/    the graph and the ambient bed; the sound table and the PA voice
+    world/    dimensions, carriage, passengers, the tunnel and platforms, materials
+    game/     stations, clues, anomalies, cast, crowd, player, endings, the state machine
+    ui/       hud, document overlay, menus, the menu backdrop
+    styles.css
+    main.js
+```

@@ -1,14 +1,17 @@
 #!/usr/bin/env node
 /*
- * build-single.js — bundles the whole app into one self-contained HTML file
- * at dist/fitai.html, so it can be opened straight off the disk (file://)
- * exactly like the original reference document.
+ * build-single.js — bundles an app into one self-contained HTML file, so it
+ * can be opened straight off the disk (file://) exactly like the original
+ * reference document.
  *
  * It is a deliberately small bundler that understands only the module syntax
  * this codebase actually uses. Anything else makes it stop loudly rather than
  * emit a broken file.
  *
- * Usage: node tools/build-single.js
+ * Usage:
+ *   node tools/build-single.js            # fitai   -> dist/fitai.html
+ *   node tools/build-single.js train      # the game -> dist/lasttrain.html
+ *   node tools/build-single.js src/x.js   # any entry, built as fitai would be
  */
 
 import { readFileSync, writeFileSync, mkdirSync } from 'node:fs';
@@ -16,7 +19,28 @@ import { resolve, dirname, relative } from 'node:path';
 import { fileURLToPath } from 'node:url';
 
 const ROOT = resolve(dirname(fileURLToPath(import.meta.url)), '..');
-const ENTRY = process.argv[2] || 'src/app.js';
+
+const TARGETS = {
+  fitai: {
+    entry: 'src/app.js',
+    html: 'index.html',
+    css: ['src/styles/fonts.css', 'src/styles/tokens.css', 'src/styles/base.css', 'src/styles/components.css'],
+    out: 'dist/fitai.html',
+  },
+  train: {
+    entry: 'train/src/main.js',
+    html: 'train/index.html',
+    css: ['train/src/styles.css'],
+    out: 'dist/lasttrain.html',
+  },
+};
+
+const arg = process.argv[2];
+/* A bare name picks a target; anything else is still treated as an entry
+   point built the way fitai is, which is how this script was called before
+   there was more than one thing to build. */
+const TARGET = arg && TARGETS[arg] ? TARGETS[arg] : { ...TARGETS.fitai, ...(arg ? { entry: arg } : {}) };
+const ENTRY = TARGET.entry;
 
 const seen = new Map();
 const order = [];
@@ -34,7 +58,10 @@ function collect(abs) {
   reject(src, k);
 
   const deps = [];
-  const importRe = /^[ \t]*import\s+(?:([\w$]+)|\*\s+as\s+([\w$]+)|\{([^}]*)\})\s+from\s+['"]([^'"]+)['"];?[ \t]*$/gm;
+  /* The named-import body is matched lazily across newlines: a long import
+     list wrapped over four lines is the same statement as a short one, and
+     silently failing to match it drops the module out of the bundle. */
+  const importRe = /^[ \t]*import\s+(?:([\w$]+)|\*\s+as\s+([\w$]+)|\{([\s\S]*?)\})\s+from\s+['"]([^'"]+)['"];?[ \t]*$/gm;
   let m;
   while ((m = importRe.exec(src))) {
     const spec = m[4];
@@ -61,9 +88,21 @@ function transform(k, mod) {
   // imports -> registry destructuring
   for (const d of mod.deps) {
     const target = key(resolve(dirname(mod.abs), d.spec));
+    /* `import { bus as globalBus }` destructures as `{ bus: globalBus }`. The
+       two spellings are not interchangeable and getting it wrong produces a
+       bundle that parses right up until the first aliased import. */
+    const named = String(d.named || '')
+      .split(',')
+      .map((t) => t.replace(/\s+/g, ' ').trim())
+      .filter(Boolean)
+      .map((t) => {
+        const alias = /^([\w$]+) as ([\w$]+)$/.exec(t);
+        return alias ? `${alias[1]}: ${alias[2]}` : t;
+      })
+      .join(', ');
     const line = d.ns
       ? `const ${d.ns} = __m[${JSON.stringify(target)}];`
-      : `const { ${d.named.replace(/\s+/g, ' ').trim()} } = __m[${JSON.stringify(target)}];`;
+      : `const { ${named} } = __m[${JSON.stringify(target)}];`;
     out = out.replace(d.raw, line);
   }
 
@@ -114,19 +153,19 @@ const bundle = [
   '})();',
 ].join('\n\n');
 
-const css = ['fonts', 'tokens', 'base', 'components']
-  .map((n) => readFileSync(resolve(ROOT, `src/styles/${n}.css`), 'utf8'))
+const css = TARGET.css
+  .map((n) => readFileSync(resolve(ROOT, n), 'utf8'))
   .join('\n\n');
 
-let html = readFileSync(resolve(ROOT, 'index.html'), 'utf8');
+let html = readFileSync(resolve(ROOT, TARGET.html), 'utf8');
 html = html
   .replace(/\n?[ \t]*<link rel="stylesheet"[^>]*>/g, '')
   .replace(/[ \t]*<script type="module"[^>]*><\/script>/, '')
   .replace('</head>', `<style>\n${css}\n</style>\n</head>`)
   .replace('</body>', `<script>\n${bundle}\n</script>\n</body>`);
 
-mkdirSync(resolve(ROOT, 'dist'), { recursive: true });
-writeFileSync(resolve(ROOT, 'dist/fitai.html'), html);
+mkdirSync(resolve(ROOT, dirname(TARGET.out)), { recursive: true });
+writeFileSync(resolve(ROOT, TARGET.out), html);
 
 const kb = Math.round(Buffer.byteLength(html) / 1024);
-console.log(`dist/fitai.html — ${order.length} modules, ${kb} KB`);
+console.log(`${TARGET.out} — ${order.length} modules, ${kb} KB`);
