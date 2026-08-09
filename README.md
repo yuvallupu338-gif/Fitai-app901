@@ -106,9 +106,10 @@ resolves to nothing.
 
 **The AI layer is optional and additive.** With no key the app is exactly what
 it was — sealed, offline, deterministic — and it makes zero network calls; the
-buttons open the settings sheet instead of failing. A key adds two things: an
-estimate for a dish the bank does not hold (`שקשוקה של אמא עם 3 ביצים ולחם`),
-and a coach that answers from the user's own numbers rather than in general.
+buttons open the settings sheet instead of failing. A key adds three things: an
+estimate for a dish the bank does not hold (`שקשוקה של אמא עם 3 ביצים ולחם`), a
+scan of a photographed plate, and a coach that answers from the user's own
+numbers rather than in general.
 
 What the model returns is not trusted on arrival. An estimated food goes through
 the same `4p + 4c + 9f` gate as every row in the bank, and a model that returns
@@ -117,10 +118,25 @@ spelled out rather than quietly logged. Estimates are labelled as estimates, and
 can be saved to `myFoods` so the second time the dish is typed it resolves
 offline.
 
+**Photograph the plate.** The camera button hands a photo to a vision model,
+which lists what it sees on the plate ("חזה עוף בגריל ~180 ג׳"), estimates the
+macros, and writes a short critique against this user's goal and this meal's
+band. Listing the items first is what makes the number checkable: a user can see
+the model read 180g of chicken and correct it if the portion was 250.
+
+Three things the photo path has to get right. The image is resized to a 1024px
+long edge and re-encoded as JPEG before it leaves the device — a phone photo is
+several megabytes and every byte is billed, and 349KB became 45KB in the test
+with nothing a model needs lost. EXIF orientation is honoured via
+`createImageBitmap`, so a photo taken sideways is not analysed sideways. And a
+photo with no food in it returns `notFood` and says so, rather than inventing
+macros for a picture of a wall.
+
 Two vendors, and they differ in more than a hostname: Anthropic takes the system
 prompt as a field and returns a parsed object, while the OpenAI-compatible ones
 take system as the first message and return tool arguments as a *string* that can
-be malformed. Both shapes are handled, and both are exercised by the test suite
+be malformed; image blocks differ again, `image`/`source.base64` against
+`image_url`. All of it is handled, and both are exercised by the test suite
 against mocked responses, so the parsing is covered without a key. The API key
 lives outside the profile DB on purpose — exporting a profile to a file is a
 thing users do, and it must not carry a credential with it.
