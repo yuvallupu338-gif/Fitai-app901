@@ -81,6 +81,22 @@ bank, since the one dish someone bothered to enter themselves is exactly the one
 they will type again. Those rows carry no bank index, so the diary's
 edit-portion button stays off them rather than pointing past the end of FOODDB.
 
+**The food bank.** 625 rows, up from 208. The new ones were drafted per category
+and then audited, but the gate that actually decides is arithmetic: a row ships
+only if `4p + 4c + 9f` lands within 25% of its stated calories, its unit comes
+from the bank's own vocabulary, and its name is not already present. Alcohol is
+exempt by name — ethanol carries ~7 kcal/g that never appears in P/C/F, so a
+mojito cannot satisfy the identity — as are near-zero drinks, where rounding
+dominates. Fabricated numbers fail the identity; the check does not depend on
+anyone vouching for them.
+
+A larger bank made the matcher worse before it made it better. With 208 rows the
+loose "one word contains the other" rule was harmless; with 625 it turned any
+fragment into a confident hit — `משהו` resolved to שעועית **מש**, `קליקוליק` to
+לחם **קל**. Partial matches now require the shorter word to cover at least 60% of
+the longer one, which keeps `פיתה` matching שווארמה ב**פיתה** while nonsense
+resolves to nothing.
+
 **Icons.** One logo, three renders, because one bitmap cannot serve a 42px
 header box and a 512px launcher tile. `LOGO_MARK` is the glyph full-bleed on the
 brand's navy, used for the header, the favicon and the `any` manifest icon;
