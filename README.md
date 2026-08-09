@@ -104,6 +104,31 @@ fragment into a confident hit — `משהו` resolved to שעועית **מש**, 
 the longer one, which keeps `פיתה` matching שווארמה ב**פיתה** while nonsense
 resolves to nothing.
 
+**The AI layer is optional and additive.** With no key the app is exactly what
+it was — sealed, offline, deterministic — and it makes zero network calls; the
+buttons open the settings sheet instead of failing. A key adds two things: an
+estimate for a dish the bank does not hold (`שקשוקה של אמא עם 3 ביצים ולחם`),
+and a coach that answers from the user's own numbers rather than in general.
+
+What the model returns is not trusted on arrival. An estimated food goes through
+the same `4p + 4c + 9f` gate as every row in the bank, and a model that returns
+90 kcal alongside 40g of protein gets shown to the user with that contradiction
+spelled out rather than quietly logged. Estimates are labelled as estimates, and
+can be saved to `myFoods` so the second time the dish is typed it resolves
+offline.
+
+Two vendors, and they differ in more than a hostname: Anthropic takes the system
+prompt as a field and returns a parsed object, while the OpenAI-compatible ones
+take system as the first message and return tool arguments as a *string* that can
+be malformed. Both shapes are handled, and both are exercised by the test suite
+against mocked responses, so the parsing is covered without a key. The API key
+lives outside the profile DB on purpose — exporting a profile to a file is a
+thing users do, and it must not carry a credential with it.
+
+The CSP names the two model hosts explicitly rather than opening `connect-src`
+to `https:`. A custom endpoint needs its host added to that meta tag; the app
+tells the user so instead of failing silently.
+
 **Icons.** One logo, three renders, because one bitmap cannot serve a 42px
 header box and a 512px launcher tile. `LOGO_MARK` is the glyph full-bleed on the
 brand's navy, used for the header, the favicon and the `any` manifest icon;
