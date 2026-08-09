@@ -124,6 +124,14 @@ macros, and writes a short critique against this user's goal and this meal's
 band. Listing the items first is what makes the number checkable: a user can see
 the model read 180g of chicken and correct it if the portion was 250.
 
+Every meal card carries its own camera, and the photo stays with the meal: the
+diary shows a thumbnail next to the entry, and the card shows the picture under
+that meal's targets. What is kept is a 256px thumbnail (~6KB), not the 1024px
+frame that was sent — the diary holds up to 200 entries in localStorage and 45KB
+apiece would fill the quota in a week. Photos are capped at the newest 24, and
+when storage runs short they are the first thing dropped, ahead of any recorded
+number: a picture is the least essential field in a food entry.
+
 Three things the photo path has to get right. The image is resized to a 1024px
 long edge and re-encoded as JPEG before it leaves the device — a phone photo is
 several megabytes and every byte is billed, and 349KB became 45KB in the test
