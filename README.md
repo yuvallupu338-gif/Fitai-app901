@@ -31,10 +31,10 @@ open dist/fitai.html
 ### app/index.html
 
 A second, separately authored app lives at `app/index.html`: the FitAI coach —
-skill tree, nutrition bank, guided workout session, machine catalogue — as one
-self-contained file with its media, fonts and brand marks inlined. It shares no
-code with `src/`, keeps its own state under the `fitai_v1` localStorage key, and
-opens straight off the disk like `dist/fitai.html` does.
+skill tree, nutrition bank, guided workout session — as one self-contained file
+with its media, fonts and brand marks inlined. It shares no code with `src/`,
+keeps its own state under the `fitai_v1` localStorage key, and opens straight
+off the disk like `dist/fitai.html` does.
 
 It is skinned to the same reference document the rest of the repo follows: a
 near-black ground, one gold accent used for every emphasis, heavy display type
@@ -43,8 +43,33 @@ top of its `<style>` — surfaces, the accent pair, and `--accent-ink` for gold
 that is read as type rather than used as a fill. Both themes are driven from
 those tokens, so no rule hard-codes a surface.
 
-It is 25 MB because 97% of it is base64: 63 WebP exercise demos, 319 food and
-machine photos, the Rubik subsets and the logo marks.
+It is 16 MB because 96% of it is base64: the WebP exercise demos, 279 food
+photos, the Rubik subsets and the logo marks.
+
+**Calisthenics, all the way down.** The skill tree it shipped with was a gym
+programme — a barbell bench press on rung four of the chest line, a leg line
+measured in kilos — so all four ladders were rewritten as bodyweight
+progressions, wall push-up through one-arm push-up, scapular pull-up through
+one-arm pull-up, box squat through pistol, knee plank through hanging windshield
+wipers. The accessories went with them, the weight field is gone from the
+session (`showWeights` cannot return true), and the equipment list is now a bar,
+parallel bars, rings, parallettes, bands, a step and an ab wheel, applied to
+every user rather than only to the studio case that used to own it. A profile
+saved under the old build is migrated on load: a bench becomes a step, dumbbells
+and machines are dropped, and the weighted style is cleared. The unreachable
+machine catalogue and its phrasebook were deleted outright — 200 KB of dead
+code, plus 9 MB of demo clips for lifts the app can no longer prescribe.
+
+`muscleOf()` had to learn the vocabulary before any of that could be trusted:
+it classifies by name, weekly volume is accounted from what it returns, and a
+name it does not recognise returns null and is silently never counted. Front
+lever, L-sit, dragon flag and Nordic curl all fell through it, and Mountain
+climber and Russian twist were already falling through in the shipped build.
+`tools/calisthenics-test.mjs` asserts, for all 52 exercises the app can put in
+front of a user, that the classifier agrees with the category the exercise is
+filed under, that `isBW` calls it bodyweight, and that a logged set lands in a
+muscle group — so a mis-filed exercise fails a test rather than quietly
+disappearing from the volume chart.
 
 **Set intensity on the mass goal.** Picking מסה prescribes every working set at
 RIR 0-2 — to failure, or one to two reps short of it — and that holds through
