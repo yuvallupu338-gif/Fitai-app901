@@ -153,6 +153,21 @@ The CSP names the two model hosts explicitly rather than opening `connect-src`
 to `https:`. A custom endpoint needs its host added to that meta tag; the app
 tells the user so instead of failing silently.
 
+**Translation stops at the user's own words.** `translateEl` rewrites any Hebrew
+it recognises inside a text node, which is right for UI copy and wrong for
+anything typed in: the dictionary holds `"יובל": "jubilee"`, so switching to
+English renamed the user. Text that is data rather than copy is wrapped in
+`.notr` and skipped — names, allergy notes, foods someone saved, and whatever a
+model wrote back. Bank foods still translate, because those really are copy: a
+diary row checks whether the entry came from the bank before deciding.
+
+**sw.js exists now.** It was registered and absent, so the call failed silently
+into its own `.catch` and an installed copy had nothing but the browser's HTTP
+cache to fall back on. The worker precaches the shell, serves navigations
+network-first so a redeploy lands on the next load, and only claims its own
+origin. Opened from `file://` none of it runs, which is correct — there is
+nothing to cache when the whole app is one file.
+
 **Icons.** One logo, three renders, because one bitmap cannot serve a 42px
 header box and a 512px launcher tile. `LOGO_MARK` is the glyph full-bleed on the
 brand's navy, used for the header, the favicon and the `any` manifest icon;
