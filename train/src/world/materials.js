@@ -12,7 +12,7 @@ export function trainMaterials() {
   const glass = (side) => ({
     glass: side,
     glassTint: [0.030, 0.038, 0.052],
-    reflStrength: side === 'plain' ? 0.30 : 0.72,
+    reflStrength: side === 'plain' ? 0.32 : 0.95,
     smudge: 1,
     cull: false,
     transparent: true,

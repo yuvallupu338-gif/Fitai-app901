@@ -210,7 +210,7 @@ void main() {
      per cent, but at night, with a lit carriage on one side and a tunnel on
      the other, the eye reads the window as a mirror from almost every angle —
      and the reflection is a mechanic here, not a garnish. */
-  fres = mix(0.34, 1.0, fres);
+  fres = mix(0.30, 1.0, fres);
 
   vec4 smudge = texture(uSmudge, vUV);
   /* Condensation streaks drift down while the train is moving. */
@@ -232,7 +232,7 @@ void main() {
   /* Capped below opaque. A pane at a grazing angle really does mirror almost
      everything, but the near windows then become the brightest thing in the
      carriage and the eye never gets past them. */
-  float alpha = clamp(fres * uReflStrength * 1.25 + uSmudgeAmount * smudge.a * 0.25 + 0.10, 0.0, 0.88);
+  float alpha = clamp(fres * uReflStrength * 1.05 + uSmudgeAmount * smudge.a * 0.20 + 0.06, 0.0, 0.85);
   fragColor = vec4(color, alpha);
 }
 `;
