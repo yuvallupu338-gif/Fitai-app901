@@ -127,12 +127,18 @@ async function main() {
         document.getElementById('view').style.visibility = 'hidden';
         document.documentElement.style.background = 'transparent';
         document.body.style.background = 'transparent';
+        /* The CSS grain blends with mix-blend-mode: overlay, and over a
+           transparent backdrop the browser blends it against black — a
+           full-screen dark veil that halved the brightness of every
+           composited shot. The game's own grain is in the GL frame already. */
+        document.getElementById('grain').style.display = 'none';
       });
       const dom = await page.screenshot({ omitBackground: true });
       await page.evaluate(() => {
         document.getElementById('view').style.visibility = '';
         document.documentElement.style.background = '';
         document.body.style.background = '';
+        document.getElementById('grain').style.display = '';
       });
       data = await page.evaluate((url) => window.__overlay(url),
         `data:image/png;base64,${dom.toString('base64')}`);
@@ -269,11 +275,13 @@ async function main() {
        which is the picture the station is actually for. */
     const state = await page.evaluate(() => {
       const g = window.__lastTrain.game;
+      /* Down the carriage from the middle of it. Framing on the doorway
+         needs the car's own centre — which this file does not have — and a
+         guess at it puts the lens against a wall panel. */
       const side = g.station?.side ?? 1;
-      g.player.position[0] = side * 0.9;
-      g.player.position[2] = 12.7 + 4.4;
-      /* Looking out of the doors: the camera's forward is (-sin, -cos). */
-      g.player.yaw = side > 0 ? -Math.PI / 2 : Math.PI / 2;
+      g.player.position[0] = -side * 0.35;
+      g.player.position[2] = 12.7;
+      g.player.yaw = Math.PI;
       g.player.pitch = -0.02;
       return {
         mode: window.__lastTrain.mode,

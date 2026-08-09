@@ -37,6 +37,20 @@
 
 * { box-sizing: border-box; }
 
+/*
+ * The `hidden` attribute, restored.
+ *
+ * The user agent hides [hidden] with a `display: none` that any author rule
+ * setting `display` outranks — and .overlay sets `display: grid`, .prompt sets
+ * `display: flex`. The document overlay is `position: absolute; inset: 0` with
+ * `background: rgba(2,3,5,0.72)` and `backdrop-filter: blur(2px)`, so for the
+ * whole life of the game it has been sitting over the carriage: every frame
+ * darkened by nearly three quarters and blurred by two pixels, with the HUD,
+ * the passengers and the entire train underneath it. Everything about the
+ * picture that looked like a rendering fault was this one line.
+ */
+[hidden] { display: none !important; }
+
 html, body {
   margin: 0;
   padding: 0;
@@ -459,9 +473,12 @@ body.playing { cursor: none; }
   content: "";
   position: absolute;
   inset: 0;
+  /* Dark enough behind the title to read it, thin enough on the right that
+     the platform, the tunnel mouth and the train going through are all still
+     there. The menu is a place, not a wallpaper. */
   background:
-    radial-gradient(120% 90% at 20% 40%, rgba(0,0,0,0.35), rgba(0,0,0,0.86)),
-    linear-gradient(180deg, rgba(0,0,0,0.55), rgba(0,0,0,0.30) 45%, rgba(0,0,0,0.80));
+    radial-gradient(120% 90% at 18% 42%, rgba(0,0,0,0.62), rgba(0,0,0,0.10) 72%),
+    linear-gradient(180deg, rgba(0,0,0,0.42), rgba(0,0,0,0.12) 45%, rgba(0,0,0,0.62));
   pointer-events: none;
 }
 .menu.pause::before { backdrop-filter: blur(6px); }

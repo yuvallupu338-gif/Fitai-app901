@@ -353,7 +353,12 @@ async function main() {
     window.__lastTrain.events.on('ending', (p) => { window.__seen.ending = p.ending.id; });
   });
 
-  const deadline = Date.now() + 420000;
+  /* Fifteen minutes for the whole line. The ride is driven at forty-eight
+     sub-steps a frame, so the wall-clock cost is however long a software
+     rasteriser takes to draw a few hundred frames of a lit carriage — which on
+     a busy machine is enough to run out of a seven-minute budget three
+     stations short and report it as a game that never reaches an ending. */
+  const deadline = Date.now() + 900000;
   let last = -1;
   while (Date.now() < deadline) {
     const snap = await page.evaluate(() => {
