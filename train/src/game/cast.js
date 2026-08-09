@@ -15,11 +15,12 @@
 
 import { mat4, compose, damp, clamp, angleDelta } from '../core/math.js';
 import { CAR, carCenterZ, seatSlot } from '../world/dims.js';
-import { HEAD_ANCHOR, HEAD_BIAS, SITTING_POSES } from '../world/passengers.js';
+import { HEAD_ANCHOR, HEAD_BIAS, SITTING_POSES, BODY_TYPES } from '../world/passengers.js';
 
 export const CAST = [
   {
     id: 'reader',
+    cut: 'long',
     label: 'the man with the newspaper',
     body: 'average',
     head: 'cap',
@@ -37,6 +38,7 @@ export const CAST = [
   },
   {
     id: 'worker',
+    cut: 'short',
     label: 'the one who has been awake too long',
     body: 'slim',
     head: 'short',
@@ -53,6 +55,7 @@ export const CAST = [
   },
   {
     id: 'elder',
+    cut: 'long',
     label: 'the elderly passenger',
     body: 'small',
     head: 'scarf',
@@ -70,6 +73,7 @@ export const CAST = [
   },
   {
     id: 'student',
+    cut: 'puffer',
     label: 'the one with the headphones',
     body: 'slim',
     head: 'headphones',
@@ -86,6 +90,7 @@ export const CAST = [
   },
   {
     id: 'sleeper',
+    cut: 'puffer',
     label: 'the one who is asleep',
     body: 'heavy',
     head: 'long',
@@ -102,6 +107,7 @@ export const CAST = [
   },
   {
     id: 'stranger',
+    cut: 'long',
     label: 'the passenger at the far end',
     body: 'tall',
     head: 'hood',
@@ -127,12 +133,12 @@ export const CAST = [
 /* Extras: nameless, and they behave. They exist so that the carriage feels
    used at the start and conspicuously unused later. */
 export const EXTRA_APPEARANCES = [
-  { body: 'average', head: 'short', colors: { coat: [0.26, 0.22, 0.28], legs: [0.14, 0.14, 0.16], shoes: [0.08, 0.08, 0.09], hair: [0.16, 0.12, 0.10], skin: [0.76, 0.62, 0.54] } },
-  { body: 'heavy', head: 'cap', glasses: true, colors: { coat: [0.16, 0.22, 0.24], legs: [0.17, 0.17, 0.18], shoes: [0.09, 0.09, 0.10], hair: [0.12, 0.10, 0.09], skin: [0.70, 0.56, 0.48] } },
-  { body: 'slim', head: 'long', colors: { coat: [0.30, 0.18, 0.20], legs: [0.13, 0.14, 0.17], shoes: [0.10, 0.10, 0.11], hair: [0.30, 0.22, 0.16], skin: [0.79, 0.65, 0.57] } },
-  { body: 'tall', head: 'bald', glasses: true, colors: { coat: [0.18, 0.19, 0.19], legs: [0.12, 0.12, 0.13], shoes: [0.07, 0.07, 0.08], hair: [0.30, 0.28, 0.26], skin: [0.72, 0.59, 0.52] } },
-  { body: 'small', head: 'hood', colors: { coat: [0.14, 0.16, 0.22], legs: [0.12, 0.12, 0.14], shoes: [0.08, 0.08, 0.09], hair: [0.10, 0.09, 0.09], skin: [0.75, 0.61, 0.53] } },
-  { body: 'average', head: 'scarf', colors: { coat: [0.22, 0.20, 0.16], legs: [0.15, 0.14, 0.13], shoes: [0.09, 0.08, 0.08], hair: [0.20, 0.16, 0.13], gear: [0.24, 0.30, 0.34], skin: [0.77, 0.63, 0.55] } },
+  { cut: 'short', body: 'average', head: 'short', colors: { coat: [0.26, 0.22, 0.28], legs: [0.14, 0.14, 0.16], shoes: [0.08, 0.08, 0.09], hair: [0.16, 0.12, 0.10], skin: [0.76, 0.62, 0.54] } },
+  { cut: 'puffer', body: 'heavy', head: 'cap', glasses: true, colors: { coat: [0.16, 0.22, 0.24], legs: [0.17, 0.17, 0.18], shoes: [0.09, 0.09, 0.10], hair: [0.12, 0.10, 0.09], skin: [0.70, 0.56, 0.48] } },
+  { cut: 'long', body: 'slim', head: 'long', colors: { coat: [0.30, 0.18, 0.20], legs: [0.13, 0.14, 0.17], shoes: [0.10, 0.10, 0.11], hair: [0.30, 0.22, 0.16], skin: [0.79, 0.65, 0.57] } },
+  { cut: 'short', body: 'tall', head: 'bald', glasses: true, colors: { coat: [0.18, 0.19, 0.19], legs: [0.12, 0.12, 0.13], shoes: [0.07, 0.07, 0.08], hair: [0.30, 0.28, 0.26], skin: [0.72, 0.59, 0.52] } },
+  { cut: 'puffer', body: 'small', head: 'hood', colors: { coat: [0.14, 0.16, 0.22], legs: [0.12, 0.12, 0.14], shoes: [0.08, 0.08, 0.09], hair: [0.10, 0.09, 0.09], skin: [0.75, 0.61, 0.53] } },
+  { cut: 'long', body: 'average', head: 'scarf', colors: { coat: [0.22, 0.20, 0.16], legs: [0.15, 0.14, 0.13], shoes: [0.09, 0.08, 0.08], hair: [0.20, 0.16, 0.13], gear: [0.24, 0.30, 0.34], skin: [0.77, 0.63, 0.55] } },
 ];
 
 /* How many nameless passengers are aboard at each stop. It only goes down. */
@@ -216,7 +222,7 @@ export class Passenger {
 
   update(dt, time, camera, opts = {}) {
     const sitting = SITTING_POSES.has(this.pose);
-    const body = this.meshes.body(this.def.body, this.pose);
+    const body = this.meshes.body(this.def.body, this.pose, this.def.cut);
     const head = this.meshes.head(this.def.head, this.def.glasses);
     this.bodyNode.mesh = body;
     this.headNode.mesh = head;
@@ -240,11 +246,19 @@ export class Passenger {
       this.yaw, 0, sway * 0.10, 1, 1, 1);
 
     /* Head. `watch` is how much of the time this passenger spends looking at
-       the player rather than at nothing. */
+       the player rather than at nothing.
+
+       The anchor is scaled by the body type, because the table is in metres
+       for an average build and the shoulders of a small one are twelve
+       centimetres lower. Unscaled, a short passenger's head hung above their
+       collar with a neck stretched up to reach it. */
+    const scale = BODY_TYPES[this.def.body]?.scale ?? 1;
     const anchor = HEAD_ANCHOR[this.pose] || HEAD_ANCHOR.sit;
-    const hx = pos[0] + Math.sin(this.yaw) * anchor[2] + sway * 0.5;
-    const hy = pos[1] + anchor[1] + breath;
-    const hz = pos[2] + Math.cos(this.yaw) * anchor[2];
+    const anchorY = anchor[1] * scale;
+    const anchorZ = anchor[2] * scale;
+    const hx = pos[0] + Math.sin(this.yaw) * anchorZ + sway * 0.5;
+    const hy = pos[1] + anchorY + breath;
+    const hz = pos[2] + Math.cos(this.yaw) * anchorZ;
 
     if (this.watch > 0 && camera) {
       const dx = camera.position[0] - hx;

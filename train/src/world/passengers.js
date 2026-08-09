@@ -125,7 +125,7 @@ function bodyAO(sitting, hipY, chestY) {
  * the hips, feet slightly forward, shoulders 0.50m above the seat. Everything
  * else hangs off those.
  */
-export function buildBody(gl, materials, typeKey, pose) {
+export function buildBody(gl, materials, typeKey, pose, opts = {}) {
   const type = BODY_TYPES[typeKey] || BODY_TYPES.average;
   const b = new Builder();
   b.ao = 1;
@@ -246,6 +246,35 @@ export function buildBody(gl, materials, typeKey, pose) {
   }
   b.material('coat');
 
+  /*
+   * The cut of the coat, which is the cheapest silhouette difference there is
+   * and the reason six passengers used to look like one passenger six times.
+   */
+  const cut = opts.cut || 'long';
+  if (cut === 'long') {
+    /* Skirts of an overcoat, over the hips and down. On a seated figure it
+       spreads across the cushion; standing, it falls to mid-thigh. */
+    const dropY = sitting ? hipY - 0.04 * S : hipY - 0.24 * S;
+    b.push();
+    b.translate(0, (hipY + dropY) / 2, (sitting ? -0.02 : 0));
+    b.roundedBox(0.34 * W, hipY - dropY + 0.10 * S, 0.28 * W * type.belly, 0.04, { tiles: 2 });
+    b.pop();
+  } else if (cut === 'puffer') {
+    /* Quilting: bands round the torso, each a shade proud of the one below. */
+    const bands = 4;
+    for (let i = 0; i < bands; i++) {
+      const t = i / (bands - 1);
+      const y = hipY + (chest[1] - hipY) * (0.12 + t * 0.74);
+      const bulge = 1 + 0.045 * Math.sin(t * Math.PI);
+      b.push();
+      b.translate(0, y, chest[2] * 0.4);
+      b.rotateX(-lean * 0.6);
+      b.roundedBox(0.352 * W * type.shoulder * bulge, 0.115 * S,
+        0.245 * W * type.belly * bulge, 0.045, { tiles: 2 });
+      b.pop();
+    }
+  }
+
   /* --- collar and neck --- */
   b.push();
   b.translate(0, chest[1] + 0.005 * S, chest[2]);
@@ -253,8 +282,12 @@ export function buildBody(gl, materials, typeKey, pose) {
   b.cylinder(0.078 * W, 0.086 * W, 0.055 * S, 12, { caps: false });
   b.pop();
 
+  /* The neck runs well up into the head. It used to stop 18mm short of the
+     underside of the skull, and a head that does not touch its own body reads
+     as floating however good everything else is. */
   b.material('skinPlain');
-  limb(b, [0, chest[1] - 0.02 * S, chest[2]], [0, chest[1] + 0.12 * S, chest[2] + 0.01], 0.056 * W, 0.050 * W, 12);
+  limb(b, [0, chest[1] - 0.03 * S, chest[2] - 0.005],
+    [0, chest[1] + 0.21 * S, chest[2] + 0.012], 0.060 * W, 0.046 * W, 12);
 
   /* --- arms --- */
   const arms = ARM_POSES[pose] || ARM_POSES.sit;
@@ -291,10 +324,21 @@ export function buildBody(gl, materials, typeKey, pose) {
     joint(b, wrist, 0.046 * W);
     b.push();
     b.translate(hand[0], hand[1], hand[2]);
-    b.rotateY(s * 0.2);
-    b.box(0.042 * W, 0.075 * S, 0.095 * S, { tiles: 3 });
-    b.translate(s * 0.026 * W, 0.006 * S, 0.012 * S);
-    b.box(0.024 * W, 0.030 * S, 0.055 * S, { tiles: 3 });
+    b.rotateY(s * 0.22);
+    b.rotateX(0.18);
+    /* Palm, then a narrower block of fingers angled off it, then a thumb.
+       Three shapes and a hand stops being a mitten. */
+    b.roundedBox(0.046 * W, 0.078 * S, 0.062 * S, 0.014, { tiles: 3 });
+    b.push();
+    b.translate(0, -0.006 * S, 0.052 * S);
+    b.rotateX(0.30);
+    b.roundedBox(0.040 * W, 0.062 * S, 0.055 * S, 0.014, { tiles: 3 });
+    b.pop();
+    b.push();
+    b.translate(s * 0.028 * W, -0.004 * S, 0.020 * S);
+    b.rotateZ(-s * 0.5);
+    b.roundedBox(0.022 * W, 0.048 * S, 0.026 * S, 0.008, { tiles: 3 });
+    b.pop();
     b.pop();
   }
 
@@ -350,6 +394,24 @@ const ARM_POSES = {
  * passenger's expression can be swapped by pointing the skin group's map at a
  * different face without rebuilding anything.
  */
+/*
+ * The profile of a skull, by latitude. v = 0 is the crown and v = 1 the chin.
+ *
+ * A head is not a ball, and a ball is what every passenger had. The cranium is
+ * the widest part and sits high; below the cheekbones it narrows fast to a
+ * chin about half the width, and the chin comes forward as it goes. The face
+ * texture is unaffected — the eyes stay at v = 0.40, in the full-width part,
+ * and the mouth at v = 0.62, on the taper, which is where a mouth is.
+ */
+export function skullProfile(v) {
+  let r;
+  if (v < 0.26) r = 0.80 + 0.20 * (v / 0.26);                       // crown
+  else if (v < 0.52) r = 1;                                          // cranium
+  else r = 1 - 0.46 * Math.pow((v - 0.52) / 0.48, 1.35);             // jaw to chin
+  const z = v > 0.52 ? Math.pow((v - 0.52) / 0.48, 1.6) * 0.020 : 0; // chin forward
+  return { r, z };
+}
+
 export function buildHead(gl, materials, style, opts = {}) {
   const b = new Builder();
   b.ao = 1;
@@ -365,7 +427,7 @@ export function buildHead(gl, materials, style, opts = {}) {
   /* The one sphere that wears the face. */
   b.material('skin');
   b.push();
-  b.sphere(0.098, 28, 20, { scaleZ: 1.06, scaleY: 1.14 });
+  b.sphere(0.098, 30, 24, { scaleZ: 1.06, scaleY: 1.14, profile: skullProfile });
   b.pop();
 
   b.material('skinPlain');
@@ -379,11 +441,7 @@ export function buildHead(gl, materials, style, opts = {}) {
    * passenger in the game had a blank white head, and it looked for all the
    * world like a texture that had failed to load.
    */
-  b.push();
-  b.translate(0, -0.055, 0.004);
-  b.scale(0.86, 0.60, 0.90);
-  b.sphere(0.088, 16, 12);
-  b.pop();
+  /* The jaw is in the profile now; only the nose is left. */
   b.push();
   b.translate(0, -0.012, 0.092);
   b.scale(0.30, 0.52, 0.50);
@@ -514,6 +572,16 @@ export function buildHead(gl, materials, style, opts = {}) {
       b.translate(0, 0.050, -0.014);
       b.sphere(0.103, 20, 14, { scaleY: 0.80, scaleZ: 1.00 });
       b.pop();
+      /* Three clumps, so the crown is not a moulded shell. They sit above and
+         behind the hairline, where nothing can reach the face. */
+      for (const [cx, cy, cz, cr] of [[-0.042, 0.086, -0.030, 0.036],
+        [0.038, 0.092, -0.014, 0.030], [0.004, 0.074, -0.062, 0.034]]) {
+        b.push();
+        b.translate(cx, cy, cz);
+        b.scale(1, 0.62, 1);
+        b.sphere(cr, 9, 7);
+        b.pop();
+      }
       /* Sideburns, out at the ears where nothing can be in front of a face. */
       for (const s of [-1, 1]) {
         b.push();
@@ -604,11 +672,11 @@ export class PassengerMeshCache {
     this.shadow = buildShadowQuad(gl, materials);
   }
 
-  body(type, pose) {
-    const key = `${type}/${pose}`;
+  body(type, pose, cut = 'long') {
+    const key = `${type}/${pose}/${cut}`;
     let mesh = this.bodies.get(key);
     if (!mesh) {
-      mesh = buildBody(this.gl, this.materials, type, pose);
+      mesh = buildBody(this.gl, this.materials, type, pose, { cut });
       this.bodies.set(key, mesh);
     }
     return mesh;

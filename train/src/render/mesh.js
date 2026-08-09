@@ -192,8 +192,16 @@ export class Builder {
     return this;
   }
 
-  /* UV sphere. Only heads and a few light bulbs need one, so the segment
-     counts stay low and the poles are allowed to pinch. */
+  /*
+   * UV sphere, optionally reshaped by latitude.
+   *
+   * `profile(v)` is called once per ring, with v running 0 at the top pole to
+   * 1 at the bottom, and returns `{ r, y, z }` — a radius multiplier and an
+   * offset. The UVs are untouched, which is the point: a head can be given a
+   * cranium and a jaw and a chin without moving the face that is painted onto
+   * it. Normals stay the sphere's own, which is wrong by a few degrees on a
+   * strong taper and invisible at any distance a passenger is seen from.
+   */
   sphere(radius, segments = 12, rings = 8, opts = {}) {
     const idx = this._indices();
     const grid = [];
@@ -202,6 +210,10 @@ export class Builder {
     for (let r = 0; r <= rings; r++) {
       const v = r / rings;
       const phi = v * Math.PI;
+      const prof = opts.profile ? opts.profile(v) : null;
+      const rr = radius * (prof?.r ?? 1);
+      const oy = prof?.y ?? 0;
+      const oz = prof?.z ?? 0;
       const row = [];
       for (let s = 0; s <= segments; s++) {
         const u = s / segments;
@@ -209,7 +221,10 @@ export class Builder {
         const nx = Math.sin(phi) * Math.cos(theta);
         const ny = Math.cos(phi);
         const nz = Math.sin(phi) * Math.sin(theta);
-        row.push(this._vertex(nx * radius, ny * radius * sy, nz * radius * sz, nx, ny / sy, nz / sz, u, 1 - v));
+        row.push(this._vertex(
+          nx * rr, ny * rr * sy + oy, nz * rr * sz + oz,
+          nx, ny / sy, nz / sz, u, 1 - v,
+        ));
       }
       grid.push(row);
     }
