@@ -145,10 +145,25 @@ function boot() {
 
 function frame(dt) {
   simClock += dt;
-  if (mode === 'menu' || mode === 'ending') {
+  if (mode === 'menu') {
     backdrop?.update(dt, simClock);
     backdrop?.render();
     audio.updateAmbient(dt, 0, { doorsOpen: true, hvac: true });
+    return;
+  }
+
+  /* An ending is a shot, not a screen. The game keeps running — and keeps
+     fading — for the three and a half seconds between the last decision and
+     the card, and only then does the platform come back underneath it. */
+  if (mode === 'ending') {
+    if (backdrop?.active) {
+      backdrop.update(dt, simClock);
+      backdrop.render();
+      audio.updateAmbient(dt, 0, { doorsOpen: true, hvac: true });
+    } else {
+      game.update(dt, null, simClock);
+      game.render();
+    }
     return;
   }
 

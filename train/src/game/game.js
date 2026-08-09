@@ -534,6 +534,8 @@ export class Game {
     this.phase = 'ending';
     this.phaseTime = 0;
     this.endingSpeed = decision === 'stay' ? 0.55 : 0;
+    this.player.frozen = true;
+    this.player.locked = true;
     this.director.clear(this._anomalyContext());
     this.audio.duck(0.25, 2.2);
     this.sfx.play('stinger', { caption: false });
