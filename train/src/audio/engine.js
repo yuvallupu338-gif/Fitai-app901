@@ -132,9 +132,12 @@ export class AudioEngine {
     this.buses.voice.gain.setTargetAtTime(settings.volumeVoice ?? 1, t, 0.02);
   }
 
-  /* 1 = normal, 0 = the bottom drops out. */
+  /* 1 = normal, 0 = the bottom drops out. `duckAmount` is what callers read
+     to decide whether they still owe the mix a restore, so it has to move
+     with the target and not stay at its constructed value. */
   duck(amount, seconds = 0.25) {
     this._duckTarget = clamp(amount, 0, 1);
+    this.duckAmount = this._duckTarget;
     if (!this.ready) return;
     const g = this.buses.duck.gain;
     g.cancelScheduledValues(this.now);
@@ -307,8 +310,15 @@ export class AudioEngine {
     const ctx = this.ctx;
     const t = when || this.now;
     const src = ctx.createBufferSource();
-    src.buffer = this.noise[type] || this.noise.white;
+    const buffer = this.noise[type] || this.noise.white;
+    src.buffer = buffer;
     src.playbackRate.value = playbackRate;
+    /* The noise buffers are two to four seconds long and some of these sounds
+       — the brake, which runs for ten — are longer than that. A one-shot
+       source simply stops at the end of its buffer, so without looping the
+       envelope goes on describing a sound that finished seconds ago. */
+    const startOffset = Math.random() * Math.max(0, Math.min(1.2, buffer.duration - 0.3));
+    if (duration + 0.1 > buffer.duration - startOffset) src.loop = true;
 
     let node = src;
     let filterNode = null;
@@ -329,7 +339,7 @@ export class AudioEngine {
     node.connect(g);
 
     this._route(g, bus, pan, reverb, far);
-    src.start(t, Math.random() * 1.2, duration + 0.05);
+    src.start(t, startOffset);
     src.stop(t + duration + 0.1);
     return { source: src, gain: g, filter: filterNode };
   }

@@ -171,17 +171,22 @@ export class Builder {
         t * (opts.tiles ?? 1), height * (opts.tilesV ?? 1));
       ring.push([top, bot]);
     }
+    /* Counter-clockwise seen from outside, matching box() and quad(). Wound
+       the other way a closed tube still has the right silhouette — you are
+       simply looking at the inside of its far wall, at the wrong depth and
+       with the wrong normal — which is exactly why this survived a long look
+       at every pole, handrail and limb in the game. */
     for (let i = 0; i < segments; i++) {
       const [t0, b0] = ring[i];
       const [t1, b1] = ring[i + 1];
-      idx.push(b0, b1, t1, b0, t1, t0);
+      idx.push(b0, t1, b1, b0, t0, t1);
     }
     if (opts.caps) {
       const capTop = this._vertex(0, half, 0, 0, 1, 0, 0.5, 0.5);
       const capBot = this._vertex(0, -half, 0, 0, -1, 0, 0.5, 0.5);
       for (let i = 0; i < segments; i++) {
-        idx.push(capTop, ring[i][0], ring[i + 1][0]);
-        idx.push(capBot, ring[i + 1][1], ring[i][1]);
+        idx.push(capTop, ring[i + 1][0], ring[i][0]);
+        idx.push(capBot, ring[i][1], ring[i + 1][1]);
       }
     }
     return this;
@@ -211,8 +216,10 @@ export class Builder {
     for (let r = 0; r < rings; r++) {
       for (let s = 0; s < segments; s++) {
         const a = grid[r][s], b = grid[r + 1][s], c = grid[r + 1][s + 1], d = grid[r][s + 1];
-        if (r !== 0) idx.push(a, b, d);
-        if (r !== rings - 1) idx.push(b, c, d);
+        /* Same handedness fix as cylinder(): b runs south of a and d runs east
+           of it, so a->b->d is clockwise from outside. */
+        if (r !== 0) idx.push(a, d, b);
+        if (r !== rings - 1) idx.push(b, d, c);
       }
     }
     return this;

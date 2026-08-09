@@ -89,8 +89,12 @@ function boot() {
   });
 
   overlay.onClose = () => {
+    /* Cleared unconditionally. Dismissing a document from any state other than
+       play — quitting to the menu with one open, for instance — used to leave
+       the flag set, and the next run began with a player who could not look
+       around. */
+    if (game) game.player.locked = false;
     if (mode !== 'playing') return;
-    game.player.locked = false;
     /* The click that dismissed the overlay is still in the buffer. Without a
        beat of cooldown the same click interacts with whatever the crosshair
        happens to be resting on the moment the paper comes away. */
@@ -195,7 +199,10 @@ function toMenu() {
   input.releaseLock();
   input.enabled = false;
   document.body.classList.remove('playing');
-  if (game?.running) game.running = false;
+  /* Not just `running = false`: a run abandoned mid-anomaly has to hand back
+     whatever that anomaly was holding. */
+  game?.abort();
+  audio.duck(1, 0.4);
   backdrop?.enter();
   menu.showMain({ hasSave: hasSave() });
   saveProfile(profile);
@@ -205,6 +212,9 @@ function toMenu() {
 function startRun({ nightmare = false } = {}) {
   audio.init();
   audio.resume();
+  /* Pausing ducks the whole mix; quitting from the pause menu straight into a
+     new run used to start it at a quarter volume. */
+  audio.duck(1, 0.3);
   clearSave();
   backdrop?.leave();
   menu.close();
@@ -220,6 +230,7 @@ function resumeSave() {
   if (!save) { startRun({}); return; }
   audio.init();
   audio.resume();
+  audio.duck(1, 0.3);
   backdrop?.leave();
   menu.close();
   hud.show(true);

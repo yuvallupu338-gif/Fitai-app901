@@ -84,8 +84,13 @@ export class Crowd {
       if (!state) continue;
       const person = this.people.get(def.id);
       if (!person) continue;
-      if (opts.immediate) person.setState(state);
-      else this.queueUnobserved(person, () => person.setState(state));
+      /* An arc entry that says where somebody is sitting is also saying that
+         they are on the train. Only `present: false` takes somebody off it —
+         without this default, reset() clears everyone and no arc ever puts the
+         six named passengers back, so the entire cast is invisible. */
+      const next = { present: true, ...state };
+      if (opts.immediate) person.setState(next);
+      else this.queueUnobserved(person, () => person.setState(next));
     }
 
     const want = EXTRA_COUNTS[Math.min(index, EXTRA_COUNTS.length - 1)] ?? 0;
@@ -138,8 +143,11 @@ export class Crowd {
       item.age += dt;
       const point = item.point
         || (item.person ? pointOf(item.person) : { x: 0, z: carCenterZ(item.car ?? playerCar) });
-      const differentCar = item.car != null && item.car !== playerCar;
-      const hidden = force || differentCar || !isObserved(point, camera);
+      /* Being in another carriage is not the same as being out of sight: an
+         open gangway is a clear line down two more cars, and the connecting
+         doors are glazed. The cone test already rejects anything far enough
+         away, so it is the only test that runs. */
+      const hidden = force || !isObserved(point, camera);
       if (!hidden) continue;
       try { item.apply(); } catch (err) { console.warn('[crowd] queued change failed', err); }
       this.pending.splice(i, 1);
@@ -174,6 +182,13 @@ export class Crowd {
   nodes(out = []) {
     for (const p of this.all()) p.nodes(out);
     return out;
+  }
+
+  /* Anybody at all, named or not. `get` only knows the named cast, and the
+     interaction layer offers the nameless ones too. */
+  find(id) {
+    if (this.people.has(id)) return this.people.get(id);
+    return this.all().find((p) => p.id === id) || null;
   }
 
   /* People close enough to be talked to. */

@@ -21,6 +21,7 @@
 
 import { clamp } from '../core/math.js';
 import { carCenterZ, seatSlot, CAR } from '../world/dims.js';
+import { AD_SLOTS } from '../world/carriage.js';
 
 /* Every entry: start(ctx) returns null (declined) or a handle with an optional
    update(dt, ctx) and end(ctx). `duration` is in seconds. */
@@ -30,6 +31,9 @@ export const ANOMALIES = [
     weight: 4, min: 1, max: 6, cooldown: 34,
     start(ctx) {
       const car = ctx.playerCar;
+      /* Remembered, because another anomaly may already have this carriage in
+         the dark and restoring to a hardcoded "on" would cancel it. */
+      const wasOn = ctx.world.cars[car]?.lights.some((l) => l.enabled) ?? true;
       let t = 0;
       const pattern = ctx.rng.pick([
         [0.06, 0.10, 0.04, 0.22, 0.05],
@@ -49,7 +53,7 @@ export const ANOMALIES = [
             ctx.world.setCarLights(car, on);
           }
         },
-        end() { ctx.world.setCarLights(car, true); },
+        end() { ctx.world.setCarLights(car, wasOn); },
       };
     },
   },
@@ -59,6 +63,8 @@ export const ANOMALIES = [
     weight: 2, min: 2, max: 6, cooldown: 70,
     start(ctx) {
       const cars = ctx.world.cars.map((c) => c.index);
+      const wasOn = ctx.world.cars.map((c) => c.lights.some((l) => l.enabled));
+      const restore = () => cars.forEach((c, i) => ctx.world.setCarLights(c, wasOn[i]));
       ctx.sfx.play('lightsOut');
       ctx.audio.duck(0.25, 0.35);
       for (const c of cars) ctx.world.setCarLights(c, false);
@@ -71,7 +77,7 @@ export const ANOMALIES = [
           t += dt;
           if (!restored && t >= hold) {
             restored = true;
-            for (const c of cars) ctx.world.setCarLights(c, true);
+            restore();
             ctx.audio.duck(1, 0.5);
             ctx.sfx.play('powerUp');
             /* Whatever changed, changed here. */
@@ -79,7 +85,7 @@ export const ANOMALIES = [
           }
         },
         end() {
-          for (const c of cars) ctx.world.setCarLights(c, true);
+          restore();
           ctx.audio.duck(1, 0.4);
         },
       };
@@ -211,8 +217,11 @@ export const ANOMALIES = [
     start(ctx) {
       const idle = ctx.crowd.extras.find((p) => !p.present);
       if (!idle) return null;
-      const behind = ctx.playerZ - Math.cos(ctx.playerYaw) * 2.2;
-      const x = -Math.sin(ctx.playerYaw) * 0.9;
+      /* camera.forward is (-sin yaw, ., -cos yaw), so *behind* the player is
+         plus cos on Z and plus sin on X. Getting this backwards put the figure
+         two metres in front of them, in full view. */
+      const behind = ctx.playerZ + Math.cos(ctx.playerYaw) * 2.2;
+      const x = Math.sin(ctx.playerYaw) * 0.9;
       ctx.queueUnobserved(idle, () => {
         idle.present = true;
         idle.customPos = [clamp(x, -0.6, 0.6), 0, behind];
@@ -375,10 +384,16 @@ export const ANOMALIES = [
     start(ctx) {
       const slot = ctx.rng.int(0, 3);
       const car = ctx.playerCar;
+      if (!ctx.world.cars[car]) return null;
       const spec = ctx.rng.pick(ALTERED_ADS);
-      const ad = ctx.world.cars[car];
-      if (!ad) return null;
-      const target = { x: 0, z: carCenterZ(car) };
+      /* The panel, not the middle of the carriage. Gating on the car centre
+         let the poster change while the player was standing in front of it. */
+      const place = AD_SLOTS[slot];
+      const target = {
+        x: place.side * (CAR.halfWidth - 0.1),
+        y: 2.02,
+        z: carCenterZ(car) + place.z,
+      };
       ctx.queueUnobservedCar(car, () => ctx.world.setAd(car, slot, spec), target);
       return { duration: 0.1 };
     },
@@ -445,10 +460,11 @@ export const ANOMALIES = [
     start(ctx) {
       const target = ctx.rng.bool() ? ctx.playerCar + 1 : ctx.playerCar - 1;
       if (target < 0 || target >= ctx.world.carCount) return null;
+      const wasOn = ctx.world.cars[target]?.lights.some((l) => l.enabled) ?? true;
       ctx.world.setCarLights(target, false);
       return {
         duration: ctx.rng.float(10, 26),
-        end() { ctx.world.setCarLights(target, true); },
+        end() { ctx.world.setCarLights(target, wasOn); },
       };
     },
   },
@@ -477,7 +493,10 @@ export const ANOMALIES = [
     weight: 2, min: 3, max: 6, cooldown: 120,
     start(ctx) {
       ctx.flags.clockCorrupt = true;
-      return { duration: 30 };
+      return {
+        duration: 30,
+        end() { ctx.flags.clockCorrupt = false; },
+      };
     },
   },
 
@@ -512,10 +531,14 @@ export const ANOMALIES = [
       const stranger = ctx.crowd.get('stranger');
       if (!stranger || !stranger.present) return null;
       const slot = seatSlot(stranger.seat);
-      /* Two seats nearer, each time, and never while looked at. */
-      const nearer = stranger.seat + (slot.z > ctx.playerZ - carCenterZ(stranger.car) ? -2 : 2);
+      /* The slot list runs one whole side and then the other, so stepping over
+         index 26 does not move somebody two seats along — it moves them to the
+         far end of the opposite bench. Stay within the side he is already on. */
+      const bench = stranger.seat < 27 ? 0 : 27;
+      const step = slot.z > ctx.playerZ - carCenterZ(stranger.car) ? -2 : 2;
+      const nearer = clamp(stranger.seat + step, bench, bench + 26);
       ctx.queueUnobserved(stranger, () => {
-        stranger.seat = clamp(nearer, 0, 53);
+        stranger.seat = nearer;
         stranger.watch = Math.min(1, stranger.watch + 0.15);
       });
       return { duration: 0.1 };

@@ -65,6 +65,11 @@ export class Player {
     this.sitting = null;
     this.outside = false;
     this.bob = 0;
+    /* Both gates get set when a run ends. A new run that inherited them would
+       start with a camera that does not turn and legs that do not work. */
+    this.locked = false;
+    this.frozen = false;
+    this.stillTime = 0;
   }
 
   /* ---- movement -------------------------------------------------------- */
@@ -184,7 +189,10 @@ export class Player {
     if (doorway && open > 0.7 && side === world.doorSide && Math.abs(nx) >= CAR.doorwayHalf - 0.001
       && world.platformZ != null && ctx.allowExit !== false) {
       this.outside = true;
-      this.position[0] = side * (CAR.halfWidth + 0.30);
+      /* Clear of the platform edge, not on it. Landing inside the re-board
+         threshold put the player straight back on the train on the next frame,
+         forever, which quietly made every "got off here" ending unreachable. */
+      this.position[0] = side * (PLATFORM.innerX + 0.55);
       this.position[2] = nz;
       ctx.onStepOff?.();
       return;
@@ -264,6 +272,10 @@ export class Player {
 
   sit(car, slotIndex) {
     const slot = seatSlot(slotIndex);
+    /* Sitting is always inside. Reachable from the platform through an open
+       doorway, and leaving `outside` set there stalls the boarding phase and
+       hands the door-close decision the wrong answer. */
+    this.outside = false;
     this.sitting = { car, slot: slotIndex, yaw: slot.facing };
     this.position[0] = slot.x * 0.86;
     this.position[2] = carCenterZ(car) + slot.z;

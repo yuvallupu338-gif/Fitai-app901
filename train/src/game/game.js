@@ -163,6 +163,8 @@ export class Game {
     this.state.clues = new Set(save.clues || []);
     this.state.flags = { ...save.flags };
     this.state.strangerTalks = save.strangerTalks || 0;
+    this.state.strangerSaid = { ...(save.strangerSaid || {}) };
+    this.state.spokenTo = { ...(save.spokenTo || {}) };
     this.state.sitCount = save.sitCount || 0;
     this.state.doorwayStations = new Set(save.doorwayStations || []);
     this.state.routeStage = save.routeStage || 0;
@@ -205,6 +207,11 @@ export class Game {
       clues: [...this.state.clues],
       flags: this.state.flags,
       strangerTalks: this.state.strangerTalks,
+      /* Which of his lines have already been heard, and who else has been
+         spoken to. Without these a resumed run replays the stranger from the
+         top and counts every repeat as new. */
+      strangerSaid: this.state.strangerSaid,
+      spokenTo: this.state.spokenTo,
       sitCount: this.state.sitCount,
       doorwayStations: [...this.state.doorwayStations],
       routeStage: this.state.routeStage,
@@ -810,7 +817,9 @@ export class Game {
 
   _talkTo(id) {
     const st = this.state;
-    const person = this.crowd.get(id);
+    /* `find`, not `get`: the interaction layer offers the nameless passengers
+       too, and they do not live in the named-cast map. */
+    const person = this.crowd.find(id);
     if (!person) return;
     if (id === 'stranger') {
       const index = clamp(st.stationIndex, 0, STRANGER_LINES.length - 1);
@@ -833,6 +842,7 @@ export class Game {
     const count = st.spokenTo[id] || 0;
     st.spokenTo[id] = count + 1;
     this.events.emit('speech', { speaker: '', text: passengerLine(id, count) });
+    if (Math.random() < 0.35) this.sfx.play('cloth', { caption: false, pan: 0 });
   }
 
   /* ---- support systems --------------------------------------------------- */
@@ -956,6 +966,24 @@ export class Game {
       setDisplayOverride: (text, corrupt) => this.setDisplayOverride(text, corrupt),
       bumpRouteStage: () => this.bumpRouteStage(),
     };
+  }
+
+  /* Abandoning a run mid-anomaly. Every live handle gets its end() so nothing
+     it changed — a dark carriage, a raised grain target, a frozen reflection —
+     survives into the next run through the fx object, which outlives the run. */
+  abort() {
+    if (!this.running) return;
+    this.director?.clear(this._anomalyContext());
+    this.fx.grainTarget = 1;
+    this.fx.desaturateTarget = 0;
+    this.fx.pulseTarget = 0;
+    this.fx.distort = 0;
+    this.avatar.delay = 0;
+    this.avatar.frozen = false;
+    this.world.cameraTracking = false;
+    this.world.handlesFrozen = false;
+    this.setDisplayOverride(null);
+    this.running = false;
   }
 
   /* ---- render ------------------------------------------------------------ */

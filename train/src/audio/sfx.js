@@ -416,12 +416,9 @@ const SOUNDS = {
     const t = o.when || e.now;
     /* Dual tone, two bursts, then a long wait — a phone nobody is answering. */
     for (const offset of [0, 0.9]) {
-      for (let i = 0; i < 8; i++) {
-        const when = t + offset + i * 0.025;
-        e.tone({ when, frequency: 440, duration: 0.4, type: 'sine', gain: 0.028, pan: o.pan ?? 0.5, far: o.far ?? 0.7, reverb: 0.4 });
-        e.tone({ when, frequency: 480, duration: 0.4, type: 'sine', gain: 0.028, pan: o.pan ?? 0.5, far: o.far ?? 0.7, reverb: 0.4 });
-        break;
-      }
+      const when = t + offset;
+      e.tone({ when, frequency: 440, duration: 0.4, type: 'sine', gain: 0.030, pan: o.pan ?? 0.5, far: o.far ?? 0.7, reverb: 0.4 });
+      e.tone({ when, frequency: 480, duration: 0.4, type: 'sine', gain: 0.030, pan: o.pan ?? 0.5, far: o.far ?? 0.7, reverb: 0.4 });
     }
   },
   knock(e, o) {

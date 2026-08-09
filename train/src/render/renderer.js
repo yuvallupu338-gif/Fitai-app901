@@ -204,6 +204,10 @@ export class Renderer {
         prog.mat4('uModel', item.node.matrix);
         normalMatrix(this.normalMat, item.node.matrix);
         prog.mat3('uNormalMat', this.normalMat);
+        /* uWobble is per-node too. Leaving it on whatever the last opaque node
+           installed makes transparent geometry inherit the grab handles' sway. */
+        const wob = item.node.wobble;
+        prog.v4('uWobble', wob ? wob[0] : 0, wob ? wob[1] : 0, wob ? wob[2] : 0, wob ? wob[3] : 0);
         this._drawGroup(item.node, item.group, item.mat, prog);
       }
       gl.depthMask(true);

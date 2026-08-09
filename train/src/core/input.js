@@ -36,14 +36,17 @@ export class Input {
     this.onEscape = null;
 
     this._onKeyDown = (e) => {
-      /* Let the browser have the keystroke while a text field has focus —
-         nothing in the game does, but the settings screen has sliders and a
-         seed box, and stealing Space there is maddening. */
-      if (isTextEntry(e.target)) return;
+      /* Escape is checked before anything else. It is the only way out of the
+         pause menu by keyboard, and the settings page is made entirely of the
+         focusable controls the text-entry guard below is written to protect —
+         so guarding first meant that touching any slider disabled Escape. */
       if (e.code === 'Escape') {
         if (this.onEscape) this.onEscape();
         return;
       }
+      /* Otherwise let the browser have the keystroke while a control has
+         focus; stealing Space or the arrow keys from a slider is maddening. */
+      if (isTextEntry(e.target)) return;
       if (e.repeat) return;
       if (!this.enabled) return;
       if (SWALLOW.has(e.code)) e.preventDefault();
