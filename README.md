@@ -168,6 +168,28 @@ network-first so a redeploy lands on the next load, and only claims its own
 origin. Opened from `file://` none of it runs, which is correct — there is
 nothing to cache when the whole app is one file.
 
+**A profile file is hostile input.** The CSP here is `script-src 'self'
+'unsafe-inline'`, so an escape out of any HTML attribute is code execution —
+there is no second line of defence behind the escaping. Meal photos were
+concatenated straight into `<img src="…">` at three render sites, and
+`importProfile` merged a file's `foodLog` into the profile almost as it found
+it. A crafted profile with `img: 'x" onerror="…"'` therefore ran arbitrary
+script, on every render of the nutrition tab, permanently.
+
+Photos are validated by allowlist rather than escaped, because every photo this
+app renders is its own canvas output: `safeImg` returns the value only if it
+matches `data:image/(jpeg|png|webp);base64,…`, which rejects attribute breakout,
+`javascript:`, `data:text/html`, SVG-with-script and off-origin beacons in one
+rule. Imported profiles are rebuilt from a whitelist — each `foodLog` and
+`myFoods` entry keeps only the fields the app reads, coerced to the types it
+expects — and `__proto__`, `constructor` and `prototype` are stripped before any
+`Object.assign`, since `JSON.parse` makes `__proto__` an own property and
+assigning it runs the inherited setter.
+
+The exploit is kept as a test: it runs against a build with the fix removed and
+asserts `__PWNED === 1`, then against the shipped build and asserts all of it is
+blocked. A fix nobody has watched fail is not a fix anyone should trust.
+
 **Icons.** One logo, three renders, because one bitmap cannot serve a 42px
 header box and a 512px launcher tile. `LOGO_MARK` is the glyph full-bleed on the
 brand's navy, used for the header, the favicon and the `any` manifest icon;
