@@ -234,16 +234,29 @@ export function createSolidTexture(gl, r, g, b, a = 255) {
   return tex;
 }
 
+/*
+ * A render target, optionally multisampled.
+ *
+ * With `samples > 0` the scene is drawn into multisampled renderbuffers and
+ * blitted down into the texture before anything reads it. The alternative —
+ * asking for `antialias: true` on the canvas — does nothing at all here,
+ * because the scene never touches the default framebuffer; it goes through a
+ * post chain. Without this every edge in the game is a hard staircase, and a
+ * carriage is mostly edges: poles, window frames, handrails, door jambs.
+ */
 export class RenderTarget {
-  constructor(gl, width, height, { depth = false, filter = 'linear' } = {}) {
+  constructor(gl, width, height, { depth = false, filter = 'linear', samples = 0 } = {}) {
     this.gl = gl;
     this.width = Math.max(1, width | 0);
     this.height = Math.max(1, height | 0);
     this.hasDepth = depth;
     this.filterMode = filter;
+    this.samples = Math.max(0, samples | 0);
     this.fbo = gl.createFramebuffer();
     this.texture = gl.createTexture();
     this.depthBuffer = depth ? gl.createRenderbuffer() : null;
+    this.msFbo = null;
+    this.msColor = null;
     this._allocate();
   }
 
@@ -259,13 +272,55 @@ export class RenderTarget {
 
     gl.bindFramebuffer(gl.FRAMEBUFFER, this.fbo);
     gl.framebufferTexture2D(gl.FRAMEBUFFER, gl.COLOR_ATTACHMENT0, gl.TEXTURE_2D, this.texture, 0);
-    if (this.depthBuffer) {
+
+    const wantMs = this.samples > 0;
+    if (wantMs) {
+      if (!this.msFbo) this.msFbo = gl.createFramebuffer();
+      if (!this.msColor) this.msColor = gl.createRenderbuffer();
+      const max = gl.getParameter(gl.MAX_SAMPLES) || 0;
+      const n = Math.min(this.samples, max);
+      gl.bindFramebuffer(gl.FRAMEBUFFER, this.msFbo);
+      gl.bindRenderbuffer(gl.RENDERBUFFER, this.msColor);
+      gl.renderbufferStorageMultisample(gl.RENDERBUFFER, n, gl.RGBA8, this.width, this.height);
+      gl.framebufferRenderbuffer(gl.FRAMEBUFFER, gl.COLOR_ATTACHMENT0, gl.RENDERBUFFER, this.msColor);
+      if (this.depthBuffer) {
+        gl.bindRenderbuffer(gl.RENDERBUFFER, this.depthBuffer);
+        gl.renderbufferStorageMultisample(gl.RENDERBUFFER, n, gl.DEPTH_COMPONENT24, this.width, this.height);
+        gl.framebufferRenderbuffer(gl.FRAMEBUFFER, gl.DEPTH_ATTACHMENT, gl.RENDERBUFFER, this.depthBuffer);
+      }
+      /* A driver that will not give us this configuration gets to say so once,
+         and we fall back to drawing straight into the texture. */
+      if (gl.checkFramebufferStatus(gl.FRAMEBUFFER) !== gl.FRAMEBUFFER_COMPLETE) {
+        gl.deleteFramebuffer(this.msFbo);
+        gl.deleteRenderbuffer(this.msColor);
+        this.msFbo = null;
+        this.msColor = null;
+        this.samples = 0;
+      }
+    } else if (this.msFbo) {
+      gl.deleteFramebuffer(this.msFbo);
+      gl.deleteRenderbuffer(this.msColor);
+      this.msFbo = null;
+      this.msColor = null;
+    }
+
+    if (this.depthBuffer && !this.msFbo) {
+      gl.bindFramebuffer(gl.FRAMEBUFFER, this.fbo);
       gl.bindRenderbuffer(gl.RENDERBUFFER, this.depthBuffer);
       gl.renderbufferStorage(gl.RENDERBUFFER, gl.DEPTH_COMPONENT24, this.width, this.height);
       gl.framebufferRenderbuffer(gl.FRAMEBUFFER, gl.DEPTH_ATTACHMENT, gl.RENDERBUFFER, this.depthBuffer);
     }
+
     gl.bindFramebuffer(gl.FRAMEBUFFER, null);
+    gl.bindRenderbuffer(gl.RENDERBUFFER, null);
     gl.bindTexture(gl.TEXTURE_2D, null);
+  }
+
+  setSamples(samples) {
+    const n = Math.max(0, samples | 0);
+    if (n === this.samples) return;
+    this.samples = n;
+    this._allocate();
   }
 
   resize(width, height) {
@@ -279,8 +334,20 @@ export class RenderTarget {
 
   bind() {
     const gl = this.gl;
-    gl.bindFramebuffer(gl.FRAMEBUFFER, this.fbo);
+    gl.bindFramebuffer(gl.FRAMEBUFFER, this.msFbo || this.fbo);
     gl.viewport(0, 0, this.width, this.height);
+  }
+
+  /* Collapses the samples into `texture`. Must run before anything samples it. */
+  resolve() {
+    if (!this.msFbo) return;
+    const gl = this.gl;
+    gl.bindFramebuffer(gl.READ_FRAMEBUFFER, this.msFbo);
+    gl.bindFramebuffer(gl.DRAW_FRAMEBUFFER, this.fbo);
+    gl.blitFramebuffer(0, 0, this.width, this.height, 0, 0, this.width, this.height,
+      gl.COLOR_BUFFER_BIT, gl.NEAREST);
+    gl.bindFramebuffer(gl.READ_FRAMEBUFFER, null);
+    gl.bindFramebuffer(gl.DRAW_FRAMEBUFFER, null);
   }
 
   dispose() {
@@ -288,6 +355,8 @@ export class RenderTarget {
     gl.deleteFramebuffer(this.fbo);
     gl.deleteTexture(this.texture);
     if (this.depthBuffer) gl.deleteRenderbuffer(this.depthBuffer);
+    if (this.msFbo) gl.deleteFramebuffer(this.msFbo);
+    if (this.msColor) gl.deleteRenderbuffer(this.msColor);
   }
 }
 

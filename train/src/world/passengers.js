@@ -66,7 +66,7 @@ export const SITTING_POSES = new Set(['sit', 'sitSlump', 'sitRead', 'sitPhone', 
 
 /* A tapered cylinder between two points, in whatever frame the builder is
    currently in. Every limb in the game is one of these. */
-function limb(b, from, to, r0, r1, segments = 7) {
+function limb(b, from, to, r0, r1, segments = 10) {
   const dx = to[0] - from[0];
   const dy = to[1] - from[1];
   const dz = to[2] - from[2];
@@ -121,13 +121,16 @@ export function buildBody(gl, materials, typeKey, pose) {
       const hip = [s * hipX, hipY, 0.02];
       const knee = [s * (hipX + 0.02), kneeY, kneeZ];
       const ankle = [s * (hipX + 0.03), 0.075 * S, ankleZ];
-      limb(b, hip, knee, 0.105 * W, 0.078 * W);
-      limb(b, knee, ankle, 0.072 * W, 0.055 * W);
-      joint(b, knee, 0.072 * W);
+      limb(b, hip, knee, 0.108 * W, 0.080 * W);
+      limb(b, knee, ankle, 0.074 * W, 0.056 * W);
+      joint(b, knee, 0.076 * W);
+      joint(b, hip, 0.098 * W);
       b.material('shoes');
       b.push();
-      b.translate(s * (hipX + 0.03), 0.038 * S, ankleZ + 0.06 * S);
-      b.box(0.10 * W, 0.075 * S, 0.25 * S, { tiles: 3 });
+      b.translate(s * (hipX + 0.03), 0.040 * S, ankleZ + 0.055 * S);
+      b.box(0.105 * W, 0.060 * S, 0.245 * S, { tiles: 3 });
+      b.translate(0, 0.028 * S, -0.075 * S);
+      b.box(0.098 * W, 0.050 * S, 0.095 * S, { tiles: 3 });   // heel counter
       b.pop();
       b.material('legs');
     }
@@ -136,13 +139,15 @@ export function buildBody(gl, materials, typeKey, pose) {
       const hip = [s * hipX, hipY, 0];
       const knee = [s * (hipX + 0.005), 0.48 * S, 0.015 * S];
       const ankle = [s * (hipX + 0.01), 0.085 * S, 0];
-      limb(b, hip, knee, 0.108 * W, 0.075 * W);
-      limb(b, knee, ankle, 0.070 * W, 0.052 * W);
-      joint(b, knee, 0.070 * W);
+      limb(b, hip, knee, 0.110 * W, 0.077 * W);
+      limb(b, knee, ankle, 0.072 * W, 0.054 * W);
+      joint(b, knee, 0.074 * W);
       b.material('shoes');
       b.push();
-      b.translate(s * (hipX + 0.01), 0.042 * S, 0.045 * S);
-      b.box(0.10 * W, 0.084 * S, 0.26 * S, { tiles: 3 });
+      b.translate(s * (hipX + 0.01), 0.040 * S, 0.048 * S);
+      b.box(0.104 * W, 0.062 * S, 0.255 * S, { tiles: 3 });
+      b.translate(0, 0.030 * S, -0.078 * S);
+      b.box(0.098 * W, 0.052 * S, 0.098 * S, { tiles: 3 });
       b.pop();
       b.material('legs');
     }
@@ -157,22 +162,36 @@ export function buildBody(gl, materials, typeKey, pose) {
   b.push();
   b.translate(0, (hipY + chest[1]) / 2, (chest[2]) / 2);
   b.rotateX(-lean * 0.9);
-  b.box(0.34 * W * type.shoulder, (chest[1] - hipY) * 1.10, 0.23 * W * type.belly, { tiles: 2 });
+  b.roundedBox(0.335 * W * type.shoulder, (chest[1] - hipY) * 1.10, 0.225 * W * type.belly, 0.045, { tiles: 2 });
   b.pop();
-  /* Shoulders: a slab across the top so the coat reads as a coat. */
+  /* Shoulders. Two caps and a bar rather than a slab: the silhouette of a
+     shoulder is the one part of a seated figure the eye checks. */
   b.push();
-  b.translate(0, chest[1] - 0.03 * S, chest[2]);
-  b.box(shoulderX * 2 + 0.09 * W, 0.13 * S, 0.22 * W, { tiles: 2 });
+  b.translate(0, chest[1] - 0.035 * S, chest[2]);
+  b.roundedBox(shoulderX * 2 + 0.02 * W, 0.135 * S, 0.215 * W, 0.05, { tiles: 2 });
   b.pop();
+  for (const s of [-1, 1]) {
+    b.push();
+    b.translate(s * shoulderX, chest[1] - 0.045 * S, chest[2]);
+    b.scale(1, 0.85, 0.9);
+    b.sphere(0.082 * W, 10, 8);
+    b.pop();
+  }
   /* Hips */
   b.push();
   b.translate(0, hipY + 0.015 * S, sitting ? -0.04 : 0);
-  b.box(0.30 * W, 0.16 * S, 0.24 * W * type.belly, { tiles: 2 });
+  b.roundedBox(0.30 * W, 0.165 * S, 0.24 * W * type.belly, 0.04, { tiles: 2 });
   b.pop();
 
-  /* --- neck --- */
+  /* --- collar and neck --- */
+  b.push();
+  b.translate(0, chest[1] + 0.005 * S, chest[2]);
+  b.rotateX(Math.PI / 2);
+  b.cylinder(0.078 * W, 0.086 * W, 0.055 * S, 12, { caps: false });
+  b.pop();
+
   b.material('skin');
-  limb(b, [0, chest[1] - 0.02 * S, chest[2]], [0, chest[1] + 0.10 * S, chest[2] + 0.01], 0.052 * W, 0.048 * W, 8);
+  limb(b, [0, chest[1] - 0.02 * S, chest[2]], [0, chest[1] + 0.10 * S, chest[2] + 0.01], 0.054 * W, 0.050 * W, 10);
 
   /* --- arms --- */
   const arms = ARM_POSES[pose] || ARM_POSES.sit;
@@ -189,20 +208,50 @@ export function buildBody(gl, materials, typeKey, pose) {
       chest[2] + arms.wrist[2] * S,
     ];
     b.material('coat');
-    limb(b, shoulder, elbow, 0.075 * W, 0.062 * W);
-    limb(b, elbow, wrist, 0.060 * W, 0.048 * W);
-    joint(b, elbow, 0.058 * W);
+    limb(b, shoulder, elbow, 0.078 * W, 0.064 * W);
+    limb(b, elbow, wrist, 0.062 * W, 0.050 * W);
+    joint(b, elbow, 0.060 * W);
+    /* A cuff, so the sleeve ends somewhere instead of dissolving. */
+    joint(b, [
+      wrist[0] + (elbow[0] - wrist[0]) * 0.13,
+      wrist[1] + (elbow[1] - wrist[1]) * 0.13,
+      wrist[2] + (elbow[2] - wrist[2]) * 0.13,
+    ], 0.053 * W);
     b.material('skin');
-    joint(b, wrist, 0.050 * W);
+    /* Hand: a flattened block with a thumb, which at two metres is the
+       difference between an arm and a tube. */
+    const hand = [
+      wrist[0] + (wrist[0] - elbow[0]) * 0.30,
+      wrist[1] + (wrist[1] - elbow[1]) * 0.30,
+      wrist[2] + (wrist[2] - elbow[2]) * 0.30,
+    ];
+    joint(b, wrist, 0.046 * W);
+    b.push();
+    b.translate(hand[0], hand[1], hand[2]);
+    b.rotateY(s * 0.2);
+    b.box(0.042 * W, 0.075 * S, 0.095 * S, { tiles: 3 });
+    b.translate(s * 0.026 * W, 0.006 * S, 0.012 * S);
+    b.box(0.024 * W, 0.030 * S, 0.055 * S, { tiles: 3 });
+    b.pop();
   }
 
   /* --- what they are holding --- */
   if (pose === 'sitRead') {
+    /* Held, not brandished. At 0.44 x 0.40 and dead white this was a
+       billboard bolted to the passenger's chest, and it hid the whole
+       performance behind it. */
     b.material('prop');
     b.push();
-    b.translate(0, chest[1] + 0.02 * S, chest[2] + 0.30 * S);
-    b.rotateX(-0.32);
-    b.box(0.44, 0.40, 0.006, { tiles: 1 });
+    b.translate(0, chest[1] - 0.115 * S, chest[2] + 0.235 * S);
+    b.rotateX(-0.62);
+    b.rotateZ(0.05);
+    b.box(0.285, 0.235, 0.004, { tiles: 1 });
+    b.pop();
+    b.push();
+    b.translate(0, chest[1] - 0.112 * S, chest[2] + 0.228 * S);
+    b.rotateX(-0.62);
+    b.rotateZ(-0.04);
+    b.box(0.265, 0.215, 0.004, { tiles: 1 });
     b.pop();
   } else if (pose === 'sitPhone') {
     b.material('screen');
@@ -244,14 +293,32 @@ export function buildHead(gl, materials, style) {
 
   b.material('skin');
   b.push();
-  b.sphere(0.098, 16, 12, { scaleZ: 1.06, scaleY: 1.14 });
+  b.sphere(0.098, 22, 16, { scaleZ: 1.06, scaleY: 1.14 });
+  b.pop();
+  /* Jaw and chin: a skull is not a ball, and a ball is what a passenger looks
+     like at the far end of a carriage. */
+  b.push();
+  b.translate(0, -0.052, 0.014);
+  b.scale(0.88, 0.62, 0.94);
+  b.sphere(0.092, 16, 12);
+  b.pop();
+  /* Brow ridge, and a nose you can see in profile. */
+  b.push();
+  b.translate(0, 0.028, 0.082);
+  b.scale(1, 0.42, 0.5);
+  b.sphere(0.078, 14, 10);
+  b.pop();
+  b.push();
+  b.translate(0, -0.010, 0.098);
+  b.scale(0.32, 0.55, 0.55);
+  b.sphere(0.044, 10, 8);
   b.pop();
   /* Ears, which matter only because their absence is noticeable in profile. */
   for (const s of [-1, 1]) {
     b.push();
-    b.translate(s * 0.096, 0.0, -0.008);
-    b.scale(0.4, 1, 0.75);
-    b.sphere(0.030, 7, 5);
+    b.translate(s * 0.094, -0.004, -0.006);
+    b.scale(0.38, 1, 0.72);
+    b.sphere(0.032, 9, 7);
     b.pop();
   }
 
@@ -317,9 +384,11 @@ export function buildHead(gl, materials, style) {
       b.pop();
       break;
     default: /* short */
+      /* Sat back off the forehead. A hair cap centred on the skull swallows
+         the face, which is most of why these heads read as dark lumps. */
       b.push();
-      b.translate(0, 0.020, -0.008);
-      b.sphere(0.102, 14, 9, { scaleY: 1.02, scaleZ: 1.03 });
+      b.translate(0, 0.030, -0.016);
+      b.sphere(0.103, 18, 12, { scaleY: 0.98, scaleZ: 1.02 });
       b.pop();
       break;
   }

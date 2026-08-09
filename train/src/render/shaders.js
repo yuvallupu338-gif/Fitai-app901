@@ -299,6 +299,10 @@ uniform float uScanline;      // security-camera look
 uniform float uDesaturate;
 uniform vec2 uResolution;
 uniform float uPulse;         // heartbeat-ish edge darkening
+uniform float uSharpen;       // unsharp mask against the softening of the chain
+uniform float uContrast;
+uniform float uExposure;
+uniform vec2 uTexel;
 
 out vec4 fragColor;
 
@@ -316,8 +320,8 @@ float hash(vec2 p) {
  * with them — which is what turns a lit train into a white smear.
  */
 vec3 shoulder(vec3 c) {
-  vec3 over = max(c - 0.70, vec3(0.0));
-  return min(c, vec3(0.70)) + over / (1.0 + over * 2.4);
+  vec3 over = max(c - 0.58, vec3(0.0));
+  return min(c, vec3(0.58)) + over / (1.0 + over * 2.6);
 }
 
 void main() {
@@ -331,7 +335,17 @@ void main() {
   }
 
   vec3 color;
-  if (uChromatic > 0.0) {
+  if (uSharpen > 0.0) {
+    /* A four-tap unsharp mask. Bloom, aberration and grain each take a little
+       definition out of the image and together they take a lot; this puts the
+       edges back without pretending to be more resolution than there is. */
+    vec3 c = texture(uScene, uv).rgb;
+    vec3 blur = texture(uScene, uv + vec2(uTexel.x, 0.0)).rgb
+              + texture(uScene, uv - vec2(uTexel.x, 0.0)).rgb
+              + texture(uScene, uv + vec2(0.0, uTexel.y)).rgb
+              + texture(uScene, uv - vec2(0.0, uTexel.y)).rgb;
+    color = c + (c - blur * 0.25) * uSharpen;
+  } else if (uChromatic > 0.0) {
     /* Aberration grows toward the edges — at the centre the image stays
        clean, which is what keeps it from reading as a filter. */
     vec2 shift = centered * uChromatic * (0.0016 + r2 * 0.006);
@@ -341,6 +355,16 @@ void main() {
   } else {
     color = texture(uScene, uv).rgb;
   }
+
+  if (uSharpen > 0.0 && uChromatic > 0.0) {
+    /* Aberration on top of the sharpened image, as a small offset rather than
+       a second full resample. */
+    vec2 shift = centered * uChromatic * (0.0016 + r2 * 0.006);
+    color.r = mix(color.r, texture(uScene, uv + shift).r, 0.85);
+    color.b = mix(color.b, texture(uScene, uv - shift).b, 0.85);
+  }
+
+  color = max(color, vec3(0.0)) * uExposure;
 
   if (uBloomAmount > 0.0) {
     color += texture(uBloom, uv).rgb * uBloomAmount;
@@ -359,6 +383,11 @@ void main() {
     graded = mix(graded, vec3(g), uDesaturate);
   }
 
+  /* Contrast around a low pivot: the blacks come down, the lit surfaces come
+     up, and the flat blue-grey band the whole carriage used to sit in
+     separates into a floor, a wall and a light. */
+  graded = (graded - 0.5) * uContrast + 0.5 - (uContrast - 1.0) * 0.16;
+  graded = max(graded, vec3(0.0));
   graded *= uBrightness;
 
   float vig = 1.0 - uVignette * smoothstep(0.18, 0.78, r2) * 1.05;

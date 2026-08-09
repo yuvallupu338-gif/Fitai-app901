@@ -623,7 +623,7 @@ function ceilingLights() {
          the carriage: at this intensity a 0.17-albedo rubber floor lands
          around 0.25 on screen, which reads as "lit, at night" rather than
          "unlit". Everything else was set from there. */
-      intensity: 2.15,
+      intensity: 2.45,
       flicker: 1,
       enabled: true,
     });

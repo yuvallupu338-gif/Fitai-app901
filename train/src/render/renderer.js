@@ -63,7 +63,7 @@ export class Renderer {
 
     this.width = 1;
     this.height = 1;
-    this.sceneTarget = new RenderTarget(gl, 2, 2, { depth: true });
+    this.sceneTarget = new RenderTarget(gl, 2, 2, { depth: true, samples: samplesFor(settings) });
     this.bloomA = new RenderTarget(gl, 2, 2);
     this.bloomB = new RenderTarget(gl, 2, 2);
     this.reflectionTargets = {
@@ -112,6 +112,7 @@ export class Renderer {
 
   applySettings(settings) {
     this.settings = settings;
+    this.sceneTarget.setSamples(samplesFor(settings));
     this.width = -1;   // force the next resize() to reallocate
     this.resize();
   }
@@ -308,6 +309,8 @@ export class Renderer {
     this._drawNodes(scene, scene.nodes, prog, { pass: 'main' });
     this._drawGlass(scene, camera, wantReflections);
 
+    /* Collapse the samples before anything reads the scene texture. */
+    this.sceneTarget.resolve();
     this._postProcess(scene, fx);
   }
 
@@ -384,7 +387,7 @@ export class Renderer {
       this.bloomA.bind();
       const bright = this.brightProgram.use();
       bright.tex('uSource', this.sceneTarget.texture);
-      bright.f('uThreshold', fx.bloomThreshold ?? 0.62);
+      bright.f('uThreshold', fx.bloomThreshold ?? 0.74);
       bright.f('uKnee', 0.35);
       this.quad.draw();
 
@@ -412,6 +415,10 @@ export class Renderer {
     comp.f('uBloomAmount', bloomAmount);
     comp.f('uTime', scene.time || 0);
     comp.f('uGrain', (this.settings.grain ?? 1) * (fx.grain ?? 1));
+    comp.f('uSharpen', this.settings.sharpen ?? 0.5);
+    comp.f('uContrast', this.settings.contrast ?? 1);
+    comp.f('uExposure', fx.exposure ?? 1);
+    comp.v2('uTexel', 1 / this.width, 1 / this.height);
     comp.f('uVignette', (this.settings.vignette ?? 1) * (fx.vignette ?? 0.62));
     comp.f('uChromatic', (this.settings.chromatic ?? 1) * (fx.chromatic ?? 1));
     comp.f('uBrightness', (this.settings.brightness ?? 1) * (fx.brightness ?? 1));
@@ -440,6 +447,15 @@ export class Renderer {
     this.reflectionTargets.right.dispose();
     this.textures.dispose();
   }
+}
+
+/* 0 disables the multisampled path entirely. */
+function samplesFor(settings) {
+  if (settings.antialias === false) return 0;
+  const quality = settings.quality || 'high';
+  if (quality === 'low') return 0;
+  if (quality === 'medium') return 2;
+  return 4;
 }
 
 const IDENTITY = identity(mat4());

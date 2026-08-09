@@ -80,7 +80,10 @@ export const DEFAULT_SETTINGS = {
   sensitivity: 0.0022,
   invertY: false,
   fov: 72,
-  brightness: 1,
+  brightness: 1.22,
+  contrast: 1.3,
+  sharpen: 0.5,
+  antialias: true,
   subtitles: true,
   subtitleSize: 1,
   soundCaptions: true,
@@ -88,9 +91,9 @@ export const DEFAULT_SETTINGS = {
   quality: 'high',          // low | medium | high | ultra
   reflections: true,
   bloom: true,
-  grain: 1,
-  chromatic: 1,
-  vignette: 1,
+  grain: 0.65,
+  chromatic: 0.5,
+  vignette: 0.7,
   resolutionScale: 1,
   crosshair: true,
   speechVoice: 'synthetic', // synthetic | system
@@ -101,10 +104,10 @@ export const DEFAULT_SETTINGS = {
    they are applied by the settings screen, not read implicitly at draw time,
    so what a player sets by hand always wins. */
 export const QUALITY_PRESETS = {
-  low: { reflections: false, bloom: false, grain: 0.6, chromatic: 0, resolutionScale: 0.7 },
-  medium: { reflections: false, bloom: true, grain: 0.8, chromatic: 0.6, resolutionScale: 0.85 },
-  high: { reflections: true, bloom: true, grain: 1, chromatic: 1, resolutionScale: 1 },
-  ultra: { reflections: true, bloom: true, grain: 1, chromatic: 1, resolutionScale: 1.25 },
+  low: { reflections: false, bloom: false, grain: 0.4, chromatic: 0, resolutionScale: 0.75, antialias: false, sharpen: 0.35 },
+  medium: { reflections: false, bloom: true, grain: 0.55, chromatic: 0.35, resolutionScale: 1, antialias: true, sharpen: 0.5 },
+  high: { reflections: true, bloom: true, grain: 0.65, chromatic: 0.5, resolutionScale: 1, antialias: true, sharpen: 0.5 },
+  ultra: { reflections: true, bloom: true, grain: 0.65, chromatic: 0.5, resolutionScale: 1.5, antialias: true, sharpen: 0.6 },
 };
 
 export function loadSettings() {

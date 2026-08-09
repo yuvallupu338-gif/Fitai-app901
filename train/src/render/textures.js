@@ -96,15 +96,17 @@ function wrapText(ctx, text, maxWidth) {
 /* ---- surfaces ------------------------------------------------------- */
 
 export function floorTexture(rng) {
-  const S = 512;
+  /* 1024, because the floor is the largest continuous surface in the game and
+     the one the player spends the most time looking at from two metres. */
+  const S = 1024;
   const { canvas, ctx } = makeCanvas(S, S);
   fill(ctx, S, S, '#2b2f34');
   /* Studded rubber floor: the raised discs read as specular dots under the
      ceiling tubes and are the single most "transit" thing in the carriage. */
-  const pitch = 32;
+  const pitch = S / 16;
   for (let y = pitch / 2; y < S; y += pitch) {
     for (let x = pitch / 2; x < S; x += pitch) {
-      const r = 10;
+      const r = pitch * 0.31;
       const g = ctx.createRadialGradient(x - 3, y - 3, 1, x, y, r);
       g.addColorStop(0, '#3f454c');
       g.addColorStop(0.65, '#33383e');
@@ -123,7 +125,7 @@ export function floorTexture(rng) {
 }
 
 export function wallTexture(rng) {
-  const S = 512;
+  const S = 1024;
   const { canvas, ctx } = makeCanvas(S, S);
   /* Mid grey, not the near-white it wants to be. Under this much fluorescent
      light a 0.73-albedo panel comes back as a flat sheet with no information
@@ -191,19 +193,19 @@ export function metalTexture(rng) {
 }
 
 export function seatTexture(rng) {
-  const S = 512;
+  const S = 1024;
   const { canvas, ctx } = makeCanvas(S, S);
   fill(ctx, S, S, '#1d3350');
   /* Moquette: the speckled municipal upholstery pattern. Dashes at two
      angles in three colours, which is close enough that nobody looks twice. */
   const colors = ['#2b4d76', '#14243a', '#3d6a4f', '#6b3550'];
-  for (let i = 0; i < 2600; i++) {
+  for (let i = 0; i < 9000; i++) {
     ctx.save();
     ctx.translate(rng.float(0, S), rng.float(0, S));
     ctx.rotate(rng.bool() ? 0.6 : -0.6);
     ctx.fillStyle = rng.pick(colors);
     ctx.globalAlpha = rng.float(0.35, 0.9);
-    ctx.fillRect(0, 0, rng.float(3, 11), rng.float(1.5, 3));
+    ctx.fillRect(0, 0, rng.float(6, 22), rng.float(3, 6));
     ctx.restore();
   }
   ctx.globalAlpha = 1;

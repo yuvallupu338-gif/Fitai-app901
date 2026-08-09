@@ -28,7 +28,7 @@ import {
 
 const HALF_LEN = CAR.length / 2;
 export const REFLECT_PLANE_X = CAR.halfWidth - 0.014;
-export const CAR_LIGHT_INTENSITY = 2.15;
+export const CAR_LIGHT_INTENSITY = 2.45;
 
 export class TrainWorld {
   constructor(gl, renderer, rng, opts = {}) {

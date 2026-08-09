@@ -151,8 +151,12 @@ export class Menu {
           select('quality', 'Graphics preset', [
             ['low', 'Low'], ['medium', 'Medium'], ['high', 'High'], ['ultra', 'Ultra'],
           ], s.quality),
-          slider('brightness', 'Brightness', 0.6, 1.7, 0.02, s.brightness, pct,
+          slider('brightness', 'Brightness', 0.6, 1.9, 0.02, s.brightness, pct,
             'Set this so you can just make out the far end of the carriage.'),
+          slider('contrast', 'Contrast', 0.8, 1.8, 0.02, s.contrast, pct),
+          slider('sharpen', 'Sharpness', 0, 1.2, 0.05, s.sharpen, pct,
+            'Puts back the definition the grain and the lens effects take out.'),
+          toggle('antialias', 'Smooth edges'),
           toggle('reflections', 'Window reflections'),
           toggle('bloom', 'Light bloom'),
           slider('grain', 'Film grain', 0, 2, 0.05, s.grain, pct),

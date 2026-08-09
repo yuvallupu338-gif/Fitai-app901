@@ -54,12 +54,12 @@ export class Game {
     this.fx = {
       fade: 1, fadeColor: [0, 0, 0], grain: 1, grainTarget: 1,
       desaturate: 0, desaturateTarget: 0, pulse: 0, pulseTarget: 0,
-      vignette: 0.62, chromatic: 1, distort: 0, scanline: 0, bloom: 0.55,
+      vignette: 0.62, chromatic: 1, distort: 0, scanline: 0, bloom: 0.34,
       brightness: 1,
     };
 
     this.scene = {
-      nodes: [], lights: [], ambient: [0.150, 0.162, 0.192],
+      nodes: [], lights: [], ambient: [0.200, 0.214, 0.250],
       fogColor: [0.020, 0.024, 0.032], fogDensity: 0.020,
       lightScale: 1, time: 0, reflectionPlanes: [], reflectionStrength: 1,
       rainSpeed: 0.012, glassWarp: 0,
@@ -907,15 +907,15 @@ export class Game {
     fx.pulse = damp(fx.pulse, fx.pulseTarget, 1.4, dt);
 
     const intensity = this.state.stationIndex / (STATIONS.length - 1);
-    fx.vignette = lerp(0.42, 0.68, intensity);
+    fx.vignette = lerp(0.30, 0.55, intensity);
     fx.distort = lerp(0, 0.55, Math.max(0, intensity - 0.4) / 0.6);
     this.scene.glassWarp = fx.distort * 0.8;
     /* The ambient falls away across the night. It is a small number and it
        is the one that decides whether the far end of the carriage is a place
        or a hole. */
-    this.scene.ambient[0] = lerp(0.150, 0.096, intensity);
-    this.scene.ambient[1] = lerp(0.162, 0.106, intensity);
-    this.scene.ambient[2] = lerp(0.192, 0.134, intensity);
+    this.scene.ambient[0] = lerp(0.200, 0.128, intensity);
+    this.scene.ambient[1] = lerp(0.214, 0.142, intensity);
+    this.scene.ambient[2] = lerp(0.250, 0.180, intensity);
     this.scene.reflectionStrength = this.avatar.frozen ? 1 : 1;
     this.scene.rainSpeed = 0.006 + this.world.speed * 0.03;
 
