@@ -34,9 +34,18 @@ html, body {
   font-family: var(--font);
   -webkit-font-smoothing: antialiased;
   overscroll-behavior: none;
-  touch-action: none;
 }
 
+/*
+ * `touch-action` is NOT inherited, so setting it on <body> does nothing for
+ * the canvas — the browser starts a scroll gesture, the touch events arrive
+ * with cancelable=false, preventDefault is ignored and the joystick simply
+ * does not work. It has to go on the elements that actually receive touches.
+ *
+ * And it must NOT go on <body>, or it applies to the menus too and the list of
+ * a hundred levels becomes unscrollable on the one device where scrolling it
+ * is the only way to browse.
+ */
 #view {
   position: fixed;
   inset: 0;
@@ -45,6 +54,7 @@ html, body {
   display: block;
   background: #000;
   cursor: default;
+  touch-action: none;
 }
 #view.playing { cursor: none; }
 
@@ -64,7 +74,12 @@ html, body {
   inset: 0;
   pointer-events: auto;
   display: flex;
+  /* `safe center` where it is supported: a centred flex child that is taller
+   * than the screen overflows off BOTH ends, and the top half becomes
+   * unreachable however hard you scroll. On a landscape phone the settings
+   * panel is exactly that tall. */
   align-items: center;
+  align-items: safe center;
   justify-content: center;
   padding: max(16px, env(safe-area-inset-top)) 16px;
   background:
@@ -73,6 +88,8 @@ html, body {
   backdrop-filter: blur(9px) saturate(0.7);
   -webkit-backdrop-filter: blur(9px) saturate(0.7);
   animation: fade-in 0.28s ease both;
+  touch-action: pan-y;
+  overflow-y: auto;
 }
 .screen[hidden] { display: none; }
 
@@ -213,6 +230,9 @@ h2 { font-size: clamp(20px, 3.4vw, 30px); margin: 0 0 10px; font-weight: 700; }
 
 #level-grid {
   overflow-y: auto;
+  /* The one place in the game that must scroll under a thumb. */
+  touch-action: pan-y;
+  -webkit-overflow-scrolling: touch;
   padding: 14px;
   display: grid;
   grid-template-columns: repeat(auto-fill, minmax(178px, 1fr));
@@ -460,7 +480,7 @@ h2 { font-size: clamp(20px, 3.4vw, 30px); margin: 0 0 10px; font-weight: 700; }
  * insets so a notch or a home indicator never eats a button.
  * ------------------------------------------------------------------ */
 
-#touch { position: absolute; inset: 0; pointer-events: none; }
+#touch { position: absolute; inset: 0; pointer-events: none; touch-action: none; }
 #touch[hidden] { display: none; }
 
 #stick {

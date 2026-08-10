@@ -79,6 +79,9 @@ export class Renderer {
     this.level = null;
     this.dyn = {};
     this.stats = { chunks: 0, tris: 0, lights: 0 };
+    this.frames = 0;
+    this._capture = false;
+    this.lastCapture = null;
 
     gl.enable(gl.DEPTH_TEST);
     gl.enable(gl.CULL_FACE);
@@ -237,6 +240,62 @@ export class Renderer {
 
     if (this.quality.bloom) this.drawBloom(state);
     this.drawComposite(state);
+    this.frames++;
+
+    /*
+     * Framebuffer readback, for the tests. It has to happen here, inside the
+     * same frame as the draw: without `preserveDrawingBuffer` the default
+     * framebuffer's contents are undefined once the browser has composited,
+     * so reading the canvas from outside the render loop — via drawImage or
+     * anything else — can return a blank image for a frame that drew fine.
+     * That is not a hypothetical; it is what made a working mobile frame
+     * report "1 distinct colour".
+     */
+    if (this._capture) {
+      this._capture = false;
+      this.lastCapture = this.readback();
+    }
+  }
+
+  requestCapture() {
+    this.lastCapture = null;
+    this._capture = true;
+  }
+
+  readback() {
+    const gl = this.gl;
+    const w = this.canvas.width, h = this.canvas.height;
+    const px = new Uint8Array(w * h * 4);
+    gl.bindFramebuffer(gl.FRAMEBUFFER, null);
+    gl.readPixels(0, 0, w, h, gl.RGBA, gl.UNSIGNED_BYTE, px);
+
+    /* Summarised on the way out — the test only ever wants to know whether
+     * this is a picture of something. */
+    const stepX = Math.max(1, Math.floor(w / 200));
+    const stepY = Math.max(1, Math.floor(h / 140));
+    const seen = new Set();
+    let r = 0, g = 0, b = 0, dark = 0, n = 0, lo = 999, hi = -1;
+    for (let y = 0; y < h; y += stepY) {
+      for (let x = 0; x < w; x += stepX) {
+        const i = (y * w + x) * 4;
+        const R = px[i], G = px[i + 1], B = px[i + 2];
+        r += R; g += G; b += B; n++;
+        const l = 0.21 * R + 0.72 * G + 0.07 * B;
+        if (l < 3) dark++;
+        if (l < lo) lo = l;
+        if (l > hi) hi = l;
+        seen.add(((R >> 3) << 10) | ((G >> 3) << 5) | (B >> 3));
+      }
+    }
+    return {
+      mean: [r / n, g / n, b / n],
+      dark: dark / n,
+      contrast: hi - lo,
+      colours: seen.size,
+      width: w,
+      height: h,
+      samples: n,
+    };
   }
 
   drawSky(cam, aspect, state) {

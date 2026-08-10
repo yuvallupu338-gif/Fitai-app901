@@ -20,7 +20,7 @@ import { createServer } from 'node:http';
 import { readFile } from 'node:fs/promises';
 import { mkdirSync } from 'node:fs';
 import { resolve, dirname, extname, join } from 'node:path';
-import { fileURLToPath } from 'node:url';
+import { fileURLToPath, pathToFileURL } from 'node:url';
 import { createRequire } from 'node:module';
 
 const ROOT = resolve(dirname(fileURLToPath(import.meta.url)), '..');
@@ -79,38 +79,33 @@ async function serve() {
 /* Read the canvas back and describe it: mean colour, spread, and how much of
  * the frame is pure black. A working frame is never uniform and never fully
  * dark, even on the levels whose whole idea is darkness. */
-async function frameStats(page) {
-  return page.evaluate(() => {
-    const c = document.querySelector('#view');
-    const gl = c.getContext('webgl2');
-    const w = 160, h = 100;
-    /* Read from the real drawing buffer via a scaled 2D copy. */
-    const tmp = document.createElement('canvas');
-    tmp.width = w; tmp.height = h;
-    const ctx = tmp.getContext('2d');
-    ctx.drawImage(c, 0, 0, w, h);
-    const d = ctx.getImageData(0, 0, w, h).data;
-    let r = 0, g = 0, b = 0, dark = 0, n = w * h;
-    let minL = 999, maxL = -1;
-    const seen = new Set();
-    for (let i = 0; i < n; i++) {
-      const R = d[i * 4], G = d[i * 4 + 1], B = d[i * 4 + 2];
-      r += R; g += G; b += B;
-      const l = 0.21 * R + 0.72 * G + 0.07 * B;
-      if (l < 3) dark++;
-      if (l < minL) minL = l;
-      if (l > maxL) maxL = l;
-      seen.add((R >> 3) << 10 | (G >> 3) << 5 | (B >> 3));
-    }
-    return {
-      mean: [r / n, g / n, b / n],
-      dark: dark / n,
-      contrast: maxL - minL,
-      colours: seen.size,
-      lost: !!(gl && gl.isContextLost && gl.isContextLost()),
-      width: c.width, height: c.height,
-    };
+/*
+ * Ask the renderer to summarise its own framebuffer from inside the render
+ * frame. Reading the canvas from out here is unreliable — without
+ * preserveDrawingBuffer the contents are undefined after compositing — and an
+ * unreliable pixel check is worse than none, because it fails on frames that
+ * are fine.
+ */
+export async function frameStats(page) {
+  await page.evaluate(() => window.backrooms.renderer.requestCapture());
+  await page.waitForFunction(() => !!window.backrooms.renderer.lastCapture,
+    null, { timeout: 60000 });
+  const st = await page.evaluate(() => window.backrooms.renderer.lastCapture);
+  st.lost = await page.evaluate(() => {
+    const gl = window.backrooms.renderer.gl;
+    return !!(gl && gl.isContextLost && gl.isContextLost());
   });
+  return st;
+}
+
+/* Wait for real rendered frames rather than wall-clock time. Under software
+ * rendering at phone resolution the game runs at a few frames a second, and
+ * every "wait 200ms then assert" in a test becomes a coin toss. */
+export async function waitFrames(page, n = 4) {
+  const from = await page.evaluate(() => window.backrooms.renderer.frames);
+  await page.waitForFunction(
+    (f) => window.backrooms.renderer.frames >= f,
+    from + n, { timeout: 60000 });
 }
 
 async function enter(page, id) {
@@ -284,4 +279,8 @@ async function finish(browser, server) {
   console.log(`\nall good — ${notes.length} checks passed across ${LEVELS.length} levels.`);
 }
 
-main().catch((e) => { console.error(e); process.exit(1); });
+/* Only run when invoked directly — backrooms-mobile.mjs imports the pixel and
+ * frame helpers from here. */
+if (process.argv[1] && import.meta.url === pathToFileURL(process.argv[1]).href) {
+  main().catch((e) => { console.error(e); process.exit(1); });
+}

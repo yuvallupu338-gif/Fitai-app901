@@ -33,6 +33,7 @@ import { createRequire } from 'node:module';
 const ROOT = resolve(dirname(fileURLToPath(import.meta.url)), '..');
 const require = createRequire(join('/opt/node22/lib/node_modules/', 'x.js'));
 const { chromium, devices } = require('playwright');
+const { frameStats, waitFrames } = await import('./backrooms-smoke.mjs');
 
 const SHOTS = process.argv.includes('--shots');
 const SHOT_DIR = resolve(ROOT, 'dist/shots/mobile');
@@ -117,7 +118,7 @@ async function teleport(page, x, z) {
     g.player.pos.y = g.world.groundAt(x, z);
     g.player.vel.x = g.player.vel.z = 0;
   }, { x, z });
-  await page.waitForTimeout(220);
+  await waitFrames(page, 3);
 }
 
 async function run(deviceName, browser) {
@@ -147,8 +148,8 @@ async function run(deviceName, browser) {
   await page.tap('#btn-start');
   await page.waitForFunction(
     () => window.backrooms.state === 'play' && !window.backrooms.loading,
-    null, { timeout: 120000 });
-  await page.waitForTimeout(1000);
+    null, { timeout: 180000 });
+  await waitFrames(page, 8);
 
   check(await page.isVisible('#touch'), `${deviceName}: on-screen controls appear in play`);
   for (const sel of ['#t-use', '#t-jump', '#t-torch', '#t-run', '#t-crouch', '#t-pause']) {
@@ -167,7 +168,7 @@ async function run(deviceName, browser) {
   const before = await state(page);
   const release = await swipe(cdp, [vp.width * 0.22, vp.height * 0.62],
     [vp.width * 0.22, vp.height * 0.62 - 70]);
-  await page.waitForTimeout(1500);
+  await waitFrames(page, 24);
   const during = await state(page);
   check(await page.evaluate(() => document.querySelector('#stick').classList.contains('on')),
     `${deviceName}: the joystick shows itself under the thumb`);
@@ -175,9 +176,9 @@ async function run(deviceName, browser) {
   const moved = Math.hypot(during.pos.x - before.pos.x, during.pos.z - before.pos.z);
   check(moved > 0.5, `${deviceName}: the stick walks the player (${moved.toFixed(2)}m)`);
 
-  await page.waitForTimeout(400);
+  await waitFrames(page, 8);
   const stopped = await state(page);
-  await page.waitForTimeout(700);
+  await waitFrames(page, 10);
   const stillStopped = await state(page);
   const drift = Math.hypot(stillStopped.pos.x - stopped.pos.x, stillStopped.pos.z - stopped.pos.z);
   check(drift < 0.25,
@@ -188,7 +189,7 @@ async function run(deviceName, browser) {
   const rel2 = await swipe(cdp, [vp.width * 0.75, vp.height * 0.5],
     [vp.width * 0.75 - 120, vp.height * 0.5]);
   await rel2();
-  await page.waitForTimeout(200);
+  await waitFrames(page, 3);
   const yaw1 = (await state(page)).yaw;
   check(Math.abs(yaw1 - yaw0) > 0.15,
     `${deviceName}: dragging the right half turns the view (${(yaw1 - yaw0).toFixed(2)} rad)`);
@@ -196,29 +197,29 @@ async function run(deviceName, browser) {
   /* ---- buttons ---- */
   const torch0 = (await state(page)).torch;
   await page.tap('#t-torch');
-  await page.waitForTimeout(200);
+  await waitFrames(page, 3);
   check((await state(page)).torch !== torch0, `${deviceName}: the torch button toggles the torch`);
 
   await page.tap('#t-crouch');
-  await page.waitForTimeout(300);
+  await waitFrames(page, 6);
   const crouched = await state(page);
   check(crouched.crouch, `${deviceName}: the crouch toggle actually crouches`);
   check(await page.evaluate(() => document.querySelector('#t-crouch').classList.contains('on')),
     `${deviceName}: the crouch button shows that it is on`);
   await page.tap('#t-crouch');
-  await page.waitForTimeout(300);
+  await waitFrames(page, 6);
   check(!(await state(page)).crouch, `${deviceName}: tapping crouch again stands back up`);
 
   await page.tap('#t-run');
-  await page.waitForTimeout(150);
+  await waitFrames(page, 2);
   check((await state(page)).keys.includes('ShiftLeft'),
     `${deviceName}: the run toggle holds sprint down`);
   await page.tap('#t-run');
 
   await page.tap('#t-jump');
-  await page.waitForTimeout(120);
+  await waitFrames(page, 2);
   check(!(await state(page)).grounded, `${deviceName}: the jump button leaves the ground`);
-  await page.waitForTimeout(900);
+  await waitFrames(page, 16);
 
   /* ---- picking something up, which is the whole game on a phone ---- */
   const item = await page.evaluate(() => {
@@ -234,7 +235,7 @@ async function run(deviceName, browser) {
     check(await page.isVisible('#hud-prompt'),
       `${deviceName}: standing on an item shows the prompt`);
     await page.tap('#t-use');
-    await page.waitForTimeout(300);
+    await waitFrames(page, 4);
     check((await state(page)).taken === taken0 + 1,
       `${deviceName}: the E button picks the item up (${item.kind})`);
   } else {
@@ -252,12 +253,12 @@ async function run(deviceName, browser) {
   if (exit) {
     const lvl0 = (await state(page)).level;
     await teleport(page, exit.x, exit.z);
-    await page.waitForTimeout(200);
+    await waitFrames(page, 3);
     await page.tap('#t-use');
     await page.waitForFunction(
       (from) => window.backrooms.state === 'play' && !window.backrooms.loading
         && window.backrooms.level.id !== from,
-      lvl0, { timeout: 120000 });
+      lvl0, { timeout: 180000 });
     const after = await state(page);
     check(after.level === lvl0 + 1,
       `${deviceName}: the E button takes you down a level (${lvl0} → ${after.level})`);
@@ -266,32 +267,18 @@ async function run(deviceName, browser) {
   }
 
   /* ---- pause ---- */
-  await page.waitForTimeout(600);
+  await waitFrames(page, 4);
   await page.tap('#t-pause');
-  await page.waitForTimeout(250);
+  await page.waitForTimeout(400);
   check((await state(page)).state === 'paused', `${deviceName}: the pause button pauses`);
   check(await page.isVisible('#screen-pause'), `${deviceName}: the pause menu shows`);
   await page.tap('#btn-resume');
-  await page.waitForTimeout(250);
+  await waitFrames(page, 3);
   check((await state(page)).state === 'play', `${deviceName}: resume returns to the game`);
 
   /* ---- the frame is a real frame ---- */
-  const px = await page.evaluate(() => {
-    const c = document.querySelector('#view');
-    const t = document.createElement('canvas');
-    t.width = 120; t.height = 80;
-    const x = t.getContext('2d');
-    x.drawImage(c, 0, 0, 120, 80);
-    const d = x.getImageData(0, 0, 120, 80).data;
-    const seen = new Set();
-    let dark = 0;
-    for (let i = 0; i < 120 * 80; i++) {
-      const R = d[i * 4], G = d[i * 4 + 1], B = d[i * 4 + 2];
-      if (0.21 * R + 0.72 * G + 0.07 * B < 3) dark++;
-      seen.add((R >> 3) << 10 | (G >> 3) << 5 | (B >> 3));
-    }
-    return { colours: seen.size, dark: dark / (120 * 80), lost: c.getContext('webgl2') === null };
-  });
+  const px = await frameStats(page);
+  check(!px.lost, `${deviceName}: the context survived`);
   check(px.colours > 20, `${deviceName}: the frame has real detail (${px.colours} colours)`);
   check(px.dark < 0.985, `${deviceName}: the frame is not entirely black`);
 
