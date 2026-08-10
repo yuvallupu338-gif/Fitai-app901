@@ -452,6 +452,97 @@ h2 { font-size: clamp(20px, 3.4vw, 30px); margin: 0 0 10px; font-weight: 700; }
 }
 
 /* ------------------------------------------------------------------ *
+ * Touch controls
+ *
+ * Shown only on a device that reports a coarse pointer. Sizes are deliberately
+ * large — a 56px target is the smallest thing a thumb hits reliably while the
+ * other hand is also on the screen — and everything sits inside the safe-area
+ * insets so a notch or a home indicator never eats a button.
+ * ------------------------------------------------------------------ */
+
+#touch { position: absolute; inset: 0; pointer-events: none; }
+#touch[hidden] { display: none; }
+
+#stick {
+  position: absolute;
+  left: 0;
+  top: 0;
+  width: 116px;
+  height: 116px;
+  margin: -58px 0 0 -58px;
+  border: 2px solid rgba(201, 178, 78, 0.30);
+  border-radius: 50%;
+  background: rgba(0, 0, 0, 0.20);
+  opacity: 0;
+  transition: opacity 0.15s;
+  pointer-events: none;
+}
+#stick.on { opacity: 1; }
+#stick i {
+  position: absolute;
+  left: 50%;
+  top: 50%;
+  width: 48px;
+  height: 48px;
+  margin: -24px 0 0 -24px;
+  border-radius: 50%;
+  background: rgba(201, 178, 78, 0.34);
+  border: 1px solid rgba(240, 221, 138, 0.5);
+}
+
+.tbtn {
+  position: absolute;
+  pointer-events: auto;
+  width: 72px;
+  height: 72px;
+  border-radius: 50%;
+  border: 1px solid rgba(201, 178, 78, 0.40);
+  background: rgba(14, 12, 8, 0.55);
+  color: var(--gold-bright);
+  font: 600 15px/1 var(--font);
+  display: grid;
+  place-items: center;
+  user-select: none;
+  -webkit-user-select: none;
+  -webkit-tap-highlight-color: transparent;
+  touch-action: none;
+}
+.tbtn.small { width: 58px; height: 58px; font-size: 13px; }
+.tbtn.tiny { width: 42px; height: 42px; font-size: 12px; }
+.tbtn:active, .tbtn.on {
+  background: rgba(201, 178, 78, 0.30);
+  border-color: rgba(240, 221, 138, 0.8);
+}
+
+/* Right-hand cluster: the thumb rests on E, everything else is a short reach
+   from it. E is the biggest because it is the only control that matters —
+   it is how you pick things up and how you leave a level. */
+#t-use    { right: calc(20px + env(safe-area-inset-right)); bottom: calc(24px + env(safe-area-inset-bottom)); }
+#t-jump   { right: calc(100px + env(safe-area-inset-right)); bottom: calc(30px + env(safe-area-inset-bottom)); }
+#t-torch  { right: calc(28px + env(safe-area-inset-right)); bottom: calc(106px + env(safe-area-inset-bottom)); }
+#t-run    { right: calc(96px + env(safe-area-inset-right)); bottom: calc(98px + env(safe-area-inset-bottom)); }
+#t-crouch { right: calc(150px + env(safe-area-inset-right)); bottom: calc(38px + env(safe-area-inset-bottom)); }
+#t-pause  { left: calc(12px + env(safe-area-inset-left)); top: calc(12px + env(safe-area-inset-top)); }
+
+body.touch #hud-stats { display: none; }
+body.touch #hud-log { top: calc(62px + env(safe-area-inset-top)); }
+body.touch #crosshair { opacity: 0.5; }
+
+#rotate {
+  position: absolute;
+  inset: 0;
+  z-index: 30;
+  display: grid;
+  place-items: center;
+  background: rgba(6, 5, 4, 0.94);
+  color: var(--gold);
+  font-size: 16px;
+  letter-spacing: 0.04em;
+  pointer-events: auto;
+}
+#rotate[hidden] { display: none; }
+
+/* ------------------------------------------------------------------ *
  * Transitions and toasts
  * ------------------------------------------------------------------ */
 

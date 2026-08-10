@@ -20,7 +20,9 @@ export function createContext(canvas) {
     stencil: false,
     powerPreference: 'high-performance',
     preserveDrawingBuffer: false,
-    desynchronized: true,
+    /* No `desynchronized`. It shaves a frame of latency on desktop and has a
+     * history of producing a blank canvas on mobile Safari, which is not a
+     * trade worth making for a game meant to be played on a phone. */
   });
   if (!gl) return null;
 

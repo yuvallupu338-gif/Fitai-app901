@@ -39,8 +39,14 @@ class Game {
     this.dynamics = [];
     this.lightBuf = new Array(16);
     this.loading = false;
-    this.coarsePointer = window.matchMedia
-      && window.matchMedia('(pointer: coarse)').matches;
+    this.coarsePointer = !!(window.matchMedia
+      && window.matchMedia('(pointer: coarse)').matches);
+    /* A device with no mouse. Everything about the control scheme, the default
+     * quality and the pointer-lock prompt hangs off this one flag. */
+    this.touchMode = this.coarsePointer
+      || ('ontouchstart' in window && navigator.maxTouchPoints > 0);
+    this.perf = { window: 0, frames: 0, sum: 0, floor: 0.5 };
+    this.rotateDismissed = false;
 
     const s = store.settings();
     try {
@@ -58,7 +64,17 @@ class Game {
     this.input.invertY = s.invertY;
     this.audio.setMuted(s.muted);
 
+    document.body.classList.toggle('touch', this.touchMode);
+    if (this.touchMode) {
+      document.querySelector('.hint').innerHTML =
+        'חצי מסך שמאלי — <b>הליכה</b> · חצי ימני — <b>מבט</b> · '
+        + '<b>E</b> הרמה וירידה לרמה הבאה · <b>🔦</b> פנס · <b>⭡</b> קפיצה · '
+        + '<b>רץ</b> ו<b>כפוף</b> נדלקים ונכבים · <b>❚❚</b> תפריט. '
+        + 'למסך מלא באייפון: שתף ← הוסף למסך הבית.';
+    }
     this.wire();
+    this.wireTouch();
+    this.watchOrientation();
     this.ui.markVisited(store.load().visited, store.load().deepest);
     if (store.load().current !== null) {
       document.querySelector('#btn-continue').hidden = false;
@@ -85,8 +101,11 @@ class Game {
   wire() {
     const on = (sel, fn) => document.querySelector(sel).addEventListener('click', fn);
 
-    on('#btn-start', () => this.enterLevel(0));
-    on('#btn-continue', () => this.enterLevel(store.load().current || 0));
+    on('#btn-start', () => { this.goFullscreen(); this.enterLevel(0); });
+    on('#btn-continue', () => {
+      this.goFullscreen();
+      this.enterLevel(store.load().current || 0);
+    });
     on('#btn-levels', () => { this.refreshLevels(); this.ui.show('levels'); });
     on('#btn-levels-back', () => this.ui.show(this.level && this.state !== 'menu' ? 'pause' : 'menu'));
     on('#btn-settings', () => { this.fillSettings(); this.ui.show('settings'); });
@@ -104,7 +123,7 @@ class Game {
       this.ui.toast('ההתקדמות אופסה.');
     });
 
-    this.ui.onPick = (id) => this.enterLevel(id);
+    this.ui.onPick = (id) => { this.goFullscreen(); this.enterLevel(id); };
 
     /* Clicking the view is how you take control back; losing pointer lock is
      * how the game learns you pressed Escape. */
@@ -122,6 +141,121 @@ class Game {
     });
 
     this.bindSettings();
+  }
+
+  /*
+   * On-screen controls. Each button presses the same key its keyboard
+   * equivalent does, so nothing downstream has a mobile code path.
+   *
+   * `tap` buttons fire once — interact, jump, torch. `hold` buttons are
+   * toggles rather than press-and-hold: keeping a thumb pinned to "run" while
+   * the same hand is steering is not something a human hand does, and a toggle
+   * that shows its state is both easier and clearer.
+   *
+   * Bound to pointer events rather than touch events so the same code works
+   * under a mouse — which is what makes it testable at all.
+   */
+  wireTouch() {
+    const layer = document.querySelector('#touch');
+    if (!layer) return;
+
+    for (const btn of layer.querySelectorAll('.tbtn[data-key]')) {
+      const key = btn.dataset.key;
+      const mode = btn.dataset.mode;
+      btn.addEventListener('pointerdown', (e) => {
+        e.preventDefault();
+        e.stopPropagation();
+        if (mode === 'hold') btn.classList.toggle('on', this.input.toggle(key));
+        else this.input.tap(key);
+      });
+      /* Stop a stray pointerup from reaching the canvas and being read as a
+       * tap on the world. */
+      btn.addEventListener('pointerup', (e) => { e.preventDefault(); e.stopPropagation(); });
+      btn.addEventListener('contextmenu', (e) => e.preventDefault());
+    }
+
+    const pause = document.querySelector('#t-pause');
+    if (pause) {
+      pause.addEventListener('pointerdown', (e) => {
+        e.preventDefault();
+        e.stopPropagation();
+        this.pause();
+      });
+    }
+
+    const rotate = document.querySelector('#rotate');
+    if (rotate) {
+      rotate.addEventListener('pointerdown', () => {
+        this.rotateDismissed = true;
+        rotate.hidden = true;
+      });
+    }
+  }
+
+  /* Toggles that survive a level change have to be cleared with it, or you
+   * arrive on the next level already crouching with no indication why. */
+  resetHeldToggles() {
+    for (const btn of document.querySelectorAll('.tbtn[data-mode="hold"]')) {
+      btn.classList.remove('on');
+      this.input.hold(btn.dataset.key, false);
+    }
+  }
+
+  /*
+   * Best-effort fullscreen. iPhone Safari has no Fullscreen API at all — the
+   * meta tags in index.html are what handle it there, once the page is added
+   * to the home screen — so every step of this is allowed to fail silently.
+   */
+  goFullscreen() {
+    if (!this.touchMode) return;
+    const el = document.documentElement;
+    try {
+      if (!document.fullscreenElement && el.requestFullscreen) {
+        const p = el.requestFullscreen();
+        if (p && p.catch) p.catch(() => {});
+      }
+    } catch { /* not permitted here */ }
+    try {
+      if (screen.orientation && screen.orientation.lock) {
+        const p = screen.orientation.lock('landscape');
+        if (p && p.catch) p.catch(() => {});
+      }
+    } catch { /* only allowed in fullscreen, and not on iOS */ }
+  }
+
+  watchOrientation() {
+    const rotate = document.querySelector('#rotate');
+    const update = () => {
+      if (!rotate) return;
+      const portrait = window.innerHeight > window.innerWidth;
+      rotate.hidden = !(this.touchMode && portrait && this.state === 'play'
+        && !this.rotateDismissed);
+    };
+    this.updateOrientation = update;
+    window.addEventListener('resize', update);
+    window.addEventListener('orientationchange', () => setTimeout(update, 120));
+  }
+
+  /*
+   * Adaptive resolution. A phone that cannot hold the frame rate gets a
+   * smaller render target rather than a slideshow; it only ever goes down, so
+   * it cannot oscillate, and it stops at half resolution because below that
+   * the fog starts to band.
+   */
+  adaptQuality(dt) {
+    const p = this.perf;
+    p.window += dt;
+    p.frames++;
+    p.sum += 1 / Math.max(dt, 0.001);
+    if (p.window < 3) return;
+    const avg = p.sum / p.frames;
+    p.window = 0; p.frames = 0; p.sum = 0;
+    if (avg >= 26) return;
+    const q = this.renderer.quality;
+    if (q.renderScale <= p.floor + 0.001) return;
+    q.renderScale = Math.max(p.floor, Math.round((q.renderScale - 0.1) * 100) / 100);
+    this.renderer.width = 0;          /* force the targets to rebuild */
+    this.ui.log(`איכות הורדה ל-${Math.round(q.renderScale * 100)}% כדי לשמור על קצב`);
   }
 
   bindSettings() {
@@ -253,10 +387,12 @@ class Game {
     this.ui.show(null);
     this.state = 'play';
     this.loading = false;
+    this.resetHeldToggles();
+    if (this.updateOrientation) this.updateOrientation();
     await this.ui.fade(false);
     this.ui.log(`Level ${level.id} — ${level.name}`);
     this.ui.toast(`<b>Level ${level.id} · ${level.name}</b><br>${level.note}`, 5200);
-    this.input.requestLock();
+    if (!this.touchMode) this.input.requestLock();
   }
 
   descend(reason) {
@@ -276,21 +412,30 @@ class Game {
     if (this.state !== 'play') return;
     this.state = 'paused';
     this.input.releaseLock();
+    /* Drop the stick and any held toggle, or the player resumes already
+     * walking into a wall. */
+    this.input.touch.move = null;
+    this.input.touch.look = null;
     this.ui.setPauseWhere(this.level);
     this.ui.show('pause');
+    if (this.updateOrientation) this.updateOrientation();
   }
 
   resume() {
     if (!this.level) return;
     this.state = 'play';
     this.ui.show(null);
-    this.input.requestLock();
+    if (!this.touchMode) this.input.requestLock();
+    if (this.updateOrientation) this.updateOrientation();
   }
 
   toMenu() {
     this.state = 'menu';
     this.input.releaseLock();
+    this.input.touch.move = null;
+    this.input.touch.look = null;
     this.ui.show('menu');
+    if (this.updateOrientation) this.updateOrientation();
   }
 
   /* ---------------------------------------------------------------- *
@@ -304,9 +449,31 @@ class Game {
     this.time += dt;
     this.fps += ((1 / Math.max(dt, 0.001)) - this.fps) * 0.06;
 
-    if (this.state === 'play') this.update(dt);
+    if (this.state === 'play') {
+      this.update(dt);
+      this.adaptQuality(dt);
+    }
     if (this.world && this.level) this.render(dt);
+    if (this.touchMode) this.drawStick();
     this.input.endFrame();
+  }
+
+  /* The joystick is drawn in the DOM rather than the canvas: it has to sit
+   * under the thumb wherever the thumb landed, and moving one absolutely
+   * positioned element is cheaper than any of the alternatives. */
+  drawStick() {
+    const el = this.stickEl || (this.stickEl = document.querySelector('#stick'));
+    if (!el) return;
+    const m = this.input.touch.move;
+    if (!m || this.state !== 'play') {
+      if (el.classList.contains('on')) el.classList.remove('on');
+      return;
+    }
+    el.classList.add('on');
+    el.style.transform =
+      `translate(${m.ox}px, ${m.oy}px)`;
+    el.firstElementChild.style.transform =
+      `translate(${m.x * 34}px, ${m.y * 34}px)`;
   }
 
   update(dt) {
@@ -383,7 +550,7 @@ class Game {
      * a level swap the mouse is dead until the player clicks. Without this
      * line that reads as a broken game rather than as a missing click.
      */
-    if (!input.locked && !this.coarsePointer) prompt = 'לחץ על המסך כדי לקבל שליטה בעכבר';
+    if (!input.locked && !this.touchMode) prompt = 'לחץ על המסך כדי לקבל שליטה בעכבר';
     ui.prompt(prompt);
 
     const danger = entities
@@ -450,12 +617,19 @@ class Game {
       dynamics: this.dynamics,
       ambientScale: 1,
       lightScale: 1,
+      /*
+       * A torch you hold in your hand throws a wide, soft pool of light with a
+       * hot centre — it is not a stage spot. The first version of this was 13°
+       * and 32°, which lit nothing that was not dead ahead: standing on a
+       * platform in a void level, the floor under your own feet stayed black
+       * and the level read as broken rather than as dark.
+       */
       flashlight: {
         on: player ? player.flashlightOn : false,
-        intensity: 2.6,
-        inner: 13,
-        outer: 32,
-        range: 24,
+        intensity: 3.0,
+        inner: 19,
+        outer: 47,
+        range: 26,
       },
     });
     void dt;

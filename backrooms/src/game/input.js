@@ -84,8 +84,8 @@ export class Input {
       for (const t of e.changedTouches) {
         const m = this.touch.move;
         if (m && m.id === t.identifier) {
-          m.x = Math.max(-1, Math.min(1, (t.clientX - m.ox) / 60));
-          m.y = Math.max(-1, Math.min(1, (t.clientY - m.oy) / 60));
+          m.x = Math.max(-1, Math.min(1, (t.clientX - m.ox) / 52));
+          m.y = Math.max(-1, Math.min(1, (t.clientY - m.oy) / 52));
         }
         const l = this.touch.look;
         if (l && l.id === t.identifier) {
@@ -118,6 +118,36 @@ export class Input {
   down(...codes) { return codes.some((c) => this.keys.has(c)); }
   hit(...codes) { return codes.some((c) => this.pressed.has(c)); }
 
+  /* ---------------------------------------------------------------- *
+   * Virtual keys
+   *
+   * The on-screen buttons do not get their own code path — they press the
+   * same keys the keyboard does. That is the whole reason the phone build
+   * works: everything downstream (player.js, main.js) reads `hit('KeyE')`
+   * and neither knows nor cares whether a thumb or a keyboard sent it.
+   * ---------------------------------------------------------------- */
+
+  tap(code) {
+    if (!this.enabled) return;
+    this.pressed.add(code);
+  }
+
+  hold(code, on) {
+    if (!this.enabled) return;
+    if (on) {
+      if (!this.keys.has(code)) this.pressed.add(code);
+      this.keys.add(code);
+    } else {
+      this.keys.delete(code);
+    }
+  }
+
+  toggle(code) {
+    const on = !this.keys.has(code);
+    this.hold(code, on);
+    return on;
+  }
+
   /* Called once per frame, after the player has read everything. */
   endFrame() {
     this.pressed.clear();
@@ -134,7 +164,18 @@ export class Input {
     if (this.down('KeyD', 'ArrowRight')) x += 1;
     if (this.down('KeyA', 'ArrowLeft')) x -= 1;
     const m = this.touch.move;
-    if (m) { x += m.x; z -= m.y; }
+    if (m) {
+      /* Dead zone, rescaled so the usable range still reaches 1.0. Without it
+       * a thumb resting on the glass drifts the player slowly across the room,
+       * which on a level built out of identical rooms is genuinely disorienting. */
+      const dz = 0.16;
+      const mag = Math.hypot(m.x, m.y);
+      if (mag > dz) {
+        const k = ((mag - dz) / (1 - dz)) / mag;
+        x += m.x * k;
+        z -= m.y * k;
+      }
+    }
     const len = Math.hypot(x, z);
     if (len > 1) { x /= len; z /= len; }
     return [x, z];

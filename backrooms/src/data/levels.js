@@ -25,6 +25,8 @@
  * Material vocabulary
  * ------------------------------------------------------------------ */
 
+import { parseColor } from '../render/textures.js';
+
 const M = {
   carpet: (color, o) => ({ kind: 'carpet', color, tile: 3.0, bump: 1.8, normalStrength: 1.6, ...o }),
   pattern: (color, accent, o) => ({ kind: 'carpetPattern', color, accent, tile: 2.6, bump: 1.5, normalStrength: 1.3, ...o }),
@@ -968,7 +970,7 @@ const RAW = [
     gen: { islandThreshold: 0.52, islandScale: 0.05, bridgeSpacing: 13, relief: 3,
       connect: false, lightSpacing: 0, exitRarity: 8 },
     sky: { horizon: '#0c0c12', zenith: '#000000', ground: '#000000' },
-    hazards: ['fall', 'dark'], flashlight: true,
+    exposure: 1.9, hazards: ['fall', 'dark'], flashlight: true,
     entities: { kind: 'hound', density: 0.5 },
     audio: { tone: 'silence', reverb: 0.4 } },
 
@@ -1003,7 +1005,7 @@ const RAW = [
       M.concrete('#54504c'), M.metal('#33302e'), M.blades('#5a544a')],
     gen: { runs: 12, holes: 0.5, rubble: 10, lightSpacing: 0, connect: true },
     sky: { horizon: '#5a5450', zenith: '#3a3634', ground: '#2a2624' },
-    hazards: ['heat'],
+    exposure: 1.55, hazards: ['heat'], flashlight: true,
     audio: { tone: 'wind', reverb: 0.5 } },
 
   { id: 91, name: 'The Furnace Plain', he: 'מישור הכבשן', cls: 5,
@@ -1100,7 +1102,7 @@ const RAW = [
     gen: { islandThreshold: 0.5, islandScale: 0.04, bridgeSpacing: 15, relief: 2,
       connect: false, lightSpacing: 0, exitRarity: 6 },
     sky: { horizon: '#0a0a14', zenith: '#000000', ground: '#000000', stars: 0.15 },
-    hazards: ['fall', 'dark'], flashlight: true,
+    exposure: 1.9, hazards: ['fall', 'dark'], flashlight: true,
     entities: { kind: 'hound', density: 0.7, speed: 4.4 },
     audio: { tone: 'drone', reverb: 0.8 } },
 ];
@@ -1134,6 +1136,28 @@ export const CLASSES = [
   { key: 5, he: 'קץ', en: 'Terminal', color: '#8b2fbf' },
 ];
 
+const lum = (c) => c[0] * 0.21 + c[1] * 0.72 + c[2] * 0.07;
+
+/*
+ * Outdoors, the sky *is* the light. A level with no fixtures under an overcast
+ * ash sky was being lit by whatever ambient value happened to be written in
+ * its entry, which in practice meant a bright sky over pitch-black ground —
+ * physically impossible and, more to the point, unplayable.
+ *
+ * Averaging the sky's own colours and using that as the floor for ambient is
+ * both roughly correct (the irradiance from a uniform sky is its radiance) and
+ * self-maintaining: a level with a dark night sky still gets a dark ambient,
+ * so nothing that is meant to be black stops being black.
+ */
+function ambientFor(raw) {
+  if (!raw.outdoor || !raw.sky || !raw.sky.horizon || !raw.sky.zenith) return raw.amb;
+  const h = parseColor(raw.sky.horizon);
+  const z = parseColor(raw.sky.zenith);
+  const sky = [(h[0] + z[0]) / 2, (h[1] + z[1]) / 2, (h[2] + z[2]) / 2];
+  const authored = parseColor(raw.amb);
+  return lum(sky) > lum(authored) ? sky : raw.amb;
+}
+
 function finalise(raw) {
   const seed = (raw.id + 1) * 7919;
   const level = {
@@ -1150,7 +1174,7 @@ function finalise(raw) {
     fogColor: raw.fog,
     fogFar: raw.far ?? 32,
     fogHeight: raw.fogHeight ?? 0,
-    ambient: raw.amb,
+    ambient: ambientFor(raw),
     /* On the inverted level the bounce comes from the ceiling, because the
      * ceiling is the carpet. The materials are already swapped in its `mats`;
      * this is the half of the inversion the eye actually notices. */

@@ -384,7 +384,12 @@ export class Renderer {
     gl.bindTexture(gl.TEXTURE_2D, t.scene.color);
     gl.uniform1i(this.bright.u.uTex, 0);
     gl.uniform2f(this.bright.u.uTexel, 1 / this.width, 1 / this.height);
-    gl.uniform1f(this.bright.u.uThreshold, state.bloomThreshold ?? 1.0);
+    /* Without float render targets everything above 1.0 has already been
+     * clamped away, so a threshold of 1.0 finds nothing and the fixtures clip
+     * to flat white with no glow at all. Dropping the threshold below 1
+     * recovers most of the look on hardware that cannot do HDR. */
+    gl.uniform1f(this.bright.u.uThreshold,
+      t.scene.float ? (state.bloomThreshold ?? 1.0) : 0.70);
     gl.uniform1f(this.bright.u.uSoft, 0.6);
     gl.drawArrays(gl.TRIANGLES, 0, 3);
 

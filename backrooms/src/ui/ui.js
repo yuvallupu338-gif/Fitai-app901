@@ -36,6 +36,14 @@ export class UI {
     this.hud.hidden = name !== null;
     this.current = name;
     document.querySelector('#view').classList.toggle('playing', name === null);
+    /* The on-screen controls exist only while playing, and only on a device
+     * that has no keyboard to press instead. */
+    const touch = document.querySelector('#touch');
+    if (touch) touch.hidden = !(name === null && document.body.classList.contains('touch'));
+    if (name !== null) {
+      const rotate = document.querySelector('#rotate');
+      if (rotate) rotate.hidden = true;
+    }
   }
 
   /* ---------------------------------------------------------------- *

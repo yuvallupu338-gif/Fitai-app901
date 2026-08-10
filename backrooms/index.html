@@ -5,6 +5,13 @@
 <meta name="viewport" content="width=device-width, initial-scale=1, viewport-fit=cover, user-scalable=no">
 <meta name="theme-color" content="#0b0a06">
 <meta name="description" content="שכפול ריאליסטי של הבאקרומס — מאה הרמות הראשונות, נוצרות מחדש בזמן אמת בדפדפן.">
+<!-- Added to the home screen on iOS these give a real fullscreen shell, which
+     is the only way to lose Safari's bars on an iPhone: it has no Fullscreen
+     API. On Android they make the PWA-style launch behave the same way. -->
+<meta name="apple-mobile-web-app-capable" content="yes">
+<meta name="mobile-web-app-capable" content="yes">
+<meta name="apple-mobile-web-app-status-bar-style" content="black-translucent">
+<meta name="apple-mobile-web-app-title" content="Backrooms">
 <title>The Backrooms · 100 Levels</title>
 <link rel="stylesheet" href="src/styles/game.css">
 <link rel="icon" href="data:image/svg+xml,<svg xmlns='http://www.w3.org/2000/svg' viewBox='0 0 32 32'><rect width='32' height='32' fill='%23c9b24e'/><rect x='7' y='4' width='18' height='24' fill='%238d7a2c'/><rect x='12' y='12' width='8' height='16' fill='%23e6d68a'/></svg>">
@@ -37,6 +44,22 @@
     </div>
     <div id="hud-stats"></div>
   </div>
+
+  <!-- --------------------------------------------- touch controls -->
+  <!-- Every one of these maps to a key. On a phone there is no keyboard, so
+       without them the game can be walked around in and nothing else: no
+       picking anything up, and no way down to the next level. -->
+  <div id="touch" hidden>
+    <div id="stick"><i></i></div>
+    <button class="tbtn" id="t-use" data-key="KeyE" data-mode="tap">E</button>
+    <button class="tbtn small" id="t-jump" data-key="Space" data-mode="tap">⭡</button>
+    <button class="tbtn small" id="t-torch" data-key="KeyF" data-mode="tap">🔦</button>
+    <button class="tbtn small" id="t-run" data-key="ShiftLeft" data-mode="hold">רץ</button>
+    <button class="tbtn small" id="t-crouch" data-key="KeyC" data-mode="hold">כפוף</button>
+    <button class="tbtn tiny" id="t-pause">❚❚</button>
+  </div>
+
+  <div id="rotate" hidden>סובב את המכשיר לרוחב</div>
 
   <!-- ------------------------------------------------------ loading -->
   <section id="screen-loading" class="screen" hidden>

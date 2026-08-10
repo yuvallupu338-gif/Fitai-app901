@@ -180,10 +180,52 @@ async function main() {
     });
     const st = await frameStats(page);
 
+    /*
+     * How much detail to demand depends on what the level is. A few levels are
+     * meant to be almost entirely black — a void with a torch in it — and
+     * holding them to the same bar as the Lobby would either fail forever or
+     * force them to be lit, which would ruin them. So the bar drops for them,
+     * and in exchange they get a check the bright levels do not: the torch has
+     * to demonstrably light the place, because it is the only thing that makes
+     * them playable at all.
+     */
+    const lvl = await page.evaluate(() => {
+      const l = window.backrooms.level;
+      const a = typeof l.ambient === 'string'
+        ? [1, 3, 5].map((i) => parseInt(l.ambient.slice(i, i + 2), 16) / 255)
+        : l.ambient;
+      return {
+        unlit: l.gen.lightSpacing === 0,
+        torch: !!l.flashlight,
+        ambient: a[0] * 0.21 + a[1] * 0.72 + a[2] * 0.07,
+      };
+    });
+    const veryDark = lvl.unlit && lvl.ambient < 0.09;
+
     check(!st.lost, `level ${id}: the context survived`);
-    check(st.colours > 24,
-      `level ${id} (${info.name}): frame has real detail (${st.colours} distinct colours)`);
+    check(st.colours > (veryDark ? 8 : 24),
+      `level ${id} (${info.name}): frame has real detail (${st.colours} distinct colours`
+      + `${veryDark ? ', dark level' : ''})`);
     check(st.dark < 0.985, `level ${id}: the frame is not entirely black`);
+
+    if (lvl.torch) {
+      /* Point at the floor, the way anyone holding a torch does. */
+      const lit = async (on) => {
+        await page.evaluate((v) => {
+          window.backrooms.player.flashlightOn = v;
+          window.backrooms.player.pitch = -0.45;
+        }, on);
+        await page.waitForTimeout(260);
+        return frameStats(page);
+      };
+      const off = await lit(false);
+      const on = await lit(true);
+      const gain = (on.mean[0] + on.mean[1] + on.mean[2])
+                 - (off.mean[0] + off.mean[1] + off.mean[2]);
+      check(gain > 12,
+        `level ${id}: the torch actually lights the level (+${gain.toFixed(1)} over three channels)`);
+      await page.evaluate(() => { window.backrooms.player.pitch = 0; });
+    }
     check(info.chunks > 0, `level ${id}: chunks were drawn (${info.chunks})`);
     check(info.tris > 500, `level ${id}: geometry was built (${Math.round(info.tris)} tris)`);
     check(Math.abs(info.py - info.ground) < 1.2,

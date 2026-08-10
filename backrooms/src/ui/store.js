@@ -27,13 +27,35 @@ const DEFAULTS = {
 
 let cache = null;
 
+/*
+ * First-run quality, chosen by device rather than by hope. A phone rendering
+ * at its native pixel ratio with two shadow-casting lights is a slideshow, and
+ * a player whose first thirty seconds run at 12fps does not stay to find the
+ * settings screen. Everything here is adjustable afterwards; this only decides
+ * where someone starts.
+ */
+function deviceDefaults() {
+  const coarse = typeof window !== 'undefined' && window.matchMedia
+    && window.matchMedia('(pointer: coarse)').matches;
+  const small = typeof window !== 'undefined'
+    && Math.min(window.innerWidth, window.innerHeight) < 520;
+  if (!coarse && !small) return {};
+  return {
+    renderScale: 0.7,
+    textureSize: 128,
+    shadowLights: 0,
+    sensitivity: 1,
+  };
+}
+
 export function load() {
   if (cache) return cache;
   try {
     const raw = localStorage.getItem(KEY);
     const parsed = raw ? JSON.parse(raw) : {};
     cache = {
-      settings: Object.assign({}, DEFAULTS.settings, parsed.settings || {}),
+      settings: Object.assign({}, DEFAULTS.settings,
+        raw ? {} : deviceDefaults(), parsed.settings || {}),
       visited: Array.isArray(parsed.visited) ? parsed.visited : [],
       deepest: parsed.deepest || 0,
       current: typeof parsed.current === 'number' ? parsed.current : null,
