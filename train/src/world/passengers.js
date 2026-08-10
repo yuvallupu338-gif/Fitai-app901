@@ -66,7 +66,7 @@ export const SITTING_POSES = new Set(['sit', 'sitSlump', 'sitRead', 'sitPhone', 
 
 /* A tapered cylinder between two points, in whatever frame the builder is
    currently in. Every limb in the game is one of these. */
-function limb(b, from, to, r0, r1, segments = 10) {
+function limb(b, from, to, r0, r1, segments = 16) {
   const dx = to[0] - from[0];
   const dy = to[1] - from[1];
   const dz = to[2] - from[2];
@@ -82,7 +82,7 @@ function limb(b, from, to, r0, r1, segments = 10) {
   b.pop();
 }
 
-function joint(b, at, r, segs = 10) {
+function joint(b, at, r, segs = 14) {
   b.push();
   b.translate(at[0], at[1], at[2]);
   b.sphere(r, segs, Math.max(6, Math.round(segs * 0.7)));
@@ -223,14 +223,14 @@ export function buildBody(gl, materials, typeKey, pose, opts = {}) {
   /* Shoulders. Two caps and a bar rather than a slab: the silhouette of a
      shoulder is the one part of a seated figure the eye checks. */
   b.push();
-  b.translate(0, chest[1] - 0.035 * S, chest[2]);
-  b.roundedBox(shoulderX * 2 + 0.02 * W, 0.135 * S, 0.215 * W, 0.05, { tiles: 2 });
+  b.translate(0, chest[1] - 0.048 * S, chest[2]);
+  b.roundedBox(shoulderX * 2 - 0.01 * W, 0.115 * S, 0.200 * W, 0.055, { tiles: 2 });
   b.pop();
   for (const s of [-1, 1]) {
     b.push();
-    b.translate(s * shoulderX, chest[1] - 0.045 * S, chest[2]);
-    b.scale(1, 0.85, 0.9);
-    b.sphere(0.082 * W, 10, 8);
+    b.translate(s * shoulderX, chest[1] - 0.052 * S, chest[2]);
+    b.scale(1, 0.86, 0.92);
+    b.sphere(0.086 * W, 14, 10);
     b.pop();
   }
   /* Hips */
@@ -239,39 +239,41 @@ export function buildBody(gl, materials, typeKey, pose, opts = {}) {
   b.roundedBox(0.30 * W, 0.165 * S, 0.24 * W * type.belly, 0.04, { tiles: 2 });
   b.pop();
 
-  /* The front of the coat: a seam down the middle, two lapels folded back off
-     it, and three buttons. Flat-fronted outerwear is the thing that most makes
-     a low-polygon figure look like a mannequin, and none of this costs more
-     than a few dozen triangles. */
-  const frontZ = chest[2] + 0.118 * W * type.belly;
+  /*
+   * The front of the coat.
+   *
+   * There used to be a great deal more of this: a seam, two lapels rotated on
+   * two axes, pocket flaps, three buttons. Every one of them was a separate
+   * solid pushed through the front of the torso, and from a seat opposite —
+   * which is where the player spends the game — they read as a stack of
+   * intersecting slabs with a person somewhere behind them. What is left is a
+   * placket that barely stands off the chest and a lapel each side lying flat
+   * against it, both following the torso's own lean, and nothing at all in the
+   * middle of the chest where the eye goes first.
+   */
+  /*
+   * The torso's own front face is at half its depth. Anything laid on the coat
+   * has to straddle that plane rather than sit level with it: a face at the
+   * same depth as the face underneath it is a coin flip per pixel, and the
+   * chest came back covered in a stepped, crawling pattern that looked like a
+   * broken texture. These are centred on the surface and thick enough that
+   * neither of their faces can land on it.
+   */
+  const torsoFrontZ = chest[2] + 0.1125 * W * type.belly;
   const torsoH = chest[1] - hipY;
   b.push();
-  b.translate(0, hipY + torsoH * 0.5, frontZ);
+  b.translate(0, hipY + torsoH * 0.52, torsoFrontZ);
   b.rotateX(-lean * 0.9);
-  b.box(0.014 * W, torsoH * 1.02, 0.014, { tiles: 4 });
+  b.box(0.022 * W, torsoH * 0.94, 0.016, { tiles: 4 });
   b.pop();
   for (const s of [-1, 1]) {
     b.push();
-    b.translate(s * 0.062 * W, chest[1] - 0.115 * S, frontZ + 0.004);
-    b.rotateZ(s * 0.30);
-    b.rotateY(s * 0.20);
-    b.box(0.085 * W, 0.24 * S, 0.012, { tiles: 3 });
-    b.pop();
-    /* Pocket flap. */
-    b.push();
-    b.translate(s * 0.098 * W, hipY + torsoH * 0.26, frontZ - 0.004);
-    b.box(0.088 * W, 0.036 * S, 0.010, { tiles: 3 });
+    b.translate(s * 0.052 * W, chest[1] - 0.135 * S, torsoFrontZ - 0.002);
+    b.rotateX(-lean * 0.9);
+    b.rotateZ(s * 0.24);
+    b.box(0.060 * W, 0.175 * S, 0.016, { tiles: 3 });
     b.pop();
   }
-  b.material('spectacleFrame');
-  for (let i = 0; i < 3; i++) {
-    b.push();
-    b.translate(0, chest[1] - (0.20 + i * 0.115) * S, frontZ + 0.010);
-    b.rotateX(Math.PI / 2);
-    b.cylinder(0.011 * W, 0.011 * W, 0.006, 8, { caps: true });
-    b.pop();
-  }
-  b.material('coat');
 
   /*
    * The cut of the coat, which is the cheapest silhouette difference there is
@@ -302,11 +304,18 @@ export function buildBody(gl, materials, typeKey, pose, opts = {}) {
     }
   }
 
-  /* --- collar and neck --- */
+  /*
+   * Collar and neck.
+   *
+   * cylinder() is built along Y. This one was rotated a quarter turn about X,
+   * which laid it on its side and drove a five-centimetre tube straight
+   * through the middle of the chest, pointing at whoever was sitting
+   * opposite. Upright and flared — narrow at the throat, wide where it meets
+   * the shoulders — it is a coat collar.
+   */
   b.push();
-  b.translate(0, chest[1] + 0.005 * S, chest[2]);
-  b.rotateX(Math.PI / 2);
-  b.cylinder(0.078 * W, 0.086 * W, 0.055 * S, 12, { caps: false });
+  b.translate(0, chest[1] + 0.030 * S, chest[2] + 0.004);
+  b.cylinder(0.070 * W, 0.098 * W, 0.100 * S, 16, { caps: false });
   b.pop();
 
   /* The neck runs well up into the head. It used to stop 18mm short of the
@@ -348,23 +357,28 @@ export function buildBody(gl, materials, typeKey, pose, opts = {}) {
       wrist[1] + (wrist[1] - elbow[1]) * 0.30,
       wrist[2] + (wrist[2] - elbow[2]) * 0.30,
     ];
-    joint(b, wrist, 0.046 * W);
+    joint(b, wrist, 0.032 * W);
     b.push();
     b.translate(hand[0], hand[1], hand[2]);
     b.rotateY(s * 0.22);
     b.rotateX(0.18);
-    /* Palm, then a narrower block of fingers angled off it, then a thumb.
-       Three shapes and a hand stops being a mitten. */
-    b.roundedBox(0.046 * W, 0.078 * S, 0.062 * S, 0.014, { tiles: 3 });
+    /*
+     * Palm, fingers, thumb. A hand is about ten centimetres long, eight
+     * across and under three thick; this was a nine-centimetre cube of three
+     * smaller cubes, which is why it read as a fistful of dice rather than a
+     * hand resting in a lap. Flat and forward now, with the bevel doing the
+     * knuckles.
+     */
+    b.roundedBox(0.072 * W, 0.028 * S, 0.070 * S, 0.012, { tiles: 3 });
     b.push();
-    b.translate(0, -0.006 * S, 0.052 * S);
-    b.rotateX(0.30);
-    b.roundedBox(0.040 * W, 0.062 * S, 0.055 * S, 0.014, { tiles: 3 });
+    b.translate(0, -0.004 * S, 0.062 * S);
+    b.rotateX(0.26);
+    b.roundedBox(0.064 * W, 0.024 * S, 0.058 * S, 0.011, { tiles: 3 });
     b.pop();
     b.push();
-    b.translate(s * 0.028 * W, -0.004 * S, 0.020 * S);
-    b.rotateZ(-s * 0.5);
-    b.roundedBox(0.022 * W, 0.048 * S, 0.026 * S, 0.008, { tiles: 3 });
+    b.translate(s * 0.040 * W, 0.002 * S, 0.016 * S);
+    b.rotateY(-s * 0.42);
+    b.roundedBox(0.024 * W, 0.023 * S, 0.052 * S, 0.009, { tiles: 3 });
     b.pop();
     b.pop();
   }
@@ -531,20 +545,25 @@ export function buildHead(gl, materials, style, opts = {}) {
     case 'cap':
       /* Crown sat high with a fast taper, so its edge is at the hairline. */
       b.push();
-      b.translate(0, 0.062, -0.004);
-      b.sphere(0.104, 20, 12, { scaleY: 0.55 });
+      b.translate(0, 0.070, -0.004);
+      b.sphere(0.103, 22, 12, { scaleY: 0.52 });
       b.pop();
       /* Peak at brow height. Anything lower is a blindfold. */
       b.push();
-      b.translate(0, 0.050, 0.098);
-      b.rotateX(0.18);
-      b.box(0.170, 0.012, 0.080, { tiles: 3 });
+      b.translate(0, 0.052, 0.094);
+      b.rotateX(0.20);
+      b.box(0.150, 0.010, 0.068, { tiles: 3 });
       b.pop();
-      /* The seam band round the base, tucked just inside the skull. */
+      /*
+       * The band round the base. It was a quarter turn out about X, which
+       * stood it up as a ten-centimetre black disc through the middle of the
+       * head — from under the chin to above the crown, edge-on to anyone
+       * sitting opposite. That disc, not the cap, is what was covering every
+       * face in the carriage.
+       */
       b.push();
-      b.translate(0, 0.046, -0.004);
-      b.rotateX(Math.PI / 2);
-      b.cylinder(0.101, 0.101, 0.020, 18, { caps: false });
+      b.translate(0, 0.048, -0.004);
+      b.cylinder(0.102, 0.104, 0.022, 22, { caps: false });
       b.pop();
       break;
     case 'hood':
@@ -555,12 +574,13 @@ export function buildHead(gl, materials, style, opts = {}) {
       b.translate(0, 0.014, -0.052);
       b.sphere(0.134, 20, 14, { scaleY: 1.06, scaleZ: 0.95 });
       b.pop();
-      /* The rim of the opening. */
+      /* The rim of the opening: a ring whose axis points forward, so the hole
+         in it is the hole the face looks out of. About Z it was a ring across
+         the head instead, which is a visor. */
       b.push();
-      b.translate(0, 0.014, 0.036);
-      b.rotateX(-0.14);
-      b.rotateZ(Math.PI / 2);
-      b.cylinder(0.106, 0.106, 0.026, 20, { caps: false });
+      b.translate(0, 0.014, 0.040);
+      b.rotateX(Math.PI / 2 - 0.14);
+      b.cylinder(0.104, 0.110, 0.030, 22, { caps: false });
       b.pop();
       break;
     case 'headphones':
@@ -587,11 +607,17 @@ export function buildHead(gl, materials, style, opts = {}) {
       b.translate(0, 0.046, -0.010);
       b.sphere(0.100, 18, 12, { scaleY: 0.86 });
       b.pop();
+      /* Wound round the neck, so the axis is the neck's. On its side it was a
+         twenty-centimetre wheel through the shoulders. */
       b.material('gear');
       b.push();
-      b.translate(0, -0.115, 0);
-      b.rotateX(Math.PI / 2);
-      b.cylinder(0.098, 0.098, 0.09, 12, { caps: false });
+      b.translate(0, -0.118, 0.004);
+      b.cylinder(0.076, 0.086, 0.095, 16, { caps: false });
+      b.pop();
+      b.push();
+      b.translate(0.028, -0.150, 0.052);
+      b.rotateZ(0.22);
+      b.roundedBox(0.052, 0.090, 0.030, 0.012, { tiles: 2 });
       b.pop();
       break;
     default: /* short */

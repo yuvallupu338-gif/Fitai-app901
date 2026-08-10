@@ -244,10 +244,20 @@ export class Builder {
      light along their edge, which is most of what makes a seat look soft. */
   roundedBox(w, h, d, bevel, opts = {}) {
     const b = Math.min(bevel, w / 2 - 0.001, h / 2 - 0.001, d / 2 - 0.001);
+    /*
+     * The three slabs used to be w-2b/h/d, w/h-2b/d and w/h/d-2b, which share
+     * faces in pairs: the first two both end at ±d/2, the last two both end at
+     * ±w/2. Two coplanar faces at the same depth is a coin flip per pixel, and
+     * every upholstered surface in the game — the benches, the wall panels, and
+     * most visibly a passenger's chest a metre from the camera — carried a
+     * crawling chequerboard because of it. Eight tenths of a millimetre of
+     * inset breaks every tie and is invisible on a 0.3m box.
+     */
+    const e = 0.0008;
     this.push();
     this.box(w - b * 2, h, d, opts);
-    this.box(w, h - b * 2, d, opts);
-    this.box(w, h, d - b * 2, opts);
+    this.box(w, h - b * 2, d - e, opts);
+    this.box(w - e, h - e, d - b * 2, opts);
     this.pop();
     return this;
   }

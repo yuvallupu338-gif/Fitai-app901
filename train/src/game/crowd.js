@@ -103,9 +103,44 @@ export class Crowd {
       }
     } else if (present.length < want) {
       const arriving = this.extras.filter((p) => !p.present).slice(0, want - present.length);
+      /*
+       * Whoever is already sitting somewhere, including the named cast and the
+       * extras placed earlier in this same loop. A seat was picked at random
+       * with nothing stopping two people taking the same one, and two bodies
+       * in one seat do not read as a crowd — they read as one passenger with
+       * somebody else's coat coming through their shoulders in patches.
+       */
+      const taken = new Set();
+      for (const q of this.all()) {
+        if (q && q.present && !q.customPos) taken.add(`${q.car}:${q.seat}`);
+      }
+      /* The named cast move to seats their arc names, and an extra who was
+         already sitting there has to give it up rather than share it. */
+      const cast = new Set();
+      for (const q of this.people.values()) {
+        if (q.present && !q.customPos) cast.add(`${q.car}:${q.seat}`);
+      }
+      for (const q of this.extras) {
+        if (!q.present || q.customPos || !cast.has(`${q.car}:${q.seat}`)) continue;
+        let seat = this.rng.int(0, 53);
+        let car = this.rng.pick([0, 1, 2, 3]);
+        for (let tries = 0; tries < 24 && taken.has(`${car}:${seat}`); tries++) {
+          seat = this.rng.int(0, 53);
+          car = this.rng.pick([0, 1, 2, 3]);
+        }
+        taken.delete(`${q.car}:${q.seat}`);
+        taken.add(`${car}:${seat}`);
+        const move = () => { q.car = car; q.seat = seat; };
+        if (opts.immediate) move(); else this.queueUnobserved(q, move);
+      }
       for (const p of arriving) {
-        const seat = this.rng.int(0, 53);
-        const car = this.rng.pick([0, 1, 2, 3]);
+        let seat = this.rng.int(0, 53);
+        let car = this.rng.pick([0, 1, 2, 3]);
+        for (let tries = 0; tries < 24 && taken.has(`${car}:${seat}`); tries++) {
+          seat = this.rng.int(0, 53);
+          car = this.rng.pick([0, 1, 2, 3]);
+        }
+        taken.add(`${car}:${seat}`);
         const pose = this.rng.pick(['sit', 'sitPhone', 'sitSlump', 'sitHandsFolded', 'sitRead']);
         const apply = () => {
           p.present = true;
