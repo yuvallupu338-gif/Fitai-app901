@@ -65,10 +65,12 @@ clean — a shoulder injury removes every press — it says so plainly and shows
 closest options flagged, instead of a dead end.
 
 **The coach shows you where it lands.** The animated figure marks the muscles
-the exercise is for in red — bright for what it is chosen for, faint for what
-it also hits — and the marks sit inside the animated limb groups, so they move
-with the arm that is pressing. Where a bundled clip replaces the figure, the
-marked figure stands beside it.
+in red — bright for what the exercise is chosen for, faint for what it also
+hits — and the marks sit inside the animated limb groups, so they move with the
+arm that is pressing. Where a bundled clip replaces the figure, the marked
+figure stands beside it. The home screen carries the same figure for the
+session as a whole, with a legend naming the primary muscles and the secondary
+ones that only assist.
 
 **Every exercise has a demo and a video.** Bundled clips where one exists,
 the animated coach doing the movement pattern where one does not, and a video
