@@ -31,6 +31,14 @@
       <span id="hud-class">בטוח</span>
     </div>
     <div id="hud-log"></div>
+
+    <!-- The way down. Without some pointer, finding one rare doorway in a
+         level with no edges is luck, and nobody reaches the bottom on luck. -->
+    <div id="guide" hidden>
+      <div id="guide-arrow"><svg viewBox="0 0 24 24" aria-hidden="true"><path d="M12 2 L20 20 L12 15 L4 20 Z"/></svg></div>
+      <div id="guide-text"><b id="guide-dist"></b><span id="guide-label">המוצא</span></div>
+    </div>
+
     <div id="hud-prompt" hidden></div>
     <div id="hud-bottom">
       <div class="meter" id="m-sanity"><i></i><span>שפיות</span></div>
@@ -56,6 +64,7 @@
     <button class="tbtn small" id="t-torch" data-key="KeyF" data-mode="tap">🔦</button>
     <button class="tbtn small" id="t-run" data-key="ShiftLeft" data-mode="hold">רץ</button>
     <button class="tbtn small" id="t-crouch" data-key="KeyC" data-mode="hold">כפוף</button>
+    <button class="tbtn small" id="t-hint" data-key="KeyH" data-mode="tap">רמז</button>
     <button class="tbtn tiny" id="t-pause">❚❚</button>
   </div>
 
@@ -155,6 +164,7 @@
         <label class="row check"><input id="set-invert" type="checkbox"><span>היפוך ציר Y</span></label>
         <label class="row check"><input id="set-mute" type="checkbox"><span>השתקה</span></label>
         <label class="row check"><input id="set-entities" type="checkbox"><span>ישויות עוינות</span></label>
+        <label class="row check"><input id="set-hints" type="checkbox"><span>רמזים לכיוון המוצא</span></label>
         <div class="row buttons">
           <button id="btn-reset" class="btn small danger">איפוס התקדמות</button>
         </div>

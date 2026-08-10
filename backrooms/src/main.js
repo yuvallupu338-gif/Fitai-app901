@@ -330,6 +330,7 @@ class Game {
     bind('#set-invert', 'invertY', null, (v) => { this.input.invertY = v; });
     bind('#set-mute', 'muted', null, (v) => this.audio.setMuted(v));
     bind('#set-entities', 'entities');
+    bind('#set-hints', 'hints');
   }
 
   fillSettings() {
@@ -347,6 +348,7 @@ class Game {
     set('#set-invert', s.invertY);
     set('#set-mute', s.muted);
     set('#set-entities', s.entities);
+    set('#set-hints', s.hints);
     document.querySelector('#out-sens').textContent = s.sensitivity.toFixed(2);
     document.querySelector('#out-scale').textContent = `${Math.round(s.renderScale * 100)}%`;
   }
@@ -444,12 +446,27 @@ class Game {
     const next = this.level.id + 1;
     this.audio.descend();
     if (next >= LEVELS.length) {
-      this.ui.toast('הגעת לסף שמתחת. אין רמה 100.', 6000);
-      setTimeout(() => this.toMenu(), 1800);
+      this.finish();
       return;
     }
     this.ui.log(reason);
     this.enterLevel(next);
+  }
+
+  /* Out the bottom of Level 99. There has to be something on the other side of
+   * a hundred levels, or the last no-clip point is just another loading
+   * screen. */
+  finish() {
+    const st = store.load();
+    this.state = 'done';
+    this.input.releaseLock();
+    this.releaseAwake();
+    this.ui.finished({
+      levels: st.visited.length,
+      distance: Math.round(this.player ? this.player.distance : 0),
+      notes: this.player ? this.player.notes : 0,
+      almond: this.player ? this.player.almond : 0,
+    });
   }
 
   pause() {
@@ -533,6 +550,8 @@ class Game {
       const on = player.toggleFlashlight();
       audio.tone(on ? 880 : 620, 0.05, 0.06, 'square', 0.1);
     }
+    if (input.hit('KeyH')) this.useHint();
+    this.updateGuide(dt);
 
     world.update(player.pos.x, player.pos.z, 2);
     if (entities) entities.update(dt, player, world, this.time);
@@ -607,6 +626,95 @@ class Game {
     ui.updateHUD(player,
       `${Math.round(this.fps)} fps · ${this.renderer.stats.chunks} chunks · `
       + `${Math.round(this.renderer.stats.tris / 1000)}k tris · ${this.renderer.stats.lights} lights`);
+  }
+
+  /*
+   * The guide: which way the nearest way down is, and how far.
+   *
+   * The search is the expensive half, so it runs on a timer rather than every
+   * frame; the bearing is recomputed every frame because it has to track the
+   * head. Radius grows when nothing is found nearby, so a level that happens
+   * to have no exit within fifty metres still eventually points somewhere
+   * instead of silently giving up.
+   */
+  updateGuide(dt) {
+    const el = this.guideEl || (this.guideEl = document.querySelector('#guide'));
+    if (!el) return;
+    const { player, world } = this;
+
+    if (!store.settings().hints) {
+      el.hidden = true;
+      this.guideTarget = null;
+      /* Zero rather than left running, so switching hints back on searches on
+       * the very next frame. Otherwise the guide stays blank for up to a
+       * second and change after the toggle, which reads as a setting that did
+       * not work. */
+      this.guideTimer = 0;
+      return;
+    }
+
+    this.guideTimer = (this.guideTimer ?? 0) - dt;
+    if (this.guideTimer <= 0) {
+      this.guideTimer = 1.2;
+      const near = world.findExitNear(player.pos.x, player.pos.z, 2);
+      this.guideTarget = near || world.findExitNear(player.pos.x, player.pos.z, 4);
+    }
+    if (!this.guideTarget) { el.hidden = true; return; }
+
+    const ex = this.guideTarget.exit.x - player.pos.x;
+    const ez = this.guideTarget.exit.z - player.pos.z;
+    const dist = Math.hypot(ex, ez);
+
+    /* Into the player's own frame, so the needle points where their head is
+     * pointing rather than at a fixed compass north. */
+    const cy = Math.cos(player.yaw), sy = Math.sin(player.yaw);
+    const fwd = ex * -sy + ez * -cy;
+    const right = ex * cy + ez * -sy;
+    const angle = Math.atan2(right, fwd);
+
+    el.hidden = false;
+    el.classList.toggle('close', dist < 12);
+    /* Faint at range: a bright permanent marker turns the level into a
+     * corridor with an arrow in it, which is not what anyone came for. */
+    el.classList.toggle('faint', dist > 55 && this.hintFlash <= 0);
+    const arrow = this.guideArrowEl
+      || (this.guideArrowEl = document.querySelector('#guide-arrow'));
+    arrow.style.transform = `rotate(${angle}rad)`;
+    const distEl = this.guideDistEl
+      || (this.guideDistEl = document.querySelector('#guide-dist'));
+    distEl.textContent = `${Math.round(dist)}m`;
+
+    this.hintFlash = Math.max(0, (this.hintFlash || 0) - dt);
+
+    /* A ping that quickens as you close, so the way down can be found with the
+     * phone in one hand and your eyes anywhere. */
+    this.pingTimer = (this.pingTimer ?? 0) - dt;
+    if (this.pingTimer <= 0 && dist < 40) {
+      this.pingTimer = 0.35 + (dist / 40) * 2.6;
+      this.audio.tone(440 + (1 - dist / 40) * 520, 0.05,
+        0.012 + (1 - dist / 40) * 0.03, 'sine', 0.35);
+    }
+  }
+
+  /* The hint button: search wider, flare the needle, and say something. */
+  useHint() {
+    if (!store.settings().hints) {
+      this.ui.log('הרמזים כבויים בהגדרות.');
+      return;
+    }
+    const found = this.world.findExitNear(this.player.pos.x, this.player.pos.z, 6);
+    this.guideTarget = found;
+    this.guideTimer = 1.2;
+    this.hintFlash = 4;
+    this.audio.tone(660, 0.14, 0.07, 'triangle', 0.5);
+    if (!found) {
+      this.ui.log('שום דבר לא מושך. תמשיך ללכת.');
+      return;
+    }
+    const d = found.dist;
+    this.ui.log(d < 12 ? 'זה ממש כאן.'
+      : d < 40 ? `משהו מושך — בערך ${Math.round(d)} מטר.`
+        : `רחוק. בערך ${Math.round(d)} מטר לכיוון החץ.`);
   }
 
   /* How brightly lit the player is, in the renderer's own units. Used for

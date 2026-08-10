@@ -283,6 +283,33 @@ export class World {
    * Features
    * ---------------------------------------------------------------- */
 
+  /*
+   * The nearest way down, searched well past what is loaded.
+   *
+   * `nearestExit` below only looks at the 3×3 chunks around the player, which
+   * is the right scope for "can I use it now" and useless for "which way do I
+   * go". This scans a wider ring, generating chunks it has not seen — which is
+   * cheap, because generation is pure arithmetic and nothing here is meshed or
+   * uploaded. Without it a player wanders a level the size of a city looking
+   * for one doorway, which is the single biggest reason someone puts this down
+   * before reaching the bottom.
+   */
+  findExitNear(x, z, chunkRadius = 3) {
+    const pcx = Math.floor(x / this.cell / CHUNK);
+    const pcz = Math.floor(z / this.cell / CHUNK);
+    let best = null, bestD = Infinity;
+    for (let dz = -chunkRadius; dz <= chunkRadius; dz++) {
+      for (let dx = -chunkRadius; dx <= chunkRadius; dx++) {
+        const c = this.chunkAt(pcx + dx, pcz + dz);
+        for (const e of c.exits) {
+          const d = (e.x - x) ** 2 + (e.z - z) ** 2;
+          if (d < bestD) { bestD = d; best = e; }
+        }
+      }
+    }
+    return best ? { exit: best, dist: Math.sqrt(bestD) } : null;
+  }
+
   nearestExit(x, z, maxDist) {
     const pcx = Math.floor(x / this.cell / CHUNK);
     const pcz = Math.floor(z / this.cell / CHUNK);

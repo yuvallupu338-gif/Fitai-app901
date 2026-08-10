@@ -167,6 +167,21 @@ export class UI {
     $('#dead-title').textContent = reason || 'לא יצאת';
     $('#dead-note').textContent =
       `Level ${level.id} — ${level.name}. ${level.nameHe}.`;
+    $('#btn-retry').hidden = false;
+    $('#screen-dead .eyebrow').textContent = 'אין תיעוד למה שקרה אחר כך';
+    this.show('dead');
+  }
+
+  /* The other ending. Reuses the same screen because it is the same moment
+   * from the other side — the run is over either way. */
+  finished(stats) {
+    $('#screen-dead .eyebrow').textContent = 'מתחת לרמה 99';
+    $('#dead-title').textContent = 'יצאת';
+    $('#dead-note').innerHTML =
+      `ירדת דרך מאה הרמות והגעת לסף שמתחת לאחרונה.<br>`
+      + `<b>${stats.levels}</b> רמות נראו · <b>${stats.distance}</b> מטר נצעדו · `
+      + `<b>${stats.notes}</b> פתקים · <b>${stats.almond}</b> מי שקדים.`;
+    $('#btn-retry').hidden = true;
     this.show('dead');
   }
 
