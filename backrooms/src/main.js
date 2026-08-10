@@ -226,7 +226,10 @@ class Game {
     const spawn = this.world.findSpawn(
       opts.x ?? (level.id * 137.3), opts.z ?? (level.id * 61.7));
     this.player = new Player(spawn);
-    this.player.yaw = Math.random() * Math.PI * 2;
+    /* Facing is per level rather than random: two runs of the same level look
+     * the same, which is what makes a rendering regression visible in a
+     * screenshot instead of being lost in the framing. */
+    this.player.yaw = ((level.seed % 628) / 628) * Math.PI * 2;
     if (level.flashlight) this.player.flashlightOn = true;
 
     const total = 8;
@@ -402,7 +405,9 @@ class Game {
       const l = this.lightBuf[i];
       const d = Math.hypot(l.x - x, l.y - y, l.z - z);
       const w = Math.max(0, 1 - d / l.radius);
-      sum += l.intensity * w * w / (1 + d * d * 0.35);
+      /* Same falloff constant as the shader — if these drift, sanity drains in
+       * rooms that look brightly lit. */
+      sum += l.intensity * w * w / (1 + d * d * 0.18);
     }
     const amb = parseColor(this.level.ambient);
     sum += (amb[0] * 0.21 + amb[1] * 0.72 + amb[2] * 0.07) * 2.2;

@@ -190,10 +190,18 @@ vec3 shade(vec3 P, vec3 N, vec3 V, vec3 albedo, float rough, float spec, float a
     float ndl = (dot(N, L) + WRAP) / (1.0 + WRAP);
     if (ndl <= 0.0) continue;
 
-    /* Inverse-square with a window that reaches exactly zero at the radius, so
-     * a light can be culled at its radius without a visible seam. */
+    /*
+     * Inverse-square with a window that reaches exactly zero at the radius, so
+     * a light can be culled at its radius without a visible seam.
+     *
+     * The constant on the distance term is the single most important number in
+     * this shader. A true point light falls off far too fast for a fixture
+     * that is really a metre of glowing tube three metres over your head: at
+     * 0.35 the floor of a warehouse comes out black two steps from directly
+     * under a lamp. 0.18 is what a strip light actually looks like.
+     */
     float w = clamp(1.0 - dist / radius, 0.0, 1.0);
-    float atten = w * w / (1.0 + dist * dist * 0.35);
+    float atten = w * w / (1.0 + dist * dist * 0.18);
 
     float vis = 1.0;
     if (i < uShadowLights) vis = visibility(P, Lp);
@@ -344,14 +352,24 @@ void main() {
     : mix(uHorizon, uGround, pow(clamp(-h, 0.0, 1.0), 0.5));
 
   if (uStars > 0.0 && h > -0.02) {
-    /* Cheap stars: quantise the direction and light one cell in a few hundred.
-     * Under the grain and the tone map, that is indistinguishable from a real
-     * star field and costs two instructions. */
-    vec2 g = floor(dir.xz / max(0.02, 0.02) + dir.y * 13.0);
-    float s = hash12(g);
-    float star = smoothstep(0.9975, 1.0, s) * clamp(h * 3.0, 0.0, 1.0);
+    /*
+     * Stars on a spherical grid. The obvious version — hash a quantised
+     * direction and light one cell in a few hundred — puts a *cell* on screen,
+     * and near the horizon those cells are enormous, so the sky fills up with
+     * white squares. Placing a point inside each cell and measuring the
+     * distance to it gives an actual star at any viewing angle.
+     */
+    vec2 sph = vec2(atan(dir.z, dir.x), asin(clamp(dir.y, -1.0, 1.0)));
+    vec2 g = sph * 96.0;
+    vec2 id = floor(g);
+    vec2 f = fract(g) - 0.5;
+    float s = hash12(id);
+    vec2 jitter = vec2(hash12(id + 7.3), hash12(id + 19.1)) - 0.5;
+    float d = length(f - jitter * 0.7);
+    float star = step(0.986, s) * smoothstep(0.16, 0.0, d)
+               * clamp(h * 4.0, 0.0, 1.0);
     col += vec3(0.9, 0.93, 1.0) * star * uStars
-         * (0.6 + 0.4 * sin(uTime * 2.0 + s * 90.0));
+         * (0.55 + 0.45 * sin(uTime * 2.0 + s * 90.0));
   }
   oColor = vec4(col, 1.0);
 }

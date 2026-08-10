@@ -99,18 +99,33 @@ backrooms/
 
 ## Testing it
 
+Two tests, because they catch completely different things.
+
+```bash
+node --experimental-default-type=module tools/backrooms-world.mjs
+```
+
+2287 headless checks over all 100 levels, covering the invariants that are
+invisible in any single frame: a chunk is a pure function of its coordinates
+(otherwise walking away and back rebuilds a different room), two chunks either
+side of a border agree about where the openings are, every open cell can reach
+those openings, and every level places a no-clip point somewhere in 144 chunks
+— that last one is "can this level be left at all", and it has already caught a
+level that could not.
+
 ```bash
 NODE_PATH=/opt/node22/lib/node_modules node tools/backrooms-smoke.mjs
 NODE_PATH=/opt/node22/lib/node_modules node tools/backrooms-smoke.mjs --all --shots
 ```
 
-The smoke test drives a real browser: it enters a sample of levels, waits for
-streaming to settle, and reads the framebuffer back. A renderer cannot be
-asserted into correctness — the failure modes are "the screen is black",
-"everything is inside out" and "the walls have no texture" — so the checks are
-about pixels: the frame has real detail, it is not uniformly dark, geometry was
-built, the player is standing on the floor, and walking for a second and a half
-does not drop them out of the world.
+The smoke test drives a real browser: it enters a sample of levels covering
+every archetype, waits for streaming to settle, and reads the framebuffer back.
+A renderer cannot be asserted into correctness — the failure modes are "the
+screen is black", "everything is inside out" and "the walls have no texture" —
+so the checks are about pixels: the frame has real detail, it is not uniformly
+dark, geometry was built, the player is standing on the floor, and walking for
+a second and a half does not drop them out of the world. `--shots` writes a PNG
+per level, which is the only way to review the things no assertion covers.
 
 ## Performance
 

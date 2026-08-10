@@ -435,15 +435,19 @@ h2 { font-size: clamp(20px, 3.4vw, 30px); margin: 0 0 10px; font-weight: 700; }
   text-shadow: 0 1px 3px #000;
 }
 
+/* Positioned physically, not logically. `inset-inline-end` resolves against
+ * the element's own direction, so setting direction:ltr on a logically
+ * positioned box silently moves it to the other side of the screen — which is
+ * how this ended up sitting on top of the item counters. */
 #hud-stats {
   position: absolute;
   bottom: max(14px, env(safe-area-inset-bottom));
-  inset-inline-end: 16px;
+  left: 16px;
   direction: ltr;
   font-family: var(--mono);
   font-size: 10px;
   color: #56513f;
-  text-align: end;
+  text-align: left;
   white-space: pre;
 }
 

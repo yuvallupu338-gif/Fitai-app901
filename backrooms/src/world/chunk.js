@@ -191,26 +191,50 @@ function placeLights(c, P, level) {
   const intensity = P.lightIntensity ?? 2.2;
   const deadPct = P.deadLights ?? 8;
 
+  /*
+   * A cell can take a fixture if it has a ceiling, is not forbidden, has no
+   * fixture already, and nothing standing in it reaches the ceiling. Note what
+   * is *not* required: an empty floor. A fixture hangs from the ceiling, and
+   * refusing to light a cell because a 1.4m cubicle partition passes through
+   * it is what makes an open-plan office generate almost completely dark.
+   */
+  const suitable = (x, z) => {
+    if (!c.inside(x, z)) return false;
+    const i = c.idx(x, z);
+    if (!(c.flags[i] & F_CEIL) || (c.flags[i] & (F_NOLIGHT | F_LIGHT))) return false;
+    const ceilY = level.ceilHeight + c.ceil[i] * 0.1;
+    return c.wall[i] * WALL_UNIT <= ceilY - c.floor[i] * 0.1 - 0.55;
+  };
+
+  /* Nudge order, nearest first. Fixtures are laid out on a grid and then moved
+   * to wherever there is actually a ceiling — which is how a real building is
+   * lit, and which is the difference between a tunnel level having lights and
+   * having none: on a bare grid, three quarters of the positions in a maze
+   * land inside solid rock and are simply thrown away. */
+  const NUDGE = [[0, 0], [1, 0], [0, 1], [-1, 0], [0, -1], [1, 1], [-1, 1],
+    [1, -1], [-1, -1], [2, 0], [0, 2], [-2, 0], [0, -2]];
+
   for (let z = 0; z < CHUNK; z++) {
     for (let x = 0; x < CHUNK; x++) {
-      const i = c.idx(x, z);
-      if (!(c.flags[i] & F_CEIL) || (c.flags[i] & F_NOLIGHT)) continue;
-      /* A fixture hangs from the ceiling; what stands on the floor beneath it
-       * is irrelevant unless it reaches all the way up. Refusing to light a
-       * cell because a 1.4m cubicle partition passes through it is what makes
-       * an open-plan office generate almost completely dark. */
-      const ceilY = level.ceilHeight + c.ceil[i] * 0.1;
-      if (c.wall[i] * WALL_UNIT > ceilY - c.floor[i] * 0.1 - 0.55) continue;
       const gx = c.cx * CHUNK + x, gz = c.cz * CHUNK + z;
       if (mod(gx, sp) !== phase || mod(gz, sp) !== phase) continue;
 
-      const h = hash2(gx, gz, seed + 991);
+      let lx = -1, lz = -1;
+      for (const [ox, oz] of NUDGE) {
+        if (suitable(x + ox, z + oz)) { lx = x + ox; lz = z + oz; break; }
+      }
+      if (lx < 0) continue;
+
+      const i = c.idx(lx, lz);
+      const wx = c.cx * CHUNK + lx, wz = c.cz * CHUNK + lz;
+      const ceilY = level.ceilHeight + c.ceil[i] * 0.1;
+      const h = hash2(wx, wz, seed + 991);
       const dead = (h % 100) < deadPct;
       c.flags[i] |= F_LIGHT;
       c.lights.push({
-        x: (gx + 0.5) * cell,
+        x: (wx + 0.5) * cell,
         y: ceilY - 0.12,
-        z: (gz + 0.5) * cell,
+        z: (wz + 0.5) * cell,
         r: col[0], g: col[1], b: col[2],
         intensity: dead ? 0 : intensity,
         radius,
