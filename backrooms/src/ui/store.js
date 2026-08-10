@@ -19,6 +19,7 @@ const DEFAULTS = {
     invertY: false,
     muted: false,
     entities: true,
+    hints: true,
   },
   visited: [],
   deepest: 0,

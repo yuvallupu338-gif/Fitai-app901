@@ -173,7 +173,7 @@ async function run(deviceName, browser) {
   await waitFrames(page, 8);
 
   check(await page.isVisible('#touch'), `${deviceName}: on-screen controls appear in play`);
-  for (const sel of ['#t-use', '#t-jump', '#t-torch', '#t-run', '#t-crouch', '#t-pause']) {
+  for (const sel of ['#t-use', '#t-jump', '#t-torch', '#t-run', '#t-crouch', '#t-hint', '#t-pause']) {
     check(await page.isVisible(sel), `${deviceName}: control ${sel} is on screen`);
     const box = await page.locator(sel).boundingBox();
     check(box && box.width >= 40 && box.height >= 40,
@@ -329,6 +329,23 @@ async function run(deviceName, browser) {
     `${deviceName}: the rotate hint does not cover the level name`);
   check(!overlaps(rotBox, pauseBox),
     `${deviceName}: the rotate hint does not cover the pause button`);
+  /* The guide owns the top centre; nothing else may sit on it. */
+  const guideBox = await page.locator('#guide').boundingBox();
+  if (guideBox) {
+    check(!overlaps(guideBox, hudBox),
+      `${deviceName}: the guide does not cover the level name`);
+    check(!overlaps(guideBox, pauseBox),
+      `${deviceName}: the guide does not cover the pause button`);
+    check(!overlaps(guideBox, rotBox),
+      `${deviceName}: the guide and the rotate hint do not overlap`);
+  }
+  /* And the thumb cluster must be clear of the meters. */
+  const meterBox = await page.locator('#hud-bottom').boundingBox();
+  for (const sel of ['#t-use', '#t-jump', '#t-crouch']) {
+    const b = await page.locator(sel).boundingBox();
+    check(!overlaps(meterBox, b),
+      `${deviceName}: ${sel} is clear of the status meters`);
+  }
   const rvp = page.viewportSize();
   check(rotBox && rotBox.x >= 0 && rotBox.y >= 0
     && rotBox.x + rotBox.width <= rvp.width && rotBox.y + rotBox.height <= rvp.height,

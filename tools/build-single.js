@@ -1,14 +1,19 @@
 #!/usr/bin/env node
 /*
- * build-single.js — bundles the whole app into one self-contained HTML file
- * at dist/fitai.html, so it can be opened straight off the disk (file://)
- * exactly like the original reference document.
+ * build-single.js — bundles a whole app into one self-contained HTML file, so
+ * it can be opened straight off the disk (file://) exactly like the original
+ * reference document. On a phone that is the difference between "a website you
+ * need a server for" and "a file you can keep".
  *
  * It is a deliberately small bundler that understands only the module syntax
- * this codebase actually uses. Anything else makes it stop loudly rather than
- * emit a broken file.
+ * these apps actually use. Anything else makes it stop loudly rather than emit
+ * a broken file.
  *
- * Usage: node tools/build-single.js
+ * The entry point and the stylesheets are read out of the HTML itself rather
+ * than hard-coded, so it can build either app in this repo:
+ *
+ *   node tools/build-single.js                                  -> dist/fitai.html
+ *   node tools/build-single.js backrooms/index.html dist/backrooms.html
  */
 
 import { readFileSync, writeFileSync, mkdirSync } from 'node:fs';
@@ -16,7 +21,25 @@ import { resolve, dirname, relative } from 'node:path';
 import { fileURLToPath } from 'node:url';
 
 const ROOT = resolve(dirname(fileURLToPath(import.meta.url)), '..');
-const ENTRY = process.argv[2] || 'src/app.js';
+
+/* Positional args, with the FitAI build as the default so the existing
+ * invocation keeps working untouched. */
+const HTML_IN = process.argv[2] && !process.argv[2].endsWith('.js')
+  ? process.argv[2] : 'index.html';
+const HTML_OUT = process.argv[3]
+  || (HTML_IN === 'index.html' ? 'dist/fitai.html' : 'dist/bundle.html');
+const HTML_DIR = dirname(resolve(ROOT, HTML_IN));
+
+const htmlSrc = readFileSync(resolve(ROOT, HTML_IN), 'utf8');
+
+/* Entry module and stylesheets, taken from the page that actually loads them —
+ * a hard-coded list silently goes stale the moment a stylesheet is added. */
+const entryMatch = /<script[^>]*type="module"[^>]*src="([^"]+)"/.exec(htmlSrc);
+if (!entryMatch) throw new Error(`${HTML_IN}: no <script type="module" src="…"> to use as an entry`);
+const ENTRY = relative(ROOT, resolve(HTML_DIR, entryMatch[1]));
+
+const CSS_FILES = [...htmlSrc.matchAll(/<link[^>]+rel="stylesheet"[^>]+href="([^"]+)"/g)]
+  .map((m) => resolve(HTML_DIR, m[1]));
 
 const seen = new Map();
 const order = [];
@@ -34,7 +57,11 @@ function collect(abs) {
   reject(src, k);
 
   const deps = [];
-  const importRe = /^[ \t]*import\s+(?:([\w$]+)|\*\s+as\s+([\w$]+)|\{([^}]*)\})\s+from\s+['"]([^'"]+)['"];?[ \t]*$/gm;
+  /* `[\s\S]*?` inside the braces so a named import may wrap over several
+   * lines, which is how anything importing more than three symbols is
+   * actually written. The `m` flag still anchors the statement to its own
+   * lines, so this cannot swallow unrelated code. */
+  const importRe = /^[ \t]*import\s+(?:([\w$]+)|\*\s+as\s+([\w$]+)|\{([\s\S]*?)\})\s+from\s+['"]([^'"]+)['"];?[ \t]*$/gm;
   let m;
   while ((m = importRe.exec(src))) {
     const spec = m[4];
@@ -114,19 +141,20 @@ const bundle = [
   '})();',
 ].join('\n\n');
 
-const css = ['fonts', 'tokens', 'base', 'components']
-  .map((n) => readFileSync(resolve(ROOT, `src/styles/${n}.css`), 'utf8'))
-  .join('\n\n');
+const css = CSS_FILES.map((f) => readFileSync(f, 'utf8')).join('\n\n');
 
-let html = readFileSync(resolve(ROOT, 'index.html'), 'utf8');
+/* The same source the entry point and stylesheets were discovered in — reading
+ * index.html again here is how the first version of this emitted FitAI's shell
+ * wrapped around the Backrooms bundle. */
+let html = htmlSrc;
 html = html
   .replace(/\n?[ \t]*<link rel="stylesheet"[^>]*>/g, '')
   .replace(/[ \t]*<script type="module"[^>]*><\/script>/, '')
   .replace('</head>', `<style>\n${css}\n</style>\n</head>`)
   .replace('</body>', `<script>\n${bundle}\n</script>\n</body>`);
 
-mkdirSync(resolve(ROOT, 'dist'), { recursive: true });
-writeFileSync(resolve(ROOT, 'dist/fitai.html'), html);
+mkdirSync(dirname(resolve(ROOT, HTML_OUT)), { recursive: true });
+writeFileSync(resolve(ROOT, HTML_OUT), html);
 
 const kb = Math.round(Buffer.byteLength(html) / 1024);
-console.log(`dist/fitai.html — ${order.length} modules, ${kb} KB`);
+console.log(`${HTML_OUT} — ${order.length} modules, ${kb} KB`);
