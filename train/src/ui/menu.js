@@ -55,6 +55,18 @@ export class Menu {
     this.root.classList.add('open');
     this.root.classList.toggle('pause', kind === 'pause');
     this.screen = kind;
+    /*
+     * Sub-pages append themselves. showMain and showPause happen to clear the
+     * root by assigning innerHTML, but nothing did when a page opened over a
+     * page — changing the graphics preset, or pressing Restore defaults, left
+     * the old settings page stacked underneath the new one. Both were in the
+     * document, both had `for="set-quality"` labels, and clicking a label
+     * activated whichever control the browser found first, which was the dead
+     * one.
+     */
+    for (const stale of this.root.querySelectorAll(':scope > .page, :scope > .ending')) {
+      stale.remove();
+    }
   }
 
   /* ---- main menu -------------------------------------------------------- */
@@ -82,14 +94,39 @@ export class Menu {
       <div class="corner br">${endings} of ${TOTAL_ENDINGS} endings found</div>
     `;
     this._wire({
-      play: () => this.cb.onPlay({ nightmare: false }),
+      play: () => (hasSave ? this.showOverwrite(false) : this.cb.onPlay({ nightmare: false })),
       continue: () => this.cb.onContinue(),
-      nightmare: () => this.cb.onPlay({ nightmare: true }),
+      nightmare: () => (hasSave ? this.showOverwrite(true) : this.cb.onPlay({ nightmare: true })),
       howto: () => this.showHowTo('main'),
       journal: () => this.showJournal('main'),
       settings: () => this.showSettings('main'),
       credits: () => this.showCredits('main'),
       quit: () => this.showQuit(),
+    });
+  }
+
+  /*
+   * Play, when there is already a journey in progress. It sits directly above
+   * Continue and it silently threw the saved night away; the two buttons are
+   * one row apart and the destructive one is the one people press first.
+   */
+  showOverwrite(nightmare) {
+    this._open('main');
+    this.root.innerHTML = `
+      <div class="menu-inner">
+        <h1 class="title" style="font-size:clamp(1.5rem,3.4vw,2.4rem)">A journey in progress</h1>
+        <p class="tagline">starting a new one ends it where it stands</p>
+        <div class="buttons">
+          <button class="btn" data-act="resume">Carry on with it</button>
+          <button class="btn" data-act="fresh">Start again from Central<span class="hint">the saved journey is discarded</span></button>
+          <button class="btn" data-act="back">Back</button>
+        </div>
+      </div>
+    `;
+    this._wire({
+      resume: () => this.cb.onContinue(),
+      fresh: () => this.cb.onPlay({ nightmare }),
+      back: () => this.showMain({ hasSave: this.cb.hasSave() }),
     });
   }
 
@@ -253,8 +290,10 @@ export class Menu {
             Staying aboard when they close carries you to the next stop. That single
             choice, made seven times, is the entire game, and it is the only thing
             that decides how tonight ends.</p>
-            <p>There is nothing to collect, nothing to fight and nothing to solve.
-            There is no way to lose, only different ways to arrive.</p>
+            <p>There is nothing to fight and nothing to solve, and no way to lose —
+            only different ways to arrive. Things are left on the train, and
+            picking them up tells you more about the night; none of it is
+            required, and none of it will save you.</p>
           </div>
 
           <h3>What to watch</h3>
@@ -271,10 +310,9 @@ export class Menu {
           <dl class="controls">
             <dt>W A S D</dt><dd>Walk. The carriage is narrow; you will not fall over.</dd>
             <dt>Mouse</dt><dd>Look. Click the picture once to give the game the mouse; press Escape to take it back.</dd>
-            <dt>Shift</dt><dd>Walk faster. There is never any need to.</dd>
-            <dt>Ctrl / C</dt><dd>Crouch, for looking under the seats.</dd>
+            <dt>Shift</dt><dd>Walk slowly, for when you would rather not arrive.</dd>
             <dt>E</dt><dd>Use whatever the crosshair has opened around: sit down, read a poster, press the alarm, speak to someone, open a connecting door.</dd>
-            <dt>Tab</dt><dd>The journal — what you have found, where the line goes, how nights have ended.</dd>
+            <dt>Tab &nbsp;/&nbsp; J</dt><dd>The journal — what you have found, where the line goes, how nights have ended.</dd>
             <dt>Escape</dt><dd>Pause. Settings, and the way back to the platform.</dd>
           </dl>
 

@@ -70,7 +70,11 @@ export class Hud {
    */
   caption(text, kind = 'sound', duration = 3, speaker = '') {
     if (!text) return;
-    if (!this.settings.subtitles && kind !== 'speech') return;
+    /* Subtitles govern spoken lines and sound captions have their own switch;
+       turning subtitles off used to silently take the sound captions with it
+       while their toggle still read as on. */
+    if (kind === 'sound') { if (!this.settings.soundCaptions) return; }
+    else if (!this.settings.subtitles && kind !== 'speech') return;
 
     const el = document.createElement('div');
     el.className = `caption ${kind}`;

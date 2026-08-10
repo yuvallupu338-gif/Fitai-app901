@@ -172,10 +172,19 @@ export const ANOMALIES = [
       const people = ctx.crowd.visiblePeople().filter((p) => p.present);
       if (!people.length) return null;
       const restore = people.map((p) => ({ p, watch: p.watch }));
-      for (const p of people) p.watch = 1;
+      /*
+       * The one anomaly in the catalogue that moved bodies with no unobserved
+       * gate on them: every head in the carriage swung round to face the
+       * player while the player was looking at them. Watching it happen is the
+       * opposite of the rule the whole game is built on — you are supposed to
+       * turn back and find it already true. Each passenger is queued through
+       * the same test as everything else, so they are looking at you by the
+       * time you look at them, and never in the act of turning.
+       */
+      for (const p of people) ctx.queueUnobserved(p, () => { p.watch = 1; });
       return {
         duration: ctx.rng.float(3.5, 7),
-        end() { for (const r of restore) r.p.watch = r.watch; },
+        end() { for (const r of restore) ctx.queueUnobserved(r.p, () => { r.p.watch = r.watch; }); },
       };
     },
   },
@@ -309,9 +318,17 @@ export const ANOMALIES = [
       if (!ctx.settings.reflections) return null;
       const amount = ctx.rng.float(0.30, 0.75);
       ctx.avatar.delay = amount;
-      ctx.flags.sawReflection = true;
       return {
         duration: ctx.rng.float(9, 16),
+        /* The flag is what unlocks an achievement, and it used to be set the
+           instant the anomaly began — a toast in the corner of the screen
+           announcing that something was wrong with the glass, to a player who
+           had not looked at the glass. It is set when they are actually facing
+           a window instead. Camera forward is (-sin yaw, -cos yaw), so a side
+           window is |sin yaw| near one. */
+        update(dt, live) {
+          if (Math.abs(Math.sin(live.playerYaw)) > 0.72) live.flags.sawReflection = true;
+        },
         end() { ctx.avatar.delay = 0; },
       };
     },
@@ -324,9 +341,11 @@ export const ANOMALIES = [
       if (!ctx.settings.reflections) return null;
       /* The reflection stops copying and simply stands there. */
       ctx.avatar.frozen = true;
-      ctx.flags.sawReflection = true;
       return {
         duration: ctx.rng.float(4, 7),
+        update(dt, live) {
+          if (Math.abs(Math.sin(live.playerYaw)) > 0.72) live.flags.sawReflection = true;
+        },
         end() { ctx.avatar.frozen = false; },
       };
     },
@@ -337,9 +356,15 @@ export const ANOMALIES = [
     weight: 3, min: 2, max: 6, cooldown: 50,
     start(ctx) {
       ctx.world.cameraTracking = true;
-      ctx.flags.sawCamera = true;
       return {
         duration: ctx.rng.float(8, 20),
+        /* Same as the glass: credited when the player has the camera in
+           frame, not when the camera starts following them. */
+        update(dt, live) {
+          if (live.player?.hover?.type === 'camera' || Math.abs(Math.sin(live.playerYaw)) > 0.72) {
+            live.flags.sawCamera = true;
+          }
+        },
         end() { ctx.world.cameraTracking = false; },
       };
     },
@@ -637,8 +662,6 @@ export class AnomalyDirector {
   /* Suppresses new anomalies (during arrivals, endings, menus) without
      stopping the ones already running. */
   update(dt, ctx, allowNew = true) {
-    this.clock += dt;
-
     for (let i = this.active.length - 1; i >= 0; i--) {
       const h = this.active[i];
       h.elapsed += dt;
@@ -649,7 +672,16 @@ export class AnomalyDirector {
       }
     }
 
+    /*
+     * The clock stops while new anomalies are suppressed. It used to keep
+     * running through the arrival, the whole dwell and the doors, so by the
+     * time the train pulled out it was always past due and something fired on
+     * the first frame of every departure — seven stations, seven anomalies,
+     * all on the same beat. A player does not need to know why that felt
+     * mechanical to feel it.
+     */
     if (!allowNew) return;
+    this.clock += dt;
     if (this.clock < this.nextAt) return;
 
     const fired = this.fire(ctx);

@@ -36,6 +36,10 @@ const ACCEL_TIME = 9;
 const CLOSE_WARNING = 7.5;
 const CLOSE_TIME = 3.2;
 
+/* The only things E does from a seat. Everything else stands the player up —
+   see _handleInput. */
+const SEATED_USES = new Set(['person', 'clue', 'routemap', 'display', 'emergency']);
+
 export class Game {
   constructor(opts) {
     this.canvas = opts.canvas;
@@ -660,8 +664,18 @@ export class Game {
     const car = this.player.car;
     const eye = this.camera.position;
 
-    for (const v of this.world.interactablesFor(car)) list.push(v);
-    this.props.interactablesFor(car, list);
+    /*
+     * From the platform the player is outside the train, and everything bolted
+     * to the inside of it is still an axis-aligned box a metre and a half from
+     * their face — so before boarding, and any time they step down, the
+     * crosshair reached through the flank and offered them the route map, the
+     * emergency alarm and the advertisements. Outside, the only thing they can
+     * use is the doorway they are standing in.
+     */
+    if (!this.player.outside) {
+      for (const v of this.world.interactablesFor(car)) list.push(v);
+      this.props.interactablesFor(car, list);
+    }
 
     /* Seats near enough to sit on. Generating all fifty-four every frame is
        cheap, but only the ones within reach are worth testing. */
@@ -715,7 +729,20 @@ export class Game {
     if (input.pressed('interact') || clicked) {
       if (this.player.sitting) {
         const target = this.player.hover;
-        if (!target || target.type === 'seat') {
+        /*
+         * Standing up used to require the crosshair to be on nothing at all,
+         * or on a seat. Seated eye height puts the crosshair squarely on the
+         * opposite window's interaction volume, so E read the flavour line
+         * about the tunnel instead — over and over, with no way to get up. And
+         * if a passenger was placed in the seat, its volume disappeared and
+         * the player was in it for the rest of the night.
+         *
+         * The rule is the other way round now: sitting down, E stands you up,
+         * unless the crosshair is on one of the few things worth using from a
+         * seat.
+         */
+        const usable = target && SEATED_USES.has(target.type);
+        if (!usable) {
           this.player.stand();
           this.sfx.play('seatCreak', { caption: false });
           return;
@@ -740,6 +767,16 @@ export class Game {
         const clue = clueById(target.clueId);
         if (!clue) break;
         st.clues.add(clue.id);
+        /*
+         * Into the permanent journal the moment it is picked up. It used to be
+         * written only when a run reached an ending, so a player who found six
+         * of the seven and then quit to the menu lost all six — and the journal
+         * told them they had found nothing.
+         */
+        if (!this.profile.codex[clue.id]) {
+          this.profile.codex[clue.id] = Date.now();
+          this.events.emit('profile:dirty', { reason: 'clue' });
+        }
         for (const f of clue.flags || []) st.flags[f] = true;
         this.props.remove(clue.id);
         this.sfx.play('clue', { caption: false });
@@ -824,10 +861,16 @@ export class Game {
         break;
 
       case 'door':
+        /* The line used to be chosen by phase alone, so the very first thing
+           the crosshair found — standing on a lit platform at Central, with
+           the doors open beside them — told the player the tunnel wall was
+           going past at speed. */
         this.events.emit('flavour', {
-          text: this.phase === 'stopped'
+          text: this.world.doorsOpenAmount(this.station.side) > 0.35
             ? 'The platform is right there. You could simply step down.'
-            : 'Sealed. Beyond it the tunnel wall goes past at speed.',
+            : this.world.speed > 0.4
+              ? 'Sealed. Beyond it the tunnel wall goes past at speed.'
+              : 'Sealed, and nothing on the other side of it but a stopped train.',
         });
         break;
 
@@ -885,8 +928,16 @@ export class Game {
         this.achievements.unlock('talkedStranger');
         if (st.strangerTalks >= 5) this.achievements.unlock('strangerFive');
       }
-      this.events.emit('speech', { speaker: 'The passenger at the far end', text: line });
-      this.sfx.whisper(line.replace(/[“”"]/g, ''), { gain: 0.032, pan: 0, far: 0.1, speaker: '' });
+      /*
+       * One line, once. whisper() emits its own subtitle, so pairing it with
+       * an explicit 'speech' event printed every word the stranger said twice
+       * — attributed on one line, and again as an unattributed whisper
+       * directly underneath it. The whisper carries the subtitle now; the
+       * speaker name is passed to it rather than duplicated above it.
+       */
+      this.sfx.whisper(line.replace(/[“”"]/g, ''), {
+        gain: 0.032, pan: 0, far: 0.1, speaker: 'The passenger at the far end',
+      });
       return;
     }
     const count = st.spokenTo[id] || 0;

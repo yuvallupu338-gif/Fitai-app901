@@ -229,13 +229,13 @@ body.playing { cursor: none; }
   text-transform: uppercase;
   font-size: 0.74rem;
   color: var(--amber-dim);
-  margin: 2.2em 0 1.1em;
+  margin: 1.5em 0 0.9em;
 }
 .howto > div > h3:first-child { margin-top: 0; }
 .howto .rule { margin-top: 0; }
 
 /* The controls list: a plain two-column list. */
-.controls { display: grid; grid-template-columns: max-content 1fr; gap: 0.62em 1.5em; max-width: 66ch; align-items: baseline; }
+.controls { display: grid; grid-template-columns: max-content 1fr; gap: 0.5em 1.4em; max-width: 66ch; align-items: baseline; }
 .controls dt {
   font-family: var(--cond);
   letter-spacing: 0.16em;
@@ -248,7 +248,7 @@ body.playing { cursor: none; }
 .rule {
   max-width: 62ch;
   margin: 2.6em 0 0;
-  padding: 1.2em 1.4em;
+  padding: 1.0em 1.2em;
   border: 1px solid var(--line);
   border-left: 2px solid var(--amber);
   background: rgba(255, 176, 58, 0.04);
@@ -256,9 +256,9 @@ body.playing { cursor: none; }
   color: var(--ink);
 }
 .rule strong { color: var(--amber); font-weight: 400; }
-.rule p { margin: 0 0 0.9em; }
+.rule p { margin: 0 0 0.7em; }
 .rule p:last-child { margin-bottom: 0; }
-.fineprint { max-width: 62ch; margin: 2.8em 0 0; color: var(--ink-faint); font-size: 0.88rem; line-height: 1.6; }
+.fineprint { max-width: 62ch; margin: 1.8em 0 0; color: var(--ink-faint); font-size: 0.88rem; line-height: 1.6; }
 
 .captions {
   position: absolute;
@@ -565,7 +565,7 @@ body.playing { cursor: none; }
 .page {
   position: absolute;
   inset: 0;
-  padding: 7vh 8vw;
+  padding: 5.5vh 7vw;
   overflow-y: auto;
   background: linear-gradient(180deg, rgba(4,5,7,0.94), rgba(4,5,7,0.98));
 }
@@ -590,6 +590,11 @@ body.playing { cursor: none; }
   color: var(--ink-faint);
   margin-bottom: 2.6em;
 }
+/* The instructions have to fit the screen they are read on, or the two
+   buttons at the bottom are below the fold on a 1280x720 laptop and the page
+   looks like it ends at "Controls". */
+.page:has(.howto) .sub { margin-bottom: 1.5em; }
+.page:has(.howto) .back { margin-top: 1.6em; }
 .page .back { margin-top: 3em; }
 
 .settings-grid { display: grid; gap: 1.9em; max-width: 62ch; }
@@ -1243,7 +1248,11 @@ const DEFAULT_SETTINGS = {
   hints: true,
   subtitles: true,
   subtitleSize: 1,
-  soundCaptions: true,
+  /* Off by default. A caption that says "[breathing, close]" the instant an
+     anomaly fires tells the player there is an anomaly and what it is, which
+     is the one thing this game does not do. It stays available — a player who
+     cannot hear needs it — but it is now a choice rather than the default. */
+  soundCaptions: false,
   headBob: 1,
   quality: 'high',          // low | medium | high | ultra
   reflections: true,
@@ -8895,8 +8904,18 @@ class Passenger {
     this.nextBlink = 1 + Math.random() * 4;
     this.phase = Math.random() * Math.PI * 2;
 
-    this.bodyNode = { mesh: null, matrix: mat4(), overrides: {}, visible: true, reflect: false };
-    this.headNode = { mesh: null, matrix: mat4(), overrides: {}, visible: true, reflect: false };
+    /*
+     * Passengers go into the reflection pass. They were the only things in the
+     * carriage that did not: the seats reflected, the poles reflected, the
+     * newspaper on the cushion reflected, and the man holding it did not — so
+     * the glass showed an empty carriage full of people. The reflection is also
+     * the one surface the game deliberately lies with, and a lie only reads if
+     * everything else in the mirror is true.
+     */
+    this.bodyNode = { mesh: null, matrix: mat4(), overrides: {}, visible: true, reflect: true };
+    this.headNode = { mesh: null, matrix: mat4(), overrides: {}, visible: true, reflect: true };
+    /* The contact shadow stays out of it: it is a flat black quad faked onto
+       the cushion and in a mirror it is a black quad hanging in the air. */
     this.shadowNode = { mesh: meshes.shadow, matrix: mat4(), overrides: {}, visible: true, reflect: false };
     this._applyColors();
   }
@@ -9864,10 +9883,19 @@ const ANOMALIES = [
       const people = ctx.crowd.visiblePeople().filter((p) => p.present);
       if (!people.length) return null;
       const restore = people.map((p) => ({ p, watch: p.watch }));
-      for (const p of people) p.watch = 1;
+      /*
+       * The one anomaly in the catalogue that moved bodies with no unobserved
+       * gate on them: every head in the carriage swung round to face the
+       * player while the player was looking at them. Watching it happen is the
+       * opposite of the rule the whole game is built on — you are supposed to
+       * turn back and find it already true. Each passenger is queued through
+       * the same test as everything else, so they are looking at you by the
+       * time you look at them, and never in the act of turning.
+       */
+      for (const p of people) ctx.queueUnobserved(p, () => { p.watch = 1; });
       return {
         duration: ctx.rng.float(3.5, 7),
-        end() { for (const r of restore) r.p.watch = r.watch; },
+        end() { for (const r of restore) ctx.queueUnobserved(r.p, () => { r.p.watch = r.watch; }); },
       };
     },
   },
@@ -10001,9 +10029,17 @@ const ANOMALIES = [
       if (!ctx.settings.reflections) return null;
       const amount = ctx.rng.float(0.30, 0.75);
       ctx.avatar.delay = amount;
-      ctx.flags.sawReflection = true;
       return {
         duration: ctx.rng.float(9, 16),
+        /* The flag is what unlocks an achievement, and it used to be set the
+           instant the anomaly began — a toast in the corner of the screen
+           announcing that something was wrong with the glass, to a player who
+           had not looked at the glass. It is set when they are actually facing
+           a window instead. Camera forward is (-sin yaw, -cos yaw), so a side
+           window is |sin yaw| near one. */
+        update(dt, live) {
+          if (Math.abs(Math.sin(live.playerYaw)) > 0.72) live.flags.sawReflection = true;
+        },
         end() { ctx.avatar.delay = 0; },
       };
     },
@@ -10016,9 +10052,11 @@ const ANOMALIES = [
       if (!ctx.settings.reflections) return null;
       /* The reflection stops copying and simply stands there. */
       ctx.avatar.frozen = true;
-      ctx.flags.sawReflection = true;
       return {
         duration: ctx.rng.float(4, 7),
+        update(dt, live) {
+          if (Math.abs(Math.sin(live.playerYaw)) > 0.72) live.flags.sawReflection = true;
+        },
         end() { ctx.avatar.frozen = false; },
       };
     },
@@ -10029,9 +10067,15 @@ const ANOMALIES = [
     weight: 3, min: 2, max: 6, cooldown: 50,
     start(ctx) {
       ctx.world.cameraTracking = true;
-      ctx.flags.sawCamera = true;
       return {
         duration: ctx.rng.float(8, 20),
+        /* Same as the glass: credited when the player has the camera in
+           frame, not when the camera starts following them. */
+        update(dt, live) {
+          if (live.player?.hover?.type === 'camera' || Math.abs(Math.sin(live.playerYaw)) > 0.72) {
+            live.flags.sawCamera = true;
+          }
+        },
         end() { ctx.world.cameraTracking = false; },
       };
     },
@@ -10329,8 +10373,6 @@ class AnomalyDirector {
   /* Suppresses new anomalies (during arrivals, endings, menus) without
      stopping the ones already running. */
   update(dt, ctx, allowNew = true) {
-    this.clock += dt;
-
     for (let i = this.active.length - 1; i >= 0; i--) {
       const h = this.active[i];
       h.elapsed += dt;
@@ -10341,7 +10383,16 @@ class AnomalyDirector {
       }
     }
 
+    /*
+     * The clock stops while new anomalies are suppressed. It used to keep
+     * running through the arrival, the whole dwell and the doors, so by the
+     * time the train pulled out it was always past due and something fired on
+     * the first frame of every departure — seven stations, seven anomalies,
+     * all on the same beat. A player does not need to know why that felt
+     * mechanical to feel it.
+     */
     if (!allowNew) return;
+    this.clock += dt;
     if (this.clock < this.nextAt) return;
 
     const fired = this.fire(ctx);
@@ -10996,6 +11047,10 @@ const ACCEL_TIME = 9;
 const CLOSE_WARNING = 7.5;
 const CLOSE_TIME = 3.2;
 
+/* The only things E does from a seat. Everything else stands the player up —
+   see _handleInput. */
+const SEATED_USES = new Set(['person', 'clue', 'routemap', 'display', 'emergency']);
+
 class Game {
   constructor(opts) {
     this.canvas = opts.canvas;
@@ -11620,8 +11675,18 @@ class Game {
     const car = this.player.car;
     const eye = this.camera.position;
 
-    for (const v of this.world.interactablesFor(car)) list.push(v);
-    this.props.interactablesFor(car, list);
+    /*
+     * From the platform the player is outside the train, and everything bolted
+     * to the inside of it is still an axis-aligned box a metre and a half from
+     * their face — so before boarding, and any time they step down, the
+     * crosshair reached through the flank and offered them the route map, the
+     * emergency alarm and the advertisements. Outside, the only thing they can
+     * use is the doorway they are standing in.
+     */
+    if (!this.player.outside) {
+      for (const v of this.world.interactablesFor(car)) list.push(v);
+      this.props.interactablesFor(car, list);
+    }
 
     /* Seats near enough to sit on. Generating all fifty-four every frame is
        cheap, but only the ones within reach are worth testing. */
@@ -11675,7 +11740,20 @@ class Game {
     if (input.pressed('interact') || clicked) {
       if (this.player.sitting) {
         const target = this.player.hover;
-        if (!target || target.type === 'seat') {
+        /*
+         * Standing up used to require the crosshair to be on nothing at all,
+         * or on a seat. Seated eye height puts the crosshair squarely on the
+         * opposite window's interaction volume, so E read the flavour line
+         * about the tunnel instead — over and over, with no way to get up. And
+         * if a passenger was placed in the seat, its volume disappeared and
+         * the player was in it for the rest of the night.
+         *
+         * The rule is the other way round now: sitting down, E stands you up,
+         * unless the crosshair is on one of the few things worth using from a
+         * seat.
+         */
+        const usable = target && SEATED_USES.has(target.type);
+        if (!usable) {
           this.player.stand();
           this.sfx.play('seatCreak', { caption: false });
           return;
@@ -11700,6 +11778,16 @@ class Game {
         const clue = clueById(target.clueId);
         if (!clue) break;
         st.clues.add(clue.id);
+        /*
+         * Into the permanent journal the moment it is picked up. It used to be
+         * written only when a run reached an ending, so a player who found six
+         * of the seven and then quit to the menu lost all six — and the journal
+         * told them they had found nothing.
+         */
+        if (!this.profile.codex[clue.id]) {
+          this.profile.codex[clue.id] = Date.now();
+          this.events.emit('profile:dirty', { reason: 'clue' });
+        }
         for (const f of clue.flags || []) st.flags[f] = true;
         this.props.remove(clue.id);
         this.sfx.play('clue', { caption: false });
@@ -11784,10 +11872,16 @@ class Game {
         break;
 
       case 'door':
+        /* The line used to be chosen by phase alone, so the very first thing
+           the crosshair found — standing on a lit platform at Central, with
+           the doors open beside them — told the player the tunnel wall was
+           going past at speed. */
         this.events.emit('flavour', {
-          text: this.phase === 'stopped'
+          text: this.world.doorsOpenAmount(this.station.side) > 0.35
             ? 'The platform is right there. You could simply step down.'
-            : 'Sealed. Beyond it the tunnel wall goes past at speed.',
+            : this.world.speed > 0.4
+              ? 'Sealed. Beyond it the tunnel wall goes past at speed.'
+              : 'Sealed, and nothing on the other side of it but a stopped train.',
         });
         break;
 
@@ -11845,8 +11939,16 @@ class Game {
         this.achievements.unlock('talkedStranger');
         if (st.strangerTalks >= 5) this.achievements.unlock('strangerFive');
       }
-      this.events.emit('speech', { speaker: 'The passenger at the far end', text: line });
-      this.sfx.whisper(line.replace(/[“”"]/g, ''), { gain: 0.032, pan: 0, far: 0.1, speaker: '' });
+      /*
+       * One line, once. whisper() emits its own subtitle, so pairing it with
+       * an explicit 'speech' event printed every word the stranger said twice
+       * — attributed on one line, and again as an unattributed whisper
+       * directly underneath it. The whisper carries the subtitle now; the
+       * speaker name is passed to it rather than duplicated above it.
+       */
+      this.sfx.whisper(line.replace(/[“”"]/g, ''), {
+        gain: 0.032, pan: 0, far: 0.1, speaker: 'The passenger at the far end',
+      });
       return;
     }
     const count = st.spokenTo[id] || 0;
@@ -12150,7 +12252,11 @@ class Hud {
    */
   caption(text, kind = 'sound', duration = 3, speaker = '') {
     if (!text) return;
-    if (!this.settings.subtitles && kind !== 'speech') return;
+    /* Subtitles govern spoken lines and sound captions have their own switch;
+       turning subtitles off used to silently take the sound captions with it
+       while their toggle still read as on. */
+    if (kind === 'sound') { if (!this.settings.soundCaptions) return; }
+    else if (!this.settings.subtitles && kind !== 'speech') return;
 
     const el = document.createElement('div');
     el.className = `caption ${kind}`;
@@ -12460,6 +12566,18 @@ class Menu {
     this.root.classList.add('open');
     this.root.classList.toggle('pause', kind === 'pause');
     this.screen = kind;
+    /*
+     * Sub-pages append themselves. showMain and showPause happen to clear the
+     * root by assigning innerHTML, but nothing did when a page opened over a
+     * page — changing the graphics preset, or pressing Restore defaults, left
+     * the old settings page stacked underneath the new one. Both were in the
+     * document, both had `for="set-quality"` labels, and clicking a label
+     * activated whichever control the browser found first, which was the dead
+     * one.
+     */
+    for (const stale of this.root.querySelectorAll(':scope > .page, :scope > .ending')) {
+      stale.remove();
+    }
   }
 
   /* ---- main menu -------------------------------------------------------- */
@@ -12487,14 +12605,39 @@ class Menu {
       <div class="corner br">${endings} of ${TOTAL_ENDINGS} endings found</div>
     `;
     this._wire({
-      play: () => this.cb.onPlay({ nightmare: false }),
+      play: () => (hasSave ? this.showOverwrite(false) : this.cb.onPlay({ nightmare: false })),
       continue: () => this.cb.onContinue(),
-      nightmare: () => this.cb.onPlay({ nightmare: true }),
+      nightmare: () => (hasSave ? this.showOverwrite(true) : this.cb.onPlay({ nightmare: true })),
       howto: () => this.showHowTo('main'),
       journal: () => this.showJournal('main'),
       settings: () => this.showSettings('main'),
       credits: () => this.showCredits('main'),
       quit: () => this.showQuit(),
+    });
+  }
+
+  /*
+   * Play, when there is already a journey in progress. It sits directly above
+   * Continue and it silently threw the saved night away; the two buttons are
+   * one row apart and the destructive one is the one people press first.
+   */
+  showOverwrite(nightmare) {
+    this._open('main');
+    this.root.innerHTML = `
+      <div class="menu-inner">
+        <h1 class="title" style="font-size:clamp(1.5rem,3.4vw,2.4rem)">A journey in progress</h1>
+        <p class="tagline">starting a new one ends it where it stands</p>
+        <div class="buttons">
+          <button class="btn" data-act="resume">Carry on with it</button>
+          <button class="btn" data-act="fresh">Start again from Central<span class="hint">the saved journey is discarded</span></button>
+          <button class="btn" data-act="back">Back</button>
+        </div>
+      </div>
+    `;
+    this._wire({
+      resume: () => this.cb.onContinue(),
+      fresh: () => this.cb.onPlay({ nightmare }),
+      back: () => this.showMain({ hasSave: this.cb.hasSave() }),
     });
   }
 
@@ -12658,8 +12801,10 @@ class Menu {
             Staying aboard when they close carries you to the next stop. That single
             choice, made seven times, is the entire game, and it is the only thing
             that decides how tonight ends.</p>
-            <p>There is nothing to collect, nothing to fight and nothing to solve.
-            There is no way to lose, only different ways to arrive.</p>
+            <p>There is nothing to fight and nothing to solve, and no way to lose —
+            only different ways to arrive. Things are left on the train, and
+            picking them up tells you more about the night; none of it is
+            required, and none of it will save you.</p>
           </div>
 
           <h3>What to watch</h3>
@@ -12676,10 +12821,9 @@ class Menu {
           <dl class="controls">
             <dt>W A S D</dt><dd>Walk. The carriage is narrow; you will not fall over.</dd>
             <dt>Mouse</dt><dd>Look. Click the picture once to give the game the mouse; press Escape to take it back.</dd>
-            <dt>Shift</dt><dd>Walk faster. There is never any need to.</dd>
-            <dt>Ctrl / C</dt><dd>Crouch, for looking under the seats.</dd>
+            <dt>Shift</dt><dd>Walk slowly, for when you would rather not arrive.</dd>
             <dt>E</dt><dd>Use whatever the crosshair has opened around: sit down, read a poster, press the alarm, speak to someone, open a connecting door.</dd>
-            <dt>Tab</dt><dd>The journal — what you have found, where the line goes, how nights have ended.</dd>
+            <dt>Tab &nbsp;/&nbsp; J</dt><dd>The journal — what you have found, where the line goes, how nights have ended.</dd>
             <dt>Escape</dt><dd>Pause. Settings, and the way back to the platform.</dd>
           </dl>
 
@@ -13196,6 +13340,9 @@ function boot() {
   });
   events.on('ending', (payload) => onEnding(payload));
   events.on('achievement', () => saveProfile(profile));
+  /* A clue goes into the permanent journal the moment it is picked up, so it
+     survives quitting mid-journey. */
+  events.on('profile:dirty', () => saveProfile(profile));
 
   /* The world is built once, here, and every subsequent "new game" reuses it.
      Building costs a few hundred milliseconds of canvas drawing and mesh
@@ -13266,6 +13413,11 @@ function frame(dt) {
   }
 
   if (mode === 'playing') {
+    /* The journal key. `journal` has been bound to J and Tab since the first
+       commit and read by nobody: the browser's own Tab handling was suppressed
+       and nothing took its place, so the key the How to Play page and the
+       between-stations hint both name did nothing at all. */
+    if (input.pressed('journal') && !overlay.open) { openJournal(); return; }
     for (let i = 0; i < subSteps; i++) {
       if (i > 0) simClock += dt;
       game.update(dt, i === 0 ? input : null, simClock);
@@ -13345,6 +13497,14 @@ function pause() {
   });
 }
 
+/* The journal, from the game rather than from the pause menu. It pauses the
+   same way — the train should not carry on without you while you read. */
+function openJournal() {
+  if (mode !== 'playing') return;
+  pause();
+  menu.showJournal('pause');
+}
+
 function unpause() {
   if (mode !== 'paused') return;
   menu.close();
@@ -13390,7 +13550,13 @@ function applySettings(next) {
   audio.applySettings(settings);
   game?.renderer.applySettings(settings);
   sfx.systemVoice = settings.speechVoice === 'system';
-  document.documentElement.style.setProperty('--hud-scale', String(settings.subtitleSize ?? 1));
+  /*
+   * Subtitle size scales subtitles, and nothing else. It used to also drive
+   * --hud-scale, which is the font size of the whole HUD, so the setting was
+   * applied twice to every caption — 1.8 became 3.24 — and, because this
+   * function only runs when a setting changes, the whole HUD sat at 1.0 until
+   * the player touched any control and then jumped.
+   */
 }
 
 function fatal(err) {

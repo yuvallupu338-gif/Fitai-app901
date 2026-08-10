@@ -324,6 +324,25 @@ async function main() {
     p.position[0] = 0;
     return out;
   });
+  /* Standing on the platform, the crosshair must not reach through the flank
+     of the train. Everything bolted to the inside of the carriage is an
+     axis-aligned box a metre and a half from the player's face out there, and
+     for a long time the first thing the game offered a player who had not yet
+     boarded was the emergency alarm. */
+  const fromPlatform = await page.evaluate(() => {
+    const g = window.__lastTrain.game;
+    const was = g.player.outside;
+    g.player.outside = true;
+    g._updateInteractables();
+    const types = [...new Set(g._interactables.map((i) => i.type))];
+    g.player.outside = was;
+    g._updateInteractables();
+    return types;
+  });
+  check(!fromPlatform.includes('emergency') && !fromPlatform.includes('routemap')
+    && !fromPlatform.includes('ad'),
+    `the platform cannot reach inside the carriage (${fromPlatform.join(', ') || 'nothing'})`);
+
   check(doorway.stepped === 1, `walking out of an open door steps off exactly once (${doorway.stepped})`);
   check(doorway.outside === true && doorway.boarded === 0,
     `the player stays on the platform once they are on it (outside=${doorway.outside}, re-boards=${doorway.boarded})`);

@@ -170,8 +170,18 @@ export class Passenger {
     this.nextBlink = 1 + Math.random() * 4;
     this.phase = Math.random() * Math.PI * 2;
 
-    this.bodyNode = { mesh: null, matrix: mat4(), overrides: {}, visible: true, reflect: false };
-    this.headNode = { mesh: null, matrix: mat4(), overrides: {}, visible: true, reflect: false };
+    /*
+     * Passengers go into the reflection pass. They were the only things in the
+     * carriage that did not: the seats reflected, the poles reflected, the
+     * newspaper on the cushion reflected, and the man holding it did not — so
+     * the glass showed an empty carriage full of people. The reflection is also
+     * the one surface the game deliberately lies with, and a lie only reads if
+     * everything else in the mirror is true.
+     */
+    this.bodyNode = { mesh: null, matrix: mat4(), overrides: {}, visible: true, reflect: true };
+    this.headNode = { mesh: null, matrix: mat4(), overrides: {}, visible: true, reflect: true };
+    /* The contact shadow stays out of it: it is a flat black quad faked onto
+       the cushion and in a mirror it is a black quad hanging in the air. */
     this.shadowNode = { mesh: meshes.shadow, matrix: mat4(), overrides: {}, visible: true, reflect: false };
     this._applyColors();
   }

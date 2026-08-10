@@ -109,6 +109,9 @@ function boot() {
   });
   events.on('ending', (payload) => onEnding(payload));
   events.on('achievement', () => saveProfile(profile));
+  /* A clue goes into the permanent journal the moment it is picked up, so it
+     survives quitting mid-journey. */
+  events.on('profile:dirty', () => saveProfile(profile));
 
   /* The world is built once, here, and every subsequent "new game" reuses it.
      Building costs a few hundred milliseconds of canvas drawing and mesh
@@ -179,6 +182,11 @@ function frame(dt) {
   }
 
   if (mode === 'playing') {
+    /* The journal key. `journal` has been bound to J and Tab since the first
+       commit and read by nobody: the browser's own Tab handling was suppressed
+       and nothing took its place, so the key the How to Play page and the
+       between-stations hint both name did nothing at all. */
+    if (input.pressed('journal') && !overlay.open) { openJournal(); return; }
     for (let i = 0; i < subSteps; i++) {
       if (i > 0) simClock += dt;
       game.update(dt, i === 0 ? input : null, simClock);
@@ -258,6 +266,14 @@ function pause() {
   });
 }
 
+/* The journal, from the game rather than from the pause menu. It pauses the
+   same way — the train should not carry on without you while you read. */
+function openJournal() {
+  if (mode !== 'playing') return;
+  pause();
+  menu.showJournal('pause');
+}
+
 function unpause() {
   if (mode !== 'paused') return;
   menu.close();
@@ -303,7 +319,13 @@ function applySettings(next) {
   audio.applySettings(settings);
   game?.renderer.applySettings(settings);
   sfx.systemVoice = settings.speechVoice === 'system';
-  document.documentElement.style.setProperty('--hud-scale', String(settings.subtitleSize ?? 1));
+  /*
+   * Subtitle size scales subtitles, and nothing else. It used to also drive
+   * --hud-scale, which is the font size of the whole HUD, so the setting was
+   * applied twice to every caption — 1.8 became 3.24 — and, because this
+   * function only runs when a setting changes, the whole HUD sat at 1.0 until
+   * the player touched any control and then jumped.
+   */
 }
 
 function fatal(err) {

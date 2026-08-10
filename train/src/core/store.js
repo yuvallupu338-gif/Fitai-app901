@@ -87,7 +87,11 @@ export const DEFAULT_SETTINGS = {
   hints: true,
   subtitles: true,
   subtitleSize: 1,
-  soundCaptions: true,
+  /* Off by default. A caption that says "[breathing, close]" the instant an
+     anomaly fires tells the player there is an anomaly and what it is, which
+     is the one thing this game does not do. It stays available — a player who
+     cannot hear needs it — but it is now a choice rather than the default. */
+  soundCaptions: false,
   headBob: 1,
   quality: 'high',          // low | medium | high | ultra
   reflections: true,

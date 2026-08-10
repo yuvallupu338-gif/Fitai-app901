@@ -218,13 +218,13 @@ body.playing { cursor: none; }
   text-transform: uppercase;
   font-size: 0.74rem;
   color: var(--amber-dim);
-  margin: 2.2em 0 1.1em;
+  margin: 1.5em 0 0.9em;
 }
 .howto > div > h3:first-child { margin-top: 0; }
 .howto .rule { margin-top: 0; }
 
 /* The controls list: a plain two-column list. */
-.controls { display: grid; grid-template-columns: max-content 1fr; gap: 0.62em 1.5em; max-width: 66ch; align-items: baseline; }
+.controls { display: grid; grid-template-columns: max-content 1fr; gap: 0.5em 1.4em; max-width: 66ch; align-items: baseline; }
 .controls dt {
   font-family: var(--cond);
   letter-spacing: 0.16em;
@@ -237,7 +237,7 @@ body.playing { cursor: none; }
 .rule {
   max-width: 62ch;
   margin: 2.6em 0 0;
-  padding: 1.2em 1.4em;
+  padding: 1.0em 1.2em;
   border: 1px solid var(--line);
   border-left: 2px solid var(--amber);
   background: rgba(255, 176, 58, 0.04);
@@ -245,9 +245,9 @@ body.playing { cursor: none; }
   color: var(--ink);
 }
 .rule strong { color: var(--amber); font-weight: 400; }
-.rule p { margin: 0 0 0.9em; }
+.rule p { margin: 0 0 0.7em; }
 .rule p:last-child { margin-bottom: 0; }
-.fineprint { max-width: 62ch; margin: 2.8em 0 0; color: var(--ink-faint); font-size: 0.88rem; line-height: 1.6; }
+.fineprint { max-width: 62ch; margin: 1.8em 0 0; color: var(--ink-faint); font-size: 0.88rem; line-height: 1.6; }
 
 .captions {
   position: absolute;
@@ -554,7 +554,7 @@ body.playing { cursor: none; }
 .page {
   position: absolute;
   inset: 0;
-  padding: 7vh 8vw;
+  padding: 5.5vh 7vw;
   overflow-y: auto;
   background: linear-gradient(180deg, rgba(4,5,7,0.94), rgba(4,5,7,0.98));
 }
@@ -579,6 +579,11 @@ body.playing { cursor: none; }
   color: var(--ink-faint);
   margin-bottom: 2.6em;
 }
+/* The instructions have to fit the screen they are read on, or the two
+   buttons at the bottom are below the fold on a 1280x720 laptop and the page
+   looks like it ends at "Controls". */
+.page:has(.howto) .sub { margin-bottom: 1.5em; }
+.page:has(.howto) .back { margin-top: 1.6em; }
 .page .back { margin-top: 3em; }
 
 .settings-grid { display: grid; gap: 1.9em; max-width: 62ch; }
