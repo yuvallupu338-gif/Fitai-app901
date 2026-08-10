@@ -1,0 +1,175 @@
+<!DOCTYPE html>
+<html lang="he" dir="rtl">
+<head>
+<meta charset="utf-8">
+<meta name="viewport" content="width=device-width, initial-scale=1, viewport-fit=cover, user-scalable=no">
+<meta name="theme-color" content="#0b0a06">
+<meta name="description" content="שכפול ריאליסטי של הבאקרומס — מאה הרמות הראשונות, נוצרות מחדש בזמן אמת בדפדפן.">
+<title>The Backrooms · 100 Levels</title>
+<link rel="stylesheet" href="src/styles/game.css">
+<link rel="icon" href="data:image/svg+xml,<svg xmlns='http://www.w3.org/2000/svg' viewBox='0 0 32 32'><rect width='32' height='32' fill='%23c9b24e'/><rect x='7' y='4' width='18' height='24' fill='%238d7a2c'/><rect x='12' y='12' width='8' height='16' fill='%23e6d68a'/></svg>">
+</head>
+<body>
+
+<canvas id="view"></canvas>
+
+<div id="ui">
+
+  <!-- ---------------------------------------------------------- HUD -->
+  <div id="hud" hidden>
+    <div id="crosshair"></div>
+    <div id="hud-level">
+      <span id="hud-num">Level 0</span>
+      <span id="hud-name">The Lobby</span>
+      <span id="hud-class">בטוח</span>
+    </div>
+    <div id="hud-log"></div>
+    <div id="hud-prompt" hidden></div>
+    <div id="hud-bottom">
+      <div class="meter" id="m-sanity"><i></i><span>שפיות</span></div>
+      <div class="meter" id="m-stamina"><i></i><span>סיבולת</span></div>
+      <div class="meter" id="m-health"><i></i><span>מצב</span></div>
+      <div id="hud-items">
+        <span id="it-almond">🥛 0</span>
+        <span id="it-batt">🔦 100%</span>
+        <span id="it-note">📄 0</span>
+      </div>
+    </div>
+    <div id="hud-stats"></div>
+  </div>
+
+  <!-- ------------------------------------------------------ loading -->
+  <section id="screen-loading" class="screen" hidden>
+    <div class="loader">
+      <div class="eyebrow">נכנס לרמה</div>
+      <h2 id="load-level">Level 0 · The Lobby</h2>
+      <div id="load-bar"><i></i></div>
+      <p id="load-note">בונה חומרים…</p>
+    </div>
+  </section>
+
+  <!-- --------------------------------------------------------- menu -->
+  <section id="screen-menu" class="screen">
+    <div class="menu-wrap">
+      <div class="eyebrow">no&#8209;clip</div>
+      <h1 class="title">THE&nbsp;BACKROOMS</h1>
+      <p class="sub">
+        אם אתה לא נזהר ואתה נופל דרך המציאות במקומות הלא נכונים,
+        אתה מגיע לרמה&nbsp;0. <b>מאה הרמות הראשונות</b>, נבנות מחדש סביבך תוך כדי הליכה.
+      </p>
+      <div class="menu-buttons">
+        <button id="btn-continue" class="btn primary" hidden>המשך</button>
+        <button id="btn-start" class="btn primary">רד לרמה 0</button>
+        <button id="btn-levels" class="btn">בחירת רמה</button>
+        <button id="btn-settings" class="btn">הגדרות</button>
+      </div>
+      <div class="hint">
+        <b>WASD</b> תנועה · <b>עכבר</b> מבט · <b>Shift</b> ריצה · <b>C</b> כפיפה ·
+        <b>רווח</b> קפיצה · <b>F</b> פנס · <b>E</b> אינטראקציה · <b>Esc</b> תפריט
+      </div>
+      <div class="credits" id="menu-credits"></div>
+    </div>
+  </section>
+
+  <!-- ------------------------------------------------------- levels -->
+  <section id="screen-levels" class="screen" hidden>
+    <div class="panel">
+      <header class="panel-head">
+        <h2>מאה הרמות</h2>
+        <div class="head-tools">
+          <input id="level-search" type="search" placeholder="חיפוש לפי שם או מספר…" autocomplete="off">
+          <button id="btn-levels-back" class="btn small">חזרה</button>
+        </div>
+      </header>
+      <div id="level-grid"></div>
+      <footer class="panel-foot" id="levels-foot"></footer>
+    </div>
+  </section>
+
+  <!-- ----------------------------------------------------- settings -->
+  <section id="screen-settings" class="screen" hidden>
+    <div class="panel narrow">
+      <header class="panel-head">
+        <h2>הגדרות</h2>
+        <button id="btn-settings-back" class="btn small">חזרה</button>
+      </header>
+      <div class="settings">
+        <label class="row">
+          <span>רגישות עכבר</span>
+          <input id="set-sens" type="range" min="0.4" max="3" step="0.05">
+          <output id="out-sens"></output>
+        </label>
+        <label class="row">
+          <span>רזולוציית רינדור</span>
+          <input id="set-scale" type="range" min="0.5" max="1" step="0.05">
+          <output id="out-scale"></output>
+        </label>
+        <label class="row">
+          <span>איכות טקסטורות</span>
+          <select id="set-tex">
+            <option value="128">נמוכה</option>
+            <option value="256">בינונית</option>
+            <option value="512">גבוהה</option>
+          </select>
+        </label>
+        <label class="row">
+          <span>צללים מנורות</span>
+          <select id="set-shadow">
+            <option value="0">כבוי</option>
+            <option value="1">נורה אחת</option>
+            <option value="2">שתי נורות</option>
+            <option value="3">שלוש נורות</option>
+          </select>
+        </label>
+        <label class="row check"><input id="set-bloom" type="checkbox"><span>זוהר (Bloom)</span></label>
+        <label class="row check"><input id="set-vhs" type="checkbox"><span>מצב קלטת VHS</span></label>
+        <label class="row check"><input id="set-invert" type="checkbox"><span>היפוך ציר Y</span></label>
+        <label class="row check"><input id="set-mute" type="checkbox"><span>השתקה</span></label>
+        <label class="row check"><input id="set-entities" type="checkbox"><span>ישויות עוינות</span></label>
+        <div class="row buttons">
+          <button id="btn-reset" class="btn small danger">איפוס התקדמות</button>
+        </div>
+      </div>
+    </div>
+  </section>
+
+  <!-- -------------------------------------------------------- pause -->
+  <section id="screen-pause" class="screen" hidden>
+    <div class="menu-wrap small">
+      <div class="eyebrow" id="pause-where"></div>
+      <h2>עצירה</h2>
+      <div class="menu-buttons">
+        <button id="btn-resume" class="btn primary">המשך</button>
+        <button id="btn-pause-levels" class="btn">בחירת רמה</button>
+        <button id="btn-pause-settings" class="btn">הגדרות</button>
+        <button id="btn-quit" class="btn">תפריט ראשי</button>
+      </div>
+    </div>
+  </section>
+
+  <!-- --------------------------------------------------------- died -->
+  <section id="screen-dead" class="screen" hidden>
+    <div class="menu-wrap small">
+      <div class="eyebrow">אין תיעוד למה שקרה אחר כך</div>
+      <h2 id="dead-title">לא יצאת</h2>
+      <p class="sub" id="dead-note"></p>
+      <div class="menu-buttons">
+        <button id="btn-retry" class="btn primary">נסה שוב באותה רמה</button>
+        <button id="btn-dead-menu" class="btn">תפריט ראשי</button>
+      </div>
+    </div>
+  </section>
+
+  <div id="fade"></div>
+  <div id="toast" hidden></div>
+</div>
+
+<noscript>
+  <p style="padding:40px;color:#c9b24e;font:16px/1.6 system-ui">
+    המשחק דורש JavaScript ו-WebGL2.
+  </p>
+</noscript>
+
+<script type="module" src="src/main.js"></script>
+</body>
+</html>

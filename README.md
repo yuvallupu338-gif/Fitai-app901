@@ -43,6 +43,16 @@ failure would look like a bug in the app.
 Point Pages at the branch root; `index.html` is the entry. `dist/fitai.html` is
 served alongside it as a single-file copy that also works offline.
 
+### Also in this repo: `backrooms/`
+
+`backrooms/` is a separate, self-contained app that shares nothing with FitAI
+but the server: a realistic first-person Backrooms build covering levels 0–99,
+with a WebGL2 renderer, procedural materials, an endless world generated as you
+walk it, and synthesised audio — no libraries and no media files, same as
+everything else here. It is served at `/backrooms/` and does not touch the
+questionnaire, the plan, or any of FitAI's storage. See
+[`backrooms/README.md`](backrooms/README.md).
+
 ## What it does
 
 **Intake** — ten steps covering the basics, training history, goal and target
