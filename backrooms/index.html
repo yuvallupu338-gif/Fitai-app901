@@ -59,7 +59,13 @@
     <button class="tbtn tiny" id="t-pause">❚❚</button>
   </div>
 
-  <div id="rotate" hidden>סובב את המכשיר לרוחב</div>
+  <!-- Advisory, not a gate: pointer-events is off on the banner itself so it
+       can never swallow the touch a player is using to actually start
+       walking. Only the small "got it" button is interactive. -->
+  <div id="rotate" hidden>
+    <span>מומלץ לסובב לרוחב</span>
+    <button id="rotate-ok" type="button">הבנתי</button>
+  </div>
 
   <!-- ------------------------------------------------------ loading -->
   <section id="screen-loading" class="screen" hidden>

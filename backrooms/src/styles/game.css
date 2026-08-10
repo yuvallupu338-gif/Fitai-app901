@@ -548,19 +548,61 @@ body.touch #hud-stats { display: none; }
 body.touch #hud-log { top: calc(62px + env(safe-area-inset-top)); }
 body.touch #crosshair { opacity: 0.5; }
 
+/*
+ * A banner, not a gate. This used to be a full-screen `inset: 0` overlay with
+ * pointer-events: auto — which meant the very first touch after loading a
+ * level, wherever it landed, dismissed the banner instead of reaching the
+ * joystick underneath. The player's first attempt to walk silently did
+ * nothing, self-correcting only on their second touch. It is real, it is
+ * confirmed against the actual dismiss handler and the actual z-order, and it
+ * is why the on-screen controls now never have anything sitting in front of
+ * them: the banner is a strip pinned to the top, and only its own button is
+ * interactive.
+ */
 #rotate {
   position: absolute;
-  inset: 0;
+  left: 50%;
+  /*
+   * 76px clears both #hud-level (three stacked lines starting at its own
+   * top offset, ~60px tall at their tallest realistic case) and #t-pause
+   * (a 42px circle starting 12px down) with margin to spare, on the
+   * narrowest phone this ships to. A first version sat at top:10px, directly
+   * behind both — the level name and the pause button were visibly peeking
+   * out from under the banner in a real screenshot. Positions below compare
+   * against these on their shared base offset; env(safe-area-inset-top) is
+   * additive to all three, so it does not change the relative order.
+   */
+  top: calc(76px + env(safe-area-inset-top));
+  transform: translateX(-50%);
   z-index: 30;
-  display: grid;
-  place-items: center;
-  background: rgba(6, 5, 4, 0.94);
+  display: flex;
+  align-items: center;
+  gap: 10px;
+  max-width: min(320px, 72vw);
+  padding: 7px 7px 7px 13px;
+  border-radius: 999px;
+  background: rgba(10, 9, 6, 0.88);
+  border: 1px solid var(--line);
   color: var(--gold);
-  font-size: 16px;
-  letter-spacing: 0.04em;
-  pointer-events: auto;
+  font-size: 11px;
+  letter-spacing: 0.02em;
+  pointer-events: none;
 }
 #rotate[hidden] { display: none; }
+#rotate span { white-space: nowrap; overflow: hidden; text-overflow: ellipsis; }
+#rotate-ok {
+  pointer-events: auto;
+  touch-action: none;
+  flex: none;
+  font: inherit;
+  font-weight: 700;
+  color: var(--bg);
+  background: var(--gold);
+  border: none;
+  border-radius: 999px;
+  padding: 5px 12px;
+  cursor: pointer;
+}
 
 /* ------------------------------------------------------------------ *
  * Transitions and toasts

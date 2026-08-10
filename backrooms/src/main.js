@@ -184,11 +184,13 @@ class Game {
       });
     }
 
-    const rotate = document.querySelector('#rotate');
-    if (rotate) {
-      rotate.addEventListener('pointerdown', () => {
+    const rotateOk = document.querySelector('#rotate-ok');
+    if (rotateOk) {
+      rotateOk.addEventListener('pointerdown', (e) => {
+        e.preventDefault();
+        e.stopPropagation();
         this.rotateDismissed = true;
-        rotate.hidden = true;
+        document.querySelector('#rotate').hidden = true;
       });
     }
   }
@@ -401,10 +403,10 @@ class Game {
     const spawn = this.world.findSpawn(
       opts.x ?? (level.id * 137.3), opts.z ?? (level.id * 61.7));
     this.player = new Player(spawn);
-    /* Facing is per level rather than random: two runs of the same level look
-     * the same, which is what makes a rendering regression visible in a
-     * screenshot instead of being lost in the framing. */
-    this.player.yaw = ((level.seed % 628) / 628) * Math.PI * 2;
+    /* Face the most open direction. Deterministic (it reads the generated
+     * geometry, not a clock), so two runs of the same level still frame
+     * identically and a rendering regression cannot hide in the framing. */
+    this.player.yaw = this.world.openDirection(spawn.x, spawn.z);
     if (level.flashlight) this.player.flashlightOn = true;
 
     const total = 8;

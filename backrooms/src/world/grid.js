@@ -43,6 +43,10 @@ export const MAT = {
   PROP: 6,
   PROP2: 7,
   FOLIAGE: 8,  /* cut-out material for vegetation and wire mesh              */
+  /* Whatever is walking around. Deliberately NOT per-level: a level describes
+   * the building it is, and the things in the building are the same things
+   * everywhere. Levels may still override slot 9 if they want their own. */
+  FLESH: 9,
 };
 export const MAT_COUNT = 12;
 

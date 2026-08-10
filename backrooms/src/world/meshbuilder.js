@@ -169,12 +169,20 @@ export function addBox(mb, cx, cy, cz, sx, sy, sz, rot, mat, opts = {}) {
   const uvD = [[0, 0], [sz, 0], [sz, sy], [0, sy]];
   const uvT = [[0, 0], [sx, 0], [sx, sz], [0, sz]];
 
-  addQuad(mb, F, E, H, G, ...uvW, mat, o);   /* +Z */
-  addQuad(mb, A, B, C, D, ...uvW, mat, o);   /* -Z */
-  addQuad(mb, B, F, G, C, ...uvD, mat, o);   /* +X */
-  addQuad(mb, E, A, D, H, ...uvD, mat, o);   /* -X */
-  addQuad(mb, D, C, G, H, ...uvT, mat, o);   /* +Y */
-  if (opts.bottom !== false) addQuad(mb, E, F, B, A, ...uvT, mat, o); /* -Y */
+  /*
+   * Winding matters and was wrong here for a long time: every one of these six
+   * faces used to be wound the other way, so with back-face culling on, each
+   * box drew its own interior and every normal pointed away from the lights.
+   * Crates, barrels, pipes, cars, lamp posts, desks and doors were all
+   * inside-out. It is not obvious on a small dark prop, which is exactly why
+   * it survived — verify with cross(p1-p0, p3-p0) rather than by eye.
+   */
+  addQuad(mb, F, G, H, E, ...uvW, mat, o);   /* +Z */
+  addQuad(mb, A, D, C, B, ...uvW, mat, o);   /* -Z */
+  addQuad(mb, B, C, G, F, ...uvD, mat, o);   /* +X */
+  addQuad(mb, E, H, D, A, ...uvD, mat, o);   /* -X */
+  addQuad(mb, D, H, G, C, ...uvT, mat, o);   /* +Y */
+  if (opts.bottom !== false) addQuad(mb, E, A, B, F, ...uvT, mat, o); /* -Y */
 }
 
 export function addCylinder(mb, cx, cy, cz, radius, height, segments, mat, opts = {}) {
@@ -193,8 +201,9 @@ export function addCylinder(mb, cx, cy, cz, radius, height, segments, mat, opts 
     mb.vertex(px, cy + height, pz, nx, 0, nz, u, height, tx, 0, tz, 1, ao(0, 1), mat, -1);
   }
   for (let i = 0; i < seg; i++) {
+    /* Same inversion as the box had: (a, a+2, a+3, a+1) faces inward. */
     const a = base + i * 2;
-    mb.quadIdx(a, a + 2, a + 3, a + 1);
+    mb.quadIdx(a, a + 1, a + 3, a + 2);
   }
   if (opts.cap !== false) {
     const top = mb.vn;
@@ -205,6 +214,74 @@ export function addCylinder(mb, cx, cy, cz, radius, height, segments, mat, opts 
         0, 1, 0, Math.cos(a) * radius, Math.sin(a) * radius, 1, 0, 0, 1, ao(0, 1), mat, -1);
     }
     for (let i = 0; i < seg; i++) mb.tri(cIdx, top + 1 + i + 1, top + 1 + i);
+  }
+}
+
+/*
+ * A tapered prism hanging from a joint. Built downward from (x, yTop, z) so
+ * that rotating the model matrix swings it from the shoulder or the hip rather
+ * than around its own middle — which is the whole difference between a limb
+ * and a floating box.
+ *
+ * Taper matters more than it sounds: a limb of constant thickness reads as a
+ * plank, and the eye picks that out of a silhouette at fog distance long
+ * before it can see any surface detail.
+ */
+export function addLimb(mb, x, yTop, z, top, bot, len, mat, opts = {}) {
+  const [tw, td] = top;
+  const [bw, bd] = bot;
+  const yBot = yTop - len;
+  const A = [x - tw, yTop, z - td], B = [x + tw, yTop, z - td];
+  const C = [x + tw, yTop, z + td], D = [x - tw, yTop, z + td];
+  const E = [x - bw, yBot, z - bd], F = [x + bw, yBot, z - bd];
+  const G = [x + bw, yBot, z + bd], H = [x - bw, yBot, z + bd];
+  const o = { mat, ao: opts.ao, sub: opts.sub || 1 };
+  const uvSide = [[0, 0], [tw * 2, 0], [bw * 2, len], [0, len]];
+  const uvEnd = [[0, 0], [td * 2, 0], [bd * 2, len], [0, len]];
+
+  /* Wound so each normal points out of the limb — see the note in addBox. */
+  addQuad(mb, G, C, D, H, ...uvSide, mat, o);   /* +Z */
+  addQuad(mb, E, A, B, F, ...uvSide, mat, o);   /* -Z */
+  addQuad(mb, F, B, C, G, ...uvEnd, mat, o);    /* +X */
+  addQuad(mb, H, D, A, E, ...uvEnd, mat, o);    /* -X */
+  addQuad(mb, A, D, C, B, [0, 0], [0, td * 2], [tw * 2, td * 2], [tw * 2, 0], mat, o);
+  if (opts.capBottom !== false) {
+    addQuad(mb, E, F, G, H, [0, 0], [bw * 2, 0], [bw * 2, bd * 2], [0, bd * 2], mat, o);
+  }
+}
+
+/* A UV sphere. Twelve by eight is enough for a head at any distance this game
+ * ever shows one at, and a head is the one part of a silhouette a person
+ * recognises instantly — a cube there is what made these read as furniture. */
+export function addSphere(mb, cx, cy, cz, radius, segU, segV, mat, opts = {}) {
+  const su = Math.max(4, segU | 0), sv = Math.max(3, segV | 0);
+  const ao = opts.ao || AO_FLAT;
+  const sx = opts.scaleX ?? 1, sy = opts.scaleY ?? 1, sz = opts.scaleZ ?? 1;
+  const base = mb.vn;
+  for (let j = 0; j <= sv; j++) {
+    const v = j / sv;
+    const phi = v * Math.PI;
+    const sp = Math.sin(phi), cp = Math.cos(phi);
+    for (let i = 0; i <= su; i++) {
+      const u = i / su;
+      const th = u * Math.PI * 2;
+      const st = Math.sin(th), ct = Math.cos(th);
+      const nx = sp * ct, ny = cp, nz = sp * st;
+      /* Tangent runs along the parallel, which keeps normal maps upright. */
+      mb.vertex(
+        cx + nx * radius * sx, cy + ny * radius * sy, cz + nz * radius * sz,
+        nx, ny, nz,
+        u * radius * 3, v * radius * 3,
+        -st, 0, ct, 1,
+        ao(u, v), mat, -1);
+    }
+  }
+  for (let j = 0; j < sv; j++) {
+    for (let i = 0; i < su; i++) {
+      const a = base + j * (su + 1) + i;
+      const b = a + su + 1;
+      mb.quadIdx(a, a + 1, b + 1, b);
+    }
   }
 }
 

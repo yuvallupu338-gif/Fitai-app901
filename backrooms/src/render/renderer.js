@@ -26,7 +26,7 @@ import {
 } from './shaders.js';
 import { bakeMaterial, parseColor } from './textures.js';
 import { MAT_COUNT, MAT } from '../world/grid.js';
-import { MeshBuilder, addBox, addCylinder } from '../world/meshbuilder.js';
+import { MeshBuilder, addBox, addCylinder, addLimb, addSphere } from '../world/meshbuilder.js';
 import {
   mat4, perspective, multiply, viewFromEuler, forwardFromEuler,
   frustumFromMatrix, aabbInFrustum, DEG,
@@ -168,18 +168,49 @@ export class Renderer {
     this.dyn.note = make((mb) => {
       addBox(mb, 0, 0.005, 0, 0.21, 0.01, 0.29, 0, MAT.LIGHT, { ao: () => 1 });
     });
-    /* Entities are deliberately barely-shapes. Anything more defined than this
-     * is less frightening, not more, and at fog distance in the dark all the
-     * player ever gets is a silhouette and a sound. */
-    this.dyn.entity = make((mb) => {
-      addBox(mb, 0, 0.9, 0, 0.42, 1.8, 0.32, 0, MAT.PROP2, { ao: () => 0.5 });
-      addBox(mb, 0, 1.86, 0, 0.24, 0.26, 0.24, 0, MAT.PROP2, { ao: () => 0.45 });
-      addBox(mb, 0.28, 1.1, 0, 0.12, 0.9, 0.12, 0.2, MAT.PROP2, { ao: () => 0.4 });
-      addBox(mb, -0.28, 1.1, 0, 0.12, 0.9, 0.12, -0.2, MAT.PROP2, { ao: () => 0.4 });
+    /*
+     * Entities, as articulated parts rather than one rigid lump. Each piece is
+     * its own mesh with its origin at the joint it swings from, so the walk
+     * cycle in entities.js can rotate it directly — a shoulder that actually
+     * pivots at the shoulder.
+     *
+     * The proportions are the point. These were four stacked boxes, and four
+     * stacked boxes read as furniture no matter how they are lit: the eye
+     * identifies a body from the silhouette, from taper and from the way the
+     * limbs swing, long before it can resolve any surface. Slightly long arms
+     * and a slightly narrow head are deliberate — almost right is worse than
+     * obviously wrong, which is the entire effect being aimed for here.
+     */
+    const F = MAT.FLESH;
+    const shade = (v) => () => v;
+
+    this.dyn.entTorso = make((mb) => {
+      /* Shoulders down to hips, tapering in. */
+      addLimb(mb, 0, 1.44, 0, [0.20, 0.11], [0.13, 0.09], 0.56, F, { ao: shade(0.62) });
+      /* Neck. */
+      addLimb(mb, 0, 1.52, 0, [0.05, 0.05], [0.06, 0.06], 0.10, F, { ao: shade(0.5) });
     });
-    this.dyn.crawler = make((mb) => {
-      addBox(mb, 0, 0.34, 0, 0.5, 0.36, 1.0, 0, MAT.PROP2, { ao: () => 0.45 });
-      addBox(mb, 0, 0.42, -0.6, 0.28, 0.26, 0.34, 0, MAT.PROP2, { ao: () => 0.4 });
+    this.dyn.entHead = make((mb) => {
+      addSphere(mb, 0, 0, 0, 0.115, 12, 9, F,
+        { ao: shade(0.7), scaleY: 1.22, scaleZ: 1.05 });
+    });
+    /* Origin at the joint, hanging down. */
+    this.dyn.entArm = make((mb) => {
+      addLimb(mb, 0, 0, 0, [0.055, 0.055], [0.032, 0.032], 0.66, F, { ao: shade(0.55) });
+    });
+    this.dyn.entLeg = make((mb) => {
+      addLimb(mb, 0, 0, 0, [0.075, 0.075], [0.045, 0.05], 0.88, F, { ao: shade(0.5) });
+    });
+
+    this.dyn.crawlBody = make((mb) => {
+      /* Built lying down: a spine from hips to shoulders, plus a skull. */
+      addLimb(mb, 0, 0.30, -0.34, [0.15, 0.14], [0.19, 0.17], 0.10, F, { ao: shade(0.5) });
+      addLimb(mb, 0, 0.32, 0.10, [0.19, 0.30], [0.15, 0.30], 0.12, F, { ao: shade(0.55) });
+      addSphere(mb, 0, 0.30, -0.52, 0.105, 10, 8, F,
+        { ao: shade(0.6), scaleZ: 1.35, scaleY: 0.85 });
+    });
+    this.dyn.crawlLimb = make((mb) => {
+      addLimb(mb, 0, 0, 0, [0.045, 0.045], [0.028, 0.028], 0.36, F, { ao: shade(0.45) });
     });
   }
 
@@ -420,7 +451,7 @@ export class Renderer {
     for (const d of state.dynamics || []) {
       const mesh = this.dyn[d.mesh];
       if (!mesh) continue;
-      modelInto(this.model, d.x, d.y, d.z, d.rot || 0, d.scale || 1);
+      modelInto(this.model, d.x, d.y, d.z, d.rot || 0, d.scale || 1, d.pitch || 0);
       gl.uniformMatrix4fv(p.u.uModel, false, this.model);
       gl.bindVertexArray(mesh.vao);
       gl.drawElements(gl.TRIANGLES, mesh.count, gl.UNSIGNED_INT, 0);
@@ -539,12 +570,16 @@ function identityInto(m) {
   return m;
 }
 
-function modelInto(m, x, y, z, yaw, scale) {
-  const c = Math.cos(yaw) * scale, s = Math.sin(yaw) * scale;
-  m[0] = c;  m[1] = 0;      m[2] = s;  m[3] = 0;
-  m[4] = 0;  m[5] = scale;  m[6] = 0;  m[7] = 0;
-  m[8] = -s; m[9] = 0;      m[10] = c; m[11] = 0;
-  m[12] = x; m[13] = y;     m[14] = z; m[15] = 1;
+/* Translate × yaw × pitch × uniform scale. Pitch is what swings a limb about
+ * the joint its mesh was built around; it is zero for everything else, so the
+ * common case costs two extra multiplies. */
+function modelInto(m, x, y, z, yaw, scale, pitch = 0) {
+  const c = Math.cos(yaw), s = Math.sin(yaw);
+  const cp = Math.cos(pitch), sp = Math.sin(pitch);
+  m[0] = c * scale;       m[1] = 0;          m[2] = -s * scale;      m[3] = 0;
+  m[4] = s * sp * scale;  m[5] = cp * scale; m[6] = c * sp * scale;  m[7] = 0;
+  m[8] = s * cp * scale;  m[9] = -sp * scale; m[10] = c * cp * scale; m[11] = 0;
+  m[12] = x; m[13] = y;   m[14] = z;         m[15] = 1;
   return m;
 }
 
@@ -567,6 +602,21 @@ function normaliseMaterials(level) {
     { kind: 'metal', color: '#7c7a74', tile: 1.4 },
     { kind: 'metal', color: '#3a3d42', tile: 1.2, polish: 0.25 },
     { kind: 'blades', color: '#7f8a3c', tile: 1, cutout: true, specular: 0.1 },
+    /* Slot 9 — entities. Dry, matte and slightly translucent-looking, with
+     * enough bump that a torch raking across it at an angle picks out the
+     * surface. Sheet metal, which is what they used to be made of, reads as a
+     * prop; this reads as something that was alive. */
+    /*
+     * tile is in metres per repeat, and limb UVs are in metres, so a value
+     * near 1 stretches one texture across a whole torso — which came out as
+     * huge vertical streaks that read as varnished wood, not skin. 0.12 puts
+     * roughly three repeats across a shoulder, which at the distances anything
+     * is ever seen from is fine surface grain.
+     */
+    {
+      kind: 'stucco', color: '#8f8177', tile: 0.12, bump: 0.85,
+      normalStrength: 0.9, roughMul: 1.0, specular: 0.16,
+    },
   ];
   for (let i = 0; i < MAT_COUNT; i++) {
     if (!defs[i]) {

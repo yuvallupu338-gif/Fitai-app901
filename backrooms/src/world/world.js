@@ -341,6 +341,35 @@ export class World {
     return { x: startX, y: 0, z: startZ };
   }
 
+  /*
+   * The yaw with the most open floor in front of it.
+   *
+   * Spawning faces whatever direction a hash produced, and in a level built
+   * out of racks or one-cell corridors that is very often a wall forty
+   * centimetres from your face — you arrive, see a flat rectangle of
+   * wallpaper, and have to guess which way is out. Starting the player looking
+   * down the longest clear line costs one short raycast per level load and is
+   * the difference between arriving somewhere and arriving in a cupboard.
+   */
+  openDirection(x, z, eyeY = 1.6) {
+    let bestYaw = 0, bestReach = -1;
+    for (let i = 0; i < 24; i++) {
+      const yaw = (i / 24) * Math.PI * 2;
+      const dx = -Math.sin(yaw), dz = -Math.cos(yaw);
+      let reach = 0;
+      for (let d = 0.8; d <= 16; d += 0.5) {
+        const tx = x + dx * d, tz = z + dz * d;
+        const [gx, gz] = this.cellOf(tx, tz);
+        const [c, idx] = this.cellIndex(gx, gz);
+        if (c.wall[idx] * WALL_UNIT > eyeY * 0.5) break;
+        if (c.flags[idx] & F_NOFLOOR) break;
+        reach = d;
+      }
+      if (reach > bestReach) { bestReach = reach; bestYaw = yaw; }
+    }
+    return bestYaw;
+  }
+
   visibleChunks() {
     const out = [];
     for (const c of this.chunks.values()) if (c.mesh) out.push(c);
