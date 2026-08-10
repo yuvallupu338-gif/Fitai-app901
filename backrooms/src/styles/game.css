@@ -1,0 +1,647 @@
+/*
+ * game.css — the shell around the canvas.
+ *
+ * All of it sits over a full-screen WebGL view, so two rules govern
+ * everything: nothing may steal a pointer event unless it is actually a
+ * control, and nothing may be pure white on pure black. The whole palette is
+ * pulled towards the same sodium yellow the game is lit with, so the menu and
+ * the level do not look like two different pieces of software.
+ */
+
+:root {
+  --bg: #0a0906;
+  --panel: rgba(14, 12, 8, 0.92);
+  --line: rgba(201, 178, 78, 0.22);
+  --ink: #e8e2cc;
+  --dim: #9a9377;
+  --gold: #c9b24e;
+  --gold-bright: #f0dd8a;
+  --danger: #d4553f;
+  --radius: 4px;
+  --font: ui-sans-serif, system-ui, "Segoe UI", Roboto, "Helvetica Neue", Arial,
+          "Noto Sans Hebrew", sans-serif;
+  --mono: ui-monospace, SFMono-Regular, Menlo, Consolas, monospace;
+}
+
+* { box-sizing: border-box; }
+
+html, body {
+  margin: 0;
+  height: 100%;
+  overflow: hidden;
+  background: var(--bg);
+  color: var(--ink);
+  font-family: var(--font);
+  -webkit-font-smoothing: antialiased;
+  overscroll-behavior: none;
+}
+
+/*
+ * `touch-action` is NOT inherited, so setting it on <body> does nothing for
+ * the canvas — the browser starts a scroll gesture, the touch events arrive
+ * with cancelable=false, preventDefault is ignored and the joystick simply
+ * does not work. It has to go on the elements that actually receive touches.
+ *
+ * And it must NOT go on <body>, or it applies to the menus too and the list of
+ * a hundred levels becomes unscrollable on the one device where scrolling it
+ * is the only way to browse.
+ */
+#view {
+  position: fixed;
+  inset: 0;
+  width: 100%;
+  height: 100%;
+  display: block;
+  background: #000;
+  cursor: default;
+  touch-action: none;
+}
+#view.playing { cursor: none; }
+
+#ui {
+  position: fixed;
+  inset: 0;
+  pointer-events: none;
+  z-index: 10;
+}
+
+/* ------------------------------------------------------------------ *
+ * Screens
+ * ------------------------------------------------------------------ */
+
+.screen {
+  position: absolute;
+  inset: 0;
+  pointer-events: auto;
+  display: flex;
+  /* `safe center` where it is supported: a centred flex child that is taller
+   * than the screen overflows off BOTH ends, and the top half becomes
+   * unreachable however hard you scroll. On a landscape phone the settings
+   * panel is exactly that tall. */
+  align-items: center;
+  align-items: safe center;
+  justify-content: center;
+  padding: max(16px, env(safe-area-inset-top)) 16px;
+  background:
+    radial-gradient(120% 90% at 50% 0%, rgba(201, 178, 78, 0.09), transparent 62%),
+    rgba(6, 5, 4, 0.86);
+  backdrop-filter: blur(9px) saturate(0.7);
+  -webkit-backdrop-filter: blur(9px) saturate(0.7);
+  animation: fade-in 0.28s ease both;
+  touch-action: pan-y;
+  overflow-y: auto;
+}
+.screen[hidden] { display: none; }
+
+@keyframes fade-in { from { opacity: 0; } to { opacity: 1; } }
+
+.menu-wrap {
+  width: min(760px, 100%);
+  text-align: center;
+}
+.menu-wrap.small { width: min(460px, 100%); }
+
+.eyebrow {
+  font-family: var(--mono);
+  font-size: 11px;
+  letter-spacing: 0.28em;
+  text-transform: uppercase;
+  color: var(--gold);
+  opacity: 0.8;
+  margin-bottom: 14px;
+}
+
+.title {
+  font-size: clamp(34px, 8vw, 78px);
+  line-height: 0.95;
+  margin: 0 0 18px;
+  letter-spacing: 0.06em;
+  font-weight: 800;
+  color: var(--gold-bright);
+  text-shadow: 0 0 34px rgba(201, 178, 78, 0.35), 0 2px 0 rgba(0, 0, 0, 0.6);
+  direction: ltr;
+}
+
+h2 { font-size: clamp(20px, 3.4vw, 30px); margin: 0 0 10px; font-weight: 700; }
+
+.sub {
+  color: var(--dim);
+  font-size: 15px;
+  line-height: 1.75;
+  max-width: 58ch;
+  margin: 0 auto 26px;
+}
+.sub b { color: var(--ink); font-weight: 600; }
+
+.menu-buttons {
+  display: flex;
+  flex-direction: column;
+  gap: 10px;
+  width: min(320px, 100%);
+  margin: 0 auto;
+}
+
+.btn {
+  pointer-events: auto;
+  font: inherit;
+  font-size: 15px;
+  font-weight: 600;
+  color: var(--ink);
+  background: rgba(255, 255, 255, 0.045);
+  border: 1px solid var(--line);
+  border-radius: var(--radius);
+  padding: 13px 18px;
+  cursor: pointer;
+  transition: background 0.14s, border-color 0.14s, transform 0.08s;
+}
+.btn:hover { background: rgba(201, 178, 78, 0.12); border-color: rgba(201, 178, 78, 0.5); }
+.btn:active { transform: translateY(1px); }
+.btn.primary {
+  background: rgba(201, 178, 78, 0.16);
+  border-color: rgba(201, 178, 78, 0.55);
+  color: var(--gold-bright);
+}
+.btn.small { padding: 7px 13px; font-size: 13px; }
+.btn.danger { color: var(--danger); border-color: rgba(212, 85, 63, 0.4); }
+
+.hint {
+  margin-top: 26px;
+  font-size: 12px;
+  color: var(--dim);
+  line-height: 2;
+}
+.hint b {
+  font-family: var(--mono);
+  color: var(--gold);
+  background: rgba(201, 178, 78, 0.1);
+  border: 1px solid var(--line);
+  border-radius: 3px;
+  padding: 1px 5px;
+  font-weight: 600;
+}
+.credits {
+  margin-top: 22px;
+  font-size: 11px;
+  color: #6b6551;
+  line-height: 1.8;
+  max-width: 62ch;
+  margin-inline: auto;
+}
+
+/* ------------------------------------------------------------------ *
+ * Panels: level select, settings
+ * ------------------------------------------------------------------ */
+
+.panel {
+  width: min(1040px, 100%);
+  max-height: min(86vh, 900px);
+  background: var(--panel);
+  border: 1px solid var(--line);
+  border-radius: 8px;
+  display: flex;
+  flex-direction: column;
+  overflow: hidden;
+}
+.panel.narrow { width: min(560px, 100%); }
+
+.panel-head {
+  display: flex;
+  align-items: center;
+  justify-content: space-between;
+  gap: 12px;
+  padding: 14px 18px;
+  border-bottom: 1px solid var(--line);
+  flex-wrap: wrap;
+}
+.panel-head h2 { margin: 0; }
+.head-tools { display: flex; gap: 8px; align-items: center; }
+
+#level-search {
+  font: inherit;
+  font-size: 13px;
+  color: var(--ink);
+  background: rgba(0, 0, 0, 0.4);
+  border: 1px solid var(--line);
+  border-radius: var(--radius);
+  padding: 7px 11px;
+  width: min(240px, 42vw);
+}
+#level-search::placeholder { color: #6b6551; }
+
+#level-grid {
+  overflow-y: auto;
+  /* The one place in the game that must scroll under a thumb. */
+  touch-action: pan-y;
+  -webkit-overflow-scrolling: touch;
+  padding: 14px;
+  display: grid;
+  grid-template-columns: repeat(auto-fill, minmax(178px, 1fr));
+  gap: 8px;
+}
+
+.level-card {
+  pointer-events: auto;
+  text-align: start;
+  background: rgba(255, 255, 255, 0.03);
+  border: 1px solid var(--line);
+  border-inline-start: 3px solid var(--cls, var(--gold));
+  border-radius: var(--radius);
+  padding: 9px 11px;
+  cursor: pointer;
+  font: inherit;
+  color: var(--ink);
+  display: grid;
+  gap: 2px;
+  transition: background 0.12s, transform 0.08s;
+}
+.level-card:hover { background: rgba(201, 178, 78, 0.11); }
+.level-card:active { transform: translateY(1px); }
+.level-card .num {
+  font-family: var(--mono);
+  font-size: 10px;
+  letter-spacing: 0.16em;
+  color: var(--gold);
+  display: flex;
+  justify-content: space-between;
+  align-items: center;
+}
+.level-card .en { font-size: 14px; font-weight: 700; direction: ltr; text-align: start; }
+.level-card .he { font-size: 12px; color: var(--dim); }
+.level-card .cls {
+  font-size: 10px;
+  color: var(--cls);
+  font-weight: 700;
+}
+.level-card .seen { color: #5fbf6a; font-size: 10px; }
+.level-card.canon .en::after {
+  content: '★';
+  font-size: 9px;
+  vertical-align: super;
+  color: var(--gold);
+  margin-inline-start: 4px;
+}
+
+.panel-foot {
+  padding: 10px 18px;
+  border-top: 1px solid var(--line);
+  font-size: 11px;
+  color: #6b6551;
+  line-height: 1.7;
+}
+
+.settings { padding: 16px 18px; display: grid; gap: 14px; }
+.settings .row {
+  display: grid;
+  grid-template-columns: 1fr 160px 44px;
+  gap: 12px;
+  align-items: center;
+  font-size: 14px;
+}
+.settings .row.check { grid-template-columns: 22px 1fr; }
+.settings .row.buttons { grid-template-columns: 1fr; }
+.settings output { font-family: var(--mono); font-size: 12px; color: var(--gold); }
+.settings select, .settings input[type=range] { width: 100%; accent-color: var(--gold); }
+.settings select {
+  font: inherit; font-size: 13px; color: var(--ink);
+  background: rgba(0, 0, 0, 0.4);
+  border: 1px solid var(--line); border-radius: var(--radius); padding: 6px 8px;
+}
+.settings input[type=checkbox] { width: 18px; height: 18px; accent-color: var(--gold); }
+
+/* ------------------------------------------------------------------ *
+ * Loading
+ * ------------------------------------------------------------------ */
+
+.loader { width: min(460px, 100%); text-align: center; }
+.loader h2 { direction: ltr; color: var(--gold-bright); }
+#load-bar {
+  height: 3px;
+  background: rgba(255, 255, 255, 0.08);
+  border-radius: 2px;
+  overflow: hidden;
+  margin: 18px 0 10px;
+}
+#load-bar i {
+  display: block;
+  height: 100%;
+  width: 0;
+  background: var(--gold);
+  transition: width 0.2s ease;
+}
+#load-note { font-size: 12px; color: var(--dim); margin: 0; font-family: var(--mono); }
+
+/* ------------------------------------------------------------------ *
+ * HUD
+ * ------------------------------------------------------------------ */
+
+#hud { position: absolute; inset: 0; pointer-events: none; }
+#hud[hidden] { display: none; }
+
+#crosshair {
+  position: absolute;
+  left: 50%; top: 50%;
+  width: 3px; height: 3px;
+  margin: -1.5px 0 0 -1.5px;
+  border-radius: 50%;
+  background: rgba(255, 255, 255, 0.55);
+  box-shadow: 0 0 3px rgba(0, 0, 0, 0.9);
+}
+
+#hud-level {
+  position: absolute;
+  top: max(14px, env(safe-area-inset-top));
+  inset-inline-start: 16px;
+  display: grid;
+  gap: 1px;
+  text-shadow: 0 1px 4px rgba(0, 0, 0, 0.9);
+}
+#hud-num {
+  font-family: var(--mono);
+  font-size: 11px;
+  letter-spacing: 0.2em;
+  color: var(--gold);
+  direction: ltr;
+  text-align: start;
+}
+#hud-name { font-size: 15px; font-weight: 700; direction: ltr; text-align: start; }
+#hud-class { font-size: 11px; color: var(--dim); }
+
+#hud-log {
+  position: absolute;
+  top: max(14px, env(safe-area-inset-top));
+  inset-inline-end: 16px;
+  width: min(320px, 46vw);
+  display: grid;
+  gap: 4px;
+  justify-items: end;
+  text-align: end;
+  font-size: 12px;
+  color: var(--dim);
+  text-shadow: 0 1px 4px rgba(0, 0, 0, 0.9);
+}
+#hud-log div { animation: log-in 4.5s ease forwards; }
+@keyframes log-in {
+  0% { opacity: 0; transform: translateY(-4px); }
+  12%, 70% { opacity: 1; transform: none; }
+  100% { opacity: 0; }
+}
+
+#hud-prompt {
+  position: absolute;
+  left: 50%;
+  top: 58%;
+  transform: translateX(-50%);
+  font-size: 13px;
+  color: var(--ink);
+  background: rgba(0, 0, 0, 0.5);
+  border: 1px solid var(--line);
+  border-radius: 3px;
+  padding: 6px 12px;
+  white-space: nowrap;
+  text-shadow: 0 1px 3px #000;
+}
+#hud-prompt[hidden] { display: none; }
+#hud-prompt b {
+  font-family: var(--mono);
+  color: var(--gold);
+  margin-inline-end: 4px;
+}
+
+#hud-bottom {
+  position: absolute;
+  bottom: max(14px, env(safe-area-inset-bottom));
+  inset-inline-start: 16px;
+  display: grid;
+  gap: 6px;
+  width: min(210px, 40vw);
+}
+.meter {
+  position: relative;
+  height: 4px;
+  background: rgba(255, 255, 255, 0.10);
+  border-radius: 2px;
+}
+.meter i {
+  display: block;
+  height: 100%;
+  width: 100%;
+  border-radius: 2px;
+  background: var(--gold);
+  transition: width 0.12s linear;
+}
+.meter span {
+  position: absolute;
+  inset-inline-start: 0;
+  top: 6px;
+  font-size: 9px;
+  letter-spacing: 0.1em;
+  color: #6b6551;
+}
+#m-sanity i { background: #8fb7d8; }
+#m-stamina i { background: var(--gold); }
+#m-health i { background: #cf6a52; }
+.meter { margin-bottom: 9px; }
+
+/* Latin numerals and units inside an RTL document reorder themselves — "60 fps
+ * · 2 chunks" comes out with the 60 at the far end. These two are pure data,
+ * so they are pinned left-to-right. */
+#hud-items {
+  display: flex;
+  gap: 12px;
+  direction: ltr;
+  font-family: var(--mono);
+  font-size: 12px;
+  color: var(--dim);
+  text-shadow: 0 1px 3px #000;
+}
+
+/* Positioned physically, not logically. `inset-inline-end` resolves against
+ * the element's own direction, so setting direction:ltr on a logically
+ * positioned box silently moves it to the other side of the screen — which is
+ * how this ended up sitting on top of the item counters. */
+#hud-stats {
+  position: absolute;
+  bottom: max(14px, env(safe-area-inset-bottom));
+  left: 16px;
+  direction: ltr;
+  font-family: var(--mono);
+  font-size: 10px;
+  color: #56513f;
+  text-align: left;
+  white-space: pre;
+}
+
+/* ------------------------------------------------------------------ *
+ * Touch controls
+ *
+ * Shown only on a device that reports a coarse pointer. Sizes are deliberately
+ * large — a 56px target is the smallest thing a thumb hits reliably while the
+ * other hand is also on the screen — and everything sits inside the safe-area
+ * insets so a notch or a home indicator never eats a button.
+ * ------------------------------------------------------------------ */
+
+#touch { position: absolute; inset: 0; pointer-events: none; touch-action: none; }
+#touch[hidden] { display: none; }
+
+#stick {
+  position: absolute;
+  left: 0;
+  top: 0;
+  width: 116px;
+  height: 116px;
+  margin: -58px 0 0 -58px;
+  border: 2px solid rgba(201, 178, 78, 0.30);
+  border-radius: 50%;
+  background: rgba(0, 0, 0, 0.20);
+  opacity: 0;
+  transition: opacity 0.15s;
+  pointer-events: none;
+}
+#stick.on { opacity: 1; }
+#stick i {
+  position: absolute;
+  left: 50%;
+  top: 50%;
+  width: 48px;
+  height: 48px;
+  margin: -24px 0 0 -24px;
+  border-radius: 50%;
+  background: rgba(201, 178, 78, 0.34);
+  border: 1px solid rgba(240, 221, 138, 0.5);
+}
+
+.tbtn {
+  position: absolute;
+  pointer-events: auto;
+  width: 72px;
+  height: 72px;
+  border-radius: 50%;
+  border: 1px solid rgba(201, 178, 78, 0.40);
+  background: rgba(14, 12, 8, 0.55);
+  color: var(--gold-bright);
+  font: 600 15px/1 var(--font);
+  display: grid;
+  place-items: center;
+  user-select: none;
+  -webkit-user-select: none;
+  -webkit-tap-highlight-color: transparent;
+  touch-action: none;
+}
+.tbtn.small { width: 58px; height: 58px; font-size: 13px; }
+.tbtn.tiny { width: 42px; height: 42px; font-size: 12px; }
+.tbtn:active, .tbtn.on {
+  background: rgba(201, 178, 78, 0.30);
+  border-color: rgba(240, 221, 138, 0.8);
+}
+
+/* Right-hand cluster: the thumb rests on E, everything else is a short reach
+   from it. E is the biggest because it is the only control that matters —
+   it is how you pick things up and how you leave a level. */
+#t-use    { right: calc(20px + env(safe-area-inset-right)); bottom: calc(24px + env(safe-area-inset-bottom)); }
+#t-jump   { right: calc(100px + env(safe-area-inset-right)); bottom: calc(30px + env(safe-area-inset-bottom)); }
+#t-torch  { right: calc(28px + env(safe-area-inset-right)); bottom: calc(106px + env(safe-area-inset-bottom)); }
+#t-run    { right: calc(96px + env(safe-area-inset-right)); bottom: calc(98px + env(safe-area-inset-bottom)); }
+#t-crouch { right: calc(150px + env(safe-area-inset-right)); bottom: calc(38px + env(safe-area-inset-bottom)); }
+#t-pause  { left: calc(12px + env(safe-area-inset-left)); top: calc(12px + env(safe-area-inset-top)); }
+
+body.touch #hud-stats { display: none; }
+body.touch #hud-log { top: calc(62px + env(safe-area-inset-top)); }
+body.touch #crosshair { opacity: 0.5; }
+
+/*
+ * A banner, not a gate. This used to be a full-screen `inset: 0` overlay with
+ * pointer-events: auto — which meant the very first touch after loading a
+ * level, wherever it landed, dismissed the banner instead of reaching the
+ * joystick underneath. The player's first attempt to walk silently did
+ * nothing, self-correcting only on their second touch. It is real, it is
+ * confirmed against the actual dismiss handler and the actual z-order, and it
+ * is why the on-screen controls now never have anything sitting in front of
+ * them: the banner is a strip pinned to the top, and only its own button is
+ * interactive.
+ */
+#rotate {
+  position: absolute;
+  left: 50%;
+  /*
+   * 76px clears both #hud-level (three stacked lines starting at its own
+   * top offset, ~60px tall at their tallest realistic case) and #t-pause
+   * (a 42px circle starting 12px down) with margin to spare, on the
+   * narrowest phone this ships to. A first version sat at top:10px, directly
+   * behind both — the level name and the pause button were visibly peeking
+   * out from under the banner in a real screenshot. Positions below compare
+   * against these on their shared base offset; env(safe-area-inset-top) is
+   * additive to all three, so it does not change the relative order.
+   */
+  top: calc(76px + env(safe-area-inset-top));
+  transform: translateX(-50%);
+  z-index: 30;
+  display: flex;
+  align-items: center;
+  gap: 10px;
+  max-width: min(320px, 72vw);
+  padding: 7px 7px 7px 13px;
+  border-radius: 999px;
+  background: rgba(10, 9, 6, 0.88);
+  border: 1px solid var(--line);
+  color: var(--gold);
+  font-size: 11px;
+  letter-spacing: 0.02em;
+  pointer-events: none;
+}
+#rotate[hidden] { display: none; }
+#rotate span { white-space: nowrap; overflow: hidden; text-overflow: ellipsis; }
+#rotate-ok {
+  pointer-events: auto;
+  touch-action: none;
+  flex: none;
+  font: inherit;
+  font-weight: 700;
+  color: var(--bg);
+  background: var(--gold);
+  border: none;
+  border-radius: 999px;
+  padding: 5px 12px;
+  cursor: pointer;
+}
+
+/* ------------------------------------------------------------------ *
+ * Transitions and toasts
+ * ------------------------------------------------------------------ */
+
+#fade {
+  position: absolute;
+  inset: 0;
+  background: #000;
+  opacity: 0;
+  pointer-events: none;
+  transition: opacity 0.5s ease;
+}
+#fade.on { opacity: 1; }
+
+#toast {
+  position: absolute;
+  left: 50%;
+  bottom: 14%;
+  transform: translateX(-50%);
+  background: rgba(10, 9, 6, 0.92);
+  border: 1px solid var(--line);
+  border-radius: var(--radius);
+  padding: 9px 16px;
+  font-size: 13px;
+  color: var(--ink);
+  max-width: min(520px, 88vw);
+  text-align: center;
+  line-height: 1.6;
+}
+#toast[hidden] { display: none; }
+
+@media (max-width: 560px) {
+  #level-grid { grid-template-columns: repeat(auto-fill, minmax(148px, 1fr)); }
+  .settings .row { grid-template-columns: 1fr 110px 40px; }
+  #hud-stats { display: none; }
+}
+
+@media (prefers-reduced-motion: reduce) {
+  .screen, #hud-log div { animation: none; }
+  #fade { transition: none; }
+}
