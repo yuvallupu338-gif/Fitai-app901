@@ -276,12 +276,22 @@ export class Player {
        doorway, and leaving `outside` set there stalls the boarding phase and
        hands the door-close decision the wrong answer. */
     this.outside = false;
-    this.sitting = { car, slot: slotIndex, yaw: slot.facing };
+    /*
+     * A seat's `facing` is written for a passenger mesh, whose front is local
+     * +Z and therefore points along (sin yaw, cos yaw). The camera looks the
+     * other way — forward is (-sin yaw, -cos yaw), the same direction W walks
+     * in — so handing the camera a seat's facing verbatim sat the player down
+     * with their nose against the window, staring at the moquette and the
+     * sill, while every passenger on the same bench faced the aisle properly.
+     * Half a turn puts the player where the rest of the carriage is.
+     */
+    const look = slot.facing + Math.PI;
+    this.sitting = { car, slot: slotIndex, yaw: look };
     this.position[0] = slot.x * 0.86;
     this.position[2] = carCenterZ(car) + slot.z;
     this.velocity[0] = 0;
     this.velocity[1] = 0;
-    this.yaw = slot.facing;
+    this.yaw = look;
   }
 
   stand() {

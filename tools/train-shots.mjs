@@ -238,6 +238,19 @@ async function main() {
   await sim(1.5);
   await shot('04-passenger');
 
+  /* ---- sitting down ---------------------------------------------------- */
+
+  /* A seat's facing is authored for a passenger mesh, whose front is the
+     opposite of the camera's, so this shot is the one that catches the player
+     being sat down facing the window. */
+  await page.evaluate(() => {
+    const g = window.__lastTrain.game;
+    const seat = g._interactables.find((i) => i.type === 'seat');
+    if (seat) g._interact(seat);
+  });
+  await sim(1.5);
+  await shot('06-seated');
+
   /* ---- the window, and what is in it ----------------------------------- */
 
   await page.evaluate(() => {
