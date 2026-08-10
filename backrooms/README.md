@@ -16,8 +16,39 @@ open http://localhost:8080/backrooms/
 ```
 
 **Controls** — `WASD` move, mouse look, `Shift` sprint, `C` crouch, `Space` jump,
-`F` flashlight, `E` interact, `Esc` pause. On a phone: left half of the screen is
-a stick, right half is look.
+`F` flashlight, `E` interact, `Esc` pause.
+
+## On a phone
+
+The left half of the screen is a joystick that appears wherever your thumb
+lands; the right half turns the view. Everything else is an on-screen button,
+because every action is otherwise bound to a key and a phone has none:
+
+| button | does |
+| --- | --- |
+| **E** | pick things up, and drop through a no-clip point to the next level |
+| **🔦** | torch |
+| **⭡** | jump |
+| **רץ** / **כפוף** | run and crouch — toggles, not press-and-hold |
+| **❚❚** | pause |
+
+Without that layer the game is walk-and-look only: no picking anything up and
+no way down, which is the entire game. It is worth being explicit that this is
+not a scaled-down build — it is the same renderer, the same hundred levels and
+the same generator, at a lower render scale.
+
+The first run picks its own quality from the device (70% render scale, low
+texture detail, no light shadows) and drops the render scale further on its own
+if the frame rate cannot hold. All of it is adjustable in settings.
+
+For fullscreen on an iPhone, use **Share → Add to Home Screen** and launch it
+from there; iOS Safari has no Fullscreen API, and the meta tags in `index.html`
+are what make the home-screen launch run without browser chrome. On Android the
+game requests fullscreen and a landscape lock directly. The screen is kept awake
+while you are playing, because steering with a joystick produces no touches as
+far as the OS is concerned and the screen would otherwise lock mid-corridor.
+
+Landscape is much better than portrait and the game says so, once, dismissably.
 
 ## What it actually is
 
@@ -118,6 +149,10 @@ NODE_PATH=/opt/node22/lib/node_modules node tools/backrooms-smoke.mjs
 NODE_PATH=/opt/node22/lib/node_modules node tools/backrooms-smoke.mjs --all --shots
 ```
 
+```bash
+NODE_PATH=/opt/node22/lib/node_modules node tools/backrooms-mobile.mjs
+```
+
 The smoke test drives a real browser: it enters a sample of levels covering
 every archetype, waits for streaming to settle, and reads the framebuffer back.
 A renderer cannot be asserted into correctness — the failure modes are "the
@@ -126,6 +161,22 @@ so the checks are about pixels: the frame has real detail, it is not uniformly
 dark, geometry was built, the player is standing on the floor, and walking for
 a second and a half does not drop them out of the world. `--shots` writes a PNG
 per level, which is the only way to review the things no assertion covers.
+
+The mobile test runs the game under device emulation with real touch events and
+checks outcomes rather than plumbing: the joystick walks the player and stopping
+stops them, dragging the right half turns the view, every button is on screen
+and big enough to hit, the torch toggles, the crouch toggle crouches, and — the
+two that matter — an item on the floor ends up **taken** after tapping E, and
+standing on a no-clip point and tapping E lands you on the next level.
+
+One honest limitation: only Chromium is installed here, so **iOS Safari itself
+is not covered by any test in this repo**. What the code does about that is
+avoid the known WebKit traps rather than discover them: no `desynchronized`
+context attribute, a working path when `EXT_color_buffer_float` is missing
+(the bloom threshold drops below 1.0 so fixtures still glow without HDR
+targets), pointer events rather than touch-only handlers, the AudioContext
+created inside the user gesture, and every fullscreen and orientation call
+wrapped so that iOS refusing them changes nothing.
 
 ## Performance
 

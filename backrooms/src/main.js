@@ -75,6 +75,7 @@ class Game {
     this.wire();
     this.wireTouch();
     this.watchOrientation();
+    this.watchVisibility();
     this.ui.markVisited(store.load().visited, store.load().deepest);
     if (store.load().current !== null) {
       document.querySelector('#btn-continue').hidden = false;
@@ -221,6 +222,46 @@ class Game {
         if (p && p.catch) p.catch(() => {});
       }
     } catch { /* only allowed in fullscreen, and not on iOS */ }
+  }
+
+  /*
+   * A phone screen dims and then locks after thirty seconds of no touches, and
+   * walking with a joystick produces no touches at all as far as the OS is
+   * concerned. Without this the screen goes dark mid-corridor.
+   */
+  async keepAwake() {
+    try {
+      if (navigator.wakeLock && !this.wakeLock) {
+        this.wakeLock = await navigator.wakeLock.request('screen');
+        this.wakeLock.addEventListener('release', () => { this.wakeLock = null; });
+      }
+    } catch { /* denied, unsupported, or not visible — all fine */ }
+  }
+
+  releaseAwake() {
+    if (this.wakeLock) {
+      try { this.wakeLock.release(); } catch { /* already gone */ }
+      this.wakeLock = null;
+    }
+  }
+
+  /* Switching apps mid-level should stop the world, not leave something
+   * hunting you in a pocket — and should let go of the audio hardware. */
+  watchVisibility() {
+    document.addEventListener('visibilitychange', () => {
+      if (document.hidden) {
+        this.releaseAwake();
+        if (this.state === 'play') this.pause();
+        if (this.audio.ctx && this.audio.ctx.state === 'running') {
+          this.audio.ctx.suspend().catch(() => {});
+        }
+      } else if (this.state === 'play') {
+        this.keepAwake();
+        if (this.audio.ctx && this.audio.ctx.state === 'suspended') {
+          this.audio.ctx.resume().catch(() => {});
+        }
+      }
+    });
   }
 
   watchOrientation() {
@@ -388,6 +429,7 @@ class Game {
     this.state = 'play';
     this.loading = false;
     this.resetHeldToggles();
+    this.keepAwake();
     if (this.updateOrientation) this.updateOrientation();
     await this.ui.fade(false);
     this.ui.log(`Level ${level.id} — ${level.name}`);
@@ -416,6 +458,8 @@ class Game {
      * walking into a wall. */
     this.input.touch.move = null;
     this.input.touch.look = null;
+    this.resetHeldToggles();
+    this.releaseAwake();
     this.ui.setPauseWhere(this.level);
     this.ui.show('pause');
     if (this.updateOrientation) this.updateOrientation();
@@ -426,6 +470,7 @@ class Game {
     this.state = 'play';
     this.ui.show(null);
     if (!this.touchMode) this.input.requestLock();
+    this.keepAwake();
     if (this.updateOrientation) this.updateOrientation();
   }
 
