@@ -88,6 +88,27 @@ four environments × one-to-seven days × three levels × four injury states —
 muscle and a video on every exercise, nothing that needs equipment you do not
 have, and at least one same-muscle alternative to swap to. It passes clean.
 
+## Languages
+
+Hebrew, English and Spanish. The planner picks its own wording per language
+rather than going through the app-wide word substitution, and every exercise in
+the library carries its own Spanish name. The content the app ships — 208
+foods, 47 machines with their steps, tips and common mistakes, 110 recipes with
+ingredients and method, the stretches, the daily tips and the achievements — is
+translated as whole strings, 1,187 of them, which `translateEl` matches exactly
+and swaps wholesale.
+
+That exact-match path exists because the fallback is word-by-word: it rewrites
+known Hebrew words wherever they appear, so a phrase it only half knows comes
+out as salad ("ירך קדמית" once rendered as "Thigh קדמית"). A whole-string entry
+skips the substitution entirely. Anything a user typed themselves is marked
+`data-notr` and is never touched — the food glossary used to translate the
+author's own name, Yuval, into "jubilee".
+
+A browser-driven audit walks every tab, every sheet, all 47 machine guides, the
+food search and every recipe in both English and Spanish, collecting any text
+node still holding Hebrew. It reports zero.
+
 ## Notes
 
 `index.html` is ~26 MB because the fonts, the exercise clips, the machine photos
