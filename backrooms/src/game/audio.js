@@ -313,6 +313,17 @@ export class GameAudio {
         rate: 1.6 });
     } else if (kind === 'watcher') {
       this.tone(58 + near * 30, 0.9, 0.03 + near * 0.07, 'sine', 0.7);
+    } else if (kind === 'shade') {
+      /*
+       * A breath and a sub-bass under it, no growl. The shade is the one you
+       * are not supposed to hear coming: the low tone sits under the room
+       * tone until it is close, and the filtered air is the only part with
+       * any attack. A snarl would tell you exactly where it is, which is the
+       * opposite of what this thing is for.
+       */
+      this.tone(34 + near * 14, 1.8, 0.02 + near * 0.10, 'sine', 0.85);
+      this.burst({ hp: 1400, lp: 3000, dur: 0.9, gain: 0.02 + near * 0.06,
+        send: 0.9, rate: 0.5 });
     } else {
       this.burst({ hp: 90, lp: 800 + near * 1200, dur: 0.4, gain: 0.06 + near * 0.2,
         send: 0.55, rate: 0.7 });

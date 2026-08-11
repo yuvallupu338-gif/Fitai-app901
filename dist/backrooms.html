@@ -2500,6 +2500,52 @@ const KINDS = {
     o.h = 0.5 + 0.2 * n;
   },
 
+  /*
+   * A standing silhouette, as a cut-out. Deliberately soft and slightly ragged
+   * at the edges — a crisp outline reads as a cardboard cut-out, and the whole
+   * point of this shape is that you cannot quite resolve it.
+   */
+  silhouette(u, v, o, P, S) {
+    const c = P.color;
+    /* Body: a tapering column, widest at the shoulders, narrowing to the feet
+     * and rounding into a head at the top. */
+    const headY = 0.86;
+    const dxHead = (u - 0.5) / 0.115;
+    const dyHead = (v - headY) / 0.10;
+    const head = 1 - Math.min(1, Math.hypot(dxHead, dyHead));
+
+    const shoulder = sstep(0.80, 0.72, v);
+    const width = 0.10 + 0.16 * shoulder * (1 - sstep(0.72, 0.02, v) * 0.35);
+    const body = v < 0.80 ? 1 - Math.min(1, Math.abs(u - 0.5) / Math.max(0.02, width)) : 0;
+    /* Legs: split the lower third so it does not read as a traffic cone. */
+    const gap = v < 0.34 ? sstep(0.0, 0.045, Math.abs(u - 0.5)) : 1;
+
+    /* Ragged edge: the noise multiplies the falloff, so it eats the outline
+     * and leaves the solid middle alone. */
+    const fray = tfbm(u * 2, v * 2, 7, S, 3);
+    let mask = clamp01(Math.max(head, body * gap) * (0.82 + 0.4 * fray));
+    mask = sstep(0.22, 0.44, mask);
+
+    const depth = 0.35 + 0.35 * tfbm(u, v, 5, S + 3, 3);
+    o.r = c[0] * depth; o.g = c[1] * depth; o.b = c[2] * depth;
+    o.rough = 0.98;
+    o.mask = mask;
+    o.h = mask;
+  },
+
+  /* A uniform emissive disc. Eyes, indicator lamps — anything that is only
+   * ever seen as a point of light. */
+  glow(u, v, o, P, S) {
+    const c = P.color;
+    const r = Math.hypot(u - 0.5, v - 0.5) * 2;
+    const core = sstep(1.05, 0.15, r);
+    o.r = c[0]; o.g = c[1]; o.b = c[2];
+    o.rough = 0.35;
+    o.h = 0.5;
+    o.em = 0.45 + 0.55 * core;
+    void S;
+  },
+
   /* Cut-out materials. The mask goes in the height channel and the shader
    * discards below the threshold, which is how a chain-link fence or a field
    * of wheat costs one quad. */
@@ -2672,6 +2718,11 @@ const MAT = {
    * the building it is, and the things in the building are the same things
    * everywhere. Levels may still override slot 9 if they want their own. */
   FLESH: 9,
+  /* Lit eyes. Emissive, so the bloom picks them up and they are the only part
+   * of a thing you can see across a dark room. */
+  EYE: 10,
+  /* The cut-out silhouette a shade is drawn with. */
+  SHADE: 11,
 };
 const MAT_COUNT = 12;
 
@@ -3317,7 +3368,7 @@ const { createContext, createProgram, createArrayTexture, createTexture2D, creat
 const { SCENE_VERT, SCENE_FRAG, SKY_VERT, SKY_FRAG, POST_VERT, BRIGHT_FRAG, BLUR_FRAG, COMPOSITE_FRAG, } = __m["backrooms/src/render/shaders.js"];
 const { bakeMaterial, parseColor } = __m["backrooms/src/render/textures.js"];
 const { MAT_COUNT, MAT } = __m["backrooms/src/world/grid.js"];
-const { MeshBuilder, addBox, addCylinder, addLimb, addSphere } = __m["backrooms/src/world/meshbuilder.js"];
+const { MeshBuilder, addBox, addCylinder, addLimb, addSphere, addQuad, } = __m["backrooms/src/world/meshbuilder.js"];
 const { mat4, perspective, multiply, viewFromEuler, forwardFromEuler, frustumFromMatrix, aabbInFrustum, DEG, } = __m["backrooms/src/core/math.js"];
 
 const MAX_LIGHTS = 16;
@@ -3478,9 +3529,21 @@ class Renderer {
       /* Neck. */
       addLimb(mb, 0, 1.52, 0, [0.05, 0.05], [0.06, 0.06], 0.10, F, { ao: shade(0.5) });
     });
+    /*
+     * The head, with eyes. The eyes are the whole reason anything here is
+     * frightening at range: a body in fog is a smudge, and two lit points at
+     * head height, turning to follow you, are unmistakable. They sit on the
+     * head mesh rather than the torso so they track with the head, which is
+     * steered independently of the body.
+     *
+     * Local -Z is forward for this yaw convention, so they go in front.
+     */
     this.dyn.entHead = make((mb) => {
       addSphere(mb, 0, 0, 0, 0.115, 12, 9, F,
         { ao: shade(0.7), scaleY: 1.22, scaleZ: 1.05 });
+      for (const ex of [-0.045, 0.045]) {
+        addSphere(mb, ex, 0.022, -0.095, 0.023, 7, 5, MAT.EYE, { ao: () => 1 });
+      }
     });
     /* Origin at the joint, hanging down. */
     this.dyn.entArm = make((mb) => {
@@ -3490,12 +3553,34 @@ class Renderer {
       addLimb(mb, 0, 0, 0, [0.075, 0.075], [0.045, 0.05], 0.88, F, { ao: shade(0.5) });
     });
 
+    /*
+     * The shade: one camera-facing pane carrying a cut-out silhouette, with
+     * the eyes as real geometry slightly in front of it so they stay lit when
+     * the pane itself is in shadow. Two quads back to back, because a single
+     * one disappears the instant the billboard's facing is a frame stale.
+     */
+    this.dyn.shade = make((mb) => {
+      const w = 0.58, h = 1.95;
+      const p0 = [-w, 0, 0], p1 = [w, 0, 0], p2 = [w, h, 0], p3 = [-w, h, 0];
+      addQuad(mb, p0, p1, p2, p3, [0, 0], [1, 0], [1, 1], [0, 1], MAT.SHADE,
+        { sub: 1, ao: shade(0.85) });
+      addQuad(mb, p1, p0, p3, p2, [1, 0], [0, 0], [0, 1], [1, 1], MAT.SHADE,
+        { sub: 1, ao: shade(0.85) });
+      for (const ex of [-0.072, 0.072]) {
+        addSphere(mb, ex, h * 0.855, -0.05, 0.028, 7, 5, MAT.EYE, { ao: () => 1 });
+        addSphere(mb, ex, h * 0.855, 0.05, 0.028, 7, 5, MAT.EYE, { ao: () => 1 });
+      }
+    });
+
     this.dyn.crawlBody = make((mb) => {
       /* Built lying down: a spine from hips to shoulders, plus a skull. */
       addLimb(mb, 0, 0.30, -0.34, [0.15, 0.14], [0.19, 0.17], 0.10, F, { ao: shade(0.5) });
       addLimb(mb, 0, 0.32, 0.10, [0.19, 0.30], [0.15, 0.30], 0.12, F, { ao: shade(0.55) });
       addSphere(mb, 0, 0.30, -0.52, 0.105, 10, 8, F,
         { ao: shade(0.6), scaleZ: 1.35, scaleY: 0.85 });
+      for (const ex of [-0.045, 0.045]) {
+        addSphere(mb, ex, 0.33, -0.62, 0.019, 6, 5, MAT.EYE, { ao: () => 1 });
+      }
     });
     this.dyn.crawlLimb = make((mb) => {
       addLimb(mb, 0, 0, 0, [0.045, 0.045], [0.028, 0.028], 0.36, F, { ao: shade(0.45) });
@@ -3890,20 +3975,37 @@ function normaliseMaterials(level) {
     { kind: 'metal', color: '#7c7a74', tile: 1.4 },
     { kind: 'metal', color: '#3a3d42', tile: 1.2, polish: 0.25 },
     { kind: 'blades', color: '#7f8a3c', tile: 1, cutout: true, specular: 0.1 },
-    /* Slot 9 — entities. Dry, matte and slightly translucent-looking, with
+    /*
+     * Slot 9 — entities. Dry, matte and slightly translucent-looking, with
      * enough bump that a torch raking across it at an angle picks out the
      * surface. Sheet metal, which is what they used to be made of, reads as a
-     * prop; this reads as something that was alive. */
-    /*
-     * tile is in metres per repeat, and limb UVs are in metres, so a value
-     * near 1 stretches one texture across a whole torso — which came out as
-     * huge vertical streaks that read as varnished wood, not skin. 0.12 puts
-     * roughly three repeats across a shoulder, which at the distances anything
-     * is ever seen from is fine surface grain.
+     * prop; this reads as something that was alive.
+     *
+     * Two numbers here were both got wrong the obvious way. `tile` is metres
+     * per repeat and limb UVs are in metres, so a value near 1 stretches one
+     * texture across a whole torso — huge vertical streaks that read as
+     * varnished wood; 0.12 puts about three repeats across a shoulder. And
+     * the colour is far darker than skin looks on a picker, because anything
+     * light enough to read as flesh in isolation comes back from the tonemap
+     * as pale plaster under the Lobby's own yellow light, and the thing in
+     * the corridor turns into a shop mannequin. Below the wall tone is where
+     * an intruder in a photograph always sits.
      */
     {
-      kind: 'stucco', color: '#8f8177', tile: 0.12, bump: 0.85,
+      kind: 'stucco', color: '#6b5d54', tile: 0.12, bump: 0.85,
       normalStrength: 0.9, roughMul: 1.0, specular: 0.16,
+    },
+    /* Slot 10 — eyes. */
+    {
+      kind: 'glow', color: '#ff4a2a', tile: 1, emissive: 1,
+      roughMul: 0.4, specular: 0.3, bump: 0.1,
+    },
+    /* Slot 11 — the shade's silhouette. Cut out, and almost black: it is a
+     * hole in the room, and the only thing that reads at distance is the
+     * pair of eyes floating in it. */
+    {
+      kind: 'silhouette', color: '#0a0a0c', tile: 1, cutout: true,
+      alphaCut: 0.42, specular: 0.02, roughMul: 1, bump: 0.2, normalStrength: 0.3,
     },
   ];
   for (let i = 0; i < MAT_COUNT; i++) {
@@ -5862,11 +5964,151 @@ class Player {
   };
 })();
 
+__m["backrooms/src/game/pathfind.js"] = (function () {
+/*
+ * pathfind.js — how a thing gets from where it is to where you are.
+ *
+ * Walking straight at the player and sliding along whatever you hit is enough
+ * to look alive in an open room and falls apart everywhere else: an entity two
+ * metres away behind a partition presses into it forever, and the level's
+ * architecture — the thing the whole game is made of — stops mattering. What
+ * makes something frightening is that it comes *round* the wall.
+ *
+ * This is a bounded breadth-first search over the cell grid. BFS rather than
+ * A* on purpose: the grid is uniform-cost, the window is small, and BFS has no
+ * heuristic to get subtly wrong. The window is the real trick — the world is
+ * infinite, so the search is clamped to a box around the two endpoints and
+ * simply fails if the player is further away than that, which is correct,
+ * because something that cannot find you should not be tracking you anyway.
+ */
+
+const { F_NOFLOOR } = __m["backrooms/src/world/grid.js"];
+
+/* One shared scratch buffer. Pathfinding runs a few times a second per entity,
+ * and allocating a fresh visited-set each time is exactly the kind of garbage
+ * that turns into a stutter on a phone. */
+const MAX_SPAN = 64;
+const scratch = {
+  came: new Int32Array(MAX_SPAN * MAX_SPAN),
+  seen: new Uint8Array(MAX_SPAN * MAX_SPAN),
+  queue: new Int32Array(MAX_SPAN * MAX_SPAN),
+  stamp: new Int32Array(MAX_SPAN * MAX_SPAN),
+  epoch: 0,
+};
+
+const DIRS = [[1, 0], [-1, 0], [0, 1], [0, -1]];
+
+function passable(world, gx, gz) {
+  if (world.wallAt(gx, gz) > 0.6) return false;
+  if (world.flagsAt(gx, gz) & F_NOFLOOR) return false;
+  return true;
+}
+
+/*
+ * A route from one cell to another, as world-space waypoints.
+ *
+ * Returns null when there is no route inside the window — the caller is
+ * expected to fall back to something dumber rather than freeze.
+ */
+function findPath(world, fromGX, fromGZ, toGX, toGZ, limit = 14) {
+  if (fromGX === toGX && fromGZ === toGZ) return [];
+
+  /*
+   * Window around both endpoints. The margin has to be whatever is left over
+   * after the endpoints themselves, not a fixed number added on top of them —
+   * adding a fixed margin overflows the buffer as soon as the two are more
+   * than a few cells apart, and the whole search then returns null and the
+   * caller quietly falls back to walking into the wall.
+   */
+  const spanX = Math.abs(toGX - fromGX) + 1;
+  const spanZ = Math.abs(toGZ - fromGZ) + 1;
+  const room = MAX_SPAN - Math.max(spanX, spanZ);
+  if (room < 4) return null;              /* too far apart to route at all */
+  const margin = Math.min(limit, Math.floor(room / 2));
+
+  const minX = Math.min(fromGX, toGX) - margin;
+  const minZ = Math.min(fromGZ, toGZ) - margin;
+  const maxX = Math.max(fromGX, toGX) + margin;
+  const maxZ = Math.max(fromGZ, toGZ) + margin;
+  const w = maxX - minX + 1;
+  const h = maxZ - minZ + 1;
+  if (w > MAX_SPAN || h > MAX_SPAN) return null;
+
+  const { came, seen, queue, stamp } = scratch;
+  const epoch = ++scratch.epoch;
+  const idx = (x, z) => (z - minZ) * w + (x - minX);
+
+  const start = idx(fromGX, fromGZ);
+  const goal = idx(toGX, toGZ);
+  let head = 0, tail = 0;
+  queue[tail++] = start;
+  stamp[start] = epoch;
+  seen[start] = 1;
+  came[start] = -1;
+
+  let found = false;
+  while (head < tail) {
+    const cur = queue[head++];
+    if (cur === goal) { found = true; break; }
+    const cx = minX + (cur % w);
+    const cz = minZ + Math.floor(cur / w);
+    for (let d = 0; d < 4; d++) {
+      const nx = cx + DIRS[d][0], nz = cz + DIRS[d][1];
+      if (nx < minX || nz < minZ || nx > maxX || nz > maxZ) continue;
+      const ni = idx(nx, nz);
+      if (stamp[ni] === epoch && seen[ni]) continue;
+      if (!passable(world, nx, nz)) { stamp[ni] = epoch; seen[ni] = 1; came[ni] = -2; continue; }
+      stamp[ni] = epoch;
+      seen[ni] = 1;
+      came[ni] = cur;
+      queue[tail++] = ni;
+    }
+  }
+  if (!found) return null;
+
+  /* Walk the parents back, then reverse. */
+  const cells = [];
+  for (let i = goal; i !== -1 && i !== start; i = came[i]) {
+    if (i < 0) return null;
+    cells.push(i);
+  }
+  cells.reverse();
+
+  const cell = world.cell;
+  return cells.map((i) => ({
+    x: (minX + (i % w) + 0.5) * cell,
+    z: (minZ + Math.floor(i / w) + 0.5) * cell,
+  }));
+}
+
+/*
+ * Straight-line check on the grid. Used to skip the first few waypoints when
+ * they are pointlessly round a corner the entity can already walk through —
+ * without it, everything moves in visible right angles like a chess piece.
+ */
+function clearLine(world, ax, az, bx, bz) {
+  const dx = bx - ax, dz = bz - az;
+  const dist = Math.hypot(dx, dz);
+  const steps = Math.ceil(dist / (world.cell * 0.4));
+  for (let i = 1; i < steps; i++) {
+    const t = i / steps;
+    const [gx, gz] = world.cellOf(ax + dx * t, az + dz * t);
+    if (!passable(world, gx, gz)) return false;
+  }
+  return true;
+}
+
+  return {
+    "findPath": findPath,
+    "clearLine": clearLine,
+  };
+})();
+
 __m["backrooms/src/game/entities.js"] = (function () {
 /*
  * entities.js — the things that are also here.
  *
- * Three behaviours, and none of them is a combat AI:
+ * Four behaviours, and none of them is a combat AI:
  *
  *   hound    hunts. Runs at you the moment it has line of sight, and keeps
  *            coming. The only counter is distance and doors.
@@ -5875,6 +6117,12 @@ __m["backrooms/src/game/entities.js"] = (function () {
  *            cheapest genuinely unsettling behaviour in games and it has never
  *            stopped working.
  *   crawler  low and fast, lives in the dark, and is drawn to your torch.
+ *   shade    a silhouette with eyes, on the levels dark enough that a body
+ *            would only ever be seen as one anyway.
+ *
+ * All of them route round the architecture rather than pressing into it — see
+ * pathfind.js. An entity that walks into a wall and stays there is not a
+ * monster, it is a bug you can stand next to.
  *
  * They are spawned in a shell around the player and despawned when they fall
  * behind, so a level has a population without the game tracking one.
@@ -5882,11 +6130,19 @@ __m["backrooms/src/game/entities.js"] = (function () {
 
 const { hash2 } = __m["backrooms/src/core/rng.js"];
 const { clamp } = __m["backrooms/src/core/math.js"];
+const { findPath, clearLine } = __m["backrooms/src/game/pathfind.js"];
 
 const BEHAVIOUR = {
   hound:   { mesh: 'biped',   speed: 3.6, sight: 26, reach: 1.15, damage: 0.34, hp: 3 },
   watcher: { mesh: 'biped',   speed: 2.4, sight: 30, reach: 1.05, damage: 0.28, hp: 3 },
   crawler: { mesh: 'crawler', speed: 3.9, sight: 15, reach: 0.95, damage: 0.22, hp: 2 },
+  /*
+   * A shape rather than a body: a dark silhouette with two lit eyes, which is
+   * the oldest image in this mythology and still the most effective one. It
+   * does not need limbs because you are never meant to see it resolve — at
+   * fog distance it is a hole in the room with something looking out of it.
+   */
+  shade:   { mesh: 'shade',   speed: 3.0, sight: 34, reach: 1.10, damage: 0.30, hp: 3 },
 };
 
 class Entities {
@@ -5897,7 +6153,11 @@ class Entities {
     this.list = [];
     this.events = [];
     this.spawnTimer = 2;
-    this.max = this.spec ? Math.max(1, Math.round(this.spec.density * 4)) : 0;
+    /* More of them the deeper you are. The level's own density still sets the
+     * character of the place; depth just adds pressure on top of it. */
+    this.max = this.spec
+      ? Math.min(4, Math.max(1, Math.round(this.spec.density * 4)) + Math.floor(level.id / 34))
+      : 0;
   }
 
   update(dt, player, world, time) {
@@ -5953,15 +6213,55 @@ class Entities {
       }
 
       if (move) {
+        /*
+         * Steer along a route rather than straight at the player. Re-planned
+         * on a timer — twice a second while hunting, rarely while wandering —
+         * because a path is only wrong once the player has moved a cell or
+         * two, and pathing every frame for every entity is pure waste.
+         *
+         * `|| 0` because an entity that arrived without the field — the test
+         * harness stands one in front of the camera by hand — would otherwise
+         * carry a NaN timer that never fires, and quietly revert to walking
+         * into walls with nothing to show that it had.
+         */
+        e.repath = (e.repath || 0) - dt;
+        if (e.repath <= 0) {
+          e.repath = 0.45 + Math.random() * 0.25;
+          const [egx, egz] = world.cellOf(e.x, e.z);
+          const [pgx, pgz] = world.cellOf(player.pos.x, player.pos.z);
+          e.path = findPath(world, egx, egz, pgx, pgz);
+          e.pathI = 0;
+        }
+
+        /* Aim at the next waypoint, skipping any the entity can already walk
+         * to in a straight line — otherwise it visibly hugs cell centres and
+         * turns in right angles like something on rails. */
+        let aimX = player.pos.x, aimZ = player.pos.z;
+        if (e.path && e.path.length) {
+          while (e.pathI < e.path.length - 1
+                 && clearLine(world, e.x, e.z, e.path[e.pathI + 1].x, e.path[e.pathI + 1].z)) {
+            e.pathI++;
+          }
+          const wp = e.path[Math.min(e.pathI, e.path.length - 1)];
+          if (Math.hypot(wp.x - e.x, wp.z - e.z) < 0.35 && e.pathI < e.path.length - 1) e.pathI++;
+          const cur = e.path[Math.min(e.pathI, e.path.length - 1)];
+          aimX = cur.x; aimZ = cur.z;
+        }
+
+        const adx = aimX - e.x, adz = aimZ - e.z;
+        const alen = Math.hypot(adx, adz) || 1;
+        const mvX = adx / alen, mvZ = adz / alen;
+
         const step = speed * dt;
-        const nx = e.x + toX * -step, nz = e.z + toZ * -step;
+        const nx = e.x + mvX * step, nz = e.z + mvZ * step;
         /* Try both axes, then each on its own, so a corner does not trap it. */
         if (!world.blocked(nx, nz, e.y, 0.3, 0.5)) { e.x = nx; e.z = nz; }
         else if (!world.blocked(nx, e.z, e.y, 0.3, 0.5)) e.x = nx;
         else if (!world.blocked(e.x, nz, e.y, 0.3, 0.5)) e.z = nz;
         e.y = world.groundAt(e.x, e.z, 0.3);
         if (e.y < -900) { this.list.splice(i, 1); continue; }
-        e.rot = Math.atan2(-toX, -toZ) + Math.PI;
+        /* Face the way it is going, not the way the player is. */
+        e.rot = Math.atan2(mvX, mvZ) + Math.PI;
         e.moving = true;
         e.cue -= dt;
         if (e.cue <= 0) {
@@ -6017,6 +6317,7 @@ class Entities {
         x, y, z, rot: a, cooldown: 0, alerted: false, frozen: false,
         moving: false, bob: 0, cue: 1, seed: Math.random() * 6.28,
         phase: Math.random() * 6.28, swing: 0, headYaw: 0,
+        path: null, pathI: 0, repath: Math.random() * 0.4,
         mesh: (BEHAVIOUR[this.spec.kind] || BEHAVIOUR.hound).mesh,
       });
       return true;
@@ -6048,11 +6349,32 @@ class Entities {
    * keeps them from mirroring the legs exactly, which is the difference
    * between walking and marching.
    */
-  dynamics(out) {
+  dynamics(out, cam) {
     for (const e of this.list) {
       const y = e.y + e.bob;
       const sw = Math.sin(e.phase) * e.swing;
       const sw2 = Math.sin(e.phase + Math.PI) * e.swing;
+
+      if (e.mesh === 'shade') {
+        /*
+         * Billboard: yawed to face the camera every frame, so the pane is
+         * never seen edge-on. It sways rather than walks — it has no legs to
+         * animate and a shape that bobs like a body would immediately read as
+         * a costume.
+         */
+        const rot = cam
+          ? Math.atan2(cam.x - e.x, cam.z - e.z) + Math.PI
+          : e.rot;
+        out.push({
+          mesh: 'shade',
+          x: e.x,
+          y: y + Math.sin(e.phase * 0.5) * 0.02,
+          z: e.z,
+          rot,
+          scale: 1,
+        });
+        continue;
+      }
 
       if (e.mesh === 'crawler') {
         out.push({ mesh: 'crawlBody', x: e.x, y, z: e.z, rot: e.rot, scale: 1 });
@@ -6084,10 +6406,16 @@ class Entities {
       });
 
       const c = Math.cos(e.rot), s = Math.sin(e.rot);
-      /* Shoulders and hips, offset sideways from the body's centre line. */
+      /*
+       * Shoulders and hips, offset sideways from the body's centre line. The
+       * shoulders sit at 0.26 rather than tucked in at 0.235: the torso is
+       * 0.20 wide up there and an arm half-hidden behind it reads as no arm
+       * at all, which is exactly how the first screenshots came out — a slab
+       * with legs. The gap is what makes the silhouette a body.
+       */
       for (const [ox, mesh, yj, amp, ph] of [
-        [-0.235, 'entArm', 1.42, 0.62, sw],
-        [0.235, 'entArm', 1.42, 0.62, sw2],
+        [-0.26, 'entArm', 1.42, 0.62, sw],
+        [0.26, 'entArm', 1.42, 0.62, sw2],
         [-0.095, 'entLeg', 0.90, 0.80, sw2],
         [0.095, 'entLeg', 0.90, 0.80, sw],
       ]) {
@@ -6123,6 +6451,7 @@ const dangerLabel = (kind) => ({
   hound: 'ציד',
   watcher: 'צופה',
   crawler: 'זוחל',
+  shade: 'צל',
 }[kind] || '');
 
 const clampDanger = (d) => clamp(1 - d / 20, 0, 1);
@@ -6451,6 +6780,17 @@ class GameAudio {
         rate: 1.6 });
     } else if (kind === 'watcher') {
       this.tone(58 + near * 30, 0.9, 0.03 + near * 0.07, 'sine', 0.7);
+    } else if (kind === 'shade') {
+      /*
+       * A breath and a sub-bass under it, no growl. The shade is the one you
+       * are not supposed to hear coming: the low tone sits under the room
+       * tone until it is close, and the filtered air is the only part with
+       * any attack. A snarl would tell you exactly where it is, which is the
+       * opposite of what this thing is for.
+       */
+      this.tone(34 + near * 14, 1.8, 0.02 + near * 0.10, 'sine', 0.85);
+      this.burst({ hp: 1400, lp: 3000, dur: 0.9, gain: 0.02 + near * 0.06,
+        send: 0.9, rate: 0.5 });
     } else {
       this.burst({ hp: 90, lp: 800 + near * 1200, dur: 0.4, gain: 0.06 + near * 0.2,
         send: 0.55, rate: 0.7 });
@@ -6882,7 +7222,7 @@ const RAW = [
     mats: KIT.office('#4a412a', '#5d5334', '#4f4c3e'),
     gen: { runs: 18, lightSpacing: 0, exitRarity: 10, itemRarity: 3 },
     hazards: ['dark'], flashlight: true,
-    entities: { kind: 'crawler', density: 0.7, speed: 3.4 },
+    entities: { kind: 'shade', density: 0.6 },
     audio: { tone: 'silence', reverb: 0.5 } },
 
   { id: 7, name: 'Thalassophobia', he: 'פחד הים', cls: 4, canon: true,
@@ -6930,7 +7270,7 @@ const RAW = [
     gen: { block: 11, road: 3, connect: false, lightSpacing: 0, streetlights: true,
       buildingHeight: 18 },
     sky: { horizon: '#2b323c', zenith: '#0d1219', ground: '#0b0e12', stars: 0.5 },
-    entities: { kind: 'watcher', density: 0.2 },
+    entities: { kind: 'shade', density: 0.3 },
     audio: { tone: 'wind', reverb: 0.55 } },
 
   /* ---- 12–24 · industrial -------------------------------------- */
@@ -7209,6 +7549,7 @@ const RAW = [
     gen: { rockThreshold: 0.58, caveScale: 0.035, lightSpacing: 0, relief: 1.4,
       ceilRelief: 3.0 },
     hazards: ['dark'], flashlight: true,
+    entities: { kind: 'shade', density: 0.4 },
     audio: { tone: 'silence', reverb: 0.9, drips: true } },
 
   { id: 41, name: 'The Burrow', he: 'המחילה', cls: 4,
@@ -7384,7 +7725,7 @@ const RAW = [
     gen: { block: 8, road: 2, connect: false, lightSpacing: 0, streetlights: true,
       buildingHeight: 22 },
     sky: { horizon: '#242830', zenith: '#0a0d12', ground: '#080a0e', stars: 0.35 },
-    entities: { kind: 'watcher', density: 0.4 },
+    entities: { kind: 'shade', density: 0.45 },
     audio: { tone: 'wind', reverb: 0.6 } },
 
   { id: 58, name: 'Service Alleys', he: 'סמטאות השירות', cls: 3,
@@ -7575,6 +7916,7 @@ const RAW = [
     gen: { connect: false, lightSpacing: 0, relief: 0 },
     sky: { horizon: '#f6f6f4', zenith: '#ffffff', ground: '#eeeeec' },
     exposure: 0.8, hazards: ['exposure'],
+    entities: { kind: 'shade', density: 0.35 },
     audio: { tone: 'silence', reverb: 0.15 } },
 
   { id: 77, name: 'Carpet Ocean', he: 'אוקיינוס השטיח', cls: 1,
@@ -7649,7 +7991,7 @@ const RAW = [
     mats: KIT.office('#7a6a44', '#b8a870', '#cfc8ac'),
     gen: { block: 5, corridorWidth: 1, lightSpacing: 3, lightIntensity: 1.8,
       flickerPct: 20, exitRarity: 18 },
-    entities: { kind: 'watcher', density: 0.4 },
+    entities: { kind: 'shade', density: 0.5 },
     audio: { tone: 'hum', reverb: 0.35 } },
 
   { id: 85, name: 'Threshold', he: 'הסף', cls: 2,
@@ -7680,7 +8022,7 @@ const RAW = [
       connect: false, lightSpacing: 0, exitRarity: 8 },
     sky: { horizon: '#0c0c12', zenith: '#000000', ground: '#000000' },
     exposure: 1.9, hazards: ['fall', 'dark'], flashlight: true,
-    entities: { kind: 'hound', density: 0.5 },
+    entities: { kind: 'shade', density: 0.55 },
     audio: { tone: 'silence', reverb: 0.4 } },
 
   { id: 88, name: 'The Drift', he: 'הסחף', cls: 3,
@@ -7771,7 +8113,7 @@ const RAW = [
     gen: { runs: 17, lightSpacing: 3, lightIntensity: 1.0, lightRadius: 7,
       deadLights: 40, flickerPct: 20, exitRarity: 10 },
     hazards: ['dark', 'silence'], flashlight: true,
-    entities: { kind: 'crawler', density: 0.55 },
+    entities: { kind: 'shade', density: 0.6 },
     audio: { tone: 'none', reverb: 0.0 } },
 
   { id: 96, name: 'The Cathedral', he: 'הקתדרלה', cls: 3,
@@ -7792,7 +8134,7 @@ const RAW = [
     gen: { pillarSpacing: 5, pillarSize: 2, lightSpacing: 3, lightIntensity: 1.4,
       lightRadius: 12, deadLights: 26, flickerPct: 40, exitRarity: 10 },
     lightColor: [0.7, 0.8, 1.0],
-    entities: { kind: 'hound', density: 0.5 },
+    entities: { kind: 'shade', density: 0.55 },
     audio: { tone: 'drone', reverb: 0.9 } },
 
   { id: 98, name: 'The Last Corridor', he: 'המסדרון האחרון', cls: 5,
@@ -8852,6 +9194,7 @@ class Game {
 
     const danger = entities
       ? clamp(1 - entities.nearest(player.pos.x, player.pos.z) / 22, 0, 1) : 0;
+    this.danger = danger;
     audio.tick(dt, { sanity: player.sanity, danger });
 
     ui.updateHUD(player,
@@ -8984,7 +9327,7 @@ class Game {
           scale: 1,
         });
       }
-      if (entities) entities.dynamics(this.dynamics);
+      if (entities) entities.dynamics(this.dynamics, cam);
     }
 
     const s = store.settings();
@@ -8999,7 +9342,13 @@ class Game {
       aberration: level.aberration,
       vhs: Math.max(level.vhs, s.vhs ? 0.55 : 0),
       sanity,
-      damage: player ? player.damage : 0,
+      /*
+       * The red closes in before anything touches you. Being hit is a spike on
+       * top of a floor that rises as something gets near — which is the only
+       * warning you get in a level where you cannot see past the fog, and is
+       * worth far more than the hit itself.
+       */
+      damage: Math.max(player ? player.damage : 0, (this.danger || 0) * 0.30),
       dynamics: this.dynamics,
       ambientScale: 1,
       lightScale: 1,

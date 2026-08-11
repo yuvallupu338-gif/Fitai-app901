@@ -173,7 +173,7 @@ const RAW = [
     mats: KIT.office('#4a412a', '#5d5334', '#4f4c3e'),
     gen: { runs: 18, lightSpacing: 0, exitRarity: 10, itemRarity: 3 },
     hazards: ['dark'], flashlight: true,
-    entities: { kind: 'crawler', density: 0.7, speed: 3.4 },
+    entities: { kind: 'shade', density: 0.6 },
     audio: { tone: 'silence', reverb: 0.5 } },
 
   { id: 7, name: 'Thalassophobia', he: 'פחד הים', cls: 4, canon: true,
@@ -221,7 +221,7 @@ const RAW = [
     gen: { block: 11, road: 3, connect: false, lightSpacing: 0, streetlights: true,
       buildingHeight: 18 },
     sky: { horizon: '#2b323c', zenith: '#0d1219', ground: '#0b0e12', stars: 0.5 },
-    entities: { kind: 'watcher', density: 0.2 },
+    entities: { kind: 'shade', density: 0.3 },
     audio: { tone: 'wind', reverb: 0.55 } },
 
   /* ---- 12–24 · industrial -------------------------------------- */
@@ -500,6 +500,7 @@ const RAW = [
     gen: { rockThreshold: 0.58, caveScale: 0.035, lightSpacing: 0, relief: 1.4,
       ceilRelief: 3.0 },
     hazards: ['dark'], flashlight: true,
+    entities: { kind: 'shade', density: 0.4 },
     audio: { tone: 'silence', reverb: 0.9, drips: true } },
 
   { id: 41, name: 'The Burrow', he: 'המחילה', cls: 4,
@@ -675,7 +676,7 @@ const RAW = [
     gen: { block: 8, road: 2, connect: false, lightSpacing: 0, streetlights: true,
       buildingHeight: 22 },
     sky: { horizon: '#242830', zenith: '#0a0d12', ground: '#080a0e', stars: 0.35 },
-    entities: { kind: 'watcher', density: 0.4 },
+    entities: { kind: 'shade', density: 0.45 },
     audio: { tone: 'wind', reverb: 0.6 } },
 
   { id: 58, name: 'Service Alleys', he: 'סמטאות השירות', cls: 3,
@@ -866,6 +867,7 @@ const RAW = [
     gen: { connect: false, lightSpacing: 0, relief: 0 },
     sky: { horizon: '#f6f6f4', zenith: '#ffffff', ground: '#eeeeec' },
     exposure: 0.8, hazards: ['exposure'],
+    entities: { kind: 'shade', density: 0.35 },
     audio: { tone: 'silence', reverb: 0.15 } },
 
   { id: 77, name: 'Carpet Ocean', he: 'אוקיינוס השטיח', cls: 1,
@@ -940,7 +942,7 @@ const RAW = [
     mats: KIT.office('#7a6a44', '#b8a870', '#cfc8ac'),
     gen: { block: 5, corridorWidth: 1, lightSpacing: 3, lightIntensity: 1.8,
       flickerPct: 20, exitRarity: 18 },
-    entities: { kind: 'watcher', density: 0.4 },
+    entities: { kind: 'shade', density: 0.5 },
     audio: { tone: 'hum', reverb: 0.35 } },
 
   { id: 85, name: 'Threshold', he: 'הסף', cls: 2,
@@ -971,7 +973,7 @@ const RAW = [
       connect: false, lightSpacing: 0, exitRarity: 8 },
     sky: { horizon: '#0c0c12', zenith: '#000000', ground: '#000000' },
     exposure: 1.9, hazards: ['fall', 'dark'], flashlight: true,
-    entities: { kind: 'hound', density: 0.5 },
+    entities: { kind: 'shade', density: 0.55 },
     audio: { tone: 'silence', reverb: 0.4 } },
 
   { id: 88, name: 'The Drift', he: 'הסחף', cls: 3,
@@ -1062,7 +1064,7 @@ const RAW = [
     gen: { runs: 17, lightSpacing: 3, lightIntensity: 1.0, lightRadius: 7,
       deadLights: 40, flickerPct: 20, exitRarity: 10 },
     hazards: ['dark', 'silence'], flashlight: true,
-    entities: { kind: 'crawler', density: 0.55 },
+    entities: { kind: 'shade', density: 0.6 },
     audio: { tone: 'none', reverb: 0.0 } },
 
   { id: 96, name: 'The Cathedral', he: 'הקתדרלה', cls: 3,
@@ -1083,7 +1085,7 @@ const RAW = [
     gen: { pillarSpacing: 5, pillarSize: 2, lightSpacing: 3, lightIntensity: 1.4,
       lightRadius: 12, deadLights: 26, flickerPct: 40, exitRarity: 10 },
     lightColor: [0.7, 0.8, 1.0],
-    entities: { kind: 'hound', density: 0.5 },
+    entities: { kind: 'shade', density: 0.55 },
     audio: { tone: 'drone', reverb: 0.9 } },
 
   { id: 98, name: 'The Last Corridor', he: 'המסדרון האחרון', cls: 5,
