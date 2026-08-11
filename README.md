@@ -28,6 +28,200 @@ Or open the prebuilt single file, which works straight off the disk:
 open dist/fitai.html
 ```
 
+### app/index.html
+
+A second, separately authored app lives at `app/index.html`: the FitAI coach —
+skill tree, nutrition bank, guided workout session — as one self-contained file
+with its media, fonts and brand marks inlined. It shares no code with `src/`,
+keeps its own state under the `fitai_v1` localStorage key, and opens straight
+off the disk like `dist/fitai.html` does.
+
+It is skinned to the same reference document the rest of the repo follows: a
+near-black ground, one gold accent used for every emphasis, heavy display type
+and 20–22px card corners. The palette lives entirely in the `:root` block at the
+top of its `<style>` — surfaces, the accent pair, and `--accent-ink` for gold
+that is read as type rather than used as a fill. Both themes are driven from
+those tokens, so no rule hard-codes a surface.
+
+It is 16 MB because 96% of it is base64: the WebP exercise demos, 279 food
+photos, the Rubik subsets and the logo marks.
+
+**Calisthenics, all the way down.** The skill tree it shipped with was a gym
+programme — a barbell bench press on rung four of the chest line, a leg line
+measured in kilos — so all four ladders were rewritten as bodyweight
+progressions, wall push-up through one-arm push-up, scapular pull-up through
+one-arm pull-up, box squat through pistol, knee plank through hanging windshield
+wipers. The accessories went with them, the weight field is gone from the
+session (`showWeights` cannot return true), and the equipment list is now a bar,
+parallel bars, rings, parallettes, bands, a step and an ab wheel, applied to
+every user rather than only to the studio case that used to own it. A profile
+saved under the old build is migrated on load: a bench becomes a step, dumbbells
+and machines are dropped, and the weighted style is cleared. The unreachable
+machine catalogue and its phrasebook were deleted outright — 200 KB of dead
+code, plus 9 MB of demo clips for lifts the app can no longer prescribe.
+
+`muscleOf()` had to learn the vocabulary before any of that could be trusted:
+it classifies by name, weekly volume is accounted from what it returns, and a
+name it does not recognise returns null and is silently never counted. Front
+lever, L-sit, dragon flag and Nordic curl all fell through it, and Mountain
+climber and Russian twist were already falling through in the shipped build.
+`tools/calisthenics-test.mjs` asserts, for all 52 exercises the app can put in
+front of a user, that the classifier agrees with the category the exercise is
+filed under, that `isBW` calls it bodyweight, and that a logged set lands in a
+muscle group — so a mis-filed exercise fails a test rather than quietly
+disappearing from the volume chart.
+
+**Set intensity on the mass goal.** Picking מסה prescribes every working set at
+RIR 0-2 — to failure, or one to two reps short of it — and that holds through
+the accumulation and peak weeks of the mesocycle. Two modes keep their own
+lighter prescription on purpose: the deload week exists to shed fatigue, and the
+return-from-layoff ramp to rebuild tolerance, so neither is trained to failure.
+The other goals are untouched: חיטוב carries no RIR line, and שריר+חיטוב and
+שמירה stay at RIR 1-2, or 2-3 from level 7. The per-set logging field and the
+progression cue follow the same rule, so a set logged at RIR 0 reads as on
+target on mass and as a caution everywhere else.
+
+**Per-meal targets and the dish checker.** Every meal card states its own band —
+`815–1,035 קל׳ · חלבון 42 ג׳ ומעלה` — rather than a single number, because a real
+portion lands in a range. The band is ±12% around that meal's share of the day
+(`dayDist`); protein gets a floor instead of a band, since overshooting protein
+at one meal is not the failure worth flagging.
+
+Each card also opens a checker you type into — `סטייק 250 גרם סוג אנטריקוט` —
+which parses the quantity, unit and food, resolves it against the 657-item food
+bank, and says whether it fits: over, under, or on target, with the portion that
+would land exactly on the band and what is still open afterwards. Three things
+the parser has to get right, each found by running a Hebrew corpus through it:
+
+- Plurals. The bank stores singulars and users type plurals, so both sides are
+  stemmed — otherwise `2 ביצים` finds nothing at all.
+- Stemming is lossy, so a literal hit outranks a stemmed one and short stems
+  cannot lead a prefix match. Without the first, `חלב` resolves to חלבה; without
+  the second, `משהו שלא קיים` resolves to קישוא.
+- A bare number on a food priced by weight means grams, never servings. Reading
+  `10 שקדים` as ten 30g portions returns 1,640 kcal for a handful of almonds.
+
+The checker searches foods the user saved by hand (`myFoods`) alongside the
+bank, since the one dish someone bothered to enter themselves is exactly the one
+they will type again. Those rows carry no bank index, so the diary's
+edit-portion button stays off them rather than pointing past the end of FOODDB.
+
+**The food bank.** 657 rows, up from 208. Every new row was drafted per category
+and then audited by a second pass that never saw the drafting, but the gate that
+actually decides is arithmetic: a row ships only if `4p + 4c + 9f` lands within 25% of its stated calories, its unit comes
+from the bank's own vocabulary, and its name is not already present. Alcohol is
+exempt by name — ethanol carries ~7 kcal/g that never appears in P/C/F, so a
+mojito cannot satisfy the identity — as are near-zero drinks, where rounding
+dominates. Fabricated numbers fail the identity; the check does not depend on
+anyone vouching for them.
+
+The audit earns its place on the errors arithmetic cannot see — a row can be
+perfectly self-consistent and still wrong. It corrected 20: sriracha listed at
+1000mg sodium per tablespoon (6,700mg/100g, which no sauce reaches), Nile perch
+costed at raw density on a row labelled baked, a kubbeh soup priced as its
+dumplings with the broth left out, and a guava sized as the 55g tropical fruit
+rather than the apple-sized ones actually sold here.
+
+A larger bank made the matcher worse before it made it better. With 208 rows the
+loose "one word contains the other" rule was harmless; at 657 it turned any
+fragment into a confident hit — `משהו` resolved to שעועית **מש**, `קליקוליק` to
+לחם **קל**. Partial matches now require the shorter word to cover at least 60% of
+the longer one, which keeps `פיתה` matching שווארמה ב**פיתה** while nonsense
+resolves to nothing.
+
+**The AI layer is optional and additive.** With no key the app is exactly what
+it was — sealed, offline, deterministic — and it makes zero network calls; the
+buttons open the settings sheet instead of failing. A key adds three things: an
+estimate for a dish the bank does not hold (`שקשוקה של אמא עם 3 ביצים ולחם`), a
+scan of a photographed plate, and a coach that answers from the user's own
+numbers rather than in general.
+
+What the model returns is not trusted on arrival. An estimated food goes through
+the same `4p + 4c + 9f` gate as every row in the bank, and a model that returns
+90 kcal alongside 40g of protein gets shown to the user with that contradiction
+spelled out rather than quietly logged. Estimates are labelled as estimates, and
+can be saved to `myFoods` so the second time the dish is typed it resolves
+offline.
+
+**Photograph the plate.** The camera button hands a photo to a vision model,
+which lists what it sees on the plate ("חזה עוף בגריל ~180 ג׳"), estimates the
+macros, and writes a short critique against this user's goal and this meal's
+band. Listing the items first is what makes the number checkable: a user can see
+the model read 180g of chicken and correct it if the portion was 250.
+
+Every meal card carries its own camera, and the photo stays with the meal: the
+diary shows a thumbnail next to the entry, and the card shows the picture under
+that meal's targets. What is kept is a 256px thumbnail (~6KB), not the 1024px
+frame that was sent — the diary holds up to 200 entries in localStorage and 45KB
+apiece would fill the quota in a week. Photos are capped at the newest 24, and
+when storage runs short they are the first thing dropped, ahead of any recorded
+number: a picture is the least essential field in a food entry.
+
+Three things the photo path has to get right. The image is resized to a 1024px
+long edge and re-encoded as JPEG before it leaves the device — a phone photo is
+several megabytes and every byte is billed, and 349KB became 45KB in the test
+with nothing a model needs lost. EXIF orientation is honoured via
+`createImageBitmap`, so a photo taken sideways is not analysed sideways. And a
+photo with no food in it returns `notFood` and says so, rather than inventing
+macros for a picture of a wall.
+
+Two vendors, and they differ in more than a hostname: Anthropic takes the system
+prompt as a field and returns a parsed object, while the OpenAI-compatible ones
+take system as the first message and return tool arguments as a *string* that can
+be malformed; image blocks differ again, `image`/`source.base64` against
+`image_url`. All of it is handled, and both are exercised by the test suite
+against mocked responses, so the parsing is covered without a key. The API key
+lives outside the profile DB on purpose — exporting a profile to a file is a
+thing users do, and it must not carry a credential with it.
+
+The CSP names the two model hosts explicitly rather than opening `connect-src`
+to `https:`. A custom endpoint needs its host added to that meta tag; the app
+tells the user so instead of failing silently.
+
+**Translation stops at the user's own words.** `translateEl` rewrites any Hebrew
+it recognises inside a text node, which is right for UI copy and wrong for
+anything typed in: the dictionary holds `"יובל": "jubilee"`, so switching to
+English renamed the user. Text that is data rather than copy is wrapped in
+`.notr` and skipped — names, allergy notes, foods someone saved, and whatever a
+model wrote back. Bank foods still translate, because those really are copy: a
+diary row checks whether the entry came from the bank before deciding.
+
+**sw.js exists now.** It was registered and absent, so the call failed silently
+into its own `.catch` and an installed copy had nothing but the browser's HTTP
+cache to fall back on. The worker precaches the shell, serves navigations
+network-first so a redeploy lands on the next load, and only claims its own
+origin. Opened from `file://` none of it runs, which is correct — there is
+nothing to cache when the whole app is one file.
+
+**A profile file is hostile input.** The CSP here is `script-src 'self'
+'unsafe-inline'`, so an escape out of any HTML attribute is code execution —
+there is no second line of defence behind the escaping. Meal photos were
+concatenated straight into `<img src="…">` at three render sites, and
+`importProfile` merged a file's `foodLog` into the profile almost as it found
+it. A crafted profile with `img: 'x" onerror="…"'` therefore ran arbitrary
+script, on every render of the nutrition tab, permanently.
+
+Photos are validated by allowlist rather than escaped, because every photo this
+app renders is its own canvas output: `safeImg` returns the value only if it
+matches `data:image/(jpeg|png|webp);base64,…`, which rejects attribute breakout,
+`javascript:`, `data:text/html`, SVG-with-script and off-origin beacons in one
+rule. Imported profiles are rebuilt from a whitelist — each `foodLog` and
+`myFoods` entry keeps only the fields the app reads, coerced to the types it
+expects — and `__proto__`, `constructor` and `prototype` are stripped before any
+`Object.assign`, since `JSON.parse` makes `__proto__` an own property and
+assigning it runs the inherited setter.
+
+The exploit is kept as a test: it runs against a build with the fix removed and
+asserts `__PWNED === 1`, then against the shipped build and asserts all of it is
+blocked. A fix nobody has watched fail is not a fix anyone should trust.
+
+**Icons.** One logo, three renders, because one bitmap cannot serve a 42px
+header box and a 512px launcher tile. `LOGO_MARK` is the glyph full-bleed on the
+brand's navy, used for the header, the favicon and the `any` manifest icon;
+`LOGO_MASK` is the same glyph at 46% so an Android squircle crop cannot clip it;
+`LOGO_FULL` is the wide lockup, for the splash only. The wide lockup used to be
+declared as a 512×512 maskable icon, which a launcher squashes.
+
 ### On GitHub Pages
 
 Pages serves a project site from a subpath (`/Fitai-app901/`, not a domain
@@ -189,6 +383,8 @@ background, and there is no server of ours in the path.
 
 ```
 index.html
+app/
+  index.html        the standalone FitAI coach, self-contained and skinned
 src/
   core/      store, dom helpers, brand
   data/      exercise database, warm-up demands, and their registries
