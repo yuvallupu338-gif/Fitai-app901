@@ -2,15 +2,18 @@
 
 <div dir="rtl">
 
-מאמן כושר ותזונה אישי שרץ בדפדפן. אתה אומר כמה ימים אתה מתאמן, כמה זמן יש לך
-ואיפה אתה מתאמן — והאפליקציה מרכיבה לך את השבוע: היא אומרת לך על אילו שרירים
-עובדים בכל אימון, בוחרת את התרגילים בעצמה לפי הציוד והפציעות שלך, מחליפה אותם
-לבד פעם בשבוע, ונותנת לך להחליף כל תרגיל בודד בתרגיל אחר לאותו שריר.
+מאמן קליסטניקס ותזונה אישי שרץ בדפדפן. הכל משקל גוף — אין משקולות, אין מוט,
+אין מכונות. אתה אומר כמה ימים אתה מתאמן, כמה זמן יש לך ומה יש לך בבית —
+והאפליקציה מרכיבה לך את השבוע: היא אומרת לך על אילו שרירים עובדים בכל אימון,
+בוחרת את התרגילים בעצמה לפי הציוד והפציעות שלך, מחליפה אותם לבד פעם בשבוע,
+ונותנת לך להחליף כל תרגיל בודד בתרגיל אחר לאותו שריר.
 
 </div>
 
-Everything runs on the device. Nothing is uploaded, there is no account, and the
-whole app is one file.
+It is calisthenics only. Nothing in it asks for a dumbbell, a barbell or a
+machine; the heaviest thing it will ever suggest is your own body, optionally
+with a weight belt on a pull-up. Everything runs on the device — nothing is
+uploaded, there is no account, and the whole app is one file.
 
 ## Running it
 
@@ -41,17 +44,16 @@ biceps, triceps, quads, hamstrings, glutes, calves, core — and every exercise
 carries its own badge for the one it is in the session for, plus what else it
 hits.
 
-**The exercises are chosen for you.** A library of ~120 movements, each tagged
-with the muscle it trains, the equipment it needs and the level it belongs at.
-The generator walks the day's muscles in rotation and takes compounds before
-accessories — a loaded compound first when you have weights, so a wall sit never
-opens a leg day in a gym.
+**The exercises are chosen for you.** A library of 126 calisthenics movements,
+each tagged with the muscle it trains, the kit it needs and the level it belongs
+at — from wall push-ups to the one-arm push-up, from table rows to the muscle-up,
+from a chair squat to a pistol. The generator walks the day's muscles in rotation
+and takes compounds before accessories, so a wall sit never opens a leg day.
 
-**It only ever offers what you can actually do.** Equipment is a hard filter:
-a gym gets the machines, a home setup gets dumbbells, a bar and bands, a
-bodyweight-only setup gets movements that need nothing but a floor and a
-doorway, and a studio gets exactly what you ticked. Declared injuries are a
-second hard filter on top.
+**It only ever offers what you can actually do.** The kit is six things — a
+pull-up bar, dip bars, rings, bands, an ab wheel, and added weight for weighted
+pull-ups and dips — and it is a hard filter. Tick nothing and you still get a
+full week from a floor, a wall and a doorway. Declared injuries filter on top.
 
 **It refreshes itself once a week.** The selection is seeded from the ISO week,
 so it is identical every time you open the app inside one week and different the
@@ -80,21 +82,22 @@ screen, the swap sheet, the skill tree and the machine guide.
 ## The rest of the app
 
 The planner sits on top of an app that was already there: a ten-level skill
-tree, a 47-machine gym guide with steps, tips and common mistakes, food logging
-against calculated targets with a recipe bank per diet, dynamic and static
-stretch routines, weight and measurement tracking, streaks and XP, a four-week
-mesocycle that moves sets and loads through build / volume / peak / deload, a
-four-week ramp for coming back after a layoff, reminders, and profile
-export/import. Hebrew, English and Spanish.
+tree — now laddering wall push-ups to the one-arm push-up, prone Y raises to the
+muscle-up, chair squats to the pistol, and knee planks to the dragon flag — food
+logging against calculated targets with a recipe bank per diet, dynamic and
+static stretch routines, weight and measurement tracking, streaks and XP, a
+four-week mesocycle, a four-week ramp for coming back after a layoff, reminders,
+and profile export/import. Hebrew, English and Spanish.
 
 ## Checking it still works
 
-The planner is covered by two headless-Chromium scripts that drive the real page
-rather than the functions in isolation. The sweep builds every session across
-four environments × one-to-seven days × three levels × four injury states —
-1,344 sessions — and asserts that each one has six exercises, no repeats, a
-muscle and a video on every exercise, nothing that needs equipment you do not
-have, and at least one same-muscle alternative to swap to. It passes clean.
+The planner is covered by headless-Chromium scripts that drive the real page
+rather than the functions in isolation. The sweep builds every session across six
+kits × one-to-seven days × three levels × three injury states — 1,512 sessions —
+and asserts that each one has six exercises, that every exercise is in the
+library and satisfiable with the kit, that no session ever contains anything
+matching a gym movement, and that a load field never appears without a load. It
+passes clean, as does an audit of the library and the skill tree.
 
 ## Languages
 
@@ -119,9 +122,11 @@ node still holding Hebrew. It reports zero.
 
 ## Notes
 
-`index.html` is ~26 MB because the fonts, the exercise clips, the machine photos
-and the food photos are all embedded as data URIs. That is a deliberate
-trade — one file, no network, works offline — but it is a real first-load cost
-and worth knowing before adding more images.
+`index.html` is ~18 MB because the fonts, the exercise clips and the food photos
+are all embedded as data URIs. That is a deliberate trade — one file, no network,
+works offline — but it is a real first-load cost and worth knowing before adding
+more images. Going calisthenics-only took about 6.7 MB off it: the gym machine
+directory and the twenty clips of barbell and dumbbell lifts nothing would
+prescribe any more.
 
 The information in the app is not medical advice.
