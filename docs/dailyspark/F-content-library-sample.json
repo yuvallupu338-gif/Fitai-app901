@@ -1,0 +1,298 @@
+{
+  "$schema": "https://dailyspark.app/schemas/spark-library.v1.json",
+  "meta": {
+    "version": "1.0.0",
+    "locale": "he-IL",
+    "note": "מדגם מייצג מספריית הזרע. הספרייה המלאה ל-MVP מונה 800 פריטים, מכוסים על פני כל צירוף קטגוריה × מידה × טון.",
+    "taxonomy": {
+      "categories": ["movement", "focus", "mindfulness", "creativity", "relationships",
+                     "order", "learning", "resilience", "gratitude", "sleep", "money", "courage"],
+      "types": ["quote", "action", "tip"],
+      "sizes": ["micro", "standard", "stretch"],
+      "tones": ["gentle", "direct", "humorous", "stoic", "practical"],
+      "moods": ["energized", "calm", "busy", "tired", "overloaded", "flat"]
+    }
+  },
+  "sparks": [
+    {
+      "id": "spk_mov_001",
+      "type": "action", "category": "movement", "size": "micro",
+      "timeBudgetSeconds": 60, "energyLevel": 1, "tone": "practical",
+      "moodSafeFor": ["energized", "calm", "busy", "tired", "overloaded", "flat"],
+      "topics": ["movement", "posture", "desk"],
+      "title": "שישים שניות של גב",
+      "body": "הגב שלך היה מכופף כבר שעתיים. הוא לא צריך אימון, הוא צריך תזכורת.",
+      "action": "עמוד, הרם ידיים מעל הראש, והישאר שם 60 שניות.",
+      "expansion": "שרירי היציבה נכנסים לעייפות סטטית אחרי ישיבה ממושכת. מתיחה קצרה מאפסת את השעון הזה.",
+      "easierVariant": "אם אתה לא יכול לעמוד — גלגל את הכתפיים עשר פעמים אחורה.",
+      "safetyFlags": []
+    },
+    {
+      "id": "spk_mov_002",
+      "type": "action", "category": "movement", "size": "standard",
+      "timeBudgetSeconds": 300, "energyLevel": 2, "tone": "gentle",
+      "moodSafeFor": ["energized", "calm", "busy", "tired"],
+      "topics": ["movement", "outdoors", "attention"],
+      "title": "חמש דקות בלי אוזניות",
+      "body": "הליכה קצרה מנקה את הראש יותר מאשר עוד חמש דקות מול המסך.",
+      "action": "צא החוצה ל-5 דקות. תספור חמישה דברים שאתה שומע.",
+      "easierVariant": "גם מרפסת או חלון פתוח נחשבים.",
+      "safetyFlags": []
+    },
+    {
+      "id": "spk_mov_003",
+      "type": "action", "category": "movement", "size": "stretch",
+      "timeBudgetSeconds": 900, "energyLevel": 4, "tone": "direct",
+      "moodSafeFor": ["energized", "calm"],
+      "topics": ["movement", "thinking", "outdoors"],
+      "title": "הליכה עם שאלה",
+      "body": "תנועה פותרת בעיות שישיבה רק מסובבת במעגל.",
+      "action": "לך 15 דקות עם שאלה פתוחה אחת בראש. בסוף כתוב שורה.",
+      "safetyFlags": []
+    },
+    {
+      "id": "spk_foc_001",
+      "type": "quote", "category": "focus", "size": "micro",
+      "timeBudgetSeconds": 120, "energyLevel": 2, "tone": "direct",
+      "moodSafeFor": ["energized", "calm", "busy", "tired"],
+      "topics": ["focus", "procrastination", "starting"],
+      "title": "אתה לא צריך מוטיבציה",
+      "body": "מוטיבציה מגיעה אחרי ההתחלה, לא לפניה. זה הסדר שכולם מבלבלים.",
+      "action": "בחר משימה אחת ותן לה שתי דקות. מותר להפסיק אחר כך.",
+      "safetyFlags": []
+    },
+    {
+      "id": "spk_foc_002",
+      "type": "tip", "category": "focus", "size": "micro",
+      "timeBudgetSeconds": 90, "energyLevel": 2, "tone": "practical",
+      "moodSafeFor": ["energized", "calm", "busy"],
+      "topics": ["focus", "productivity", "tasks"],
+      "title": "כלל שתי הדקות",
+      "body": "אם משימה לוקחת פחות משתי דקות, עשה אותה עכשיו במקום לרשום אותה. הרישום עולה יותר מהביצוע.",
+      "action": "מצא היום משימה כזו אחת ובצע אותה במקום לרשום.",
+      "attribution": "מבוסס על עקרון מתוך Getting Things Done",
+      "safetyFlags": []
+    },
+    {
+      "id": "spk_foc_003",
+      "type": "tip", "category": "focus", "size": "standard",
+      "timeBudgetSeconds": 180, "energyLevel": 3, "tone": "practical",
+      "moodSafeFor": ["energized", "calm", "busy"],
+      "topics": ["focus", "accountability"],
+      "title": "התחייבות של הודעה אחת",
+      "body": "אמירה למישהו שאתה מתחיל עכשיו מעלה משמעותית את הסיכוי שתסיים — גם אם הוא לא עונה.",
+      "action": "שלח למישהו: \"מתחיל עכשיו 25 דקות\". הפעל טיימר.",
+      "safetyFlags": []
+    },
+    {
+      "id": "spk_foc_004",
+      "type": "action", "category": "focus", "size": "micro",
+      "timeBudgetSeconds": 45, "energyLevel": 1, "tone": "humorous",
+      "moodSafeFor": ["energized", "calm", "busy", "tired", "overloaded"],
+      "topics": ["focus", "digital"],
+      "title": "סגור שלוש",
+      "body": "כל לשונית פתוחה היא החלטה שדחית.",
+      "action": "סגור שלוש לשוניות. בלי לקרוא אותן קודם.",
+      "safetyFlags": []
+    },
+    {
+      "id": "spk_min_001",
+      "type": "action", "category": "mindfulness", "size": "micro",
+      "timeBudgetSeconds": 60, "energyLevel": 1, "tone": "gentle",
+      "moodSafeFor": ["energized", "calm", "busy", "tired", "overloaded", "flat"],
+      "topics": ["breathing", "calm"],
+      "title": "שלוש נשימות",
+      "body": "לא צריך עשר דקות. צריך שלוש נשימות שבאמת שמת לב אליהן.",
+      "action": "4 שניות פנימה, 6 שניות החוצה. שלוש פעמים.",
+      "safetyFlags": []
+    },
+    {
+      "id": "spk_min_002",
+      "type": "quote", "category": "mindfulness", "size": "micro",
+      "timeBudgetSeconds": 90, "energyLevel": 1, "tone": "gentle",
+      "moodSafeFor": ["calm", "tired", "overloaded", "flat"],
+      "topics": ["attention", "calm"],
+      "title": "לא להירגע. לשים לב",
+      "body": "רגיעה היא תוצאה. תשומת לב היא פעולה — ורק אחת מהן תלויה בך עכשיו.",
+      "action": "שים לב לשלושה צלילים סביבך. בלי לשנות כלום.",
+      "safetyFlags": []
+    },
+    {
+      "id": "spk_ord_001",
+      "type": "action", "category": "order", "size": "micro",
+      "timeBudgetSeconds": 60, "energyLevel": 1, "tone": "practical",
+      "moodSafeFor": ["energized", "calm", "busy", "tired", "overloaded", "flat"],
+      "topics": ["order", "environment"],
+      "title": "משטח אחד",
+      "body": "סדר מלא הוא פרויקט. משטח אחד הוא דקה.",
+      "action": "נקה משטח אחד שאתה רואה עכשיו. עצור כשהוא נקי.",
+      "safetyFlags": []
+    },
+    {
+      "id": "spk_ord_002",
+      "type": "action", "category": "order", "size": "standard",
+      "timeBudgetSeconds": 360, "energyLevel": 3, "tone": "direct",
+      "moodSafeFor": ["energized", "calm", "busy"],
+      "topics": ["order", "decluttering"],
+      "title": "מגירה אחת",
+      "body": "בחירה קטנה מספיק כדי שלא תתווכח איתה.",
+      "action": "בחר מגירה אחת. הוצא הכל. החזר רק מה שאתה משתמש בו.",
+      "safetyFlags": []
+    },
+    {
+      "id": "spk_rel_001",
+      "type": "action", "category": "relationships", "size": "micro",
+      "timeBudgetSeconds": 60, "energyLevel": 1, "tone": "gentle",
+      "moodSafeFor": ["energized", "calm", "busy", "tired", "flat"],
+      "topics": ["relationships", "connection"],
+      "title": "שורה אחת",
+      "body": "רוב הקשרים לא נגמרים בריב. הם נגמרים בשקט.",
+      "action": "שלח למישהו: \"חשבתי עליך היום\". בלי הקדמה ובלי בקשה.",
+      "safetyFlags": []
+    },
+    {
+      "id": "spk_rel_002",
+      "type": "tip", "category": "relationships", "size": "micro",
+      "timeBudgetSeconds": 120, "energyLevel": 2, "tone": "practical",
+      "moodSafeFor": ["energized", "calm", "busy"],
+      "topics": ["relationships", "listening"],
+      "title": "שאלה במקום פתרון",
+      "body": "כשמישהו מספר משהו קשה, הדחף הראשון הוא לפתור. זה כמעט אף פעם לא מה שהוא רצה.",
+      "action": "בשיחה הקרובה שאל: \"מה הכי מעסיק אותך בזה?\"",
+      "safetyFlags": []
+    },
+    {
+      "id": "spk_gra_001",
+      "type": "action", "category": "gratitude", "size": "micro",
+      "timeBudgetSeconds": 90, "energyLevel": 1, "tone": "gentle",
+      "moodSafeFor": ["energized", "calm", "busy", "tired", "flat"],
+      "topics": ["gratitude", "relationships"],
+      "title": "תודה שלא נאמרה",
+      "body": "יש מישהו שעזר לך החודש ולא ידע שזה עזר.",
+      "action": "כתוב לו הודעה קצרה. שורה אחת מספיקה.",
+      "safetyFlags": []
+    },
+    {
+      "id": "spk_res_001",
+      "type": "quote", "category": "resilience", "size": "micro",
+      "timeBudgetSeconds": 90, "energyLevel": 1, "tone": "stoic",
+      "moodSafeFor": ["calm", "tired", "overloaded", "flat"],
+      "topics": ["resilience", "control"],
+      "title": "מה שבידיים שלך היום",
+      "body": "רוב המתח נולד מניסיון לנהל דברים שלא בשליטתך.",
+      "action": "כתוב שני דברים שאתה שולט בהם היום. סגור את הרשימה.",
+      "safetyFlags": []
+    },
+    {
+      "id": "spk_res_002",
+      "type": "action", "category": "resilience", "size": "standard",
+      "timeBudgetSeconds": 180, "energyLevel": 2, "tone": "gentle",
+      "moodSafeFor": ["calm", "tired", "overloaded", "flat"],
+      "topics": ["resilience", "writing"],
+      "title": "פריקה על נייר",
+      "body": "מחשבה שנכתבה תופסת פחות מקום מאשר מחשבה שמסתובבת.",
+      "action": "כתוב שלוש דקות ברצף מה מטריד. אל תעצור לתקן. אחר כך סגור.",
+      "safetyFlags": []
+    },
+    {
+      "id": "spk_cre_001",
+      "type": "tip", "category": "creativity", "size": "micro",
+      "timeBudgetSeconds": 120, "energyLevel": 2, "tone": "humorous",
+      "moodSafeFor": ["energized", "calm", "busy", "tired"],
+      "topics": ["creativity", "writing"],
+      "title": "כתוב גרוע בכוונה",
+      "body": "עריכה קלה מהתחלה. טיוטה גרועה היא חומר גלם; דף ריק הוא לא.",
+      "action": "כתוב פסקה גרועה במכוון. תערוך אחר כך.",
+      "safetyFlags": []
+    },
+    {
+      "id": "spk_cre_002",
+      "type": "action", "category": "creativity", "size": "standard",
+      "timeBudgetSeconds": 300, "energyLevel": 3, "tone": "direct",
+      "moodSafeFor": ["energized", "calm"],
+      "topics": ["creativity", "ideation"],
+      "title": "עשר כותרות גרועות",
+      "body": "הרעיונות הגרועים תופסים את המקום שחוסם את הטובים. תוציא אותם.",
+      "action": "כתוב 10 כותרות גרועות לרעיון שמעסיק אותך.",
+      "safetyFlags": []
+    },
+    {
+      "id": "spk_sle_001",
+      "type": "action", "category": "sleep", "size": "micro",
+      "timeBudgetSeconds": 60, "energyLevel": 1, "tone": "practical",
+      "moodSafeFor": ["energized", "calm", "busy", "tired", "overloaded", "flat"],
+      "topics": ["sleep", "preparation"],
+      "title": "הכנה למחר",
+      "body": "בוקר טוב מתחיל בערב שלפניו, בהחלטה אחת שכבר קיבלת.",
+      "action": "הוצא עכשיו את מה שתצטרך בבוקר והנח על הכיסא.",
+      "safetyFlags": []
+    },
+    {
+      "id": "spk_sle_002",
+      "type": "tip", "category": "sleep", "size": "micro",
+      "timeBudgetSeconds": 60, "energyLevel": 1, "tone": "practical",
+      "moodSafeFor": ["energized", "calm", "busy", "tired"],
+      "topics": ["sleep", "light", "morning"],
+      "title": "חלון האור",
+      "body": "אור טבעי בשעה הראשונה של היום מסייע לכיול השעון הביולוגי.",
+      "action": "קבע לעצמך: מחר הקפה הראשון ליד החלון או בחוץ.",
+      "safetyFlags": []
+    },
+    {
+      "id": "spk_mon_001",
+      "type": "action", "category": "money", "size": "standard",
+      "timeBudgetSeconds": 240, "energyLevel": 2, "tone": "direct",
+      "moodSafeFor": ["energized", "calm", "busy"],
+      "topics": ["money", "subscriptions"],
+      "title": "מנוי אחד",
+      "body": "הכסף שנעלם בשקט הוא הכסף שאף פעם לא בדקת.",
+      "action": "פתח את רשימת המנויים. בטל אחד שלא נגעת בו חודשיים.",
+      "safetyFlags": []
+    },
+    {
+      "id": "spk_cou_001",
+      "type": "quote", "category": "courage", "size": "micro",
+      "timeBudgetSeconds": 90, "energyLevel": 2, "tone": "direct",
+      "moodSafeFor": ["energized", "calm", "busy"],
+      "topics": ["courage", "priorities"],
+      "title": "לא זמן. בחירה",
+      "body": "לוח מלא הוא לא סימן לחשיבות. הוא סימן שלא בחרת.",
+      "action": "מחק פריט אחד מהיום. אחד מספיק.",
+      "safetyFlags": []
+    },
+    {
+      "id": "spk_lea_001",
+      "type": "tip", "category": "learning", "size": "standard",
+      "timeBudgetSeconds": 300, "energyLevel": 3, "tone": "practical",
+      "moodSafeFor": ["energized", "calm", "busy"],
+      "topics": ["learning", "memory"],
+      "title": "לכתוב מהזיכרון",
+      "body": "לקרוא שוב מרגיש כמו למידה. לכתוב מהזיכרון הוא הלמידה עצמה.",
+      "action": "סגור את החומר וכתוב מה זכרת. הפער הוא המקום ללמוד בו.",
+      "safetyFlags": []
+    },
+    {
+      "id": "spk_low_001",
+      "type": "action", "category": "resilience", "size": "micro",
+      "timeBudgetSeconds": 30, "energyLevel": 1, "tone": "gentle",
+      "moodSafeFor": ["overloaded", "flat", "tired"],
+      "topics": ["self-care", "basics"],
+      "title": "כוס מים",
+      "body": "יש ימים שהניצוץ הוא לא אתגר. הוא רק תזכורת שדואגים לך.",
+      "action": "שים כוס מים לידך ושתה אותה. זה הכל.",
+      "expansion": "אין מה להוסיף. ביום כזה זה מספיק.",
+      "safetyFlags": []
+    },
+    {
+      "id": "spk_low_002",
+      "type": "action", "category": "movement", "size": "micro",
+      "timeBudgetSeconds": 120, "energyLevel": 1, "tone": "gentle",
+      "moodSafeFor": ["overloaded", "flat", "tired"],
+      "topics": ["movement", "gentle"],
+      "title": "לצאת ולחזור",
+      "body": "אין יעד ואין מרחק.",
+      "action": "צא מהדלת ותחזור. זה נחשב.",
+      "safetyFlags": []
+    }
+  ]
+}
