@@ -80,6 +80,20 @@ the animated coach doing the movement pattern where one does not, and a video
 button on every exercise everywhere it appears: the plan preview, the workout
 screen, the swap sheet, the skill tree and the machine guide.
 
+## Restraint
+
+One accent colour. The palette had five — orange, teal, blue, green, purple —
+plus nine hues of muscle badge, and the words already said what the colours
+were trying to say, so chips, stat tiles and badges are neutral now and teal is
+reserved for things you can press. The muscle marks on the figure stay red,
+because they are the one thing that should shout, and they no longer pulse.
+
+Each thing is said once. Today's card used to name the session's muscles in a
+headline, again in a legend, and again as chips; the weekly card repeated its
+own muscle line above the same legend, and carried a figure per day. The
+headline and the chips are gone, one figure remains, and sixteen achievement
+chips — fifteen of them greyed out — fold down to the ones actually earned.
+
 ## The rest of the app
 
 The planner sits on top of an app that was already there: a ten-level skill
