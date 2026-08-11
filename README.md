@@ -108,6 +108,28 @@ And the emoji came off. A neutral palette does not read as calm when every
 heading, button and line still opens with a coloured pictogram, so the home
 screen has none.
 
+## Under the finger
+
+`.btn` has always answered a press with a scale to 98% and a white ripple
+expanding from the touch point; the nav tabs scale to 90% and pop when they
+become the active tab; chips and the FAB scale too. Everything else that you
+press did not move at all — the pills, the segmented controls, the day picker,
+the skill-tree rows and the disclosures all had `transition` declared and no
+`:active` rule to transition to, which is declared motion with nothing to move.
+They answer now, in the same language the rest of the app already spoke: small
+controls scale to 94%, wide rows to 99%. A skill-tree row also finally admits
+it is pressable — it was `cursor:auto`.
+
+Three things are deliberately still flat. A meal card is not a button, it is a
+card with buttons in it. A settings toggle already animates — its knob slides.
+And a link inside a sentence should not scale, because scaling it would shove
+the words around it.
+
+A browser-driven audit walks every tab, the workout screen and the sheets,
+forces `:active` on each control and reads back the computed transform once the
+transition has settled: 575 of the 596 pressable elements answer, and the 21
+that do not are exactly those three groups.
+
 ## The rest of the app
 
 The planner sits on top of an app that was already there: a ten-level skill
