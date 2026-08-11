@@ -10,10 +10,11 @@
 
 </div>
 
-It is calisthenics only. Nothing in it asks for a dumbbell, a barbell or a
-machine; the heaviest thing it will ever suggest is your own body, optionally
-with a weight belt on a pull-up. Everything runs on the device — nothing is
-uploaded, there is no account, and the whole app is one file.
+It is calisthenics only, and it is bodyweight only. Nothing in it asks for a
+dumbbell, a barbell, a machine or a weight belt; the heaviest thing it will ever
+suggest is your own body, and there is no kilo field anywhere. You progress by
+moving to a harder variation, not by adding load. Everything runs on the
+device — nothing is uploaded, there is no account, and the whole app is one file.
 
 ## Running it
 
@@ -44,16 +45,16 @@ biceps, triceps, quads, hamstrings, glutes, calves, core — and every exercise
 carries its own badge for the one it is in the session for, plus what else it
 hits.
 
-**The exercises are chosen for you.** A library of 126 calisthenics movements,
+**The exercises are chosen for you.** A library of 123 calisthenics movements,
 each tagged with the muscle it trains, the kit it needs and the level it belongs
 at — from wall push-ups to the one-arm push-up, from table rows to the muscle-up,
 from a chair squat to a pistol. The generator walks the day's muscles in rotation
 and takes compounds before accessories, so a wall sit never opens a leg day.
 
-**It only ever offers what you can actually do.** The kit is six things — a
-pull-up bar, dip bars, rings, bands, an ab wheel, and added weight for weighted
-pull-ups and dips — and it is a hard filter. Tick nothing and you still get a
-full week from a floor, a wall and a doorway. Declared injuries filter on top.
+**It only ever offers what you can actually do.** The kit is five things — a
+pull-up bar, dip bars, rings, bands and an ab wheel — and it is a hard filter.
+Tick nothing and you still get a full week from a floor, a wall and a doorway.
+Declared injuries filter on top.
 
 **It refreshes itself once a week.** The selection is seeded from the ISO week,
 so it is identical every time you open the app inside one week and different the
@@ -96,8 +97,9 @@ rather than the functions in isolation. The sweep builds every session across si
 kits × one-to-seven days × three levels × three injury states — 1,512 sessions —
 and asserts that each one has six exercises, that every exercise is in the
 library and satisfiable with the kit, that no session ever contains anything
-matching a gym movement, and that a load field never appears without a load. It
-passes clean, as does an audit of the library and the skill tree.
+matching a gym movement, and that no prescription anywhere carries a load. It
+passes clean, as does an audit of the library, the skill tree, and all ninety
+skill-tree popovers, none of which offer a kilo field.
 
 ## Languages
 
@@ -125,8 +127,8 @@ node still holding Hebrew. It reports zero.
 `index.html` is ~18 MB because the fonts, the exercise clips and the food photos
 are all embedded as data URIs. That is a deliberate trade — one file, no network,
 works offline — but it is a real first-load cost and worth knowing before adding
-more images. Going calisthenics-only took about 6.7 MB off it: the gym machine
-directory and the twenty clips of barbell and dumbbell lifts nothing would
-prescribe any more.
+more images. Going calisthenics-only took about 7.4 MB off it: the gym machine
+directory and the twenty-three clips of loaded lifts nothing would prescribe any
+more.
 
 The information in the app is not medical advice.
