@@ -39,11 +39,11 @@ calendar days you tick decide only *when*, never *what*.
 
 **Every session is announced by its muscles before you start it.** The home
 screen names today's session and lists the muscle groups it trains, and the
-weekly card does the same for each of your training days with the exercises
-underneath. The muscle vocabulary is ten groups — chest, back, shoulders,
-biceps, triceps, quads, hamstrings, glutes, calves, core — and every exercise
-carries its own badge for the one it is in the session for, plus what else it
-hits.
+weekly card gives every training day a line naming its own, with the exercises
+folded underneath. The muscle vocabulary is ten groups — chest, back,
+shoulders, biceps, triceps, quads, hamstrings, glutes, calves, core — and every
+exercise carries its own badge for the one it is in the session for, plus what
+else it hits.
 
 **The exercises are chosen for you.** A library of 123 calisthenics movements,
 each tagged with the muscle it trains, the kit it needs and the level it belongs
@@ -71,7 +71,7 @@ closest options flagged, instead of a dead end.
 in red — bright for what the exercise is chosen for, faint for what it also
 hits — and the marks sit inside the animated limb groups, so they move with the
 arm that is pressing. Where a bundled clip replaces the figure, the marked
-figure stands beside it. The home screen carries the same figure for the
+figure stands beside it. The home screen carries one such figure, for the
 session as a whole, with a legend naming the primary muscles and the secondary
 ones that only assist.
 
@@ -91,8 +91,22 @@ because they are the one thing that should shout, and they no longer pulse.
 Each thing is said once. Today's card used to name the session's muscles in a
 headline, again in a legend, and again as chips; the weekly card repeated its
 own muscle line above the same legend, and carried a figure per day. The
-headline and the chips are gone, one figure remains, and sixteen achievement
-chips — fifteen of them greyed out — fold down to the ones actually earned.
+headline and the chips are gone, and one figure remains.
+
+The home screen is seven blocks and about 1,500px, down from twelve and 2,800.
+What went: a profile summary that was a read-only copy of Settings; a pep-talk
+banner directly under a line already opening with the same two words; a
+training-days line the weekly plan lists anyway; and a second button for
+swapping the workouts. The week used to be a card per training day, each
+repeating counts identical to its neighbours and carrying its own legend — it
+is one row per day now, the day and its muscles, and the exercises open
+underneath. Progress keeps the streak, the level and three numbers; the week
+bars and the sixteen badges moved into the sheet already called "charts and
+badges", which is one tap away.
+
+And the emoji came off. A neutral palette does not read as calm when every
+heading, button and line still opens with a coloured pictogram, so the home
+screen has none.
 
 ## The rest of the app
 
@@ -131,6 +145,11 @@ out as salad ("ירך קדמית" once rendered as "Thigh קדמית"). A whole-
 skips the substitution entirely. Anything a user typed themselves is marked
 `data-notr` and is never touched — the food glossary used to translate the
 author's own name, Yuval, into "jubilee".
+
+Its sharp edge is that the key is the *whole* string, emoji included, so taking
+an emoji off a heading silently drops it back into word-by-word and it comes
+out as "טיפ today". Those headings pick their own wording per language now and
+do not consult the dictionary at all.
 
 A browser-driven audit walks every tab, every sheet, all 47 machine guides, the
 food search and every recipe in both English and Spanish, collecting any text
