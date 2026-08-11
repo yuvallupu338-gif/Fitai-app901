@@ -52,8 +52,12 @@ export const MAT = {
   EYE: 10,
   /* The cut-out silhouette a shade is drawn with. */
   SHADE: 11,
+  /* A smiler's teeth: emissive like the eyes, but cold rather than hot, so
+   * the grin and the stare are two readable things and not one orange smear
+   * once the bloom has had them. */
+  TOOTH: 12,
 };
-export const MAT_COUNT = 12;
+export const MAT_COUNT = 13;
 
 export class Chunk {
   constructor(level, cx, cz) {

@@ -19,6 +19,7 @@
  */
 
 import { LEVELS } from '../backrooms/src/data/levels.js';
+import { BEHAVIOUR } from '../backrooms/src/game/entities.js';
 import { generateChunk } from '../backrooms/src/world/chunk.js';
 import { CHUNK, WALL_UNIT, F_NOFLOOR } from '../backrooms/src/world/grid.js';
 
@@ -108,6 +109,124 @@ for (const level of LEVELS) {
     for (let cz = 0; cz < 12; cz++) exits += generateChunk(level, cx, cz).exits.length;
   }
   check(exits > 0, `${label}: no no-clip point in 144 chunks — the level has no exit`);
+}
+
+/* ------------------------------------------------------------------ *
+ * Distinctness
+ *
+ * A hundred levels are worth having only if they are a hundred *places*.
+ * Nothing else in this suite would notice if fifty of them were the same
+ * room with a different name — every one of them would generate, connect and
+ * light perfectly well.
+ *
+ * So: describe each level by the things a player actually perceives, and
+ * require that no two descriptions match, and that consecutive levels differ
+ * on several axes rather than one. The axes are weighted by how loudly they
+ * read — walking into a level, you notice the shape and the palette long
+ * before you notice its exit rarity.
+ * ------------------------------------------------------------------ */
+{
+  const axes = (L) => {
+    const g = L.gen || {};
+    const m = L.mats || [];
+    const mat = (i, f) => (m[i] && m[i][f]) || '';
+    return {
+      shape: L.arch,
+      floor: mat(0, 'kind'), floorCol: mat(0, 'color'),
+      wall: mat(1, 'kind'), wallCol: mat(1, 'color'),
+      ceilCol: mat(2, 'kind') ? mat(2, 'color') : '',
+      fog: L.fogColor || '',
+      reach: Math.round((L.fogFar || 0) / 6),
+      dark: Math.round((L.ambient ? parseInt(L.ambient.slice(1), 16) : 0) / 0x101010),
+      head: Math.round((L.ceilHeight || 0) * 2) / 2,
+      lit: `${g.lightSpacing ?? -1}/${g.deadLights ?? 0}/${g.flickerPct ?? 0}`,
+      /* Scatter is the difference between a field of wheat and an orchard,
+       * which is to say: the entire difference. */
+      strewn: `${g.scatterType || '-'}:${Math.round((g.scatter || 0) / 25)}`,
+      wet: `${g.flood || 0}/${g.poolDepth || 0}/${L.waterDepth || 0}`,
+      sky: L.sky ? Object.values(L.sky).join(',') : '',
+      hazard: (L.hazards || []).slice().sort().join('+'),
+      who: L.entities ? L.entities.kind : '-',
+      sound: `${(L.audio || {}).tone || '-'}/${(L.audio || {}).reverb ?? 0}`,
+    };
+  };
+
+  const keys = Object.keys(axes(LEVELS[0]));
+  const shared = (a, b) => keys.filter((k) => String(a[k]) === String(b[k])).length;
+  const desc = LEVELS.map(axes);
+
+  /*
+   * The thresholds are set one below what the file actually achieves rather
+   * than at some round number: as written, the closest pair of levels
+   * anywhere in the hundred differs on 7 of the 17 axes and the closest
+   * back-to-back pair on 8. Asserting 6 and 7 leaves exactly one axis of
+   * slack for an incidental edit, and no room at all to quietly add a level
+   * that is a recolour of one already here.
+   */
+  const MIN_ANY = 6, MIN_ADJACENT = 7;
+
+  for (let i = 0; i < LEVELS.length; i++) {
+    for (let j = i + 1; j < LEVELS.length; j++) {
+      const s = shared(desc[i], desc[j]);
+      check(s < keys.length,
+        `levels ${LEVELS[i].id} and ${LEVELS[j].id} are the same place in every respect`);
+      check(keys.length - s >= MIN_ANY,
+        `levels ${LEVELS[i].id} (${LEVELS[i].name}) and ${LEVELS[j].id} (${LEVELS[j].name}) `
+        + `differ on only ${keys.length - s} of ${keys.length} axes`);
+    }
+  }
+
+  /* And walking from one to the next must feel like arriving somewhere. */
+  for (let i = 1; i < LEVELS.length; i++) {
+    const s = shared(desc[i - 1], desc[i]);
+    check(keys.length - s >= MIN_ADJACENT,
+      `levels ${LEVELS[i - 1].id} and ${LEVELS[i].id} are back to back and `
+      + `differ on only ${keys.length - s} of ${keys.length} axes`);
+  }
+
+  /* Every level is inhabited. An empty level is a corridor with a view. */
+  for (const L of LEVELS) {
+    check(!!L.entities && !!L.entities.kind, `level ${L.id} (${L.name}) has nothing living in it`);
+    /*
+     * And the safety label has to be true. Class 0 means "you could live
+     * here", which a level with something hunting in it is not — when the
+     * Lobby and the Reading Rooms were populated they stopped being class 0
+     * and were moved up, rather than left carrying a green badge that lied.
+     */
+    check(!(L.cls === 0 && L.entities),
+      `level ${L.id} (${L.name}) is labelled Safe and has a ${L.entities && L.entities.kind} in it`);
+
+    /*
+     * And it has to fit. A titan is 3.22m to the top of its head, so putting
+     * one in a 2.8m storeroom is a monster wearing the ceiling as a hat — the
+     * sort of thing that is obvious in play and invisible in a screenshot of
+     * whichever level the renderer tests happen to use.
+     */
+    const B = L.entities && BEHAVIOUR[L.entities.kind];
+    if (B && !L.outdoor) {
+      const head = L.ceilHeight || 3;
+      check(B.height <= head - 0.1,
+        `level ${L.id} (${L.name}) has a ${L.entities.kind} ${B.height}m tall `
+        + `under a ${head}m ceiling`);
+    }
+  }
+
+  /* And no kind may dominate, or the roster is decoration. */
+  const tally = new Map();
+  for (const L of LEVELS) {
+    const k = L.entities && L.entities.kind;
+    if (k) tally.set(k, (tally.get(k) || 0) + 1);
+  }
+  check(tally.size >= 8, `only ${tally.size} kinds of thing across a hundred levels`);
+  for (const [k, n] of tally) {
+    check(n <= 22, `${k} is on ${n} of the hundred levels — too much of one thing`);
+  }
+  /* Never twice in a row: consecutive levels must change the threat. */
+  for (let i = 1; i < LEVELS.length; i++) {
+    const a = LEVELS[i - 1].entities, b = LEVELS[i].entities;
+    check(!a || !b || a.kind !== b.kind,
+      `levels ${LEVELS[i - 1].id} and ${LEVELS[i].id} are both ${b && b.kind}`);
+  }
 }
 
 console.log(`${checks} checks over ${LEVELS.length} levels`);

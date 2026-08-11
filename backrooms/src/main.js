@@ -13,7 +13,7 @@ import { Renderer } from './render/renderer.js';
 import { parseColor } from './render/textures.js';
 import { World } from './world/world.js';
 import { Player } from './game/player.js';
-import { Entities } from './game/entities.js';
+import { Entities, BEHAVIOUR } from './game/entities.js';
 import { GameAudio } from './game/audio.js';
 import { Input } from './game/input.js';
 import { LEVELS, getLevel } from './data/levels.js';
@@ -574,6 +574,12 @@ class Game {
         if (e.type === 'cue') audio.cue(e.kind, e.dist);
         else if (e.type === 'hit') { audio.hurt(); ui.log('משהו נגע בך.'); }
         else if (e.type === 'freeze') ui.log('הוא עצר כשהסתכלת.');
+        else if (e.type === 'lunge') {
+          /* The one moment a lurker is loud. Everything about it up to here
+           * was designed to be mistaken for scenery. */
+          audio.lunge();
+          ui.log('משהו שעמד בלי לזוז — זז.');
+        }
       }
     }
 
@@ -812,5 +818,8 @@ const NOTES = [
 ];
 
 /* Exposed so the smoke test can drive the game the way a player would —
- * enter a level, wait for it to settle, look at what came out. */
+ * enter a level, wait for it to settle, look at what came out. The behaviour
+ * table goes with it so the tests can stage a kind without keeping their own
+ * copy of which model belongs to which monster. */
 window.backrooms = new Game();
+window.backrooms.BEHAVIOUR = BEHAVIOUR;

@@ -235,6 +235,43 @@ export class Renderer {
       }
     });
 
+    /*
+     * The smiler: two eyes and a grin, and deliberately nothing else. No head
+     * to hang them on and no body under it — an unlit room gives you exactly
+     * this much of a face and the temptation to model the rest is the
+     * temptation to make it less frightening.
+     *
+     * Everything is emissive, so it is legible at any distance and in any
+     * light, and the bloom turns it into the thing you see before you see
+     * anything. Local -Z is forward, so the face is built on the -Z side.
+     */
+    this.dyn.smiler = make((mb) => {
+      const lit = { ao: () => 1 };
+      for (const ex of [-0.115, 0.115]) {
+        addSphere(mb, ex, 0.10, -0.05, 0.052, 9, 7, MAT.EYE,
+          { ...lit, scaleY: 0.72 });
+      }
+      /*
+       * The grin: a row of teeth on an arc, each one a little box, each tilted
+       * to sit square on the curve. Modelling it as separate teeth rather than
+       * one curved strip is what makes it read as a mouth — the gaps are the
+       * whole reason the shape is recognisable at forty metres.
+       */
+      const N = 11, span = 1.5, radius = 0.30;
+      for (let i = 0; i < N; i++) {
+        const t = (i / (N - 1)) * 2 - 1;         /* -1 … 1 across the arc */
+        const a = t * span * 0.5;
+        const ex = Math.sin(a) * radius;
+        const ey = -0.12 - (1 - Math.cos(a)) * radius * 0.9;
+        /* Alternating length, so it is a mouth and not a comb. */
+        const len = 0.052 + (i % 2 ? 0.016 : 0);
+        /* addBox's rot is about Y, which fans the teeth round the arc so the
+         * ones at the corners of the mouth turn away from the viewer exactly
+         * as they would on a face. */
+        addBox(mb, ex, ey, -0.055, 0.019, len, 0.018, -a, MAT.TOOTH, lit);
+      }
+    });
+
     this.dyn.crawlBody = make((mb) => {
       /* Built lying down: a spine from hips to shoulders, plus a skull. */
       addLimb(mb, 0, 0.30, -0.34, [0.15, 0.14], [0.19, 0.17], 0.10, F, { ao: shade(0.5) });
@@ -669,6 +706,13 @@ function normaliseMaterials(level) {
     {
       kind: 'silhouette', color: '#0a0a0c', tile: 1, cutout: true,
       alphaCut: 0.42, specular: 0.02, roughMul: 1, bump: 0.2, normalStrength: 0.3,
+    },
+    /* Slot 12 — a smiler's teeth. Cold white against the eyes' orange, so
+     * that after the bloom has spread both there are still two shapes in the
+     * dark rather than one bright patch. */
+    {
+      kind: 'glow', color: '#eaf4ff', tile: 1, emissive: 1,
+      roughMul: 0.3, specular: 0.4, bump: 0.05,
     },
   ];
   for (let i = 0; i < MAT_COUNT; i++) {

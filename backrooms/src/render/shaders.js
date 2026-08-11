@@ -121,7 +121,7 @@ uniform vec3  uFogColor;
 uniform float uFogDensity;
 uniform float uFogHeight;               /* 0 = uniform fog, >0 = ground fog    */
 
-#define MAX_MATS 12
+#define MAX_MATS 13
 uniform vec4 uMatA[MAX_MATS];  /* uvScale, roughnessMul, emissive, specular    */
 uniform vec4 uMatB[MAX_MATS];  /* water, normalStrength, alphaCut, tintAmount  */
 uniform vec4 uMatTint[MAX_MATS];

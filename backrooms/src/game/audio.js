@@ -297,6 +297,17 @@ export class GameAudio {
     this.tone(84, 0.5, 0.10, 'sawtooth', 0.2);
   }
 
+  /*
+   * A lurker giving up the disguise: a hard, wide-band crack with a rising
+   * tail under it. Loud on purpose and only ever heard once per encounter —
+   * the whole behaviour is silence and then this.
+   */
+  lunge() {
+    this.burst({ hp: 200, lp: 7000, dur: 0.18, gain: 0.40, send: 0.4, rate: 1.4 });
+    this.tone(150, 0.45, 0.16, 'sawtooth', 0.35);
+    this.tone(300, 0.30, 0.10, 'square', 0.3);
+  }
+
   descend() {
     this.tone(180, 1.6, 0.10, 'sine', 0.9);
     this.tone(90, 2.2, 0.09, 'sine', 0.9);
@@ -324,6 +335,28 @@ export class GameAudio {
       this.tone(34 + near * 14, 1.8, 0.02 + near * 0.10, 'sine', 0.85);
       this.burst({ hp: 1400, lp: 3000, dur: 0.9, gain: 0.02 + near * 0.06,
         send: 0.9, rate: 0.5 });
+    } else if (kind === 'smiler') {
+      /* Two notes a minor second apart. It is the least musical interval
+       * there is and the ear reads it as wrong rather than as a sound. */
+      this.tone(494, 0.5, 0.02 + near * 0.05, 'triangle', 0.5);
+      this.tone(466, 0.6, 0.02 + near * 0.05, 'triangle', 0.5);
+    } else if (kind === 'swarm') {
+      /* Short, dry and high — many small feet, not one big thing. Rate is
+       * jittered so a group does not tick in unison like a metronome. */
+      this.burst({ hp: 1800, lp: 6500, dur: 0.10, gain: 0.03 + near * 0.10,
+        send: 0.35, rate: 2.0 + Math.random() * 0.9 });
+    } else if (kind === 'titan') {
+      /* A footfall you feel rather than hear, and the room answering it. */
+      this.tone(41, 0.5, 0.05 + near * 0.22, 'sine', 0.6);
+      this.burst({ hp: 60, lp: 260, dur: 0.7, gain: 0.05 + near * 0.20,
+        send: 1.0, rate: 0.35 });
+    } else if (kind === 'lurker') {
+      /* Nothing while it waits; the lunge below is the only sound it makes,
+       * and a cue here would be a warning it is not supposed to give. */
+    } else if (kind === 'stalker') {
+      /* Kept quiet and close-miked: it is always about the same distance
+       * away, so a cue that scaled with range would never change. */
+      this.burst({ hp: 300, lp: 1500, dur: 0.35, gain: 0.035, send: 0.5, rate: 0.9 });
     } else {
       this.burst({ hp: 90, lp: 800 + near * 1200, dur: 0.4, gain: 0.06 + near * 0.2,
         send: 0.55, rate: 0.7 });
