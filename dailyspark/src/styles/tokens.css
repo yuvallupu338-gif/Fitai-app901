@@ -1,0 +1,119 @@
+/*
+ * tokens.css — the palette and scale from the design spec.
+ *
+ * Three theme states, not two. An explicit choice stamps data-theme on the root
+ * and wins in both directions; with no stamp, prefers-color-scheme decides.
+ * Every colour is defined at :root first and only *redefined* in the other two
+ * blocks — a colour whose only definition lives inside a media query renders as
+ * nothing at all in the unstamped state, which is the classic way a themed page
+ * ends up as black text on a black ground.
+ */
+
+:root {
+  /* surfaces — warm paper, not white. The whole visual thesis is "a page in a
+     book", and #FFFFFF reads as a form. */
+  --canvas: #FBF7F2;
+  --surface: #FFFFFF;
+  --sunken: #F3EDE5;
+
+  /* ink — three levels, and the third one is still legible. #9C9289 measured
+     2.9:1 on the card surface, which fails AA for the captions, timestamps and
+     field labels that make up most of the text on the settings screen. */
+  --ink: #1A1613;
+  --ink-2: #6B6259;
+  --ink-3: #746A61;
+
+  /* ember — the brand. Used for one thing per screen. */
+  --ember: #C24A18;
+  --ember-bright: #E8622C;
+  --ember-wash: #FBE3D6;
+
+  /* moss marks completion, gold marks the streak. Two accents rather than one
+     so "done" and "kept going" never compete for the same colour. */
+  --moss: #2F7A5C;
+  --moss-wash: #DCEEE5;
+  --gold: #A87C14;
+  --dusk: #4A5578;
+
+  --danger: #A8412C;
+  --line: #E8DFD4;
+  --line-soft: #F0E9E0;
+
+  /* type */
+  --serif: "Frank Ruhl Libre", "Times New Roman", serif;
+  --sans: "Assistant", "Heebo", -apple-system, BlinkMacSystemFont, "Segoe UI", Arial, sans-serif;
+  --mono: ui-monospace, "SF Mono", Menlo, Consolas, monospace;
+
+  /* geometry */
+  --r-card: 24px;
+  --r: 14px;
+  --r-sm: 11px;
+  --r-pill: 999px;
+  --wrap: 620px;
+
+  /* elevation — warm shadows. A neutral black shadow on warm paper reads as
+     dirt rather than as depth. */
+  --sh-1: 0 1px 2px rgba(78, 52, 32, .06);
+  --sh-2: 0 4px 14px rgba(78, 52, 32, .08);
+  --sh-3: 0 12px 32px rgba(78, 52, 32, .12);
+
+  /* motion */
+  --ease-out: cubic-bezier(.22, 1, .36, 1);
+  --ease-both: cubic-bezier(.65, 0, .35, 1);
+}
+
+@media (prefers-color-scheme: dark) {
+  :root:not([data-theme="light"]) {
+    --canvas: #131110;
+    --surface: #1E1B19;
+    --sunken: #262220;
+
+    --ink: #F2EDE6;
+    --ink-2: #A79D93;
+    --ink-3: #8C8279;
+
+    --ember: #FF8552;
+    --ember-bright: #FF9E72;
+    --ember-wash: #3A2117;
+
+    --moss: #5FB08D;
+    --moss-wash: #163026;
+    --gold: #DDB554;
+    --dusk: #8894BC;
+
+    --danger: #E0705A;
+    --line: #322C28;
+    --line-soft: #272220;
+
+    --sh-1: 0 1px 2px rgba(0, 0, 0, .4);
+    --sh-2: 0 4px 14px rgba(0, 0, 0, .35);
+    --sh-3: 0 12px 32px rgba(0, 0, 0, .45);
+  }
+}
+
+:root[data-theme="dark"] {
+  --canvas: #131110;
+  --surface: #1E1B19;
+  --sunken: #262220;
+
+  --ink: #F2EDE6;
+  --ink-2: #A79D93;
+  --ink-3: #8C8279;
+
+  --ember: #FF8552;
+  --ember-bright: #FF9E72;
+  --ember-wash: #3A2117;
+
+  --moss: #5FB08D;
+  --moss-wash: #163026;
+  --gold: #DDB554;
+  --dusk: #8894BC;
+
+  --danger: #E0705A;
+  --line: #322C28;
+  --line-soft: #272220;
+
+  --sh-1: 0 1px 2px rgba(0, 0, 0, .4);
+  --sh-2: 0 4px 14px rgba(0, 0, 0, .35);
+  --sh-3: 0 12px 32px rgba(0, 0, 0, .45);
+}

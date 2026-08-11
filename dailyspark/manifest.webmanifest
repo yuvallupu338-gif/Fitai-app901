@@ -1,0 +1,40 @@
+{
+  "name": "DailySpark · ניצוץ אחד ביום",
+  "short_name": "DailySpark",
+  "description": "ניצוץ אחד ביום — משפט, מיקרו־פעילות או טיפ, מותאם למטרות שלך, לזמן שיש לך ולמצב שאתה בו.",
+  "lang": "he",
+  "dir": "rtl",
+  "start_url": "./",
+  "scope": "./",
+  "display": "standalone",
+  "orientation": "portrait",
+  "background_color": "#FBF7F2",
+  "theme_color": "#FBF7F2",
+  "categories": ["lifestyle", "productivity", "health"],
+  "icons": [
+    {
+      "src": "data:image/svg+xml,%3Csvg xmlns='http://www.w3.org/2000/svg' viewBox='0 0 512 512'%3E%3Crect width='512' height='512' rx='114' fill='%23C24A18'/%3E%3Cpath d='M275 54c5 96 30 145 107 169-70 18-99 56-117 137-14-73-38-110-97-129 62-22 89-65 107-177z' fill='%23FBF7F2'/%3E%3Cpath d='M150 329c8 54 21 77 58 89-35 11-48 30-58 70-6-38-19-57-48-69 32-11 43-30 48-90z' fill='%23FBF7F2'/%3E%3C/svg%3E",
+      "sizes": "512x512",
+      "type": "image/svg+xml",
+      "purpose": "any"
+    },
+    {
+      "src": "data:image/svg+xml,%3Csvg xmlns='http://www.w3.org/2000/svg' viewBox='0 0 512 512'%3E%3Crect width='512' height='512' fill='%23C24A18'/%3E%3Cpath d='M275 94c5 86 27 130 96 152-63 16-89 50-105 123-13-66-34-99-87-116 56-20 80-59 96-159z' fill='%23FBF7F2'/%3E%3C/svg%3E",
+      "sizes": "512x512",
+      "type": "image/svg+xml",
+      "purpose": "maskable"
+    }
+  ],
+  "shortcuts": [
+    {
+      "name": "הניצוץ של היום",
+      "short_name": "היום",
+      "url": "./#home"
+    },
+    {
+      "name": "הספר שלי",
+      "short_name": "הספר",
+      "url": "./#book"
+    }
+  ]
+}

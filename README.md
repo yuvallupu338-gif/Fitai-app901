@@ -53,6 +53,21 @@ everything else here. It is served at `/backrooms/` and does not touch the
 questionnaire, the plan, or any of FitAI's storage. See
 [`backrooms/README.md`](backrooms/README.md).
 
+### Also in this repo: `dailyspark/`
+
+`dailyspark/` is a third self-contained app, sharing nothing with the other two
+but the server and the bundler: a daily-inspiration app that delivers exactly
+one item a day — a thought, a two-minute action, or a technique — chosen by a
+recommender that runs entirely on the device.
+
+The interesting part is the engine. A hand-built topic space stands in for
+embeddings, a per-user Bayesian logistic bandit does the ranking with Thompson
+sampling, and a safety layer sits in front of both: when someone reports being
+overwhelmed or flat, the candidate pool is cut by a hard filter to micro-sized,
+gently-toned items and the challenge lexicon is banned outright, so no score can
+promote a "crush it today" card onto a bad day. Nothing is sent anywhere; there
+is no account and no server. See [`dailyspark/README.md`](dailyspark/README.md).
+
 ## What it does
 
 **Intake** — ten steps covering the basics, training history, goal and target
@@ -205,6 +220,8 @@ tools/
   smoke.mjs         drives the real app in Chromium
   build-single.js   bundles everything into dist/fitai.html
   fetch-fonts.js    regenerates the embedded font subsets
+  dailyspark-smoke.mjs   drives DailySpark, including a simulated sixty days
+  dailyspark-fonts.mjs   regenerates DailySpark's embedded font subsets
 docs/
   CONTRACTS.md      the binding module spec
 ```
@@ -217,6 +234,10 @@ node tools/vision-audit.mjs                             # photo-scan containment
 node tools/ai-audit.mjs                                 # providers + intake containment
 node tools/build-single.js                              # single-file bundle
 NODE_PATH=/opt/node22/lib/node_modules node tools/smoke.mjs --shots
+
+node tools/build-single.js dailyspark/index.html dist/dailyspark.html
+NODE_PATH=/opt/node22/lib/node_modules node tools/dailyspark-smoke.mjs
+NODE_PATH=/opt/node22/lib/node_modules node tools/dailyspark-smoke.mjs --single
 ```
 
 `validate.js` verifies exercise ids, equipment tokens, injury tags and warm-up

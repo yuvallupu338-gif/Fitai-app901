@@ -1,0 +1,278 @@
+/*
+ * book.js — the history screen.
+ *
+ * Called "the book" everywhere in the product, including in the copy, because
+ * that framing is the difference between a log and an object someone owns. A
+ * log is something an app keeps about you; a book is something you have.
+ *
+ * Three views over the same data: a timeline, a year heat map, and the saved
+ * ones. The heat map is the one that carries the emotional weight — a year of
+ * small marks is an argument that you did more than you remember.
+ */
+
+import { h, clear, sheet, toast, haptic, ltr } from '../core/dom.js';
+import * as store from '../core/store.js';
+import { dayKey, humanDate, monthName, WEEKDAY_SHORT, weekdayOf, shiftKey, daysBetween } from '../core/day.js';
+import { sparkById } from '../data/sparks.index.js';
+import { CATEGORIES, categoryLabel } from '../data/taxonomy.js';
+import * as streak from '../core/streak.js';
+import { shareEntry } from './share.js';
+
+const VIEWS = [
+  { key: 'timeline', he: 'ציר זמן' },
+  { key: 'year', he: 'שנה' },
+  { key: 'saved', he: 'שמורים' },
+];
+
+const STATUS_MARK = {
+  completed: { glyph: '✓', label: 'בוצע', cls: 'is-done' },
+  deferred: { glyph: '⏳', label: 'לא היום', cls: 'is-later' },
+  rejected: { glyph: '✕', label: 'הוחלף', cls: 'is-skipped' },
+  delivered: { glyph: '·', label: 'נמסר', cls: 'is-open' },
+};
+
+/* View state lives here rather than in the store: which tab of the book you
+ * were on is not worth persisting, and persisting it means restoring somebody
+ * into a filtered view they set three weeks ago and forgot. */
+const ui = { view: 'timeline', category: null, query: '' };
+
+export function renderBook(root) {
+  const state = store.get();
+  const keys = Object.keys(state.days).sort((a, b) => b.localeCompare(a));
+
+  clear(root);
+  root.appendChild(h('header.screen-head',
+    h('h1.screen-title', 'הספר שלך'),
+    h('p.screen-lede', keys.length
+      ? `${keys.length} ניצוצות · ${countDone(state)} בוצעו`
+      : 'כאן ייבנה הספר שלך.')));
+
+  if (!keys.length) {
+    root.appendChild(h('section.card.empty',
+      h('h2', 'עוד לא נאסף כלום.'),
+      h('p', 'הניצוץ של היום כבר בפנים. עוד 364 בדרך.')));
+    return;
+  }
+
+  root.appendChild(h('div.seg.seg-wide', { role: 'tablist' }, VIEWS.map((v) => h(
+    `button.seg-item${ui.view === v.key ? '.is-on' : ''}`,
+    {
+      role: 'tab', 'aria-selected': String(ui.view === v.key),
+      onclick: () => { ui.view = v.key; haptic('select'); renderBook(root); },
+    }, v.he,
+  ))));
+
+  if (ui.view === 'timeline') timeline(root, state, keys);
+  else if (ui.view === 'year') year(root, state);
+  else saved(root, state, keys);
+}
+
+function countDone(state) {
+  return Object.values(state.days).filter((d) => d.status === 'completed').length;
+}
+
+/* ------------------------------------------------------------------ *
+ * Timeline
+ * ------------------------------------------------------------------ */
+
+function timeline(root, state, keys) {
+  root.appendChild(filters(root, state));
+
+  const filtered = keys.filter((k) => matches(state.days[k], k));
+  if (!filtered.length) {
+    root.appendChild(h('section.card.empty',
+      h('h2', 'לא מצאנו.'),
+      h('p', 'נסה מילה אחרת, או עיין לפי קטגוריה.')));
+    return;
+  }
+
+  let lastMonth = null;
+  const list = h('ol.timeline');
+  for (const key of filtered) {
+    const month = key.slice(0, 7);
+    if (month !== lastMonth) {
+      lastMonth = month;
+      list.appendChild(h('li.timeline-month', `${monthName(key)} ${key.slice(0, 4)}`));
+    }
+    list.appendChild(row(state.days[key], key));
+  }
+  root.appendChild(list);
+}
+
+function matches(entry, key) {
+  if (!entry) return false;
+  if (ui.category) {
+    const spark = sparkById(entry.sparkId);
+    if (!spark || spark.category !== ui.category) return false;
+  }
+  if (ui.query) {
+    const hay = `${entry.title} ${entry.body} ${entry.action} ${entry.note || ''}`;
+    if (!hay.includes(ui.query)) return false;
+  }
+  return true;
+}
+
+function filters(root, state) {
+  const search = h('input.input.search', {
+    type: 'search', value: ui.query, placeholder: 'חיפוש בספר',
+    'aria-label': 'חיפוש בספר',
+    oninput: (e) => {
+      ui.query = e.target.value.trim();
+      /* Re-render on a short debounce so typing does not rebuild a year of
+       * rows on every keystroke. */
+      clearTimeout(search._t);
+      search._t = setTimeout(() => renderBook(root), 180);
+    },
+  });
+
+  /* Only categories that actually appear in this person's history. A filter bar
+   * offering twelve options when the book contains four is a filter bar that
+   * mostly returns nothing. */
+  const present = new Set();
+  for (const key of Object.keys(state.days)) {
+    const spark = sparkById(state.days[key].sparkId);
+    if (spark) present.add(spark.category);
+  }
+
+  return h('div.filters',
+    search,
+    h('div.chip-row',
+      h(`button.chip.chip-sm${ui.category ? '' : '.is-on'}`, {
+        onclick: () => { ui.category = null; renderBook(root); },
+      }, 'הכל'),
+      CATEGORIES.filter((c) => present.has(c.key)).map((c) => h(
+        `button.chip.chip-sm${ui.category === c.key ? '.is-on' : ''}`,
+        { onclick: () => { ui.category = c.key; renderBook(root); } },
+        c.he,
+      ))));
+}
+
+function row(entry, key) {
+  const mark = STATUS_MARK[entry.status] || STATUS_MARK.delivered;
+  const spark = sparkById(entry.sparkId);
+  return h(`li.tl-row.${mark.cls}`, {
+    tabindex: '0', role: 'button',
+    'aria-label': `${humanDate(key)}: ${entry.title}, ${mark.label}`,
+    onclick: () => openEntry(entry, key),
+    onkeydown: (e) => {
+      if (e.key === 'Enter' || e.key === ' ') { e.preventDefault(); openEntry(entry, key); }
+    },
+  },
+  h('span.tl-mark', { 'aria-hidden': 'true' }, mark.glyph),
+  h('div.tl-body',
+    h('span.tl-title', entry.title),
+    h('span.tl-meta', `${humanDate(key)}${spark ? ` · ${categoryLabel(spark.category)}` : ''}`)),
+  entry.saved ? h('span.tl-saved', { 'aria-label': 'שמור' }, '★') : null);
+}
+
+function openEntry(entry, key) {
+  const spark = sparkById(entry.sparkId);
+  const close = sheet(h('div.detail',
+    h('p.detail-date', humanDate(key)),
+    h('p.spark-body', entry.body),
+    h('p.spark-action', entry.action),
+    entry.why ? h('p.detail-why', entry.why) : null,
+    entry.note ? h('blockquote.detail-note', entry.note) : null,
+    h('div.sheet-actions',
+      h('button.btn', {
+        onclick: () => {
+          const saved = !entry.saved;
+          store.putDay(key, { saved });
+          toast(saved ? 'נשמר' : 'הוסר');
+          close();
+        },
+      }, entry.saved ? 'הסר מהשמורים' : 'שמור'),
+      h('button.btn', { onclick: () => shareEntry(entry, spark) }, 'שתף'),
+      h('button.btn.btn-ghost', { onclick: () => close() }, 'סגור'))), {
+    label: entry.title, title: entry.title,
+  });
+}
+
+/* ------------------------------------------------------------------ *
+ * Year heat map
+ * ------------------------------------------------------------------ */
+
+/*
+ * Fifty-three weeks of small squares.
+ *
+ * The grid itself runs left-to-right — oldest column on the left, today on the
+ * right — inside an RTL page. That is deliberate: it is the direction every
+ * contribution calendar uses, a horizontal axis of *time* is not text, and an
+ * RTL scroll container reports scrollLeft differently across browsers, so
+ * flipping it would make "open on today" a per-browser guess. Instead the
+ * wrapper is scrolled to its end after render, which lands on today everywhere.
+ *
+ * Four states, and "frozen" is one of them: a day a freeze covered is drawn
+ * differently from a day that was simply missed. That is the visual half of the
+ * no-guilt promise — the calendar shows the gap was handled, not that it was a
+ * failure.
+ */
+function year(root, state) {
+  const st = streak.summary();
+  const today = dayKey();
+  const start = shiftKey(today, -364);
+
+  const grid = h('div.heat', { role: 'img', 'aria-label': 'לוח השנה שלך' });
+  const firstDow = weekdayOf(start);
+  for (let i = 0; i < firstDow; i += 1) grid.appendChild(h('span.heat-cell.is-pad'));
+
+  let done = 0;
+  for (let i = 0; i <= daysBetween(start, today); i += 1) {
+    const key = shiftKey(start, i);
+    const entry = state.days[key];
+    let cls = 'is-none';
+    let label = 'לא נמסר';
+    if (entry && entry.status === 'completed') { cls = 'is-done'; label = 'בוצע'; done += 1; }
+    else if (entry && entry.status === 'deferred') { cls = 'is-later'; label = 'לא היום'; }
+    else if (entry) { cls = 'is-open'; label = 'נמסר'; }
+    else if (st.frozen.has(key)) { cls = 'is-frozen'; label = 'יום הקפאה'; }
+    grid.appendChild(h(`span.heat-cell.${cls}`, { title: `${humanDate(key)} — ${label}` }));
+  }
+
+  /* Weekday labels are a column, not a row: in a column-flow grid the days of
+   * the week are the seven rows, and a horizontal key underneath would be
+   * labelling the wrong axis. */
+  const days = h('div.heat-days', { 'aria-hidden': 'true' },
+    WEEKDAY_SHORT.map((d) => h('span', d)));
+
+  const wrap = h('div.heat-wrap', grid);
+
+  root.appendChild(h('section.card.year',
+    h('div.year-stats',
+      stat('בוצעו השנה', done),
+      stat('הרצף הארוך ביותר', st.longest),
+      stat('רצף נוכחי', st.current)),
+    /* Grid first so it takes the right-hand (leading) side of the RTL row and
+     * the weekday column lands on the left, at the start of the LTR time axis. */
+    h('div.heat-frame', wrap, days),
+    h('div.heat-legend',
+      h('span.heat-cell.is-none'), h('span', 'לא נמסר'),
+      h('span.heat-cell.is-open'), h('span', 'נמסר'),
+      h('span.heat-cell.is-frozen'), h('span', 'הקפאה'),
+      h('span.heat-cell.is-done'), h('span', 'בוצע'))));
+
+  /* After layout, so scrollWidth is real. Today is the last column, and a year
+   * grid that opens on last August is a year grid nobody scrolls. */
+  requestAnimationFrame(() => { wrap.scrollLeft = wrap.scrollWidth; });
+}
+
+function stat(label, value) {
+  return h('div.stat', h('dt', label), h('dd', ltr(value)));
+}
+
+/* ------------------------------------------------------------------ *
+ * Saved
+ * ------------------------------------------------------------------ */
+
+function saved(root, state, keys) {
+  const list = keys.filter((k) => state.days[k].saved);
+  if (!list.length) {
+    root.appendChild(h('section.card.empty',
+      h('h2', 'עוד לא שמרת כלום.'),
+      h('p', 'הכוכב מתחת לניצוץ שומר אותו לכאן — לימים שבהם אתה צריך משהו שכבר עבד.')));
+    return;
+  }
+  const ol = h('ol.timeline');
+  for (const key of list) ol.appendChild(row(state.days[key], key));
+  root.appendChild(ol);
+}
