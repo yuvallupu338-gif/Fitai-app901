@@ -26,7 +26,7 @@ import { createRequire } from 'node:module';
 const ROOT = resolve(dirname(fileURLToPath(import.meta.url)), '..');
 const require = createRequire(join('/opt/node22/lib/node_modules/', 'x.js'));
 const { chromium } = require('playwright');
-const { waitFrames } = await import('./backrooms-smoke.mjs');
+const { waitFrames, frameStats } = await import('./backrooms-smoke.mjs');
 
 const SHOT_DIR = resolve(ROOT, 'dist/shots/entity');
 const argOf = (n, d) => {
@@ -115,7 +115,7 @@ async function stage(page, kind) {
     p.yaw = best.yaw;
     /* Aim at the subject's middle. A level camera frames a 1.8m biped fine and
      * cuts a 0.5m quadruped off the bottom of the screen entirely. */
-    const centreH = k === 'crawler' ? 0.34 : 1.0;
+    const centreH = k === 'crawler' ? 0.34 : 1.0;  /* shade is 1.95 tall, centre ~1.0 */
     const camY = p.pos.y + p.eye;
     const flat = Math.hypot(best.x - p.pos.x, best.z - p.pos.z);
     p.pitch = Math.atan2((best.y + centreH) - camY, flat);
@@ -142,7 +142,7 @@ async function stage(page, kind) {
       cooldown: 99, alerted: false, frozen: false,
       moving: true, bob: 0, cue: 99, seed: 1.0,
       phase: 0, swing: 1, headYaw: 0,
-      mesh: k === 'crawler' ? 'crawler' : 'biped',
+      mesh: k === 'crawler' ? 'crawler' : k === 'shade' ? 'shade' : 'biped',
     });
     return { x, y, z, ground: y, facing };
   }, kind);
@@ -164,7 +164,7 @@ async function readAtPhase(page, phase) {
     e.swing = 1;
     e.moving = true;
     const out = [];
-    window.backrooms.entities.dynamics(out);
+    window.backrooms.entities.dynamics(out, window.backrooms.player.camera());
     return out.map((d) => ({
       mesh: d.mesh, x: d.x, y: d.y, z: d.z, pitch: d.pitch || 0, rot: d.rot,
     }));
@@ -174,7 +174,7 @@ async function readAtPhase(page, phase) {
 /* Read back where every part of the entity actually ends up this frame. */
 const partPositions = (page) => page.evaluate(() => {
   const out = [];
-  window.backrooms.entities.dynamics(out);
+  window.backrooms.entities.dynamics(out, window.backrooms.player.camera());
   return out.map((d) => ({
     mesh: d.mesh, x: d.x, y: d.y, z: d.z, pitch: d.pitch || 0, rot: d.rot,
   }));
@@ -207,10 +207,11 @@ async function main() {
    * check and the right one for head-tracking; a hound closes regardless of
    * being watched, so it is the one to inspect mid-stride.
    */
-  for (const { kind, gait, head } of [
+  for (const { kind, gait, head, billboard } of [
     { kind: 'hound', gait: true, head: false },
     { kind: 'watcher', gait: false, head: true },
     { kind: 'crawler', gait: true, head: false },
+    { kind: 'shade', gait: false, head: false, billboard: true },
   ]) {
     const staged = await stage(page, kind);
     if (!staged) {
@@ -220,6 +221,61 @@ async function main() {
     await waitFrames(page, 4);
 
     const parts = await partPositions(page);
+    if (billboard) {
+      check(parts.length === 1 && parts[0].mesh === 'shade',
+        `${kind}: draws as a single camera-facing pane (${parts.map((q) => q.mesh)})`);
+      /*
+       * Screenshot it while it is still in frame. This used to come last, and
+       * the facing check below swings the yaw by 1.2 rad — nearly twice the
+       * half-FOV — so what got saved was an empty corridor, indistinguishable
+       * from a monster that never drew at all, and the search for the bug
+       * started in the renderer rather than here.
+       */
+      await page.screenshot({ path: join(SHOT_DIR, `${kind}.png`) });
+
+      /*
+       * And prove it is actually *on screen*, which no amount of inspecting
+       * the descriptors can tell you: a near-black cut-out standing three
+       * metres away under a torch takes a visible bite out of the frame's
+       * average brightness. Compare the same view with it deleted.
+       */
+      const lum = (s) => 0.21 * s.mean[0] + 0.72 * s.mean[1] + 0.07 * s.mean[2];
+      const withIt = await frameStats(page);
+      await page.evaluate(() => { window.backrooms.entities.list.length = 0; });
+      await waitFrames(page, 3);
+      const without = await frameStats(page);
+      check(lum(withIt) < lum(without) - 1.0,
+        `${kind}: is visible in the frame `
+        + `(${lum(withIt).toFixed(1)} vs ${lum(without).toFixed(1)} without it)`);
+
+      /*
+       * A billboard has to keep facing the camera or it is a flat board on a
+       * stick seen edge-on. Note it turns with where the camera *is*, not
+       * where it looks — spinning the yaw on the spot is supposed to leave the
+       * facing alone — so the move that proves it is a strafe.
+       */
+      const staged2 = await stage(page, kind);
+      if (!staged2) { failures.push(`${kind}: lost its stand point`); continue; }
+      const before = (await partPositions(page))[0].rot;
+      await page.evaluate(() => {
+        const p = window.backrooms.player;
+        p.pos.x += Math.cos(p.yaw) * 2.0;
+        p.pos.z += -Math.sin(p.yaw) * 2.0;
+        p.yaw += 1.2;
+      });
+      const after = (await partPositions(page))[0];
+      const wrapd = (a) => Math.abs(((a + Math.PI * 3) % (Math.PI * 2)) - Math.PI);
+      const camAngle = await page.evaluate(() => {
+        const g = window.backrooms, e = g.entities.list[0], p = g.player;
+        return Math.atan2(p.pos.x - e.x, p.pos.z - e.z) + Math.PI;
+      });
+      check(wrapd(after.rot - camAngle) < 0.02,
+        `${kind}: the pane faces the camera (${after.rot.toFixed(2)} vs ${camAngle.toFixed(2)})`);
+      check(wrapd(after.rot - before) > 0.05,
+        `${kind}: the facing follows the camera as it moves `
+        + `(${before.toFixed(2)} → ${after.rot.toFixed(2)})`);
+      continue;
+    }
     check(parts.length >= (kind === 'crawler' ? 5 : 6),
       `${kind}: renders as multiple articulated parts (${parts.length})`);
 
@@ -298,6 +354,101 @@ async function main() {
     });
     await waitFrames(page, 2);
     await page.screenshot({ path: join(SHOT_DIR, `${kind}.png`) });
+  }
+
+  /*
+   * The thing that separates a hunter from a moth at a window: put a wall
+   * between it and the player and see whether it comes round.
+   *
+   * Progress is counted in rendered frames, never against a stopwatch. Under
+   * software rendering the whole sim runs at two or three frames a second
+   * with dt clamped, so twenty-five seconds of wall clock is about two
+   * seconds of game time, and a timed race there measures the renderer rather
+   * than the AI.
+   */
+  {
+    const setup = await page.evaluate(() => {
+      const g = window.backrooms;
+      const p = g.player;
+      for (let t = 0; t < 32; t++) {
+        const yaw = (t / 32) * Math.PI * 2;
+        const dx = -Math.sin(yaw), dz = -Math.cos(yaw);
+        let crossed = false;
+        for (let d = 1.5; d <= 14; d += 0.5) {
+          const x = p.pos.x + dx * d, z = p.pos.z + dz * d;
+          const [gx, gz] = g.world.cellOf(x, z);
+          if (g.world.wallAt(gx, gz) > 0.6) { crossed = true; continue; }
+          if (!crossed) continue;
+          const y = g.world.groundAt(x, z, 0.3);
+          if (y < -900 || g.world.blocked(x, z, y, 0.35, 0.5)) continue;
+          g.entities.spec = { kind: 'hound', density: 1 };
+          g.entities.max = 1;
+          g.entities.list.length = 0;
+          g.entities.list.push({
+            x, y, z, rot: 0, cooldown: 99, alerted: true, frozen: false,
+            moving: true, bob: 0, cue: 99, seed: 1, phase: 0, swing: 1,
+            headYaw: 0, path: null, pathI: 0, repath: 0, mesh: 'biped',
+          });
+          return { ok: true, dist: Math.hypot(x - p.pos.x, z - p.pos.z) };
+        }
+      }
+      return { ok: false };
+    });
+
+    if (!setup.ok) {
+      notes.push('no wall-separated spot found to test pathfinding — skipped');
+    } else {
+      /* Where it is, how far, and whether the wall is still between them. */
+      const probe = () => page.evaluate(() => {
+        const g = window.backrooms, e = g.entities.list[0], p = g.player;
+        if (!e) return null;
+        const steps = 40;
+        let blocked = false;
+        for (let i = 1; i < steps; i++) {
+          const t = i / steps;
+          const [gx, gz] = g.world.cellOf(e.x + (p.pos.x - e.x) * t, e.z + (p.pos.z - e.z) * t);
+          if (g.world.wallAt(gx, gz) > 0.6) { blocked = true; break; }
+        }
+        return {
+          blocked,
+          pathLen: e.path ? e.path.length : -1,
+          dist: Math.hypot(e.x - p.pos.x, e.z - p.pos.z),
+        };
+      });
+
+      await waitFrames(page, 4);
+      const first = await probe();
+      check(first && first.blocked,
+        'the test actually put a wall between them');
+      check(first && first.pathLen > 1,
+        `a hunter plans a route round it (${first && first.pathLen} waypoints)`);
+
+      /*
+       * Let it walk, measured in frames so the software renderer cannot turn
+       * this into a timing test.
+       *
+       * What is measured is "did it get round", not "did pathI go up". The
+       * route is re-planned twice a second and pathI resets to 0 with each
+       * new plan, so the index describes a position inside the *current*
+       * plan and says nothing at all about progress across plans — which is
+       * why the first version of this check failed against a hunter that was
+       * in fact walking straight to the player.
+       */
+      let closest = first ? first.dist : Infinity;
+      let cleared = false;
+      for (let i = 0; i < 12; i++) {
+        await waitFrames(page, 12);
+        const now = await probe();
+        if (!now) break;
+        closest = Math.min(closest, now.dist);
+        if (!now.blocked) cleared = true;
+        if (cleared && now.dist < 2.5) break;
+      }
+      check(cleared && closest < (first ? first.dist : 0) - 1.0,
+        `the hunter comes round the wall rather than pressing into it `
+        + `(line ${cleared ? 'cleared' : 'still blocked'}, `
+        + `${(first ? first.dist : 0).toFixed(1)}m → ${closest.toFixed(1)}m)`);
+    }
   }
 
   for (const e of errors) failures.push(e);

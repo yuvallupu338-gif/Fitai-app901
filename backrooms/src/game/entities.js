@@ -1,7 +1,7 @@
 /*
  * entities.js — the things that are also here.
  *
- * Three behaviours, and none of them is a combat AI:
+ * Four behaviours, and none of them is a combat AI:
  *
  *   hound    hunts. Runs at you the moment it has line of sight, and keeps
  *            coming. The only counter is distance and doors.
@@ -10,6 +10,12 @@
  *            cheapest genuinely unsettling behaviour in games and it has never
  *            stopped working.
  *   crawler  low and fast, lives in the dark, and is drawn to your torch.
+ *   shade    a silhouette with eyes, on the levels dark enough that a body
+ *            would only ever be seen as one anyway.
+ *
+ * All of them route round the architecture rather than pressing into it — see
+ * pathfind.js. An entity that walks into a wall and stays there is not a
+ * monster, it is a bug you can stand next to.
  *
  * They are spawned in a shell around the player and despawned when they fall
  * behind, so a level has a population without the game tracking one.
@@ -17,11 +23,19 @@
 
 import { hash2 } from '../core/rng.js';
 import { clamp } from '../core/math.js';
+import { findPath, clearLine } from './pathfind.js';
 
 const BEHAVIOUR = {
   hound:   { mesh: 'biped',   speed: 3.6, sight: 26, reach: 1.15, damage: 0.34, hp: 3 },
   watcher: { mesh: 'biped',   speed: 2.4, sight: 30, reach: 1.05, damage: 0.28, hp: 3 },
   crawler: { mesh: 'crawler', speed: 3.9, sight: 15, reach: 0.95, damage: 0.22, hp: 2 },
+  /*
+   * A shape rather than a body: a dark silhouette with two lit eyes, which is
+   * the oldest image in this mythology and still the most effective one. It
+   * does not need limbs because you are never meant to see it resolve — at
+   * fog distance it is a hole in the room with something looking out of it.
+   */
+  shade:   { mesh: 'shade',   speed: 3.0, sight: 34, reach: 1.10, damage: 0.30, hp: 3 },
 };
 
 export class Entities {
@@ -32,7 +46,11 @@ export class Entities {
     this.list = [];
     this.events = [];
     this.spawnTimer = 2;
-    this.max = this.spec ? Math.max(1, Math.round(this.spec.density * 4)) : 0;
+    /* More of them the deeper you are. The level's own density still sets the
+     * character of the place; depth just adds pressure on top of it. */
+    this.max = this.spec
+      ? Math.min(4, Math.max(1, Math.round(this.spec.density * 4)) + Math.floor(level.id / 34))
+      : 0;
   }
 
   update(dt, player, world, time) {
@@ -88,15 +106,55 @@ export class Entities {
       }
 
       if (move) {
+        /*
+         * Steer along a route rather than straight at the player. Re-planned
+         * on a timer — twice a second while hunting, rarely while wandering —
+         * because a path is only wrong once the player has moved a cell or
+         * two, and pathing every frame for every entity is pure waste.
+         *
+         * `|| 0` because an entity that arrived without the field — the test
+         * harness stands one in front of the camera by hand — would otherwise
+         * carry a NaN timer that never fires, and quietly revert to walking
+         * into walls with nothing to show that it had.
+         */
+        e.repath = (e.repath || 0) - dt;
+        if (e.repath <= 0) {
+          e.repath = 0.45 + Math.random() * 0.25;
+          const [egx, egz] = world.cellOf(e.x, e.z);
+          const [pgx, pgz] = world.cellOf(player.pos.x, player.pos.z);
+          e.path = findPath(world, egx, egz, pgx, pgz);
+          e.pathI = 0;
+        }
+
+        /* Aim at the next waypoint, skipping any the entity can already walk
+         * to in a straight line — otherwise it visibly hugs cell centres and
+         * turns in right angles like something on rails. */
+        let aimX = player.pos.x, aimZ = player.pos.z;
+        if (e.path && e.path.length) {
+          while (e.pathI < e.path.length - 1
+                 && clearLine(world, e.x, e.z, e.path[e.pathI + 1].x, e.path[e.pathI + 1].z)) {
+            e.pathI++;
+          }
+          const wp = e.path[Math.min(e.pathI, e.path.length - 1)];
+          if (Math.hypot(wp.x - e.x, wp.z - e.z) < 0.35 && e.pathI < e.path.length - 1) e.pathI++;
+          const cur = e.path[Math.min(e.pathI, e.path.length - 1)];
+          aimX = cur.x; aimZ = cur.z;
+        }
+
+        const adx = aimX - e.x, adz = aimZ - e.z;
+        const alen = Math.hypot(adx, adz) || 1;
+        const mvX = adx / alen, mvZ = adz / alen;
+
         const step = speed * dt;
-        const nx = e.x + toX * -step, nz = e.z + toZ * -step;
+        const nx = e.x + mvX * step, nz = e.z + mvZ * step;
         /* Try both axes, then each on its own, so a corner does not trap it. */
         if (!world.blocked(nx, nz, e.y, 0.3, 0.5)) { e.x = nx; e.z = nz; }
         else if (!world.blocked(nx, e.z, e.y, 0.3, 0.5)) e.x = nx;
         else if (!world.blocked(e.x, nz, e.y, 0.3, 0.5)) e.z = nz;
         e.y = world.groundAt(e.x, e.z, 0.3);
         if (e.y < -900) { this.list.splice(i, 1); continue; }
-        e.rot = Math.atan2(-toX, -toZ) + Math.PI;
+        /* Face the way it is going, not the way the player is. */
+        e.rot = Math.atan2(mvX, mvZ) + Math.PI;
         e.moving = true;
         e.cue -= dt;
         if (e.cue <= 0) {
@@ -152,6 +210,7 @@ export class Entities {
         x, y, z, rot: a, cooldown: 0, alerted: false, frozen: false,
         moving: false, bob: 0, cue: 1, seed: Math.random() * 6.28,
         phase: Math.random() * 6.28, swing: 0, headYaw: 0,
+        path: null, pathI: 0, repath: Math.random() * 0.4,
         mesh: (BEHAVIOUR[this.spec.kind] || BEHAVIOUR.hound).mesh,
       });
       return true;
@@ -183,11 +242,32 @@ export class Entities {
    * keeps them from mirroring the legs exactly, which is the difference
    * between walking and marching.
    */
-  dynamics(out) {
+  dynamics(out, cam) {
     for (const e of this.list) {
       const y = e.y + e.bob;
       const sw = Math.sin(e.phase) * e.swing;
       const sw2 = Math.sin(e.phase + Math.PI) * e.swing;
+
+      if (e.mesh === 'shade') {
+        /*
+         * Billboard: yawed to face the camera every frame, so the pane is
+         * never seen edge-on. It sways rather than walks — it has no legs to
+         * animate and a shape that bobs like a body would immediately read as
+         * a costume.
+         */
+        const rot = cam
+          ? Math.atan2(cam.x - e.x, cam.z - e.z) + Math.PI
+          : e.rot;
+        out.push({
+          mesh: 'shade',
+          x: e.x,
+          y: y + Math.sin(e.phase * 0.5) * 0.02,
+          z: e.z,
+          rot,
+          scale: 1,
+        });
+        continue;
+      }
 
       if (e.mesh === 'crawler') {
         out.push({ mesh: 'crawlBody', x: e.x, y, z: e.z, rot: e.rot, scale: 1 });
@@ -219,10 +299,16 @@ export class Entities {
       });
 
       const c = Math.cos(e.rot), s = Math.sin(e.rot);
-      /* Shoulders and hips, offset sideways from the body's centre line. */
+      /*
+       * Shoulders and hips, offset sideways from the body's centre line. The
+       * shoulders sit at 0.26 rather than tucked in at 0.235: the torso is
+       * 0.20 wide up there and an arm half-hidden behind it reads as no arm
+       * at all, which is exactly how the first screenshots came out — a slab
+       * with legs. The gap is what makes the silhouette a body.
+       */
       for (const [ox, mesh, yj, amp, ph] of [
-        [-0.235, 'entArm', 1.42, 0.62, sw],
-        [0.235, 'entArm', 1.42, 0.62, sw2],
+        [-0.26, 'entArm', 1.42, 0.62, sw],
+        [0.26, 'entArm', 1.42, 0.62, sw2],
         [-0.095, 'entLeg', 0.90, 0.80, sw2],
         [0.095, 'entLeg', 0.90, 0.80, sw],
       ]) {
@@ -258,6 +344,7 @@ export const dangerLabel = (kind) => ({
   hound: 'ציד',
   watcher: 'צופה',
   crawler: 'זוחל',
+  shade: 'צל',
 }[kind] || '');
 
 export const clampDanger = (d) => clamp(1 - d / 20, 0, 1);

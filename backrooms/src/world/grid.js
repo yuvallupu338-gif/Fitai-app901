@@ -47,6 +47,11 @@ export const MAT = {
    * the building it is, and the things in the building are the same things
    * everywhere. Levels may still override slot 9 if they want their own. */
   FLESH: 9,
+  /* Lit eyes. Emissive, so the bloom picks them up and they are the only part
+   * of a thing you can see across a dark room. */
+  EYE: 10,
+  /* The cut-out silhouette a shade is drawn with. */
+  SHADE: 11,
 };
 export const MAT_COUNT = 12;
 

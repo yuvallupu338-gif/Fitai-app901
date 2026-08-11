@@ -621,6 +621,7 @@ class Game {
 
     const danger = entities
       ? clamp(1 - entities.nearest(player.pos.x, player.pos.z) / 22, 0, 1) : 0;
+    this.danger = danger;
     audio.tick(dt, { sanity: player.sanity, danger });
 
     ui.updateHUD(player,
@@ -753,7 +754,7 @@ class Game {
           scale: 1,
         });
       }
-      if (entities) entities.dynamics(this.dynamics);
+      if (entities) entities.dynamics(this.dynamics, cam);
     }
 
     const s = store.settings();
@@ -768,7 +769,13 @@ class Game {
       aberration: level.aberration,
       vhs: Math.max(level.vhs, s.vhs ? 0.55 : 0),
       sanity,
-      damage: player ? player.damage : 0,
+      /*
+       * The red closes in before anything touches you. Being hit is a spike on
+       * top of a floor that rises as something gets near — which is the only
+       * warning you get in a level where you cannot see past the fog, and is
+       * worth far more than the hit itself.
+       */
+      damage: Math.max(player ? player.damage : 0, (this.danger || 0) * 0.30),
       dynamics: this.dynamics,
       ambientScale: 1,
       lightScale: 1,

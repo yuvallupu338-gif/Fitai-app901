@@ -26,7 +26,9 @@ import {
 } from './shaders.js';
 import { bakeMaterial, parseColor } from './textures.js';
 import { MAT_COUNT, MAT } from '../world/grid.js';
-import { MeshBuilder, addBox, addCylinder, addLimb, addSphere } from '../world/meshbuilder.js';
+import {
+  MeshBuilder, addBox, addCylinder, addLimb, addSphere, addQuad,
+} from '../world/meshbuilder.js';
 import {
   mat4, perspective, multiply, viewFromEuler, forwardFromEuler,
   frustumFromMatrix, aabbInFrustum, DEG,
@@ -190,9 +192,21 @@ export class Renderer {
       /* Neck. */
       addLimb(mb, 0, 1.52, 0, [0.05, 0.05], [0.06, 0.06], 0.10, F, { ao: shade(0.5) });
     });
+    /*
+     * The head, with eyes. The eyes are the whole reason anything here is
+     * frightening at range: a body in fog is a smudge, and two lit points at
+     * head height, turning to follow you, are unmistakable. They sit on the
+     * head mesh rather than the torso so they track with the head, which is
+     * steered independently of the body.
+     *
+     * Local -Z is forward for this yaw convention, so they go in front.
+     */
     this.dyn.entHead = make((mb) => {
       addSphere(mb, 0, 0, 0, 0.115, 12, 9, F,
         { ao: shade(0.7), scaleY: 1.22, scaleZ: 1.05 });
+      for (const ex of [-0.045, 0.045]) {
+        addSphere(mb, ex, 0.022, -0.095, 0.023, 7, 5, MAT.EYE, { ao: () => 1 });
+      }
     });
     /* Origin at the joint, hanging down. */
     this.dyn.entArm = make((mb) => {
@@ -202,12 +216,34 @@ export class Renderer {
       addLimb(mb, 0, 0, 0, [0.075, 0.075], [0.045, 0.05], 0.88, F, { ao: shade(0.5) });
     });
 
+    /*
+     * The shade: one camera-facing pane carrying a cut-out silhouette, with
+     * the eyes as real geometry slightly in front of it so they stay lit when
+     * the pane itself is in shadow. Two quads back to back, because a single
+     * one disappears the instant the billboard's facing is a frame stale.
+     */
+    this.dyn.shade = make((mb) => {
+      const w = 0.58, h = 1.95;
+      const p0 = [-w, 0, 0], p1 = [w, 0, 0], p2 = [w, h, 0], p3 = [-w, h, 0];
+      addQuad(mb, p0, p1, p2, p3, [0, 0], [1, 0], [1, 1], [0, 1], MAT.SHADE,
+        { sub: 1, ao: shade(0.85) });
+      addQuad(mb, p1, p0, p3, p2, [1, 0], [0, 0], [0, 1], [1, 1], MAT.SHADE,
+        { sub: 1, ao: shade(0.85) });
+      for (const ex of [-0.072, 0.072]) {
+        addSphere(mb, ex, h * 0.855, -0.05, 0.028, 7, 5, MAT.EYE, { ao: () => 1 });
+        addSphere(mb, ex, h * 0.855, 0.05, 0.028, 7, 5, MAT.EYE, { ao: () => 1 });
+      }
+    });
+
     this.dyn.crawlBody = make((mb) => {
       /* Built lying down: a spine from hips to shoulders, plus a skull. */
       addLimb(mb, 0, 0.30, -0.34, [0.15, 0.14], [0.19, 0.17], 0.10, F, { ao: shade(0.5) });
       addLimb(mb, 0, 0.32, 0.10, [0.19, 0.30], [0.15, 0.30], 0.12, F, { ao: shade(0.55) });
       addSphere(mb, 0, 0.30, -0.52, 0.105, 10, 8, F,
         { ao: shade(0.6), scaleZ: 1.35, scaleY: 0.85 });
+      for (const ex of [-0.045, 0.045]) {
+        addSphere(mb, ex, 0.33, -0.62, 0.019, 6, 5, MAT.EYE, { ao: () => 1 });
+      }
     });
     this.dyn.crawlLimb = make((mb) => {
       addLimb(mb, 0, 0, 0, [0.045, 0.045], [0.028, 0.028], 0.36, F, { ao: shade(0.45) });
@@ -602,20 +638,37 @@ function normaliseMaterials(level) {
     { kind: 'metal', color: '#7c7a74', tile: 1.4 },
     { kind: 'metal', color: '#3a3d42', tile: 1.2, polish: 0.25 },
     { kind: 'blades', color: '#7f8a3c', tile: 1, cutout: true, specular: 0.1 },
-    /* Slot 9 — entities. Dry, matte and slightly translucent-looking, with
+    /*
+     * Slot 9 — entities. Dry, matte and slightly translucent-looking, with
      * enough bump that a torch raking across it at an angle picks out the
      * surface. Sheet metal, which is what they used to be made of, reads as a
-     * prop; this reads as something that was alive. */
-    /*
-     * tile is in metres per repeat, and limb UVs are in metres, so a value
-     * near 1 stretches one texture across a whole torso — which came out as
-     * huge vertical streaks that read as varnished wood, not skin. 0.12 puts
-     * roughly three repeats across a shoulder, which at the distances anything
-     * is ever seen from is fine surface grain.
+     * prop; this reads as something that was alive.
+     *
+     * Two numbers here were both got wrong the obvious way. `tile` is metres
+     * per repeat and limb UVs are in metres, so a value near 1 stretches one
+     * texture across a whole torso — huge vertical streaks that read as
+     * varnished wood; 0.12 puts about three repeats across a shoulder. And
+     * the colour is far darker than skin looks on a picker, because anything
+     * light enough to read as flesh in isolation comes back from the tonemap
+     * as pale plaster under the Lobby's own yellow light, and the thing in
+     * the corridor turns into a shop mannequin. Below the wall tone is where
+     * an intruder in a photograph always sits.
      */
     {
-      kind: 'stucco', color: '#8f8177', tile: 0.12, bump: 0.85,
+      kind: 'stucco', color: '#6b5d54', tile: 0.12, bump: 0.85,
       normalStrength: 0.9, roughMul: 1.0, specular: 0.16,
+    },
+    /* Slot 10 — eyes. */
+    {
+      kind: 'glow', color: '#ff4a2a', tile: 1, emissive: 1,
+      roughMul: 0.4, specular: 0.3, bump: 0.1,
+    },
+    /* Slot 11 — the shade's silhouette. Cut out, and almost black: it is a
+     * hole in the room, and the only thing that reads at distance is the
+     * pair of eyes floating in it. */
+    {
+      kind: 'silhouette', color: '#0a0a0c', tile: 1, cutout: true,
+      alphaCut: 0.42, specular: 0.02, roughMul: 1, bump: 0.2, normalStrength: 0.3,
     },
   ];
   for (let i = 0; i < MAT_COUNT; i++) {

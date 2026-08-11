@@ -565,6 +565,52 @@ const KINDS = {
     o.h = 0.5 + 0.2 * n;
   },
 
+  /*
+   * A standing silhouette, as a cut-out. Deliberately soft and slightly ragged
+   * at the edges — a crisp outline reads as a cardboard cut-out, and the whole
+   * point of this shape is that you cannot quite resolve it.
+   */
+  silhouette(u, v, o, P, S) {
+    const c = P.color;
+    /* Body: a tapering column, widest at the shoulders, narrowing to the feet
+     * and rounding into a head at the top. */
+    const headY = 0.86;
+    const dxHead = (u - 0.5) / 0.115;
+    const dyHead = (v - headY) / 0.10;
+    const head = 1 - Math.min(1, Math.hypot(dxHead, dyHead));
+
+    const shoulder = sstep(0.80, 0.72, v);
+    const width = 0.10 + 0.16 * shoulder * (1 - sstep(0.72, 0.02, v) * 0.35);
+    const body = v < 0.80 ? 1 - Math.min(1, Math.abs(u - 0.5) / Math.max(0.02, width)) : 0;
+    /* Legs: split the lower third so it does not read as a traffic cone. */
+    const gap = v < 0.34 ? sstep(0.0, 0.045, Math.abs(u - 0.5)) : 1;
+
+    /* Ragged edge: the noise multiplies the falloff, so it eats the outline
+     * and leaves the solid middle alone. */
+    const fray = tfbm(u * 2, v * 2, 7, S, 3);
+    let mask = clamp01(Math.max(head, body * gap) * (0.82 + 0.4 * fray));
+    mask = sstep(0.22, 0.44, mask);
+
+    const depth = 0.35 + 0.35 * tfbm(u, v, 5, S + 3, 3);
+    o.r = c[0] * depth; o.g = c[1] * depth; o.b = c[2] * depth;
+    o.rough = 0.98;
+    o.mask = mask;
+    o.h = mask;
+  },
+
+  /* A uniform emissive disc. Eyes, indicator lamps — anything that is only
+   * ever seen as a point of light. */
+  glow(u, v, o, P, S) {
+    const c = P.color;
+    const r = Math.hypot(u - 0.5, v - 0.5) * 2;
+    const core = sstep(1.05, 0.15, r);
+    o.r = c[0]; o.g = c[1]; o.b = c[2];
+    o.rough = 0.35;
+    o.h = 0.5;
+    o.em = 0.45 + 0.55 * core;
+    void S;
+  },
+
   /* Cut-out materials. The mask goes in the height channel and the shader
    * discards below the threshold, which is how a chain-link fence or a field
    * of wheat costs one quad. */
