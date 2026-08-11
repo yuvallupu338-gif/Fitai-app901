@@ -21,6 +21,8 @@ import { shouldOfferSupport, SUPPORT_COOLDOWN_DAYS, HELPLINES } from '../engine/
 import { shareEntry } from './share.js';
 import * as notify from './notify.js';
 import { sparkMark } from './onboarding.js';
+import { journeyBadge } from './journeys.js';
+import * as voice from './voice.js';
 
 /* ------------------------------------------------------------------ *
  * Mood check-in
@@ -158,7 +160,7 @@ function openDetail(entry, spark, rerender) {
     spark && spark.easier ? h('div.detail-easier',
       h('span.detail-easier-label', 'גרסה קטנה יותר'),
       h('p', spark.easier)) : null,
-    h('div.detail-actions', timerBtn),
+    h('div.detail-actions', timerBtn, voiceBtn(entry)),
     h('label.field',
       h('span.field-label', 'הערה'),
       note),
@@ -174,6 +176,25 @@ function openDetail(entry, spark, rerender) {
     title: entry.title,
     onClose: () => { if (ticking) clearInterval(ticking); },
   });
+}
+
+/*
+ * The read-aloud control, or nothing at all.
+ *
+ * Rendered only when the device actually has a Hebrew voice — see voice.js.
+ * A button that produces silence is worse than an absent one.
+ */
+function voiceBtn(entry) {
+  if (!voice.available()) return null;
+  const btn = h('button.btn.btn-voice', {
+    onclick: () => {
+      if (voice.speaking()) { voice.stop(); btn.textContent = '🔊 הקרא'; return; }
+      haptic('light');
+      btn.textContent = '■ עצור';
+      voice.speakEntry(entry, () => { btn.textContent = '🔊 הקרא'; });
+    },
+  }, '🔊 הקרא');
+  return btn;
 }
 
 function formatClock(total) {
@@ -248,6 +269,8 @@ export function renderHome(root, ctx) {
     : true;
 
   root.appendChild(header(st, key));
+  const badge = journeyBadge();
+  if (badge) root.appendChild(badge);
 
   if (support && shouldOfferSupport(recentMoods(state, 7)) && !entry.supportDismissed) {
     root.appendChild(supportCard(() => {

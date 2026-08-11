@@ -392,8 +392,111 @@ if (!SINGLE) {
   check(sim.pActed > sim.pIgnored,
     `the model prefers what got acted on (${sim.pActed.toFixed(3)} vs ${sim.pIgnored.toFixed(3)})`);
 
+  /*
+   * Journeys, driven through the real selector.
+   *
+   * The property that matters is not "day three came from the sleep category" —
+   * it is that a fragile check-in makes the arc *wait*. A programme that keeps
+   * counting through someone's worst week is the exact mechanic this product
+   * was built to avoid, so it is asserted rather than trusted.
+   */
+  const jr = await enginePage.evaluate(async (origin) => {
+    const store = await import(`${origin}/dailyspark/src/core/store.js`);
+    const select = await import(`${origin}/dailyspark/src/engine/select.js`);
+    const journeys = await import(`${origin}/dailyspark/src/data/journeys.js`);
+    const lib = await import(`${origin}/dailyspark/src/data/sparks.index.js`);
+
+    store.reset();
+    store.update((s) => { s.stage = 'app'; s.profile.budgetMinutes = 15; });
+    store.startJourney('sleep7');
+    const journey = journeys.journeyBySlug('sleep7');
+
+    const out = { matched: 0, total: 0, fragileAdvanced: false, categories: [] };
+
+    for (let i = 0; i < 5; i += 1) {
+      const fragile = i === 2;
+      const before = store.get().journey.day;
+      const picked = select.selectSpark(store.get(), {
+        mood: fragile ? 'overloaded' : 'calm',
+        energy: fragile ? 1 : 4,
+      });
+      if (!picked) continue;
+
+      const key = `j-${i}`;
+      store.update((s) => {
+        s.days[key] = { sparkId: picked.spark.id, status: 'completed', mood: fragile ? 'overloaded' : 'calm' };
+        if (!s.seen.includes(picked.spark.id)) s.seen.push(picked.spark.id);
+      });
+      if (picked.journey) store.advanceJourney();
+
+      out.categories.push({ i, fragile, category: picked.spark.category, onJourney: !!picked.journey });
+
+      if (fragile) {
+        if (store.get().journey.day !== before) out.fragileAdvanced = true;
+      } else {
+        out.total += 1;
+        if (picked.spark.category === journey.steps[before].category) out.matched += 1;
+      }
+    }
+
+    out.day = store.get().journey.day;
+    out.libSize = lib.LIBRARY.length;
+    store.reset();
+    return out;
+  }, `http://127.0.0.1:${ctx.port}`);
+
+  check(jr.libSize >= 240, `library grew to ${jr.libSize} sparks`);
+  check(jr.matched === jr.total,
+    `every ordinary journey day matched its step (${jr.matched}/${jr.total})`);
+  check(!jr.fragileAdvanced, 'a fragile day did not advance the journey — it waited');
+  check(jr.day === 4, `four ordinary days advanced the arc, the fragile one did not (day ${jr.day})`);
+
   await enginePage.close();
 }
+
+/* ------------------------------------------------------------------ *
+ * Collections and the printed book
+ * ------------------------------------------------------------------ */
+
+await page.click('.tabs .tab:nth-child(2)');
+await page.waitForSelector('.seg-wide', { timeout: 4000 });
+await page.click('.seg-wide .seg-item:nth-child(3)');            // "שמורים"
+await page.waitForSelector('.collections-head', { timeout: 4000 });
+await page.click('.collections-head .btn');                      // "+ אוסף חדש"
+await page.waitForSelector('.sheet .input', { timeout: 3000 });
+await page.fill('.sheet .input', 'כשאני תקוע');
+await page.click('.sheet .btn-primary');
+await page.waitForTimeout(300);
+check((await page.$$('.collection')).length === 1, 'a named collection can be created');
+check((await page.textContent('.collection .card-title')) === 'כשאני תקוע', 'the collection keeps its name');
+
+const persistedCollection = await page.evaluate(
+  () => JSON.parse(localStorage.getItem('dailyspark.v1')).collections.length,
+);
+check(persistedCollection === 1, 'the collection survives into storage');
+
+/* ------------------------------------------------------------------ *
+ * Journeys, through the UI
+ * ------------------------------------------------------------------ */
+
+await page.click('.tabs .tab:nth-child(3)');
+await page.waitForSelector('.journey-grid', { timeout: 4000 });
+check((await page.$$('.journey-card')).length >= 6, 'the journey library is offered');
+await page.click('.journey-grid .journey-card:nth-child(1)');
+await page.waitForSelector('.journey-steps', { timeout: 3000 });
+check((await page.$$('.journey-step')).length === 7, 'a journey shows its day-by-day shape before you commit');
+await page.click('.sheet .btn-primary');
+await page.waitForTimeout(400);
+check(await page.$('.journey-active') !== null, 'starting a journey shows the active card');
+check(await page.$('.journey-bar') !== null, 'the active journey shows progress');
+
+await page.click('.journey-active .row-actions .btn');           // "השהה"
+await page.waitForTimeout(300);
+check((await page.textContent('.journey-eyebrow')) === 'מושהה', 'a journey can be paused rather than only abandoned');
+const journeyKept = await page.evaluate(
+  () => JSON.parse(localStorage.getItem('dailyspark.v1')).journey.state,
+);
+check(journeyKept === 'paused', 'the paused journey keeps its place in storage');
 
 /* ------------------------------------------------------------------ *
  * Streak: a missed day is absorbed, not punished

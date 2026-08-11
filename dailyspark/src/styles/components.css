@@ -370,3 +370,134 @@
   }
   .tab { max-width: 92px; }
 }
+
+/* ---------------------------------------------------------------- journeys */
+
+.journey-badge {
+  display: flex; justify-content: space-between; align-items: center;
+  padding: 10px 14px; margin-bottom: 12px;
+  background: var(--sunken); border-radius: var(--r);
+  font-size: 13.5px;
+}
+.journey-badge-title { font-weight: 700; }
+.journey-badge-count { color: var(--ink-3); font-variant-numeric: tabular-nums; }
+
+.journey-head { display: flex; justify-content: space-between; align-items: flex-start; gap: 12px; }
+.journey-eyebrow {
+  display: block; font-size: 11.5px; font-weight: 700; letter-spacing: .06em;
+  color: var(--ember); margin-bottom: 3px;
+}
+.journey-count { font-size: 15px; font-weight: 750; color: var(--ink-3); font-variant-numeric: tabular-nums; }
+
+.journey-bar {
+  height: 6px; background: var(--sunken); border-radius: var(--r-pill);
+  overflow: hidden; margin: 12px 0 14px;
+}
+.journey-fill { display: block; height: 100%; background: var(--ember); border-radius: var(--r-pill); }
+
+.journey-dots { display: flex; flex-wrap: wrap; gap: 5px; margin: 14px 0 16px; }
+.jdot { width: 9px; height: 9px; border-radius: 50%; background: var(--sunken); }
+.jdot.is-done { background: var(--ember); }
+.jdot.is-now { background: transparent; box-shadow: inset 0 0 0 2px var(--ember); }
+
+.journey-grid { display: flex; flex-direction: column; gap: 8px; }
+.journey-card {
+  display: flex; flex-direction: column; gap: 2px; align-items: flex-start;
+  padding: 14px 16px; text-align: start;
+  background: var(--sunken); border: 1px solid transparent;
+  border-radius: var(--r); cursor: pointer; width: 100%;
+}
+.journey-card:active { border-color: var(--ember); }
+.journey-title { font-size: 16px; font-weight: 700; }
+.journey-sub { font-size: 14px; color: var(--ink-2); }
+.journey-meta { font-size: 12.5px; color: var(--ink-3); margin-top: 4px; }
+
+.journey-steps { list-style: none; margin: 0 0 8px; padding: 0; display: flex; flex-direction: column; gap: 6px; }
+.journey-step { display: flex; align-items: center; gap: 10px; font-size: 14.5px; }
+.jstep-num {
+  flex: none; width: 22px; height: 22px; border-radius: 50%;
+  background: var(--sunken); color: var(--ink-3);
+  display: grid; place-items: center; font-size: 11.5px; font-weight: 700;
+}
+.jstep-body { color: var(--ink-2); }
+
+.journey-done { border-color: var(--moss); }
+
+/* ------------------------------------------------------------- collections */
+
+.collections-head { display: flex; gap: 8px; margin-bottom: 14px; }
+.collections-head .btn { flex: 1; }
+.collection-head { display: flex; justify-content: space-between; align-items: baseline; margin-bottom: 8px; }
+.collection-count { color: var(--ink-3); font-variant-numeric: tabular-nums; font-size: 14px; }
+.collection-del { width: 100%; margin-top: 6px; color: var(--ink-3); font-size: 14px; }
+.section-label { font-size: 13px; font-weight: 700; color: var(--ink-3); margin: 18px 0 8px; }
+.reason.is-on { background: var(--ember-wash); color: var(--ember); }
+.search-note { color: var(--ink-3); font-size: 13.5px; margin-bottom: 10px; }
+
+/* ------------------------------------------------------------------ habits */
+
+.habit-list { list-style: none; margin: 0 0 12px; padding: 0; display: flex; flex-direction: column; gap: 6px; }
+.habit {
+  display: flex; align-items: center; justify-content: space-between; gap: 10px;
+  padding: 10px 12px; background: var(--sunken); border-radius: var(--r);
+}
+.habit-label { font-size: 15px; font-weight: 600; overflow: hidden; text-overflow: ellipsis; white-space: nowrap; }
+.habit-controls { display: flex; align-items: center; gap: 6px; flex: none; }
+.habit-cadence {
+  font: inherit; font-size: 13px; padding: 5px 8px;
+  background: var(--surface); color: var(--ink);
+  border: 1px solid var(--line); border-radius: var(--r-sm);
+}
+.habit-del {
+  width: 32px; height: 32px; border: 0; border-radius: var(--r-sm);
+  background: transparent; color: var(--ink-3); cursor: pointer; font-size: 15px;
+}
+.habit-add { display: flex; gap: 8px; }
+.habit-add .input { flex: 1; }
+
+.btn-voice { width: 100%; margin-top: 8px; }
+
+/* ------------------------------------------------------------------- print */
+
+/*
+ * The printed book. Hidden entirely on screen; on paper it is the only thing
+ * that exists. Serif throughout, because the point of printing it is that it
+ * stops being an app.
+ */
+.print-book { display: none; }
+
+@media print {
+  body { background: #fff; color: #000; }
+  body.is-printing > *:not(.print-book) { display: none !important; }
+
+  .print-book {
+    display: block;
+    font-family: var(--serif);
+    color: #111;
+    max-width: none;
+    padding: 0;
+  }
+  .print-head { text-align: center; margin-bottom: 28mm; }
+  .print-head h1 { font-size: 30pt; margin-bottom: 6pt; }
+  .print-head p { font-size: 10pt; color: #555; font-family: var(--sans); }
+
+  .print-entry {
+    break-inside: avoid; page-break-inside: avoid;
+    margin-bottom: 14mm; padding-bottom: 8mm;
+    border-bottom: 0.4pt solid #ddd;
+  }
+  .print-date {
+    display: block; font-family: var(--sans); font-size: 8.5pt;
+    letter-spacing: .04em; color: #777; margin-bottom: 3pt;
+  }
+  .print-entry h2 { font-size: 17pt; margin-bottom: 4pt; }
+  .print-body { font-size: 11pt; color: #333; margin-bottom: 5pt; }
+  .print-action { font-size: 11.5pt; font-weight: 700; }
+  .print-note {
+    margin: 6pt 0 0; padding-inline-start: 8pt;
+    border-inline-start: 1pt solid #ccc;
+    font-size: 10pt; color: #555; font-style: normal;
+  }
+
+  @page { margin: 18mm 16mm; }
+}

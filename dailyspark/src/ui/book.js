@@ -17,6 +17,7 @@ import { sparkById } from '../data/sparks.index.js';
 import { CATEGORIES, categoryLabel } from '../data/taxonomy.js';
 import * as streak from '../core/streak.js';
 import { shareEntry } from './share.js';
+import { topicsFromText } from '../engine/vector.js';
 
 const VIEWS = [
   { key: 'timeline', he: 'ציר זמן' },
@@ -78,12 +79,24 @@ function countDone(state) {
 function timeline(root, state, keys) {
   root.appendChild(filters(root, state));
 
-  const filtered = keys.filter((k) => matches(state.days[k], k));
+  let filtered = keys.filter((k) => matches(state.days[k], k, null));
+  let bySense = false;
+  if (ui.query && !filtered.length) {
+    const ids = semanticMatches(state, keys, ui.query);
+    if (ids) {
+      filtered = keys.filter((k) => matches(state.days[k], k, ids));
+      bySense = filtered.length > 0;
+    }
+  }
+
   if (!filtered.length) {
     root.appendChild(h('section.card.empty',
       h('h2', 'לא מצאנו.'),
       h('p', 'נסה מילה אחרת, או עיין לפי קטגוריה.')));
     return;
+  }
+  if (bySense) {
+    root.appendChild(h('p.search-note', 'לא נמצאה התאמה מדויקת, אז חיפשנו לפי נושא.'));
   }
 
   let lastMonth = null;
@@ -99,17 +112,56 @@ function timeline(root, state, keys) {
   root.appendChild(list);
 }
 
-function matches(entry, key) {
+/*
+ * Search is literal first, and falls back to the topic space.
+ *
+ * Substring matching answers "where was that thing about the drawer", which is
+ * what most searches are. But "משהו על להתחיל כשאין כוח" matches no substring
+ * anywhere and is exactly the search a person makes on the day they need it —
+ * so when the literal pass finds nothing, the query is mapped into the same
+ * topic vector the ranker uses and the book is searched by meaning instead.
+ *
+ * The fallback is deliberately not blended into the literal pass: mixing them
+ * makes an exact-match search return three vaguely-related items alongside the
+ * one that was actually wanted.
+ */
+function matches(entry, key, semanticIds) {
   if (!entry) return false;
   if (ui.category) {
     const spark = sparkById(entry.sparkId);
     if (!spark || spark.category !== ui.category) return false;
   }
   if (ui.query) {
+    if (semanticIds) return semanticIds.has(entry.sparkId);
     const hay = `${entry.title} ${entry.body} ${entry.action} ${entry.note || ''}`;
     if (!hay.includes(ui.query)) return false;
   }
   return true;
+}
+
+/*
+ * Spark ids in this book whose topics overlap the query's.
+ *
+ * The query is run through the same keyword-to-topic map the profile uses for
+ * free-text goals, so "משהו על להתחיל כשאין כוח" becomes {starting, courage}
+ * and matches the sparks tagged that way. Overlap is scored as a fraction of
+ * the spark's own tags, so a two-tag spark that matches both ranks above a
+ * six-tag spark that matches one.
+ */
+function semanticMatches(state, keys, query) {
+  const topics = topicsFromText(query);
+  if (!topics.length) return null;
+
+  const scored = [];
+  for (const key of keys) {
+    const spark = sparkById(state.days[key].sparkId);
+    if (!spark) continue;
+    const overlap = spark.topics.filter((t) => topics.includes(t)).length;
+    if (overlap) scored.push({ id: spark.id, score: overlap / spark.topics.length });
+  }
+  if (!scored.length) return null;
+  scored.sort((a, b) => b.score - a.score);
+  return new Set(scored.map((x) => x.id));
 }
 
 function filters(root, state) {
@@ -183,9 +235,28 @@ function openEntry(entry, key) {
         },
       }, entry.saved ? 'הסר מהשמורים' : 'שמור'),
       h('button.btn', { onclick: () => shareEntry(entry, spark) }, 'שתף'),
+      store.get().collections.length
+        ? h('button.btn', { onclick: () => pickCollections(key) }, 'הוסף לאוסף')
+        : null,
       h('button.btn.btn-ghost', { onclick: () => close() }, 'סגור'))), {
     label: entry.title, title: entry.title,
   });
+}
+
+/* Which collections this day belongs to, as a list of toggles. */
+function pickCollections(key) {
+  const rows = store.get().collections.map((c) => {
+    const on = c.items.includes(key);
+    const btn = h(`button.reason${on ? ' is-on' : ''}`, {
+      onclick: () => {
+        const nowIn = store.toggleInCollection(c.id, key);
+        btn.classList.toggle('is-on', nowIn);
+        haptic('select');
+      },
+    }, c.name);
+    return btn;
+  });
+  sheet(h('div', h('div.reason-list', rows)), { label: 'אוספים', title: 'הוסף לאוסף' });
 }
 
 /* ------------------------------------------------------------------ *
@@ -264,15 +335,111 @@ function stat(label, value) {
  * Saved
  * ------------------------------------------------------------------ */
 
+/*
+ * Saved items, and the named collections built out of them.
+ *
+ * Collections are lists a person makes for a purpose — "בוקר", "כשאני תקוע" —
+ * and they are the one place in the app where somebody organises their own
+ * content. That is why they are here rather than in settings: they belong next
+ * to the material they organise.
+ */
 function saved(root, state, keys) {
-  const list = keys.filter((k) => state.days[k].saved);
-  if (!list.length) {
+  const rerender = () => renderBook(root);
+  const starred = keys.filter((k) => state.days[k].saved);
+
+  root.appendChild(h('div.collections-head',
+    h('button.btn.btn-ghost', { onclick: () => newCollection(rerender) }, '+ אוסף חדש'),
+    starred.length ? h('button.btn.btn-ghost', { onclick: () => printBook(state) }, '⎙ הדפס ספר') : null));
+
+  for (const c of state.collections) {
+    const items = c.items.filter((k) => state.days[k]);
+    root.appendChild(h('section.card.collection',
+      h('div.collection-head',
+        h('h2.card-title', c.name),
+        h('span.collection-count', ltr(items.length))),
+      items.length
+        ? h('ol.timeline', items
+          .sort((a, b) => b.localeCompare(a))
+          .map((k) => row(state.days[k], k)))
+        : h('p.card-lede', 'ריק. אפשר להוסיף ניצוצות מתוך כל פריט בספר.'),
+      h('button.btn.btn-ghost.collection-del', {
+        onclick: () => { store.removeCollection(c.id); toast('האוסף נמחק'); rerender(); },
+      }, 'מחק אוסף')));
+  }
+
+  if (!starred.length) {
     root.appendChild(h('section.card.empty',
       h('h2', 'עוד לא שמרת כלום.'),
       h('p', 'הכוכב מתחת לניצוץ שומר אותו לכאן — לימים שבהם אתה צריך משהו שכבר עבד.')));
     return;
   }
+
+  root.appendChild(h('h2.section-label', 'שמורים'));
   const ol = h('ol.timeline');
-  for (const key of list) ol.appendChild(row(state.days[key], key));
+  for (const key of starred) ol.appendChild(row(state.days[key], key));
   root.appendChild(ol);
+}
+
+function newCollection(rerender) {
+  const input = h('input.input', { type: 'text', maxlength: '30', placeholder: 'למשל: כשאני תקוע' });
+  const close = sheet(h('div',
+    h('p.sheet-lede', 'אוסף הוא רשימה שאתה בונה למטרה — בוקר, ימים קשים, עבודה.'),
+    input,
+    h('div.sheet-actions',
+      h('button.btn.btn-primary', {
+        onclick: () => {
+          const name = input.value.trim();
+          if (!name) { close(); return; }
+          store.addCollection(name);
+          close();
+          rerender();
+        },
+      }, 'צור'),
+      h('button.btn.btn-ghost', { onclick: () => close() }, 'ביטול'))), {
+    label: 'אוסף חדש', title: 'אוסף חדש',
+  });
+}
+
+/*
+ * The printed book.
+ *
+ * Builds a plain, chrome-free document in a hidden container and hands it to
+ * the browser's own print dialogue — which on every platform can also "save as
+ * PDF". That is the whole feature: no library, no server, no export format to
+ * maintain, and the result is something a person can actually put on a shelf.
+ *
+ * Only completed and saved days are included. A printed book of things you did
+ * not do would be a strange gift to give somebody, including yourself.
+ */
+function printBook(state) {
+  const keys = Object.keys(state.days)
+    .filter((k) => state.days[k].status === 'completed' || state.days[k].saved)
+    .sort();
+
+  const doc = h('div.print-book',
+    h('header.print-head',
+      h('h1', 'ספר הניצוצות'),
+      h('p', `${keys.length} ניצוצות · ${keys.length ? `${humanDate(keys[0])} — ${humanDate(keys[keys.length - 1])}` : ''}`)),
+    keys.map((k) => {
+      const e = state.days[k];
+      return h('article.print-entry',
+        h('span.print-date', humanDate(k)),
+        h('h2', e.title),
+        h('p.print-body', e.body),
+        h('p.print-action', e.action),
+        e.note ? h('blockquote.print-note', e.note) : null);
+    }));
+
+  document.body.appendChild(doc);
+  document.body.classList.add('is-printing');
+  const cleanup = () => {
+    document.body.classList.remove('is-printing');
+    doc.remove();
+    window.removeEventListener('afterprint', cleanup);
+  };
+  window.addEventListener('afterprint', cleanup);
+  window.print();
+  /* Safari never fires afterprint in some versions, so there is a backstop —
+   * a leftover hidden document would break the next screen render. */
+  setTimeout(cleanup, 60000);
 }

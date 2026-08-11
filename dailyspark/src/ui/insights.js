@@ -19,10 +19,12 @@ import { dayKey, shiftKey, WEEKDAY_SHORT, weekdayOf, PART_LABEL } from '../core/
 import { sparkById } from '../data/sparks.index.js';
 import { categoryLabel, TONES } from '../data/taxonomy.js';
 import { SLOTS } from '../engine/bandit.js';
+import { journeysSection } from './journeys.js';
 
 const MIN_DAYS = 4;
 
 export function renderInsights(root) {
+  const rerender = () => renderInsights(root);
   const state = store.get();
   const days = last(state, 7);
   const withData = days.filter((d) => d.entry);
@@ -37,6 +39,9 @@ export function renderInsights(root) {
     root.appendChild(h('section.card.empty',
       h('h2', `עוד ${missing} ${missing === 1 ? 'יום' : 'ימים'}.`),
       h('p', 'אנחנו צריכים קצת יותר נתונים לפני שנגיד לך משהו אמיתי. עד אז, כל מה שנאמר כאן יהיה ניחוש שנשמע כמו עובדה.')));
+    /* Journeys do not need a week of history to be worth offering, so they are
+     * shown even while the insight itself is still holding its tongue. */
+    root.appendChild(journeysSection(rerender));
     return;
   }
 
@@ -62,6 +67,7 @@ export function renderInsights(root) {
       }, action.label)));
   }
 
+  root.appendChild(journeysSection(rerender));
   root.appendChild(modelCard(state));
 }
 

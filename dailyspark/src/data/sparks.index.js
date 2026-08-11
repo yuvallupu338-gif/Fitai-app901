@@ -12,9 +12,13 @@
 import { SPARKS_BODY } from './sparks.body.js';
 import { SPARKS_MIND } from './sparks.mind.js';
 import { SPARKS_LIFE } from './sparks.life.js';
+import { SPARKS_BODY2 } from './sparks.body2.js';
+import { SPARKS_MIND2 } from './sparks.mind2.js';
+import { SPARKS_LIFE2 } from './sparks.life2.js';
 import { CATEGORY_KEYS, SIZE_KEYS, TONE_KEYS, TOPIC_INDEX, TOPICS, sizeOf } from './taxonomy.js';
 
-const RAW = [].concat(SPARKS_BODY, SPARKS_MIND, SPARKS_LIFE);
+const RAW = [].concat(SPARKS_BODY, SPARKS_MIND, SPARKS_LIFE,
+  SPARKS_BODY2, SPARKS_MIND2, SPARKS_LIFE2);
 
 /* Copy limits, straight from the spec. They are enforced here rather than
  * trusted, because the card layout is built around them: a 60-character title

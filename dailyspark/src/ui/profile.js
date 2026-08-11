@@ -19,6 +19,7 @@ import { selectSpark } from '../engine/select.js';
 import * as streak from '../core/streak.js';
 import * as notify from './notify.js';
 import { LADDER } from './notify.js';
+import * as voice from './voice.js';
 
 const MAX_GOALS = 3;
 
@@ -41,6 +42,7 @@ export function renderProfile(root, ctx) {
 
   root.appendChild(goalsCard(root, ctx));
   root.appendChild(interestsCard(root, ctx));
+  root.appendChild(habitsCard(root, ctx));
   root.appendChild(shapeCard(root, ctx));
   root.appendChild(notifyCard(root, ctx));
   root.appendChild(appearanceCard(root, ctx));
@@ -133,6 +135,81 @@ function interestsCard(root, ctx) {
       }, h('span.interest-name', c.he), h('span.interest-state', label[value]));
       return btn;
     })));
+}
+
+/* ------------------------------------------------------------------ *
+ * Habits
+ * ------------------------------------------------------------------ */
+
+/*
+ * Habits are free text, and that is the point.
+ *
+ * Goals and interests are chips because chips beat typing on a phone, but a
+ * habit is personal in a way a menu cannot anticipate — "לנגן", "להתקשר לאמא",
+ * "לא לאכול מול המחשב". The text is run through the same keyword map that
+ * handles a free-text goal (vector.js), so a habit that mentions a known
+ * subject pulls the profile toward it and one that does not simply contributes
+ * nothing rather than noise.
+ */
+const CADENCES = [
+  { key: 'daily', he: 'כל יום' },
+  { key: '3x_week', he: '3 בשבוע' },
+  { key: 'weekly', he: 'שבועי' },
+];
+
+function habitsCard(root, ctx) {
+  const state = store.get();
+
+  const input = h('input.input', {
+    type: 'text', maxlength: '40', placeholder: 'למשל: לכתוב עשר דקות',
+    onkeydown: (e) => { if (e.key === 'Enter') add(); },
+  });
+
+  function add() {
+    const label = input.value.trim();
+    if (!label) return;
+    store.update((s) => {
+      s.profile.habits.push({ id: `h${Date.now().toString(36)}`, label, cadence: 'daily' });
+    });
+    haptic('select');
+    saved();
+    renderProfile(root, ctx);
+  }
+
+  return h('section.card',
+    h('h2.card-title', 'הרגלים שאתה בונה'),
+    h('p.card-lede', 'המנוע ידחוף לכיוון שלהם. אפשר לכתוב בחופשיות.'),
+
+    state.profile.habits.length
+      ? h('ul.habit-list', state.profile.habits.map((hb) => h('li.habit',
+        h('span.habit-label', hb.label),
+        h('div.habit-controls',
+          h('select.habit-cadence', {
+            'aria-label': `תדירות עבור ${hb.label}`,
+            onchange: (e) => {
+              store.update((s) => {
+                const found = s.profile.habits.find((x) => x.id === hb.id);
+                if (found) found.cadence = e.target.value;
+              });
+              saved();
+            },
+          }, CADENCES.map((c) => {
+            const opt = h('option', { value: c.key }, c.he);
+            if (hb.cadence === c.key) opt.selected = true;
+            return opt;
+          })),
+          h('button.habit-del', {
+            'aria-label': `מחק ${hb.label}`,
+            onclick: () => {
+              store.update((s) => {
+                s.profile.habits = s.profile.habits.filter((x) => x.id !== hb.id);
+              });
+              renderProfile(root, ctx);
+            },
+          }, '✕')))))
+      : null,
+
+    h('div.habit-add', input, h('button.btn', { onclick: add }, 'הוסף')));
 }
 
 /* ------------------------------------------------------------------ *
@@ -324,7 +401,12 @@ function appearanceCard(root, ctx) {
     toggle('לשאול על מצב רגשי כל בוקר', state.settings.moodPrompt, (v) => {
       store.update((s) => { s.settings.moodPrompt = v; });
       renderProfile(root, ctx);
-    }));
+    }),
+    /* Stated rather than offered as a switch: whether a Hebrew voice exists is
+     * the operating system's decision, not a preference we can grant. */
+    h('p.card-foot', voice.available()
+      ? `הקראה זמינה במכשיר הזה (${voice.voiceName()}). הכפתור נמצא בתוך הניצוץ.`
+      : 'הקראה לא זמינה — במכשיר הזה אין קול עברי מותקן.'));
 }
 
 function toggle(label, value, onChange) {

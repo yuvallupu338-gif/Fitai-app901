@@ -109,6 +109,16 @@ const EMPTY = {
 
   collections: [],            // [{ id, name, items: [dayKey] }]
 
+  /*
+   * The active journey, or null.
+   *
+   * `day` counts steps actually delivered, not days elapsed. A journey that is
+   * paused — by the person, or automatically by a fragile check-in — simply
+   * does not advance, so a fortnight arc can take three weeks of real life and
+   * still be on day nine of fourteen.
+   */
+  journey: null,              // { slug, day, startedAt, state, skipped }
+
   settings: {
     theme: 'system',          // 'system' | 'light' | 'dark'
     moodPrompt: true,
@@ -150,6 +160,7 @@ function normalize(raw) {
   if (!Array.isArray(s.profile.blocked)) s.profile.blocked = [];
   if (!s.days || typeof s.days !== 'object') s.days = {};
   if (!Array.isArray(s.collections)) s.collections = [];
+  if (s.journey && typeof s.journey !== 'object') s.journey = null;
   if (!Array.isArray(s.seen)) s.seen = [];
   if (!Array.isArray(s.streak.frozenDays)) s.streak.frozenDays = [];
   if (!s.createdAt) s.createdAt = dayKey();
@@ -224,6 +235,76 @@ export function markSeen(sparkId) {
      * is just localStorage weight. */
     if (s.seen.length > 500) s.seen = s.seen.slice(-500);
   });
+}
+
+/* ------------------------------------------------------------------ *
+ * Journeys
+ * ------------------------------------------------------------------ */
+
+export function startJourney(slug) {
+  update((s) => {
+    s.journey = { slug, day: 0, startedAt: dayKey(), state: 'active', skipped: 0 };
+  });
+  return state.journey;
+}
+
+export function setJourneyState(next) {
+  update((s) => { if (s.journey) s.journey.state = next; });
+  return state.journey;
+}
+
+export function advanceJourney() {
+  update((s) => {
+    if (!s.journey || s.journey.state !== 'active') return;
+    s.journey.day += 1;
+  });
+  return state.journey;
+}
+
+export function endJourney() {
+  update((s) => { s.journey = null; });
+}
+
+/* ------------------------------------------------------------------ *
+ * Collections
+ * ------------------------------------------------------------------ */
+
+export function addCollection(name) {
+  const id = `c${Date.now().toString(36)}`;
+  update((s) => { s.collections.push({ id, name, items: [] }); });
+  return id;
+}
+
+export function renameCollection(id, name) {
+  update((s) => {
+    const c = s.collections.find((x) => x.id === id);
+    if (c) c.name = name;
+  });
+}
+
+export function removeCollection(id) {
+  update((s) => { s.collections = s.collections.filter((c) => c.id !== id); });
+}
+
+/*
+ * Membership is a toggle rather than add/remove, because the only place it is
+ * called from is a row of checkboxes and two functions would mean two chances
+ * to get the "already in it" case wrong.
+ */
+export function toggleInCollection(collectionId, dayKeyValue) {
+  let nowIn = false;
+  update((s) => {
+    const c = s.collections.find((x) => x.id === collectionId);
+    if (!c) return;
+    const at = c.items.indexOf(dayKeyValue);
+    if (at >= 0) c.items.splice(at, 1);
+    else { c.items.push(dayKeyValue); nowIn = true; }
+  });
+  return nowIn;
+}
+
+export function collectionsOf(dayKeyValue) {
+  return state.collections.filter((c) => c.items.includes(dayKeyValue));
 }
 
 /* ------------------------------------------------------------------ *

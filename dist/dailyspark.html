@@ -851,6 +851,137 @@ a { color: var(--ember); }
   .tab { max-width: 92px; }
 }
 
+/* ---------------------------------------------------------------- journeys */
+
+.journey-badge {
+  display: flex; justify-content: space-between; align-items: center;
+  padding: 10px 14px; margin-bottom: 12px;
+  background: var(--sunken); border-radius: var(--r);
+  font-size: 13.5px;
+}
+.journey-badge-title { font-weight: 700; }
+.journey-badge-count { color: var(--ink-3); font-variant-numeric: tabular-nums; }
+
+.journey-head { display: flex; justify-content: space-between; align-items: flex-start; gap: 12px; }
+.journey-eyebrow {
+  display: block; font-size: 11.5px; font-weight: 700; letter-spacing: .06em;
+  color: var(--ember); margin-bottom: 3px;
+}
+.journey-count { font-size: 15px; font-weight: 750; color: var(--ink-3); font-variant-numeric: tabular-nums; }
+
+.journey-bar {
+  height: 6px; background: var(--sunken); border-radius: var(--r-pill);
+  overflow: hidden; margin: 12px 0 14px;
+}
+.journey-fill { display: block; height: 100%; background: var(--ember); border-radius: var(--r-pill); }
+
+.journey-dots { display: flex; flex-wrap: wrap; gap: 5px; margin: 14px 0 16px; }
+.jdot { width: 9px; height: 9px; border-radius: 50%; background: var(--sunken); }
+.jdot.is-done { background: var(--ember); }
+.jdot.is-now { background: transparent; box-shadow: inset 0 0 0 2px var(--ember); }
+
+.journey-grid { display: flex; flex-direction: column; gap: 8px; }
+.journey-card {
+  display: flex; flex-direction: column; gap: 2px; align-items: flex-start;
+  padding: 14px 16px; text-align: start;
+  background: var(--sunken); border: 1px solid transparent;
+  border-radius: var(--r); cursor: pointer; width: 100%;
+}
+.journey-card:active { border-color: var(--ember); }
+.journey-title { font-size: 16px; font-weight: 700; }
+.journey-sub { font-size: 14px; color: var(--ink-2); }
+.journey-meta { font-size: 12.5px; color: var(--ink-3); margin-top: 4px; }
+
+.journey-steps { list-style: none; margin: 0 0 8px; padding: 0; display: flex; flex-direction: column; gap: 6px; }
+.journey-step { display: flex; align-items: center; gap: 10px; font-size: 14.5px; }
+.jstep-num {
+  flex: none; width: 22px; height: 22px; border-radius: 50%;
+  background: var(--sunken); color: var(--ink-3);
+  display: grid; place-items: center; font-size: 11.5px; font-weight: 700;
+}
+.jstep-body { color: var(--ink-2); }
+
+.journey-done { border-color: var(--moss); }
+
+/* ------------------------------------------------------------- collections */
+
+.collections-head { display: flex; gap: 8px; margin-bottom: 14px; }
+.collections-head .btn { flex: 1; }
+.collection-head { display: flex; justify-content: space-between; align-items: baseline; margin-bottom: 8px; }
+.collection-count { color: var(--ink-3); font-variant-numeric: tabular-nums; font-size: 14px; }
+.collection-del { width: 100%; margin-top: 6px; color: var(--ink-3); font-size: 14px; }
+.section-label { font-size: 13px; font-weight: 700; color: var(--ink-3); margin: 18px 0 8px; }
+.reason.is-on { background: var(--ember-wash); color: var(--ember); }
+.search-note { color: var(--ink-3); font-size: 13.5px; margin-bottom: 10px; }
+
+/* ------------------------------------------------------------------ habits */
+
+.habit-list { list-style: none; margin: 0 0 12px; padding: 0; display: flex; flex-direction: column; gap: 6px; }
+.habit {
+  display: flex; align-items: center; justify-content: space-between; gap: 10px;
+  padding: 10px 12px; background: var(--sunken); border-radius: var(--r);
+}
+.habit-label { font-size: 15px; font-weight: 600; overflow: hidden; text-overflow: ellipsis; white-space: nowrap; }
+.habit-controls { display: flex; align-items: center; gap: 6px; flex: none; }
+.habit-cadence {
+  font: inherit; font-size: 13px; padding: 5px 8px;
+  background: var(--surface); color: var(--ink);
+  border: 1px solid var(--line); border-radius: var(--r-sm);
+}
+.habit-del {
+  width: 32px; height: 32px; border: 0; border-radius: var(--r-sm);
+  background: transparent; color: var(--ink-3); cursor: pointer; font-size: 15px;
+}
+.habit-add { display: flex; gap: 8px; }
+.habit-add .input { flex: 1; }
+
+.btn-voice { width: 100%; margin-top: 8px; }
+
+/* ------------------------------------------------------------------- print */
+
+/*
+ * The printed book. Hidden entirely on screen; on paper it is the only thing
+ * that exists. Serif throughout, because the point of printing it is that it
+ * stops being an app.
+ */
+.print-book { display: none; }
+
+@media print {
+  body { background: #fff; color: #000; }
+  body.is-printing > *:not(.print-book) { display: none !important; }
+
+  .print-book {
+    display: block;
+    font-family: var(--serif);
+    color: #111;
+    max-width: none;
+    padding: 0;
+  }
+  .print-head { text-align: center; margin-bottom: 28mm; }
+  .print-head h1 { font-size: 30pt; margin-bottom: 6pt; }
+  .print-head p { font-size: 10pt; color: #555; font-family: var(--sans); }
+
+  .print-entry {
+    break-inside: avoid; page-break-inside: avoid;
+    margin-bottom: 14mm; padding-bottom: 8mm;
+    border-bottom: 0.4pt solid #ddd;
+  }
+  .print-date {
+    display: block; font-family: var(--sans); font-size: 8.5pt;
+    letter-spacing: .04em; color: #777; margin-bottom: 3pt;
+  }
+  .print-entry h2 { font-size: 17pt; margin-bottom: 4pt; }
+  .print-body { font-size: 11pt; color: #333; margin-bottom: 5pt; }
+  .print-action { font-size: 11.5pt; font-weight: 700; }
+  .print-note {
+    margin: 6pt 0 0; padding-inline-start: 8pt;
+    border-inline-start: 1pt solid #ccc;
+    font-size: 10pt; color: #555; font-style: normal;
+  }
+
+  @page { margin: 18mm 16mm; }
+}
+
 </style>
 </head>
 <body>
@@ -1533,6 +1664,16 @@ const EMPTY = {
 
   collections: [],            // [{ id, name, items: [dayKey] }]
 
+  /*
+   * The active journey, or null.
+   *
+   * `day` counts steps actually delivered, not days elapsed. A journey that is
+   * paused — by the person, or automatically by a fragile check-in — simply
+   * does not advance, so a fortnight arc can take three weeks of real life and
+   * still be on day nine of fourteen.
+   */
+  journey: null,              // { slug, day, startedAt, state, skipped }
+
   settings: {
     theme: 'system',          // 'system' | 'light' | 'dark'
     moodPrompt: true,
@@ -1574,6 +1715,7 @@ function normalize(raw) {
   if (!Array.isArray(s.profile.blocked)) s.profile.blocked = [];
   if (!s.days || typeof s.days !== 'object') s.days = {};
   if (!Array.isArray(s.collections)) s.collections = [];
+  if (s.journey && typeof s.journey !== 'object') s.journey = null;
   if (!Array.isArray(s.seen)) s.seen = [];
   if (!Array.isArray(s.streak.frozenDays)) s.streak.frozenDays = [];
   if (!s.createdAt) s.createdAt = dayKey();
@@ -1651,6 +1793,76 @@ function markSeen(sparkId) {
 }
 
 /* ------------------------------------------------------------------ *
+ * Journeys
+ * ------------------------------------------------------------------ */
+
+function startJourney(slug) {
+  update((s) => {
+    s.journey = { slug, day: 0, startedAt: dayKey(), state: 'active', skipped: 0 };
+  });
+  return state.journey;
+}
+
+function setJourneyState(next) {
+  update((s) => { if (s.journey) s.journey.state = next; });
+  return state.journey;
+}
+
+function advanceJourney() {
+  update((s) => {
+    if (!s.journey || s.journey.state !== 'active') return;
+    s.journey.day += 1;
+  });
+  return state.journey;
+}
+
+function endJourney() {
+  update((s) => { s.journey = null; });
+}
+
+/* ------------------------------------------------------------------ *
+ * Collections
+ * ------------------------------------------------------------------ */
+
+function addCollection(name) {
+  const id = `c${Date.now().toString(36)}`;
+  update((s) => { s.collections.push({ id, name, items: [] }); });
+  return id;
+}
+
+function renameCollection(id, name) {
+  update((s) => {
+    const c = s.collections.find((x) => x.id === id);
+    if (c) c.name = name;
+  });
+}
+
+function removeCollection(id) {
+  update((s) => { s.collections = s.collections.filter((c) => c.id !== id); });
+}
+
+/*
+ * Membership is a toggle rather than add/remove, because the only place it is
+ * called from is a row of checkboxes and two functions would mean two chances
+ * to get the "already in it" case wrong.
+ */
+function toggleInCollection(collectionId, dayKeyValue) {
+  let nowIn = false;
+  update((s) => {
+    const c = s.collections.find((x) => x.id === collectionId);
+    if (!c) return;
+    const at = c.items.indexOf(dayKeyValue);
+    if (at >= 0) c.items.splice(at, 1);
+    else { c.items.push(dayKeyValue); nowIn = true; }
+  });
+  return nowIn;
+}
+
+function collectionsOf(dayKeyValue) {
+  return state.collections.filter((c) => c.items.includes(dayKeyValue));
+}
+
+/* ------------------------------------------------------------------ *
  * Backup
  * ------------------------------------------------------------------ */
 
@@ -1690,6 +1902,15 @@ function importJson(text) {
     "putDay": putDay,
     "dayKeysDesc": dayKeysDesc,
     "markSeen": markSeen,
+    "startJourney": startJourney,
+    "setJourneyState": setJourneyState,
+    "advanceJourney": advanceJourney,
+    "endJourney": endJourney,
+    "addCollection": addCollection,
+    "renameCollection": renameCollection,
+    "removeCollection": removeCollection,
+    "toggleInCollection": toggleInCollection,
+    "collectionsOf": collectionsOf,
     "exportJson": exportJson,
     "importJson": importJson,
   };
@@ -2789,6 +3010,1373 @@ const SPARKS_LIFE = [
   };
 })();
 
+__m["dailyspark/src/data/sparks.body2.js"] = (function () {
+/*
+ * sparks.body2.js — the second volume for movement, focus, mindfulness and order.
+ *
+ * Written after a sixty-day simulation showed what a small library actually
+ * costs: the freshness rule empties the shelf, every day falls through to the
+ * relaxation ladder, and the ranker's learned preferences stop mattering because
+ * there is nothing left to choose between. Depth inside a category is not a
+ * content nicety here — it is what keeps the recommender able to recommend.
+ *
+ * Same rules as volume one. The action line has to answer "what exactly do I do
+ * in the next minute?", and `safe` is only for micro-sized, gently- or
+ * practically-toned items that are un-arguable on a bad day.
+ */
+
+const SPARKS_BODY2 = [
+  /* ---------------------------------------------------------------- movement */
+  {
+    id: 'mov_doorframe', type: 'action', category: 'movement', size: 'micro', tone: 'practical',
+    topics: ['movement', 'posture'], safe: true,
+    title: 'מתיחה במשקוף',
+    body: 'החזה מתקצר מישיבה יותר מכל שריר אחר, והוא גם הכי קל לפתוח.',
+    action: 'עמוד במשקוף, ידיים על המסגרת, והישען קדימה 30 שניות.',
+    easier: 'שלב ידיים מאחורי הגב ומתח את הכתפיים אחורה.',
+  },
+  {
+    id: 'mov_calf_kettle', type: 'action', category: 'movement', size: 'micro', tone: 'humorous',
+    topics: ['movement', 'energy'],
+    title: 'בזמן שהקומקום עובד',
+    body: 'שתי דקות שאתה ממילא עומד בהן ומסתכל על קיר.',
+    action: 'עמוד על קצות האצבעות ורד. עד שהמים רותחים.',
+  },
+  {
+    id: 'mov_bus_stop', type: 'action', category: 'movement', size: 'micro', tone: 'direct',
+    topics: ['movement', 'outdoors'],
+    title: 'תחנה אחת קודם',
+    body: 'ההליכה הכי קלה להוסיף היא זו שכבר תכננת ממילא.',
+    action: 'רד תחנה אחת לפני, או החנה רחוב אחד רחוק יותר.',
+  },
+  {
+    id: 'mov_floor_sit', type: 'action', category: 'movement', size: 'micro', tone: 'practical',
+    topics: ['movement', 'posture'], safe: true,
+    title: 'לשבת על הרצפה',
+    body: 'הירכיים לומדות מהכיסא בדיוק את מה שאתה לא רוצה שילמדו.',
+    action: 'שב על הרצפה עשר דקות הערב, איך שנוח. פשוט על הרצפה.',
+    easier: 'חמש דקות. גם עם גב לספה.',
+  },
+  {
+    id: 'mov_carry', type: 'action', category: 'movement', size: 'standard', tone: 'stoic',
+    topics: ['movement', 'energy'],
+    title: 'לשאת משהו',
+    body: 'הגוף בנוי לשאת דברים. רוב היום שלנו בנוי לא לשאת כלום.',
+    action: 'קח את הקניות בידיים במקום בעגלה, או שא משהו כבד 3 דקות.',
+    easier: 'שקית אחת. לא שתיים.',
+  },
+  {
+    id: 'mov_dance_one', type: 'action', category: 'movement', size: 'standard', tone: 'humorous',
+    topics: ['movement', 'energy'],
+    title: 'שיר אחד',
+    body: 'אף אחד לא רואה. באמת אף אחד.',
+    action: 'שים שיר אחד וזוז אליו עד הסוף. שלוש דקות.',
+    easier: 'רק לרקוד עם הראש והכתפיים.',
+  },
+  {
+    id: 'mov_stretch_hip', type: 'action', category: 'movement', size: 'micro', tone: 'gentle',
+    topics: ['movement', 'posture', 'calm'], safe: true,
+    title: 'לפתוח את הירכיים',
+    body: 'המקום שסופג הכי הרבה ישיבה הוא גם המקום שהכי מהר משתחרר.',
+    action: 'שב על הקרקע, כפות רגליים נוגעות, והישאר 60 שניות.',
+    easier: 'שכב על הגב וקרב ברך אחת לחזה.',
+  },
+  {
+    id: 'mov_morning_three', type: 'tip', category: 'movement', size: 'micro', tone: 'practical',
+    topics: ['movement', 'morning', 'energy'],
+    title: 'שלוש תנועות לפני הקפה',
+    body: 'שגרה קצרה שקורית באותו מקום כל בוקר לא דורשת החלטה.',
+    action: 'בחר שלוש תנועות ועשה אותן מחר לפני הקפה. פעם אחת.',
+  },
+  {
+    id: 'mov_stand_calls', type: 'tip', category: 'movement', size: 'micro', tone: 'practical',
+    topics: ['movement', 'posture'], safe: true,
+    title: 'לעמוד בשיחות',
+    body: 'שיחת טלפון היא הזמן היחיד ביום שבו אף אחד לא רואה מה אתה עושה עם הגוף.',
+    action: 'קום לשיחה הבאה. פשוט קום.',
+  },
+  {
+    id: 'mov_water_first', type: 'action', category: 'movement', size: 'micro', tone: 'gentle',
+    topics: ['energy', 'self-care', 'morning'], safe: true,
+    title: 'כוס לפני הקפה',
+    body: 'התייבשות של לילה מרגישה בדיוק כמו עייפות.',
+    action: 'שתה כוס מים לפני הקפה הראשון.',
+  },
+  {
+    id: 'mov_walk_call', type: 'action', category: 'movement', size: 'stretch', tone: 'practical',
+    topics: ['movement', 'outdoors', 'connection'],
+    title: 'שיחה בהליכה',
+    body: 'שתי משימות שכל אחת לבדה נדחית — ויחד הן קורות.',
+    action: 'את השיחה הבאה שאתה חייב לעשות — עשה אותה בהליכה בחוץ.',
+    easier: 'גם הליכה בבית בזמן השיחה נחשבת.',
+  },
+  {
+    id: 'mov_2min_intense', type: 'action', category: 'movement', size: 'micro', tone: 'direct',
+    topics: ['movement', 'energy'],
+    title: 'שתי דקות שמעלות דופק',
+    body: 'לא אימון. רק תזכורת לגוף שהוא יודע גם את זה.',
+    action: 'קפיצות במקום, מדרגות או ריצה קלה — שתי דקות.',
+    easier: 'ארבעים שניות. אותה כוונה.',
+  },
+  {
+    id: 'mov_evening_walk', type: 'action', category: 'movement', size: 'stretch', tone: 'gentle',
+    topics: ['movement', 'outdoors', 'evening'],
+    title: 'סיבוב אחרי הארוחה',
+    body: 'עשר דקות אחרי ארוחת ערב עושות לעיכול ולראש יותר מאשר שעה על הספה.',
+    action: 'צא 10 דקות אחרי הארוחה הערב.',
+    easier: 'חמש דקות סביב הבניין.',
+  },
+  {
+    id: 'mov_no_lift_week', type: 'tip', category: 'movement', size: 'micro', tone: 'stoic',
+    topics: ['movement'],
+    title: 'החלטה אחת לשבוע',
+    body: 'החלטה שנלקחת פעם אחת חוסכת שבע התלבטויות.',
+    action: 'החלט עכשיו: השבוע — מדרגות בלבד. בלי לשקול כל פעם מחדש.',
+  },
+  {
+    id: 'mov_neck_release', type: 'action', category: 'movement', size: 'micro', tone: 'gentle',
+    topics: ['movement', 'posture', 'calm'], safe: true,
+    title: 'צוואר, לאט',
+    body: 'הראש שוקל חמישה קילו. הצוואר מחזיק אותו כל היום בלי להתלונן.',
+    action: 'הטה את הראש לצד אחד, 20 שניות. ואז לשני.',
+  },
+
+  /* ------------------------------------------------------------------- focus */
+  {
+    id: 'foc_first_hour', type: 'tip', category: 'focus', size: 'micro', tone: 'direct',
+    topics: ['focus', 'morning', 'digital'],
+    title: 'השעה הראשונה',
+    body: 'מי שקובע את השעה הראשונה שלך קובע את היום שלך.',
+    action: 'החלט מה תעשה מחר בשעה הראשונה — לפני שתפתח מייל.',
+  },
+  {
+    id: 'foc_one_screen', type: 'action', category: 'focus', size: 'micro', tone: 'practical',
+    topics: ['focus', 'digital'], safe: true,
+    title: 'מסך אחד',
+    body: 'שני מסכים זה לא פי שתיים תפוקה. זה פי שתיים החלפות.',
+    action: 'כבה או הפוך מסך אחד לחצי שעה.',
+  },
+  {
+    id: 'foc_notification_kill', type: 'action', category: 'focus', size: 'standard', tone: 'direct',
+    topics: ['digital', 'focus', 'attention'],
+    title: 'התראה אחת פחות',
+    body: 'כל התראה שכיבית היא החלטה שלא תצטרך לקבל שוב.',
+    action: 'פתח הגדרות התראות וכבה אפליקציה אחת. הכי רועשת.',
+  },
+  {
+    id: 'foc_define_done', type: 'tip', category: 'focus', size: 'micro', tone: 'practical',
+    topics: ['focus', 'productivity'],
+    title: 'להגדיר מה זה גמור',
+    body: 'משימה בלי סוף מוגדר לא מסתיימת, היא רק נעזבת.',
+    action: 'כתוב במשפט אחד איך ייראה "גמור" במשימה שאתה בה.',
+  },
+  {
+    id: 'foc_park_midsentence', type: 'tip', category: 'focus', size: 'micro', tone: 'humorous',
+    topics: ['focus', 'writing', 'starting'],
+    title: 'לעצור באמצע משפט',
+    body: 'המינגוויי עצר כשידע מה הלאה, כדי שמחר יהיה קל להתחיל.',
+    action: 'בסוף העבודה היום — עצור באמצע משפט או משימה.',
+  },
+  {
+    id: 'foc_three_only', type: 'action', category: 'focus', size: 'micro', tone: 'stoic',
+    topics: ['priorities', 'focus', 'productivity'],
+    title: 'שלוש, לא עשר',
+    body: 'רשימה של עשר משימות היא רשימה של שבע אכזבות.',
+    action: 'כתוב שלוש משימות להיום. את השאר סגור בקובץ אחר.',
+  },
+  {
+    id: 'foc_timer_visible', type: 'tip', category: 'focus', size: 'micro', tone: 'practical',
+    topics: ['focus', 'productivity'], safe: true,
+    title: 'טיימר שרואים',
+    body: 'זמן שרואים אותו נגמר לאט יותר מזמן שרק מרגישים.',
+    action: 'שים טיימר גלוי לפני הבלוק הבא. 15 דקות מספיקות.',
+  },
+  {
+    id: 'foc_batch_messages', type: 'tip', category: 'focus', size: 'standard', tone: 'practical',
+    topics: ['digital', 'focus', 'productivity'],
+    title: 'הודעות בקבוצות',
+    body: 'עשרים בדיקות של שתי דקות עולות יותר משתי בדיקות של עשרים.',
+    action: 'קבע שני חלונות היום לענות להודעות. בשאר — סגור.',
+  },
+  {
+    id: 'foc_hard_easy', type: 'tip', category: 'focus', size: 'micro', tone: 'stoic',
+    topics: ['procrastination', 'priorities'],
+    title: 'קשה קודם, לא אחרון',
+    body: 'המשימה הקשה לא נהיית קלה יותר אחרי שהתעייפת מהקלות.',
+    action: 'סמן מה הקשה במשימות של מחר, ותן לו את הבוקר.',
+  },
+  {
+    id: 'foc_phone_grayscale', type: 'tip', category: 'focus', size: 'micro', tone: 'humorous',
+    topics: ['digital', 'attention'],
+    title: 'שחור־לבן',
+    body: 'הצבעים באפליקציות לא שם במקרה.',
+    action: 'הפעל מצב גווני אפור בטלפון להיום. תראה מה קורה.',
+  },
+  {
+    id: 'foc_open_loop', type: 'action', category: 'focus', size: 'standard', tone: 'practical',
+    topics: ['focus', 'productivity', 'order'],
+    title: 'לולאות פתוחות',
+    body: 'מה שפתוח בראש ולא רשום בשום מקום גובה תשומת לב כל היום.',
+    action: 'כתוב חמש דקות כל מה שפתוח לך. רק לרשום, לא לפתור.',
+    easier: 'שלושה דברים. זה מספיק כדי להרגיש את ההבדל.',
+  },
+  {
+    id: 'foc_start_ugly', type: 'quote', category: 'focus', size: 'micro', tone: 'direct',
+    topics: ['starting', 'procrastination'],
+    title: 'ההתחלה תמיד מכוערת',
+    body: 'אתה משווה את ההתחלה שלך לסוף של מישהו אחר.',
+    action: 'עשה את הגרסה המכוערת. עשר דקות.',
+  },
+  {
+    id: 'foc_desk_clear', type: 'action', category: 'focus', size: 'micro', tone: 'practical',
+    topics: ['order', 'focus', 'environment'], safe: true,
+    title: 'שולחן לפני עבודה',
+    body: 'שלושים שניות של סדר חוסכות עשרים דקות של חיפוש.',
+    action: 'פנה את השולחן לפני שאתה מתחיל. רק את השולחן.',
+  },
+  {
+    id: 'foc_single_question', type: 'tip', category: 'focus', size: 'micro', tone: 'stoic',
+    topics: ['focus', 'priorities'],
+    title: 'השאלה של הבלוק',
+    body: 'בלוק עבודה עם שאלה אחת ברורה נגמר. בלוק עם נושא — נמשך.',
+    action: 'נסח את הבלוק הבא כשאלה אחת שאתה עונה עליה.',
+  },
+  {
+    id: 'foc_end_ritual', type: 'tip', category: 'focus', size: 'micro', tone: 'gentle',
+    topics: ['focus', 'evening', 'productivity'], safe: true,
+    title: 'לסגור את היום',
+    body: 'יום שלא נסגר ממשיך לרוץ ברקע כל הערב.',
+    action: 'בסוף היום: רשום מה נשאר, סגור את המחשב, ואמור "נגמר".',
+  },
+
+  /* ------------------------------------------------------------- mindfulness */
+  {
+    id: 'min_first_sip', type: 'action', category: 'mindfulness', size: 'micro', tone: 'gentle',
+    topics: ['attention', 'noticing', 'morning'], safe: true,
+    title: 'הלגימה הראשונה',
+    body: 'אתה שותה את זה כל בוקר ולא זוכר אף אחת מהפעמים.',
+    action: 'את הלגימה הראשונה — שתה בלי לעשות שום דבר אחר.',
+  },
+  {
+    id: 'min_feet_ground', type: 'action', category: 'mindfulness', size: 'micro', tone: 'gentle',
+    topics: ['attention', 'calm'], safe: true,
+    title: 'כפות הרגליים',
+    body: 'הן נוגעות ברצפה כל היום, ואתה לא מרגיש אותן אף פעם.',
+    action: 'שים לב לכפות הרגליים שלך. עשר שניות. זהו.',
+  },
+  {
+    id: 'min_one_window', type: 'action', category: 'mindfulness', size: 'micro', tone: 'gentle',
+    topics: ['noticing', 'calm', 'outdoors'], safe: true,
+    title: 'חלון אחד',
+    body: 'העיניים צריכות מרחק. הן מקבלות חצי מטר כל היום.',
+    action: 'הסתכל מהחלון על משהו רחוק, 30 שניות.',
+  },
+  {
+    id: 'min_wait_line', type: 'tip', category: 'mindfulness', size: 'micro', tone: 'practical',
+    topics: ['attention', 'digital'], safe: true,
+    title: 'תור בלי טלפון',
+    body: 'שעמום קצר הוא לא בעיה. הוא המקום שרעיונות מגיעים ממנו.',
+    action: 'בתור הבא — אל תוציא את הטלפון. פשוט עמוד.',
+  },
+  {
+    id: 'min_name_it', type: 'tip', category: 'mindfulness', size: 'micro', tone: 'gentle',
+    topics: ['attention', 'self-compassion', 'calm'], safe: true,
+    title: 'לקרוא לזה בשם',
+    body: 'רגש שקיבל שם תופס פחות מקום מרגש שרק מציף.',
+    action: 'אמור לעצמך במילה אחת מה אתה מרגיש עכשיו. רק מילה.',
+  },
+  {
+    id: 'min_slow_hand', type: 'action', category: 'mindfulness', size: 'micro', tone: 'gentle',
+    topics: ['attention', 'calm'], safe: true,
+    title: 'לעשות דבר אחד לאט',
+    body: 'המהירות היא הרגל, לא צורך.',
+    action: 'את הפעולה הבאה — שטיפת כלים, לבישת מעיל — עשה לאט בכוונה.',
+  },
+  {
+    id: 'min_sky_check', type: 'action', category: 'mindfulness', size: 'micro', tone: 'gentle',
+    topics: ['noticing', 'outdoors'], safe: true,
+    title: 'להסתכל למעלה',
+    body: 'לא הסתכלת על השמיים היום. כנראה גם לא אתמול.',
+    action: 'צא החוצה או לחלון והסתכל למעלה. 20 שניות.',
+  },
+  {
+    id: 'min_body_scan', type: 'action', category: 'mindfulness', size: 'standard', tone: 'gentle',
+    topics: ['attention', 'calm', 'self-care'],
+    title: 'סריקה מהירה',
+    body: 'הגוף יודע לפני הראש. הוא רק לא נשאל.',
+    action: 'עבור בראש מכפות הרגליים עד הראש, 2 דקות, ושים לב איפה תפוס.',
+    easier: 'רק הכתפיים, הלסת והבטן.',
+  },
+  {
+    id: 'min_eat_seated', type: 'tip', category: 'mindfulness', size: 'micro', tone: 'practical',
+    topics: ['attention', 'self-care'], safe: true,
+    title: 'לאכול בישיבה',
+    body: 'ארוחה בעמידה מול המקרר לא נספרת בראש כארוחה.',
+    action: 'את הדבר הבא שאתה אוכל — שב בשבילו.',
+  },
+  {
+    id: 'min_between_two', type: 'tip', category: 'mindfulness', size: 'micro', tone: 'practical',
+    topics: ['attention', 'calm', 'focus'], safe: true,
+    title: 'הרווח בין שתיים',
+    body: 'המעבר בין שתי משימות הוא המקום שבו העומס נבנה.',
+    action: 'בין שתי המשימות הבאות — עצור לנשימה אחת שלמה.',
+  },
+  {
+    id: 'min_no_music_drive', type: 'action', category: 'mindfulness', size: 'standard', tone: 'stoic',
+    topics: ['attention', 'calm'],
+    title: 'נסיעה בלי רקע',
+    body: 'שקט לא מרגיש נוח, וזו הסיבה שכדאי לנסות אותו.',
+    action: 'את הנסיעה הקצרה הבאה — בלי מוזיקה ובלי פודקאסט.',
+  },
+  {
+    id: 'min_touch_object', type: 'action', category: 'mindfulness', size: 'micro', tone: 'gentle',
+    topics: ['attention', 'noticing'], safe: true,
+    title: 'חפץ אחד ביד',
+    body: 'החושים לא יכולים לדאוג לעתיד. הם עסוקים בהווה.',
+    action: 'קח חפץ שביד שלך ושים לב לטמפרטורה ולמשקל שלו.',
+  },
+  {
+    id: 'min_evening_three', type: 'action', category: 'mindfulness', size: 'micro', tone: 'gentle',
+    topics: ['evening', 'noticing', 'calm'], safe: true,
+    title: 'שלושה רגעים מהיום',
+    body: 'לא הכי טובים. פשוט שלושה שקרו.',
+    action: 'לפני השינה — שחזר שלושה רגעים מהיום. בלי לדרג אותם.',
+  },
+  {
+    id: 'min_alarm_pause', type: 'tip', category: 'mindfulness', size: 'micro', tone: 'practical',
+    topics: ['morning', 'attention'], safe: true,
+    title: 'לפני שהיד מגיעה לטלפון',
+    body: 'שלושים השניות הראשונות של היום שייכות לך או לאפליקציה.',
+    action: 'מחר בבוקר — שכב עוד 30 שניות לפני שאתה נוגע בטלפון.',
+  },
+  {
+    id: 'min_sigh', type: 'tip', category: 'mindfulness', size: 'micro', tone: 'practical',
+    topics: ['breathing', 'calm'], safe: true,
+    title: 'אנחה כפולה',
+    body: 'שאיפה, עוד שאיפה קטנה מעליה, ונשיפה ארוכה. הגוף עושה את זה לבד בבכי ובשינה.',
+    action: 'עשה את זה שלוש פעמים עכשיו.',
+  },
+
+  /* ------------------------------------------------------------------- order */
+  {
+    id: 'ord_five_things', type: 'action', category: 'order', size: 'micro', tone: 'practical',
+    topics: ['order', 'environment'], safe: true,
+    title: 'חמישה דברים למקום',
+    body: 'לא לסדר את החדר. להחזיר חמישה דברים.',
+    action: 'קח חמישה חפצים והחזר אותם למקום. ספור אותם.',
+  },
+  {
+    id: 'ord_bag_out', type: 'action', category: 'order', size: 'micro', tone: 'humorous',
+    topics: ['order', 'decluttering'],
+    title: 'התיק',
+    body: 'יש שם קבלה מפברואר. שנינו יודעים.',
+    action: 'רוקן את התיק או הארנק. החזר רק מה שצריך.',
+  },
+  {
+    id: 'ord_one_shelf', type: 'action', category: 'order', size: 'standard', tone: 'direct',
+    topics: ['order', 'decluttering'],
+    title: 'מדף אחד',
+    body: 'הגבול הוא מה שהופך סידור למשהו שנגמר.',
+    action: 'בחר מדף אחד. סדר רק אותו. עצור כשהוא נגמר.',
+  },
+  {
+    id: 'ord_donate_box', type: 'action', category: 'order', size: 'standard', tone: 'gentle',
+    topics: ['decluttering', 'order'],
+    title: 'קופסה לתרומה',
+    body: 'הדברים שאתה לא משתמש בהם שווים יותר אצל מישהו אחר.',
+    action: 'שים קופסה במקום גלוי. הכנס אליה דבר אחד עכשיו.',
+  },
+  {
+    id: 'ord_files_one', type: 'action', category: 'order', size: 'micro', tone: 'practical',
+    topics: ['order', 'digital'], safe: true,
+    title: 'שולחן העבודה',
+    body: 'המסך הוא גם חדר. גם הוא מתמלא.',
+    action: 'מחק או תייק חמישה קבצים משולחן העבודה.',
+  },
+  {
+    id: 'ord_unsubscribe', type: 'action', category: 'order', size: 'micro', tone: 'direct',
+    topics: ['digital', 'order'],
+    title: 'הסרה אחת',
+    body: 'כל ניוזלטר שאתה לא קורא גובה שנייה וחצי, כל יום, לנצח.',
+    action: 'פתח את המייל האחרון שלא קראת ולחץ הסרה.',
+  },
+  {
+    id: 'ord_landing_spot', type: 'tip', category: 'order', size: 'micro', tone: 'practical',
+    topics: ['order', 'environment'], safe: true,
+    title: 'נקודת נחיתה',
+    body: 'רוב הבלגן נוצר בשלוש הדקות הראשונות אחרי שנכנסים הביתה.',
+    action: 'קבע מקום אחד ליד הדלת למפתחות, לארנק ולתיק.',
+  },
+  {
+    id: 'ord_two_minute_reset', type: 'tip', category: 'order', size: 'micro', tone: 'practical',
+    topics: ['order', 'evening'], safe: true,
+    title: 'איפוס של שתי דקות',
+    body: 'חדר שמאופס בערב הוא בוקר אחר לגמרי.',
+    action: 'שתי דקות לפני השינה: החזר למקום מה שבולט.',
+  },
+  {
+    id: 'ord_expiry', type: 'action', category: 'order', size: 'standard', tone: 'humorous',
+    topics: ['order', 'decluttering'],
+    title: 'מדף התבלינים',
+    body: 'תאריך התפוגה של הכמון הזה מרגש.',
+    action: 'עבור על מדף אחד במטבח וזרוק מה שפג.',
+  },
+  {
+    id: 'ord_photo_before', type: 'tip', category: 'order', size: 'micro', tone: 'practical',
+    topics: ['order', 'environment'],
+    title: 'צלם לפני',
+    body: 'העין מתרגלת לסדר תוך יום. התמונה לא.',
+    action: 'צלם את הפינה שאתה עומד לסדר. תסתכל אחר כך.',
+  },
+  {
+    id: 'ord_flat_surfaces', type: 'tip', category: 'order', size: 'micro', tone: 'stoic',
+    topics: ['order', 'environment'],
+    title: 'משטחים שטוחים מתמלאים',
+    body: 'זה חוק טבע, לא כישלון אופי.',
+    action: 'בחר משטח אחד שיישאר ריק. הכרז עליו לעצמך.',
+  },
+  {
+    id: 'ord_clothes_out', type: 'action', category: 'order', size: 'standard', tone: 'direct',
+    topics: ['decluttering', 'order'],
+    title: 'חמישה בגדים',
+    body: 'אם לא לבשת אותו שנה, לא תלבש אותו בשנה הבאה.',
+    action: 'הוצא חמישה בגדים שלא לבשת. לקופסה, לא לזבל.',
+    easier: 'שניים. אפילו אחד.',
+  },
+  {
+    id: 'ord_recipe_place', type: 'action', category: 'order', size: 'micro', tone: 'practical',
+    topics: ['order', 'digital'], safe: true,
+    title: 'איפה שמרת את זה',
+    body: 'שמור בשלושה מקומות זה כמו לא לשמור.',
+    action: 'בחר מקום אחד לרשימות שלך. העבר אליו דבר אחד.',
+  },
+  {
+    id: 'ord_return_it', type: 'action', category: 'order', size: 'micro', tone: 'gentle',
+    topics: ['order', 'relationships'], safe: true,
+    title: 'להחזיר משהו',
+    body: 'יש אצלך דבר שהוא של מישהו אחר, והוא זוכר.',
+    action: 'שים אותו ליד הדלת עכשיו כדי שתיקח מחר.',
+  },
+  {
+    id: 'ord_weekly_slot', type: 'tip', category: 'order', size: 'micro', tone: 'stoic',
+    topics: ['order', 'productivity'],
+    title: 'רבע שעה קבועה',
+    body: 'סדר שיש לו שעה קבועה לא דורש כוח רצון.',
+    action: 'קבע ביומן רבע שעה שבועית לסדר. עכשיו, לא אחר כך.',
+  },
+];
+
+  return {
+    "SPARKS_BODY2": SPARKS_BODY2,
+  };
+})();
+
+__m["dailyspark/src/data/sparks.mind2.js"] = (function () {
+/*
+ * sparks.mind2.js — the second volume for creativity, learning, resilience and
+ * gratitude.
+ *
+ * The resilience block carries most of the library's `safe` flags, because a
+ * fragile day still gets a spark and it should come from the area written for
+ * exactly that day rather than from a watered-down productivity tip. Those
+ * entries are held to a stricter bar than the rest: no challenge language, no
+ * implied effort, and an action that cannot be failed.
+ */
+
+const SPARKS_MIND2 = [
+  /* -------------------------------------------------------------- creativity */
+  {
+    id: 'cre_worst_idea', type: 'action', category: 'creativity', size: 'micro', tone: 'humorous',
+    topics: ['creativity', 'ideation'],
+    title: 'הרעיון הכי גרוע',
+    body: 'קל יותר להפוך רעיון גרוע לטוב מאשר להמציא טוב מכלום.',
+    action: 'כתוב את הפתרון הכי גרוע שאתה מסוגל. ואז הפוך אותו.',
+  },
+  {
+    id: 'cre_three_words', type: 'action', category: 'creativity', size: 'micro', tone: 'gentle',
+    topics: ['creativity', 'writing', 'noticing'], safe: true,
+    title: 'שלוש מילים על היום',
+    body: 'לא סיכום. שלוש מילים.',
+    action: 'כתוב שלוש מילים שמתארות את היום שלך.',
+  },
+  {
+    id: 'cre_copy_master', type: 'action', category: 'creativity', size: 'standard', tone: 'practical',
+    topics: ['creativity', 'learning'],
+    title: 'להעתיק כדי ללמוד',
+    body: 'כל אמן התחיל מלהעתיק. ההבדל הוא שהוא לא עצר שם.',
+    action: 'קח פסקה, שיר או עיצוב שאתה אוהב והעתק אותו ביד.',
+  },
+  {
+    id: 'cre_change_medium', type: 'tip', category: 'creativity', size: 'micro', tone: 'practical',
+    topics: ['creativity', 'ideation'],
+    title: 'להחליף כלי',
+    body: 'רעיון שנתקע במסך לפעמים משתחרר על נייר, ולהפך.',
+    action: 'קח את מה שאתה תקוע בו והעבר אותו למדיום אחר לחמש דקות.',
+  },
+  {
+    id: 'cre_ten_minutes_daily', type: 'tip', category: 'creativity', size: 'micro', tone: 'stoic',
+    topics: ['creativity', 'starting'],
+    title: 'עשר דקות, לא השראה',
+    body: 'מי שמחכה להשראה עובד פחות ממי שקבע שעה.',
+    action: 'קבע לעצמך שעה קבועה של עשר דקות יצירה. רק את השעה.',
+  },
+  {
+    id: 'cre_finish_something', type: 'action', category: 'creativity', size: 'stretch', tone: 'direct',
+    topics: ['creativity', 'starting'],
+    title: 'לסיים דבר אחד',
+    body: 'להתחיל זה כיף. לסיים זה מה שמשנה מה אתה חושב על עצמך.',
+    action: 'קח דבר אחד שכמעט גמור וסיים אותו ב-15 דקות. גם לא מושלם.',
+    easier: 'סיים חלק אחד ממנו והכרז עליו כגמור.',
+  },
+  {
+    id: 'cre_collect_one', type: 'action', category: 'creativity', size: 'micro', tone: 'gentle',
+    topics: ['creativity', 'noticing'], safe: true,
+    title: 'לאסוף משהו',
+    body: 'יצירה מתחילה מלשים לב, לא מלייצר.',
+    action: 'שמור דבר אחד שמצא חן בעיניך היום — משפט, תמונה, צבע.',
+  },
+  {
+    id: 'cre_teach_child', type: 'tip', category: 'creativity', size: 'standard', tone: 'practical',
+    topics: ['creativity', 'writing', 'learning'],
+    title: 'להסביר לילד בן שמונה',
+    body: 'מה שלא עובר לילד בן שמונה — כנראה לא ברור גם לך.',
+    action: 'קח רעיון שאתה עובד עליו והסבר אותו בשלוש שורות פשוטות.',
+  },
+  {
+    id: 'cre_deadline_fake', type: 'tip', category: 'creativity', size: 'micro', tone: 'humorous',
+    topics: ['creativity', 'starting', 'productivity'],
+    title: 'דדליין מומצא',
+    body: 'עבודה מתרחבת למלא את הזמן שהוקצב לה. אז תקצה פחות.',
+    action: 'תן למשימה חצי מהזמן שחשבת. תתחיל עכשיו.',
+  },
+  {
+    id: 'cre_two_unrelated', type: 'action', category: 'creativity', size: 'standard', tone: 'humorous',
+    topics: ['ideation', 'creativity'],
+    title: 'שני דברים לא קשורים',
+    body: 'רוב הרעיונות החדשים הם שני ישנים שנפגשו.',
+    action: 'בחר שני דברים אקראיים מהחדר ומצא קשר ביניהם. שלוש דקות.',
+  },
+  {
+    id: 'cre_show_someone', type: 'action', category: 'creativity', size: 'micro', tone: 'direct',
+    topics: ['creativity', 'courage', 'connection'],
+    title: 'להראות למישהו',
+    body: 'עבודה שאף אחד לא ראה היא עבודה שעדיין לא נגמרה.',
+    action: 'שלח דבר אחד שעשית לאדם אחד. בלי הסברים ובלי התנצלות.',
+  },
+  {
+    id: 'cre_restart_blank', type: 'tip', category: 'creativity', size: 'micro', tone: 'stoic',
+    topics: ['creativity', 'starting'],
+    title: 'לפתוח דף חדש',
+    body: 'לפעמים העריכה של הישן עולה יותר מלכתוב מחדש.',
+    action: 'קח את מה שתקוע ותכתוב אותו מאפס בחמש דקות, בלי להסתכל.',
+  },
+  {
+    id: 'cre_walk_no_input', type: 'action', category: 'creativity', size: 'standard', tone: 'gentle',
+    topics: ['creativity', 'outdoors', 'ideation'],
+    title: 'לצאת בלי קלט',
+    body: 'הראש לא מייצר כשהוא כל הזמן קולט.',
+    action: 'צא עשר דקות בלי פודקאסט, בלי מוזיקה ובלי טלפון.',
+    easier: 'חמש דקות. אותו כלל.',
+  },
+  {
+    id: 'cre_name_it', type: 'action', category: 'creativity', size: 'micro', tone: 'practical',
+    topics: ['creativity', 'writing'],
+    title: 'לתת שם',
+    body: 'לפרויקט בלי שם קשה יותר לחזור.',
+    action: 'תן שם לדבר שאתה עובד עליו. גם שם זמני.',
+  },
+  {
+    id: 'cre_limit_tools', type: 'tip', category: 'creativity', size: 'micro', tone: 'stoic',
+    topics: ['creativity', 'ideation'],
+    title: 'כלי אחד',
+    body: 'הבחירה בין שבעה כלים היא לא יצירה, היא דחיינות מסודרת.',
+    action: 'בחר כלי אחד לעבודה של היום. סגור את השאר.',
+  },
+
+  /* ---------------------------------------------------------------- learning */
+  {
+    id: 'lea_one_page', type: 'action', category: 'learning', size: 'micro', tone: 'practical',
+    topics: ['learning', 'curiosity'],
+    title: 'עמוד אחד',
+    body: 'ספר שנקרא עמוד ביום נגמר. ספר שמחכה ל"זמן פנוי" לא.',
+    action: 'קרא עמוד אחד. אחד מספיק כדי שהספר יישאר פתוח.',
+  },
+  {
+    id: 'lea_explain_loud', type: 'action', category: 'learning', size: 'micro', tone: 'practical',
+    topics: ['learning', 'memory'],
+    title: 'להגיד בקול',
+    body: 'המקום שבו תיתקע בהסבר הוא בדיוק המקום שלא הבנת.',
+    action: 'הסבר בקול רם, לעצמך, דבר אחד שלמדת השבוע.',
+  },
+  {
+    id: 'lea_question_first', type: 'tip', category: 'learning', size: 'micro', tone: 'stoic',
+    topics: ['learning', 'curiosity'],
+    title: 'שאלה לפני חומר',
+    body: 'מי שקורא עם שאלה מוצא. מי שקורא בלי — עובר.',
+    action: 'לפני שתקרא משהו היום, כתוב מה אתה רוצה לדעת ממנו.',
+  },
+  {
+    id: 'lea_spaced', type: 'tip', category: 'learning', size: 'micro', tone: 'practical',
+    topics: ['learning', 'memory'],
+    title: 'לחזור מחר, לא היום',
+    body: 'חזרה כשקצת שכחת שווה יותר מחזרה כשעדיין זוכרים.',
+    action: 'קבע תזכורת למחר לחזור לדבר שלמדת היום. שתי דקות.',
+  },
+  {
+    id: 'lea_ask_dumb', type: 'action', category: 'learning', size: 'micro', tone: 'humorous',
+    topics: ['learning', 'courage', 'curiosity'],
+    title: 'השאלה הטיפשה',
+    body: 'כולם בחדר רוצים שמישהו ישאל אותה.',
+    action: 'שאל היום שאלה אחת שנראית לך בסיסית מדי.',
+  },
+  {
+    id: 'lea_source_check', type: 'tip', category: 'learning', size: 'micro', tone: 'direct',
+    topics: ['learning', 'curiosity'],
+    title: 'מי אמר את זה',
+    body: 'רוב מה שאנחנו "יודעים" הגיע ממישהו שגם הוא שמע.',
+    action: 'קח עובדה אחת שאתה חוזר עליה ובדוק מאיפה היא.',
+  },
+  {
+    id: 'lea_notebook_line', type: 'action', category: 'learning', size: 'micro', tone: 'gentle',
+    topics: ['learning', 'writing'],
+    title: 'שורה אחת מהיום',
+    body: 'למידה שלא נרשמה נמחקת תוך שבוע.',
+    action: 'רשום שורה אחת: מה למדתי היום, גם אם זה קטן.',
+  },
+  {
+    id: 'lea_wrong_on_purpose', type: 'tip', category: 'learning', size: 'standard', tone: 'stoic',
+    topics: ['learning', 'memory'],
+    title: 'לנחש לפני שבודקים',
+    body: 'ניחוש שגוי מקבע את התשובה הנכונה חזק יותר מקריאה שלה.',
+    action: 'לפני שאתה בודק משהו — נחש. ואז בדוק.',
+  },
+  {
+    id: 'lea_teach_back', type: 'action', category: 'learning', size: 'stretch', tone: 'practical',
+    topics: ['learning', 'connection'],
+    title: 'ללמד מישהו',
+    body: 'ההסבר הראשון תמיד חושף את החורים.',
+    action: 'ספר למישהו 10 דקות על משהו שלמדת. תן לו לשאול.',
+    easier: 'כתוב את זה במקום להגיד.',
+  },
+  {
+    id: 'lea_finish_book', type: 'tip', category: 'learning', size: 'micro', tone: 'direct',
+    topics: ['learning', 'priorities'],
+    title: 'מותר לזרוק ספר',
+    body: 'לסיים ספר משעמם זה לא משמעת, זה בזבוז.',
+    action: 'בחר: או שאתה קורא בו 10 דקות היום, או שאתה מוותר עליו.',
+  },
+  {
+    id: 'lea_watch_less', type: 'tip', category: 'learning', size: 'micro', tone: 'humorous',
+    topics: ['learning', 'digital'],
+    title: 'סרטון אחד, ואז תרגול',
+    body: 'לצפות בעשרה סרטונים על גיטרה זה לא לנגן בגיטרה.',
+    action: 'אחרי הסרטון הבא — עשה חמש דקות של הדבר עצמו.',
+  },
+  {
+    id: 'lea_glossary', type: 'action', category: 'learning', size: 'micro', tone: 'practical',
+    topics: ['learning', 'memory'],
+    title: 'מילה אחת שלא הבנת',
+    body: 'הרשימה של מה שמעמידים פנים שמבינים מתארכת בשקט.',
+    action: 'רשום מילה או מושג אחד שאתה לא באמת מבין, ובדוק אותו.',
+  },
+  {
+    id: 'lea_review_week', type: 'action', category: 'learning', size: 'standard', tone: 'stoic',
+    topics: ['learning', 'noticing'],
+    title: 'מה השתנה השבוע',
+    body: 'ידע נצבר בשקט וקשה לראות אותו בלי לעצור.',
+    action: 'רשום שלוש דקות: מה אתה יודע היום שלא ידעת לפני שבוע.',
+  },
+  {
+    id: 'lea_apply_one', type: 'tip', category: 'learning', size: 'micro', tone: 'direct',
+    topics: ['learning', 'starting'],
+    title: 'ליישם דבר אחד',
+    body: 'ספר שלא שינה שום דבר קטן הוא בידור, לא למידה.',
+    action: 'קח דבר אחד שקראת החודש ועשה איתו משהו היום.',
+  },
+  {
+    id: 'lea_beginner_again', type: 'quote', category: 'learning', size: 'micro', tone: 'gentle',
+    topics: ['learning', 'self-compassion'],
+    title: 'להיות מתחיל שוב',
+    body: 'הכי קשה בלימוד דבר חדש זה לוותר על להיות טוב במשהו.',
+    action: 'נסה חמש דקות משהו שאתה גרוע בו. בכוונה.',
+  },
+
+  /* -------------------------------------------------------------- resilience */
+  {
+    id: 'res_smallest_step', type: 'action', category: 'resilience', size: 'micro', tone: 'gentle',
+    topics: ['resilience', 'starting', 'self-compassion'], safe: true,
+    title: 'הצעד הכי קטן',
+    body: 'לא הצעד הנכון. הכי קטן.',
+    action: 'כתוב מה הדבר הקטן ביותר שאתה מוכן לעשות עכשיו. ועשה אותו.',
+  },
+  {
+    id: 'res_hard_day_list', type: 'action', category: 'resilience', size: 'micro', tone: 'gentle',
+    topics: ['self-compassion', 'resilience'], safe: true,
+    title: 'רשימה של יום קשה',
+    body: 'ביום כזה כדאי שההחלטות כבר יהיו מוכנות מראש.',
+    action: 'כתוב שלושה דברים שעוזרים לך ביום קשה. שמור אותם.',
+  },
+  {
+    id: 'res_this_too', type: 'quote', category: 'resilience', size: 'micro', tone: 'gentle',
+    topics: ['resilience', 'self-compassion'], safe: true,
+    title: 'גם זה חלק',
+    body: 'לא כל יום אמור להיות טוב. חלק מהם רק צריכים לעבור.',
+    action: 'תן לעצמך את היום הזה בלי לדרוש ממנו כלום.',
+  },
+  {
+    id: 'res_shower_reset', type: 'action', category: 'resilience', size: 'micro', tone: 'gentle',
+    topics: ['self-care', 'basics'], safe: true,
+    title: 'מקלחת כאיפוס',
+    body: 'לא פתרון. הפסקה בין החלק הראשון של היום לשני.',
+    action: 'לך להתקלח. בלי לחשוב מה אחר כך.',
+  },
+  {
+    id: 'res_open_window', type: 'action', category: 'resilience', size: 'micro', tone: 'gentle',
+    topics: ['self-care', 'basics', 'calm'], safe: true,
+    title: 'לפתוח חלון',
+    body: 'האוויר בחדר סגור מרגיש בדיוק כמו המחשבות בו.',
+    action: 'פתח חלון ועמוד לידו דקה.',
+  },
+  {
+    id: 'res_who_helps', type: 'action', category: 'resilience', size: 'micro', tone: 'gentle',
+    topics: ['relationships', 'self-compassion'], safe: true,
+    title: 'מי מקל עליך',
+    body: 'לא צריך לספר לו כלום. רק להיות בקשר.',
+    action: 'שלח הודעה קצרה לאדם שנעים לך איתו.',
+  },
+  {
+    id: 'res_worst_case', type: 'tip', category: 'resilience', size: 'standard', tone: 'stoic',
+    topics: ['resilience', 'control'],
+    title: 'לכתוב את התרחיש הגרוע',
+    body: 'פחד שנשאר מעורפל גדל. פחד שנכתב מקבל גודל.',
+    action: 'כתוב מה הכי גרוע שיכול לקרות, ומה תעשה אז. שלוש שורות.',
+  },
+  {
+    id: 'res_not_forever', type: 'quote', category: 'resilience', size: 'micro', tone: 'stoic',
+    topics: ['resilience', 'control'],
+    title: 'זמני, לא קבוע',
+    body: 'המוח מספר על כל מצב שהוא לתמיד. הוא טועה בזה בעקביות.',
+    action: 'שאל: איך זה ייראה בעוד חודש? רשום משפט אחד.',
+  },
+  {
+    id: 'res_one_kind_thing', type: 'action', category: 'resilience', size: 'micro', tone: 'gentle',
+    topics: ['self-compassion', 'self-care'], safe: true,
+    title: 'דבר אחד טוב לעצמך',
+    body: 'לא פינוק. משהו קטן שאתה יודע שעוזר לך.',
+    action: 'עשה דבר אחד קטן שהוא בשבילך. עכשיו, לא בערב.',
+  },
+  {
+    id: 'res_lower_bar', type: 'tip', category: 'resilience', size: 'micro', tone: 'gentle',
+    topics: ['self-compassion', 'priorities'], safe: true,
+    title: 'להוריד את הרף בכוונה',
+    body: 'רף שלא מתאים ליום מייצר כישלון שלא היה צריך לקרות.',
+    action: 'בחר משימה אחת והורד לה את הרף בחצי. בכוונה.',
+  },
+  {
+    id: 'res_no_decision', type: 'tip', category: 'resilience', size: 'micro', tone: 'stoic',
+    topics: ['resilience', 'control'],
+    title: 'לא להחליט היום',
+    body: 'החלטה גדולה ביום עייף היא כמעט תמיד החלטה גרועה.',
+    action: 'דחה החלטה אחת ליום אחר. רשום מתי תחזור אליה.',
+  },
+  {
+    id: 'res_five_min_rule', type: 'tip', category: 'resilience', size: 'micro', tone: 'practical',
+    topics: ['starting', 'resilience'],
+    title: 'חמש דקות ואז מותר',
+    body: 'ההסכמה מראש להפסיק היא מה שמאפשר להתחיל.',
+    action: 'עשה חמש דקות ממה שנמנעת ממנו. מותר לעצור אחריהן.',
+  },
+  {
+    id: 'res_evidence', type: 'action', category: 'resilience', size: 'standard', tone: 'practical',
+    topics: ['resilience', 'self-compassion'],
+    title: 'ראיות נגד',
+    body: 'המחשבה "אני תמיד נכשל" היא טענה. אפשר לבדוק אותה.',
+    action: 'כתוב שתי דוגמאות שסותרות את המשפט שאתה אומר לעצמך.',
+  },
+  {
+    id: 'res_ask_for_help', type: 'action', category: 'resilience', size: 'micro', tone: 'direct',
+    topics: ['courage', 'connection', 'resilience'],
+    title: 'לבקש עזרה בדבר אחד',
+    body: 'אנשים אוהבים לעזור הרבה יותר ממה שנוח לנו להאמין.',
+    action: 'בקש עזרה בדבר אחד קטן היום.',
+  },
+  {
+    id: 'res_end_the_day', type: 'action', category: 'resilience', size: 'micro', tone: 'gentle',
+    topics: ['evening', 'self-compassion'], safe: true,
+    title: 'להכריז שהיום נגמר',
+    body: 'יום שלא הוכרז כגמור ממשיך לגבות מחיר בערב.',
+    action: 'אמור לעצמך: "זה מה שהיה היום, וזה בסדר". וסגור.',
+  },
+
+  /* --------------------------------------------------------------- gratitude */
+  {
+    id: 'gra_person_today', type: 'action', category: 'gratitude', size: 'micro', tone: 'gentle',
+    topics: ['gratitude', 'relationships'], safe: true,
+    title: 'אדם אחד מהיום',
+    body: 'מישהו עשה משהו קטן היום שהקל עליך.',
+    action: 'שים לב מי זה היה. אם אפשר — תגיד לו.',
+  },
+  {
+    id: 'gra_old_photo', type: 'action', category: 'gratitude', size: 'micro', tone: 'gentle',
+    topics: ['gratitude', 'noticing'], safe: true,
+    title: 'תמונה אחת ישנה',
+    body: 'הראש זוכר את מה שחסר. הטלפון זוכר את מה שהיה.',
+    action: 'פתח תמונה מלפני שנה ותסתכל עליה דקה.',
+  },
+  {
+    id: 'gra_thing_that_works', type: 'action', category: 'gratitude', size: 'micro', tone: 'humorous',
+    topics: ['gratitude', 'noticing'],
+    title: 'דבר שפשוט עובד',
+    body: 'המקרר עובד. אף אחד לא מודה למקרר.',
+    action: 'שים לב לדבר אחד שעובד ולא חשבת עליו אף פעם.',
+  },
+  {
+    id: 'gra_hard_thing_past', type: 'action', category: 'gratitude', size: 'standard', tone: 'stoic',
+    topics: ['gratitude', 'resilience'],
+    title: 'משהו שכבר עברת',
+    body: 'היה דבר שנראה בלתי אפשרי, ואתה כאן.',
+    action: 'רשום דבר אחד קשה שכבר עבר. תזכיר לעצמך איך.',
+  },
+  {
+    id: 'gra_write_letter', type: 'action', category: 'gratitude', size: 'stretch', tone: 'gentle',
+    topics: ['gratitude', 'relationships', 'writing'],
+    title: 'מכתב שלא תשלח',
+    body: 'לכתוב תודה שלמה למישהו משנה משהו גם אם הוא לא יקרא אותה.',
+    action: 'כתוב 10 דקות מכתב תודה לאדם אחד. תחליט אחר כך אם לשלוח.',
+    easier: 'פסקה אחת.',
+  },
+  {
+    id: 'gra_body_thanks', type: 'action', category: 'gratitude', size: 'micro', tone: 'gentle',
+    topics: ['gratitude', 'self-care', 'noticing'], safe: true,
+    title: 'משהו שהגוף עשה',
+    body: 'הוא נשא אותך כל היום ובעיקר מקבל ביקורת.',
+    action: 'שים לב לדבר אחד שהגוף שלך עשה טוב היום.',
+  },
+  {
+    id: 'gra_place', type: 'action', category: 'gratitude', size: 'micro', tone: 'gentle',
+    topics: ['gratitude', 'noticing', 'environment'], safe: true,
+    title: 'פינה אחת בבית',
+    body: 'יש מקום אחד שאתה אוהב להיות בו והפסקת לשים לב אליו.',
+    action: 'שב בו שתי דקות בלי טלפון.',
+  },
+  {
+    id: 'gra_thank_worker', type: 'action', category: 'gratitude', size: 'micro', tone: 'practical',
+    topics: ['gratitude', 'connection'], safe: true,
+    title: 'תודה למי שלא מקבל',
+    body: 'הקופאית, הנהג, מי שמנקה. הם שומעים תודה פחות משנדמה לך.',
+    action: 'אמור תודה אחת עם קשר עין. משפט אחד.',
+  },
+  {
+    id: 'gra_no_but', type: 'tip', category: 'gratitude', size: 'micro', tone: 'direct',
+    topics: ['gratitude', 'noticing'],
+    title: 'בלי "אבל"',
+    body: '"היה יום טוב, אבל..." מוחק את החצי הראשון.',
+    action: 'נסח משפט אחד על היום בלי המילה "אבל".',
+  },
+  {
+    id: 'gra_five_years', type: 'quote', category: 'gratitude', size: 'micro', tone: 'stoic',
+    topics: ['gratitude', 'noticing'],
+    title: 'מה שרצית לפני חמש שנים',
+    body: 'חלק ממה שיש לך היום היה פעם רשימת משאלות.',
+    action: 'רשום דבר אחד שיש לך היום ופעם רצית.',
+  },
+  {
+    id: 'gra_taste_it', type: 'action', category: 'gratitude', size: 'micro', tone: 'gentle',
+    topics: ['gratitude', 'attention'], safe: true,
+    title: 'לטעום באמת',
+    body: 'הביס הראשון הוא היחיד שמרגישים. אחר כך זה אוטומטי.',
+    action: 'את הביס הראשון הבא — אכול לאט, בלי מסך.',
+  },
+  {
+    id: 'gra_message_saved', type: 'action', category: 'gratitude', size: 'micro', tone: 'gentle',
+    topics: ['gratitude', 'relationships'], safe: true,
+    title: 'הודעה ששמרת',
+    body: 'מישהו כתב לך פעם משהו טוב, ואתה לא קראת אותו מאז.',
+    action: 'חפש הודעה טובה שקיבלת וקרא אותה שוב.',
+  },
+  {
+    id: 'gra_three_senses', type: 'action', category: 'gratitude', size: 'micro', tone: 'gentle',
+    topics: ['gratitude', 'noticing', 'attention'], safe: true,
+    title: 'שלושה דברים נעימים',
+    body: 'לא גדולים. נעימים.',
+    action: 'מצא שלושה דברים נעימים ברגע הזה. חום, ריח, שקט.',
+  },
+  {
+    id: 'gra_future_self', type: 'action', category: 'gratitude', size: 'micro', tone: 'practical',
+    topics: ['gratitude', 'order'], safe: true,
+    title: 'תודה מהאתה של מחר',
+    body: 'הדרך הזולה ביותר להיות נחמד לעצמך היא לעשות דבר קטן היום.',
+    action: 'עשה דבר אחד קטן שהאתה של מחר יודה לך עליו.',
+  },
+  {
+    id: 'gra_worst_year', type: 'quote', category: 'gratitude', size: 'micro', tone: 'stoic',
+    topics: ['gratitude', 'resilience'],
+    title: 'מישהו היה רוצה את היום שלך',
+    body: 'זה לא נועד להשתיק אותך. רק לפתוח עוד זווית.',
+    action: 'רשום דבר אחד ביום שלך שלא מובן מאליו.',
+  },
+];
+
+  return {
+    "SPARKS_MIND2": SPARKS_MIND2,
+  };
+})();
+
+__m["dailyspark/src/data/sparks.life2.js"] = (function () {
+/*
+ * sparks.life2.js — the second volume for relationships, sleep, money and
+ * courage.
+ *
+ * The two constrained categories keep their constraints. Nothing in `money`
+ * tells anyone what to buy, sell or invest in — every entry is about attention
+ * and decisions — and nothing in it is marked safe, because a fragile day is
+ * not the day to open a banking app. Nothing in `sleep` makes a medical claim
+ * or promises a result; the entries are about the hours before bed, which is
+ * the part a person can act on.
+ */
+
+const SPARKS_LIFE2 = [
+  /* ----------------------------------------------------------- relationships */
+  {
+    id: 'rel_voice_note', type: 'action', category: 'relationships', size: 'micro', tone: 'gentle',
+    topics: ['connection', 'relationships'], safe: true,
+    title: 'הודעה קולית',
+    body: 'הקול מעביר דברים שטקסט לא. גם חצי דקה.',
+    action: 'שלח הודעה קולית קצרה למישהו במקום לכתוב.',
+  },
+  {
+    id: 'rel_specific_compliment', type: 'tip', category: 'relationships', size: 'micro', tone: 'practical',
+    topics: ['relationships', 'connection'], safe: true,
+    title: 'מחמאה ספציפית',
+    body: '"אתה מדהים" נשכח. "האופן שבו טיפלת בזה אתמול" נשאר.',
+    action: 'תן מחמאה אחת עם פרט מדויק בתוכה.',
+  },
+  {
+    id: 'rel_no_phone_convo', type: 'action', category: 'relationships', size: 'micro', tone: 'direct',
+    topics: ['relationships', 'attention', 'digital'],
+    title: 'הטלפון על השולחן',
+    body: 'טלפון גלוי מוריד את איכות השיחה גם כשלא נוגעים בו.',
+    action: 'בשיחה הבאה — שים אותו בכיס. לא הפוך על השולחן.',
+  },
+  {
+    id: 'rel_old_friend', type: 'action', category: 'relationships', size: 'standard', tone: 'gentle',
+    topics: ['relationships', 'connection'],
+    title: 'חבר מלפני שנים',
+    body: 'הזמן שעבר מרגיש כמו מכשול רק לצד אחד. בדרך כלל לשניהם.',
+    action: 'כתוב למישהו שלא דיברת איתו שנה. "עלית לי בראש" מספיק.',
+  },
+  {
+    id: 'rel_ask_about_them', type: 'tip', category: 'relationships', size: 'micro', tone: 'practical',
+    topics: ['listening', 'connection'], safe: true,
+    title: 'לשאול על מה שהוא סיפר',
+    body: 'הזכירה של פרט משיחה קודמת שווה יותר מכל מחמאה.',
+    action: 'שאל מישהו על דבר שהוא סיפר לך בפעם הקודמת.',
+  },
+  {
+    id: 'rel_family_call', type: 'action', category: 'relationships', size: 'standard', tone: 'gentle',
+    topics: ['family', 'connection'],
+    title: 'שיחה שדחית',
+    body: 'היא לא תהיה קלה יותר בשבוע הבא. רק ארוכה יותר.',
+    action: 'התקשר. חמש דקות מספיקות.',
+    easier: 'שלח הודעה עכשיו וקבע מתי תתקשר.',
+  },
+  {
+    id: 'rel_say_sorry', type: 'action', category: 'relationships', size: 'micro', tone: 'direct',
+    topics: ['relationships', 'courage'],
+    title: 'סליחה בלי "אבל"',
+    body: '"סליחה, אבל" זו לא סליחה. זו הגנה.',
+    action: 'התנצל על דבר אחד. משפט אחד, בלי הסבר.',
+  },
+  {
+    id: 'rel_plan_it', type: 'action', category: 'relationships', size: 'micro', tone: 'practical',
+    topics: ['relationships', 'connection'],
+    title: 'לקבוע תאריך',
+    body: '"נצא מתישהו" זה לא תוכנית. זה נימוס.',
+    action: 'הצע תאריך מדויק למישהו. יום ושעה.',
+  },
+  {
+    id: 'rel_listen_full', type: 'tip', category: 'relationships', size: 'micro', tone: 'stoic',
+    topics: ['listening', 'attention'],
+    title: 'לא להכין תשובה',
+    body: 'רוב מה שנקרא הקשבה זה המתנה מנומסת לתור לדבר.',
+    action: 'בשיחה הבאה — אל תכין את התשובה בזמן שהוא מדבר.',
+  },
+  {
+    id: 'rel_kid_question', type: 'action', category: 'relationships', size: 'micro', tone: 'gentle',
+    topics: ['family', 'listening'],
+    title: 'שאלה אחרת לילד',
+    body: '"איך היה בגן" מקבל "בסדר" כי זו שאלה גדולה מדי.',
+    action: 'שאל: "מה היה הדבר הכי מצחיק היום?"',
+  },
+  {
+    id: 'rel_partner_thanks', type: 'action', category: 'relationships', size: 'micro', tone: 'gentle',
+    topics: ['relationships', 'gratitude'], safe: true,
+    title: 'תודה על דבר שגרתי',
+    body: 'הדברים שנעשים כל יום מפסיקים להיראות.',
+    action: 'תודה למישהו קרוב על דבר שהוא עושה תמיד.',
+  },
+  {
+    id: 'rel_no_advice', type: 'tip', category: 'relationships', size: 'micro', tone: 'practical',
+    topics: ['listening', 'relationships'], safe: true,
+    title: 'לשאול אם רוצים עצה',
+    body: 'שתי מילים חוסכות שיחה שלמה שהולכת לאיבוד.',
+    action: 'שאל: "אתה רוצה עצה או שאני רק אקשיב?"',
+  },
+  {
+    id: 'rel_intro_two', type: 'action', category: 'relationships', size: 'micro', tone: 'practical',
+    topics: ['connection', 'relationships'],
+    title: 'לחבר בין שניים',
+    body: 'החיבור הכי יעיל שאתה יכול לעשות לוקח שתי דקות.',
+    action: 'חבר בין שני אנשים שכדאי שיכירו. הודעה אחת.',
+  },
+  {
+    id: 'rel_apologize_late', type: 'action', category: 'relationships', size: 'standard', tone: 'gentle',
+    topics: ['relationships', 'courage'],
+    title: 'מאוחר זה עדיין בסדר',
+    body: 'אף אחד לא אמר "עדיף שלא היית מתנצל, עברו שנתיים".',
+    action: 'כתוב למי שמגיע לו. גם אם עבר הרבה זמן.',
+  },
+  {
+    id: 'rel_be_there', type: 'action', category: 'relationships', size: 'micro', tone: 'gentle',
+    topics: ['connection', 'relationships'], safe: true,
+    title: 'להיות בסביבה',
+    body: 'לא צריך לומר את הדבר הנכון. צריך להיות שם.',
+    action: 'שלח למישהו שעובר תקופה: "אני כאן". בלי יותר.',
+  },
+
+  /* ------------------------------------------------------------------- sleep */
+  {
+    id: 'sle_caffeine_cut', type: 'tip', category: 'sleep', size: 'micro', tone: 'practical',
+    topics: ['sleep', 'energy'],
+    title: 'הקפה האחרון',
+    body: 'קפאין נשאר במערכת שעות אחרי שהפסקת להרגיש אותו.',
+    action: 'קבע לעצמך שעה אחרונה לקפה. מספר אחד, ורשום אותו.',
+  },
+  {
+    id: 'sle_bed_for_sleep', type: 'tip', category: 'sleep', size: 'micro', tone: 'stoic',
+    topics: ['sleep', 'evening'],
+    title: 'המיטה היא למיטה',
+    body: 'מיטה שעובדים בה מפסיקה להיות סימן לשינה.',
+    action: 'החלט: היום לא עובדים ולא גוללים במיטה.',
+  },
+  {
+    id: 'sle_dim_lights', type: 'action', category: 'sleep', size: 'micro', tone: 'gentle',
+    topics: ['sleep', 'evening', 'calm'], safe: true,
+    title: 'להוריד אור',
+    body: 'הגוף קורא אור חזק בערב כאילו זה עדיין יום.',
+    action: 'כבה מנורה אחת עכשיו, או עבור לאור נמוך.',
+  },
+  {
+    id: 'sle_worry_time', type: 'tip', category: 'sleep', size: 'standard', tone: 'practical',
+    topics: ['sleep', 'evening', 'resilience'],
+    title: 'זמן דאגות קבוע',
+    body: 'דאגות שיש להן שעה מפסיקות לחכות לך במיטה.',
+    action: 'קבע 10 דקות בערב לכתוב מה מטריד. לא במיטה.',
+    easier: 'חמש דקות. שלוש שורות.',
+  },
+  {
+    id: 'sle_same_wake', type: 'tip', category: 'sleep', size: 'micro', tone: 'stoic',
+    topics: ['sleep', 'morning'],
+    title: 'לקום באותה שעה',
+    body: 'שעת הקימה מייצבת את הלילה יותר משעת השינה.',
+    action: 'קבע שעת קימה אחת לשבוע הקרוב, כולל סוף שבוע.',
+  },
+  {
+    id: 'sle_no_nap_late', type: 'tip', category: 'sleep', size: 'micro', tone: 'practical',
+    topics: ['sleep', 'energy'],
+    title: 'נמנום קצר ומוקדם',
+    body: 'עשרים דקות בצהריים עוזרות. שעה בחמש גובה מהלילה.',
+    action: 'אם אתה נם היום — טיימר ל-20 דקות, ולא אחרי 15:00.',
+  },
+  {
+    id: 'sle_socks_cool', type: 'tip', category: 'sleep', size: 'micro', tone: 'humorous',
+    topics: ['sleep', 'evening'],
+    title: 'חדר קריר',
+    body: 'הגוף צריך לרדת בטמפרטורה כדי להירדם. חדר חם מפריע לו.',
+    action: 'הורד קצת את הטמפרטורה בחדר או פתח חלון לפני השינה.',
+  },
+  {
+    id: 'sle_bedtime_alarm', type: 'action', category: 'sleep', size: 'micro', tone: 'direct',
+    topics: ['sleep', 'evening'],
+    title: 'שעון לשינה, לא לקימה',
+    body: 'כולנו מכוונים שעון לבוקר. אף אחד לא מכוון לערב.',
+    action: 'קבע תזכורת יומית 30 דקות לפני השעה שאתה רוצה לישון.',
+  },
+  {
+    id: 'sle_last_scroll', type: 'action', category: 'sleep', size: 'micro', tone: 'humorous',
+    topics: ['sleep', 'digital', 'evening'],
+    title: 'הגלילה האחרונה',
+    body: '"עוד חמש דקות" זה אף פעם לא חמש דקות.',
+    action: 'שים טיימר של 5 דקות לגלילה של הערב. כשהוא מצלצל — נגמר.',
+  },
+  {
+    id: 'sle_morning_light_walk', type: 'action', category: 'sleep', size: 'standard', tone: 'gentle',
+    topics: ['sleep', 'morning', 'outdoors'],
+    title: 'אור בבוקר',
+    body: 'מה שקובע את הלילה מתחיל בשעה הראשונה של היום.',
+    action: 'צא החוצה לחמש דקות בשעה הראשונה מחר בבוקר.',
+    easier: 'שב ליד חלון פתוח עם הקפה.',
+  },
+  {
+    id: 'sle_book_not_screen', type: 'action', category: 'sleep', size: 'standard', tone: 'gentle',
+    topics: ['sleep', 'evening', 'learning'],
+    title: 'ספר במקום מסך',
+    body: 'לא בגלל האור. בגלל שספר לא נגמר בהתראה.',
+    action: 'קרא 10 דקות לפני השינה במקום לגלול.',
+    easier: 'חמישה עמודים. או שלושה.',
+  },
+  {
+    id: 'sle_wind_signal', type: 'tip', category: 'sleep', size: 'micro', tone: 'practical',
+    topics: ['sleep', 'evening'], safe: true,
+    title: 'סימן קבוע',
+    body: 'הגוף מגיב לרמז חוזר מהר יותר מאשר להחלטה.',
+    action: 'בחר פעולה קבועה שמסמנת "הערב נגמר". תה, שיניים, מנורה.',
+  },
+  {
+    id: 'sle_get_up', type: 'tip', category: 'sleep', size: 'micro', tone: 'stoic',
+    topics: ['sleep', 'evening'],
+    title: 'לקום אם לא נרדמים',
+    body: 'לשכב ער ולהתעצבן מלמד את הגוף שהמיטה היא מקום של מתח.',
+    action: 'אם עברו 20 דקות ולא נרדמת — קום, שב באור נמוך, וחזור כשעייף.',
+  },
+  {
+    id: 'sle_alarm_across', type: 'action', category: 'sleep', size: 'micro', tone: 'humorous',
+    topics: ['sleep', 'morning'],
+    title: 'שעון בצד השני',
+    body: 'ההחלטה הכי קשה של היום נעשית בחמש שניות של חצי שינה.',
+    action: 'הנח הערב את הטלפון בצד השני של החדר.',
+  },
+  {
+    id: 'sle_no_math', type: 'tip', category: 'sleep', size: 'micro', tone: 'gentle',
+    topics: ['sleep', 'calm'], safe: true,
+    title: 'לא לחשב שעות',
+    body: '"אם אירדם עכשיו יישארו לי חמש שעות" מרחיק את השינה, לא מקרב.',
+    action: 'אם תפסת את עצמך מחשב — הפסק. פשוט תשכב.',
+  },
+
+  /* ------------------------------------------------------------------- money */
+  {
+    id: 'mon_check_balance', type: 'action', category: 'money', size: 'micro', tone: 'stoic',
+    topics: ['money', 'noticing'],
+    title: 'להסתכל',
+    body: 'ההימנעות מלהסתכל עולה יותר מכל מה שתראה.',
+    action: 'פתח את האפליקציה של הבנק והסתכל. רק להסתכל.',
+  },
+  {
+    id: 'mon_cart_wait', type: 'tip', category: 'money', size: 'micro', tone: 'practical',
+    topics: ['money', 'spending'],
+    title: 'להשאיר בעגלה',
+    body: 'רוב העגלות הנטושות היו קניות שלא היו צריכות לקרות.',
+    action: 'הדבר שאתה עומד לקנות — השאר בעגלה עד מחר.',
+  },
+  {
+    id: 'mon_price_per_use', type: 'tip', category: 'money', size: 'micro', tone: 'practical',
+    topics: ['money', 'spending'],
+    title: 'מחיר לשימוש',
+    body: 'לא כמה זה עולה. כמה זה עולה לפעם.',
+    action: 'קח דבר שאתה שוקל לקנות וחלק במספר הפעמים שתשתמש בו.',
+  },
+  {
+    id: 'mon_one_number', type: 'action', category: 'money', size: 'standard', tone: 'direct',
+    topics: ['money', 'noticing'],
+    title: 'מספר אחד שאתה לא יודע',
+    body: 'רוב הלחץ סביב כסף הוא ערפל, לא מספרים.',
+    action: 'בחר מספר אחד שאתה לא יודע — הוצאות החודש, ריבית — וגלה אותו.',
+  },
+  {
+    id: 'mon_cash_day', type: 'action', category: 'money', size: 'standard', tone: 'stoic',
+    topics: ['money', 'spending', 'noticing'],
+    title: 'יום אחד במזומן',
+    body: 'כרטיס לא מרגיש. שטר כן.',
+    action: 'שלם היום במזומן בכל מה שאפשר. שים לב מה זה עושה.',
+  },
+  {
+    id: 'mon_list_before', type: 'tip', category: 'money', size: 'micro', tone: 'practical',
+    topics: ['money', 'spending', 'order'],
+    title: 'רשימה לפני הכניסה',
+    body: 'הרשימה נכתבת כשאתה שבע. הקניות נעשות כשאתה רעב.',
+    action: 'לפני הקנייה הבאה — כתוב רשימה. גם אם קצרה.',
+  },
+  {
+    id: 'mon_recurring_audit', type: 'action', category: 'money', size: 'stretch', tone: 'direct',
+    topics: ['money', 'spending', 'order'],
+    title: 'כל ההוראות',
+    body: 'הכסף שיוצא אוטומטית הוא הכסף שאף פעם לא נבדק.',
+    action: 'עבור 15 דקות על כל החיובים הקבועים. סמן שניים לבדיקה.',
+    easier: 'רק החודש האחרון, רק החיובים הקבועים.',
+  },
+  {
+    id: 'mon_want_need', type: 'tip', category: 'money', size: 'micro', tone: 'stoic',
+    topics: ['money', 'spending'],
+    title: 'רוצה או פותר',
+    body: 'שאלה טובה יותר מ"צריך או לא": איזו בעיה זה פותר?',
+    action: 'קח קנייה מתוכננת ושאל איזו בעיה בדיוק היא פותרת.',
+  },
+  {
+    id: 'mon_small_win', type: 'action', category: 'money', size: 'micro', tone: 'practical',
+    topics: ['money'],
+    title: 'סכום קטן הצידה',
+    body: 'ההרגל חשוב יותר מהסכום, ובהתחלה הרבה יותר.',
+    action: 'העבר סכום קטן לחיסכון. כל סכום. עכשיו.',
+  },
+  {
+    id: 'mon_talk_about_it', type: 'action', category: 'money', size: 'standard', tone: 'gentle',
+    topics: ['money', 'relationships'],
+    title: 'לדבר על זה',
+    body: 'כסף הוא הנושא שהכי הרבה זוגות רבים עליו והכי מעט מדברים עליו.',
+    action: 'קבע שיחה של 10 דקות על כסף עם מי שרלוונטי. רק לקבוע.',
+  },
+  {
+    id: 'mon_unfollow_ads', type: 'action', category: 'money', size: 'micro', tone: 'humorous',
+    topics: ['money', 'spending', 'digital'],
+    title: 'להסיר מעקב',
+    body: 'הרצון לקנות נבנה שבועיים לפני הקנייה, בפיד.',
+    action: 'הסר מעקב מחשבון אחד שגורם לך לרצות דברים.',
+  },
+  {
+    id: 'mon_yearly_math', type: 'tip', category: 'money', size: 'micro', tone: 'direct',
+    topics: ['money', 'spending'],
+    title: 'כפול שנים עשר',
+    body: 'ארבעים שקל בחודש זה כמעט חמש מאות בשנה.',
+    action: 'קח הוצאה חודשית קטנה אחת והכפל ב-12. תסתכל על המספר.',
+  },
+  {
+    id: 'mon_gift_time', type: 'tip', category: 'money', size: 'micro', tone: 'gentle',
+    topics: ['money', 'relationships'],
+    title: 'מתנה שהיא לא חפץ',
+    body: 'רוב האנשים זוכרים מי הגיע, לא מה קנה.',
+    action: 'במקום המתנה הבאה — הצע זמן. ארוחה, עזרה, סיבוב.',
+  },
+  {
+    id: 'mon_bill_check', type: 'action', category: 'money', size: 'standard', tone: 'practical',
+    topics: ['money', 'noticing'],
+    title: 'חשבון אחד',
+    body: 'טעויות בחיובים קורות, ורק מי שמסתכל מוצא אותן.',
+    action: 'פתח חשבון אחד — סלולר, חשמל, אינטרנט — ותקרא אותו עד הסוף.',
+  },
+  {
+    id: 'mon_future_you', type: 'tip', category: 'money', size: 'micro', tone: 'stoic',
+    topics: ['money', 'priorities'],
+    title: 'החלטה של פעם אחת',
+    body: 'החלטה אוטומטית עדיפה על משמעת חוזרת.',
+    action: 'הפוך החלטה כספית טובה שאתה עושה ידנית לאוטומטית.',
+  },
+
+  /* ----------------------------------------------------------------- courage */
+  {
+    id: 'cou_first_sentence', type: 'action', category: 'courage', size: 'micro', tone: 'direct',
+    topics: ['courage', 'starting'],
+    title: 'המשפט הראשון',
+    body: 'רוב מה שנדחה נתקע במשפט הפותח, לא בכל השאר.',
+    action: 'כתוב רק את המשפט הראשון של הדבר שאתה דוחה.',
+  },
+  {
+    id: 'cou_say_no_today', type: 'action', category: 'courage', size: 'micro', tone: 'stoic',
+    topics: ['boundaries', 'priorities'],
+    title: 'סירוב אחד',
+    body: 'כל "כן" מנומס הוא "לא" למשהו אחר שלא שאלו אותך עליו.',
+    action: 'סרב היום לדבר אחד. במשפט אחד, בלי הסבר ארוך.',
+  },
+  {
+    id: 'cou_ask_raise', type: 'action', category: 'courage', size: 'stretch', tone: 'direct',
+    topics: ['courage', 'boundaries'],
+    title: 'להכין את הבקשה',
+    body: 'בקשה מוכנה נשמעת אחרת לגמרי מבקשה מאולתרת.',
+    action: 'כתוב 15 דקות מה אתה רוצה לבקש ולמה מגיע לך. רק להכין.',
+    easier: 'שלוש נקודות. בלי לנסח יפה.',
+  },
+  {
+    id: 'cou_public_thing', type: 'action', category: 'courage', size: 'standard', tone: 'direct',
+    topics: ['courage', 'creativity'],
+    title: 'לפרסם משהו',
+    body: 'הפעם הראשונה היא הכי מפחידה ואף אחד לא זוכר אותה.',
+    action: 'פרסם דבר אחד קטן. פוסט, תמונה, שורה.',
+  },
+  {
+    id: 'cou_hard_conversation', type: 'action', category: 'courage', size: 'standard', tone: 'gentle',
+    topics: ['courage', 'relationships', 'boundaries'],
+    title: 'לפתוח את השיחה',
+    body: 'השיחה שאתה מפחד ממנה כבר קורית בראש שלך, רק בלעדיו.',
+    action: 'שלח הודעה: "יש משהו שאני רוצה לדבר איתך עליו".',
+  },
+  {
+    id: 'cou_stop_something', type: 'action', category: 'courage', size: 'micro', tone: 'stoic',
+    topics: ['courage', 'priorities'],
+    title: 'להפסיק דבר אחד',
+    body: 'לוותר על משהו שכבר לא עובד זה לא כישלון. זה מקום פנוי.',
+    action: 'רשום דבר אחד שאתה ממשיך רק בגלל אינרציה. תחליט לגביו.',
+  },
+  {
+    id: 'cou_admit_dont_know', type: 'action', category: 'courage', size: 'micro', tone: 'humorous',
+    topics: ['courage', 'learning'],
+    title: '"אני לא יודע"',
+    body: 'שלוש מילים שקונות יותר אמון מכל תשובה מעורפלת.',
+    action: 'אמור אותן היום פעם אחת, בלי להוסיף כלום אחריהן.',
+  },
+  {
+    id: 'cou_reply_now', type: 'action', category: 'courage', size: 'micro', tone: 'direct',
+    topics: ['courage', 'starting'],
+    title: 'ההודעה שנמנעת ממנה',
+    body: 'היא לא תיהפך לקלה יותר. היא רק תצבור אשמה.',
+    action: 'ענה עליה עכשיו. שתי שורות מספיקות.',
+  },
+  {
+    id: 'cou_ask_feedback', type: 'action', category: 'courage', size: 'standard', tone: 'practical',
+    topics: ['courage', 'learning', 'connection'],
+    title: 'לבקש ביקורת',
+    body: '"מה הייתי יכול לעשות טוב יותר" מקבל תשובות ש"מה דעתך" לא.',
+    action: 'בקש ממישהו אחד משוב על דבר ספציפי.',
+  },
+  {
+    id: 'cou_go_alone', type: 'action', category: 'courage', size: 'stretch', tone: 'gentle',
+    topics: ['courage', 'outdoors'],
+    title: 'ללכת לבד',
+    body: 'הרבה דברים לא קורים רק כי לא היה עם מי.',
+    action: 'לך לבד למקום שרצית. קפה, סרט, תערוכה.',
+    easier: 'קפה לבד. חצי שעה.',
+  },
+  {
+    id: 'cou_set_boundary', type: 'action', category: 'courage', size: 'micro', tone: 'stoic',
+    topics: ['boundaries', 'relationships'],
+    title: 'גבול אחד, בקול',
+    body: 'גבול שלא נאמר הוא לא גבול. הוא תסכול.',
+    action: 'אמור לאדם אחד מה לא עובד לך. במשפט, בלי האשמה.',
+  },
+  {
+    id: 'cou_apply_anyway', type: 'action', category: 'courage', size: 'standard', tone: 'direct',
+    topics: ['courage', 'starting'],
+    title: 'להגיש בכל זאת',
+    body: 'רוב האנשים שהתקבלו לא עמדו בכל התנאים.',
+    action: 'הגש למשהו שאתה לא בטוח שאתה מתאים לו. 10 דקות.',
+  },
+  {
+    id: 'cou_stop_explaining', type: 'tip', category: 'courage', size: 'micro', tone: 'direct',
+    topics: ['boundaries', 'courage'],
+    title: 'להפסיק להסביר',
+    body: 'הסבר ארוך הופך החלטה למשא ומתן.',
+    action: 'בפעם הבאה שתסרב — עצור אחרי משפט אחד.',
+  },
+  {
+    id: 'cou_one_percent', type: 'quote', category: 'courage', size: 'micro', tone: 'stoic',
+    topics: ['courage', 'starting'],
+    title: 'לא צריך להיות בטוח',
+    body: 'ודאות היא לא תנאי להתחלה. היא תוצאה שלה.',
+    action: 'עשה צעד אחד בדבר שאתה לא בטוח לגביו.',
+  },
+  {
+    id: 'cou_own_mistake', type: 'action', category: 'courage', size: 'micro', tone: 'gentle',
+    topics: ['courage', 'relationships'],
+    title: 'לקחת אחריות',
+    body: '"טעיתי" מסיים ויכוחים ש"אבל" מאריך בשבועיים.',
+    action: 'קח אחריות על דבר אחד היום, בלי לרכך.',
+  },
+];
+
+  return {
+    "SPARKS_LIFE2": SPARKS_LIFE2,
+  };
+})();
+
 __m["dailyspark/src/data/sparks.index.js"] = (function () {
 /*
  * sparks.index.js — assembles the three library files into one checked table.
@@ -2804,9 +4392,13 @@ __m["dailyspark/src/data/sparks.index.js"] = (function () {
 const { SPARKS_BODY } = __m["dailyspark/src/data/sparks.body.js"];
 const { SPARKS_MIND } = __m["dailyspark/src/data/sparks.mind.js"];
 const { SPARKS_LIFE } = __m["dailyspark/src/data/sparks.life.js"];
+const { SPARKS_BODY2 } = __m["dailyspark/src/data/sparks.body2.js"];
+const { SPARKS_MIND2 } = __m["dailyspark/src/data/sparks.mind2.js"];
+const { SPARKS_LIFE2 } = __m["dailyspark/src/data/sparks.life2.js"];
 const { CATEGORY_KEYS, SIZE_KEYS, TONE_KEYS, TOPIC_INDEX, TOPICS, sizeOf } = __m["dailyspark/src/data/taxonomy.js"];
 
-const RAW = [].concat(SPARKS_BODY, SPARKS_MIND, SPARKS_LIFE);
+const RAW = [].concat(SPARKS_BODY, SPARKS_MIND, SPARKS_LIFE,
+  SPARKS_BODY2, SPARKS_MIND2, SPARKS_LIFE2);
 
 /* Copy limits, straight from the spec. They are enforced here rather than
  * trusted, because the card layout is built around them: a 60-character title
@@ -2912,6 +4504,206 @@ const STARTER_ARC = [
     "sparkById": sparkById,
     "librarySize": librarySize,
     "STARTER_ARC": STARTER_ARC,
+  };
+})();
+
+__m["dailyspark/src/data/journeys.js"] = (function () {
+/*
+ * journeys.js — multi-day arcs.
+ *
+ * A journey is written as a sequence of *constraints*, not as a fixed list of
+ * spark ids. Each day says "something from sleep, micro-sized" and the ordinary
+ * selector picks the actual item.
+ *
+ * That indirection is the whole design, and it buys three things a hard-coded
+ * playlist cannot:
+ *
+ *   - The journey still respects everything else. A blocked topic, a one-minute
+ *     budget, a fragile mood — all of it still applies, because the same filter
+ *     chain runs. A fixed id list would have to either ignore those or
+ *     re-implement them.
+ *   - Two people on the same journey do not get identical days, and the same
+ *     person can run it twice a year without repeating.
+ *   - Adding sparks improves every existing journey for free.
+ *
+ * The cost is that a journey cannot depend on a specific piece of text on a
+ * specific day. That is the right trade for this product: the arc is about the
+ * shape of a fortnight, not about one perfect sentence on day nine.
+ */
+
+/*
+ * Journeys never push on a bad day.
+ *
+ * When the mood check-in is fragile the day is served from the ordinary safe
+ * pool and the journey simply does not advance (see select.js). It waits. A
+ * fourteen-day programme that demands day six from someone who is barely
+ * holding together is the thing that makes people quit programmes — and then
+ * quit the app that ran them.
+ */
+
+const JOURNEYS = [
+  {
+    slug: 'sleep7',
+    title: 'שבוע של לילות טובים יותר',
+    subtitle: 'שבעה ערבים, כל אחד עם שינוי אחד קטן.',
+    days: 7,
+    effort: 1,
+    steps: [
+      { category: 'sleep', size: 'micro' },
+      { category: 'sleep', size: 'micro' },
+      { category: 'order', size: 'micro' },
+      { category: 'sleep', size: 'standard' },
+      { category: 'mindfulness', size: 'micro' },
+      { category: 'sleep', size: 'micro' },
+      { category: 'sleep', size: 'standard' },
+    ],
+  },
+  {
+    slug: 'phone14',
+    title: 'שבועיים פחות טלפון',
+    subtitle: 'לא לגמול. רק להחזיר את ההחלטה אליך.',
+    days: 14,
+    effort: 2,
+    steps: [
+      { category: 'focus', size: 'micro' },
+      { category: 'mindfulness', size: 'micro' },
+      { category: 'focus', size: 'micro' },
+      { category: 'order', size: 'micro' },
+      { category: 'focus', size: 'standard' },
+      { category: 'mindfulness', size: 'micro' },
+      { category: 'relationships', size: 'micro' },
+      { category: 'focus', size: 'micro' },
+      { category: 'sleep', size: 'micro' },
+      { category: 'focus', size: 'standard' },
+      { category: 'mindfulness', size: 'standard' },
+      { category: 'focus', size: 'micro' },
+      { category: 'creativity', size: 'standard' },
+      { category: 'focus', size: 'stretch' },
+    ],
+  },
+  {
+    slug: 'write14',
+    title: 'לחזור לכתוב',
+    subtitle: 'ארבעה עשר ימים של להתחיל, לא של להצליח.',
+    days: 14,
+    effort: 2,
+    steps: [
+      { category: 'creativity', size: 'micro' },
+      { category: 'creativity', size: 'micro' },
+      { category: 'focus', size: 'micro' },
+      { category: 'creativity', size: 'standard' },
+      { category: 'creativity', size: 'micro' },
+      { category: 'learning', size: 'standard' },
+      { category: 'creativity', size: 'standard' },
+      { category: 'resilience', size: 'micro' },
+      { category: 'creativity', size: 'micro' },
+      { category: 'creativity', size: 'standard' },
+      { category: 'focus', size: 'standard' },
+      { category: 'creativity', size: 'micro' },
+      { category: 'courage', size: 'micro' },
+      { category: 'creativity', size: 'stretch' },
+    ],
+  },
+  {
+    slug: 'move7',
+    title: 'שבוע של תנועה',
+    subtitle: 'בלי חדר כושר ובלי בגדים מיוחדים.',
+    days: 7,
+    effort: 2,
+    steps: [
+      { category: 'movement', size: 'micro' },
+      { category: 'movement', size: 'micro' },
+      { category: 'movement', size: 'standard' },
+      { category: 'mindfulness', size: 'micro' },
+      { category: 'movement', size: 'standard' },
+      { category: 'movement', size: 'micro' },
+      { category: 'movement', size: 'stretch' },
+    ],
+  },
+  {
+    slug: 'calm7',
+    title: 'שבוע רגוע יותר',
+    subtitle: 'לא להירגע. לשים לב.',
+    days: 7,
+    effort: 1,
+    steps: [
+      { category: 'mindfulness', size: 'micro' },
+      { category: 'mindfulness', size: 'micro' },
+      { category: 'resilience', size: 'micro' },
+      { category: 'mindfulness', size: 'standard' },
+      { category: 'gratitude', size: 'micro' },
+      { category: 'mindfulness', size: 'micro' },
+      { category: 'mindfulness', size: 'standard' },
+    ],
+  },
+  {
+    slug: 'people7',
+    title: 'לחזור לאנשים',
+    subtitle: 'שבעה קשרים שנשחקו בשקט.',
+    days: 7,
+    effort: 1,
+    steps: [
+      { category: 'relationships', size: 'micro' },
+      { category: 'gratitude', size: 'micro' },
+      { category: 'relationships', size: 'micro' },
+      { category: 'relationships', size: 'standard' },
+      { category: 'courage', size: 'micro' },
+      { category: 'relationships', size: 'micro' },
+      { category: 'relationships', size: 'standard' },
+    ],
+  },
+  {
+    slug: 'restart7',
+    title: 'חזרה אחרי הפסקה',
+    subtitle: 'הכל מיקרו. בכוונה.',
+    days: 7,
+    effort: 1,
+    gentle: true,
+    steps: [
+      { category: 'resilience', size: 'micro' },
+      { category: 'movement', size: 'micro' },
+      { category: 'order', size: 'micro' },
+      { category: 'gratitude', size: 'micro' },
+      { category: 'mindfulness', size: 'micro' },
+      { category: 'resilience', size: 'micro' },
+      { category: 'movement', size: 'micro' },
+    ],
+  },
+  {
+    slug: 'order14',
+    title: 'שבועיים של סדר',
+    subtitle: 'מגירה אחת ביום. לא בית.',
+    days: 14,
+    effort: 2,
+    steps: [
+      { category: 'order', size: 'micro' },
+      { category: 'order', size: 'micro' },
+      { category: 'order', size: 'standard' },
+      { category: 'order', size: 'micro' },
+      { category: 'money', size: 'micro' },
+      { category: 'order', size: 'standard' },
+      { category: 'order', size: 'micro' },
+      { category: 'focus', size: 'micro' },
+      { category: 'order', size: 'standard' },
+      { category: 'order', size: 'micro' },
+      { category: 'order', size: 'standard' },
+      { category: 'money', size: 'standard' },
+      { category: 'order', size: 'micro' },
+      { category: 'order', size: 'stretch' },
+    ],
+  },
+];
+
+function journeyBySlug(slug) {
+  return JOURNEYS.find((j) => j.slug === slug) || null;
+}
+
+const EFFORT_LABEL = { 1: 'קל', 2: 'בינוני', 3: 'תובעני' };
+
+  return {
+    "JOURNEYS": JOURNEYS,
+    "journeyBySlug": journeyBySlug,
+    "EFFORT_LABEL": EFFORT_LABEL,
   };
 })();
 
@@ -3825,6 +5617,7 @@ __m["dailyspark/src/engine/select.js"] = (function () {
  */
 
 const { LIBRARY, sparkById, STARTER_ARC } = __m["dailyspark/src/data/sparks.index.js"];
+const { journeyBySlug } = __m["dailyspark/src/data/journeys.js"];
 const { BUDGETS, categoryLabel, goalLabel, isFragile, moodOf, GOALS } = __m["dailyspark/src/data/taxonomy.js"];
 const { dayKey, partOfDay, shiftKey } = __m["dailyspark/src/core/day.js"];
 const store = __m["dailyspark/src/core/store.js"];
@@ -3949,6 +5742,7 @@ function filterPool(state, ctx, opts) {
     if (!o.ignoreInterests && interests[s.category] === 0) return false;
     if (o.type && s.type !== o.type) return false;
     if (o.size && s.size !== o.size) return false;
+    if (o.category && s.category !== o.category) return false;
     if (o.freshCategory && recent.some((r) => r.category === s.category)) return false;
 
     if (!o.ignoreSimilarity) {
@@ -4101,6 +5895,25 @@ function arcSlot(state) {
   return STARTER_ARC[delivered];
 }
 
+/*
+ * The journey step due today, or null.
+ *
+ * Returns null on a fragile day even when a journey is running. That is the
+ * product rule expressed in one place: a programme waits for you, it does not
+ * demand day six from someone who is barely holding together. The journey's
+ * counter does not advance either, so nothing is lost — the arc simply resumes
+ * when the person does.
+ */
+function journeyStep(state, ctx) {
+  const j = state.journey;
+  if (!j || j.state !== 'active') return null;
+  const journey = journeyBySlug(j.slug);
+  if (!journey) return null;
+  if (j.day >= journey.days) return null;
+  if (ctx && ctx.fragile) return null;
+  return { journey, index: j.day, step: journey.steps[j.day] };
+}
+
 /** Which category the model currently likes most — used for "why this". */
 function learnedCategory(state) {
   const model = bandit.hydrate(state.model);
@@ -4126,10 +5939,17 @@ function learnedCategory(state) {
 function selectSpark(state, opts) {
   const o = opts || {};
   const ctx = buildContext(state, o);
-  const arc = o.ignoreArc ? null : arcSlot(state);
+  /* A journey outranks the opening arc: someone who deliberately started a
+   * fortnight on sleep should get sleep, even in their first week. */
+  const onJourney = o.ignoreJourney ? null : journeyStep(state, ctx);
+  const arc = (onJourney || o.ignoreArc) ? null : arcSlot(state);
 
   const constraints = {};
-  if (arc) {
+  if (onJourney) {
+    constraints.category = onJourney.step.category;
+    if (onJourney.step.size) constraints.size = onJourney.step.size;
+    if (onJourney.step.type) constraints.type = onJourney.step.type;
+  } else if (arc) {
     if (arc.type) constraints.type = arc.type;
     if (arc.size) constraints.size = arc.size;
     if (arc.freshCategory) constraints.freshCategory = true;
@@ -4159,6 +5979,9 @@ function selectSpark(state, opts) {
   return {
     spark: chosen.spark,
     framed,
+    journey: onJourney
+      ? { slug: onJourney.journey.slug, index: onJourney.index, days: onJourney.journey.days }
+      : null,
     score: chosen.score,
     topics: topMatchingTopics(ctx.userVec, Array.from(chosen.spark.vector), 2),
     context: {
@@ -4198,8 +6021,14 @@ function ensureToday() {
     saved: false,
     rerolls: 0,
     note: '',
+    journey: picked.journey,
   });
   store.markSeen(picked.spark.id);
+  /* Advanced here, on delivery, rather than on completion. The journey is a
+   * sequence of days offered, not of days won — tying progress to completion
+   * would turn a fourteen-day arc into an open-ended obligation for exactly the
+   * people least able to carry one. */
+  if (picked.journey) store.advanceJourney();
   return store.dayEntry(key);
 }
 
@@ -4318,6 +6147,7 @@ function isSoftened(state) {
 
   return {
     "buildContext": buildContext,
+    "journeyStep": journeyStep,
     "selectSpark": selectSpark,
     "ensureToday": ensureToday,
     "reroll": reroll,
@@ -4797,6 +6627,291 @@ function currentPart() {
   };
 })();
 
+__m["dailyspark/src/ui/journeys.js"] = (function () {
+/*
+ * journeys.js — the multi-day arcs, on screen.
+ *
+ * Two states worth noting in the copy, because both are places where habit apps
+ * usually get punitive:
+ *
+ *   Pausing is offered before abandoning, and it is the visually primary of the
+ *   two. A paused journey keeps its progress and simply stops asking. Most
+ *   "quit" taps are really "not this week" taps, and giving them a button that
+ *   means that is the difference between someone coming back to day six and
+ *   someone never starting a journey again.
+ *
+ *   A journey that did not advance because the day was fragile says so plainly —
+ *   "המסע חיכה לך" — rather than silently losing a day or, worse, showing an
+ *   unchanged counter that reads as a bug.
+ */
+
+const { h, sheet, toast, haptic, ltr } = __m["dailyspark/src/core/dom.js"];
+const store = __m["dailyspark/src/core/store.js"];
+const { JOURNEYS, journeyBySlug, EFFORT_LABEL } = __m["dailyspark/src/data/journeys.js"];
+const { categoryLabel, sizeOf } = __m["dailyspark/src/data/taxonomy.js"];
+const { dayKey } = __m["dailyspark/src/core/day.js"];
+
+function journeysSection(rerender) {
+  const state = store.get();
+  const j = state.journey;
+  const journey = j ? journeyBySlug(j.slug) : null;
+
+  if (!journey) return library(rerender);
+  if (j.day >= journey.days) return finished(journey, rerender);
+  return active(journey, j, rerender);
+}
+
+/* ------------------------------------------------------------------ *
+ * Active
+ * ------------------------------------------------------------------ */
+
+function active(journey, j, rerender) {
+  const today = store.dayEntry(dayKey());
+  const waited = !!(today && today.mood && !today.journey);
+  const step = journey.steps[Math.min(j.day, journey.days - 1)];
+
+  return h('section.card.journey-active',
+    h('div.journey-head',
+      h('div',
+        h('span.journey-eyebrow', j.state === 'paused' ? 'מושהה' : 'מסע פעיל'),
+        h('h2.card-title', journey.title)),
+      h('span.journey-count', ltr(`${j.day}/${journey.days}`))),
+
+    progressBar(j.day, journey.days),
+
+    j.state === 'paused'
+      ? h('p.card-lede', 'המסע ממתין. תמשיך מאיפה שהיית מתי שתרצה.')
+      : h('p.card-lede', waited
+        ? 'היום סימנת שקשה, אז המסע חיכה. הוא ימשיך ביום הבא — לא איבדת כלום.'
+        : `הצעד הבא: ${categoryLabel(step.category)} · ${sizeOf(step.size).he}`),
+
+    h('div.journey-dots', { 'aria-hidden': 'true' },
+      journey.steps.map((s, i) => h(
+        `span.jdot${i < j.day ? '.is-done' : ''}${i === j.day ? '.is-now' : ''}`,
+      ))),
+
+    h('div.row-actions',
+      j.state === 'paused'
+        ? h('button.btn.btn-primary', {
+          onclick: () => { store.setJourneyState('active'); haptic('select'); rerender(); },
+        }, 'המשך')
+        : h('button.btn', {
+          onclick: () => {
+            store.setJourneyState('paused');
+            haptic('select');
+            toast('המסע מושהה. הוא שומר על המקום.');
+            rerender();
+          },
+        }, 'השהה'),
+      h('button.btn.btn-ghost', {
+        onclick: () => confirmEnd(rerender),
+      }, 'סיים מסע')));
+}
+
+function progressBar(done, total) {
+  return h('div.journey-bar', { role: 'progressbar', 'aria-valuenow': String(done), 'aria-valuemax': String(total) },
+    h('span.journey-fill', { style: { width: `${Math.round((done / total) * 100)}%` } }));
+}
+
+function confirmEnd(rerender) {
+  const close = sheet(h('div',
+    h('p.sheet-lede', 'הימים שכבר עשית נשארים בספר. אפשר להתחיל את המסע שוב מתי שתרצה.'),
+    h('div.sheet-actions',
+      h('button.btn.btn-danger', {
+        onclick: () => { store.endJourney(); close(); rerender(); },
+      }, 'סיים'),
+      h('button.btn.btn-ghost', { onclick: () => close() }, 'ביטול'))), {
+    label: 'סיום מסע', title: 'לסיים את המסע?',
+  });
+}
+
+/* ------------------------------------------------------------------ *
+ * Finished
+ * ------------------------------------------------------------------ */
+
+function finished(journey, rerender) {
+  return h('section.card.journey-done',
+    h('span.journey-eyebrow', 'הושלם'),
+    h('h2.card-title', journey.title),
+    h('p.card-lede', `${journey.days} ימים. הם בספר שלך.`),
+    h('div.row-actions',
+      h('button.btn.btn-primary', {
+        onclick: () => { store.endJourney(); haptic('success'); rerender(); },
+      }, 'בחר מסע חדש')));
+}
+
+/* ------------------------------------------------------------------ *
+ * Library
+ * ------------------------------------------------------------------ */
+
+function library(rerender) {
+  return h('section.card',
+    h('h2.card-title', 'מסעות'),
+    h('p.card-lede', 'רצף של ימים סביב נושא אחד. הניצוץ היומי ממשיך להיות אחד — הוא פשוט מכוון לכיוון אחד לאורך תקופה.'),
+    h('div.journey-grid', JOURNEYS.map((jr) => h('button.journey-card', {
+      onclick: () => openJourney(jr, rerender),
+    },
+    h('span.journey-title', jr.title),
+    h('span.journey-sub', jr.subtitle),
+    h('span.journey-meta', `${jr.days} ימים · ${EFFORT_LABEL[jr.effort]}`)))));
+}
+
+function openJourney(journey, rerender) {
+  /* The sheet lists what the arc actually asks for, day by day. A journey that
+   * will not say what is in it is asking for a fortnight on faith. */
+  const close = sheet(h('div',
+    h('p.sheet-lede', journey.subtitle),
+    h('ol.journey-steps', journey.steps.map((s, i) => h('li.journey-step',
+      h('span.jstep-num', ltr(i + 1)),
+      h('span.jstep-body', `${categoryLabel(s.category)} · ${sizeOf(s.size).he}`)))),
+    h('p.card-foot', 'ביום שבו תסמן שקשה, המסע יחכה ותקבל משהו קטן במקום. הוא לא יתקדם בלעדיך.'),
+    h('div.sheet-actions',
+      h('button.btn.btn-primary', {
+        onclick: () => {
+          store.startJourney(journey.slug);
+          haptic('success');
+          close();
+          toast('המסע מתחיל מהניצוץ הבא.');
+          rerender();
+        },
+      }, 'התחל מסע'),
+      h('button.btn.btn-ghost', { onclick: () => close() }, 'לא עכשיו'))), {
+    label: journey.title, title: journey.title,
+  });
+}
+
+/** A compact badge for the home screen, or null when no journey is running. */
+function journeyBadge() {
+  const state = store.get();
+  const j = state.journey;
+  if (!j || j.state !== 'active') return null;
+  const journey = journeyBySlug(j.slug);
+  if (!journey || j.day >= journey.days) return null;
+  const entry = store.dayEntry(dayKey());
+  const onToday = !!(entry && entry.journey);
+  return h('div.journey-badge',
+    h('span.journey-badge-title', journey.title),
+    h('span.journey-badge-count', onToday
+      ? ltr(`יום ${j.day}/${journey.days}`)
+      : 'ממתין'));
+}
+
+  return {
+    "journeysSection": journeysSection,
+    "journeyBadge": journeyBadge,
+  };
+})();
+
+__m["dailyspark/src/ui/voice.js"] = (function () {
+/*
+ * voice.js — reading the spark out loud.
+ *
+ * Built on the browser's own speech synthesis rather than a hosted voice, which
+ * makes it free, offline and private — the text never leaves the device — at
+ * the cost of the voice being whatever the operating system ships. For Hebrew
+ * that varies a lot, and on some desktops there is no Hebrew voice at all.
+ *
+ * So the control is only rendered when a usable voice actually exists.
+ * Offering a button that produces silence, or Hebrew read in an American
+ * accent, is worse than not offering one.
+ *
+ * The spec files this under a paid tier. Here it is available to everyone,
+ * because for a person who cannot comfortably read a phone screen this is not a
+ * premium feature, it is the only way in.
+ */
+
+const state = { voices: [], picked: null, speaking: false };
+
+function loadVoices() {
+  if (!('speechSynthesis' in window)) return [];
+  state.voices = window.speechSynthesis.getVoices() || [];
+  state.picked = pickHebrew(state.voices);
+  return state.voices;
+}
+
+/*
+ * Prefer a Hebrew voice; fall back to nothing.
+ *
+ * `lang` comes back as "he-IL" or "he_IL" or occasionally "iw-IL" — the old ISO
+ * code for Hebrew, which some platforms still emit — so all three are matched.
+ */
+function pickHebrew(voices) {
+  const hebrew = voices.filter((v) => /^(he|iw)([-_]|$)/i.test(v.lang || ''));
+  if (!hebrew.length) return null;
+  /* A local voice is instant and works offline; a network voice stutters on a
+   * bad connection, which for a two-sentence card is the whole experience. */
+  return hebrew.find((v) => v.localService) || hebrew[0];
+}
+
+if (typeof window !== 'undefined' && 'speechSynthesis' in window) {
+  loadVoices();
+  /* Chrome populates the list asynchronously and fires this once, sometimes
+   * after the first render — hence the reload rather than a single read. */
+  window.speechSynthesis.addEventListener('voiceschanged', loadVoices);
+}
+
+function available() {
+  if (typeof window === 'undefined' || !('speechSynthesis' in window)) return false;
+  if (!state.voices.length) loadVoices();
+  return !!state.picked;
+}
+
+function speaking() {
+  return state.speaking;
+}
+
+function stop() {
+  if (typeof window === 'undefined' || !('speechSynthesis' in window)) return;
+  window.speechSynthesis.cancel();
+  state.speaking = false;
+}
+
+/*
+ * Read a spark.
+ *
+ * The three parts are spoken as separate utterances rather than one joined
+ * string, so the synthesiser puts a real pause between the idea and the
+ * instruction. One long string runs them together and the action — the only
+ * part that matters — arrives as a subordinate clause.
+ */
+function speakEntry(entry, onEnd) {
+  if (!available()) return false;
+  stop();
+
+  const parts = [entry.title, entry.body, entry.action].filter(Boolean);
+  state.speaking = true;
+
+  parts.forEach((text, i) => {
+    const u = new SpeechSynthesisUtterance(text);
+    u.voice = state.picked;
+    u.lang = state.picked.lang || 'he-IL';
+    /* Slightly under normal. The default rate reads a two-line card like a
+     * disclaimer, and this text is meant to land. */
+    u.rate = 0.94;
+    u.pitch = 1;
+    if (i === parts.length - 1) {
+      u.onend = () => { state.speaking = false; if (onEnd) onEnd(); };
+      u.onerror = () => { state.speaking = false; if (onEnd) onEnd(); };
+    }
+    window.speechSynthesis.speak(u);
+  });
+  return true;
+}
+
+/** Human name of the voice in use, for the settings screen. */
+function voiceName() {
+  return state.picked ? state.picked.name : null;
+}
+
+  return {
+    "available": available,
+    "speaking": speaking,
+    "stop": stop,
+    "speakEntry": speakEntry,
+    "voiceName": voiceName,
+  };
+})();
+
 __m["dailyspark/src/ui/home.js"] = (function () {
 /*
  * home.js — the daily spark screen. Eighty per cent of all use happens here.
@@ -4821,6 +6936,8 @@ const { shouldOfferSupport, SUPPORT_COOLDOWN_DAYS, HELPLINES } = __m["dailyspark
 const { shareEntry } = __m["dailyspark/src/ui/share.js"];
 const notify = __m["dailyspark/src/ui/notify.js"];
 const { sparkMark } = __m["dailyspark/src/ui/onboarding.js"];
+const { journeyBadge } = __m["dailyspark/src/ui/journeys.js"];
+const voice = __m["dailyspark/src/ui/voice.js"];
 
 /* ------------------------------------------------------------------ *
  * Mood check-in
@@ -4958,7 +7075,7 @@ function openDetail(entry, spark, rerender) {
     spark && spark.easier ? h('div.detail-easier',
       h('span.detail-easier-label', 'גרסה קטנה יותר'),
       h('p', spark.easier)) : null,
-    h('div.detail-actions', timerBtn),
+    h('div.detail-actions', timerBtn, voiceBtn(entry)),
     h('label.field',
       h('span.field-label', 'הערה'),
       note),
@@ -4974,6 +7091,25 @@ function openDetail(entry, spark, rerender) {
     title: entry.title,
     onClose: () => { if (ticking) clearInterval(ticking); },
   });
+}
+
+/*
+ * The read-aloud control, or nothing at all.
+ *
+ * Rendered only when the device actually has a Hebrew voice — see voice.js.
+ * A button that produces silence is worse than an absent one.
+ */
+function voiceBtn(entry) {
+  if (!voice.available()) return null;
+  const btn = h('button.btn.btn-voice', {
+    onclick: () => {
+      if (voice.speaking()) { voice.stop(); btn.textContent = '🔊 הקרא'; return; }
+      haptic('light');
+      btn.textContent = '■ עצור';
+      voice.speakEntry(entry, () => { btn.textContent = '🔊 הקרא'; });
+    },
+  }, '🔊 הקרא');
+  return btn;
 }
 
 function formatClock(total) {
@@ -5048,6 +7184,8 @@ function renderHome(root, ctx) {
     : true;
 
   root.appendChild(header(st, key));
+  const badge = journeyBadge();
+  if (badge) root.appendChild(badge);
 
   if (support && shouldOfferSupport(recentMoods(state, 7)) && !entry.supportDismissed) {
     root.appendChild(supportCard(() => {
@@ -5307,6 +7445,7 @@ const { sparkById } = __m["dailyspark/src/data/sparks.index.js"];
 const { CATEGORIES, categoryLabel } = __m["dailyspark/src/data/taxonomy.js"];
 const streak = __m["dailyspark/src/core/streak.js"];
 const { shareEntry } = __m["dailyspark/src/ui/share.js"];
+const { topicsFromText } = __m["dailyspark/src/engine/vector.js"];
 
 const VIEWS = [
   { key: 'timeline', he: 'ציר זמן' },
@@ -5368,12 +7507,24 @@ function countDone(state) {
 function timeline(root, state, keys) {
   root.appendChild(filters(root, state));
 
-  const filtered = keys.filter((k) => matches(state.days[k], k));
+  let filtered = keys.filter((k) => matches(state.days[k], k, null));
+  let bySense = false;
+  if (ui.query && !filtered.length) {
+    const ids = semanticMatches(state, keys, ui.query);
+    if (ids) {
+      filtered = keys.filter((k) => matches(state.days[k], k, ids));
+      bySense = filtered.length > 0;
+    }
+  }
+
   if (!filtered.length) {
     root.appendChild(h('section.card.empty',
       h('h2', 'לא מצאנו.'),
       h('p', 'נסה מילה אחרת, או עיין לפי קטגוריה.')));
     return;
+  }
+  if (bySense) {
+    root.appendChild(h('p.search-note', 'לא נמצאה התאמה מדויקת, אז חיפשנו לפי נושא.'));
   }
 
   let lastMonth = null;
@@ -5389,17 +7540,56 @@ function timeline(root, state, keys) {
   root.appendChild(list);
 }
 
-function matches(entry, key) {
+/*
+ * Search is literal first, and falls back to the topic space.
+ *
+ * Substring matching answers "where was that thing about the drawer", which is
+ * what most searches are. But "משהו על להתחיל כשאין כוח" matches no substring
+ * anywhere and is exactly the search a person makes on the day they need it —
+ * so when the literal pass finds nothing, the query is mapped into the same
+ * topic vector the ranker uses and the book is searched by meaning instead.
+ *
+ * The fallback is deliberately not blended into the literal pass: mixing them
+ * makes an exact-match search return three vaguely-related items alongside the
+ * one that was actually wanted.
+ */
+function matches(entry, key, semanticIds) {
   if (!entry) return false;
   if (ui.category) {
     const spark = sparkById(entry.sparkId);
     if (!spark || spark.category !== ui.category) return false;
   }
   if (ui.query) {
+    if (semanticIds) return semanticIds.has(entry.sparkId);
     const hay = `${entry.title} ${entry.body} ${entry.action} ${entry.note || ''}`;
     if (!hay.includes(ui.query)) return false;
   }
   return true;
+}
+
+/*
+ * Spark ids in this book whose topics overlap the query's.
+ *
+ * The query is run through the same keyword-to-topic map the profile uses for
+ * free-text goals, so "משהו על להתחיל כשאין כוח" becomes {starting, courage}
+ * and matches the sparks tagged that way. Overlap is scored as a fraction of
+ * the spark's own tags, so a two-tag spark that matches both ranks above a
+ * six-tag spark that matches one.
+ */
+function semanticMatches(state, keys, query) {
+  const topics = topicsFromText(query);
+  if (!topics.length) return null;
+
+  const scored = [];
+  for (const key of keys) {
+    const spark = sparkById(state.days[key].sparkId);
+    if (!spark) continue;
+    const overlap = spark.topics.filter((t) => topics.includes(t)).length;
+    if (overlap) scored.push({ id: spark.id, score: overlap / spark.topics.length });
+  }
+  if (!scored.length) return null;
+  scored.sort((a, b) => b.score - a.score);
+  return new Set(scored.map((x) => x.id));
 }
 
 function filters(root, state) {
@@ -5473,9 +7663,28 @@ function openEntry(entry, key) {
         },
       }, entry.saved ? 'הסר מהשמורים' : 'שמור'),
       h('button.btn', { onclick: () => shareEntry(entry, spark) }, 'שתף'),
+      store.get().collections.length
+        ? h('button.btn', { onclick: () => pickCollections(key) }, 'הוסף לאוסף')
+        : null,
       h('button.btn.btn-ghost', { onclick: () => close() }, 'סגור'))), {
     label: entry.title, title: entry.title,
   });
+}
+
+/* Which collections this day belongs to, as a list of toggles. */
+function pickCollections(key) {
+  const rows = store.get().collections.map((c) => {
+    const on = c.items.includes(key);
+    const btn = h(`button.reason${on ? ' is-on' : ''}`, {
+      onclick: () => {
+        const nowIn = store.toggleInCollection(c.id, key);
+        btn.classList.toggle('is-on', nowIn);
+        haptic('select');
+      },
+    }, c.name);
+    return btn;
+  });
+  sheet(h('div', h('div.reason-list', rows)), { label: 'אוספים', title: 'הוסף לאוסף' });
 }
 
 /* ------------------------------------------------------------------ *
@@ -5554,17 +7763,113 @@ function stat(label, value) {
  * Saved
  * ------------------------------------------------------------------ */
 
+/*
+ * Saved items, and the named collections built out of them.
+ *
+ * Collections are lists a person makes for a purpose — "בוקר", "כשאני תקוע" —
+ * and they are the one place in the app where somebody organises their own
+ * content. That is why they are here rather than in settings: they belong next
+ * to the material they organise.
+ */
 function saved(root, state, keys) {
-  const list = keys.filter((k) => state.days[k].saved);
-  if (!list.length) {
+  const rerender = () => renderBook(root);
+  const starred = keys.filter((k) => state.days[k].saved);
+
+  root.appendChild(h('div.collections-head',
+    h('button.btn.btn-ghost', { onclick: () => newCollection(rerender) }, '+ אוסף חדש'),
+    starred.length ? h('button.btn.btn-ghost', { onclick: () => printBook(state) }, '⎙ הדפס ספר') : null));
+
+  for (const c of state.collections) {
+    const items = c.items.filter((k) => state.days[k]);
+    root.appendChild(h('section.card.collection',
+      h('div.collection-head',
+        h('h2.card-title', c.name),
+        h('span.collection-count', ltr(items.length))),
+      items.length
+        ? h('ol.timeline', items
+          .sort((a, b) => b.localeCompare(a))
+          .map((k) => row(state.days[k], k)))
+        : h('p.card-lede', 'ריק. אפשר להוסיף ניצוצות מתוך כל פריט בספר.'),
+      h('button.btn.btn-ghost.collection-del', {
+        onclick: () => { store.removeCollection(c.id); toast('האוסף נמחק'); rerender(); },
+      }, 'מחק אוסף')));
+  }
+
+  if (!starred.length) {
     root.appendChild(h('section.card.empty',
       h('h2', 'עוד לא שמרת כלום.'),
       h('p', 'הכוכב מתחת לניצוץ שומר אותו לכאן — לימים שבהם אתה צריך משהו שכבר עבד.')));
     return;
   }
+
+  root.appendChild(h('h2.section-label', 'שמורים'));
   const ol = h('ol.timeline');
-  for (const key of list) ol.appendChild(row(state.days[key], key));
+  for (const key of starred) ol.appendChild(row(state.days[key], key));
   root.appendChild(ol);
+}
+
+function newCollection(rerender) {
+  const input = h('input.input', { type: 'text', maxlength: '30', placeholder: 'למשל: כשאני תקוע' });
+  const close = sheet(h('div',
+    h('p.sheet-lede', 'אוסף הוא רשימה שאתה בונה למטרה — בוקר, ימים קשים, עבודה.'),
+    input,
+    h('div.sheet-actions',
+      h('button.btn.btn-primary', {
+        onclick: () => {
+          const name = input.value.trim();
+          if (!name) { close(); return; }
+          store.addCollection(name);
+          close();
+          rerender();
+        },
+      }, 'צור'),
+      h('button.btn.btn-ghost', { onclick: () => close() }, 'ביטול'))), {
+    label: 'אוסף חדש', title: 'אוסף חדש',
+  });
+}
+
+/*
+ * The printed book.
+ *
+ * Builds a plain, chrome-free document in a hidden container and hands it to
+ * the browser's own print dialogue — which on every platform can also "save as
+ * PDF". That is the whole feature: no library, no server, no export format to
+ * maintain, and the result is something a person can actually put on a shelf.
+ *
+ * Only completed and saved days are included. A printed book of things you did
+ * not do would be a strange gift to give somebody, including yourself.
+ */
+function printBook(state) {
+  const keys = Object.keys(state.days)
+    .filter((k) => state.days[k].status === 'completed' || state.days[k].saved)
+    .sort();
+
+  const doc = h('div.print-book',
+    h('header.print-head',
+      h('h1', 'ספר הניצוצות'),
+      h('p', `${keys.length} ניצוצות · ${keys.length ? `${humanDate(keys[0])} — ${humanDate(keys[keys.length - 1])}` : ''}`)),
+    keys.map((k) => {
+      const e = state.days[k];
+      return h('article.print-entry',
+        h('span.print-date', humanDate(k)),
+        h('h2', e.title),
+        h('p.print-body', e.body),
+        h('p.print-action', e.action),
+        e.note ? h('blockquote.print-note', e.note) : null);
+    }));
+
+  document.body.appendChild(doc);
+  document.body.classList.add('is-printing');
+  const cleanup = () => {
+    document.body.classList.remove('is-printing');
+    doc.remove();
+    window.removeEventListener('afterprint', cleanup);
+  };
+  window.addEventListener('afterprint', cleanup);
+  window.print();
+  /* Safari never fires afterprint in some versions, so there is a backstop —
+   * a leftover hidden document would break the next screen render. */
+  setTimeout(cleanup, 60000);
 }
 
   return {
@@ -5594,10 +7899,12 @@ const { dayKey, shiftKey, WEEKDAY_SHORT, weekdayOf, PART_LABEL } = __m["dailyspa
 const { sparkById } = __m["dailyspark/src/data/sparks.index.js"];
 const { categoryLabel, TONES } = __m["dailyspark/src/data/taxonomy.js"];
 const { SLOTS } = __m["dailyspark/src/engine/bandit.js"];
+const { journeysSection } = __m["dailyspark/src/ui/journeys.js"];
 
 const MIN_DAYS = 4;
 
 function renderInsights(root) {
+  const rerender = () => renderInsights(root);
   const state = store.get();
   const days = last(state, 7);
   const withData = days.filter((d) => d.entry);
@@ -5612,6 +7919,9 @@ function renderInsights(root) {
     root.appendChild(h('section.card.empty',
       h('h2', `עוד ${missing} ${missing === 1 ? 'יום' : 'ימים'}.`),
       h('p', 'אנחנו צריכים קצת יותר נתונים לפני שנגיד לך משהו אמיתי. עד אז, כל מה שנאמר כאן יהיה ניחוש שנשמע כמו עובדה.')));
+    /* Journeys do not need a week of history to be worth offering, so they are
+     * shown even while the insight itself is still holding its tongue. */
+    root.appendChild(journeysSection(rerender));
     return;
   }
 
@@ -5637,6 +7947,7 @@ function renderInsights(root) {
       }, action.label)));
   }
 
+  root.appendChild(journeysSection(rerender));
   root.appendChild(modelCard(state));
 }
 
@@ -5879,6 +8190,7 @@ const { selectSpark } = __m["dailyspark/src/engine/select.js"];
 const streak = __m["dailyspark/src/core/streak.js"];
 const notify = __m["dailyspark/src/ui/notify.js"];
 const { LADDER } = __m["dailyspark/src/ui/notify.js"];
+const voice = __m["dailyspark/src/ui/voice.js"];
 
 const MAX_GOALS = 3;
 
@@ -5901,6 +8213,7 @@ function renderProfile(root, ctx) {
 
   root.appendChild(goalsCard(root, ctx));
   root.appendChild(interestsCard(root, ctx));
+  root.appendChild(habitsCard(root, ctx));
   root.appendChild(shapeCard(root, ctx));
   root.appendChild(notifyCard(root, ctx));
   root.appendChild(appearanceCard(root, ctx));
@@ -5993,6 +8306,81 @@ function interestsCard(root, ctx) {
       }, h('span.interest-name', c.he), h('span.interest-state', label[value]));
       return btn;
     })));
+}
+
+/* ------------------------------------------------------------------ *
+ * Habits
+ * ------------------------------------------------------------------ */
+
+/*
+ * Habits are free text, and that is the point.
+ *
+ * Goals and interests are chips because chips beat typing on a phone, but a
+ * habit is personal in a way a menu cannot anticipate — "לנגן", "להתקשר לאמא",
+ * "לא לאכול מול המחשב". The text is run through the same keyword map that
+ * handles a free-text goal (vector.js), so a habit that mentions a known
+ * subject pulls the profile toward it and one that does not simply contributes
+ * nothing rather than noise.
+ */
+const CADENCES = [
+  { key: 'daily', he: 'כל יום' },
+  { key: '3x_week', he: '3 בשבוע' },
+  { key: 'weekly', he: 'שבועי' },
+];
+
+function habitsCard(root, ctx) {
+  const state = store.get();
+
+  const input = h('input.input', {
+    type: 'text', maxlength: '40', placeholder: 'למשל: לכתוב עשר דקות',
+    onkeydown: (e) => { if (e.key === 'Enter') add(); },
+  });
+
+  function add() {
+    const label = input.value.trim();
+    if (!label) return;
+    store.update((s) => {
+      s.profile.habits.push({ id: `h${Date.now().toString(36)}`, label, cadence: 'daily' });
+    });
+    haptic('select');
+    saved();
+    renderProfile(root, ctx);
+  }
+
+  return h('section.card',
+    h('h2.card-title', 'הרגלים שאתה בונה'),
+    h('p.card-lede', 'המנוע ידחוף לכיוון שלהם. אפשר לכתוב בחופשיות.'),
+
+    state.profile.habits.length
+      ? h('ul.habit-list', state.profile.habits.map((hb) => h('li.habit',
+        h('span.habit-label', hb.label),
+        h('div.habit-controls',
+          h('select.habit-cadence', {
+            'aria-label': `תדירות עבור ${hb.label}`,
+            onchange: (e) => {
+              store.update((s) => {
+                const found = s.profile.habits.find((x) => x.id === hb.id);
+                if (found) found.cadence = e.target.value;
+              });
+              saved();
+            },
+          }, CADENCES.map((c) => {
+            const opt = h('option', { value: c.key }, c.he);
+            if (hb.cadence === c.key) opt.selected = true;
+            return opt;
+          })),
+          h('button.habit-del', {
+            'aria-label': `מחק ${hb.label}`,
+            onclick: () => {
+              store.update((s) => {
+                s.profile.habits = s.profile.habits.filter((x) => x.id !== hb.id);
+              });
+              renderProfile(root, ctx);
+            },
+          }, '✕')))))
+      : null,
+
+    h('div.habit-add', input, h('button.btn', { onclick: add }, 'הוסף')));
 }
 
 /* ------------------------------------------------------------------ *
@@ -6184,7 +8572,12 @@ function appearanceCard(root, ctx) {
     toggle('לשאול על מצב רגשי כל בוקר', state.settings.moodPrompt, (v) => {
       store.update((s) => { s.settings.moodPrompt = v; });
       renderProfile(root, ctx);
-    }));
+    }),
+    /* Stated rather than offered as a switch: whether a Hebrew voice exists is
+     * the operating system's decision, not a preference we can grant. */
+    h('p.card-foot', voice.available()
+      ? `הקראה זמינה במכשיר הזה (${voice.voiceName()}). הכפתור נמצא בתוך הניצוץ.`
+      : 'הקראה לא זמינה — במכשיר הזה אין קול עברי מותקן.'));
 }
 
 function toggle(label, value, onChange) {

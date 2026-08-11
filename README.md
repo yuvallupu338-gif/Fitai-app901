@@ -65,8 +65,13 @@ embeddings, a per-user Bayesian logistic bandit does the ranking with Thompson
 sampling, and a safety layer sits in front of both: when someone reports being
 overwhelmed or flat, the candidate pool is cut by a hard filter to micro-sized,
 gently-toned items and the challenge lexicon is banned outright, so no score can
-promote a "crush it today" card onto a bad day. Nothing is sent anywhere; there
-is no account and no server. See [`dailyspark/README.md`](dailyspark/README.md).
+promote a "crush it today" card onto a bad day. Multi-day journeys pause
+themselves on those days rather than counting through them.
+
+260 sparks, a book that prints, and 51 checks — including a sixty-day simulation
+that caught two engine bugs no amount of clicking would have found. Nothing is
+sent anywhere; there is no account and no server. See
+[`dailyspark/README.md`](dailyspark/README.md).
 
 ## What it does
 

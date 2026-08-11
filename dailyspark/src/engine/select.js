@@ -17,6 +17,7 @@
  */
 
 import { LIBRARY, sparkById, STARTER_ARC } from '../data/sparks.index.js';
+import { journeyBySlug } from '../data/journeys.js';
 import { BUDGETS, categoryLabel, goalLabel, isFragile, moodOf, GOALS } from '../data/taxonomy.js';
 import { dayKey, partOfDay, shiftKey } from '../core/day.js';
 import * as store from '../core/store.js';
@@ -141,6 +142,7 @@ function filterPool(state, ctx, opts) {
     if (!o.ignoreInterests && interests[s.category] === 0) return false;
     if (o.type && s.type !== o.type) return false;
     if (o.size && s.size !== o.size) return false;
+    if (o.category && s.category !== o.category) return false;
     if (o.freshCategory && recent.some((r) => r.category === s.category)) return false;
 
     if (!o.ignoreSimilarity) {
@@ -293,6 +295,25 @@ function arcSlot(state) {
   return STARTER_ARC[delivered];
 }
 
+/*
+ * The journey step due today, or null.
+ *
+ * Returns null on a fragile day even when a journey is running. That is the
+ * product rule expressed in one place: a programme waits for you, it does not
+ * demand day six from someone who is barely holding together. The journey's
+ * counter does not advance either, so nothing is lost — the arc simply resumes
+ * when the person does.
+ */
+export function journeyStep(state, ctx) {
+  const j = state.journey;
+  if (!j || j.state !== 'active') return null;
+  const journey = journeyBySlug(j.slug);
+  if (!journey) return null;
+  if (j.day >= journey.days) return null;
+  if (ctx && ctx.fragile) return null;
+  return { journey, index: j.day, step: journey.steps[j.day] };
+}
+
 /** Which category the model currently likes most — used for "why this". */
 function learnedCategory(state) {
   const model = bandit.hydrate(state.model);
@@ -318,10 +339,17 @@ function learnedCategory(state) {
 export function selectSpark(state, opts) {
   const o = opts || {};
   const ctx = buildContext(state, o);
-  const arc = o.ignoreArc ? null : arcSlot(state);
+  /* A journey outranks the opening arc: someone who deliberately started a
+   * fortnight on sleep should get sleep, even in their first week. */
+  const onJourney = o.ignoreJourney ? null : journeyStep(state, ctx);
+  const arc = (onJourney || o.ignoreArc) ? null : arcSlot(state);
 
   const constraints = {};
-  if (arc) {
+  if (onJourney) {
+    constraints.category = onJourney.step.category;
+    if (onJourney.step.size) constraints.size = onJourney.step.size;
+    if (onJourney.step.type) constraints.type = onJourney.step.type;
+  } else if (arc) {
     if (arc.type) constraints.type = arc.type;
     if (arc.size) constraints.size = arc.size;
     if (arc.freshCategory) constraints.freshCategory = true;
@@ -351,6 +379,9 @@ export function selectSpark(state, opts) {
   return {
     spark: chosen.spark,
     framed,
+    journey: onJourney
+      ? { slug: onJourney.journey.slug, index: onJourney.index, days: onJourney.journey.days }
+      : null,
     score: chosen.score,
     topics: topMatchingTopics(ctx.userVec, Array.from(chosen.spark.vector), 2),
     context: {
@@ -390,8 +421,14 @@ export function ensureToday() {
     saved: false,
     rerolls: 0,
     note: '',
+    journey: picked.journey,
   });
   store.markSeen(picked.spark.id);
+  /* Advanced here, on delivery, rather than on completion. The journey is a
+   * sequence of days offered, not of days won — tying progress to completion
+   * would turn a fourteen-day arc into an open-ended obligation for exactly the
+   * people least able to carry one. */
+  if (picked.journey) store.advanceJourney();
   return store.dayEntry(key);
 }
 
