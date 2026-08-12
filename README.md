@@ -183,6 +183,32 @@ already gone when the card was rewritten, but the handler stayed live and the
 build screen kept printing "adapted to level 4 · 45 min · full body" off a value
 no one could set and nothing consulted.
 
+## The skill tree and the nutrition screen
+
+Mastering an exercise pays 25 XP once, tracked in `xpAwarded` — otherwise
+un-marking and re-marking would farm it. But the burst and the toast fired on
+"you marked it", which is true every time, so marking something you had already
+earned played "+25 XP" over a counter that did not move. The celebration is tied
+to the payment now, and re-marking says so.
+
+That was the only thing wrong with either screen. The tree really is 10 levels
+of 9 exercises with no id used twice, over exactly the four categories its header
+names; a level opens at exactly the fifth exercise of the one below, which is
+what its footnote says; with nothing done only level 1's nine rows are tappable
+out of ninety; a shoulder injury flags rows; and syncing to your strength adds
+marks without touching one it would never have made itself, as it promises.
+
+Nutrition holds up throughout. Across all 115 meals in the four pools there is no
+meat or fish in the vegetarian bank, no meat in the pescatarian one, and nothing
+animal in the vegan one — and swapping never leaves the pool it started in. An
+allergy changes the menu and no meal left on it contains the allergen; a dislike
+is kept out. The four meals sum to exactly the day's calorie and macro targets.
+The water target matches the rule its own comment states. Logging a meal records
+the calories the card displayed. The shopping list carries every ingredient of
+every meal on today's menu, and its quantities really are scaled to the target —
+a 60 kg cutting profile is told 3 eggs and 45 g of oats where a 110 kg building
+one is told 6 and 80.
+
 ## What was checked and is fine
 
 Auditing for more of the same turned up a lot that holds up, which is worth
