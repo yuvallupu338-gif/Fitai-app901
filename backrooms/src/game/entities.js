@@ -24,7 +24,7 @@
  *            you are crossing with company.
  *   swarm    several small ones at once, deaf until you sprint. The counter is
  *            patience, which is expensive when something else is behind you.
- *   titan    three and a half metres, slow, and it does not stop, ever. You
+ *   titan    over three metres, slow, and it does not stop, ever. You
  *            cannot outrun it forever in a corridor; you have to break line of
  *            sight and mean it.
  *   blind    cannot see at all. It walks to wherever you last made a noise,
@@ -61,13 +61,13 @@ import { findPath, clearLine } from './pathfind.js';
  * `height` is how far the model actually reaches above the floor, and it is
  * here rather than in a comment because the world suite reads it: a level may
  * not be given a kind that does not fit under its ceiling. The titan is the
- * reason — at 1.85× a biped it stands 3.22m, which rules out most interiors,
+ * reason — at 1.55× a biped it stands 3.15m, which rules out most interiors,
  * and "it clips through the ceiling on level 20" is not something a screenshot
  * of level 0 would ever have shown.
  */
 const BEHAVIOUR = {
-  hound:   { mesh: 'biped',   speed: 3.6, sight: 26, reach: 1.15, damage: 0.34, hp: 3, height: 1.74 },
-  watcher: { mesh: 'biped',   speed: 2.4, sight: 30, reach: 1.05, damage: 0.28, hp: 3, height: 1.74 },
+  hound:   { mesh: 'biped',   speed: 3.6, sight: 26, reach: 1.15, damage: 0.34, hp: 3, height: 2.03 },
+  watcher: { mesh: 'biped',   speed: 2.4, sight: 30, reach: 1.05, damage: 0.28, hp: 3, height: 2.03 },
   crawler: { mesh: 'crawler', speed: 3.9, sight: 15, reach: 0.95, damage: 0.22, hp: 2, height: 0.52 },
   /*
    * A shape rather than a body: a dark silhouette with two lit eyes, which is
@@ -79,25 +79,36 @@ const BEHAVIOUR = {
   /* Nothing but the eyes. Fast in the dark, and it will not come into light. */
   smiler:  { mesh: 'smiler',  speed: 4.2, sight: 30, reach: 1.00, damage: 0.26, hp: 2, height: 1.72 },
   /* Slow-looking until it is not. `speed` here is the charge, not the walk. */
-  lurker:  { mesh: 'biped',   speed: 5.4, sight: 9,  reach: 1.10, damage: 0.40, hp: 3, height: 1.74 },
+  lurker:  { mesh: 'biped',   speed: 5.4, sight: 9,  reach: 1.10, damage: 0.40, hp: 3, height: 2.03 },
   /* Slightly faster than a walk and slightly slower than a sprint, on purpose:
    * it stays with you while you walk and falls behind if you commit to running,
    * which is the trade the whole behaviour exists to offer. */
-  stalker: { mesh: 'biped',   speed: 3.2, sight: 40, reach: 1.05, damage: 0.24, hp: 3, height: 1.74 },
+  stalker: { mesh: 'biped',   speed: 3.2, sight: 40, reach: 1.05, damage: 0.24, hp: 3, height: 2.03 },
   /* Individually trivial, and they do not arrive individually. */
   swarm:   { mesh: 'crawler', speed: 4.4, sight: 18, reach: 0.85, damage: 0.12, hp: 1, height: 0.52 },
   /* Reach and damage scale with the size of the thing. It does not need speed. */
-  titan:   { mesh: 'titan',   speed: 1.9, sight: 44, reach: 2.10, damage: 0.55, hp: 6, height: 3.22 },
+  titan:   { mesh: 'titan',   speed: 1.9, sight: 44, reach: 2.10, damage: 0.55, hp: 6, height: 3.15 },
   /* `sight: 0` is not a placeholder — it cannot see at all, and everything it
    * does is driven by the noise map instead. */
-  blind:   { mesh: 'blind',   speed: 3.4, sight: 0,  reach: 1.15, damage: 0.32, hp: 3, height: 1.74 },
+  blind:   { mesh: 'blind',   speed: 3.4, sight: 0,  reach: 1.15, damage: 0.32, hp: 3, height: 2.03 },
   /* Lives on the ceiling. `speed` applies only after it has come down. */
   dropper: { mesh: 'dropper', speed: 4.6, sight: 12, reach: 0.95, damage: 0.36, hp: 2, height: 0.52 },
   /* Its position is a reflection of yours, so `speed` never applies. */
-  twin:    { mesh: 'biped',   speed: 0,   sight: 60, reach: 1.10, damage: 0.30, hp: 4, height: 1.74 },
+  twin:    { mesh: 'biped',   speed: 0,   sight: 60, reach: 1.10, damage: 0.30, hp: 4, height: 2.03 },
   /* Trivial damage per bite. The cost of a leech is what it does to your legs. */
   leech:   { mesh: 'crawler', speed: 4.0, sight: 16, reach: 0.90, damage: 0.10, hp: 1, height: 0.52 },
 };
+
+/*
+ * How much bigger a titan is than the biped rig it borrows.
+ *
+ * It is a factor rather than a second model because every joint offset in
+ * dynamics() is in metres, so one multiplier scales the whole skeleton and it
+ * stays assembled. 1.55 and not the old 1.85: the body underneath got taller,
+ * and the product has to stay under the lowest ceiling any titan level has —
+ * 2.03 × 1.55 is 3.15m, which clears a 3.4m warehouse and nothing tighter.
+ */
+const TITAN = 1.55;
 
 /* How many of a kind may exist at once, before the depth bonus. A swarm that
  * capped at four would not be a swarm; a twin that came in pairs would not be
@@ -669,44 +680,87 @@ export class Entities {
        * 3.5m figure taking one stride to your three reads as an entirely
        * different animal without a single new triangle.
        */
-      const S = e.mesh === 'titan' ? 1.85 : 1;
+      const S = e.mesh === 'titan' ? TITAN : 1;
 
       out.push({ mesh: 'entTorso', x: e.x, y, z: e.z, rot: e.rot, scale: S });
-      /* 1.60, not 1.68: the head has to overlap the top of the neck stub
-       * (which reaches 1.52) or it visibly floats above the shoulders.
-       *
-       * The blind one gets the same head without the eyes, which is the only
-       * thing on it that tells the player why it walked past them: a body with
-       * no lights in its face, going somewhere else. */
+      /*
+       * The head sits low, at 1.87 against a neck that reaches 1.96, so the
+       * skull is sunk *between* the shoulder masses rather than perched above
+       * them — which is the difference between a tall man and the thing in
+       * the reference. The blind one gets the same skull with nothing lit in
+       * it, which is the only thing that tells the player why it walked past.
+       */
       out.push({
         mesh: e.mesh === 'blind' ? 'entHeadBlind' : 'entHead',
-        x: e.x, y: y + 1.60 * S, z: e.z,
+        x: e.x, y: y + 1.87 * S, z: e.z,
         rot: e.rot + e.headYaw, scale: S,
       });
 
       const c = Math.cos(e.rot), s = Math.sin(e.rot);
+
       /*
-       * Shoulders and hips, offset sideways from the body's centre line. The
-       * shoulders sit at 0.26 rather than tucked in at 0.235: the torso is
-       * 0.20 wide up there and an arm half-hidden behind it reads as no arm
-       * at all, which is exactly how the first screenshots came out — a slab
-       * with legs. The gap is what makes the silhouette a body.
+       * Forward kinematics down each limb.
+       *
+       * `modelInto` maps a model-space point through yaw then pitch, and a
+       * segment is built hanging straight down from its own origin, so the far
+       * end of a segment of length L pitched by p sits at
+       *
+       *     joint - L * (sinθ·sin p,  cos p,  cosθ·sin p)
+       *
+       * which is the column the pitch rotation puts local -Y into. Chaining
+       * that gives the next joint, and the whole leg assembles from three
+       * numbers instead of a skeleton format.
        */
-      for (const [ox, mesh, yj, amp, ph] of [
-        [-0.26, 'entArm', 1.42, 0.62, sw],
-        [0.26, 'entArm', 1.42, 0.62, sw2],
-        [-0.095, 'entLeg', 0.90, 0.80, sw2],
-        [0.095, 'entLeg', 0.90, 0.80, sw],
-      ]) {
-        out.push({
-          mesh,
-          x: e.x + ox * S * c,
-          y: y + yj * S,
-          z: e.z + ox * S * s,
-          rot: e.rot,
-          pitch: ph * amp,
-          scale: S,
-        });
+      const seg = (jx, jy, jz, pitch, len, mesh) => {
+        out.push({ mesh, x: jx, y: jy, z: jz, rot: e.rot, pitch, scale: S });
+        return [
+          jx - len * S * s * Math.sin(pitch),
+          jy - len * S * Math.cos(pitch),
+          jz - len * S * c * Math.sin(pitch),
+        ];
+      };
+
+      /*
+       * Arms. Long enough that the hands hang below the knee, hunched forward
+       * at the shoulder, and hooked in at the wrist. The swing is small — a
+       * body this thin flailing looks comic, and the reference is something
+       * that carries its arms rather than swings them.
+       */
+      /*
+       * 0.245 and not 0.30. The chest is 0.17 half-wide at shoulder height and
+       * the hunched blade on top of it reaches about 0.23, so an arm hung at
+       * 0.30 started a clear finger's width outside the shoulder it was
+       * supposed to grow from and read as a pole standing beside the body
+       * rather than an arm attached to it. At 0.245 the top of the bone sits
+       * inside the blade.
+       */
+      for (const [ox, ph] of [[-0.245, sw], [0.245, sw2]]) {
+        const sx = e.x + ox * S * c, sz = e.z + ox * S * s;
+        const sy = y + 1.62 * S;
+        const [ex2, ey2, ez2] = seg(sx, sy, sz, 0.20 + ph * 0.30, 0.48, 'entArmUpper');
+        const [wx, wy, wz] = seg(ex2, ey2, ez2, -0.13 + ph * 0.22, 0.56, 'entArmFore');
+        seg(wx, wy, wz, 0.22 + ph * 0.12, 0.07, 'entHand');
+      }
+
+      /*
+       * Legs, digitigrade: the thigh swings forward, the shin rakes back, and
+       * the foot goes forward again onto its toes. The three pitches are what
+       * make the knee read as bending the wrong way, which is the single most
+       * recognisable thing about the shape from any distance.
+       */
+      for (const [ox, ph] of [[-0.115, sw2], [0.115, sw]]) {
+        const hx = e.x + ox * S * c, hz = e.z + ox * S * s;
+        /*
+         * 1.05, not the 1.18 the abdomen bottoms out at. A digitigrade leg
+         * spends a lot of its length going backwards rather than downwards —
+         * the three segments here are 1.24m of bone that only reaches 1.05m
+         * of floor — so a hip placed where the body ends leaves the whole
+         * animal hovering a hand's width above the carpet.
+         */
+        const hy = y + 1.05 * S;
+        const [kx, ky, kz] = seg(hx, hy, hz, 0.30 + ph * 0.42, 0.50, 'entThigh');
+        const [ax, ay, az] = seg(kx, ky, kz, -0.46 - ph * 0.30, 0.52, 'entShin');
+        seg(ax, ay, az, 1.28 + ph * 0.10, 0.22, 'entFoot');
       }
     }
     return out;

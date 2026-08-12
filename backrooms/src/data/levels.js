@@ -1223,6 +1223,32 @@ function ambientFor(raw) {
   return lum(sky) > lum(authored) ? sky : raw.amb;
 }
 
+/*
+ * One global dimmer, applied on the way out of every level.
+ *
+ * The hundred were authored one at a time and each was judged on its own, so
+ * collectively they came out lit like a building that still has a facilities
+ * department. Dropping the ambient and pulling the fixtures down turns the
+ * torch from a convenience into the thing you navigate by, which is the whole
+ * point of the place.
+ *
+ * The floor matters as much as the factor. Multiplying a colour by 0.55 takes
+ * an already-black level to nothing at all, and a frame with one colour in it
+ * is not atmosphere, it is a bug — so the darkest channel is held at a value
+ * that still separates a wall from a doorway. Levels that are *meant* to be
+ * pitch black were already at that floor and are left where they are.
+ */
+const DIM = 0.55;
+const FLOOR = 0x06;
+
+function darken(hex) {
+  if (!hex || hex[0] !== '#') return hex;
+  const n = parseInt(hex.slice(1), 16);
+  const ch = [(n >> 16) & 255, (n >> 8) & 255, n & 255]
+    .map((v) => Math.max(Math.min(v, FLOOR), Math.round(v * DIM)));
+  return `#${ch.map((v) => v.toString(16).padStart(2, '0')).join('')}`;
+}
+
 function finalise(raw) {
   const seed = (raw.id + 1) * 7919;
   const level = {
@@ -1236,10 +1262,14 @@ function finalise(raw) {
     arch: raw.arch,
     cellSize: raw.cell ?? 3.2,
     ceilHeight: raw.ceil ?? 3.0,
-    fogColor: raw.fog,
-    fogFar: raw.far ?? 32,
+    /* The fog is what the dark *looks* like at distance, so it dims with the
+     * ambient — a bright haze in front of an unlit room reads as smoke, not
+     * as darkness, and washes out the one silhouette you needed to see. */
+    fogColor: darken(raw.fog),
+    /* And you see less far in it. */
+    fogFar: Math.round((raw.far ?? 32) * 0.82),
     fogHeight: raw.fogHeight ?? 0,
-    ambient: ambientFor(raw),
+    ambient: darken(ambientFor(raw)),
     /* On the inverted level the bounce comes from the ceiling, because the
      * ceiling is the carpet. The materials are already swapped in its `mats`;
      * this is the half of the inversion the eye actually notices. */
@@ -1261,6 +1291,15 @@ function finalise(raw) {
     sub: 2,
     gen: Object.assign({}, DEFAULT_GEN, raw.gen, { seed }),
   };
+  /*
+   * The fixtures come down too, and more of them are dead. Dimming only the
+   * ambient makes a level *contrastier* rather than darker — bright pools
+   * under every panel with black between them — and what was wanted was less
+   * light, not harder light. A quarter of the tubes being out does more for
+   * the feeling of the place than any amount of colour grading.
+   */
+  level.gen.lightIntensity *= 0.72;
+  level.gen.deadLights = Math.min(70, Math.round(level.gen.deadLights * 1.45 + 6));
   /* Walls run to the ceiling unless the archetype overrode it. Levels almost
    * never want to say this twice. */
   if (level.gen.wallHeight === undefined) level.gen.wallHeight = level.ceilHeight;

@@ -158,6 +158,27 @@ export class Renderer {
       const d = mb.finish();
       return createMeshVAO(gl, this.scene, d.vertices, d.indices);
     };
+    /*
+     * As `make`, but hangs the CPU-side vertices off the mesh. A body is built
+     * out of decorative detail — ribs, teeth, knuckles — laid on top of a
+     * larger volume, and detail that ends up *inside* that volume costs a few
+     * hundred triangles a frame and renders nothing. Nothing about that is
+     * visible to a test that only reads part transforms, and it is not obvious
+     * by eye either, so the geometry is kept where a test can measure it. It is
+     * a few tens of kilobytes for the handful of meshes it is used on.
+     */
+    const makeKeep = (fn) => {
+      const mb = new MeshBuilder(256);
+      fn(mb);
+      const d = mb.finish();
+      const mesh = createMeshVAO(gl, this.scene, d.vertices, d.indices);
+      mesh.cpu = {
+        vertices: d.vertices,
+        count: d.vertexCount,
+        stride: d.vertexCount ? d.vertices.length / d.vertexCount : 0,
+      };
+      return mesh;
+    };
 
     /* Almond water: a carton, because the bottle is a later invention and the
      * carton is what people picture. */
@@ -186,11 +207,82 @@ export class Renderer {
     const F = MAT.FLESH;
     const shade = (v) => () => v;
 
-    this.dyn.entTorso = make((mb) => {
-      /* Shoulders down to hips, tapering in. */
-      addLimb(mb, 0, 1.44, 0, [0.20, 0.11], [0.13, 0.09], 0.56, F, { ao: shade(0.62) });
-      /* Neck. */
-      addLimb(mb, 0, 1.52, 0, [0.05, 0.05], [0.06, 0.06], 0.10, F, { ao: shade(0.5) });
+    /*
+     * The torso is starved on purpose: a deep ribcage over almost nothing at
+     * the waist. Everything that reads at fog distance is the *outline* — a
+     * heavy chest, a pinched middle, and far too much daylight between the
+     * limbs — so the ribs are there for the two seconds you spend closer than
+     * you wanted to be, and the proportions are there for the rest.
+     *
+     * Both halves of that were wrong in the first cut and it is worth saying
+     * why, because neither shows up in a part-transform test. The chest was an
+     * `addLimb`, and `addLimb` builds a tapered *rectangular* prism: from the
+     * front that is a plank and from the side a slab, which is the one shape a
+     * ribcage is not. It is an ellipsoid now.
+     *
+     * And the ribs were flat slabs whose front faces sat 6mm to 30mm *inside*
+     * the chest wall, so the front of the chest — the only place a rib reads —
+     * showed nothing at all. What did show was an accident: the lower three
+     * were fractionally wider than the tapering prism and their outer edges
+     * broke the surface by 2mm to 9mm, which drew a few faint horizontal
+     * scratches down the flank and looked like a texture seam. Laid on the
+     * surface properly below.
+     */
+    const CHEST_Y = 1.46, CHEST_H = 0.26, CHEST_A = 0.215, CHEST_B = 0.115;
+    /* Published so a test can check the ribs against the chest the renderer
+     * actually built, rather than against a copy of these numbers. */
+    this.chest = { y: CHEST_Y, h: CHEST_H, a: CHEST_A, b: CHEST_B };
+    this.dyn.entTorso = makeKeep((mb) => {
+      /* Ribcage: widest across the mid-chest, narrowing to both shoulder and
+       * waist, which is what an egg does and what a starved chest looks like. */
+      addSphere(mb, 0, CHEST_Y, 0, CHEST_A, 14, 10, F,
+        { ao: shade(0.60), scaleY: CHEST_H / CHEST_A, scaleZ: CHEST_B / CHEST_A });
+      /* Waist: barely there. It is what sells the chest above it. */
+      addSphere(mb, 0, 1.16, 0, 0.100, 12, 9, F,
+        { ao: shade(0.50), scaleY: 0.90, scaleZ: 0.85 });
+      /* Pelvis, wider again, where the legs hang from (hips ride at y=1.05).
+       * Kept flat rather than round — at 0.76 tall it hung below the hips as a
+       * distinct ball between the legs instead of reading as a hip girdle. */
+      addSphere(mb, 0, 1.05, 0, 0.128, 12, 8, F,
+        { ao: shade(0.52), scaleY: 0.62, scaleZ: 0.66 });
+      /*
+       * The hunch. Two masses sitting above and behind the neck line, which is
+       * what makes the head read as *sunk between* the shoulders rather than
+       * sitting on top of them — the single most consistent thing about the
+       * shape of these.
+       */
+      for (const sx of [-0.145, 0.145]) {
+        addSphere(mb, sx, 1.63, 0.045, 0.10, 9, 7, F,
+          { ao: shade(0.52), scaleY: 0.68, scaleZ: 0.85 });
+      }
+      /*
+       * Ribs, as arcs of short boxes laid along the chest's own elliptical
+       * cross-section and pushed a few millimetres proud of it. Each segment is
+       * yawed onto the local tangent so the arc bends round the flank instead
+       * of cutting a straight chord through it.
+       */
+      const RIB_N = 5, RIB_SPAN = 1.05, PUSH = 0.011;
+      const dPhi = (RIB_SPAN * 2) / (RIB_N - 1);
+      for (let i = 0; i < 5; i++) {
+        const ry = 1.62 - i * 0.075;
+        /* Half-extents of the chest at this height, straight off the ellipsoid. */
+        const k = Math.sqrt(Math.max(0, 1 - ((ry - CHEST_Y) / CHEST_H) ** 2));
+        const a = CHEST_A * k, b = CHEST_B * k;
+        for (let j = 0; j < RIB_N; j++) {
+          const phi = -RIB_SPAN + j * dPhi;
+          const sp = Math.sin(phi), cp = Math.cos(phi);
+          /* Outward normal of an ellipse is (x/a², z/b²), not the radius. */
+          let nx = sp / a, nz = -cp / b;
+          const nl = Math.hypot(nx, nz) || 1;
+          nx /= nl; nz /= nl;
+          const tan = Math.hypot(a * cp, b * sp);
+          addBox(mb, a * sp + nx * PUSH, ry, -b * cp + nz * PUSH,
+            tan * dPhi * 1.25, 0.024, 0.030,
+            Math.atan2(b * sp, a * cp), F, { ao: shade(0.74) });
+        }
+      }
+      /* Neck: long, thin, and pitched forward so the head leads the body. */
+      addLimb(mb, 0, 1.80, -0.02, [0.043, 0.043], [0.052, 0.055], 0.16, F, { ao: shade(0.44) });
     });
     /*
      * The head, with eyes. The eyes are the whole reason anything here is
@@ -202,10 +294,29 @@ export class Renderer {
      * Local -Z is forward for this yaw convention, so they go in front.
      */
     this.dyn.entHead = make((mb) => {
-      addSphere(mb, 0, 0, 0, 0.115, 12, 9, F,
-        { ao: shade(0.7), scaleY: 1.22, scaleZ: 1.05 });
-      for (const ex of [-0.045, 0.045]) {
-        addSphere(mb, ex, 0.022, -0.095, 0.023, 7, 5, MAT.EYE, { ao: () => 1 });
+      /* A smooth domed cranium — no brow, no jawline, nothing that reads as a
+       * face until you are close enough for the mouth. */
+      addSphere(mb, 0, 0.02, 0.01, 0.108, 12, 9, F,
+        { ao: shade(0.72), scaleY: 1.30, scaleZ: 1.18 });
+      /*
+       * The mouth: a vertical slot running from under the dome down the front
+       * of the throat, dark inside. Vertical rather than horizontal because a
+       * mouth across the face reads as a mouth, and this is supposed to read
+       * as a head that has come apart.
+       */
+      addLimb(mb, 0, 0.03, -0.075, [0.030, 0.052], [0.020, 0.030], 0.20, MAT.MAW,
+        { ao: shade(0.10) });
+      /* A short row of needles down each side of the slot. */
+      for (let i = 0; i < 5; i++) {
+        const ty = 0.00 - i * 0.036;
+        for (const tx of [-0.026, 0.026]) {
+          addBox(mb, tx, ty, -0.088, 0.011, 0.026, 0.010, 0, MAT.TOOTH,
+            { ao: shade(0.85) });
+        }
+      }
+      /* Eyes: small, high, and set close — a cluster rather than a pair. */
+      for (const ex of [-0.038, 0.038]) {
+        addSphere(mb, ex, 0.072, -0.082, 0.017, 7, 5, MAT.EYE, { ao: () => 1 });
       }
     });
     /*
@@ -216,18 +327,74 @@ export class Renderer {
      * an unfinished model — it reads as a face that has had them taken out.
      */
     this.dyn.entHeadBlind = make((mb) => {
-      addSphere(mb, 0, 0, 0, 0.115, 12, 9, F,
-        { ao: shade(0.7), scaleY: 1.22, scaleZ: 1.05 });
-      for (const ex of [-0.045, 0.045]) {
-        addSphere(mb, ex, 0.022, -0.088, 0.024, 7, 5, F, { ao: shade(0.18) });
+      addSphere(mb, 0, 0.02, 0.01, 0.108, 12, 9, F,
+        { ao: shade(0.72), scaleY: 1.30, scaleZ: 1.18 });
+      addLimb(mb, 0, 0.03, -0.075, [0.030, 0.052], [0.020, 0.030], 0.20, MAT.MAW,
+        { ao: shade(0.10) });
+      for (let i = 0; i < 5; i++) {
+        const ty = 0.00 - i * 0.036;
+        for (const tx of [-0.026, 0.026]) {
+          addBox(mb, tx, ty, -0.088, 0.011, 0.026, 0.010, 0, MAT.TOOTH,
+            { ao: shade(0.85) });
+        }
+      }
+      for (const ex of [-0.038, 0.038]) {
+        addSphere(mb, ex, 0.072, -0.078, 0.018, 7, 5, F, { ao: shade(0.16) });
       }
     });
-    /* Origin at the joint, hanging down. */
-    this.dyn.entArm = make((mb) => {
-      addLimb(mb, 0, 0, 0, [0.055, 0.055], [0.032, 0.032], 0.66, F, { ao: shade(0.55) });
+
+    /*
+     * Limbs, in segments, all with their origin at the joint they hang from.
+     *
+     * The arms are two bones and a hand rather than one taper because the
+     * elbow is what makes an arm this long look like an arm rather than a
+     * rope, and the legs are three because these do not stand like people:
+     * the references all have a digitigrade back leg — thigh forward, shin
+     * raked back, and a long foot on the toes — and that reversed knee is
+     * more recognisable at forty metres than anything above the waist.
+     */
+    this.dyn.entArmUpper = make((mb) => {
+      addLimb(mb, 0, 0, 0, [0.050, 0.050], [0.034, 0.034], 0.48, F, { ao: shade(0.55) });
     });
-    this.dyn.entLeg = make((mb) => {
-      addLimb(mb, 0, 0, 0, [0.075, 0.075], [0.045, 0.05], 0.88, F, { ao: shade(0.5) });
+    this.dyn.entArmFore = make((mb) => {
+      addLimb(mb, 0, 0, 0, [0.034, 0.034], [0.024, 0.024], 0.56, F, { ao: shade(0.50) });
+    });
+    /*
+     * The hand is most of the silhouette below the waist, so it gets the
+     * detail: a small palm and four fingers that are nearly as long as the
+     * forearm, splayed and curling in. Long fingers on a thin arm is the one
+     * thing every one of these designs agrees on.
+     */
+    this.dyn.entHand = make((mb) => {
+      addLimb(mb, 0, 0, 0, [0.028, 0.020], [0.030, 0.018], 0.07, F, { ao: shade(0.52) });
+      for (let i = 0; i < 4; i++) {
+        const fx = (i - 1.5) * 0.019;
+        const lean = (i - 1.5) * 0.055;
+        /* Two knuckles each, the second swung inward, so they hook. */
+        addLimb(mb, fx, -0.06, lean * 0.3, [0.011, 0.011], [0.008, 0.008], 0.16, F,
+          { ao: shade(0.48) });
+        addLimb(mb, fx + lean * 0.35, -0.21, lean * 0.5 - 0.02,
+          [0.008, 0.008], [0.003, 0.003], 0.13, F, { ao: shade(0.42) });
+      }
+    });
+
+    /* 0.066 across the top, not 0.082: a 16cm-wide thigh on a body with a
+     * 10cm waist is the one limb that stops reading as starved, and being a
+     * four-sided prism it presents that width as a single flat face. */
+    this.dyn.entThigh = make((mb) => {
+      addLimb(mb, 0, 0, 0, [0.066, 0.066], [0.044, 0.044], 0.50, F, { ao: shade(0.5) });
+    });
+    this.dyn.entShin = make((mb) => {
+      addLimb(mb, 0, 0, 0, [0.050, 0.050], [0.029, 0.029], 0.52, F, { ao: shade(0.46) });
+    });
+    /* The foot is long and thin and it walks on the toes. */
+    this.dyn.entFoot = make((mb) => {
+      addLimb(mb, 0, 0, 0, [0.038, 0.038], [0.028, 0.028], 0.22, F, { ao: shade(0.44) });
+      for (let i = 0; i < 3; i++) {
+        const tx = (i - 1) * 0.026;
+        addLimb(mb, tx, -0.21, -0.02, [0.012, 0.012], [0.005, 0.005], 0.10, F,
+          { ao: shade(0.40) });
+      }
     });
 
     /*
@@ -727,6 +894,12 @@ function normaliseMaterials(level) {
     {
       kind: 'glow', color: '#eaf4ff', tile: 1, emissive: 1,
       roughMul: 0.3, specular: 0.4, bump: 0.05,
+    },
+    /* Slot 13 — the inside of a mouth. Almost black and completely matte, so
+     * an open jaw is a hole in the head and not a dark grey tongue. */
+    {
+      kind: 'stucco', color: '#140a0c', tile: 0.4, bump: 0.5,
+      normalStrength: 0.4, roughMul: 1, specular: 0.03,
     },
   ];
   for (let i = 0; i < MAT_COUNT; i++) {

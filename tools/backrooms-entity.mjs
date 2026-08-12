@@ -121,9 +121,9 @@ async function stage(page, kind) {
     }
     if (!best) return null;
     p.yaw = best.yaw;
-    /* Aim at the subject's middle. A level camera frames a 1.8m biped fine and
-     * cuts a 0.5m quadruped off the bottom of the screen entirely. */
-    const centreH = k === 'crawler' ? 0.34 : 1.0;  /* shade is 1.95 tall, centre ~1.0 */
+    /* Aim at the subject's middle. A level camera frames a two-metre biped
+     * fine and cuts a 0.5m quadruped off the bottom of the screen entirely. */
+    const centreH = k === 'crawler' ? 0.34 : 1.05;
     const camY = p.pos.y + p.eye;
     const flat = Math.hypot(best.x - p.pos.x, best.z - p.pos.z);
     p.pitch = Math.atan2((best.y + centreH) - camY, flat);
@@ -292,13 +292,59 @@ async function main() {
 
     if (kind !== 'crawler') {
       const names = parts.map((p) => p.mesh);
-      for (const want of ['entTorso', 'entHead', 'entArm', 'entLeg']) {
+      /*
+       * The rig is segmented — two bones and a hand per arm, three per leg —
+       * so the parts to look for are the ones nearest the body. Checking the
+       * upper bones rather than the extremities means this still fails loudly
+       * if a whole limb goes missing, without pinning the test to how many
+       * knuckles the hand happens to have this week.
+       */
+      for (const want of [
+        'entTorso', 'entHead', 'entArmUpper', 'entArmFore', 'entHand',
+        'entThigh', 'entShin', 'entFoot',
+      ]) {
         check(names.includes(want), `${kind}: has a ${want}`);
       }
-      const arms = parts.filter((p) => p.mesh === 'entArm');
-      const legs = parts.filter((p) => p.mesh === 'entLeg');
+      const arms = parts.filter((p) => p.mesh === 'entArmUpper');
+      const legs = parts.filter((p) => p.mesh === 'entThigh');
       check(arms.length === 2 && legs.length === 2,
         `${kind}: two arms and two legs (${arms.length}/${legs.length})`);
+
+      /*
+       * Digitigrade: the knee has to sit *behind* the hip and the ankle in
+       * front of the knee, which is the reversed-joint silhouette the whole
+       * body was rebuilt for. Measured along the entity's own forward axis so
+       * it holds whichever way the thing is facing.
+       */
+      const thigh = parts.find((p) => p.mesh === 'entThigh');
+      const shin = parts.find((p) => p.mesh === 'entShin');
+      const foot = parts.find((p) => p.mesh === 'entFoot');
+      if (thigh && shin && foot) {
+        const fwdX = -Math.sin(thigh.rot), fwdZ = -Math.cos(thigh.rot);
+        const along = (a, b) => (b.x - a.x) * fwdX + (b.z - a.z) * fwdZ;
+        check(along(thigh, shin) > 0.02,
+          `${kind}: the knee leads the hip (${along(thigh, shin).toFixed(3)}m forward)`);
+        check(along(shin, foot) < -0.02,
+          `${kind}: the ankle is set back behind the knee `
+          + `(${along(shin, foot).toFixed(3)}m)`);
+        check(foot.y < shin.y && shin.y < thigh.y,
+          `${kind}: hip, knee and ankle descend in order `
+          + `(${thigh.y.toFixed(2)} > ${shin.y.toFixed(2)} > ${foot.y.toFixed(2)})`);
+      }
+
+      /*
+       * And the arms are long. `entHand` is the *wrist* joint — the fingers
+       * hang another 0.29m below it — so the claim measured here is that the
+       * wrist reaches the knee, which puts the fingertips well past it. That
+       * is what the references have and it is most of why the silhouette
+       * reads as wrong.
+       */
+      const hand = parts.find((p) => p.mesh === 'entHand');
+      if (hand && shin) {
+        check(hand.y < shin.y + 0.06,
+          `${kind}: the wrists hang to about the knee `
+          + `(wrist ${hand.y.toFixed(2)}, knee ${shin.y.toFixed(2)})`);
+      }
       /*
        * Opposition, sampled at a phase we set rather than whatever phase the
        * clock happened to be at. Reading limbs on an arbitrary frame can catch
@@ -309,8 +355,8 @@ async function main() {
        */
       if (gait) {
         const at = await readAtPhase(page, Math.PI / 2);
-        const a2 = at.filter((q) => q.mesh === 'entArm');
-        const l2 = at.filter((q) => q.mesh === 'entLeg');
+        const a2 = at.filter((q) => q.mesh === 'entArmUpper');
+        const l2 = at.filter((q) => q.mesh === 'entThigh');
         check(Math.abs(a2[0].pitch - a2[1].pitch) > 0.05,
           `${kind}: the arms swing in opposition (${a2[0].pitch.toFixed(2)} vs ${a2[1].pitch.toFixed(2)})`);
         check(Math.abs(l2[0].pitch - l2[1].pitch) > 0.05,
@@ -365,6 +411,71 @@ async function main() {
     });
     await waitFrames(page, 2);
     await page.screenshot({ path: join(SHOT_DIR, `${kind}.png`), timeout: SHOT_MS });
+  }
+
+  /*
+   * The ribs have to sit *on* the chest, not inside it.
+   *
+   * This is the one defect in a body that no other check here can see. Every
+   * other assertion reads part transforms — where the torso is, where the knee
+   * is — and a rib is not a part, it is geometry inside the torso mesh. The
+   * first cut of this body laid five flat slabs across the chest whose front
+   * faces sat between 6mm and 30mm *inside* the chest wall, so the front of
+   * the chest showed nothing; the lower three happened to be a hair wider than
+   * the chest and broke the surface at the flank by 2mm to 9mm, which drew
+   * four faint scratches that read as a texture seam. Every test passed, and
+   * the screenshots looked plausible, because what you are looking for is
+   * something that is not there.
+   *
+   * So: read the torso's own vertices, and the chest ellipsoid the renderer
+   * actually built, and ask whether anything on the front of the chest stands
+   * proud of it. Sampling is confined to a band that only the chest and the
+   * ribs occupy — above the waist bulge, below where the neck joins — so a
+   * pass cannot be borrowed from some other piece of the body.
+   */
+  {
+    const rib = await page.evaluate(() => {
+      const g = window.backrooms;
+      const m = g.renderer.dyn.entTorso;
+      if (!m || !m.cpu) return null;
+      const { vertices: v, count, stride } = m.cpu;
+      const c = g.renderer.chest;
+      /* Squared ellipsoid radius: 1 is the skin, more than 1 is outside it. */
+      const q = (x, y, z) =>
+        (x / c.a) ** 2 + ((y - c.y) / c.h) ** 2 + (z / c.b) ** 2;
+      let front = 0, flank = 0, n = 0;
+      for (let i = 0; i < count; i++) {
+        const o = i * stride;
+        const x = v[o], y = v[o + 1], z = v[o + 2];
+        /*
+         * Rib band, front only. The ceiling is 1.55 and not a round 1.6
+         * because the hunched shoulder blades begin at y=1.562 and they stand
+         * proud of the chest by design — leaving them in the sample let the
+         * flank half of this check score 1.48 on a body whose ribs were
+         * entirely buried, which is to say it was measuring nothing.
+         */
+        if (y < 1.30 || y > 1.55 || z >= 0) continue;
+        n++;
+        const d = q(x, y, z);
+        if (Math.abs(x) < 0.05) front = Math.max(front, d);
+        if (Math.abs(x) > 0.12) flank = Math.max(flank, d);
+      }
+      return { front, flank, n, chest: c };
+    });
+    check(!!rib && rib.n > 0, 'the torso keeps its vertices for inspection');
+    if (rib && rib.n > 0) {
+      /*
+       * 1.15 sits in a wide gap rather than near either side of it. Built as
+       * intended these read 1.56 and 1.52; with the ribs sunk into the chest
+       * instead of laid on it, both fall to exactly 1.000 — the chest skin and
+       * nothing else — so the threshold has ample room on both sides.
+       */
+      check(rib.front > 1.15,
+        'ribs stand proud of the chest wall down the centre line '
+        + `(furthest point ${rib.front.toFixed(2)}× the chest radius; 1.00 is the skin)`);
+      check(rib.flank > 1.15,
+        `ribs wrap onto the flank as well (${rib.flank.toFixed(2)}× at |x| > 0.12)`);
+    }
   }
 
   /* ------------------------------------------------------------------ *

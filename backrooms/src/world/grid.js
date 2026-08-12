@@ -56,8 +56,11 @@ export const MAT = {
    * the grin and the stare are two readable things and not one orange smear
    * once the bloom has had them. */
   TOOTH: 12,
+  /* The inside of a mouth. Not emissive and not lit — a hole, so that an open
+   * jaw reads as depth rather than as a differently-coloured lump. */
+  MAW: 13,
 };
-export const MAT_COUNT = 13;
+export const MAT_COUNT = 14;
 
 export class Chunk {
   constructor(level, cx, cz) {
