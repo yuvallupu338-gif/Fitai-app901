@@ -6,6 +6,11 @@
  * without a browser.
  */
 
+/** Saves bytes as a file. The PDF is the one thing here that is not text. */
+export function downloadBytes(fileName, bytes, mime) {
+  return downloadBlob(fileName, new Blob([bytes], { type: mime || 'application/octet-stream' }));
+}
+
 /**
  * Saves text as a file.
  *
@@ -16,7 +21,10 @@
  * nothing to hold.
  */
 export function downloadText(fileName, text, mime) {
-  const blob = new Blob([text], { type: (mime || 'text/plain') + ';charset=utf-8' });
+  return downloadBlob(fileName, new Blob([text], { type: (mime || 'text/plain') + ';charset=utf-8' }));
+}
+
+function downloadBlob(fileName, blob) {
   const url = URL.createObjectURL(blob);
   const a = document.createElement('a');
   a.href = url;

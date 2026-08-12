@@ -477,7 +477,35 @@ async function main() {
    * dialog, so what is checked is the part that can be wrong on a real machine:
    * that the frame it prints holds the document itself rather than the app.
    */
-  await page.getByRole('button', { name: 'הורדה כ-PDF' }).click();
+  /*
+   * The PDF the app writes itself, downloaded like any other file — no dialog,
+   * no destination to choose. What is asserted here is that it is a PDF, that
+   * it carries the picture and the font, and that the bytes are the app's own
+   * work rather than a print job that happened to be intercepted.
+   */
+  const [pdf] = await Promise.all([
+    page.waitForEvent('download'),
+    page.getByRole('button', { name: 'הורדה כ-PDF' }).click(),
+  ]);
+  const pdfPath = join(downloads, 'portfolio.pdf');
+  await pdf.saveAs(pdfPath);
+  const pdfBytes = await readFile(pdfPath);
+  const pdfText = pdfBytes.toString('latin1');
+  check(pdf.suggestedFilename().endsWith('.pdf'), `the PDF is named "${pdf.suggestedFilename()}"`);
+  check(pdfBytes.slice(0, 5).toString() === '%PDF-', 'the download is not a PDF');
+  check(pdfText.includes('/Type /Font') && pdfText.includes('/Identity-H'),
+    'the PDF has no embedded font, which is how Hebrew turns into blank boxes elsewhere');
+  check(pdfText.includes('/FontFile2'), 'the font is referenced but not embedded');
+  check(pdfText.includes('/ToUnicode'), 'the PDF has no ToUnicode map, so its text cannot be copied or searched');
+  check(pdfText.includes('/Subtype /Image') && pdfText.includes('/DCTDecode'),
+    'the photograph did not make it into the PDF');
+  check(!/\/JavaScript|\/OpenAction|\/Launch/.test(pdfText), 'the PDF carries an action');
+  check(pdfBytes.length > 60000, `the PDF is ${pdfBytes.length} bytes, which is too small to hold a font`);
+  check((await page.textContent('.filecard')).includes('ה-PDF ירד'), 'the screen does not say the PDF arrived');
+
+  /* And the print route, which is still there for people who want the
+   * browser's own rendering or a piece of paper. */
+  await page.getByRole('button', { name: 'הדפסה' }).click();
   await page.waitForFunction(() => document.querySelectorAll('iframe').length > 1, null, { timeout: 20000 });
   const printFrame = await page.evaluate(() => {
     const frames = Array.from(document.querySelectorAll('iframe'));
@@ -486,10 +514,8 @@ async function main() {
   });
   check(printFrame.doc === '<!DOCTYPE html>', 'printing does not print the document');
   check(printFrame.hidden === '0', 'the print frame is visible on the page');
-  /* The dialog is modal, so the one instruction that is not obvious has to be
-   * on the page before it opens. */
   check((await page.textContent('.filecard')).includes('שמירה כ-PDF'),
-    'the PDF button does not say what to choose in the dialog');
+    'the print button does not say what to choose in the dialog');
 
   const [download] = await Promise.all([
     page.waitForEvent('download'),
@@ -534,6 +560,53 @@ async function main() {
   check(restored.includes('מספרת רון'), 'the backup did not restore the work');
   check(restored === srcdoc.replace(/עודכן ב[^<]*/, restored.match(/עודכן ב[^<]*/) || ''),
     'the document after a restore is not the document before the backup');
+
+  /*
+   * The reordering the PDF writer does, against the one the browser does.
+   *
+   * There is no way to be sure a bidi implementation is right by reading it.
+   * There is a way to be sure it agrees with the thing every reader of Hebrew
+   * already trusts: lay the line out in Chromium, measure where each character
+   * landed, and compare the order with what `pdf/bidi.js` produced.
+   */
+  const BIDI_CASES = [
+    'שלום עולם',
+    'עיצבתי ב-Figma, HTML ו-CSS.',
+    'בין מרץ למאי 2024',
+    'בתיק הזה שלוש עבודות, מ-2019 עד 2021',
+    'מיתוג (2019) לכנס',
+    'זו אפליקציה שבניתי ללקוח מספרת רון, בין מרץ למאי 2024.',
+    '052-1234567',
+    'noa@example.com · חיפה',
+    'התפקיד שלי בה היה עיצוב ופיתוח (UX/UI).',
+  ];
+  const bidiPage = await context.newPage();
+  await bidiPage.setContent('<!doctype html><html lang="he" dir="rtl"><body style="font:16px system-ui">'
+    + '<div id="t" style="white-space:pre"></div></body></html>');
+  const browserOrder = await bidiPage.evaluate((cases) => cases.map((text) => {
+    const el = document.getElementById('t');
+    el.textContent = text;
+    const node = el.firstChild;
+    const boxes = [];
+    let offset = 0;
+    for (const ch of Array.from(text)) {
+      const range = document.createRange();
+      range.setStart(node, offset);
+      range.setEnd(node, offset + ch.length);
+      boxes.push({ ch, x: range.getBoundingClientRect().left });
+      offset += ch.length;
+    }
+    return boxes.sort((a, b) => a.x - b.x).map((b) => b.ch).join('');
+  }), BIDI_CASES);
+  await bidiPage.close();
+
+  const { visualRuns } = await import(pathToFileURL(resolve(ROOT, 'portfolio/src/pdf/bidi.js')).href);
+  BIDI_CASES.forEach((text, i) => {
+    const ours = visualRuns(text).map((r) => r.text).join('');
+    check(ours === browserOrder[i],
+      `the PDF would draw ${JSON.stringify(text)} as ${JSON.stringify(ours)}, `
+      + `where the browser draws ${JSON.stringify(browserOrder[i])}`);
+  });
 
   /* ---- the two devices that will not keep the answer ---- */
 

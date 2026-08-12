@@ -41,6 +41,11 @@ const md = await load('portfolio/src/export/markdown.js');
 const store = await load('portfolio/src/core/store.js');
 const read = await load('portfolio/src/ai/read.js');
 const offline = await load('portfolio/src/ai/offline.js');
+const pdf = await load('portfolio/src/export/pdf.js');
+const bidi = await load('portfolio/src/pdf/bidi.js');
+const ttf = await load('portfolio/src/pdf/ttf.js');
+const writer = await load('portfolio/src/pdf/writer.js');
+const fontFile = await load('portfolio/src/pdf/font.assistant.js');
 
 const problems = [];
 let checks = 0;
@@ -845,7 +850,147 @@ ok(doc.fileNameFor('', 'html') === 'portfolio.html', 'a name with no date should
 }
 
 /* ------------------------------------------------------------------ *
- * 9. Storage that refuses
+ * 9. The PDF the app writes itself
+ * ------------------------------------------------------------------ */
+
+/*
+ * A PDF is the one export nothing else can check for us.
+ *
+ * The HTML is read by a browser, and the browser check opens it. The PDF is
+ * read by whatever the person receiving it uses, and the failure mode of a
+ * hand-written PDF is not an exception — it is a file that opens to a page of
+ * blank boxes on a machine that does not have the font, or a file whose text
+ * cannot be copied, or Hebrew written backwards. So the assertions are about
+ * the four things that decide those: the font is IN the file, the encoding is
+ * the one that does not ask the reader to guess, the map back to characters
+ * exists, and the reordering agrees with a browser.
+ */
+
+const FONT_HE = 'אבגדהוזחטיכךלמםנןסעפףצץקרשת';
+const FONT_EXTRA = '0123456789.,:;·—–()[]"\'!?%&@/\\+-=₪״׳';
+
+{
+  const regular = ttf.parseTtf(ttf.decodeBase64(fontFile.ASSISTANT_400));
+  const bold = ttf.parseTtf(ttf.decodeBase64(fontFile.ASSISTANT_700));
+
+  ok(regular.unitsPerEm > 0 && regular.numGlyphs > 100,
+    `the regular face parsed as ${regular.numGlyphs} glyphs at ${regular.unitsPerEm} units`);
+  for (const face of [['regular', regular], ['bold', bold]]) {
+    ok(face[1].covers(FONT_HE), `the ${face[0]} face is missing a Hebrew letter`);
+    ok(face[1].covers(FONT_EXTRA), `the ${face[0]} face is missing a punctuation mark this app writes`);
+    ok(face[1].covers('abcdefghijklmnopqrstuvwxyzABCDEFGHIJKLMNOPQRSTUVWXYZ'),
+      `the ${face[0]} face is missing a Latin letter`);
+    ok(face[1].gidFor('א'.codePointAt(0)) !== face[1].gidFor('ב'.codePointAt(0)),
+      `the ${face[0]} face maps two letters to one glyph`);
+    ok(face[1].advance(face[1].gidFor('מ'.codePointAt(0))) > 0, `the ${face[0]} face has no width for מ`);
+  }
+}
+
+/*
+ * The reordering, with the answers written out.
+ *
+ * These are the same lines the browser check measures in Chromium, with what
+ * it measured pasted here — so the rule can be checked without a browser, and
+ * the browser is what decided the rule rather than my reading of the spec.
+ */
+const BIDI = [
+  ['שלום עולם', 'םלוע םולש'],
+  ['עיצבתי ב-Figma, HTML ו-CSS.', '.CSS-ו Figma, HTML-ב יתבציע'],
+  ['בין מרץ למאי 2024', '2024 יאמל ץרמ ןיב'],
+  ['בתיק הזה שלוש עבודות, מ-2019 עד 2021', '2021 דע 2019-מ ,תודובע שולש הזה קיתב'],
+  ['מיתוג (2019) לכנס', 'סנכל )2019( גותימ'],
+  ['052-1234567', '052-1234567'],
+  ['noa@example.com · חיפה', 'הפיח · noa@example.com'],
+  ['התפקיד שלי בה היה עיצוב ופיתוח (UX/UI).', '.)UX/UI( חותיפו בוציע היה הב ילש דיקפתה'],
+];
+for (const [logical, visual] of BIDI) {
+  const drawn = bidi.visualRuns(logical).map((r) => r.text).join('');
+  ok(drawn === visual, `${JSON.stringify(logical)} draws as ${JSON.stringify(drawn)}`);
+}
+
+/* A bracket is drawn as its mirror in a right-to-left run, and left alone in a
+ * left-to-right one. */
+ok(bidi.drawnChar('(', true) === ')' && bidi.drawnChar('(', false) === '(',
+  'brackets are not mirrored by direction');
+
+/* The JPEG header reader, which decides how a picture is drawn and declared. */
+{
+  const jpeg = fakeJpeg(640, 480, 3);
+  const read = writer.readJpeg(jpeg);
+  ok(read && read.width === 640 && read.height === 480, `a JPEG header read as ${JSON.stringify(read && [read.width, read.height])}`);
+  ok(read && read.space === 'DeviceRGB', 'a three-component JPEG is not RGB');
+  const grey = writer.readJpeg(fakeJpeg(10, 10, 1));
+  ok(grey && grey.space === 'DeviceGray', 'a one-component JPEG is not grey');
+  ok(writer.readJpeg(new Uint8Array([0x89, 0x50, 0x4e, 0x47])) === null, 'a PNG was read as a JPEG');
+  ok(writer.readJpeg(new Uint8Array(0)) === null, 'an empty file was read as a JPEG');
+}
+
+{
+  const jpeg = fakeJpeg(800, 600, 3);
+  const withPicture = schema.normalisePortfolio({
+    owner: FULL.owner,
+    works: FULL.works.map((w, i) => (i === 0 ? Object.assign({}, w, { images: [{ src: pngPixel(), caption: 'עמוד הבית' }] }) : w)),
+  });
+  const bytes = pdf.toPdf(withPicture, { now: FIXED_DATE, images: new Map([[pngPixel(), jpeg]]) });
+  const text = Buffer.from(bytes).toString('latin1');
+
+  ok(text.startsWith('%PDF-1.7'), 'the file does not start as a PDF');
+  ok(text.trimEnd().endsWith('%%EOF'), 'the file does not end as a PDF');
+  ok(/\/Type \/Catalog/.test(text) && /\/Type \/Pages/.test(text), 'the PDF has no catalogue');
+  ok(/\/Encoding \/Identity-H/.test(text),
+    'the PDF does not use Identity-H, which is what stops Hebrew depending on the reader');
+  ok(/\/FontFile2/.test(text), 'the font is not embedded in the file');
+  ok(/\/ToUnicode/.test(text), 'the PDF has no map back to characters, so its text cannot be copied');
+  ok(/beginbfchar/.test(text), 'the ToUnicode map is empty');
+  ok(/\/Subtype \/Image/.test(text) && /\/DCTDecode/.test(text), 'the picture is not in the PDF');
+  ok(/\/Width 800/.test(text) && /\/Height 600/.test(text), "the picture's size was not read from it");
+  ok(!/\/JavaScript|\/OpenAction|\/Launch|\/EmbeddedFile/.test(text), 'the PDF carries an action or an attachment');
+  ok(/\/Count [1-9]/.test(text), 'the PDF has no pages');
+
+  /* Two runs, one file. A PDF that differs between two runs of the same
+   * portfolio cannot be compared, and the first thing that would differ is a
+   * date somebody read off a clock. */
+  const again = pdf.toPdf(withPicture, { now: FIXED_DATE, images: new Map([[pngPixel(), jpeg]]) });
+  ok(Buffer.from(bytes).equals(Buffer.from(again)), 'two runs produced different PDFs');
+
+  /* The offsets in the cross-reference table have to be where the objects
+   * actually are, or a reader repairs the file — and a repaired file is one
+   * that opened by luck. */
+  const xrefAt = Number(/startxref\s+(\d+)/.exec(text)[1]);
+  ok(text.slice(xrefAt, xrefAt + 4) === 'xref', 'startxref does not point at the table');
+  const rows = text.slice(xrefAt).split('\n').filter((l) => /^\d{10} \d{5} n/.test(l));
+  ok(rows.length > 10, `the table has ${rows.length} entries`);
+  let wrong = 0;
+  rows.forEach((row) => {
+    const at = Number(row.slice(0, 10));
+    if (!/^\d+ 0 obj/.test(text.slice(at, at + 20))) wrong += 1;
+  });
+  ok(wrong === 0, `${wrong} cross-reference offsets do not point at an object`);
+}
+
+/* Hostile text is text here too — a PDF has no markup to break out of, but it
+ * does have string syntax, and the answer is that nothing user-typed is ever
+ * written as a PDF string: it is written as glyph numbers. */
+{
+  const nasty = schema.normalisePortfolio({
+    owner: { name: '</script>(){}\\ ) 0 0 0 rg BT /F1 40 Tf' },
+    works: [{ title: '\\(x) Tj ET', kind: 'site', context: 'personal', brief: 'ENDSTREAM endobj trailer' }],
+  });
+  const text = Buffer.from(pdf.toPdf(nasty, { now: FIXED_DATE })).toString('latin1');
+  ok(!/\(x\) Tj ET/.test(text), 'a work title reached the content stream as an operator');
+  ok(!/ENDSTREAM endobj trailer/.test(text), 'an answer reached the file as raw text');
+  ok((text.match(/\/Type \/Page[^s]/g) || []).length >= 1, 'the hostile portfolio produced no page');
+}
+
+/* An empty portfolio still produces one openable page rather than nothing. */
+{
+  const empty = Buffer.from(pdf.toPdf(schema.normalisePortfolio({}), { now: FIXED_DATE })).toString('latin1');
+  ok(empty.startsWith('%PDF'), 'an empty portfolio did not produce a PDF');
+  ok(/\/Count 1/.test(empty), 'an empty portfolio produced more than one page');
+}
+
+/* ------------------------------------------------------------------ *
+ * 10. Storage that refuses
  * ------------------------------------------------------------------ */
 
 /*
@@ -914,6 +1059,26 @@ function tagCount(source, name) {
  * entities left encoded — an href of "&#39;" points at that, not at a quote. */
 function attrValues(source, attr) {
   return Array.from(source.matchAll(new RegExp(attr + '="([^"]*)"', 'g'))).map((m) => m[1]);
+}
+
+/*
+ * A JPEG header with nothing behind it.
+ *
+ * `readJpeg` reads the frame header and copies the rest through untouched, so a
+ * check of what it reads needs the header and not an image — and Node has no
+ * JPEG encoder to make a real one with.
+ */
+function fakeJpeg(width, height, components) {
+  const head = [0xff, 0xd8, 0xff, 0xe0, 0x00, 0x10, 0x4a, 0x46, 0x49, 0x46, 0, 1, 1, 0, 0, 1, 0, 1, 0, 0];
+  /* A Huffman table before the frame, because every real JPEG has one and its
+   * marker (0xC4) sits inside the range the frame markers live in. A reader
+   * that treats it as a frame reads the table's bytes as a picture's size. */
+  const dht = [0xff, 0xc4, 0x00, 0x14, 0x00];
+  for (let i = 0; i < 17; i += 1) dht.push(0);
+  const sof = [0xff, 0xc0, 0x00, 8 + components * 3, 8,
+    (height >> 8) & 0xff, height & 0xff, (width >> 8) & 0xff, width & 0xff, components];
+  for (let c = 0; c < components; c += 1) sof.push(c + 1, 0x11, 0);
+  return new Uint8Array(head.concat(dht, sof, [0xff, 0xd9]));
 }
 
 function pngPixel() {

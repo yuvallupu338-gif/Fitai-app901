@@ -18,7 +18,9 @@ import { countPhrase } from '../engine/write.js';
 import { toHtml } from '../export/html.js';
 import { toMarkdown } from '../export/markdown.js';
 import { buildDocument, fileNameFor } from '../export/document.js';
-import { downloadText, printHtml } from '../export/download.js';
+import { toPdf } from '../export/pdf.js';
+import { preparePdfImages } from '../export/pdfimages.js';
+import { downloadText, downloadBytes, printHtml } from '../export/download.js';
 import { paintSaveError } from './savewarn.js';
 
 export function renderFile(root) {
@@ -26,28 +28,55 @@ export function renderFile(root) {
   root.appendChild(view);
   const notice = h('div');
   const pdfNote = h('p.help');
+  let busy = false;
 
   /*
-   * "הורדה כ-PDF" goes through the browser's print dialog, and that is not a
-   * shortcut — it is the only way a page with no server and no libraries writes
-   * a PDF at all. A PDF written by hand here would have to carry an embedded
-   * Hebrew font and do the right-to-left shaping itself, which is a large
-   * amount of code to arrive at a worse file: what the print dialog produces
-   * has real text in it, so the document is searchable, selectable and
-   * copy-pastable, and an employer's ATS can read it.
+   * The PDF is written by this app, not by the print dialog.
    *
-   * What the button owes the person is the one instruction that is not obvious:
-   * the dialog's destination has to be set to "Save as PDF" rather than a
-   * printer. It is written on the screen before the dialog opens, because a
-   * modal dialog is exactly when nobody reads the page behind it.
+   * It is the same document — `export/pdf.js` lays out the model the HTML
+   * exporter lays out — with a Hebrew font embedded in the file, so the text in
+   * it is text: searchable, selectable, and readable by the software that reads
+   * a CV before a person does. Rasterising the page would have been a tenth of
+   * the code and would have produced a picture of a portfolio.
+   *
+   * The pictures are the one asynchronous part, because decoding and
+   * re-encoding them needs a canvas, so the button says what it is doing rather
+   * than appearing to have done nothing.
    */
-  function toPdf(html) {
+  async function downloadPdf(st, now) {
+    if (busy) return;
+    busy = true;
     clear(pdfNote);
-    pdfNote.appendChild(h('b', 'נפתח חלון הדפסה. '));
+    pdfNote.appendChild(h('b', 'בונה את ה-PDF…'));
+    announce('בונה את הקובץ');
+    try {
+      const images = await preparePdfImages(st);
+      const bytes = toPdf(st, { now, images });
+      downloadBytes(fileNameFor(st.owner.name, 'pdf', now), bytes, 'application/pdf');
+      clear(pdfNote);
+      pdfNote.appendChild(h('b', 'ה-PDF ירד. '));
+      pdfNote.appendChild(document.createTextNode(
+        'הטקסט בתוכו הוא טקסט — אפשר לחפש בו ולהעתיק ממנו, וגם מערכת שסורקת קורות חיים יודעת לקרוא אותו.'));
+      announce('ה-PDF ירד');
+    } catch (e) {
+      console.error(e);
+      clear(pdfNote);
+      pdfNote.appendChild(h('b', 'לא הצלחתי לבנות את ה-PDF. '));
+      pdfNote.appendChild(document.createTextNode(
+        'אפשר להוריד את קובץ ה-HTML ולהדפיס אותו מהדפדפן — בחלון ההדפסה בוחרים "שמירה כ-PDF".'));
+    } finally {
+      busy = false;
+    }
+  }
+
+  /* The browser's own route to a PDF, kept because its rendering is the one the
+   * person is looking at, and because a print dialog is also how somebody
+   * prints on paper. */
+  function print(html) {
+    clear(pdfNote);
     pdfNote.appendChild(document.createTextNode(
-      'ביעד ההדפסה בוחרים "שמירה כ-PDF" (Save as PDF) ואז "שמירה". זה הקובץ עצמו, '
-      + 'עם טקסט אמיתי שאפשר לחפש ולהעתיק — לא צילום מסך שלו.'));
-    announce('נפתח חלון הדפסה. בחרו שמירה כ-PDF.');
+      'נפתח חלון הדפסה. אם רוצים משם PDF — ביעד ההדפסה בוחרים "שמירה כ-PDF".'));
+    announce('נפתח חלון הדפסה');
     printHtml(html);
   }
 
@@ -94,7 +123,8 @@ export function renderFile(root) {
             announce('הקובץ ירד');
           },
         }, 'הורדת הקובץ'),
-        h('button.btn', { onclick: () => toPdf(html) }, 'הורדה כ-PDF'),
+        h('button.btn', { onclick: () => downloadPdf(st, now) }, 'הורדה כ-PDF'),
+        h('button.btn.ghost', { onclick: () => print(html) }, 'הדפסה'),
         h('button.btn', {
           onclick: () => {
             downloadText(fileNameFor(st.owner.name, 'md', now), toMarkdown(st, { now }), 'text/markdown');

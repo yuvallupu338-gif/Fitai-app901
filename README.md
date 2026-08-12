@@ -57,8 +57,9 @@ questionnaire, the plan, or any of FitAI's storage. See
 
 `portfolio/` is a third app: you write a line for each thing you have made, and
 it turns those lines into a תיק עבודות — one self-contained HTML file with an
-explanation written from your answers, the photographs embedded, no script
-inside it, and Ctrl+P for the PDF. It shares this repo's design system, six
+explanation written from your answers, the photographs embedded and no script
+inside it — and, from the same document model, a PDF the app writes itself,
+font embedded and text still text. It shares this repo's design system, six
 functions from `src/core/dom.js` and the model layer, and nothing else. The
 model is optional: with a key it reads the prose, without one a list of rules
 splits it, and the rest of the app never opens a connection at all. It is served

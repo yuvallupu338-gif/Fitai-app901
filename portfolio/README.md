@@ -132,16 +132,52 @@ white rather than the app's own dark chrome, why headings are told not to end a
 page alone, and why link addresses are printed beside their text on paper, where
 a link is only its text.
 
-"הורדה כ-PDF" opens the browser's print dialog, and that is not the button
-taking a shortcut — it is the only way a page with no server and no libraries
-writes a PDF at all. Writing one here by hand would mean embedding a Hebrew font
-and doing the right-to-left shaping in this app, which is a great deal of code
-to arrive at a worse file: what the print dialog produces has real text in it,
-so the document is searchable, selectable, and readable by the software an
-employer runs over it. What the button owes the person is the one instruction
-that is not obvious — set the destination to "Save as PDF" — and it is on the
-screen before the dialog opens, because a modal dialog is exactly when nobody
-reads the page behind it.
+## The PDF
+
+"הורדה כ-PDF" downloads a PDF. No dialog, no destination to choose, no chance of
+ending up at a printer — the app writes the file itself, out of the same
+document model the HTML exporter uses. It lives in [src/pdf/](src/pdf).
+
+There was a shorter way and it was rejected: draw the page to a canvas and put
+the picture in a PDF. That is a tenth of the code and produces a portfolio no
+software can read — no selectable text, nothing to search, and a CV scanner
+scores it as an empty document. So the file is made of words, which takes three
+things.
+
+**A font, in the file.** [tools/fetch-pdf-font.js](../tools/fetch-pdf-font.js)
+fetches Assistant as TrueType and `src/pdf/font.assistant.js` carries it,
+base64, both weights. It cannot be the woff2 the app displays with — that is
+Brotli-compressed and no PDF reader can read it. The font is embedded whole
+rather than subsetted: rebuilding `glyf`, `loca`, `cmap` and `hmtx`
+consistently is real work to save 40KB in a file that carries photographs, and a
+subset that is subtly wrong fails as a document that looks fine on the machine
+that made it.
+
+**An encoding that asks the reader nothing.** The font goes in as a CID font
+with Identity-H, so a string in the content stream is glyph numbers rather than
+characters. With a simple encoding the reader has to map characters to glyphs
+itself, using tables that assume Latin — which is the well-known PDF that shows
+Hebrew as a row of empty boxes on somebody else's machine. Every string also
+goes into a ToUnicode map, which is what makes the text selectable, searchable
+and extractable; `pdftotext` on the result gives back the Hebrew.
+
+**The reordering a browser would have done.** A PDF draws glyphs left to right
+from a point and has no idea what direction anything is, so `src/pdf/bidi.js`
+implements the part of the bidirectional algorithm this text needs. It is
+checked against Chromium rather than against my reading of the specification:
+the browser check lays each line out in a real RTL page, measures where every
+character landed, and asserts this file put them in the same order. Nine lines,
+including the ones with brackets and years in them, which are the cases that go
+wrong.
+
+What is not there: no kerning, no ligatures, no hyphenation, no nikud
+positioning, and one known imperfection — copying a bracket out of a
+right-to-left line gives its mirror, because a PDF has no way to say "this
+glyph, that character". Hebrew needs no shaping, which is the single reason this
+is three small modules and not a project.
+
+"הדפסה" is still beside it, because the browser's own rendering is the one on
+the screen, and because a print dialog is also how somebody prints on paper.
 
 Its name is the one ASCII string in the app, and that is not an aesthetic
 choice. A `download` attribute holding Hebrew is not merely displayed
@@ -205,7 +241,8 @@ portfolio/
     engine/write.js   the explanation, and the paragraph counted off the works
     ai/read.js        the paragraph, read by a model, then normalised like a form
     ai/offline.js     the same job by rule, for the machines with no key
-    export/           document model -> html | markdown | download
+    export/           document model -> html | markdown | pdf | download
+    pdf/              a TrueType reader, a bidi reordering and a PDF writer
     ui/               quickstart, owner, works list, work editor, the file tab
     styles/           only what this app adds
 ```
@@ -241,12 +278,13 @@ because it is read on somebody else's screen and on paper.
 ## Testing it
 
 ```bash
-node tools/portfolio-audit.mjs                          # grammar and containment
+node tools/portfolio-audit.mjs                          # grammar, containment, the PDF
 node tools/build-single.js portfolio/index.html dist/portfolio.html
 node tools/portfolio-smoke.mjs --shots                  # the real app in Chromium
+node tools/fetch-pdf-font.js                            # only when the font changes
 ```
 
-`portfolio-audit.mjs` is 479 assertions over the things a screenshot cannot see.
+`portfolio-audit.mjs` is 524 assertions over the things a screenshot cannot see.
 The first is grammar: "זה אפליקציה שבניתי" looks exactly as correct as "זו
 אפליקציה שבניתי" to anything that is not reading it, so the cases are named in
 the check — one line per kind, with the demonstrative and both pronouns written
@@ -267,7 +305,7 @@ something else, and in both cases the answer that was being typed survives the
 failed save — the work in the form at that moment is worth more than the
 invariant.
 
-`portfolio-smoke.mjs` is 93 checks in Chromium. It fills the form, reloads to
+`portfolio-smoke.mjs` is 111 checks in Chromium. It fills the form, reloads to
 prove any of it was stored, adds and reorders and deletes a work, puts a real
 PNG through the picture path — a File, a canvas, a resize and a re-encode, none
 of which exist in Node — then downloads the file, closes the server, and opens
@@ -310,6 +348,10 @@ below are measured rather than estimated:
 | the model's work ids or images are trusted | 1 each |
 | the offline reader splits on full stops | 2 |
 | the word boundary comes off the Latin tool names | 1 — "JavaScript" also matches "Java" |
+| the PDF's ToUnicode map or embedded font is dropped | 1 each |
+| the cross-reference offsets go off by one | 1 — the table has to point at real objects |
+| the right-to-left runs stop being reversed | 7 |
+| a Huffman table is read as a JPEG frame header | 3 |
 
 The first row is the one worth reading twice. Sixty-five is not a sign of a
 thorough check; it is a sign that escaping is load-bearing in sixty-five places,
