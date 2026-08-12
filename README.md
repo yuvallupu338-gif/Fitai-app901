@@ -127,8 +127,38 @@ the words around it.
 
 A browser-driven audit walks every tab, the workout screen and the sheets,
 forces `:active` on each control and reads back the computed transform once the
-transition has settled: 575 of the 596 pressable elements answer, and the 21
+transition has settled: 581 of the 602 pressable elements answer, and the 21
 that do not are exactly those three groups.
+
+## Reminders
+
+They are timers inside the page, and that is the whole truth about them. The
+screen says so: reminders arrive while the app is open — in front of you, or in
+a live background tab — and nothing arrives while it is fully closed, because
+that needs a push server and this app deliberately has none. The footnote used
+to point at the install button as the fix, which does nothing: there is no push
+subscription anywhere in the file and a closed PWA runs no JavaScript.
+
+What can be salvaged inside that constraint is salvaged. A background tab gets
+throttled hard enough to skip the one minute a reminder was due, and the old
+code matched the exact `HH:MM` and lost it for good; anything whose time has
+passed fires up to an hour late instead, and the fired-state lives in the
+profile so a reload cannot repeat it or a stale morning greeting arrive at
+night.
+
+The switch tells the truth too. It used to draw itself from the stored
+preference while the line under it and the test button read the browser
+permission, so revoking permission in site settings left a green switch on
+something that could not fire — and the test button answered "enable browser
+notifications first" underneath it. `notifOn()` is the only thing the UI asks
+now, a blocked permission says where to un-block it, and the stored flag is
+reconciled against the browser at boot rather than drifting until someone
+happens to tap the switch.
+
+Water reminders shipped on by default under a master that ships off, and "every
+N hours" meant "on clock hours divisible by N" — every 2 hours gave you 10, 12,
+14, 16, 18, 20 and skipped the first one of the day. It is a real interval from
+09:00 now, and the screen prints the times it will actually use.
 
 ## The rest of the app
 
@@ -172,6 +202,11 @@ Its sharp edge is that the key is the *whole* string, emoji included, so taking
 an emoji off a heading silently drops it back into word-by-word and it comes
 out as "טיפ today". Those headings pick their own wording per language now and
 do not consult the dictionary at all.
+
+The audit only sees what is on screen when it runs, which is a real limit: the
+coach's caption ("Your coach trains with you · משיכה") went untranslated for as
+long as the coach happened not to be doing a pull on the day anyone looked. It
+picks its own wording now, like the rest.
 
 A browser-driven audit walks every tab, every sheet, all 47 machine guides, the
 food search and every recipe in both English and Spanish, collecting any text
