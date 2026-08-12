@@ -26,6 +26,7 @@
  */
 
 import { buildDocument } from './document.js';
+import { attachPrefix } from '../engine/write.js';
 
 /** The five characters that can end an attribute or open a tag. */
 export function esc(value) {
@@ -38,12 +39,17 @@ export function esc(value) {
 }
 
 /*
- * An id from stored data becomes a fragment and an attribute, so it is rebuilt
- * out of the characters that are legal in both rather than escaped into them.
+ * The anchor is the work's position, not its id.
+ *
+ * Rebuilding it out of the id's legal characters looked safer and was worse:
+ * `\w` is ASCII-only, so ids that are Hebrew — which a hand-edited backup may
+ * well carry, and backups are documented as text files people edit — all
+ * collapsed to the same `work-x`. Three articles then shared one id and every
+ * line of the contents list jumped to the first work. A position cannot
+ * collide, and it is the number the Markdown already prints beside the title.
  */
-function anchorId(id) {
-  const clean = String(id || '').replace(/[^\w-]/g, '');
-  return 'work-' + (clean || 'x');
+function anchorAt(index) {
+  return 'work-' + (index + 1);
 }
 
 const CSS = `
@@ -112,6 +118,11 @@ header h1 { font-size: clamp(28px, 6vw, 40px); line-height: 1.15; font-weight: 7
 .links a {
   border: 1px solid var(--accent-wash); background: var(--accent-wash);
   border-radius: 8px; padding: 5px 12px; font-size: 14px; text-decoration: none;
+  /* An address is Latin text in a right-to-left paragraph. Left to the
+     paragraph it is laid out from the wrong end, and a label that IS the
+     address — or a printed "(https://…)" — then shows a hostname the link does
+     not go to. Isolated, it reads as itself. */
+  direction: ltr; unicode-bidi: isolate;
 }
 footer { margin-top: 52px; border-top: 1px solid var(--line); padding-top: 14px; font-size: 13px; color: var(--soft); }
 
@@ -124,8 +135,9 @@ footer { margin-top: 52px; border-top: 1px solid var(--line); padding-top: 14px;
   figure, .facts, .toc, .chips { break-inside: avoid; page-break-inside: avoid; }
   .work { margin-top: 30px; }
   /* On paper a link is only its text, so the address has to be printed too —
-     but only for the web ones. An embedded photograph's address is a megabyte
-     of base64 and would print as a page of noise. */
+     but only for the web ones. safeUrl allows three schemes here, and the other
+     two are addresses a reader acts on rather than copies: printing
+     "(tel:0521234567)" after a phone number is noise on a page nobody clicks. */
   .links a[href^="http"]::after {
     content: " (" attr(href) ")";
     font-size: 11px; color: #666; word-break: break-all;
@@ -173,20 +185,20 @@ export function toHtml(portfolio, opts) {
     out.push('<nav class="toc">');
     out.push('<h2>מה יש כאן</h2>');
     out.push('<ol>');
-    for (const c of doc.contents) {
-      out.push('<li><a href="#' + esc(anchorId(c.id)) + '">' + esc(c.title) + '</a>'
+    doc.contents.forEach((c, i) => {
+      out.push('<li><a href="#' + esc(anchorAt(i)) + '">' + esc(c.title) + '</a>'
         + (c.lead ? '<span class="lead">' + esc(c.lead) + '</span>' : '') + '</li>');
-    }
+    });
     out.push('</ol>');
     out.push('</nav>');
   }
 
   out.push('<main>');
-  for (const w of doc.works) out.push(workHtml(w));
+  doc.works.forEach((w, i) => out.push(workHtml(w, i)));
   out.push('</main>');
 
   if (doc.generatedOn) {
-    out.push('<footer>עודכן ב' + esc(doc.generatedOn) + '</footer>');
+    out.push('<footer>עודכן ' + esc(attachPrefix('ב', doc.generatedOn)) + '</footer>');
   }
 
   out.push('</div>');
@@ -195,19 +207,29 @@ export function toHtml(portfolio, opts) {
   return out.join('\n');
 }
 
+/*
+ * Each contact is wrapped in a `bdi`, and a phone number is the reason.
+ *
+ * "052-123-4567" survives an RTL paragraph because a hyphen keeps the digits in
+ * one run. A space does not: "052 123 4567" resolves to the paragraph's own
+ * direction and is laid out right to left, so the reader is shown "4567 123
+ * 052" — a wrong phone number, in a document sent to an employer. `bdi` isolates
+ * each value and picks its own direction, which is LTR for an address or a
+ * number and RTL for "תל אביב", so one wrapper covers all four kinds.
+ */
 function contactHtml(c) {
-  const text = esc(c.text);
-  if (!c.url) return '<span>' + text + '</span>';
-  return '<span><a href="' + esc(c.url) + '">' + text + '</a></span>';
+  const body = '<bdi>' + esc(c.text) + '</bdi>';
+  if (!c.url) return '<span>' + body + '</span>';
+  return '<span><a href="' + esc(c.url) + '">' + body + '</a></span>';
 }
 
 function chipsHtml(items) {
   return '<div class="chips">' + items.map((t) => '<span class="chip">' + esc(t) + '</span>').join('') + '</div>';
 }
 
-function workHtml(w) {
+function workHtml(w, index) {
   const out = [];
-  out.push('<article class="work" id="' + esc(anchorId(w.id)) + '">');
+  out.push('<article class="work" id="' + esc(anchorAt(index)) + '">');
   out.push('<h2>' + esc(w.title) + '</h2>');
   if (w.facts.length) {
     out.push('<p class="facts">' + w.facts.map((f) => '<span>' + esc(f.value) + '</span>').join('') + '</p>');

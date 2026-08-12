@@ -126,13 +126,6 @@ function isQuota(e) {
 }());
 
 let state = normalize(memory.data || read());
-const subs = [];
-
-function emit() {
-  for (const fn of subs) {
-    try { fn(state); } catch (e) { console.error(e); }
-  }
-}
 
 /** False when nothing typed into this app will survive a reload. */
 export function persists() {
@@ -152,24 +145,7 @@ export function set(patch) {
   const next = typeof patch === 'function' ? patch(state) : patch;
   state = normalize(Object.assign({}, state, next));
   write(state);
-  emit();
   return state;
-}
-
-export function update(fn) {
-  fn(state);
-  state = normalize(state);
-  write(state);
-  emit();
-  return state;
-}
-
-export function subscribe(fn) {
-  subs.push(fn);
-  return function unsubscribe() {
-    const i = subs.indexOf(fn);
-    if (i >= 0) subs.splice(i, 1);
-  };
 }
 
 export function reset() {
@@ -180,7 +156,6 @@ export function reset() {
   }
   memory.data = null;
   lastError = '';
-  emit();
   return state;
 }
 
@@ -259,6 +234,5 @@ export function importJson(text) {
   }
   state = normalize({ owner: parsed.owner, works: parsed.works, ui: state.ui });
   write(state);
-  emit();
   return state;
 }

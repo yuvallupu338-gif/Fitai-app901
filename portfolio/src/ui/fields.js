@@ -97,6 +97,15 @@ export function textArea(value, onChange, attrs) {
  */
 export function picker(options, value, onChange) {
   const node = h('select', { onchange: (e) => onChange(e.target.value) });
+  /*
+   * A value that matches nothing — which a hand-edited backup can carry, and
+   * backups are text files people edit — would otherwise leave the browser
+   * showing the first option while the work holds none. The control would be
+   * lying about the answer, and these controls never redraw to correct it.
+   */
+  if (!options.some((o) => o.id === value)) {
+    node.appendChild(h('option', { value: '', selected: true }, '— בחרו —'));
+  }
   for (const o of options) {
     node.appendChild(h('option', { value: o.id, selected: o.id === value ? true : null }, o.he));
   }
@@ -260,7 +269,8 @@ export function linksInput(links, onChange) {
 export function imagesInput(images, onChange, onError) {
   const list = (images || []).slice();
   const box = h('div');
-  const emit = () => onChange(list.slice());
+  let cancelled = false;
+  const emit = () => { if (!cancelled) onChange(list.slice()); };
 
   function paint() {
     box.textContent = '';
@@ -302,6 +312,7 @@ export function imagesInput(images, onChange, onError) {
 
   async function add(files, input) {
     for (const file of files) {
+      if (cancelled) return;
       if (list.length >= MAX_IMAGES_PER_WORK) break;
       try {
         const src = await shrinkImage(file, IMAGE_MAX_PX, IMAGE_QUALITY);
@@ -314,9 +325,19 @@ export function imagesInput(images, onChange, onError) {
     /* The input keeps the file it just read, and a second pick of the same file
      * fires no change event at all — so it is cleared before the repaint. */
     if (input) input.value = '';
+    if (cancelled) return;
     paint();
     emit();
   }
+
+  /*
+   * Reading a photograph takes long enough to outlive the screen it was started
+   * from. The editor calls this when it is released, so a file that finishes
+   * decoding afterwards is dropped rather than reported to a form that is no
+   * longer on the page — the alternative was a stale draft being written over
+   * newer edits a second after the person had moved on.
+   */
+  box.cancelPending = () => { cancelled = true; };
 
   paint();
   return box;

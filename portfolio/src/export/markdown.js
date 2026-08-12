@@ -17,6 +17,23 @@
  * that happens to begin with "##" or "-" would otherwise stop being a paragraph
  * and start being a heading, which changes the shape of the document rather
  * than the look of a word.
+ *
+ * Two exceptions, and both are the same mistake found twice: an accidental
+ * italic is cosmetic, and these are not.
+ *
+ * A bare "<" is escaped, because most Markdown renderers pass raw HTML through
+ * to their output. Leaving it alone would mean the .md carries a promise the
+ * .html does not — that a "<script>" somebody typed is text — and breaks it
+ * quietly, in whatever the file is rendered by later.
+ *
+ * A link label is escaped harder than any other text, because it sits inside
+ * "[…](…)" where a "]" ends the label and the next "(" opens a destination.
+ * A label of "לאתר](javascript:alert(1))[x" therefore ships a working
+ * javascript: link out of a file whose URLs were all checked — the allowlist in
+ * schema.js is the whole security model for links, and this was the way around
+ * it. The destination is written inside angle brackets for the same reason:
+ * safeUrl already refuses "<", ">" and spaces, so "(<url>)" cannot be closed
+ * early by a stray bracket in the address.
  */
 
 import { buildDocument } from './document.js';
@@ -34,6 +51,7 @@ const BLOCK_NUMBER = /^(\s*)(\d+)([.)])/;
 
 function block(text) {
   return String(text || '')
+    .replace(/</g, '\\<')
     .split('\n')
     .map((line) => {
       if (BLOCK_NUMBER.test(line)) return line.replace(BLOCK_NUMBER, '$1$2\\$3');
@@ -41,6 +59,11 @@ function block(text) {
       return line;
     })
     .join('\n');
+}
+
+/* Inside "[…]" a bracket or a backslash is structure, not text. */
+function linkLabel(text) {
+  return inline(String(text || '').replace(/([\\[\]])/g, '\\$1'));
 }
 
 /** One line of text, with its newlines folded — headings and list items live on one. */
@@ -77,7 +100,7 @@ export function toMarkdown(portfolio, opts) {
     if (w.tools.length) out.push('', '**כלים:** ' + w.tools.map(inline).join(', '));
     if (w.links.length) {
       out.push('', '**קישורים:** ' + w.links
-        .map((l) => '[' + inline(l.label || l.url) + '](' + l.url + ')').join(' · '));
+        .map((l) => '[' + linkLabel(l.label || l.url) + '](<' + l.url + '>)').join(' · '));
     }
     if (w.images.length) {
       const captions = w.images.map((im) => inline(im.caption)).filter(Boolean);

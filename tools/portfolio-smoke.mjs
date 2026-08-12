@@ -22,6 +22,7 @@
  */
 
 import { createServer } from 'node:http';
+import { deflateSync } from 'node:zlib';
 import { readFile, writeFile, mkdir, mkdtemp, rm } from 'node:fs/promises';
 import { existsSync } from 'node:fs';
 import { tmpdir } from 'node:os';
@@ -66,9 +67,62 @@ async function serve() {
   return { server, port: server.address().port };
 }
 
-/* Four pixels of grey. Big enough to be a picture, small enough to read here. */
-const PNG_4PX = 'iVBORw0KGgoAAAANSUhEUgAAAAQAAAAECAIAAAAmkwkpAAAAGElEQVR4nGP8//8/A27AhEd'
-  + 'uSMgAAP//JCUDaKUdSTIAAAAASUVORK5CYII=';
+/*
+ * A real PNG, larger than the ceiling the app resizes to.
+ *
+ * Built here rather than checked in as base64, because the only interesting
+ * thing about it is its size: 2400px wide against a 1400px limit, so the resize
+ * the picture path exists for actually runs. A 4×4 test image would have gone
+ * through untouched and proved nothing about it.
+ */
+const CRC = (() => {
+  const table = new Int32Array(256);
+  for (let n = 0; n < 256; n += 1) {
+    let c = n;
+    for (let k = 0; k < 8; k += 1) c = c & 1 ? 0xedb88320 ^ (c >>> 1) : c >>> 1;
+    table[n] = c;
+  }
+  return (buf) => {
+    let c = -1;
+    for (const b of buf) c = table[(c ^ b) & 0xff] ^ (c >>> 8);
+    return (c ^ -1) >>> 0;
+  };
+})();
+
+function chunk(type, body) {
+  const head = Buffer.alloc(8);
+  head.writeUInt32BE(body.length, 0);
+  head.write(type, 4, 'ascii');
+  const crc = Buffer.alloc(4);
+  crc.writeUInt32BE(CRC(Buffer.concat([Buffer.from(type, 'ascii'), body])), 0);
+  return Buffer.concat([head, body, crc]);
+}
+
+function makePng(width, height) {
+  const ihdr = Buffer.alloc(13);
+  ihdr.writeUInt32BE(width, 0);
+  ihdr.writeUInt32BE(height, 4);
+  ihdr[8] = 8;   /* 8 bits per channel */
+  ihdr[9] = 2;   /* truecolour */
+  const raw = Buffer.alloc(height * (1 + width * 3));
+  for (let y = 0; y < height; y += 1) {
+    const row = y * (1 + width * 3);
+    for (let x = 0; x < width; x += 1) {
+      const at = row + 1 + x * 3;
+      raw[at] = (x * 255) / width;
+      raw[at + 1] = (y * 255) / height;
+      raw[at + 2] = 120;
+    }
+  }
+  return Buffer.concat([
+    Buffer.from([0x89, 0x50, 0x4e, 0x47, 0x0d, 0x0a, 0x1a, 0x0a]),
+    chunk('IHDR', ihdr),
+    chunk('IDAT', deflateSync(raw)),
+    chunk('IEND', Buffer.alloc(0)),
+  ]);
+}
+
+const IMAGE_MAX_PX = 1400;
 
 /* The one work the whole run is about. Its answers are ordinary on purpose —
  * the hostile ones are the audit's job — except the title, which carries a
@@ -128,7 +182,7 @@ async function main() {
   await page.getByLabel('שם העבודה', { exact: true }).fill(WORK.title);
   await page.getByLabel('סוג העבודה', { exact: true }).selectOption('app');
   await page.getByLabel('התפקיד שלי', { exact: true }).fill(WORK.role);
-  await page.getByLabel('בשביל מי', { exact: true }).selectOption('client');
+  await page.getByLabel('באיזו מסגרת', { exact: true }).selectOption('client');
   await page.getByLabel('שם הלקוח', { exact: true }).fill('מספרת רון');
   await page.getByLabel('לבד או בצוות', { exact: true }).selectOption('team');
   await page.getByLabel('שנת התחלה', { exact: true }).fill('2024');
@@ -187,13 +241,22 @@ async function main() {
   await page.getByRole('button', { name: 'הקובץ' }).click();
   await page.waitForSelector('iframe.preview');
   const ordered = await page.getAttribute('iframe.preview', 'srcdoc');
-  check(ordered.indexOf('עבודה שנייה') < ordered.indexOf('מספרת רון'),
-    'the order in the list is not the order in the document');
+  const second = ordered.indexOf('עבודה שנייה');
+  const first = ordered.indexOf('מספרת רון');
+  /* Both indices are checked, because -1 &lt; anything: an assertion that only
+   * compared them would have passed on a document missing a work entirely. */
+  check(second >= 0 && first >= 0, 'one of the two works is missing from the document');
+  check(second < first, 'the order in the list is not the order in the document');
   check(ordered.includes('<nav class="toc">') === false, 'two works should not get a contents list');
 
   await page.getByRole('button', { name: 'העבודות' }).click();
   await page.locator('.workrow .namebtn').first().click();
   await page.getByRole('button', { name: 'מחיקת העבודה' }).click();
+  check((await page.locator('.modal-box').count()) === 1, 'deleting a work did not ask first');
+  await page.getByRole('button', { name: 'ביטול' }).click();
+  check((await page.locator('.workrow').count()) === 0, 'cancelling the dialog left the list showing');
+  await page.getByRole('button', { name: 'מחיקת העבודה' }).click();
+  await page.getByRole('button', { name: 'כן, למחוק' }).click();
   await page.waitForSelector('.workrow');
   check((await page.locator('.workrow').count()) === 1, 'deleting a work left it in the list');
   check((await page.locator('.workrow .namebtn').first().textContent()) === WORK.title,
@@ -207,14 +270,29 @@ async function main() {
    * out is a JPEG data URL whether a PNG went in. Node has none of those.
    */
   const png = join(downloads, 'shot.png');
-  await writeFile(png, Buffer.from(PNG_4PX, 'base64'));
+  await writeFile(png, makePng(2400, 1200));
   await page.locator('.workrow .namebtn').first().click();
   await page.waitForSelector('.explain');
   await page.setInputFiles('.formcard .filebtn input[type="file"]', png);
   await page.waitForSelector('.thumb img');
   const thumb = await page.getAttribute('.thumb img', 'src');
   check(thumb.startsWith('data:image/jpeg;base64,'), `the picture was stored as "${thumb.slice(0, 30)}…"`);
+  /* Measured through the browser's own decoder: what went in was 2400px wide,
+   * and what is being stored has to be the resized copy — the quota is a few
+   * megabytes and a phone photograph is several. */
+  const stored = await page.evaluate((src) => new Promise((done) => {
+    const img = new Image();
+    img.onload = () => done({ w: img.naturalWidth, h: img.naturalHeight, bytes: src.length });
+    img.onerror = () => done({ w: 0, h: 0, bytes: 0 });
+    img.src = src;
+  }), thumb);
+  check(stored.w === IMAGE_MAX_PX, `the picture was stored ${stored.w}px wide, not ${IMAGE_MAX_PX}`);
+  check(stored.h === IMAGE_MAX_PX / 2, `the resize did not keep the proportions: ${stored.w}×${stored.h}`);
+  check(stored.bytes < 400000, `a resized picture still costs ${Math.round(stored.bytes / 1024)}KB of the quota`);
   await page.locator('.thumb input').fill('עמוד הבית');
+  await page.getByRole('button', { name: '+ קישור' }).click();
+  await page.locator('.linkrow input').first().fill('לאתר');
+  await page.locator('.linkrow input').nth(1).fill('example.com/ronbarber');
   await page.getByRole('button', { name: 'שמירה וחזרה' }).click();
   await page.waitForSelector('.workrow');
 
@@ -250,6 +328,22 @@ async function main() {
   check(srcdoc.includes('זו אפליקציה שבניתי ללקוח מספרת רון'),
     'the explanation from the editor is not in the previewed file');
   await shot('04-file');
+
+  /*
+   * "הדפסה / PDF" is how most people will turn this into a PDF, and until now
+   * nothing had ever pressed it. Headless Chromium's print() returns without a
+   * dialog, so what is checked is the part that can be wrong on a real machine:
+   * that the frame it prints holds the document itself rather than the app.
+   */
+  await page.getByRole('button', { name: 'הדפסה / PDF' }).click();
+  await page.waitForFunction(() => document.querySelectorAll('iframe').length > 1, null, { timeout: 20000 });
+  const printFrame = await page.evaluate(() => {
+    const frames = Array.from(document.querySelectorAll('iframe'));
+    const last = frames[frames.length - 1];
+    return { doc: (last.srcdoc || '').slice(0, 15), hidden: getComputedStyle(last).opacity };
+  });
+  check(printFrame.doc === '<!DOCTYPE html>', 'printing does not print the document');
+  check(printFrame.hidden === '0', 'the print frame is visible on the page');
 
   const [download] = await Promise.all([
     page.waitForEvent('download'),
@@ -294,6 +388,62 @@ async function main() {
   check(restored.includes('מספרת רון'), 'the backup did not restore the work');
   check(restored === srcdoc.replace(/עודכן ב[^<]*/, restored.match(/עודכן ב[^<]*/) || ''),
     'the document after a restore is not the document before the backup');
+
+  /* ---- the two devices that will not keep the answer ---- */
+
+  /*
+   * Both messages exist because they say different things to do, and neither
+   * had ever been rendered by anything. localStorage is broken in the page
+   * before the app loads, which is what a private window or a locked-down
+   * browser looks like from inside.
+   */
+  const blocked = await context.newPage();
+  await blocked.addInitScript(() => {
+    Object.defineProperty(window, 'localStorage', {
+      configurable: true,
+      get() { throw new Error('SecurityError: storage is disabled'); },
+    });
+  });
+  await blocked.goto(base, { waitUntil: 'load' });
+  await blocked.waitForSelector('.tabs');
+  const blockedText = await blocked.evaluate(() => document.body.innerText);
+  check(blockedText.includes('הדפדפן הזה לא שומר'), 'a browser that cannot save is not told so on arrival');
+  check((await blocked.evaluate(() => window.portfolio.store.persists())) === false,
+    'the app claims to persist on a device where storage throws');
+  check((await blocked.evaluate(() => window.portfolio.html({ now: new Date() }).slice(0, 15))) === '<!DOCTYPE html>',
+    'a device that cannot save also cannot export, which is the one thing left to do');
+  await blocked.close();
+
+  const full = await context.newPage();
+  await full.addInitScript(() => {
+    const real = window.localStorage;
+    const quota = () => {
+      const e = new Error('exceeded');
+      e.name = 'QuotaExceededError';
+      throw e;
+    };
+    Object.defineProperty(window, 'localStorage', {
+      configurable: true,
+      get: () => ({
+        getItem: (k) => real.getItem(k),
+        removeItem: (k) => real.removeItem(k),
+        setItem: (k, v) => (k.endsWith('.probe') ? real.setItem(k, v) : quota()),
+      }),
+    });
+  });
+  await full.goto(base, { waitUntil: 'load' });
+  await full.waitForSelector('.tabs');
+  await full.getByLabel('שם', { exact: true }).fill('מי שאין לו מקום');
+  /* Waited for rather than asserted on, and the absence is a reported failure
+   * rather than a timeout — a check that dies takes the rest of the run with
+   * it, and this one sits before the file:// pass. */
+  const warned = await full.waitForSelector('.warnbox.hot', { timeout: 10000 }).then(() => true, () => false);
+  check(warned, 'a device with no room left says nothing on the details screen');
+  const fullText = warned ? await full.locator('.warnbox.hot').first().textContent() : '';
+  check(fullText.includes('אין מקום'), `a full device says "${fullText.slice(0, 40)}…"`);
+  check((await full.getByLabel('שם', { exact: true }).inputValue()) === 'מי שאין לו מקום',
+    'a save that failed also took the answer out of the form');
+  await full.close();
 
   /* ---- the file, opened the way it will be opened ---- */
 
@@ -356,10 +506,21 @@ async function main() {
     const link = document.querySelector('.links a');
     return {
       background: getComputedStyle(document.body).backgroundColor,
+      links: document.querySelectorAll('.links a').length,
       linkAfter: link ? getComputedStyle(link, '::after').content : 'none',
+      linkDirection: link ? getComputedStyle(link).direction : '',
       headingBreak: getComputedStyle(document.querySelector('h2')).breakAfter,
+      figureBreak: getComputedStyle(document.querySelector('figure')).breakInside,
     };
   });
+  check(printed.links === 1, `the document has ${printed.links} links, so the print rule for addresses is untested`);
+  /* On paper the address has to be printed beside the text, because a printed
+   * link is only its text. This is the rule that says so, resolved by the
+   * browser rather than read out of the stylesheet. */
+  check(printed.linkAfter.includes('https://example.com/ronbarber'),
+    `printed links do not carry their address: ${printed.linkAfter}`);
+  check(printed.linkDirection === 'ltr', 'an address is laid out by the RTL paragraph around it');
+  check(printed.figureBreak === 'avoid', `a picture may be split across pages: "${printed.figureBreak}"`);
   check(printed.headingBreak === 'avoid', `printed headings break after with "${printed.headingBreak}"`);
   check(printed.background === 'rgb(255, 255, 255)' || printed.background === 'rgba(0, 0, 0, 0)',
     `the printed page background is ${printed.background}`);

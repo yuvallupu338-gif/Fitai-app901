@@ -114,5 +114,5 @@ try {
   root.appendChild(h('pre', String(e && e.stack ? e.stack : e)));
   root.appendChild(h('button.btn.danger', {
     onclick: () => { store.reset(); location.reload(); },
-  }, 'אפס הכל'));
+  }, 'איפוס הכול'));
 }

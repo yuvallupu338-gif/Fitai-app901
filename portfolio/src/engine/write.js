@@ -120,7 +120,10 @@ export function formatPeriod(period) {
     if (fromMonth && toMonth) {
       return fromMonth === toMonth ? fromMonth + ' ' + p.fromYear : fromMonth + '–' + toMonth + ' ' + p.fromYear;
     }
-    return String(p.fromYear);
+    /* One month and not the other still names a month. Falling through to the
+     * bare year here threw away a dropdown the person had answered. */
+    const known = fromMonth || toMonth;
+    return known ? known + ' ' + p.fromYear : String(p.fromYear);
   }
   const ends = endpoints(p);
   /* Spaces around the dash only when an endpoint is two words, so "2019–2021"

@@ -34,7 +34,7 @@ export const KINDS = [
   { id: 'app', he: 'אפליקציה', article: 'האפליקציה', plural: 'אפליקציות', gender: 'f', verb: 'בניתי' },
   { id: 'software', he: 'תוכנה', article: 'התוכנה', plural: 'תוכנות', gender: 'f', verb: 'כתבתי' },
   { id: 'design', he: 'עבודת עיצוב', article: 'עבודת העיצוב', plural: 'עבודות עיצוב', gender: 'f', verb: 'עשיתי' },
-  { id: 'brand', he: 'מיתוג', article: 'המיתוג', plural: 'עבודות מיתוג', gender: 'm', verb: 'עשיתי' },
+  { id: 'brand', he: 'עבודת מיתוג', article: 'עבודת המיתוג', plural: 'עבודות מיתוג', gender: 'f', verb: 'עשיתי' },
   { id: 'illustration', he: 'איור', article: 'האיור', plural: 'איורים', gender: 'm', verb: 'ציירתי' },
   { id: 'photo', he: 'עבודת צילום', article: 'עבודת הצילום', plural: 'עבודות צילום', gender: 'f', verb: 'עשיתי' },
   { id: 'video', he: 'סרטון', article: 'הסרטון', plural: 'סרטונים', gender: 'm', verb: 'עשיתי' },
@@ -54,11 +54,17 @@ export const KINDS = [
  * a bare list of nouns would force the writer to guess between "ל", "ב" and
  * "עבור". `needsName` marks the two that read as unfinished without one — "עבודה
  * שעשיתי ללקוח" is a sentence about nobody.
+ *
+ * `he` is the option as it appears in the list, and it is a bare noun rather
+ * than the prepositional form the sentence uses. Read down an open select,
+ * "ללקוח / במקום עבודה / פרויקט אישי" is three answers to three different
+ * questions; "לקוח / מקום עבודה / פרויקט אישי" is one list. The chip in the
+ * document reads better for it too — "לקוח: מספרת רון".
  */
 export const CONTEXTS = [
-  { id: 'client', he: 'ללקוח', phrase: 'ללקוח', namePrefix: '', needsName: true, nameLabel: 'שם הלקוח' },
-  { id: 'work', he: 'במקום עבודה', phrase: 'במסגרת העבודה', namePrefix: 'ב', needsName: true, nameLabel: 'שם המקום' },
-  { id: 'study', he: 'בלימודים', phrase: 'במסגרת הלימודים', namePrefix: 'ב', needsName: false, nameLabel: 'שם המוסד' },
+  { id: 'client', he: 'לקוח', phrase: 'ללקוח', namePrefix: '', needsName: true, nameLabel: 'שם הלקוח' },
+  { id: 'work', he: 'מקום עבודה', phrase: 'במסגרת העבודה', namePrefix: 'ב', needsName: true, nameLabel: 'שם המקום' },
+  { id: 'study', he: 'לימודים', phrase: 'במסגרת הלימודים', namePrefix: 'ב', needsName: false, nameLabel: 'שם המוסד' },
   { id: 'personal', he: 'פרויקט אישי', phrase: 'כפרויקט אישי', namePrefix: '', needsName: false, nameLabel: '' },
   { id: 'volunteer', he: 'התנדבות', phrase: 'בהתנדבות', namePrefix: 'ב', needsName: false, nameLabel: 'שם העמותה' },
   { id: 'spec', he: 'עבודה לתיק', phrase: 'כעבודה לתיק העבודות', namePrefix: '', needsName: false, nameLabel: '' },
@@ -96,15 +102,15 @@ export const MAX_LINKS_PER_WORK = 6;
  * the app shows the user; the rest are silent when absent.
  */
 export const WORK_FIELDS = [
-  { key: 'title', type: 'text', label: 'שם העבודה', hint: 'איך היית קורא לה בשיחה', required: true, max: 120 },
+  { key: 'title', type: 'text', label: 'שם העבודה', hint: 'איך הייתם קוראים לה בשיחה', required: true, max: 120 },
   { key: 'kind', type: 'enum', label: 'סוג העבודה', options: KINDS, required: true },
   { key: 'role', type: 'text', label: 'התפקיד שלי', hint: 'עיצוב, פיתוח, צילום, ניהול…', weight: 'high', max: 120 },
-  { key: 'context', type: 'enum', label: 'בשביל מי', options: CONTEXTS, required: true },
+  { key: 'context', type: 'enum', label: 'באיזו מסגרת', options: CONTEXTS, required: true },
   { key: 'clientName', type: 'text', label: 'שם', hint: 'אפשר להשאיר ריק אם זה לא לפרסום', max: 120 },
   { key: 'period', type: 'period', label: 'מתי', weight: 'high' },
   { key: 'team', type: 'enum', label: 'לבד או בצוות', options: TEAMS },
   { key: 'brief', type: 'para', label: 'מה היה צריך', hint: 'הבעיה, המשימה, מה ביקשו', weight: 'high', max: 1200 },
-  { key: 'did', type: 'lines', label: 'מה עשיתי', hint: 'שורה לכל דבר שעשית', weight: 'high', max: 2000 },
+  { key: 'did', type: 'lines', label: 'מה עשיתי', hint: 'שורה לכל דבר שעשיתם', weight: 'high', max: 2000 },
   { key: 'tools', type: 'chips', label: 'כלים וטכנולוגיות', hint: 'Figma, React, מצלמה…', max: 20 },
   { key: 'constraints', type: 'para', label: 'מגבלות', hint: 'זמן, תקציב, ציוד, מה שהיה חייב להישאר', max: 600 },
   { key: 'result', type: 'para', label: 'מה יצא מזה', hint: 'מה קרה בסוף, ואם יש מספר — המספר', weight: 'high', max: 800 },
@@ -116,7 +122,7 @@ export const WORK_FIELDS = [
 export const OWNER_FIELDS = [
   { key: 'name', type: 'text', label: 'שם', required: true, max: 80 },
   { key: 'headline', type: 'text', label: 'במשפט אחד', hint: 'מעצבת מוצר · מפתח פרונט · צלם אירועים', max: 120 },
-  { key: 'about', type: 'para', label: 'משהו עלייך', hint: 'לא חובה — יש פסקה שנכתבת מהעבודות', max: 900 },
+  { key: 'about', type: 'para', label: 'משהו עליכם', hint: 'לא חובה — יש פסקה שנכתבת מהעבודות', max: 900 },
   { key: 'email', type: 'email', label: 'אימייל', max: 160 },
   { key: 'phone', type: 'text', label: 'טלפון', max: 40 },
   { key: 'site', type: 'url', label: 'אתר או פרופיל', hint: 'לינקדאין, בהאנס, גיטהאב', max: 300 },
@@ -177,7 +183,14 @@ export function cleanLine(value, max) {
 const LINK_SCHEME = /^(https?:\/\/|mailto:|tel:)/i;
 
 export function safeUrl(value) {
-  const s = cleanLine(value, 2000);
+  /*
+   * The two marks cleanText deliberately keeps — LRM and RLM — are stripped
+   * here and nowhere else. In a phone number or a file name they are somebody's
+   * deliberate typography; inside an address they are invisible characters that
+   * reorder what the reader sees while the link goes somewhere else, and a URL
+   * that genuinely needs one percent-encodes it.
+   */
+  const s = cleanLine(value, 2000).replace(/[\u200E\u200F]/g, '');
   if (!s) return '';
   if (/[\u0000- "<>\\^`{|}]/.test(s)) return '';
   if (LINK_SCHEME.test(s)) return s;
@@ -381,8 +394,4 @@ export function gapsInWork(work) {
     gaps.push({ key: 'clientName', label: ctx.nameLabel, required: false });
   }
   return gaps;
-}
-
-export function isWorkWritable(work) {
-  return !!(work && work.title && work.kind);
 }

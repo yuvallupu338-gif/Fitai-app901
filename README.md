@@ -55,8 +55,9 @@ questionnaire, the plan, or any of FitAI's storage. See
 
 ### Also in this repo: `portfolio/`
 
-`portfolio/` is a third app, which shares this repo's design system and nothing
-else: it interviews somebody about the work they have done and exports a תיק
+`portfolio/` is a third app, which shares this repo's design system and six
+functions from `src/core/dom.js` — `modal` and `shrinkImage` among them — and
+nothing else: it interviews somebody about the work they have done and exports a תיק
 עבודות as one self-contained HTML file — the explanation written from their
 answers, the photographs embedded, no script inside it, and Ctrl+P for the PDF —
 with no build step and no network, same as everything else here. It is served at

@@ -1481,7 +1481,7 @@ const KINDS = [
   { id: 'app', he: 'אפליקציה', article: 'האפליקציה', plural: 'אפליקציות', gender: 'f', verb: 'בניתי' },
   { id: 'software', he: 'תוכנה', article: 'התוכנה', plural: 'תוכנות', gender: 'f', verb: 'כתבתי' },
   { id: 'design', he: 'עבודת עיצוב', article: 'עבודת העיצוב', plural: 'עבודות עיצוב', gender: 'f', verb: 'עשיתי' },
-  { id: 'brand', he: 'מיתוג', article: 'המיתוג', plural: 'עבודות מיתוג', gender: 'm', verb: 'עשיתי' },
+  { id: 'brand', he: 'עבודת מיתוג', article: 'עבודת המיתוג', plural: 'עבודות מיתוג', gender: 'f', verb: 'עשיתי' },
   { id: 'illustration', he: 'איור', article: 'האיור', plural: 'איורים', gender: 'm', verb: 'ציירתי' },
   { id: 'photo', he: 'עבודת צילום', article: 'עבודת הצילום', plural: 'עבודות צילום', gender: 'f', verb: 'עשיתי' },
   { id: 'video', he: 'סרטון', article: 'הסרטון', plural: 'סרטונים', gender: 'm', verb: 'עשיתי' },
@@ -1501,11 +1501,17 @@ const KINDS = [
  * a bare list of nouns would force the writer to guess between "ל", "ב" and
  * "עבור". `needsName` marks the two that read as unfinished without one — "עבודה
  * שעשיתי ללקוח" is a sentence about nobody.
+ *
+ * `he` is the option as it appears in the list, and it is a bare noun rather
+ * than the prepositional form the sentence uses. Read down an open select,
+ * "ללקוח / במקום עבודה / פרויקט אישי" is three answers to three different
+ * questions; "לקוח / מקום עבודה / פרויקט אישי" is one list. The chip in the
+ * document reads better for it too — "לקוח: מספרת רון".
  */
 const CONTEXTS = [
-  { id: 'client', he: 'ללקוח', phrase: 'ללקוח', namePrefix: '', needsName: true, nameLabel: 'שם הלקוח' },
-  { id: 'work', he: 'במקום עבודה', phrase: 'במסגרת העבודה', namePrefix: 'ב', needsName: true, nameLabel: 'שם המקום' },
-  { id: 'study', he: 'בלימודים', phrase: 'במסגרת הלימודים', namePrefix: 'ב', needsName: false, nameLabel: 'שם המוסד' },
+  { id: 'client', he: 'לקוח', phrase: 'ללקוח', namePrefix: '', needsName: true, nameLabel: 'שם הלקוח' },
+  { id: 'work', he: 'מקום עבודה', phrase: 'במסגרת העבודה', namePrefix: 'ב', needsName: true, nameLabel: 'שם המקום' },
+  { id: 'study', he: 'לימודים', phrase: 'במסגרת הלימודים', namePrefix: 'ב', needsName: false, nameLabel: 'שם המוסד' },
   { id: 'personal', he: 'פרויקט אישי', phrase: 'כפרויקט אישי', namePrefix: '', needsName: false, nameLabel: '' },
   { id: 'volunteer', he: 'התנדבות', phrase: 'בהתנדבות', namePrefix: 'ב', needsName: false, nameLabel: 'שם העמותה' },
   { id: 'spec', he: 'עבודה לתיק', phrase: 'כעבודה לתיק העבודות', namePrefix: '', needsName: false, nameLabel: '' },
@@ -1543,15 +1549,15 @@ const MAX_LINKS_PER_WORK = 6;
  * the app shows the user; the rest are silent when absent.
  */
 const WORK_FIELDS = [
-  { key: 'title', type: 'text', label: 'שם העבודה', hint: 'איך היית קורא לה בשיחה', required: true, max: 120 },
+  { key: 'title', type: 'text', label: 'שם העבודה', hint: 'איך הייתם קוראים לה בשיחה', required: true, max: 120 },
   { key: 'kind', type: 'enum', label: 'סוג העבודה', options: KINDS, required: true },
   { key: 'role', type: 'text', label: 'התפקיד שלי', hint: 'עיצוב, פיתוח, צילום, ניהול…', weight: 'high', max: 120 },
-  { key: 'context', type: 'enum', label: 'בשביל מי', options: CONTEXTS, required: true },
+  { key: 'context', type: 'enum', label: 'באיזו מסגרת', options: CONTEXTS, required: true },
   { key: 'clientName', type: 'text', label: 'שם', hint: 'אפשר להשאיר ריק אם זה לא לפרסום', max: 120 },
   { key: 'period', type: 'period', label: 'מתי', weight: 'high' },
   { key: 'team', type: 'enum', label: 'לבד או בצוות', options: TEAMS },
   { key: 'brief', type: 'para', label: 'מה היה צריך', hint: 'הבעיה, המשימה, מה ביקשו', weight: 'high', max: 1200 },
-  { key: 'did', type: 'lines', label: 'מה עשיתי', hint: 'שורה לכל דבר שעשית', weight: 'high', max: 2000 },
+  { key: 'did', type: 'lines', label: 'מה עשיתי', hint: 'שורה לכל דבר שעשיתם', weight: 'high', max: 2000 },
   { key: 'tools', type: 'chips', label: 'כלים וטכנולוגיות', hint: 'Figma, React, מצלמה…', max: 20 },
   { key: 'constraints', type: 'para', label: 'מגבלות', hint: 'זמן, תקציב, ציוד, מה שהיה חייב להישאר', max: 600 },
   { key: 'result', type: 'para', label: 'מה יצא מזה', hint: 'מה קרה בסוף, ואם יש מספר — המספר', weight: 'high', max: 800 },
@@ -1563,7 +1569,7 @@ const WORK_FIELDS = [
 const OWNER_FIELDS = [
   { key: 'name', type: 'text', label: 'שם', required: true, max: 80 },
   { key: 'headline', type: 'text', label: 'במשפט אחד', hint: 'מעצבת מוצר · מפתח פרונט · צלם אירועים', max: 120 },
-  { key: 'about', type: 'para', label: 'משהו עלייך', hint: 'לא חובה — יש פסקה שנכתבת מהעבודות', max: 900 },
+  { key: 'about', type: 'para', label: 'משהו עליכם', hint: 'לא חובה — יש פסקה שנכתבת מהעבודות', max: 900 },
   { key: 'email', type: 'email', label: 'אימייל', max: 160 },
   { key: 'phone', type: 'text', label: 'טלפון', max: 40 },
   { key: 'site', type: 'url', label: 'אתר או פרופיל', hint: 'לינקדאין, בהאנס, גיטהאב', max: 300 },
@@ -1624,7 +1630,14 @@ function cleanLine(value, max) {
 const LINK_SCHEME = /^(https?:\/\/|mailto:|tel:)/i;
 
 function safeUrl(value) {
-  const s = cleanLine(value, 2000);
+  /*
+   * The two marks cleanText deliberately keeps — LRM and RLM — are stripped
+   * here and nowhere else. In a phone number or a file name they are somebody's
+   * deliberate typography; inside an address they are invisible characters that
+   * reorder what the reader sees while the link goes somewhere else, and a URL
+   * that genuinely needs one percent-encodes it.
+   */
+  const s = cleanLine(value, 2000).replace(/[\u200E\u200F]/g, '');
   if (!s) return '';
   if (/[\u0000- "<>\\^`{|}]/.test(s)) return '';
   if (LINK_SCHEME.test(s)) return s;
@@ -1830,10 +1843,6 @@ function gapsInWork(work) {
   return gaps;
 }
 
-function isWorkWritable(work) {
-  return !!(work && work.title && work.kind);
-}
-
   return {
     "KINDS": KINDS,
     "CONTEXTS": CONTEXTS,
@@ -1861,7 +1870,6 @@ function isWorkWritable(work) {
     "normalisePortfolio": normalisePortfolio,
     "emptyWork": emptyWork,
     "gapsInWork": gapsInWork,
-    "isWorkWritable": isWorkWritable,
   };
 })();
 
@@ -1994,13 +2002,6 @@ function isQuota(e) {
 }());
 
 let state = normalize(memory.data || read());
-const subs = [];
-
-function emit() {
-  for (const fn of subs) {
-    try { fn(state); } catch (e) { console.error(e); }
-  }
-}
 
 /** False when nothing typed into this app will survive a reload. */
 function persists() {
@@ -2020,24 +2021,7 @@ function set(patch) {
   const next = typeof patch === 'function' ? patch(state) : patch;
   state = normalize(Object.assign({}, state, next));
   write(state);
-  emit();
   return state;
-}
-
-function update(fn) {
-  fn(state);
-  state = normalize(state);
-  write(state);
-  emit();
-  return state;
-}
-
-function subscribe(fn) {
-  subs.push(fn);
-  return function unsubscribe() {
-    const i = subs.indexOf(fn);
-    if (i >= 0) subs.splice(i, 1);
-  };
 }
 
 function reset() {
@@ -2048,7 +2032,6 @@ function reset() {
   }
   memory.data = null;
   lastError = '';
-  emit();
   return state;
 }
 
@@ -2127,7 +2110,6 @@ function importJson(text) {
   }
   state = normalize({ owner: parsed.owner, works: parsed.works, ui: state.ui });
   write(state);
-  emit();
   return state;
 }
 
@@ -2136,8 +2118,6 @@ function importJson(text) {
     "saveError": saveError,
     "get": get,
     "set": set,
-    "update": update,
-    "subscribe": subscribe,
     "reset": reset,
     "setOwner": setOwner,
     "workById": workById,
@@ -2267,7 +2247,10 @@ function formatPeriod(period) {
     if (fromMonth && toMonth) {
       return fromMonth === toMonth ? fromMonth + ' ' + p.fromYear : fromMonth + '–' + toMonth + ' ' + p.fromYear;
     }
-    return String(p.fromYear);
+    /* One month and not the other still names a month. Falling through to the
+     * bare year here threw away a dropdown the person had answered. */
+    const known = fromMonth || toMonth;
+    return known ? known + ' ' + p.fromYear : String(p.fromYear);
   }
   const ends = endpoints(p);
   /* Spaces around the dash only when an endpoint is two words, so "2019–2021"
@@ -2652,6 +2635,15 @@ function textArea(value, onChange, attrs) {
  */
 function picker(options, value, onChange) {
   const node = h('select', { onchange: (e) => onChange(e.target.value) });
+  /*
+   * A value that matches nothing — which a hand-edited backup can carry, and
+   * backups are text files people edit — would otherwise leave the browser
+   * showing the first option while the work holds none. The control would be
+   * lying about the answer, and these controls never redraw to correct it.
+   */
+  if (!options.some((o) => o.id === value)) {
+    node.appendChild(h('option', { value: '', selected: true }, '— בחרו —'));
+  }
   for (const o of options) {
     node.appendChild(h('option', { value: o.id, selected: o.id === value ? true : null }, o.he));
   }
@@ -2815,7 +2807,8 @@ function linksInput(links, onChange) {
 function imagesInput(images, onChange, onError) {
   const list = (images || []).slice();
   const box = h('div');
-  const emit = () => onChange(list.slice());
+  let cancelled = false;
+  const emit = () => { if (!cancelled) onChange(list.slice()); };
 
   function paint() {
     box.textContent = '';
@@ -2857,6 +2850,7 @@ function imagesInput(images, onChange, onError) {
 
   async function add(files, input) {
     for (const file of files) {
+      if (cancelled) return;
       if (list.length >= MAX_IMAGES_PER_WORK) break;
       try {
         const src = await shrinkImage(file, IMAGE_MAX_PX, IMAGE_QUALITY);
@@ -2869,9 +2863,19 @@ function imagesInput(images, onChange, onError) {
     /* The input keeps the file it just read, and a second pick of the same file
      * fires no change event at all — so it is cleared before the repaint. */
     if (input) input.value = '';
+    if (cancelled) return;
     paint();
     emit();
   }
+
+  /*
+   * Reading a photograph takes long enough to outlive the screen it was started
+   * from. The editor calls this when it is released, so a file that finishes
+   * decoding afterwards is dropped rather than reported to a form that is no
+   * longer on the page — the alternative was a stale draft being written over
+   * newer edits a second after the person had moved on.
+   */
+  box.cancelPending = () => { cancelled = true; };
 
   paint();
   return box;
@@ -2886,6 +2890,37 @@ function imagesInput(images, onChange, onError) {
     "periodInput": periodInput,
     "linksInput": linksInput,
     "imagesInput": imagesInput,
+  };
+})();
+
+__m["portfolio/src/ui/savewarn.js"] = (function () {
+/*
+ * savewarn.js — what the app says when the device would not keep the answer.
+ *
+ * Two screens write to storage and both can fail the same two ways, so the
+ * wording lives in one place. It matters that the two are told apart: "delete a
+ * photograph" is useless advice to somebody whose browser has storage switched
+ * off entirely, and "download the file before you close the tab" is the wrong
+ * advice to somebody who simply has six pictures in one work.
+ */
+
+const { h, clear } = __m["src/core/dom.js"];
+
+const TEXT = {
+  quota: 'אין מקום לשמור את זה במכשיר — כנראה בגלל התמונות. מחקו תמונה, או הורידו גיבוי מהלשונית "הקובץ" לפני שתסגרו.',
+  blocked: 'הדפדפן הזה לא נותן לשמור. אפשר להמשיך לעבוד ולהוריד את הקובץ, אבל אל תסגרו את הלשונית לפני שהורדתם אותו.',
+};
+
+/** Paints the message for `kind` into `box`, or empties it when nothing failed. */
+function paintSaveError(box, kind) {
+  clear(box);
+  if (!kind) return false;
+  box.appendChild(h('div.warnbox.hot', TEXT[kind] || TEXT.blocked));
+  return true;
+}
+
+  return {
+    "paintSaveError": paintSaveError,
   };
 })();
 
@@ -2908,6 +2943,7 @@ const store = __m["portfolio/src/core/store.js"];
 const { OWNER_FIELDS, isEmail } = __m["portfolio/src/data/schema.js"];
 const { writeAbout } = __m["portfolio/src/engine/write.js"];
 const { field, textInput, textArea } = __m["portfolio/src/ui/fields.js"];
+const { paintSaveError } = __m["portfolio/src/ui/savewarn.js"];
 
 const SAVE_DELAY = 400;
 
@@ -2922,6 +2958,7 @@ function renderOwner(root, opts) {
   function flush() {
     if (timer) { clearTimeout(timer); timer = null; }
     store.setOwner(draft);
+    paintSaveError(errorBox, store.saveError());
     paintAbout();
   }
 
@@ -2931,6 +2968,7 @@ function renderOwner(root, opts) {
     paintAbout();
   }
 
+  const errorBox = h('div');
   const aboutBox = h('div.explain');
 
   /*
@@ -2946,8 +2984,12 @@ function renderOwner(root, opts) {
     if (draft.headline) aboutBox.appendChild(h('p.lead', draft.headline));
     for (const p of paragraphs) aboutBox.appendChild(h('p', p));
     const contacts = [draft.email, draft.phone, draft.site, draft.location].filter(Boolean);
-    if (contacts.length) aboutBox.appendChild(h('p.facts', contacts.map((c) => h('span.fact', c))));
+    /* Isolated for the same reason the exported file isolates them: a phone
+     * number written with spaces is laid out backwards in an RTL paragraph. */
+    if (contacts.length) aboutBox.appendChild(h('p.facts', contacts.map((c) => h('bdi.fact', c))));
   }
+
+  view.appendChild(errorBox);
 
   const form = h('div.formcard');
   for (const f of OWNER_FIELDS) {
@@ -2966,7 +3008,7 @@ function renderOwner(root, opts) {
     if (f.type === 'email') attrs.type = 'email';
     const control = textInput(draft[f.key], set, attrs);
     const help = f.key === 'email'
-      ? 'זה מה שנכנס לקישור "צור קשר" בקובץ.'
+      ? 'זו הכתובת שתופיע בקובץ, כקישור שאפשר ללחוץ עליו.'
       : f.hint;
     form.appendChild(field(f.label, control, help));
   }
@@ -2990,9 +3032,27 @@ function renderOwner(root, opts) {
     }, 'לעבודות ←'),
   ]));
 
-  /* Leaving the tab is one of the ways this form is finished with, so it saves
-   * on the way out rather than waiting for a timer nobody is watching. */
-  return { redraw: paintAbout, flush, release: flush };
+  /*
+   * Leaving is one of the ways this form is finished with, and there are three
+   * of them: a tab switch, which app.js reports through release(), and a reload
+   * or a closed tab, which reach nothing but these two listeners. Without them
+   * a person who typed their name and reloaded within the save delay came back
+   * to an empty form — the editor next door had the listeners and this screen
+   * did not, which is an asymmetry rather than a decision.
+   */
+  const onHide = () => flush();
+  window.addEventListener('pagehide', onHide);
+  window.addEventListener('beforeunload', onHide);
+
+  return {
+    redraw: paintAbout,
+    flush,
+    release: () => {
+      flush();
+      window.removeEventListener('pagehide', onHide);
+      window.removeEventListener('beforeunload', onHide);
+    },
+  };
 }
 
   return {
@@ -3017,11 +3077,12 @@ __m["portfolio/src/ui/editor.js"] = (function () {
  * a timer that a navigation could outrun.
  */
 
-const { h, clear, announce } = __m["src/core/dom.js"];
+const { h, clear, modal, announce } = __m["src/core/dom.js"];
 const store = __m["portfolio/src/core/store.js"];
 const { WORK_FIELDS, KINDS, CONTEXTS, TEAMS, contextById, cleanPeriod } = __m["portfolio/src/data/schema.js"];
 const { explainWork } = __m["portfolio/src/engine/write.js"];
 const { field, textInput, textArea, picker, chipsInput, periodInput, linksInput, imagesInput } = __m["portfolio/src/ui/fields.js"];
+const { paintSaveError } = __m["portfolio/src/ui/savewarn.js"];
 
 const SAVE_DELAY = 400;
 
@@ -3042,17 +3103,32 @@ function renderEditor(root, workId, opts) {
   const draft = Object.assign({}, stored);
   let timer = null;
   let dirty = false;
+  /*
+   * Once the screen is gone this editor must never write again.
+   *
+   * Reading a photograph is asynchronous — a file, a canvas, a resize — and the
+   * picture control calls back when it finishes, which can be a second after
+   * somebody has left the work and opened another one. Without this flag that
+   * late callback re-armed the timer and then saved a draft snapshotted before
+   * the newer edits, so the picture appeared and the retyped title reverted,
+   * and then the second editor's own save put the picture back to none. The
+   * flag is set after the final flush, so leaving still commits what was typed.
+   */
+  let closed = false;
 
   function flush() {
     if (timer) { clearTimeout(timer); timer = null; }
-    if (!dirty) return;
+    if (closed || !dirty) return;
     store.saveWork(workId, draft);
     dirty = false;
-    const err = store.saveError();
-    if (err) paintSaveError(err);
+    paintSaveError(errorBox, store.saveError());
   }
 
   function touch() {
+    if (closed) {
+      if (timer) { clearTimeout(timer); timer = null; }
+      return;
+    }
     dirty = true;
     if (timer) clearTimeout(timer);
     timer = setTimeout(flush, SAVE_DELAY);
@@ -3063,13 +3139,9 @@ function renderEditor(root, workId, opts) {
 
   const explainBox = h('div.explain');
   const errorBox = h('div');
-
-  function paintSaveError(kind) {
-    clear(errorBox);
-    errorBox.appendChild(h('div.warnbox.hot', kind === 'quota'
-      ? 'אין מקום לשמור את זה במכשיר — כנראה בגלל התמונות. מחקו תמונה, או הורידו גיבוי מהלשונית "הקובץ" לפני שתסגרו.'
-      : 'הדפדפן הזה לא נותן לשמור. הקובץ עדיין ייבנה, אבל אל תסגרו את הלשונית לפני שהורדתם אותו.'));
-  }
+  /* Held so that leaving the screen can tell it to drop a picture that is still
+   * being read — see the note on `closed` above. */
+  let imagesBox = null;
 
   /*
    * The explanation, redrawn from the draft.
@@ -3120,10 +3192,11 @@ function renderEditor(root, workId, opts) {
     if (f.key === 'tools') return field(f.label, chipsInput(draft.tools, set('tools')), f.hint);
     if (f.key === 'links') return field(f.label, linksInput(draft.links, set('links')), f.hint);
     if (f.key === 'images') {
-      return field(f.label, imagesInput(draft.images, set('images'), (msg) => {
+      imagesBox = imagesInput(draft.images, set('images'), (msg) => {
         clear(errorBox);
         errorBox.appendChild(h('div.warnbox', msg));
-      }), f.hint);
+      });
+      return field(f.label, imagesBox, f.hint);
     }
     /* The hint is written once. A textarea that carries it as a placeholder and
      * again as the line underneath says the same sentence twice, and loses the
@@ -3179,16 +3252,34 @@ function renderEditor(root, workId, opts) {
         if (o.onClose) o.onClose();
       },
     }, 'שמירה וחזרה'),
-    h('button.btn.danger', {
-      onclick: () => {
-        if (timer) { clearTimeout(timer); timer = null; }
-        dirty = false;
-        store.removeWork(workId);
-        announce('העבודה נמחקה');
-        if (o.onClose) o.onClose();
-      },
-    }, 'מחיקת העבודה'),
+    h('button.btn.danger', { onclick: confirmDelete }, 'מחיקת העבודה'),
   ]));
+
+  /*
+   * Deleting is a red button beside the save button on a 430px screen, and what
+   * it destroys is an evening of typing with no undo. The app already holds this
+   * standard for "מחיקת הכל"; a single work is not cheaper to lose.
+   */
+  function confirmDelete() {
+    const close = modal(h('div', [
+      h('h3', 'למחוק את "' + (draft.title || 'העבודה בלי שם') + '"?'),
+      h('p.lead', 'זה מוחק את העבודה ואת כל מה שנכתב עליה, מהמכשיר הזה, בלי לשאול שוב.'),
+      h('div.modal-actions', [
+        h('button.btn.danger', {
+          onclick: () => {
+            if (timer) { clearTimeout(timer); timer = null; }
+            dirty = false;
+            closed = true;
+            store.removeWork(workId);
+            close();
+            announce('העבודה נמחקה');
+            if (o.onClose) o.onClose();
+          },
+        }, 'כן, למחוק'),
+        h('button.btn.ghost', { onclick: () => close() }, 'ביטול'),
+      ]),
+    ]), { label: 'אישור מחיקת עבודה' });
+  }
 
   /*
    * A tab switch, a reload or a phone locking the screen all end the session
@@ -3204,7 +3295,9 @@ function renderEditor(root, workId, opts) {
     redraw: () => {},
     flush,
     release: () => {
+      if (imagesBox && imagesBox.cancelPending) imagesBox.cancelPending();
       flush();
+      closed = true;
       window.removeEventListener('pagehide', onHide);
       window.removeEventListener('beforeunload', onHide);
     },
@@ -3469,6 +3562,7 @@ __m["portfolio/src/export/html.js"] = (function () {
  */
 
 const { buildDocument } = __m["portfolio/src/export/document.js"];
+const { attachPrefix } = __m["portfolio/src/engine/write.js"];
 
 /** The five characters that can end an attribute or open a tag. */
 function esc(value) {
@@ -3481,12 +3575,17 @@ function esc(value) {
 }
 
 /*
- * An id from stored data becomes a fragment and an attribute, so it is rebuilt
- * out of the characters that are legal in both rather than escaped into them.
+ * The anchor is the work's position, not its id.
+ *
+ * Rebuilding it out of the id's legal characters looked safer and was worse:
+ * `\w` is ASCII-only, so ids that are Hebrew — which a hand-edited backup may
+ * well carry, and backups are documented as text files people edit — all
+ * collapsed to the same `work-x`. Three articles then shared one id and every
+ * line of the contents list jumped to the first work. A position cannot
+ * collide, and it is the number the Markdown already prints beside the title.
  */
-function anchorId(id) {
-  const clean = String(id || '').replace(/[^\w-]/g, '');
-  return 'work-' + (clean || 'x');
+function anchorAt(index) {
+  return 'work-' + (index + 1);
 }
 
 const CSS = `
@@ -3555,6 +3654,11 @@ header h1 { font-size: clamp(28px, 6vw, 40px); line-height: 1.15; font-weight: 7
 .links a {
   border: 1px solid var(--accent-wash); background: var(--accent-wash);
   border-radius: 8px; padding: 5px 12px; font-size: 14px; text-decoration: none;
+  /* An address is Latin text in a right-to-left paragraph. Left to the
+     paragraph it is laid out from the wrong end, and a label that IS the
+     address — or a printed "(https://…)" — then shows a hostname the link does
+     not go to. Isolated, it reads as itself. */
+  direction: ltr; unicode-bidi: isolate;
 }
 footer { margin-top: 52px; border-top: 1px solid var(--line); padding-top: 14px; font-size: 13px; color: var(--soft); }
 
@@ -3567,8 +3671,9 @@ footer { margin-top: 52px; border-top: 1px solid var(--line); padding-top: 14px;
   figure, .facts, .toc, .chips { break-inside: avoid; page-break-inside: avoid; }
   .work { margin-top: 30px; }
   /* On paper a link is only its text, so the address has to be printed too —
-     but only for the web ones. An embedded photograph's address is a megabyte
-     of base64 and would print as a page of noise. */
+     but only for the web ones. safeUrl allows three schemes here, and the other
+     two are addresses a reader acts on rather than copies: printing
+     "(tel:0521234567)" after a phone number is noise on a page nobody clicks. */
   .links a[href^="http"]::after {
     content: " (" attr(href) ")";
     font-size: 11px; color: #666; word-break: break-all;
@@ -3616,20 +3721,20 @@ function toHtml(portfolio, opts) {
     out.push('<nav class="toc">');
     out.push('<h2>מה יש כאן</h2>');
     out.push('<ol>');
-    for (const c of doc.contents) {
-      out.push('<li><a href="#' + esc(anchorId(c.id)) + '">' + esc(c.title) + '</a>'
+    doc.contents.forEach((c, i) => {
+      out.push('<li><a href="#' + esc(anchorAt(i)) + '">' + esc(c.title) + '</a>'
         + (c.lead ? '<span class="lead">' + esc(c.lead) + '</span>' : '') + '</li>');
-    }
+    });
     out.push('</ol>');
     out.push('</nav>');
   }
 
   out.push('<main>');
-  for (const w of doc.works) out.push(workHtml(w));
+  doc.works.forEach((w, i) => out.push(workHtml(w, i)));
   out.push('</main>');
 
   if (doc.generatedOn) {
-    out.push('<footer>עודכן ב' + esc(doc.generatedOn) + '</footer>');
+    out.push('<footer>עודכן ' + esc(attachPrefix('ב', doc.generatedOn)) + '</footer>');
   }
 
   out.push('</div>');
@@ -3638,19 +3743,29 @@ function toHtml(portfolio, opts) {
   return out.join('\n');
 }
 
+/*
+ * Each contact is wrapped in a `bdi`, and a phone number is the reason.
+ *
+ * "052-123-4567" survives an RTL paragraph because a hyphen keeps the digits in
+ * one run. A space does not: "052 123 4567" resolves to the paragraph's own
+ * direction and is laid out right to left, so the reader is shown "4567 123
+ * 052" — a wrong phone number, in a document sent to an employer. `bdi` isolates
+ * each value and picks its own direction, which is LTR for an address or a
+ * number and RTL for "תל אביב", so one wrapper covers all four kinds.
+ */
 function contactHtml(c) {
-  const text = esc(c.text);
-  if (!c.url) return '<span>' + text + '</span>';
-  return '<span><a href="' + esc(c.url) + '">' + text + '</a></span>';
+  const body = '<bdi>' + esc(c.text) + '</bdi>';
+  if (!c.url) return '<span>' + body + '</span>';
+  return '<span><a href="' + esc(c.url) + '">' + body + '</a></span>';
 }
 
 function chipsHtml(items) {
   return '<div class="chips">' + items.map((t) => '<span class="chip">' + esc(t) + '</span>').join('') + '</div>';
 }
 
-function workHtml(w) {
+function workHtml(w, index) {
   const out = [];
-  out.push('<article class="work" id="' + esc(anchorId(w.id)) + '">');
+  out.push('<article class="work" id="' + esc(anchorAt(index)) + '">');
   out.push('<h2>' + esc(w.title) + '</h2>');
   if (w.facts.length) {
     out.push('<p class="facts">' + w.facts.map((f) => '<span>' + esc(f.value) + '</span>').join('') + '</p>');
@@ -3715,6 +3830,23 @@ __m["portfolio/src/export/markdown.js"] = (function () {
  * that happens to begin with "##" or "-" would otherwise stop being a paragraph
  * and start being a heading, which changes the shape of the document rather
  * than the look of a word.
+ *
+ * Two exceptions, and both are the same mistake found twice: an accidental
+ * italic is cosmetic, and these are not.
+ *
+ * A bare "<" is escaped, because most Markdown renderers pass raw HTML through
+ * to their output. Leaving it alone would mean the .md carries a promise the
+ * .html does not — that a "<script>" somebody typed is text — and breaks it
+ * quietly, in whatever the file is rendered by later.
+ *
+ * A link label is escaped harder than any other text, because it sits inside
+ * "[…](…)" where a "]" ends the label and the next "(" opens a destination.
+ * A label of "לאתר](javascript:alert(1))[x" therefore ships a working
+ * javascript: link out of a file whose URLs were all checked — the allowlist in
+ * schema.js is the whole security model for links, and this was the way around
+ * it. The destination is written inside angle brackets for the same reason:
+ * safeUrl already refuses "<", ">" and spaces, so "(<url>)" cannot be closed
+ * early by a stray bracket in the address.
  */
 
 const { buildDocument } = __m["portfolio/src/export/document.js"];
@@ -3732,6 +3864,7 @@ const BLOCK_NUMBER = /^(\s*)(\d+)([.)])/;
 
 function block(text) {
   return String(text || '')
+    .replace(/</g, '\\<')
     .split('\n')
     .map((line) => {
       if (BLOCK_NUMBER.test(line)) return line.replace(BLOCK_NUMBER, '$1$2\\$3');
@@ -3739,6 +3872,11 @@ function block(text) {
       return line;
     })
     .join('\n');
+}
+
+/* Inside "[…]" a bracket or a backslash is structure, not text. */
+function linkLabel(text) {
+  return inline(String(text || '').replace(/([\\[\]])/g, '\\$1'));
 }
 
 /** One line of text, with its newlines folded — headings and list items live on one. */
@@ -3775,7 +3913,7 @@ function toMarkdown(portfolio, opts) {
     if (w.tools.length) out.push('', '**כלים:** ' + w.tools.map(inline).join(', '));
     if (w.links.length) {
       out.push('', '**קישורים:** ' + w.links
-        .map((l) => '[' + inline(l.label || l.url) + '](' + l.url + ')').join(' · '));
+        .map((l) => '[' + linkLabel(l.label || l.url) + '](<' + l.url + '>)').join(' · '));
     }
     if (w.images.length) {
       const captions = w.images.map((im) => inline(im.caption)).filter(Boolean);
@@ -3890,8 +4028,9 @@ const store = __m["portfolio/src/core/store.js"];
 const { countPhrase } = __m["portfolio/src/engine/write.js"];
 const { toHtml } = __m["portfolio/src/export/html.js"];
 const { toMarkdown } = __m["portfolio/src/export/markdown.js"];
-const { fileNameFor } = __m["portfolio/src/export/document.js"];
+const { buildDocument, fileNameFor } = __m["portfolio/src/export/document.js"];
 const { downloadText, printHtml } = __m["portfolio/src/export/download.js"];
+const { paintSaveError } = __m["portfolio/src/ui/savewarn.js"];
 
 function renderFile(root) {
   const view = h('section');
@@ -3907,9 +4046,20 @@ function renderFile(root) {
     const html = toHtml(st, { now });
     const bytes = new Blob([html]).size;
     const named = fileNameFor(st.owner.name, 'html', now);
+    /*
+     * Counted off the document rather than the store, because they disagree: a
+     * work with no name is dropped on the way into the file. Saying "עבודה אחת"
+     * on the card above a preview that says the portfolio is empty is the app
+     * contradicting itself in the space of one screen.
+     */
+    const inFile = buildDocument(st, { now }).works.length;
 
-    if (!st.works.length) {
-      view.appendChild(h('div.warnbox', 'אין עדיין עבודות, אז הקובץ יצא כמעט ריק. אפשר להוריד אותו בכל מקרה.'));
+    if (!inFile) {
+      view.appendChild(h('div.warnbox', 'אין עדיין עבודות בקובץ, אז הוא יצא כמעט ריק. אפשר להוריד אותו בכל מקרה.'));
+    }
+    if (inFile < st.works.length) {
+      view.appendChild(h('div.warnbox', countLabel(st.works.length - inFile)
+        + ' בלי שם, אז הן לא נכנסות לקובץ. שם העבודה הוא מה שהופך אותה לפרק במסמך.'));
     }
     if (!st.owner.name) {
       view.appendChild(h('div.warnbox', 'אין שם בלשונית "פרטים", אז בראש הקובץ לא יופיע שם.'));
@@ -3918,8 +4068,10 @@ function renderFile(root) {
     view.appendChild(h('div.filecard', [
       h('div.filemeta', [
         h('b', named),
-        h('span.fact', formatSize(bytes)),
-        h('span.fact', countLabel(st.works.length)),
+        /* A number and a Latin unit with a space between them resolve to the
+         * paragraph's direction, which prints "KB 245". */
+        h('span.fact', { dir: 'ltr' }, formatSize(bytes)),
+        h('span.fact', countLabel(inFile)),
       ]),
       h('div.toolbar', [
         h('button.btn.primary', {
@@ -3983,8 +4135,18 @@ function renderFile(root) {
       clear(notice);
       try {
         store.importJson(String(reader.result));
-        announce('הגיבוי נטען');
-        notice.appendChild(h('div.callout.good', 'הגיבוי נטען.'));
+        /*
+         * "It did not throw" is not "it was saved". importJson writes and
+         * discards whether the write worked, so a restore onto a full device
+         * used to report success, redraw the preview from memory to prove it,
+         * and then be gone on the next reload.
+         */
+        if (paintSaveError(notice, store.saveError())) {
+          announce('הגיבוי נטען אבל לא נשמר');
+        } else {
+          announce('הגיבוי נטען');
+          notice.appendChild(h('div.callout.good', 'הגיבוי נטען.'));
+        }
       } catch (e) {
         console.error(e);
         notice.appendChild(h('div.warnbox.hot', String(e && e.message ? e.message : e)));
@@ -4009,7 +4171,9 @@ function renderFile(root) {
     const st = store.get();
     const close = modal(h('div', [
       h('h3', 'למחוק את הכל?'),
-      h('p.lead', 'זה מוחק ' + countLabel(st.works.length) + ' ואת הפרטים, מהמכשיר הזה, בלי לשאול שוב.'),
+      h('p.lead', st.works.length
+        ? 'זה מוחק ' + countLabel(st.works.length) + ' ואת הפרטים, מהמכשיר הזה, בלי לשאול שוב.'
+        : 'זה מוחק את הפרטים מהמכשיר הזה, בלי לשאול שוב.'),
       h('div.modal-actions', [
         h('button.btn', {
           onclick: () => downloadText(fileNameFor(st.owner.name, 'json', new Date()), store.exportJson(), 'application/json'),
@@ -4037,9 +4201,10 @@ function formatSize(bytes) {
   return (Math.round(bytes / 1024 / 102.4) / 10) + ' MB';
 }
 
-/* The numerals decline, and write.js already knows how — see countPhrase. */
+/* The numerals decline, and write.js already knows how — see countPhrase.
+ * Nothing is counted as "אפס עבודות", which is arithmetic rather than Hebrew. */
 function countLabel(n) {
-  return n === 0 ? 'אפס עבודות' : countPhrase(n, 'עבודה', 'עבודות', 'f');
+  return n === 0 ? 'אין עבודות' : countPhrase(n, 'עבודה', 'עבודות', 'f');
 }
 
   return {
@@ -4164,7 +4329,7 @@ try {
   root.appendChild(h('pre', String(e && e.stack ? e.stack : e)));
   root.appendChild(h('button.btn.danger', {
     onclick: () => { store.reset(); location.reload(); },
-  }, 'אפס הכל'));
+  }, 'איפוס הכול'));
 }
 
   return {

@@ -65,7 +65,7 @@ const AGREEMENT = [
   { kind: 'app', dem: 'זו', in: 'בה', on: 'עליה', verb: 'בניתי' },
   { kind: 'software', dem: 'זו', in: 'בה', on: 'עליה', verb: 'כתבתי' },
   { kind: 'design', dem: 'זו', in: 'בה', on: 'עליה', verb: 'עשיתי' },
-  { kind: 'brand', dem: 'זה', in: 'בו', on: 'עליו', verb: 'עשיתי' },
+  { kind: 'brand', dem: 'זו', in: 'בה', on: 'עליה', verb: 'עשיתי' },
   { kind: 'illustration', dem: 'זה', in: 'בו', on: 'עליו', verb: 'ציירתי' },
   { kind: 'photo', dem: 'זו', in: 'בה', on: 'עליה', verb: 'עשיתי' },
   { kind: 'video', dem: 'זה', in: 'בו', on: 'עליו', verb: 'עשיתי' },
@@ -80,6 +80,15 @@ const AGREEMENT = [
 
 ok(AGREEMENT.length === schema.KINDS.length,
   `a kind was added or removed without a line in this check (${schema.KINDS.length} kinds, ${AGREEMENT.length} cases)`);
+
+/*
+ * A typo in a kind id here would fall through to `other` — kindById returns the
+ * last row for anything it does not know — and the case would pass while
+ * testing nothing. The table has to name kinds that exist.
+ */
+for (const c of AGREEMENT) {
+  ok(schema.KINDS.some((k) => k.id === c.kind), `this check names a kind that does not exist: "${c.kind}"`);
+}
 
 for (const c of AGREEMENT) {
   const w = workOf({ kind: c.kind, role: 'עיצוב', team: 'team' });
@@ -113,6 +122,27 @@ for (const c of AGREEMENT) {
     'the client name was deleted rather than left alone');
   const back = write.openingFor(workOf({ context: 'client', clientName: 'מספרת רון' })).join(' ');
   ok(back.includes('ללקוח מספרת רון'), `changing back did not bring the name with it — "${back}"`);
+}
+
+/*
+ * The plural has to agree with the same gender the singular does.
+ *
+ * `countPhrase` reads one gender per kind and uses it for both branches, so a
+ * row whose plural is headed by a different noun than its singular — "מיתוג"
+ * against "עבודות מיתוג" — produces "שני עבודות מיתוג" from two up, and the
+ * fifteen agreement cases above all pass because none of them counts anything.
+ * The head of the plural is what has to be checked, and these are the two
+ * endings that decide it in Hebrew.
+ */
+for (const k of schema.KINDS) {
+  const head = k.plural.split(' ')[0];
+  const looksFeminine = /(ות|יות)$/.test(head);
+  const expected = looksFeminine ? 'f' : 'm';
+  ok(k.gender === expected,
+    `${k.id}: plural "${k.plural}" is ${expected === 'f' ? 'feminine' : 'masculine'} but the row says ${k.gender} — `
+    + `"${write.countPhrase(2, k.he, k.plural, k.gender)}"`);
+  const two = write.countPhrase(2, k.he, k.plural, k.gender);
+  ok(two.startsWith(looksFeminine ? 'שתי' : 'שני'), `${k.id}: two of them reads "${two}"`);
 }
 
 /* Both the opening and the sentence that is never written when a field is blank. */
@@ -167,6 +197,10 @@ const PERIODS = [
   [{ fromYear: 2024, fromMonth: 7, ongoing: true }, 'מיולי 2024 ועד היום', 'מיולי 2024 ועד היום'],
   [{ fromYear: 2024 }, '2024', 'ב-2024'],
   [{ fromYear: 2024, fromMonth: 5, toYear: 2024, toMonth: 5 }, 'מאי 2024', 'במאי 2024'],
+  /* One month known and not the other. Falling back to the bare year here threw
+   * away a dropdown the person had answered. */
+  [{ fromYear: 2024, toYear: 2024, toMonth: 5 }, 'מאי 2024', 'במאי 2024'],
+  [{ fromYear: 2023, fromMonth: 11, toYear: 2024 }, 'נובמבר 2023 – 2024', 'בין נובמבר 2023 ל-2024'],
 ];
 for (const [raw, label, sentence] of PERIODS) {
   const p = schema.cleanPeriod(raw);
@@ -243,7 +277,8 @@ ok(!html.toHtml(schema.normalisePortfolio({ owner: FULL.owner, works: FULL.works
 ok(fullHtml.includes('mailto:noa@example.com'), 'the email is not linked');
 ok(fullHtml.includes('tel:0521234567'), 'the phone is not linked, or kept its dashes in the tel: URL');
 ok(fullHtml.includes('https://ronbarber.co.il'), 'a bare domain was not given a scheme');
-ok(fullHtml.includes('עודכן ב12 באוגוסט 2026'), 'the file is not dated');
+ok(fullHtml.includes('עודכן ב-12 באוגוסט 2026'),
+  'the file is not dated, or glued a one-letter prefix onto a digit');
 ok(fullHtml.includes(pngPixel()), 'the photograph did not make it into the file');
 ok(!fullMd.includes(pngPixel()), 'the Markdown carries base64 image data');
 ok(fullMd.includes('בקובץ ה-HTML'), 'the Markdown does not say where the pictures are');
@@ -262,7 +297,7 @@ ok(fullMd.includes('בקובץ ה-HTML'), 'the Markdown does not say where the p
   ok(sentence === 'בתיק הזה עבודה אחת מ-2024.', `one work reads "${sentence}"`);
 
   const spread = write.writeAbout(full)[1];
-  ok(spread === 'בתיק הזה שלוש עבודות, מ-2019 ועד היום — אתר אחד, אפליקציה אחת ומיתוג אחד.',
+  ok(spread === 'בתיק הזה שלוש עבודות, מ-2019 ועד היום — אתר אחד, אפליקציה אחת ועבודת מיתוג אחת.',
     `three works read "${spread}"`);
 
   const ended = write.writeAbout(schema.normalisePortfolio({
@@ -273,6 +308,76 @@ ok(fullMd.includes('בקובץ ה-HTML'), 'the Markdown does not say where the p
     ],
   }))[0];
   ok(ended === 'בתיק הזה שתי עבודות, מ-2019 עד 2023 — שני אתרים.', `two finished works read "${ended}"`);
+}
+
+/*
+ * The contents list and the anchors under it.
+ *
+ * Ids come out of storage, and a backup is a text file people edit, so they can
+ * be Hebrew — which is where deriving the anchor from the id by keeping its
+ * "word characters" collapsed every one of them to the same string. Three works
+ * then shared one id and every line of the contents list jumped to the first.
+ */
+{
+  const named = schema.normalisePortfolio({
+    owner: { name: 'א' },
+    works: [
+      { id: 'מספרה', title: 'אתר למספרה', kind: 'site', context: 'personal' },
+      { id: 'מתכונים', title: 'אפליקציית מתכונים', kind: 'app', context: 'personal' },
+      { id: 'כנס', title: 'מיתוג לכנס', kind: 'brand', context: 'personal' },
+    ],
+  });
+  const out = html.toHtml(named, AT);
+  const ids = attrValues(out, 'id');
+  const hrefs = attrValues(out, 'href').filter((h) => h.startsWith('#'));
+  ok(ids.length === 3, `the file has ${ids.length} anchored works, not 3`);
+  ok(new Set(ids).size === ids.length, `two works share an anchor: ${JSON.stringify(ids)}`);
+  ok(hrefs.length === 3, `the contents list has ${hrefs.length} links, not 3`);
+  ok(new Set(hrefs).size === hrefs.length, `two contents entries point at the same work: ${JSON.stringify(hrefs)}`);
+  for (const href of hrefs) {
+    ok(ids.includes(href.slice(1)), `the contents list points at "${href}", which is not in the document`);
+  }
+}
+
+/*
+ * A work with no name is dropped from the document — and the app has to know
+ * that, or it will count it on the export screen above a preview that does not
+ * have it.
+ */
+{
+  const partial = schema.normalisePortfolio({
+    owner: { name: 'א' },
+    works: [
+      { title: 'עבודה עם שם', kind: 'site', context: 'personal' },
+      { title: '', kind: 'site', context: 'personal', brief: 'נכתב, אבל בלי שם' },
+    ],
+  });
+  ok(partial.works.length === 2, 'the untitled work was dropped on the way into storage');
+  const built = doc.buildDocument(partial, AT);
+  ok(built.works.length === 1, `the document kept ${built.works.length} works, not 1`);
+  ok(!html.toHtml(partial, AT).includes('נכתב, אבל בלי שם'), 'an untitled work reached the file anyway');
+}
+
+/*
+ * The three branches of the writer that a filled-in sample never reaches.
+ */
+{
+  const oneLine = write.explainWork(workOf({ did: 'עשיתי דבר אחד' }));
+  const didSection = oneLine.sections.find((x) => x.key === 'did');
+  ok(didSection.type === 'para', 'a single line of "מה עשיתי" was turned into a one-item list');
+
+  const typed = write.explainWork(workOf({ did: '- ראשון\n* שני\n• שלישי' }));
+  const bullets = typed.sections.find((x) => x.key === 'did');
+  ok(bullets.type === 'list', 'three typed bullets did not become a list');
+  ok(JSON.stringify(bullets.items) === JSON.stringify(['ראשון', 'שני', 'שלישי']),
+    `the markers people type were printed twice: ${JSON.stringify(bullets.items)}`);
+
+  const lead = write.explainWork(workOf({ brief: 'המשפט הראשון. והשני, שאינו נחוץ.' })).lead;
+  ok(lead === 'המשפט הראשון.', `the contents lead reads "${lead}"`);
+  const derived = write.explainWork(workOf({ brief: '' })).lead;
+  ok(derived.startsWith('זה אתר שבניתי'), `with nothing typed the lead reads "${derived}"`);
+  const long = write.explainWork(workOf({ brief: 'א'.repeat(400) })).lead;
+  ok(long.length <= 151 && long.endsWith('…'), `a long first sentence was not trimmed: ${long.length} characters`);
 }
 
 /* The empty portfolio still produces a document rather than an exception. */
@@ -310,6 +415,11 @@ ok(JSON.stringify(write.deriveSkills(full.works)) === JSON.stringify(['Figma', '
 
 const RLO = String.fromCharCode(0x202e);
 const LRE = String.fromCharCode(0x202a);
+const FSI = String.fromCharCode(0x2068);
+const PDI = String.fromCharCode(0x2069);
+const RLM = String.fromCharCode(0x200f);
+
+const entities = { '&': '&amp;', '<': '&lt;', '>': '&gt;', '"': '&quot;', "'": '&#39;' };
 
 const NASTY = [
   '<script>alert(1)</script>',
@@ -367,11 +477,69 @@ for (const nasty of NASTY) {
 
   /* The whole point of escaping is that the text is still there, unchanged, as
    * text. A check that only looks for what is absent would pass on a file that
-   * silently dropped the field. */
+   * silently dropped the field.
+   *
+   * The comparison is against a table written out here rather than against
+   * `esc()`, because `esc()` is the function under test: an escaper that
+   * forgot "&" would agree with itself perfectly. */
   const asText = nasty.replace(RLO, '');
   if (asText) {
-    ok(out.includes(html.esc(asText)), `${label}: the answer was dropped rather than escaped`);
+    ok(out.includes(escapedBy(entities, asText)), `${label}: the answer was dropped rather than escaped`);
   }
+
+  /*
+   * The Markdown carries the same promise and had none of the same protection.
+   * A link label containing "](" closed the label and opened a destination of
+   * its own, so a file whose every URL had been through the allowlist shipped a
+   * javascript: link anyway.
+   */
+  const text = md.toMarkdown(hostile, AT);
+  ok(!/(^|[^\\])\]\((?!<)/.test(text), `${label}: a Markdown link destination is not bracketed`);
+  ok(!/(^|[^\\])\]\(<(?!https?:\/\/|mailto:|tel:)/.test(text), `${label}: the Markdown links somewhere unallowed`);
+  ok(!/(^|[^\\])</m.test(text.replace(/\]\(<[^>]*>\)/g, '')),
+    `${label}: a bare "<" reached the Markdown, where most renderers pass raw HTML through`);
+}
+
+/*
+ * The five characters, spelled out.
+ *
+ * This is the table `esc()` is checked against, and it is deliberately a second
+ * copy: the whole failure mode of testing an escaper with itself is that both
+ * sides forget the same character on the same day.
+ */
+function escapedBy(map, text) {
+  let out = '';
+  for (const ch of String(text)) out += Object.prototype.hasOwnProperty.call(map, ch) ? map[ch] : ch;
+  return out;
+}
+
+/*
+ * The ampersand, which every other hostile string here is missing.
+ *
+ * It is the one character whose escape has to happen first — escaping "<" into
+ * "&lt;" and then escaping "&" would produce "&amp;lt;" — and it is the one a
+ * person types by accident, in "בן & בת" or a query string. Both directions
+ * matter: an ampersand must survive as an ampersand, and text that already
+ * looks escaped must be escaped again so the reader sees what they typed.
+ */
+{
+  const amp = schema.normalisePortfolio({
+    owner: { name: 'בן & בת' },
+    works: [{
+      title: 'קמפיין ל-B&B', kind: 'site', context: 'client', clientName: 'A & B',
+      brief: 'הטקסט &lt;script&gt; אמור להיראות ככה, אות באות.',
+      links: [{ label: 'תוצאות', url: 'https://example.com/x?a=1&b=2' }],
+    }],
+  });
+  const out = html.toHtml(amp, AT);
+  ok(out.includes('בן &amp; בת'), 'an ampersand in a name was not escaped');
+  ok(out.includes('קמפיין ל-B&amp;B'), 'an ampersand in a title was not escaped');
+  ok(out.includes('&amp;lt;script&amp;gt;'), 'text that was already escaped was not escaped again');
+  ok(!/&(?!amp;|lt;|gt;|quot;|#39;)/.test(out.split('<style>')[0] + out.split('</style>')[1]),
+    'the file carries a bare ampersand outside its stylesheet');
+  ok(out.includes('href="https://example.com/x?a=1&amp;b=2"'), 'an ampersand in a URL was not escaped');
+  ok(escapedBy(entities, '&') === '&amp;' && html.esc('&') === '&amp;',
+    'the check table and esc() disagree about the ampersand');
 }
 
 /* Links and images: the allowlists, one case per decision. */
@@ -408,6 +576,32 @@ for (const [input, expected] of IMAGES) {
   ok(got === expected, `safeImageUrl(${JSON.stringify(input).slice(0, 48)}) = ${JSON.stringify(got).slice(0, 48)}`);
 }
 
+/*
+ * The bidi controls, both halves.
+ *
+ * The overrides (U+202A–U+202E) and the isolates (U+2066–U+2069) are stripped;
+ * the marks (U+200E/200F) are kept, because those are the ones a person puts in
+ * a phone number on purpose. An address is the exception to the exception — a
+ * URL with an invisible mark in it shows the reader one hostname and goes to
+ * another, and a URL that genuinely needs one percent-encodes it.
+ */
+{
+  ok(schema.cleanText(FSI + 'abc' + PDI) === 'abc', 'a bidi isolate survived cleanText');
+  ok(schema.cleanText(LRE + 'abc') === 'abc', 'a bidi embedding survived cleanText');
+  ok(schema.cleanText('052' + RLM + '-123') === '052' + RLM + '-123',
+    'RLM was stripped from text, where it is somebody\'s own typography');
+  ok(schema.safeUrl('https://example.com/' + RLM + 'x') === 'https://example.com/x',
+    'a bidi mark survived into an address');
+
+  const isolated = schema.normalisePortfolio({
+    owner: { name: 'א' },
+    works: [{ title: FSI + 'עבודה' + PDI, kind: 'site', context: 'personal' }],
+  });
+  const out = html.toHtml(isolated, AT);
+  ok(!out.includes(FSI) && !out.includes(PDI), 'a bidi isolate reached the file');
+  ok(out.includes('<h2>עבודה</h2>'), 'stripping the isolate took the title with it');
+}
+
 /* Markdown has its own way of being broken: a paragraph that starts with "##"
  * stops being a paragraph. */
 {
@@ -426,6 +620,41 @@ for (const [input, expected] of IMAGES) {
   /* The digit cannot be escaped, so the full stop after it is. */
   ok(text.includes('1\\. לא ממוספר'), 'a numbered line in an answer became a numbered list');
   ok(!text.includes('\\1.'), 'the number was escaped in the one way Markdown does not honour');
+
+  const more = md.toMarkdown(schema.normalisePortfolio({
+    owner: { name: 'א' },
+    works: [{
+      title: 'עבודה', kind: 'site', context: 'personal',
+      brief: '--- לא קו מפריד\n*** גם לא\n+ לא רשימה\n~~~ לא בלוק קוד',
+    }],
+  }), AT);
+  for (const line of ['\\--- לא קו מפריד', '\\*** גם לא', '\\+ לא רשימה', '\\~~~ לא בלוק קוד']) {
+    ok(more.includes(line), `a line starting "${line.slice(1, 4)}" was left to become a block: ${JSON.stringify(line)}`);
+  }
+}
+
+/*
+ * The label that forges its own link.
+ *
+ * Written out as its own case because the shape is specific and the loop above
+ * would not have thought of it: inside "[…](…)" a "]" ends the label and the
+ * next "(" opens a destination, so a label can ship a URL that never went
+ * through the allowlist — out of a file whose every URL did.
+ */
+{
+  const forged = schema.normalisePortfolio({
+    owner: { name: 'א' },
+    works: [{
+      title: 'עבודה', kind: 'site', context: 'personal',
+      links: [{ label: 'לאתר](javascript:alert(document.domain))[x', url: 'https://example.com' }],
+    }],
+  });
+  const text = md.toMarkdown(forged, AT);
+  /* An escaped "\\](" is four characters of text in the label — it is the
+   * unescaped one that opens a destination, which is the whole difference. */
+  ok(!/(^|[^\\])\]\(javascript:/.test(text), 'a link label forged a second link with a javascript: URL');
+  ok(text.includes('](<https://example.com>)'), 'the real destination did not survive the escaping');
+  ok(text.includes('לאתר\\]'), 'the label lost the bracket the person actually typed');
 }
 
 /* File names are chosen by this app and typed by nobody, but the name in them is. */
@@ -529,7 +758,12 @@ ok(doc.fileNameFor('', 'html') === 'portfolio.html', 'a name with no date should
   ok(store.saveError() === 'quota', `a full device reports "${store.saveError()}"`);
   ok(store.get().owner.name === 'מי שאין לו מקום',
     'a save that failed also lost the answer — the work in the form is worth more than the invariant');
-  ok(!store.persists(), 'a device that cannot save still claims it can');
+  /* Not `ok(!store.persists())` — that was already false in Node before the
+   * fake was installed, so it could not have failed. What is worth asserting is
+   * that the app stops claiming to persist the moment a save fails, which is
+   * what the banner on the first screen is read off. */
+  ok(store.persists() === false && store.saveError() !== '',
+    'a device that just failed a save still reports itself as saving');
 
   globalThis.localStorage = fake(new Error('SecurityError: storage is disabled'));
   store.reset();

@@ -17,8 +17,9 @@ import * as store from '../core/store.js';
 import { countPhrase } from '../engine/write.js';
 import { toHtml } from '../export/html.js';
 import { toMarkdown } from '../export/markdown.js';
-import { fileNameFor } from '../export/document.js';
+import { buildDocument, fileNameFor } from '../export/document.js';
 import { downloadText, printHtml } from '../export/download.js';
+import { paintSaveError } from './savewarn.js';
 
 export function renderFile(root) {
   const view = h('section');
@@ -34,9 +35,20 @@ export function renderFile(root) {
     const html = toHtml(st, { now });
     const bytes = new Blob([html]).size;
     const named = fileNameFor(st.owner.name, 'html', now);
+    /*
+     * Counted off the document rather than the store, because they disagree: a
+     * work with no name is dropped on the way into the file. Saying "עבודה אחת"
+     * on the card above a preview that says the portfolio is empty is the app
+     * contradicting itself in the space of one screen.
+     */
+    const inFile = buildDocument(st, { now }).works.length;
 
-    if (!st.works.length) {
-      view.appendChild(h('div.warnbox', 'אין עדיין עבודות, אז הקובץ יצא כמעט ריק. אפשר להוריד אותו בכל מקרה.'));
+    if (!inFile) {
+      view.appendChild(h('div.warnbox', 'אין עדיין עבודות בקובץ, אז הוא יצא כמעט ריק. אפשר להוריד אותו בכל מקרה.'));
+    }
+    if (inFile < st.works.length) {
+      view.appendChild(h('div.warnbox', countLabel(st.works.length - inFile)
+        + ' בלי שם, אז הן לא נכנסות לקובץ. שם העבודה הוא מה שהופך אותה לפרק במסמך.'));
     }
     if (!st.owner.name) {
       view.appendChild(h('div.warnbox', 'אין שם בלשונית "פרטים", אז בראש הקובץ לא יופיע שם.'));
@@ -45,8 +57,10 @@ export function renderFile(root) {
     view.appendChild(h('div.filecard', [
       h('div.filemeta', [
         h('b', named),
-        h('span.fact', formatSize(bytes)),
-        h('span.fact', countLabel(st.works.length)),
+        /* A number and a Latin unit with a space between them resolve to the
+         * paragraph's direction, which prints "KB 245". */
+        h('span.fact', { dir: 'ltr' }, formatSize(bytes)),
+        h('span.fact', countLabel(inFile)),
       ]),
       h('div.toolbar', [
         h('button.btn.primary', {
@@ -110,8 +124,18 @@ export function renderFile(root) {
       clear(notice);
       try {
         store.importJson(String(reader.result));
-        announce('הגיבוי נטען');
-        notice.appendChild(h('div.callout.good', 'הגיבוי נטען.'));
+        /*
+         * "It did not throw" is not "it was saved". importJson writes and
+         * discards whether the write worked, so a restore onto a full device
+         * used to report success, redraw the preview from memory to prove it,
+         * and then be gone on the next reload.
+         */
+        if (paintSaveError(notice, store.saveError())) {
+          announce('הגיבוי נטען אבל לא נשמר');
+        } else {
+          announce('הגיבוי נטען');
+          notice.appendChild(h('div.callout.good', 'הגיבוי נטען.'));
+        }
       } catch (e) {
         console.error(e);
         notice.appendChild(h('div.warnbox.hot', String(e && e.message ? e.message : e)));
@@ -136,7 +160,9 @@ export function renderFile(root) {
     const st = store.get();
     const close = modal(h('div', [
       h('h3', 'למחוק את הכל?'),
-      h('p.lead', 'זה מוחק ' + countLabel(st.works.length) + ' ואת הפרטים, מהמכשיר הזה, בלי לשאול שוב.'),
+      h('p.lead', st.works.length
+        ? 'זה מוחק ' + countLabel(st.works.length) + ' ואת הפרטים, מהמכשיר הזה, בלי לשאול שוב.'
+        : 'זה מוחק את הפרטים מהמכשיר הזה, בלי לשאול שוב.'),
       h('div.modal-actions', [
         h('button.btn', {
           onclick: () => downloadText(fileNameFor(st.owner.name, 'json', new Date()), store.exportJson(), 'application/json'),
@@ -164,7 +190,8 @@ function formatSize(bytes) {
   return (Math.round(bytes / 1024 / 102.4) / 10) + ' MB';
 }
 
-/* The numerals decline, and write.js already knows how — see countPhrase. */
+/* The numerals decline, and write.js already knows how — see countPhrase.
+ * Nothing is counted as "אפס עבודות", which is arithmetic rather than Hebrew. */
 function countLabel(n) {
-  return n === 0 ? 'אפס עבודות' : countPhrase(n, 'עבודה', 'עבודות', 'f');
+  return n === 0 ? 'אין עבודות' : countPhrase(n, 'עבודה', 'עבודות', 'f');
 }

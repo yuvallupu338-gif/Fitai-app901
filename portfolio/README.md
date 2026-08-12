@@ -32,10 +32,12 @@ open dist/portfolio.html
 
 ## What it does
 
-**Asks.** Fifteen questions per work, of which two are required — a name and a
-kind. The rest are optional and the app says which ones it is missing rather
-than refusing to write without them. The order is the order somebody would say
-it out loud, not the order it is stored in.
+**Asks.** Fifteen questions per work, and exactly one of them has to be
+answered: the name. The kind and the setting arrive with a default, the other
+twelve are optional, and a work missing some of them is written anyway — the app
+lists what it is missing by name rather than refusing. A name is the one that is
+load-bearing, because it is the heading of that work's chapter, and a work
+without one is the only thing that does not make it into the file at all.
 
 **Writes.** Every work gets an opening paragraph the app composes: what kind of
 thing it was, who it was for, when, what your part in it was, and whether you
@@ -143,17 +145,28 @@ portfolio/
     data/schema.js    what a work is, and the grammar attached to it
     engine/write.js   the explanation, and the paragraph counted off the works
     export/           document model -> html | markdown | download
-    ui/               owner, works list, work editor, the file tab
+    ui/               owner, works list, work editor, the file tab, savewarn
     styles/           only what this app adds
 ```
 
-It shares the repo's design system — `src/styles/{fonts,tokens,base,components}.css`
-and `h()` from `src/core/dom.js` — and nothing else. No store, no engine, no
-data, and no knowledge of FitAI whatsoever in either direction. Those four
-stylesheets are the repo's design language rather than one app's, and a second
-copy of them would have drifted by the second change; the exported document
-shares none of it and carries its own light, printable stylesheet, because it is
-read on somebody else's screen and on paper.
+It shares the repo's design system — `src/styles/{fonts,tokens,base,components}.css` —
+and six functions from `src/core/dom.js`: `h`, `clear`, `qs`, `announce`,
+`modal` and `shrinkImage`. Nothing else. No store, no engine, no data, and no
+knowledge of FitAI whatsoever in either direction.
+
+The last two of those six are worth naming rather than filing under "element
+helpers", because they are not small. `modal()` is a focus-trapped,
+escape-closable overlay with its own tab cycling, and it is what stands between
+a work and being deleted by a mis-tap. `shrinkImage()` is a decode, a canvas
+resize and a re-encode, and it is the only reason a phone photograph fits in a
+localStorage quota at all — the picture check in the browser test is, honestly,
+a check on FitAI's code. A change to either lands in both apps, which is the
+price of not having a second copy, and the browser test is where it would show.
+
+The stylesheets are the repo's design language rather than one app's, and a
+second copy of them would have drifted by the second change. The exported
+document shares none of it and carries its own light, printable stylesheet,
+because it is read on somebody else's screen and on paper.
 
 ## Testing it
 
@@ -163,7 +176,7 @@ node tools/build-single.js portfolio/index.html dist/portfolio.html
 node tools/portfolio-smoke.mjs --shots                  # the real app in Chromium
 ```
 
-`portfolio-audit.mjs` is 329 assertions over the things a screenshot cannot see.
+`portfolio-audit.mjs` is 443 assertions over the things a screenshot cannot see.
 The first is grammar: "זה אפליקציה שבניתי" looks exactly as correct as "זו
 אפליקציה שבניתי" to anything that is not reading it, so the cases are named in
 the check — one line per kind, with the demonstrative and both pronouns written
@@ -184,7 +197,7 @@ something else, and in both cases the answer that was being typed survives the
 failed save — the work in the form at that moment is worth more than the
 invariant.
 
-`portfolio-smoke.mjs` is 49 checks in Chromium. It fills the form, reloads to
+`portfolio-smoke.mjs` is 67 checks in Chromium. It fills the form, reloads to
 prove any of it was stored, adds and reorders and deletes a work, puts a real
 PNG through the picture path — a File, a canvas, a resize and a re-encode, none
 of which exist in Node — then downloads the file, closes the server, and opens
@@ -199,12 +212,25 @@ It also checks the abandoned edit: type, switch tabs before the save lands, and
 the words are still there. That check is the reason screens are released rather
 than painted over.
 
-Every assertion in both was watched fail before being trusted. Bypassing `esc()`
-puts a script tag in the file and fails four checks; flipping one gender in
-`schema.js` fails four more; allowing SVG images, allowing `javascript:` links,
-removing the bidi strip, and letting the exporter read its own clock each fail
-the check written for them; and removing the release call at the tab switch
-loses the abandoned edit.
+Every assertion in both was watched fail before being trusted, and the counts
+below are measured rather than estimated:
+
+| mutation | what fails |
+|---|---|
+| `esc()` returns its argument unchanged | 65 assertions, and in the browser the preview's sandbox blocks the script the file would otherwise have run |
+| one kind's gender flipped in `schema.js` | 7 — the four pronouns and the numerals that read the same field |
+| `data:image/svg+xml` added to the image allowlist | 2 |
+| `javascript:` added to the link allowlist | 7 |
+| the Markdown link label left unescaped | 4 |
+| anchors derived from the work's id again | 2 |
+| the exporter allowed to read its own clock | 2 |
+| the bidi strip removed from `cleanText` | 1 |
+| the release call removed from the tab switch | the abandoned edit, in Chromium |
+| the details screen stops reporting a failed save | the two save-failure checks, in Chromium |
+
+The first row is the one worth reading twice. Sixty-five is not a sign of a
+thorough check; it is a sign that escaping is load-bearing in sixty-five places,
+which is exactly why it is one function.
 
 What none of them covers is whether the document is any good. A portfolio can
 pass every check here and still be six works nobody would hire anybody for, or

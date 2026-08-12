@@ -14,11 +14,12 @@
  * a timer that a navigation could outrun.
  */
 
-import { h, clear, announce } from '../../../src/core/dom.js';
+import { h, clear, modal, announce } from '../../../src/core/dom.js';
 import * as store from '../core/store.js';
 import { WORK_FIELDS, KINDS, CONTEXTS, TEAMS, contextById, cleanPeriod } from '../data/schema.js';
 import { explainWork } from '../engine/write.js';
 import { field, textInput, textArea, picker, chipsInput, periodInput, linksInput, imagesInput } from './fields.js';
+import { paintSaveError } from './savewarn.js';
 
 const SAVE_DELAY = 400;
 
@@ -39,17 +40,32 @@ export function renderEditor(root, workId, opts) {
   const draft = Object.assign({}, stored);
   let timer = null;
   let dirty = false;
+  /*
+   * Once the screen is gone this editor must never write again.
+   *
+   * Reading a photograph is asynchronous — a file, a canvas, a resize — and the
+   * picture control calls back when it finishes, which can be a second after
+   * somebody has left the work and opened another one. Without this flag that
+   * late callback re-armed the timer and then saved a draft snapshotted before
+   * the newer edits, so the picture appeared and the retyped title reverted,
+   * and then the second editor's own save put the picture back to none. The
+   * flag is set after the final flush, so leaving still commits what was typed.
+   */
+  let closed = false;
 
   function flush() {
     if (timer) { clearTimeout(timer); timer = null; }
-    if (!dirty) return;
+    if (closed || !dirty) return;
     store.saveWork(workId, draft);
     dirty = false;
-    const err = store.saveError();
-    if (err) paintSaveError(err);
+    paintSaveError(errorBox, store.saveError());
   }
 
   function touch() {
+    if (closed) {
+      if (timer) { clearTimeout(timer); timer = null; }
+      return;
+    }
     dirty = true;
     if (timer) clearTimeout(timer);
     timer = setTimeout(flush, SAVE_DELAY);
@@ -60,13 +76,9 @@ export function renderEditor(root, workId, opts) {
 
   const explainBox = h('div.explain');
   const errorBox = h('div');
-
-  function paintSaveError(kind) {
-    clear(errorBox);
-    errorBox.appendChild(h('div.warnbox.hot', kind === 'quota'
-      ? 'אין מקום לשמור את זה במכשיר — כנראה בגלל התמונות. מחקו תמונה, או הורידו גיבוי מהלשונית "הקובץ" לפני שתסגרו.'
-      : 'הדפדפן הזה לא נותן לשמור. הקובץ עדיין ייבנה, אבל אל תסגרו את הלשונית לפני שהורדתם אותו.'));
-  }
+  /* Held so that leaving the screen can tell it to drop a picture that is still
+   * being read — see the note on `closed` above. */
+  let imagesBox = null;
 
   /*
    * The explanation, redrawn from the draft.
@@ -117,10 +129,11 @@ export function renderEditor(root, workId, opts) {
     if (f.key === 'tools') return field(f.label, chipsInput(draft.tools, set('tools')), f.hint);
     if (f.key === 'links') return field(f.label, linksInput(draft.links, set('links')), f.hint);
     if (f.key === 'images') {
-      return field(f.label, imagesInput(draft.images, set('images'), (msg) => {
+      imagesBox = imagesInput(draft.images, set('images'), (msg) => {
         clear(errorBox);
         errorBox.appendChild(h('div.warnbox', msg));
-      }), f.hint);
+      });
+      return field(f.label, imagesBox, f.hint);
     }
     /* The hint is written once. A textarea that carries it as a placeholder and
      * again as the line underneath says the same sentence twice, and loses the
@@ -176,16 +189,34 @@ export function renderEditor(root, workId, opts) {
         if (o.onClose) o.onClose();
       },
     }, 'שמירה וחזרה'),
-    h('button.btn.danger', {
-      onclick: () => {
-        if (timer) { clearTimeout(timer); timer = null; }
-        dirty = false;
-        store.removeWork(workId);
-        announce('העבודה נמחקה');
-        if (o.onClose) o.onClose();
-      },
-    }, 'מחיקת העבודה'),
+    h('button.btn.danger', { onclick: confirmDelete }, 'מחיקת העבודה'),
   ]));
+
+  /*
+   * Deleting is a red button beside the save button on a 430px screen, and what
+   * it destroys is an evening of typing with no undo. The app already holds this
+   * standard for "מחיקת הכל"; a single work is not cheaper to lose.
+   */
+  function confirmDelete() {
+    const close = modal(h('div', [
+      h('h3', 'למחוק את "' + (draft.title || 'העבודה בלי שם') + '"?'),
+      h('p.lead', 'זה מוחק את העבודה ואת כל מה שנכתב עליה, מהמכשיר הזה, בלי לשאול שוב.'),
+      h('div.modal-actions', [
+        h('button.btn.danger', {
+          onclick: () => {
+            if (timer) { clearTimeout(timer); timer = null; }
+            dirty = false;
+            closed = true;
+            store.removeWork(workId);
+            close();
+            announce('העבודה נמחקה');
+            if (o.onClose) o.onClose();
+          },
+        }, 'כן, למחוק'),
+        h('button.btn.ghost', { onclick: () => close() }, 'ביטול'),
+      ]),
+    ]), { label: 'אישור מחיקת עבודה' });
+  }
 
   /*
    * A tab switch, a reload or a phone locking the screen all end the session
@@ -201,7 +232,9 @@ export function renderEditor(root, workId, opts) {
     redraw: () => {},
     flush,
     release: () => {
+      if (imagesBox && imagesBox.cancelPending) imagesBox.cancelPending();
       flush();
+      closed = true;
       window.removeEventListener('pagehide', onHide);
       window.removeEventListener('beforeunload', onHide);
     },

@@ -16,6 +16,7 @@ import * as store from '../core/store.js';
 import { OWNER_FIELDS, isEmail } from '../data/schema.js';
 import { writeAbout } from '../engine/write.js';
 import { field, textInput, textArea } from './fields.js';
+import { paintSaveError } from './savewarn.js';
 
 const SAVE_DELAY = 400;
 
@@ -30,6 +31,7 @@ export function renderOwner(root, opts) {
   function flush() {
     if (timer) { clearTimeout(timer); timer = null; }
     store.setOwner(draft);
+    paintSaveError(errorBox, store.saveError());
     paintAbout();
   }
 
@@ -39,6 +41,7 @@ export function renderOwner(root, opts) {
     paintAbout();
   }
 
+  const errorBox = h('div');
   const aboutBox = h('div.explain');
 
   /*
@@ -54,8 +57,12 @@ export function renderOwner(root, opts) {
     if (draft.headline) aboutBox.appendChild(h('p.lead', draft.headline));
     for (const p of paragraphs) aboutBox.appendChild(h('p', p));
     const contacts = [draft.email, draft.phone, draft.site, draft.location].filter(Boolean);
-    if (contacts.length) aboutBox.appendChild(h('p.facts', contacts.map((c) => h('span.fact', c))));
+    /* Isolated for the same reason the exported file isolates them: a phone
+     * number written with spaces is laid out backwards in an RTL paragraph. */
+    if (contacts.length) aboutBox.appendChild(h('p.facts', contacts.map((c) => h('bdi.fact', c))));
   }
+
+  view.appendChild(errorBox);
 
   const form = h('div.formcard');
   for (const f of OWNER_FIELDS) {
@@ -74,7 +81,7 @@ export function renderOwner(root, opts) {
     if (f.type === 'email') attrs.type = 'email';
     const control = textInput(draft[f.key], set, attrs);
     const help = f.key === 'email'
-      ? 'זה מה שנכנס לקישור "צור קשר" בקובץ.'
+      ? 'זו הכתובת שתופיע בקובץ, כקישור שאפשר ללחוץ עליו.'
       : f.hint;
     form.appendChild(field(f.label, control, help));
   }
@@ -98,7 +105,25 @@ export function renderOwner(root, opts) {
     }, 'לעבודות ←'),
   ]));
 
-  /* Leaving the tab is one of the ways this form is finished with, so it saves
-   * on the way out rather than waiting for a timer nobody is watching. */
-  return { redraw: paintAbout, flush, release: flush };
+  /*
+   * Leaving is one of the ways this form is finished with, and there are three
+   * of them: a tab switch, which app.js reports through release(), and a reload
+   * or a closed tab, which reach nothing but these two listeners. Without them
+   * a person who typed their name and reloaded within the save delay came back
+   * to an empty form — the editor next door had the listeners and this screen
+   * did not, which is an asymmetry rather than a decision.
+   */
+  const onHide = () => flush();
+  window.addEventListener('pagehide', onHide);
+  window.addEventListener('beforeunload', onHide);
+
+  return {
+    redraw: paintAbout,
+    flush,
+    release: () => {
+      flush();
+      window.removeEventListener('pagehide', onHide);
+      window.removeEventListener('beforeunload', onHide);
+    },
+  };
 }
