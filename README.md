@@ -2,19 +2,21 @@
 
 <div dir="rtl">
 
-מאמן קליסטניקס ותזונה אישי שרץ בדפדפן. הכל משקל גוף — אין משקולות, אין מוט,
-אין מכונות. אתה אומר כמה ימים אתה מתאמן, כמה זמן יש לך ומה יש לך בבית —
-והאפליקציה מרכיבה לך את השבוע: היא אומרת לך על אילו שרירים עובדים בכל אימון,
-בוחרת את התרגילים בעצמה לפי הציוד והפציעות שלך, מחליפה אותם לבד פעם בשבוע,
-ונותנת לך להחליף כל תרגיל בודד בתרגיל אחר לאותו שריר.
+מאמן כושר ותזונה אישי שרץ בדפדפן. אתה בוחר איך אתה מתאמן — קליסטניקס, חדר
+כושר, או שילוב של שניהם — אומר כמה ימים בשבוע, כמה זמן יש לך ומה הציוד שזמין
+לך, והאפליקציה מרכיבה לך את השבוע: היא אומרת לך על אילו שרירים עובדים בכל
+אימון, בוחרת את התרגילים בעצמה לפי הסגנון, הציוד והפציעות שלך, מחליפה אותם
+לבד פעם בשבוע, ונותנת לך להחליף כל תרגיל בודד בתרגיל אחר לאותו שריר.
 
 </div>
 
-It is calisthenics only, and it is bodyweight only. Nothing in it asks for a
-dumbbell, a barbell, a machine or a weight belt; the heaviest thing it will ever
-suggest is your own body, and there is no kilo field anywhere. You progress by
-moving to a harder variation, not by adding load. Everything runs on the
-device — nothing is uploaded, there is no account, and the whole app is one file.
+There are three ways to train and you pick one: **calisthenics**, where nothing
+asks for a weight and you progress by moving to a harder variation;
+**gym**, which is barbells, dumbbells, machines and cables and logs the kilos;
+and **both**, where a single session is built from the two together. The style
+is the only thing that decides which pool a session draws from — the rest of the
+app does not know the difference. Everything runs on the device: nothing is
+uploaded, there is no account, and the whole app is one file.
 
 ## Running it
 
@@ -45,16 +47,27 @@ shoulders, biceps, triceps, quads, hamstrings, glutes, calves, core — and ever
 exercise carries its own badge for the one it is in the session for, plus what
 else it hits.
 
-**The exercises are chosen for you.** A library of 123 calisthenics movements,
-each tagged with the muscle it trains, the kit it needs and the level it belongs
-at — from wall push-ups to the one-arm push-up, from table rows to the muscle-up,
-from a chair squat to a pistol. The generator walks the day's muscles in rotation
-and takes compounds before accessories, so a wall sit never opens a leg day.
+**The exercises are chosen for you.** A library of 202 movements — 123
+bodyweight and 79 gym — each tagged with the muscle it trains, the kit it needs,
+the level it belongs at and which of the two pools it is in. Bodyweight runs
+from wall push-ups to the one-arm push-up, from table rows to the muscle-up,
+from a chair squat to a pistol; the gym half runs from a machine chest press to
+a front squat. The generator walks the day's muscles in rotation and takes
+compounds before accessories, so a wall sit never opens a leg day.
 
-**It only ever offers what you can actually do.** The kit is five things — a
-pull-up bar, dip bars, rings, bands and an ab wheel — and it is a hard filter.
-Tick nothing and you still get a full week from a floor, a wall and a doorway.
-Declared injuries filter on top.
+**It only ever offers what you can actually do.** The kit question changes with
+the style: five things for calisthenics — a pull-up bar, dip bars, rings, bands
+and an ab wheel — and seven for a gym: barbell, dumbbells, bench, machines,
+cables, kettlebell and something to hang off a belt. It is a hard filter. Tick
+nothing on calisthenics and you still get a full week from a floor, a wall and a
+doorway. Declared injuries filter on top.
+
+A thin gym is the awkward case: dumbbells and nothing else have no glute
+movement at level 1, and a room with one machine per muscle has no second
+option to swap to. Rather than hand over a two-exercise day, the generator
+widens in steps — first core work, then the same muscles above the level cap,
+then, for a gym profile, the bodyweight movements that kit already allows. The
+kit and the injuries are never given up. A full gym never reaches that far.
 
 **It refreshes itself once a week.** The selection is seeded from the ISO week,
 so it is identical every time you open the app inside one week and different the
@@ -65,7 +78,10 @@ exercise is there for and lists other exercises that train the same muscle, each
 with what it needs, what else it works, a demo and a video. Your pick sticks for
 the rest of the week. When your kit and your injuries genuinely leave nothing
 clean — a shoulder injury removes every press — it says so plainly and shows the
-closest options flagged, instead of a dead end.
+closest options flagged, instead of a dead end. When it is the kit that is in
+the way, it shows what exists for that muscle and names the piece of equipment
+that would unlock each, with no button, because picking one would be quietly
+undone the next time the session is built.
 
 **The coach shows you where it lands.** The animated figure marks the muscles
 in red — bright for what the exercise is chosen for, faint for what it also
@@ -274,13 +290,21 @@ and profile export/import. Hebrew, English and Spanish.
 ## Checking it still works
 
 The planner is covered by headless-Chromium scripts that drive the real page
-rather than the functions in isolation. The sweep builds every session across six
-kits × one-to-seven days × three levels × three injury states — 1,512 sessions —
-and asserts that each one has six exercises, that every exercise is in the
-library and satisfiable with the kit, that no session ever contains anything
-matching a gym movement, and that no prescription anywhere carries a load. It
-passes clean, as does an audit of the library, the skill tree, and all ninety
-skill-tree popovers, none of which offer a kilo field.
+rather than the functions in isolation. The sweep builds every session across
+three styles × their kits × one-to-seven days × three levels × three injury
+states — 3,024 sessions — and asserts that each one is full, that no exercise
+repeats, that every exercise is in the library and satisfiable with the kit,
+that a same-muscle alternative exists, that a calisthenics session never
+contains a gym movement, and that a full gym never falls back to bodyweight.
+It passes clean.
+
+Two bugs in this change were caught by that sweep and by nothing else. The
+gym library reused two names the bodyweight library already had — a Bulgarian
+split squat and a hanging leg raise — and `MOVE_BY_BASE` keys on the name, so
+the gym entries silently shadowed the bodyweight ones everywhere in the app.
+The generator asserts unique base names now. The second was depth: several
+thin-kit combinations produced sessions of one or two exercises, which is what
+the step-wise widening above exists to prevent.
 
 ## Languages
 
@@ -315,11 +339,19 @@ node still holding Hebrew. It reports zero.
 
 ## Notes
 
-`index.html` is ~18 MB because the fonts, the exercise clips and the food photos
+`index.html` is ~24 MB because the fonts, the exercise clips and the food photos
 are all embedded as data URIs. That is a deliberate trade — one file, no network,
 works offline — but it is a real first-load cost and worth knowing before adding
-more images. Going calisthenics-only took about 7.4 MB off it: the gym machine
-directory and the twenty-three clips of loaded lifts nothing would prescribe any
-more.
+more images. Supporting the gym put about 5.5 MB back: the eighteen clips that
+demonstrate the loaded lifts the generator now prescribes. The five that only
+ever illustrated skill-tree feats — a yoke carry, a double-bodyweight bench, a
+human flag — are still out, because nothing prescribes them.
+
+The 47-machine guide came back too, at 0.14 MB. It was dead code in the file as
+uploaded: a catalogue with steps, cues and common mistakes that nothing linked
+to. It now has a button on the skills tab for anyone not training bodyweight
+only, and the coach figure beside each machine marks the muscles it works,
+read in the order the entry names them — which is what keeps a leg press filed
+under quads and a lying leg curl out of quads entirely.
 
 The information in the app is not medical advice.
