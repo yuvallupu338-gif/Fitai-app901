@@ -209,6 +209,44 @@ every meal on today's menu, and its quantities really are scaled to the target �
 a 60 kg cutting profile is told 3 eggs and 45 g of oats where a 110 kg building
 one is told 6 and 80.
 
+The rest of the surface holds too. All thirteen sheets — the coach, the trends,
+the install guide, help, the daily view, quick-add, the vegan guide, the shopping
+list, the day picker, the legal text, the exercise video, the skill popover and
+the swap sheet — open with content and controls and no console error. The
+dynamic and static stretch routines share no exercise and the segmented control
+really swaps them. Text size is a real setting: it drives `zoom` on the screen
+element, so levels 1, 3 and 10 render a heading at 29, 36 and 61 px. A profile
+serialised and read back is identical, profiles can be added, duplicated and
+removed, and a clean browser lands on a working onboarding screen.
+
+## The light theme
+
+`html.light` redefined the neutrals — background, card, line, text, muted — and
+left every accent at its dark value. Those accents are pale pastels picked to
+glow on near-black: `#5fe3d1` teal measures 1.6:1 on white. Measured across the
+six tabs with a scanner that composites alpha down the ancestor chain and skips
+gradients, the light theme had **102 pieces of text below WCAG AA in the file as
+uploaded**, and the active nav tab was white on a pale wash. Dark was clean at
+zero throughout.
+
+The accents now have light-theme values of their own — same hues, dark enough to
+read on white and on the card colour. Both themes measure zero.
+
+The restraint pass had already taken light from 102 to 70 as a side effect, by
+making chips, badges and stat tiles follow the neutral tokens instead of carrying
+their own colour. That is worth knowing: a palette that goes through tokens
+adapts to a theme for free, and every hard-coded colour is a place a theme
+switch can break. One survived — `.btn.danger` spelled its pink out — and needed
+its own light-mode line.
+
+## Stretches
+
+`injuryFlags` reports five injuries; the stretch screen knew three. Declare a
+wrist or elbow injury and the banner still announced "adapted to your injuries —
+sensitive areas are marked" over a list with nothing marked on it. Wrist and
+elbow map to the upper-body groups now, and the banner is gated on something
+actually being marked rather than on an injury merely being declared.
+
 ## What was checked and is fine
 
 Auditing for more of the same turned up a lot that holds up, which is worth
