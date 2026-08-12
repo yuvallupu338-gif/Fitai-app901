@@ -1,0 +1,362 @@
+#!/usr/bin/env node
+/*
+ * portfolio-smoke.mjs — drives the portfolio app in a real browser, downloads
+ * the file it produces, and opens that file the way the person receiving it
+ * would: off the disk, over file://, with nothing else around.
+ *
+ * `tools/portfolio-audit.mjs` proves the exporter builds a safe string. It
+ * cannot prove the app ever calls it, that the form reaches the store, that a
+ * reload keeps the work, or that the string a browser actually parses contains
+ * no script — a claim about markup is only worth what a parser says about it.
+ * That is this file.
+ *
+ * The last part is the one worth stating plainly, because it is the whole
+ * promise the app makes: what comes out is one file, and it renders with the
+ * server switched off. So the download is opened from a temporary directory
+ * over file://, after the local server has been closed.
+ *
+ * Usage:
+ *   node tools/portfolio-smoke.mjs
+ *   node tools/portfolio-smoke.mjs --shots     # writes dist/shots/portfolio/
+ *   node tools/portfolio-smoke.mjs --verbose
+ */
+
+import { createServer } from 'node:http';
+import { readFile, mkdir, mkdtemp, rm } from 'node:fs/promises';
+import { existsSync } from 'node:fs';
+import { tmpdir } from 'node:os';
+import { resolve, dirname, extname, join } from 'node:path';
+import { fileURLToPath, pathToFileURL } from 'node:url';
+import { createRequire } from 'node:module';
+
+const ROOT = resolve(dirname(fileURLToPath(import.meta.url)), '..');
+const require = createRequire(join('/opt/node22/lib/node_modules/', 'x.js'));
+const { chromium } = require('playwright');
+
+const SHOTS = process.argv.includes('--shots');
+const SHOT_DIR = resolve(ROOT, 'dist/shots/portfolio');
+
+const failures = [];
+const notes = [];
+const check = (cond, msg) => { if (!cond) failures.push(msg); else notes.push('ok: ' + msg); };
+
+const MIME = {
+  '.html': 'text/html; charset=utf-8',
+  '.js': 'text/javascript; charset=utf-8',
+  '.css': 'text/css; charset=utf-8',
+  '.json': 'application/json',
+  '.svg': 'image/svg+xml',
+};
+
+async function serve() {
+  const server = createServer(async (req, res) => {
+    try {
+      let url = decodeURIComponent(req.url.split('?')[0]);
+      if (url.endsWith('/')) url += 'index.html';
+      const path = resolve(ROOT, `.${url}`);
+      if (!path.startsWith(ROOT)) { res.writeHead(403).end(); return; }
+      const body = await readFile(path);
+      res.writeHead(200, { 'content-type': MIME[extname(path)] || 'application/octet-stream' });
+      res.end(body);
+    } catch {
+      res.writeHead(404).end('not found');
+    }
+  });
+  await new Promise((r) => server.listen(0, '127.0.0.1', r));
+  return { server, port: server.address().port };
+}
+
+/* The one work the whole run is about. Its answers are ordinary on purpose —
+ * the hostile ones are the audit's job — except the title, which carries a
+ * script tag through the form, the store, a reload and the export. */
+const WORK = {
+  title: 'אתר תדמית <script>alert(1)</script>',
+  role: 'עיצוב ופיתוח',
+  brief: 'למספרה לא היה שום דבר באינטרנט. אנשים חיפשו טלפון ולא מצאו.',
+  did: 'אפיינתי את המבנה\nעיצבתי בפיגמה\nבניתי בלי תלויות',
+  tools: 'Figma, HTML, CSS',
+  result: 'רוב התורים נקבעים דרך האתר.',
+};
+
+async function main() {
+  const { server, port } = await serve();
+  const base = `http://127.0.0.1:${port}/portfolio/`;
+  const browser = await chromium.launch({ executablePath: '/opt/pw-browsers/chromium/chrome-linux/chrome' })
+    .catch(() => chromium.launch());
+  const context = await browser.newContext({
+    viewport: { width: 430, height: 900 },
+    deviceScaleFactor: 2,
+    acceptDownloads: true,
+  });
+  const page = await context.newPage();
+
+  const consoleErrors = [];
+  page.on('pageerror', (e) => consoleErrors.push(`pageerror: ${e.message}`));
+  page.on('console', (m) => { if (m.type() === 'error') consoleErrors.push(`console: ${m.text()}`); });
+  /* If anything in the app ever calls alert(), the injected script ran. */
+  let dialogs = 0;
+  page.on('dialog', async (d) => { dialogs += 1; await d.dismiss(); });
+
+  const downloads = await mkdtemp(join(tmpdir(), 'portfolio-'));
+  if (SHOTS) await mkdir(SHOT_DIR, { recursive: true });
+  const shot = async (name) => { if (SHOTS) await page.screenshot({ path: join(SHOT_DIR, name + '.png'), fullPage: true }); };
+
+  await page.goto(base, { waitUntil: 'load' });
+  await page.waitForSelector('.tabs');
+
+  /* ---- the person ---- */
+
+  await page.getByLabel('שם', { exact: true }).fill('נועה בר');
+  await page.getByLabel('במשפט אחד', { exact: true }).fill('מעצבת מוצר');
+  await page.getByLabel('אימייל', { exact: true }).fill('noa@example.com');
+  await page.waitForTimeout(600);
+  check((await page.locator('.explain h3').textContent()).includes('נועה בר'),
+    'the panel under the details does not show the name as it is typed');
+  await shot('01-owner');
+  await page.getByRole('button', { name: 'לעבודות ←' }).click();
+
+  /* ---- one work ---- */
+
+  await page.getByRole('button', { name: '+ עבודה חדשה' }).click();
+  await page.waitForSelector('.explain');
+  const beforeTyping = await page.locator('.explain .opening').textContent();
+
+  await page.getByLabel('שם העבודה', { exact: true }).fill(WORK.title);
+  await page.getByLabel('סוג העבודה', { exact: true }).selectOption('app');
+  await page.getByLabel('התפקיד שלי', { exact: true }).fill(WORK.role);
+  await page.getByLabel('בשביל מי', { exact: true }).selectOption('client');
+  await page.getByLabel('שם הלקוח', { exact: true }).fill('מספרת רון');
+  await page.getByLabel('לבד או בצוות', { exact: true }).selectOption('team');
+  await page.getByLabel('שנת התחלה', { exact: true }).fill('2024');
+  await page.getByLabel('חודש התחלה', { exact: true }).selectOption('3');
+  await page.getByLabel('שנת סיום', { exact: true }).fill('2024');
+  await page.getByLabel('חודש סיום', { exact: true }).selectOption('5');
+  await page.getByLabel('מה היה צריך', { exact: true }).fill(WORK.brief);
+  await page.getByLabel('מה עשיתי', { exact: true }).fill(WORK.did);
+  await page.getByLabel('כלים וטכנולוגיות', { exact: true }).fill(WORK.tools);
+  await page.getByLabel('מה יצא מזה', { exact: true }).fill(WORK.result);
+
+  const opening = await page.locator('.explain .opening').textContent();
+  check(opening !== beforeTyping, 'the explanation did not change while the form was being filled');
+  check(opening.includes('זו אפליקציה שבניתי ללקוח מספרת רון'),
+    `the explanation reads "${opening}"`);
+  check(opening.includes('בין מרץ למאי 2024'), `the period is not in the explanation — "${opening}"`);
+  check(opening.includes('עבדתי עליה בצוות'), `the team sentence disagrees with the kind — "${opening}"`);
+  check(!(await page.locator('.gaps').count()),
+    'a work with every field answered is still reported as missing something');
+  await shot('02-editor');
+
+  await page.getByRole('button', { name: 'שמירה וחזרה' }).click();
+  await page.waitForSelector('.workrow');
+
+  /* ---- a reload, which is the only proof that any of it was stored ---- */
+
+  await page.reload({ waitUntil: 'load' });
+  await page.waitForSelector('.tabs');
+  await page.getByRole('button', { name: 'העבודות' }).click();
+  await page.waitForSelector('.workrow');
+  const rowTitle = await page.locator('.workrow .namebtn').first().textContent();
+  check(rowTitle === WORK.title, `after a reload the work is called "${rowTitle}"`);
+  check((await page.locator('.workrow .gapline.ok').count()) === 1,
+    'after a reload the work no longer counts as complete');
+  await shot('03-works');
+
+  /*
+   * An edit that is abandoned mid-keystroke by switching tabs.
+   *
+   * The editor writes to storage on a short delay, so the last thing typed is
+   * still only in the draft when the tab changes. Leaving the screen has to
+   * flush it — this is the check that noticed the screens were being painted
+   * over without being told they were finished.
+   */
+  await page.locator('.workrow .namebtn').first().click();
+  await page.getByLabel('התפקיד שלי', { exact: true }).fill('עיצוב, פיתוח ואפיון');
+  await page.getByRole('button', { name: 'הקובץ' }).click();
+  await page.waitForSelector('iframe.preview');
+  check((await page.getAttribute('iframe.preview', 'srcdoc')).includes('עיצוב, פיתוח ואפיון'),
+    'an edit was lost by leaving the editor before its save landed');
+
+  /* Coming back lands where the work was left, not on the list. */
+  await page.getByRole('button', { name: 'העבודות' }).click();
+  await page.waitForSelector('.explain');
+  check((await page.getByLabel('התפקיד שלי', { exact: true }).inputValue()) === 'עיצוב, פיתוח ואפיון',
+    'the editor did not reopen on the work that was being edited');
+  await page.getByRole('button', { name: '→ חזרה לרשימה' }).click();
+  await page.waitForSelector('.workrow');
+
+  /* ---- the file ---- */
+
+  await page.getByRole('button', { name: 'הקובץ' }).click();
+  await page.waitForSelector('iframe.preview');
+  const srcdoc = await page.getAttribute('iframe.preview', 'srcdoc');
+  check(srcdoc && srcdoc.includes('<!DOCTYPE html>'), 'the preview is not the document');
+  check(srcdoc.includes('זו אפליקציה שבניתי ללקוח מספרת רון'),
+    'the explanation from the editor is not in the previewed file');
+  await shot('04-file');
+
+  const [download] = await Promise.all([
+    page.waitForEvent('download'),
+    page.getByRole('button', { name: 'הורדת הקובץ' }).click(),
+  ]);
+  const saved = join(downloads, 'portfolio.html');
+  await download.saveAs(saved);
+  /*
+   * The name the browser actually saved it under, which is the reason
+   * `fileNameFor` is ASCII. This container runs a POSIX locale, and Chromium on
+   * one of those throws away a `download` attribute with Hebrew in it — the
+   * file arrives called "download", with no extension and nothing to open it
+   * with. The assertion is the extension, because that is the part that decides
+   * whether a double-click shows a portfolio or a text editor.
+   */
+  const suggested = download.suggestedFilename();
+  check(suggested.endsWith('.html'), `the download is named "${suggested}" — it lost its extension`);
+  check(/^[\x20-\x7e]+$/.test(suggested), `the download name did not survive the trip: "${suggested}"`);
+
+  const fileText = await readFile(saved, 'utf8');
+  check(fileText === srcdoc, 'the downloaded file is not byte for byte what the preview showed');
+  check(fileText.length > 1500, `the downloaded file is ${fileText.length} bytes`);
+
+  /* ---- a backup, a wipe, and a restore ---- */
+
+  const [backup] = await Promise.all([
+    page.waitForEvent('download'),
+    page.getByRole('button', { name: 'הורדת גיבוי' }).click(),
+  ]);
+  const backupPath = join(downloads, 'backup.json');
+  await backup.saveAs(backupPath);
+
+  await page.getByRole('button', { name: 'מחיקת הכל' }).click();
+  await page.getByRole('button', { name: 'כן, למחוק' }).click();
+  await page.waitForTimeout(200);
+  check((await page.getAttribute('iframe.preview', 'srcdoc')).includes('התיק הזה עדיין ריק'),
+    'deleting everything left works in the document');
+
+  await page.setInputFiles('.filebtn input[type="file"]', backupPath);
+  await page.waitForTimeout(400);
+  const restored = await page.getAttribute('iframe.preview', 'srcdoc');
+  check(restored.includes('מספרת רון'), 'the backup did not restore the work');
+  check(restored === srcdoc.replace(/עודכן ב[^<]*/, restored.match(/עודכן ב[^<]*/) || ''),
+    'the document after a restore is not the document before the backup');
+
+  /* ---- the file, opened the way it will be opened ---- */
+
+  server.close();
+  const reader = await context.newPage();
+  const readerErrors = [];
+  reader.on('pageerror', (e) => readerErrors.push(`pageerror: ${e.message}`));
+  reader.on('console', (m) => { if (m.type() === 'error') readerErrors.push(`console: ${m.text()}`); });
+  reader.on('dialog', async (d) => { dialogs += 1; await d.dismiss(); });
+  await reader.goto(pathToFileURL(saved).href, { waitUntil: 'load' });
+
+  const seen = await reader.evaluate(() => ({
+    scripts: document.querySelectorAll('script').length,
+    iframes: document.querySelectorAll('iframe').length,
+    articles: document.querySelectorAll('article.work').length,
+    heading: (document.querySelector('article.work h2') || {}).textContent || '',
+    opening: (document.querySelector('.opening') || {}).textContent || '',
+    sections: Array.from(document.querySelectorAll('.sec h3')).map((n) => n.textContent),
+    bullets: document.querySelectorAll('.sec li').length,
+    chips: Array.from(document.querySelectorAll('.chip')).map((n) => n.textContent),
+    dir: document.documentElement.getAttribute('dir'),
+    lang: document.documentElement.getAttribute('lang'),
+    externals: Array.from(document.querySelectorAll('[src], link[href]'))
+      .map((n) => n.getAttribute('src') || n.getAttribute('href'))
+      .filter((u) => u && !u.startsWith('data:')),
+    bodyText: document.body.innerText.slice(0, 4000),
+  }));
+
+  check(seen.scripts === 0, `the exported file contains ${seen.scripts} script elements`);
+  check(seen.iframes === 0, `the exported file contains ${seen.iframes} iframes`);
+  check(dialogs === 0, `something in the file ran and opened ${dialogs} dialog(s)`);
+  check(seen.articles === 1, `the exported file has ${seen.articles} works in it, not 1`);
+  check(seen.heading === WORK.title,
+    `the title came out of the parser as "${seen.heading}" — the script tag was not text`);
+  check(seen.bodyText.includes('<script>alert(1)</script>'),
+    'the title is not shown to the reader as the text that was typed');
+  check(seen.opening.includes('זו אפליקציה שבניתי ללקוח מספרת רון'), 'the explanation is missing from the file');
+  check(JSON.stringify(seen.sections) === JSON.stringify(['מה היה צריך', 'מה עשיתי', 'מה יצא מזה']),
+    `the file's sections are ${JSON.stringify(seen.sections)}`);
+  check(seen.bullets === 3, `three lines of "מה עשיתי" produced ${seen.bullets} bullets`);
+  check(seen.chips.includes('Figma') && seen.chips.includes('CSS'), 'the tools are missing from the file');
+  check(seen.dir === 'rtl' && seen.lang === 'he', `the file is ${seen.lang}/${seen.dir}`);
+  check(seen.externals.length === 0,
+    `the file asks the network for ${JSON.stringify(seen.externals.slice(0, 3))} — it is not self-contained`);
+  check(readerErrors.length === 0, `the file logged errors when opened: ${readerErrors.slice(0, 2).join(' | ')}`);
+
+  if (SHOTS) await reader.screenshot({ path: join(SHOT_DIR, '05-exported-file.png'), fullPage: true });
+
+  /* Printing is what turns the file into a PDF, and an empty print stylesheet
+   * is a thing nobody notices until somebody prints. */
+  await reader.emulateMedia({ media: 'print' });
+  const printed = await reader.evaluate(() => {
+    const link = document.querySelector('.links a');
+    return {
+      background: getComputedStyle(document.body).backgroundColor,
+      linkAfter: link ? getComputedStyle(link, '::after').content : 'none',
+      headingBreak: getComputedStyle(document.querySelector('h2')).breakAfter,
+    };
+  });
+  check(printed.headingBreak === 'avoid', `printed headings break after with "${printed.headingBreak}"`);
+  check(printed.background === 'rgb(255, 255, 255)' || printed.background === 'rgba(0, 0, 0, 0)',
+    `the printed page background is ${printed.background}`);
+  if (SHOTS) await reader.screenshot({ path: join(SHOT_DIR, '06-print.png'), fullPage: true });
+  await reader.emulateMedia({ media: 'screen' });
+
+  /* ---- the single-file build of the app itself ---- */
+
+  /*
+   * Not the same claim as the exported document. This one is the app bundled
+   * into one file, opened off the disk with no server — where localStorage is
+   * usually refused, which is exactly the case the store degrades into and the
+   * banner warns about. If the bundle has not been built, the check says so
+   * rather than passing quietly.
+   */
+  const bundle = resolve(ROOT, 'dist/portfolio.html');
+  if (existsSync(bundle)) {
+    const offline = await context.newPage();
+    const offlineErrors = [];
+    offline.on('pageerror', (e) => offlineErrors.push(`pageerror: ${e.message}`));
+    await offline.goto(pathToFileURL(bundle).href, { waitUntil: 'load' });
+    await offline.waitForSelector('.tabs', { timeout: 20000 });
+    const built = await offline.evaluate(() => ({
+      tabs: document.querySelectorAll('.tabs .btn').length,
+      persists: window.portfolio.store.persists(),
+      doc: window.portfolio.html({ now: new Date('2026-08-12T09:00:00Z') }).slice(0, 15),
+      warned: document.body.innerText.includes('לא שומר'),
+    }));
+    check(built.tabs === 3, `the bundle opened with ${built.tabs} tabs`);
+    check(built.doc === '<!DOCTYPE html>', 'the bundle cannot build a document');
+    check(built.persists || built.warned, 'the bundle cannot save and does not say so');
+    check(offlineErrors.length === 0, `the bundle logged ${offlineErrors.join(' | ')}`);
+    if (SHOTS) await offline.screenshot({ path: join(SHOT_DIR, '07-single-file.png'), fullPage: true });
+    await offline.close();
+  } else {
+    notes.push('skipped: dist/portfolio.html is not built (node tools/build-single.js portfolio/index.html dist/portfolio.html)');
+    console.log('  note  dist/portfolio.html not built — the single-file check did not run');
+  }
+
+  for (const e of consoleErrors) failures.push(e);
+
+  await rm(downloads, { recursive: true, force: true });
+  await finish(browser, server);
+}
+
+async function finish(browser, server) {
+  await browser.close();
+  try { server.close(); } catch { /* already closed before the file:// pass */ }
+  if (process.argv.includes('--verbose')) for (const n of notes) console.log('  ' + n);
+  if (failures.length) {
+    console.error(`\n${failures.length} failure(s):`);
+    for (const f of failures) console.error('  ✗ ' + f);
+    process.exit(1);
+  }
+  console.log(`\nall good — ${notes.length} checks passed, and the exported file opens off the disk.`);
+  if (SHOTS) console.log(`shots in ${SHOT_DIR}`);
+}
+
+if (!existsSync(resolve(ROOT, 'portfolio/index.html'))) {
+  console.error('portfolio/index.html is missing — nothing to smoke');
+  process.exit(1);
+}
+
+main().catch((e) => { console.error(e); process.exit(1); });

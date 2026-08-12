@@ -53,6 +53,17 @@ everything else here. It is served at `/backrooms/` and does not touch the
 questionnaire, the plan, or any of FitAI's storage. See
 [`backrooms/README.md`](backrooms/README.md).
 
+### Also in this repo: `portfolio/`
+
+`portfolio/` is a third app, which shares this repo's design system and nothing
+else: it interviews somebody about the work they have done and exports a תיק
+עבודות as one self-contained HTML file — the explanation written from their
+answers, the photographs embedded, no script inside it, and Ctrl+P for the PDF —
+with no build step and no network, same as everything else here. It is served at
+`/portfolio/`, keeps its own `localStorage` key, and does not touch the
+questionnaire, the plan or any of FitAI's storage. See
+[`portfolio/README.md`](portfolio/README.md).
+
 ## What it does
 
 **Intake** — ten steps covering the basics, training history, goal and target
