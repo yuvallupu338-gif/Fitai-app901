@@ -579,6 +579,14 @@ class Game {
            * was designed to be mistaken for scenery. */
           audio.lunge();
           ui.log('משהו שעמד בלי לזוז — זז.');
+        } else if (e.type === 'drop') {
+          audio.lunge();
+          ui.log('משהו ירד מהתקרה.');
+        } else if (e.type === 'latch') {
+          audio.hurt();
+          ui.log('משהו נתפס בך. תרוץ.');
+        } else if (e.type === 'shaken') {
+          ui.log('הוא נפל.');
         }
       }
     }

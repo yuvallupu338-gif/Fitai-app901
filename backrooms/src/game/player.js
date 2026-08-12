@@ -84,6 +84,11 @@ export class Player {
 
     let speed = this.crouch ? 1.45 : wantSprint ? 4.7 : 2.85;
     speed *= 1 - clamp(this.inWater, 0, 0.9) * 0.55;      /* wading is slow    */
+    /* Anything riding you costs a fifth of your legs each, floored so that
+     * three of them is a bad afternoon and not a full stop — a player who
+     * cannot move at all cannot shake them off either, and the way out of a
+     * leech is distance covered. */
+    speed *= Math.max(0.35, 1 - (this.grabbed || 0) * 0.20);
     speed *= lerp(0.72, 1, this.stamina * 0.35 + 0.65);
 
     /* Rotate the intent into world space. Forward at yaw 0 is -Z, matching

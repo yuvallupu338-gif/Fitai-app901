@@ -208,6 +208,20 @@ export class Renderer {
         addSphere(mb, ex, 0.022, -0.095, 0.023, 7, 5, MAT.EYE, { ao: () => 1 });
       }
     });
+    /*
+     * The same head with nothing lit in it. A blind one walking past you is
+     * only legible because of what is missing: at fog distance every other
+     * biped here is two orange points, and this is the one that is a shape.
+     * The sockets are still modelled, sunk and unlit, so it does not read as
+     * an unfinished model — it reads as a face that has had them taken out.
+     */
+    this.dyn.entHeadBlind = make((mb) => {
+      addSphere(mb, 0, 0, 0, 0.115, 12, 9, F,
+        { ao: shade(0.7), scaleY: 1.22, scaleZ: 1.05 });
+      for (const ex of [-0.045, 0.045]) {
+        addSphere(mb, ex, 0.022, -0.088, 0.024, 7, 5, F, { ao: shade(0.18) });
+      }
+    });
     /* Origin at the joint, hanging down. */
     this.dyn.entArm = make((mb) => {
       addLimb(mb, 0, 0, 0, [0.055, 0.055], [0.032, 0.032], 0.66, F, { ao: shade(0.55) });

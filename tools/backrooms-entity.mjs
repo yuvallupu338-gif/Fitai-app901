@@ -29,6 +29,14 @@ const { chromium } = require('playwright');
 const { waitFrames, frameStats } = await import('./backrooms-smoke.mjs');
 
 const SHOT_DIR = resolve(ROOT, 'dist/shots/entity');
+/*
+ * Playwright allows a screenshot thirty seconds by default, which is generous
+ * on a GPU and not nearly enough here: the renderer is software, the scene is
+ * a lit interior with bloom, and a single frame can take most of that on its
+ * own. A timeout at this point is not a failing monster, it is a failing
+ * stopwatch, so give it minutes.
+ */
+const SHOT_MS = 180_000;
 const argOf = (n, d) => {
   const i = process.argv.indexOf(n);
   return i >= 0 ? process.argv[i + 1] : d;
@@ -234,7 +242,7 @@ async function main() {
        * from a monster that never drew at all, and the search for the bug
        * started in the renderer rather than here.
        */
-      await page.screenshot({ path: join(SHOT_DIR, `${kind}.png`) });
+      await page.screenshot({ path: join(SHOT_DIR, `${kind}.png`), timeout: SHOT_MS });
 
       /*
        * And prove it is actually *on screen*, which no amount of inspecting
@@ -356,7 +364,7 @@ async function main() {
       if (t) t.hidden = true;
     });
     await waitFrames(page, 2);
-    await page.screenshot({ path: join(SHOT_DIR, `${kind}.png`) });
+    await page.screenshot({ path: join(SHOT_DIR, `${kind}.png`), timeout: SHOT_MS });
   }
 
   /* ------------------------------------------------------------------ *
@@ -399,7 +407,7 @@ async function main() {
       return prev === undefined ? null : prev;
     });
     await waitFrames(page, 2);
-    await page.screenshot({ path: join(SHOT_DIR, `${name}.png`) });
+    await page.screenshot({ path: join(SHOT_DIR, `${name}.png`), timeout: SHOT_MS });
 
     const where = await page.evaluate(() => {
       const g = window.backrooms, e = g.entities.list[0];
@@ -665,6 +673,186 @@ async function main() {
     }
   }
 
+  /* --- blind: goes to the noise, not to you --- */
+  {
+    const set = await placeAhead('blind', 12);
+    if (!set.ok) notes.push('blind: nowhere with 12m of clear sight — skipped');
+    else {
+      /* Silence first. With nothing to hear it must not move at all, however
+       * plainly the player is standing in front of it. */
+      await page.evaluate(() => {
+        const g = window.backrooms;
+        g.entities.noise = null;
+        g.player.crouch = true;
+      });
+      const quiet = await runFor(18);
+      check(quiet && !quiet.moving,
+        `blind: does not move towards a player it cannot hear (moving=${quiet && quiet.moving})`);
+      await captureSubject('blind');
+
+      /*
+       * Now plant a noise well off to one side and confirm it goes *there*
+       * rather than to the player. This is the whole behaviour: if it merely
+       * started walking at us the check would pass on a plain hound.
+       */
+      const away = await page.evaluate(() => {
+        const g = window.backrooms, p = g.player, e = g.entities.list[0];
+        /* Perpendicular to the line between us, eight metres out. */
+        const dx = e.x - p.pos.x, dz = e.z - p.pos.z;
+        const d = Math.hypot(dx, dz) || 1;
+        const nx = p.pos.x - (dz / d) * 8, nz = p.pos.z + (dx / d) * 8;
+        g.entities.noise = { x: nx, z: nz, at: g.time };
+        return { nx, nz, was: Math.hypot(e.x - nx, e.z - nz) };
+      });
+      /* Keep the memory fresh — it expires after twelve seconds of game time
+       * and the sim runs slowly enough here that it would lapse mid-check. */
+      await page.evaluate(() => {
+        const g = window.backrooms;
+        g._noiseHold = setInterval(() => {
+          if (g.entities.noise) g.entities.noise.at = g.time;
+        }, 50);
+      });
+      await waitFrames(page, 26);
+      const now = await page.evaluate(([nx, nz]) => {
+        const g = window.backrooms, e = g.entities.list[0], p = g.player;
+        clearInterval(g._noiseHold);
+        return e ? {
+          toNoise: Math.hypot(e.x - nx, e.z - nz),
+          toPlayer: Math.hypot(e.x - p.pos.x, e.z - p.pos.z),
+        } : null;
+      }, [away.nx, away.nz]);
+      check(now && now.toNoise < away.was - 1.0,
+        `blind: walks towards a noise it heard `
+        + `(${away.was.toFixed(1)}m → ${now && now.toNoise.toFixed(1)}m from the sound)`);
+    }
+  }
+
+  /* --- dropper: on the ceiling until you are under it --- */
+  {
+    const set = await placeAhead('dropper', 9);
+    if (!set.ok) notes.push('dropper: nowhere with 9m of clear sight — skipped');
+    else {
+      await waitFrames(page, 6);
+      const up = await page.evaluate(() => {
+        const g = window.backrooms, e = g.entities.list[0];
+        return {
+          hung: !!e.hung,
+          y: e.y,
+          ceiling: g.world.ceilingAt(e.x, e.z),
+          ground: g.world.groundAt(e.x, e.z, 0.3),
+        };
+      });
+      check(up.hung && up.y > up.ground + 1.5,
+        `dropper: waits up on the ceiling (y ${up.y.toFixed(2)}, `
+        + `floor ${up.ground.toFixed(2)}, ceiling ${up.ceiling.toFixed(2)})`);
+      check(Math.abs(up.y - up.ceiling) < 0.05,
+        `dropper: is actually against the tiles, not floating below them `
+        + `(${(up.ceiling - up.y).toFixed(2)}m of gap)`);
+      /* Point the camera up at it so the shot is of a thing on a ceiling. */
+      await page.evaluate(() => { window.backrooms.player.pitch = 0.30; });
+      await captureSubject('dropper');
+      await page.evaluate(() => { window.backrooms.player.pitch = 0; });
+
+      /* Walk under it. */
+      await page.evaluate(() => {
+        const g = window.backrooms, e = g.entities.list[0], p = g.player;
+        const dx = e.x - p.pos.x, dz = e.z - p.pos.z;
+        const d = Math.hypot(dx, dz);
+        p.pos.x += (dx / d) * (d - 1.6);
+        p.pos.z += (dz / d) * (d - 1.6);
+      });
+      await waitFrames(page, 16);
+      const down = await page.evaluate(() => {
+        const g = window.backrooms, e = g.entities.list[0];
+        return e ? { hung: !!e.hung, y: e.y, ground: g.world.groundAt(e.x, e.z, 0.3) } : null;
+      });
+      check(down && !down.hung && down.y < down.ground + 0.6,
+        `dropper: lets go and lands when you walk beneath it `
+        + `(hung=${down && down.hung}, ${down ? (down.y - down.ground).toFixed(2) : '?'}m up)`);
+    }
+  }
+
+  /* --- twin: a reflection, not a pursuer --- */
+  {
+    const set = await placeAhead('twin', 8);
+    if (!set.ok) notes.push('twin: nowhere with 8m of clear sight — skipped');
+    else {
+      await waitFrames(page, 6);
+      await captureSubject('twin');
+      const before = await page.evaluate(() => {
+        const g = window.backrooms, e = g.entities.list[0], p = g.player;
+        return { ex: e.x, ez: e.z, px: p.pos.x, pz: p.pos.z, mx: e.mx, mz: e.mz };
+      });
+      /* Step sideways and its reflection must step the opposite way by the
+       * same amount. Sideways rather than forward, so a plain chaser would
+       * move *with* us and fail this rather than pass it by accident. */
+      const moved = await page.evaluate(() => {
+        const g = window.backrooms, p = g.player;
+        const step = 2.0;
+        const nx = p.pos.x + Math.cos(p.yaw) * step;
+        const nz = p.pos.z - Math.sin(p.yaw) * step;
+        const y = g.world.groundAt(nx, nz, 0.3);
+        if (y < -900 || g.world.blocked(nx, nz, y, 0.35, 0.5)) return false;
+        p.pos.x = nx; p.pos.z = nz;
+        return true;
+      });
+      if (!moved) notes.push('twin: no room to step sideways — mirror check skipped');
+      else {
+        await waitFrames(page, 8);
+        const after = await page.evaluate(() => {
+          const g = window.backrooms, e = g.entities.list[0], p = g.player;
+          return { ex: e.x, ez: e.z, px: p.pos.x, pz: p.pos.z };
+        });
+        /* The invariant, stated directly: the midpoint never moves. */
+        const midX = (after.ex + after.px) / 2, midZ = (after.ez + after.pz) / 2;
+        const drift = Math.hypot(midX - before.mx, midZ - before.mz);
+        check(drift < 0.35,
+          `twin: stays the exact reflection of you (mirror point drifted ${drift.toFixed(2)}m)`);
+        /* And it went the other way, which is the part a player feels. */
+        const pd = Math.hypot(after.px - before.px, after.pz - before.pz);
+        const ed = Math.hypot(after.ex - before.ex, after.ez - before.ez);
+        const dot = ((after.px - before.px) * (after.ex - before.ex)
+          + (after.pz - before.pz) * (after.ez - before.ez));
+        check(ed > 0.5 && dot < 0,
+          `twin: moves opposite to you, not with you `
+          + `(you ${pd.toFixed(1)}m, it ${ed.toFixed(1)}m, same direction: ${dot > 0})`);
+      }
+    }
+  }
+
+  /* --- leech: latches on and weighs you down --- */
+  {
+    const set = await placeAhead('leech', 5);
+    if (!set.ok) notes.push('leech: nowhere with 5m of clear sight — skipped');
+    else {
+      await captureSubject('leech');
+      await page.evaluate(() => { window.backrooms.entities.list[0].alerted = true; });
+      await waitFrames(page, 26);
+      const on = await page.evaluate(() => {
+        const g = window.backrooms, e = g.entities.list[0], p = g.player;
+        return e ? { rider: !!e.rider, grabbed: p.grabbed || 0,
+          dist: Math.hypot(e.x - p.pos.x, e.z - p.pos.z) } : null;
+      });
+      check(on && on.rider,
+        `leech: latches on when it reaches you (rider=${on && on.rider})`);
+      check(on && on.grabbed > 0,
+        `leech: is counted as riding, so the player is slowed (grabbed=${on && on.grabbed})`);
+      /* And it comes off once you have carried it far enough. */
+      await page.evaluate(() => {
+        const g = window.backrooms, e = g.entities.list[0];
+        if (e) e.ride = (g.entities.spec.shake ?? 14) + 1;
+      });
+      await waitFrames(page, 6);
+      const off = await page.evaluate(() => {
+        const g = window.backrooms, e = g.entities.list[0];
+        return e ? { rider: !!e.rider, grabbed: g.player.grabbed || 0 } : null;
+      });
+      check(off && !off.rider && off.grabbed === 0,
+        `leech: lets go once you have carried it far enough `
+        + `(rider=${off && off.rider}, grabbed=${off && off.grabbed})`);
+    }
+  }
+
   /*
    * The thing that separates a hunter from a moth at a window: put a wall
    * between it and the player and see whether it comes round.
@@ -698,7 +886,21 @@ async function main() {
             moving: true, bob: 0, cue: 99, seed: 1, phase: 0, swing: 1,
             headYaw: 0, path: null, pathI: 0, repath: 0, mesh: 'biped',
           });
-          return { ok: true, dist: Math.hypot(x - p.pos.x, z - p.pos.z) };
+          /*
+           * Confirm the wall is between them *here*, in the same evaluate
+           * that placed it. Asking again afterwards is too late twice over:
+           * the hound spawns already alerted and covers a metre or so in the
+           * round trip, and a separate probe therefore tests a position it
+           * has already left. What is being asserted is that the test set up
+           * the situation it claims to, so it has to be measured at set-up.
+           */
+          let blocked = false;
+          for (let i = 1; i < 60; i++) {
+            const t = i / 60;
+            const [bx, bz] = g.world.cellOf(x + (p.pos.x - x) * t, z + (p.pos.z - z) * t);
+            if (g.world.wallAt(bx, bz) > 0.6) { blocked = true; break; }
+          }
+          return { ok: true, blocked, dist: Math.hypot(x - p.pos.x, z - p.pos.z) };
         }
       }
       return { ok: false };
@@ -725,10 +927,12 @@ async function main() {
         };
       });
 
+      check(setup.blocked, 'the test actually put a wall between them');
+
+      /* The route itself can only be read after the entity has had a frame to
+       * plan one — `path` is null until its first update. */
       await waitFrames(page, 4);
       const first = await probe();
-      check(first && first.blocked,
-        'the test actually put a wall between them');
       check(first && first.pathLen > 1,
         `a hunter plans a route round it (${first && first.pathLen} waypoints)`);
 

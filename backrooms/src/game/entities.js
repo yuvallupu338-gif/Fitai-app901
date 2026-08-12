@@ -1,7 +1,7 @@
 /*
  * entities.js — the things that are also here.
  *
- * Nine behaviours, and none of them is a combat AI. Each one asks the player
+ * Thirteen behaviours, and none of them is a combat AI. Each one asks the player
  * to do something different, which is the only reason to have more than one:
  *
  *   hound    hunts. Runs at you the moment it has line of sight, and keeps
@@ -27,6 +27,19 @@
  *   titan    three and a half metres, slow, and it does not stop, ever. You
  *            cannot outrun it forever in a corridor; you have to break line of
  *            sight and mean it.
+ *   blind    cannot see at all. It walks to wherever you last made a noise,
+ *            not to where you are, so it can be sent to the wrong end of the
+ *            level by running once and then going quiet.
+ *   dropper  hangs on the ceiling doing nothing until you walk underneath it.
+ *            The only counter is to look up, which nobody does.
+ *   twin     stands exactly opposite you across a fixed point and copies every
+ *            step mirrored, so the gap between you is always twice your own
+ *            distance from that point. Backing away from it is safe and works;
+ *            what it actually does is take one part of the level away, because
+ *            anything on the far side has to be reached through the middle,
+ *            and the middle is where the two of you arrive together.
+ *   leech    latches on and rides. It barely hurts; what it does is slow you
+ *            down, with everything else on the level still coming.
  *
  * All of them route round the architecture rather than pressing into it — see
  * pathfind.js. An entity that walks into a wall and stays there is not a
@@ -75,11 +88,21 @@ const BEHAVIOUR = {
   swarm:   { mesh: 'crawler', speed: 4.4, sight: 18, reach: 0.85, damage: 0.12, hp: 1, height: 0.52 },
   /* Reach and damage scale with the size of the thing. It does not need speed. */
   titan:   { mesh: 'titan',   speed: 1.9, sight: 44, reach: 2.10, damage: 0.55, hp: 6, height: 3.22 },
+  /* `sight: 0` is not a placeholder — it cannot see at all, and everything it
+   * does is driven by the noise map instead. */
+  blind:   { mesh: 'blind',   speed: 3.4, sight: 0,  reach: 1.15, damage: 0.32, hp: 3, height: 1.74 },
+  /* Lives on the ceiling. `speed` applies only after it has come down. */
+  dropper: { mesh: 'dropper', speed: 4.6, sight: 12, reach: 0.95, damage: 0.36, hp: 2, height: 0.52 },
+  /* Its position is a reflection of yours, so `speed` never applies. */
+  twin:    { mesh: 'biped',   speed: 0,   sight: 60, reach: 1.10, damage: 0.30, hp: 4, height: 1.74 },
+  /* Trivial damage per bite. The cost of a leech is what it does to your legs. */
+  leech:   { mesh: 'crawler', speed: 4.0, sight: 16, reach: 0.90, damage: 0.10, hp: 1, height: 0.52 },
 };
 
 /* How many of a kind may exist at once, before the depth bonus. A swarm that
- * capped at four would not be a swarm. */
-const CROWD = { swarm: 7, smiler: 3, titan: 1, lurker: 2 };
+ * capped at four would not be a swarm; a twin that came in pairs would not be
+ * a reflection. */
+const CROWD = { swarm: 7, smiler: 3, titan: 1, lurker: 2, twin: 1, leech: 3, dropper: 3, blind: 2 };
 
 export class Entities {
   constructor(level, world) {
@@ -128,6 +151,20 @@ export class Entities {
     const planar = Math.hypot(player.vel.x, player.vel.z);
     const loud = !player.crouch && planar > 3.6;
 
+    /*
+     * Where the last noise was, and how stale it is. This is the whole world
+     * as far as a blind one is concerned: it walks to the place, not to the
+     * person, so a player who sprints once and then crouches has sent it to
+     * an empty room and can walk out behind it.
+     */
+    if (loud) this.noise = { x: player.pos.x, z: player.pos.z, at: time };
+    else if (this.noise && time - this.noise.at > 12) this.noise = null;
+
+    /* Recounted every frame from whatever is actually holding on, so a leech
+     * that despawns or gets shaken off stops slowing the player immediately
+     * rather than leaving a limp that never wears off. */
+    player.grabbed = 0;
+
     for (let i = this.list.length - 1; i >= 0; i--) {
       const e = this.list[i];
       const dx = player.pos.x - e.x, dz = player.pos.z - e.z;
@@ -163,6 +200,10 @@ export class Entities {
        */
       let move = false;
       let mode = 'chase';
+      /* Where `chase` is heading. Almost always the player; a blind one heads
+       * for a remembered noise instead, which is the only reason this is a
+       * variable rather than `player.pos`. */
+      let goalX = player.pos.x, goalZ = player.pos.z;
       const kind = this.spec.kind;
 
       if (kind === 'watcher') {
@@ -229,6 +270,117 @@ export class Entities {
         if (sees) e.alerted = true;
         move = e.alerted;
 
+      } else if (kind === 'blind') {
+        /*
+         * It has no eyes and `sees` is always false for it. What it has is the
+         * last place a noise came from, and it goes there — not to you. Two
+         * consequences worth having: standing still while it walks past is
+         * genuinely safe, and one sprint in the wrong direction moves it off
+         * you for as long as the memory lasts.
+         */
+        if (this.noise) {
+          goalX = this.noise.x; goalZ = this.noise.z;
+          const gone = Math.hypot(goalX - e.x, goalZ - e.z);
+          /* Once it has arrived it stops and waits there, which is the part
+           * that makes the misdirection worth doing. */
+          move = gone > 0.8;
+        } else {
+          move = false;
+        }
+
+      } else if (kind === 'dropper') {
+        /*
+         * On the ceiling until you are under it. Hanging is not a pose, it is
+         * the whole monster: it does not move, does not sway, and is above the
+         * eyeline of a player who is watching the corridor ahead.
+         */
+        if (e.hung === undefined) { e.hung = true; e.vy = 0; }
+        if (e.hung) {
+          /* The origin goes *on* the ceiling, not below it — the flipped model
+           * hangs down from its own origin, so any clearance added here would
+           * leave it floating in the room instead of gripping the tiles. */
+          e.y = world.ceilingAt(e.x, e.z);
+          if (dist < (this.spec.trigger ?? 3.2)) {
+            e.hung = false;
+            e.alerted = true;
+            e.vy = 0;
+            this.events.push({ type: 'drop', dist });
+          }
+          move = false;
+        } else if (e.vy !== undefined && e.y > world.groundAt(e.x, e.z, 0.3) + 0.02) {
+          /* Falling. Under gravity rather than at a fixed rate, because a drop
+           * that accelerates is read as something letting go and a drop at a
+           * constant speed is read as a lift. */
+          e.vy -= 12 * dt;
+          e.y = Math.max(world.groundAt(e.x, e.z, 0.3), e.y + e.vy * dt);
+          move = false;
+        } else {
+          e.vy = undefined;
+          move = e.alerted;
+        }
+
+      } else if (kind === 'twin') {
+        /*
+         * A reflection through a fixed point, set when it spawns. It never
+         * chases and never gives up, and the geometry does the work: the gap
+         * between the two of you is exactly twice your own distance from the
+         * mirror point, so retreating widens it and crossing the middle closes
+         * it to nothing. What it costs you is the far half of the room.
+         */
+        if (e.mx === undefined) {
+          e.mx = (player.pos.x + e.x) / 2;
+          e.mz = (player.pos.z + e.z) / 2;
+        }
+        const tx = 2 * e.mx - player.pos.x;
+        const tz = 2 * e.mz - player.pos.z;
+        const ty = world.groundAt(tx, tz, 0.3);
+        /* Refuse the reflection if it lands in a wall or off an edge, and hold
+         * the last good position instead — a twin standing inside the masonry
+         * is a glitch, and a twin waiting at the doorway is a monster. */
+        if (ty > -900 && !world.blocked(tx, tz, ty, 0.3, 0.5)) {
+          e.x = tx; e.z = tz; e.y = ty;
+        }
+        e.rot = Math.atan2(-toX, -toZ) + Math.PI;   /* always facing you */
+        e.moving = Math.hypot(player.vel.x, player.vel.z) > 0.4;
+        move = false;
+
+      } else if (kind === 'leech') {
+        /*
+         * Rides. While it is on you it takes almost nothing per bite, and the
+         * damage is not the point: it is the drag on your legs while whatever
+         * else lives here is still walking towards the noise you are making.
+         */
+        if (e.rider) {
+          e.x = player.pos.x; e.z = player.pos.z;
+          e.y = player.pos.y + 0.35;
+          e.ride = (e.ride || 0) + Math.hypot(player.vel.x, player.vel.z) * dt;
+          player.grabbed = (player.grabbed || 0) + 1;
+          if (e.ride > (this.spec.shake ?? 14)) {
+            e.rider = false;
+            e.ride = 0;
+            /*
+             * And it has to stay off for a moment. Shaking one loose leaves it
+             * exactly where you are standing, which is well inside its own
+             * reach, so without this it re-attached on the very next frame and
+             * the whole "carry it far enough" mechanic did nothing at all.
+             */
+            e.shy = 3.0;
+            this.events.push({ type: 'shaken', dist });
+          }
+          move = false;
+        } else {
+          e.shy = Math.max(0, (e.shy || 0) - dt);
+          move = sees || dist < 7 || e.alerted;
+          /* Just shaken off: back away rather than stand under your feet. */
+          if (e.shy > 0) mode = 'flee';
+          else if (dist < B.reach) {
+            e.rider = true;
+            e.ride = 0;
+            this.events.push({ type: 'latch', dist });
+          }
+          if (sees) e.alerted = true;
+        }
+
       } else {
         if (sees) e.alerted = true;
         move = e.alerted;
@@ -253,15 +405,15 @@ export class Entities {
           if (e.repath <= 0) {
             e.repath = 0.45 + Math.random() * 0.25;
             const [egx, egz] = world.cellOf(e.x, e.z);
-            const [pgx, pgz] = world.cellOf(player.pos.x, player.pos.z);
-            e.path = findPath(world, egx, egz, pgx, pgz);
+            const [ggx, ggz] = world.cellOf(goalX, goalZ);
+            e.path = findPath(world, egx, egz, ggx, ggz);
             e.pathI = 0;
           }
 
           /* Aim at the next waypoint, skipping any the entity can already walk
            * to in a straight line — otherwise it visibly hugs cell centres and
            * turns in right angles like something on rails. */
-          let aimX = player.pos.x, aimZ = player.pos.z;
+          let aimX = goalX, aimZ = goalZ;
           if (e.path && e.path.length) {
             while (e.pathI < e.path.length - 1
                    && clearLine(world, e.x, e.z, e.path[e.pathI + 1].x, e.path[e.pathI + 1].z)) {
@@ -471,8 +623,26 @@ export class Entities {
         continue;
       }
 
-      if (e.mesh === 'crawler') {
-        out.push({ mesh: 'crawlBody', x: e.x, y, z: e.z, rot: e.rot, scale: 1 });
+      /*
+       * The crawler rig, shared by the leech and the dropper. A dropper still
+       * on the ceiling is the same body rolled onto its back — the legs point
+       * up into the tiles it is holding, which is what makes the shape read as
+       * hanging rather than as floating.
+       */
+      if (e.mesh === 'crawler' || e.mesh === 'dropper' || e.mesh === 'leech') {
+        /*
+         * A dropper still on the ceiling is the same body turned over. A pitch
+         * of PI is already a half-turn about the model's own X axis, so it
+         * costs nothing and needs no new transform: the body, built upward
+         * from its origin, hangs downward from it instead, and the legs, built
+         * hanging from their joints, reach up into the tiles. Put the origin
+         * at the ceiling and the whole thing assembles itself the right way up
+         * — or rather, the right way down.
+         */
+        const up = e.mesh === 'dropper' && e.hung;
+        const flip = up ? -1 : 1;
+        const turn = up ? Math.PI : 0;
+        out.push({ mesh: 'crawlBody', x: e.x, y, z: e.z, rot: e.rot, pitch: turn, scale: 1 });
         /* Four limbs on a diagonal gait: front-left with back-right. */
         const legs = [
           [-0.17, -0.26, sw], [0.17, -0.26, sw2],
@@ -483,9 +653,9 @@ export class Entities {
           out.push({
             mesh: 'crawlLimb',
             x: e.x + ox * c - oz * si,
-            y: y + 0.33,
+            y: y + 0.33 * flip,
             z: e.z + ox * si + oz * c,
-            rot: e.rot, pitch: s * 0.75, scale: 1,
+            rot: e.rot, pitch: turn + s * 0.75, scale: 1,
           });
         }
         continue;
@@ -503,9 +673,13 @@ export class Entities {
 
       out.push({ mesh: 'entTorso', x: e.x, y, z: e.z, rot: e.rot, scale: S });
       /* 1.60, not 1.68: the head has to overlap the top of the neck stub
-       * (which reaches 1.52) or it visibly floats above the shoulders. */
+       * (which reaches 1.52) or it visibly floats above the shoulders.
+       *
+       * The blind one gets the same head without the eyes, which is the only
+       * thing on it that tells the player why it walked past them: a body with
+       * no lights in its face, going somewhere else. */
       out.push({
-        mesh: 'entHead',
+        mesh: e.mesh === 'blind' ? 'entHeadBlind' : 'entHead',
         x: e.x, y: y + 1.60 * S, z: e.z,
         rot: e.rot + e.headYaw, scale: S,
       });
@@ -562,6 +736,10 @@ export const dangerLabel = (kind) => ({
   stalker: 'עוקב',
   swarm: 'נחיל',
   titan: 'ענק',
+  blind: 'עיוור',
+  dropper: 'תולה',
+  twin: 'תאום',
+  leech: 'עלוקה',
 }[kind] || '');
 
 export const clampDanger = (d) => clamp(1 - d / 20, 0, 1);

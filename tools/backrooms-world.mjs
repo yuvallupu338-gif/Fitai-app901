@@ -217,9 +217,14 @@ for (const level of LEVELS) {
     const k = L.entities && L.entities.kind;
     if (k) tally.set(k, (tally.get(k) || 0) + 1);
   }
-  check(tally.size >= 8, `only ${tally.size} kinds of thing across a hundred levels`);
+  check(tally.size >= 12, `only ${tally.size} kinds of thing across a hundred levels`);
   for (const [k, n] of tally) {
-    check(n <= 22, `${k} is on ${n} of the hundred levels — too much of one thing`);
+    check(n <= 14, `${k} is on ${n} of the hundred levels — too much of one thing`);
+  }
+  /* Every behaviour that exists has to be somewhere, or it is dead code that
+   * passes its own unit test and no player ever meets. */
+  for (const k of Object.keys(BEHAVIOUR)) {
+    check(tally.has(k), `${k} is implemented but appears on no level at all`);
   }
   /* Never twice in a row: consecutive levels must change the threat. */
   for (let i = 1; i < LEVELS.length; i++) {

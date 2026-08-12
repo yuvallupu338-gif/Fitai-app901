@@ -199,7 +199,7 @@ const RAW = [
     gen: { rockThreshold: 0.52, lightSpacing: 0, relief: 1.0, ceilRelief: 1.8,
       exitRarity: 10 },
     hazards: ['dark'], flashlight: true,
-    entities: { kind: 'crawler', density: 0.55 },
+    entities: { kind: 'blind', density: 0.55 },
     audio: { tone: 'silence', reverb: 0.75, drips: true } },
 
   { id: 9, name: 'The Suburbs', he: 'הפרברים', cls: 2, canon: true,
@@ -208,7 +208,7 @@ const RAW = [
     mats: KIT.outdoors('#38402a', '#7d7362', '#5c6a38'),
     gen: { block: 8, road: 2, connect: false, lightSpacing: 0, streetlights: true, fenceHeight: 1.5 },
     sky: { horizon: '#1a2230', zenith: '#070a12', ground: '#0a0d12', stars: 0.9 },
-    entities: { kind: 'lurker', density: 0.45, trigger: 6.1 },
+    entities: { kind: 'leech', density: 0.5, shake: 17.4 },
     audio: { tone: 'wind', reverb: 0.2, crickets: true } },
 
   { id: 10, name: 'Field of Wheat', he: 'שדה החיטה', cls: 1, canon: true,
@@ -218,7 +218,7 @@ const RAW = [
     gen: { connect: false, lightSpacing: 0, relief: 1.6, scatter: 150,
       scatterType: 'billboard', scatterMin: 0.7, scatterMax: 1.5, exitRarity: 10 },
     sky: { horizon: '#d7cda4', zenith: '#9fb0bd', ground: '#8a8256' },
-    entities: { kind: 'stalker', density: 0.35, hold: 7.5 },
+    entities: { kind: 'twin', density: 0.2 },
     audio: { tone: 'wind', reverb: 0.12 } },
 
   { id: 11, name: 'The Endless City', he: 'העיר האינסופית', cls: 3, canon: true,
@@ -228,7 +228,7 @@ const RAW = [
     gen: { block: 11, road: 3, connect: false, lightSpacing: 0, streetlights: true,
       buildingHeight: 18 },
     sky: { horizon: '#2b323c', zenith: '#0d1219', ground: '#0b0e12', stars: 0.5 },
-    entities: { kind: 'swarm', density: 0.8 },
+    entities: { kind: 'stalker', density: 0.55, hold: 8.6 },
     audio: { tone: 'wind', reverb: 0.55 } },
 
   /* ---- 12–24 · industrial -------------------------------------- */
@@ -240,7 +240,7 @@ const RAW = [
     gen: { bores: 8, wide: true, lightSpacing: 3, lightIntensity: 1.6, flickerPct: 35,
       pipeProps: 10 },
     lightColor: [1.0, 0.74, 0.42],
-    entities: { kind: 'hound', density: 0.5 },
+    entities: { kind: 'lurker', density: 0.5, trigger: 5.5 },
     audio: { tone: 'steam', reverb: 0.4, drips: true } },
 
   { id: 13, name: 'Cargo Hold', he: 'בטן המכולה', cls: 2,
@@ -259,7 +259,7 @@ const RAW = [
     gen: { pillarSpacing: 6, pillarSize: 2, lightSpacing: 4, lightIntensity: 2.4,
       lightRadius: 20 },
     lightColor: [1.0, 0.66, 0.34],
-    entities: { kind: 'watcher', density: 0.6 },
+    entities: { kind: 'dropper', density: 0.6, trigger: 3.30 },
     audio: { tone: 'drone', reverb: 0.68 } },
 
   { id: 15, name: 'Loading Bay', he: 'רציף הפריקה', cls: 1,
@@ -278,7 +278,7 @@ const RAW = [
       deadLights: 18 },
     lightColor: [0.68, 0.84, 1.0],
     hazards: ['electric'],
-    entities: { kind: 'stalker', density: 0.6, hold: 8.6 },
+    entities: { kind: 'swarm', density: 0.8 },
     audio: { tone: 'electric', reverb: 0.5 } },
 
   { id: 17, name: 'Cooling Towers', he: 'מגדלי הקירור', cls: 2,
@@ -287,7 +287,7 @@ const RAW = [
     mats: KIT.industrial('#565a5e', '#63686c', '#4a4e52'),
     gen: { pillarSpacing: 5, pillarSize: 2, lightSpacing: 4, lightRadius: 22 },
     fogHeight: 4,
-    entities: { kind: 'swarm', density: 0.65 },
+    entities: { kind: 'watcher', density: 0.5 },
     audio: { tone: 'water', reverb: 0.8, drips: true } },
 
   { id: 18, name: 'Machine Floor', he: 'רצפת המכונות', cls: 2,
@@ -295,7 +295,7 @@ const RAW = [
     arch: 'warehouse', fog: '#3c4046', far: 30, amb: '#212429', ceil: 4.4,
     mats: KIT.industrial('#4a4e52', '#5b6065', '#3f4348'),
     gen: { aisle: 4, rackDepth: 1, rackHeight: 2.2, lightSpacing: 3, crates: 4 },
-    entities: { kind: 'lurker', density: 0.5, trigger: 6.7 },
+    entities: { kind: 'blind', density: 0.5 },
     audio: { tone: 'machine', reverb: 0.55 } },
 
   { id: 19, name: 'The Ductworks', he: 'מערכת התעלות', cls: 3,
@@ -304,7 +304,7 @@ const RAW = [
     mats: KIT.industrial('#5e6165', '#72767a', '#585c60'),
     gen: { lightSpacing: 3, lightIntensity: 1.2, lightRadius: 7, deadLights: 30,
       loops: 8, exitRarity: 10 },
-    entities: { kind: 'swarm', density: 0.6 },
+    entities: { kind: 'leech', density: 0.65, shake: 17.4 },
     audio: { tone: 'wind', reverb: 0.25 } },
 
   { id: 20, name: 'Sublevel Storage', he: 'מחסן תת־קרקעי', cls: 1,
@@ -313,7 +313,7 @@ const RAW = [
     mats: KIT.industrial('#4b4740', '#5e594f', '#413d37', '#6b4a2e'),
     gen: { aisle: 4, rackDepth: 2, rackHeight: 2.8, lightSpacing: 3, deadLights: 16,
       crates: 8 },
-    entities: { kind: 'titan', density: 0.3 },
+    entities: { kind: 'twin', density: 0.2 },
     audio: { tone: 'hum', reverb: 0.4 } },
 
   { id: 21, name: 'The Kiln', he: 'הכבשן', cls: 3,
@@ -325,7 +325,7 @@ const RAW = [
     gen: { runs: 14, lightSpacing: 3, lightIntensity: 2.0, flickerPct: 12 },
     lightColor: [1.0, 0.62, 0.28], tint: [1.04, 0.98, 0.92],
     hazards: ['heat'],
-    entities: { kind: 'watcher', density: 0.6 },
+    entities: { kind: 'lurker', density: 0.6, trigger: 6.1 },
     audio: { tone: 'drone', reverb: 0.45 } },
 
   { id: 22, name: 'Conveyor Halls', he: 'אולמות המסוע', cls: 2,
@@ -333,7 +333,7 @@ const RAW = [
     arch: 'warehouse', fog: '#3e4238', far: 30, amb: '#22261f', ceil: 4.0,
     mats: KIT.industrial('#4e5246', '#5f6357', '#43473d'),
     gen: { aisle: 6, rackDepth: 2, rackHeight: 1.1, lightSpacing: 3, crates: 5 },
-    entities: { kind: 'crawler', density: 0.5 },
+    entities: { kind: 'stalker', density: 0.5, hold: 9.7 },
     audio: { tone: 'machine', reverb: 0.5 } },
 
   { id: 23, name: 'The Dry Dock', he: 'המבדוק היבש', cls: 3,
@@ -342,7 +342,7 @@ const RAW = [
     mats: KIT.industrial('#4a5054', '#59605f', '#3e4448'),
     gen: { step: 0.6, amplitude: 6, terraceScale: 0.03, ceiling: true, walls: 4,
       connect: false, lightSpacing: 4, lightRadius: 20 },
-    entities: { kind: 'stalker', density: 0.6, hold: 10.8 },
+    entities: { kind: 'titan', density: 0.45 },
     audio: { tone: 'drone', reverb: 0.85, drips: true } },
 
   { id: 24, name: 'Reactor Corridor', he: 'מסדרון הכור', cls: 4,
@@ -353,7 +353,7 @@ const RAW = [
       flickerPct: 55, deadLights: 20, exitRarity: 12 },
     lightColor: [0.72, 1.0, 0.72], tint: [0.95, 1.03, 0.95],
     hazards: ['radiation'],
-    entities: { kind: 'swarm', density: 0.95 },
+    entities: { kind: 'hound', density: 0.7 },
     audio: { tone: 'electric', reverb: 0.4 } },
 
   /* ---- 25–37 · water ------------------------------------------- */
@@ -364,7 +364,7 @@ const RAW = [
     mats: KIT.wet('#7d8b86', '#93a09a', '#b6bfba', '#3a5a5e'),
     gen: { runs: 12, gap: 0.18, lightSpacing: 2, flood: true },
     waterDepth: 0.09,
-    entities: { kind: 'lurker', density: 0.5, trigger: 6.1 },
+    entities: { kind: 'dropper', density: 0.5, trigger: 2.95 },
     audio: { tone: 'water', reverb: 0.7 } },
 
   { id: 26, name: 'Flooded Basement', he: 'מרתף מוצף', cls: 3,
@@ -376,7 +376,7 @@ const RAW = [
     gen: { runs: 14, lightSpacing: 3, lightIntensity: 1.3, deadLights: 28,
       flickerPct: 40, flood: true },
     waterDepth: 0.28,
-    entities: { kind: 'watcher', density: 0.6 },
+    entities: { kind: 'crawler', density: 0.6 },
     audio: { tone: 'water', reverb: 0.6, drips: true } },
 
   { id: 27, name: 'The Cistern', he: 'הבור', cls: 3,
@@ -388,7 +388,7 @@ const RAW = [
     gen: { pillarSpacing: 4, lightSpacing: 4, lightIntensity: 2.2, lightRadius: 18,
       flood: true },
     waterDepth: 0.35,
-    entities: { kind: 'titan', density: 0.45 },
+    entities: { kind: 'swarm', density: 0.8 },
     audio: { tone: 'water', reverb: 0.92, drips: true } },
 
   { id: 28, name: 'Tidal Corridors', he: 'מסדרונות הגאות', cls: 3,
@@ -398,7 +398,7 @@ const RAW = [
     gen: { block: 7, corridorWidth: 2, lightSpacing: 2, flood: true,
       flickerPct: 25 },
     waterDepth: 0.2,
-    entities: { kind: 'hound', density: 0.6 },
+    entities: { kind: 'watcher', density: 0.6 },
     audio: { tone: 'water', reverb: 0.65 } },
 
   { id: 29, name: 'The Aquarium', he: 'האקווריום', cls: 2,
@@ -409,7 +409,7 @@ const RAW = [
       M.metal('#4a5258'), M.metal('#232a30'), M.mesh('#3a4248')],
     gen: { block: 8, corridorWidth: 3, lightSpacing: 3, lightIntensity: 1.8 },
     lightColor: [0.6, 0.86, 1.0], tint: [0.95, 1.0, 1.06],
-    entities: { kind: 'crawler', density: 0.5 },
+    entities: { kind: 'blind', density: 0.5 },
     audio: { tone: 'water', reverb: 0.75 } },
 
   { id: 30, name: 'Drainage', he: 'הניקוז', cls: 2,
@@ -421,7 +421,7 @@ const RAW = [
     gen: { bores: 9, lightSpacing: 3, lightIntensity: 1.3, deadLights: 25,
       flood: true, pipeProps: 5 },
     waterDepth: 0.14,
-    entities: { kind: 'swarm', density: 0.7 },
+    entities: { kind: 'leech', density: 0.55, shake: 11.0 },
     audio: { tone: 'water', reverb: 0.6, drips: true } },
 
   { id: 31, name: 'The Bathhouse', he: 'בית המרחץ', cls: 1,
@@ -432,7 +432,7 @@ const RAW = [
       lightIntensity: 2.6, flickerPct: 4, deadLights: 2 },
     waterDepth: 1.1, fogHeight: 3,
     lightColor: [1.0, 0.97, 0.9],
-    entities: { kind: 'watcher', density: 0.4 },
+    entities: { kind: 'dropper', density: 0.4, trigger: 3.65 },
     audio: { tone: 'water', reverb: 0.85 } },
 
   { id: 32, name: 'Waterlogged Offices', he: 'משרדים ספוגי מים', cls: 2,
@@ -453,7 +453,7 @@ const RAW = [
       M.metal('#6a6e6a'), M.metal('#33383c'), M.mesh('#5a5e5a')],
     gen: { step: 0.8, amplitude: 7, terraceScale: 0.025, ceiling: true,
       connect: false, lightSpacing: 4, lightRadius: 20 },
-    entities: { kind: 'stalker', density: 0.6, hold: 10.8 },
+    entities: { kind: 'twin', density: 0.3 },
     audio: { tone: 'water', reverb: 0.8 } },
 
   { id: 34, name: 'Deep Channel', he: 'התעלה העמוקה', cls: 4,
@@ -519,7 +519,7 @@ const RAW = [
     gen: { rockThreshold: 0.55, caveScale: 0.04, lightSpacing: 4, lightIntensity: 1.6,
       relief: 1.2, ceilRelief: 2.4 },
     lightColor: [1.0, 0.86, 0.6],
-    entities: { kind: 'crawler', density: 0.65 },
+    entities: { kind: 'blind', density: 0.65 },
     audio: { tone: 'silence', reverb: 0.8 } },
 
   { id: 40, name: 'Limestone Reach', he: 'מרחב הגיר', cls: 2,
@@ -538,7 +538,7 @@ const RAW = [
     mats: KIT.cave('#3e3024', '#332818', 0.55),
     gen: { lightSpacing: 0, loops: 4, exitRarity: 9, itemRarity: 3 },
     hazards: ['dark'], flashlight: true,
-    entities: { kind: 'crawler', density: 0.75 },
+    entities: { kind: 'leech', density: 0.8, shake: 12.6 },
     audio: { tone: 'silence', reverb: 0.2 } },
 
   { id: 42, name: 'Fungal Deep', he: 'מעמקי הפטריות', cls: 3,
@@ -550,7 +550,7 @@ const RAW = [
     gen: { rockThreshold: 0.52, lightSpacing: 3, lightIntensity: 1.2, lightRadius: 9,
       flickerPct: 8, relief: 1.0 },
     lightColor: [0.5, 1.0, 0.6], tint: [0.94, 1.04, 0.96],
-    entities: { kind: 'swarm', density: 0.85 },
+    entities: { kind: 'dropper', density: 0.65, trigger: 3.30 },
     audio: { tone: 'drone', reverb: 0.6, drips: true } },
 
   { id: 43, name: 'The Cavern Sea', he: 'ים המערה', cls: 4,
@@ -573,7 +573,7 @@ const RAW = [
     gen: { block: 6, corridorWidth: 1, lightSpacing: 3, lightIntensity: 1.4,
       flickerPct: 25, deadLights: 18 },
     lightColor: [1.0, 0.84, 0.56],
-    entities: { kind: 'hound', density: 0.75 },
+    entities: { kind: 'lurker', density: 0.75, trigger: 5.5 },
     audio: { tone: 'silence', reverb: 0.55 } },
 
   { id: 45, name: 'The Orchard', he: 'המטע', cls: 1,
@@ -594,7 +594,7 @@ const RAW = [
       M.wood('#4a3c28'), M.metal('#33362e'), M.blades('#5a7a30')],
     gen: { runs: 12, holes: 0.55, rubble: 8, lightSpacing: 3, lightIntensity: 1.4,
       deadLights: 40 },
-    entities: { kind: 'watcher', density: 0.55 },
+    entities: { kind: 'crawler', density: 0.55 },
     audio: { tone: 'wind', reverb: 0.35, crickets: true } },
 
   { id: 47, name: 'The Hive', he: 'הכוורת', cls: 4,
@@ -605,7 +605,7 @@ const RAW = [
       M.wood('#6a4a24'), M.metal('#3a3020'), M.blades('#8a7a30')],
     gen: { lightSpacing: 3, lightIntensity: 1.6, loops: 10, flickerPct: 10 },
     lightColor: [1.0, 0.8, 0.4],
-    entities: { kind: 'crawler', density: 0.75 },
+    entities: { kind: 'hound', density: 0.75 },
     audio: { tone: 'drone', reverb: 0.4 } },
 
   { id: 48, name: 'Sinkhole', he: 'הבולען', cls: 3,
@@ -616,7 +616,7 @@ const RAW = [
       lightSpacing: 0 },
     sky: { horizon: '#3a352c', zenith: '#14161a', ground: '#12100c' },
     hazards: ['fall'],
-    entities: { kind: 'shade', density: 0.65 },
+    entities: { kind: 'swarm', density: 0.9 },
     audio: { tone: 'wind', reverb: 0.7 } },
 
   { id: 49, name: 'The Roots', he: 'השורשים', cls: 4,
@@ -628,7 +628,7 @@ const RAW = [
     gen: { rockThreshold: 0.5, caveScale: 0.06, lightSpacing: 0, relief: 0.9,
       ceilRelief: 2.0, exitRarity: 11 },
     hazards: ['dark'], flashlight: true,
-    entities: { kind: 'swarm', density: 0.95 },
+    entities: { kind: 'watcher', density: 0.75 },
     audio: { tone: 'silence', reverb: 0.65 } },
 
   /* ---- 50–62 · urban ------------------------------------------- */
@@ -641,7 +641,7 @@ const RAW = [
       M.water('#20282c'), M.metal('#6a6e72'), M.metal('#2e3236'), M.mesh('#585c60')],
     gen: { pillarSpacing: 3, lightSpacing: 2, lightIntensity: 1.8, deadLights: 18,
       flickerPct: 35, cars: 4 },
-    entities: { kind: 'lurker', density: 0.45, trigger: 6.7 },
+    entities: { kind: 'blind', density: 0.45 },
     audio: { tone: 'hum', reverb: 0.65 } },
 
   { id: 51, name: 'The Underpass', he: 'המעבר התחתי', cls: 2,
@@ -651,7 +651,7 @@ const RAW = [
     gen: { block: 9, corridorWidth: 3, lightSpacing: 2, lightIntensity: 1.5,
       deadLights: 22, flickerPct: 38 },
     lightColor: [1.0, 0.86, 0.6],
-    entities: { kind: 'hound', density: 0.55 },
+    entities: { kind: 'leech', density: 0.6, shake: 12.6 },
     audio: { tone: 'hum', reverb: 0.7, drips: true } },
 
   { id: 52, name: 'Motel Row', he: 'שורת המוטלים', cls: 2,
@@ -660,7 +660,7 @@ const RAW = [
     mats: KIT.urban('#33302e', '#8a6a52', '#7a7268'),
     gen: { block: 7, road: 3, connect: false, lightSpacing: 0, streetlights: true, fenceHeight: 1.1 },
     sky: { horizon: '#2a1e2c', zenith: '#0a0810', ground: '#0c0a10', stars: 0.6 },
-    entities: { kind: 'stalker', density: 0.55, hold: 9.7 },
+    entities: { kind: 'shade', density: 0.55 },
     audio: { tone: 'wind', reverb: 0.3, crickets: true } },
 
   { id: 53, name: 'The Mall', he: 'הקניון', cls: 1,
@@ -671,7 +671,7 @@ const RAW = [
       M.metal('#9a9488'), M.metal('#43464a'), M.blades('#5a7a3c')],
     gen: { block: 9, corridorWidth: 4, lightSpacing: 2, lightIntensity: 2.6,
       deadLights: 2, flickerPct: 4 },
-    entities: { kind: 'watcher', density: 0.45 },
+    entities: { kind: 'dropper', density: 0.45, trigger: 2.95 },
     audio: { tone: 'muzak', reverb: 0.75 } },
 
   { id: 54, name: 'Terminal', he: 'הטרמינל', cls: 1,
@@ -704,7 +704,7 @@ const RAW = [
       M.wood('#5a3e24'), M.metal('#33302e'), M.blades('#6a6a30')],
     gen: { runs: 18, gap: 0.2, lightSpacing: 2, lightIntensity: 1.9, flickerPct: 30 },
     lightColor: [1.0, 0.62, 0.36],
-    entities: { kind: 'crawler', density: 0.55 },
+    entities: { kind: 'lurker', density: 0.55, trigger: 5.5 },
     audio: { tone: 'muzak', reverb: 0.3 } },
 
   { id: 57, name: 'The Tenements', he: 'הבתים המשותפים', cls: 3,
@@ -714,7 +714,7 @@ const RAW = [
     gen: { block: 8, road: 2, connect: false, lightSpacing: 0, streetlights: true,
       buildingHeight: 22 },
     sky: { horizon: '#242830', zenith: '#0a0d12', ground: '#080a0e', stars: 0.35 },
-    entities: { kind: 'shade', density: 0.7 },
+    entities: { kind: 'twin', density: 0.35 },
     audio: { tone: 'wind', reverb: 0.6 } },
 
   { id: 58, name: 'Service Alleys', he: 'סמטאות השירות', cls: 3,
@@ -724,7 +724,7 @@ const RAW = [
     gen: { lightSpacing: 3, lightIntensity: 1.5, deadLights: 30, loops: 7,
       flickerPct: 40 },
     lightColor: [1.0, 0.78, 0.44],
-    entities: { kind: 'swarm', density: 0.9 },
+    entities: { kind: 'crawler', density: 0.7 },
     audio: { tone: 'wind', reverb: 0.45, drips: true } },
 
   { id: 59, name: 'The Interchange', he: 'צומת המחלפים', cls: 2,
@@ -744,7 +744,7 @@ const RAW = [
     mats: KIT.outdoors('#3a5a2a', '#8a8880', '#4a7a2a'),
     gen: { connect: false, lightSpacing: 0, relief: 0.2, scatter: 0 },
     sky: { horizon: '#1e2a26', zenith: '#0a1014', ground: '#0e1610', stars: 0.4 },
-    entities: { kind: 'crawler', density: 0.5 },
+    entities: { kind: 'swarm', density: 0.65 },
     audio: { tone: 'crowd', reverb: 0.9 } },
 
   { id: 61, name: 'The Waiting Platforms', he: 'רציפי ההמתנה', cls: 2,
@@ -765,7 +765,7 @@ const RAW = [
       buildingHeight: 16, flood: true },
     waterDepth: 0.05,
     sky: { horizon: '#242c36', zenith: '#0e141c', ground: '#0a0e14' },
-    entities: { kind: 'shade', density: 0.6 },
+    entities: { kind: 'leech', density: 0.65, shake: 14.2 },
     audio: { tone: 'rain', reverb: 0.5 } },
 
   /* ---- 63–75 · institutions ------------------------------------ */
@@ -777,7 +777,7 @@ const RAW = [
     gen: { block: 7, corridorWidth: 2, lightSpacing: 2, lightIntensity: 2.0,
       flickerPct: 28, deadLights: 12 },
     lightColor: [0.86, 0.96, 1.0],
-    entities: { kind: 'lurker', density: 0.7, trigger: 7.3 },
+    entities: { kind: 'hound', density: 0.7 },
     audio: { tone: 'monitor', reverb: 0.45 } },
 
   { id: 64, name: 'Schoolhouse', he: 'בית הספר', cls: 2,
@@ -786,7 +786,7 @@ const RAW = [
     mats: KIT.civic('#8a7a5a', '#c2b894', '#dcd6c0', '#7a6a4a'),
     gen: { block: 8, corridorWidth: 2, lightSpacing: 2, lightIntensity: 2.1,
       flickerPct: 16 },
-    entities: { kind: 'hound', density: 0.6 },
+    entities: { kind: 'blind', density: 0.6 },
     audio: { tone: 'hum', reverb: 0.55 } },
 
   { id: 65, name: 'The Archive', he: 'הארכיון', cls: 1,
@@ -798,7 +798,7 @@ const RAW = [
     gen: { aisle: 4, rackDepth: 1, rackHeight: 3.0, lightSpacing: 2,
       lightIntensity: 1.7, deadLights: 10 },
     lightColor: [1.0, 0.9, 0.72],
-    entities: { kind: 'titan', density: 0.35 },
+    entities: { kind: 'dropper', density: 0.5, trigger: 2.95 },
     audio: { tone: 'hum', reverb: 0.4 } },
 
   { id: 66, name: 'Reading Rooms', he: 'חדרי הקריאה', cls: 1,
@@ -810,7 +810,7 @@ const RAW = [
     gen: { runs: 9, gap: 0.24, rooms: 3, lightSpacing: 2, lightIntensity: 1.6,
       flickerPct: 0, deadLights: 0 },
     lightColor: [0.7, 1.0, 0.78],
-    entities: { kind: 'swarm', density: 0.65 },
+    entities: { kind: 'lurker', density: 0.5, trigger: 6.7 },
     audio: { tone: 'silence', reverb: 0.6 } },
 
   { id: 67, name: 'The Laundry', he: 'המכבסה', cls: 2,
@@ -819,7 +819,7 @@ const RAW = [
     mats: KIT.civic('#a8a8a0', '#c8c8c0', '#dcdcd4'),
     gen: { pillarSpacing: 5, lightSpacing: 2, lightIntensity: 2.4, runs: 6 },
     fogHeight: 2.5,
-    entities: { kind: 'stalker', density: 0.6, hold: 9.7 },
+    entities: { kind: 'twin', density: 0.3 },
     audio: { tone: 'machine', reverb: 0.5, drips: true } },
 
   { id: 68, name: 'Cafeteria', he: 'חדר האוכל', cls: 1,
@@ -828,7 +828,7 @@ const RAW = [
     mats: KIT.civic('#9a9282', '#c8c0aa', '#e0dac8'),
     gen: { pillarSpacing: 6, lightSpacing: 2, lightIntensity: 2.3, runs: 5,
       flickerPct: 12 },
-    entities: { kind: 'crawler', density: 0.5 },
+    entities: { kind: 'titan', density: 0.4 },
     audio: { tone: 'hum', reverb: 0.6 } },
 
   { id: 69, name: 'The Dormitory', he: 'הפנימייה', cls: 3,
@@ -837,7 +837,7 @@ const RAW = [
     mats: KIT.hotel('#4a3a48', '#8a6a44', '#9a8a78', '#c8c0b0'),
     gen: { block: 6, corridorWidth: 2, lightSpacing: 2, lightIntensity: 1.4,
       deadLights: 20, flickerPct: 30 },
-    entities: { kind: 'watcher', density: 0.7 },
+    entities: { kind: 'crawler', density: 0.7 },
     audio: { tone: 'hum', reverb: 0.4 } },
 
   { id: 70, name: 'Records Basement', he: 'מרתף התיקים', cls: 2,
@@ -848,7 +848,7 @@ const RAW = [
       M.metal('#7a7a72'), M.metal('#33363a'), M.mesh('#5a5a54')],
     gen: { aisle: 3, rackDepth: 1, rackHeight: 2.2, lightSpacing: 3,
       lightIntensity: 1.4, deadLights: 24, flickerPct: 36 },
-    entities: { kind: 'lurker', density: 0.6, trigger: 6.7 },
+    entities: { kind: 'swarm', density: 0.8 },
     audio: { tone: 'hum', reverb: 0.35 } },
 
   { id: 71, name: 'The Chapel', he: 'הקפלה', cls: 1,
@@ -860,7 +860,7 @@ const RAW = [
     gen: { runs: 6, gap: 0.3, rooms: 2, lightSpacing: 3, lightIntensity: 1.8,
       flickerPct: 45, deadLights: 8 },
     lightColor: [1.0, 0.76, 0.42],
-    entities: { kind: 'swarm', density: 0.7 },
+    entities: { kind: 'watcher', density: 0.5 },
     audio: { tone: 'choir', reverb: 0.95 } },
 
   { id: 72, name: 'Examination Halls', he: 'אולמות הבחינה', cls: 2,
@@ -869,7 +869,7 @@ const RAW = [
     mats: KIT.civic('#8a8474', '#c0bcac', '#d8d4c4'),
     gen: { pod: 2, partitionHeight: 0.9, lightSpacing: 3, lightIntensity: 2.4,
       rooms: 1, flickerPct: 8 },
-    entities: { kind: 'hound', density: 0.6 },
+    entities: { kind: 'leech', density: 0.65, shake: 14.2 },
     audio: { tone: 'hum', reverb: 0.7 } },
 
   { id: 73, name: 'The Server Floor', he: 'קומת השרתים', cls: 2,
@@ -893,7 +893,7 @@ const RAW = [
     gen: { block: 7, corridorWidth: 2, lightSpacing: 2, lightIntensity: 2.6,
       deadLights: 0, flickerPct: 2 },
     exposure: 0.85,
-    entities: { kind: 'crawler', density: 0.6 },
+    entities: { kind: 'hound', density: 0.6 },
     audio: { tone: 'wind', reverb: 0.25 } },
 
   { id: 75, name: 'The Morgue', he: 'חדר המתים', cls: 4,
@@ -905,7 +905,7 @@ const RAW = [
     gen: { block: 6, corridorWidth: 2, lightSpacing: 2, lightIntensity: 1.6,
       deadLights: 16, flickerPct: 34, exitRarity: 12 },
     lightColor: [0.84, 0.94, 1.0],
-    entities: { kind: 'watcher', density: 0.8 },
+    entities: { kind: 'blind', density: 0.8 },
     audio: { tone: 'hum', reverb: 0.5, drips: true } },
 
   /* ---- 76–88 · abstractions ------------------------------------ */
@@ -919,7 +919,7 @@ const RAW = [
     gen: { connect: false, lightSpacing: 0, relief: 0 },
     sky: { horizon: '#f6f6f4', zenith: '#ffffff', ground: '#eeeeec' },
     exposure: 0.8, hazards: ['exposure'],
-    entities: { kind: 'smiler', density: 0.6 },
+    entities: { kind: 'shade', density: 0.6 },
     audio: { tone: 'silence', reverb: 0.15 } },
 
   { id: 77, name: 'Carpet Ocean', he: 'אוקיינוס השטיח', cls: 1,
@@ -928,7 +928,7 @@ const RAW = [
     mats: KIT.office('#a08a3c', '#c0aa58', '#d0c8a8'),
     gen: { connect: false, lightSpacing: 0, relief: 1.8 },
     sky: { horizon: '#9a8a4a', zenith: '#6a6440', ground: '#7a6c34' },
-    entities: { kind: 'shade', density: 0.5 },
+    entities: { kind: 'smiler', density: 0.5 },
     audio: { tone: 'wind', reverb: 0.35 } },
 
   { id: 78, name: 'The Grid', he: 'הרשת', cls: 3,
@@ -938,7 +938,7 @@ const RAW = [
     gen: { lightSpacing: 2, lightIntensity: 2.0, lightRadius: 10, loops: 12,
       deadLights: 0, flickerPct: 0 },
     lightColor: [0.4, 0.9, 1.0], tint: [0.94, 1.0, 1.08],
-    entities: { kind: 'lurker', density: 0.7, trigger: 6.7 },
+    entities: { kind: 'dropper', density: 0.7, trigger: 3.30 },
     audio: { tone: 'electric', reverb: 0.5 } },
 
   { id: 79, name: 'Pillar Field', he: 'שדה העמודים', cls: 2,
@@ -947,7 +947,7 @@ const RAW = [
     mats: KIT.industrial('#666660', '#6e6e68', '#56564f'),
     gen: { pillarSpacing: 3, pillarSize: 1, lightSpacing: 3, lightIntensity: 2.2,
       lightRadius: 16, runs: 0 },
-    entities: { kind: 'titan', density: 0.45 },
+    entities: { kind: 'twin', density: 0.3 },
     audio: { tone: 'drone', reverb: 0.85 } },
 
   { id: 80, name: 'The Slabs', he: 'הלוחות', cls: 3,
@@ -958,7 +958,7 @@ const RAW = [
       connect: false, lightSpacing: 0 },
     sky: { horizon: '#2a2d34', zenith: '#0e1014', ground: '#08090c' },
     hazards: ['fall'],
-    entities: { kind: 'swarm', density: 0.95 },
+    entities: { kind: 'crawler', density: 0.75 },
     audio: { tone: 'wind', reverb: 0.75 } },
 
   { id: 81, name: 'Static', he: 'רעש לבן', cls: 4,
@@ -968,7 +968,7 @@ const RAW = [
     gen: { runs: 20, lightSpacing: 2, lightIntensity: 1.8, flickerPct: 80,
       deadLights: 20, exitRarity: 10 },
     vhs: 0.75, grain: 0.16, aberration: 0.005,
-    entities: { kind: 'crawler', density: 0.85 },
+    entities: { kind: 'lurker', density: 0.85, trigger: 6.1 },
     audio: { tone: 'static', reverb: 0.3 } },
 
   { id: 82, name: 'The Long Stair', he: 'המדרגות הארוכות', cls: 3,
@@ -980,7 +980,7 @@ const RAW = [
     gen: { step: 0.25, amplitude: 5, terraceScale: 0.05, ceiling: true, walls: 6,
       connect: false, lightSpacing: 3, lightIntensity: 1.5, deadLights: 20 },
     lightColor: [1.0, 0.84, 0.56],
-    entities: { kind: 'stalker', density: 0.75, hold: 9.7 },
+    entities: { kind: 'titan', density: 0.55 },
     audio: { tone: 'silence', reverb: 0.7 } },
 
   { id: 83, name: 'Terrace Fields', he: 'שדות המדרגות', cls: 1,
@@ -991,7 +991,7 @@ const RAW = [
       lightSpacing: 0, flood: true },
     waterDepth: 0.06,
     sky: { horizon: '#8a9a92', zenith: '#5a7080', ground: '#4a5a48' },
-    entities: { kind: 'smiler', density: 0.55 },
+    entities: { kind: 'swarm', density: 0.7 },
     audio: { tone: 'wind', reverb: 0.35 } },
 
   { id: 84, name: 'The Repeating Room', he: 'החדר החוזר', cls: 3,
@@ -1000,7 +1000,7 @@ const RAW = [
     mats: KIT.office('#7a6a44', '#b8a870', '#cfc8ac'),
     gen: { block: 5, corridorWidth: 1, lightSpacing: 3, lightIntensity: 1.8,
       flickerPct: 20, exitRarity: 18 },
-    entities: { kind: 'hound', density: 0.75 },
+    entities: { kind: 'watcher', density: 0.75 },
     audio: { tone: 'hum', reverb: 0.35 } },
 
   { id: 85, name: 'Threshold', he: 'הסף', cls: 2,
@@ -1010,7 +1010,7 @@ const RAW = [
     gen: { connect: false, lightSpacing: 0, relief: 0.4, scatter: 22,
       scatterType: 'door', scatterMin: 1, scatterMax: 1 },
     sky: { horizon: '#20242c', zenith: '#0a0c10', ground: '#08090c', stars: 0.25 },
-    entities: { kind: 'shade', density: 0.65 },
+    entities: { kind: 'leech', density: 0.7, shake: 11.0 },
     audio: { tone: 'drone', reverb: 0.6 } },
 
   { id: 86, name: 'The Inversion', he: 'ההיפוך', cls: 4,
@@ -1021,7 +1021,7 @@ const RAW = [
       M.metal('#8a8880'), M.metal('#40434a'), M.blades('#7c8a3e')],
     gen: { runs: 16, lightSpacing: 2, flickerPct: 30 },
     invert: true,
-    entities: { kind: 'watcher', density: 0.85 },
+    entities: { kind: 'blind', density: 0.85 },
     audio: { tone: 'hum', reverb: 0.4 } },
 
   { id: 87, name: 'Null Sector', he: 'מגזר האפס', cls: 5,
@@ -1032,7 +1032,7 @@ const RAW = [
       connect: false, lightSpacing: 0, exitRarity: 8 },
     sky: { horizon: '#0c0c12', zenith: '#000000', ground: '#000000' },
     exposure: 1.9, hazards: ['fall', 'dark'], flashlight: true,
-    entities: { kind: 'swarm', density: 0.95 },
+    entities: { kind: 'stalker', density: 0.95, hold: 9.7 },
     audio: { tone: 'silence', reverb: 0.4 } },
 
   { id: 88, name: 'The Drift', he: 'הסחף', cls: 3,
@@ -1042,7 +1042,7 @@ const RAW = [
     gen: { connect: false, lightSpacing: 0, relief: 2.4, scatter: 8,
       scatterType: 'rubble' },
     sky: { horizon: '#9a9ea0', zenith: '#7a8082', ground: '#6a7072' },
-    entities: { kind: 'titan', density: 0.55 },
+    entities: { kind: 'shade', density: 0.75 },
     audio: { tone: 'wind', reverb: 0.5 } },
 
   /* ---- 89–99 · the bottom -------------------------------------- */
@@ -1056,7 +1056,7 @@ const RAW = [
     waterDepth: 0.5,
     sky: { horizon: '#2a4a52', zenith: '#0e2028', ground: '#0a1a20' },
     hazards: ['deep'],
-    entities: { kind: 'crawler', density: 0.85 },
+    entities: { kind: 'smiler', density: 0.85 },
     audio: { tone: 'water', reverb: 0.9 } },
 
   { id: 90, name: 'Ashfall', he: 'נשורת האפר', cls: 4,
@@ -1068,7 +1068,7 @@ const RAW = [
     gen: { runs: 12, holes: 0.5, rubble: 10, lightSpacing: 0, connect: true },
     sky: { horizon: '#5a5450', zenith: '#3a3634', ground: '#2a2624' },
     exposure: 1.55, hazards: ['heat'], flashlight: true,
-    entities: { kind: 'lurker', density: 0.85, trigger: 6.7 },
+    entities: { kind: 'crawler', density: 0.85 },
     audio: { tone: 'wind', reverb: 0.5 } },
 
   { id: 91, name: 'The Furnace Plain', he: 'מישור הכבשן', cls: 5,
@@ -1080,7 +1080,7 @@ const RAW = [
     gen: { connect: false, lightSpacing: 0, relief: 1.4 },
     sky: { horizon: '#7a3010', zenith: '#2a1008', ground: '#3a1408' },
     tint: [1.08, 0.96, 0.9], hazards: ['heat'],
-    entities: { kind: 'stalker', density: 0.95, hold: 8.6 },
+    entities: { kind: 'twin', density: 0.5 },
     audio: { tone: 'drone', reverb: 0.45 } },
 
   { id: 92, name: 'Blacksite', he: 'האתר השחור', cls: 5,
@@ -1093,7 +1093,7 @@ const RAW = [
       lightRadius: 8, deadLights: 30, flickerPct: 45, exitRarity: 10 },
     lightColor: [1.0, 0.32, 0.28], tint: [1.06, 0.96, 0.96],
     hazards: ['dark'], flashlight: true,
-    entities: { kind: 'smiler', density: 0.95 },
+    entities: { kind: 'hound', density: 0.95 },
     audio: { tone: 'alarm', reverb: 0.4 } },
 
   { id: 93, name: 'The Rust Sea', he: 'ים החלודה', cls: 4,
@@ -1106,7 +1106,7 @@ const RAW = [
     gen: { step: 0.5, amplitude: 5, terraceScale: 0.028, connect: false,
       lightSpacing: 0 },
     sky: { horizon: '#6a4426', zenith: '#2a1c12', ground: '#241810' },
-    entities: { kind: 'shade', density: 0.85 },
+    entities: { kind: 'swarm', density: 0.95 },
     audio: { tone: 'wind', reverb: 0.6 } },
 
   { id: 94, name: 'The Motion', he: 'התנועה', cls: 4,
@@ -1116,7 +1116,7 @@ const RAW = [
     gen: { block: 6, corridorWidth: 2, lightSpacing: 2, lightIntensity: 1.8,
       flickerPct: 40, exitRarity: 12 },
     lightColor: [0.8, 0.72, 1.0], vhs: 0.4, aberration: 0.004,
-    entities: { kind: 'hound', density: 0.85 },
+    entities: { kind: 'dropper', density: 0.85, trigger: 3.30 },
     audio: { tone: 'drone', reverb: 0.55 } },
 
   { id: 95, name: 'Deadzone', he: 'אזור מת', cls: 5,
@@ -1126,7 +1126,7 @@ const RAW = [
     gen: { runs: 17, lightSpacing: 3, lightIntensity: 1.0, lightRadius: 7,
       deadLights: 40, flickerPct: 20, exitRarity: 10 },
     hazards: ['dark', 'silence'], flashlight: true,
-    entities: { kind: 'watcher', density: 0.95 },
+    entities: { kind: 'lurker', density: 0.95, trigger: 7.3 },
     audio: { tone: 'none', reverb: 0.0 } },
 
   { id: 96, name: 'The Cathedral', he: 'הקתדרלה', cls: 3,
@@ -1138,7 +1138,7 @@ const RAW = [
     gen: { pillarSpacing: 6, pillarSize: 2, lightSpacing: 4, lightIntensity: 2.6,
       lightRadius: 22, flickerPct: 20 },
     lightColor: [1.0, 0.8, 0.5],
-    entities: { kind: 'swarm', density: 0.95 },
+    entities: { kind: 'titan', density: 0.55 },
     audio: { tone: 'choir', reverb: 1.0 } },
 
   { id: 97, name: 'Terminal Halls', he: 'האולמות הסופיים', cls: 5,
@@ -1148,7 +1148,7 @@ const RAW = [
     gen: { pillarSpacing: 5, pillarSize: 2, lightSpacing: 3, lightIntensity: 1.4,
       lightRadius: 12, deadLights: 26, flickerPct: 40, exitRarity: 10 },
     lightColor: [0.7, 0.8, 1.0],
-    entities: { kind: 'titan', density: 0.7 },
+    entities: { kind: 'watcher', density: 0.95 },
     audio: { tone: 'drone', reverb: 0.9 } },
 
   { id: 98, name: 'The Last Corridor', he: 'המסדרון האחרון', cls: 5,
@@ -1157,7 +1157,7 @@ const RAW = [
     mats: KIT.office('#3a3226', '#4a4030', '#54503e'),
     gen: { lightSpacing: 3, lightIntensity: 1.2, lightRadius: 7, deadLights: 34,
       flickerPct: 50, loops: 2, exitRarity: 8 },
-    entities: { kind: 'crawler', density: 0.95 },
+    entities: { kind: 'leech', density: 0.95, shake: 15.8 },
     audio: { tone: 'silence', reverb: 0.3 } },
 
   { id: 99, name: 'The Threshold Below', he: 'הסף שמתחת', cls: 5,

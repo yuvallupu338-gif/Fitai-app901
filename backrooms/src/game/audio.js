@@ -357,6 +357,24 @@ export class GameAudio {
       /* Kept quiet and close-miked: it is always about the same distance
        * away, so a cue that scaled with range would never change. */
       this.burst({ hp: 300, lp: 1500, dur: 0.35, gain: 0.035, send: 0.5, rate: 0.9 });
+    } else if (kind === 'blind') {
+      /* Sniffing for you. Loud regardless of range, because knowing roughly
+       * where a blind one is standing is the information the player needs to
+       * decide whether to hold still or run — and it is the one kind that
+       * cannot use that same sound to find them back. */
+      this.burst({ hp: 500, lp: 2600, dur: 0.14, gain: 0.10, send: 0.55, rate: 1.3 });
+      this.burst({ hp: 500, lp: 2600, dur: 0.10, gain: 0.07, send: 0.55, rate: 1.6 });
+    } else if (kind === 'dropper') {
+      /* A creak in the ceiling. The only warning, and deliberately not a
+       * directional one. */
+      this.tone(240 + near * 90, 0.35, 0.02 + near * 0.05, 'sawtooth', 0.5);
+    } else if (kind === 'twin') {
+      /* Your own footstep, arriving from the wrong place. */
+      this.burst({ hp: 200, lp: 1100, dur: 0.09, gain: 0.04 + near * 0.08,
+        send: 0.7, rate: 1.0 });
+    } else if (kind === 'leech') {
+      this.burst({ hp: 900, lp: 3800, dur: 0.13, gain: 0.03 + near * 0.09,
+        send: 0.4, rate: 1.8 });
     } else {
       this.burst({ hp: 90, lp: 800 + near * 1200, dur: 0.4, gain: 0.06 + near * 0.2,
         send: 0.55, rate: 0.7 });
