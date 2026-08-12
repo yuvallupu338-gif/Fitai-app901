@@ -1,16 +1,22 @@
 /*
- * app.js — boot and the three tabs.
+ * app.js — boot and the four tabs.
  *
- * The shape of the app is the shape of the job: say who you are, list what you
- * made, take the file. Nothing is a wizard here — unlike a questionnaire, a
- * portfolio is written over weeks, one work at a time, and a flow that insists
- * on an order would be wrong on the second visit.
+ * The shape of the app is the shape of the job: write down what you did, say
+ * who you are, go over the works, take the file. Nothing is a wizard here —
+ * unlike a questionnaire, a portfolio is written over weeks, one work at a
+ * time, and a flow that insists on an order would be wrong on the second visit.
+ *
+ * The first tab is the short way in: three details and a paragraph, turned into
+ * works by a model if there is a key for one and by a list of rules if there is
+ * not. The other three are the same app as before, and somebody who would
+ * rather answer fifteen questions per work can go straight to them.
  *
  * This is the only file in the app that touches the DOM at module top level.
  */
 
 import { h, clear, qs, announce } from '../../src/core/dom.js';
 import * as store from './core/store.js';
+import { renderQuickstart } from './ui/quickstart.js';
 import { renderOwner } from './ui/owner.js';
 import { renderWorks } from './ui/works.js';
 import { renderFile } from './ui/file.js';
@@ -19,6 +25,7 @@ import { toHtml } from './export/html.js';
 const root = qs('#app');
 
 const TABS = [
+  { id: 'quick', label: 'מהיר' },
   { id: 'owner', label: 'פרטים' },
   { id: 'works', label: 'העבודות' },
   { id: 'file', label: 'הקובץ' },
@@ -30,7 +37,8 @@ function renderApp() {
   root.appendChild(h('header.head', [
     h('p.eyebrow', 'תיק עבודות'),
     h('h1', ['מה שעשית, ', h('em', 'כתוב'), '.']),
-    h('p.sub', 'עונים על כמה שאלות לכל עבודה, והאפליקציה כותבת מזה קובץ אחד שאפשר לשלוח, להדפיס או לשמור כ-PDF.'),
+    h('p.sub', 'כותבים בשורות מה עשיתם, והאפליקציה מרכיבה מזה תיק עבודות: הסבר כתוב לכל עבודה, '
+      + 'בקובץ אחד שאפשר לשלוח, להדפיס או לשמור כ-PDF.'),
   ]));
 
   if (!store.persists()) {
@@ -79,7 +87,8 @@ function renderApp() {
     paintTabs(tab);
     store.setUi({ tab });
     try {
-      if (tab === 'owner') open = renderOwner(body, { onDone: () => show('works') });
+      if (tab === 'quick') open = renderQuickstart(body, { onDone: () => show('works') });
+      else if (tab === 'owner') open = renderOwner(body, { onDone: () => show('works') });
       else if (tab === 'works') open = renderWorks(body, { onDone: () => show('file') });
       else open = renderFile(body);
     } catch (e) {
@@ -89,8 +98,14 @@ function renderApp() {
     window.scrollTo(0, 0);
   }
 
+  /*
+   * An empty app opens on the short way in, and an app with works in it opens
+   * where it was left. Somebody coming back to add a fourth work does not need
+   * to be asked again for the name they already gave.
+   */
   const st = store.get();
-  show(TABS.some((t) => t.id === st.ui.tab) ? st.ui.tab : 'owner');
+  const remembered = TABS.some((t) => t.id === st.ui.tab) ? st.ui.tab : '';
+  show(remembered && st.works.length ? remembered : 'quick');
 
   /*
    * The handle the Chromium check drives the app through. It is the same store

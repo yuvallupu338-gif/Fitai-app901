@@ -76,8 +76,11 @@ export function renderOwner(root, opts) {
     const attrs = { maxlength: String(f.max), placeholder: f.hint || '' };
     /* Latin-only fields are typed left to right whatever the page direction is,
      * and an address that renders with its scheme at the wrong end looks broken
-     * to the person typing it. */
-    if (f.type === 'email' || f.type === 'url') attrs.dir = 'ltr';
+     * to the person typing it. The phone number is in the same list for the same
+     * reason: "03 6961234" in an RTL field is shown as "6961234 03" while it is
+     * being typed, which is the bug the exported document had and is worse here,
+     * because the person is looking straight at it. */
+    if (f.type === 'email' || f.type === 'url' || f.key === 'phone') attrs.dir = 'ltr';
     if (f.type === 'email') attrs.type = 'email';
     const control = textInput(draft[f.key], set, attrs);
     const help = f.key === 'email'

@@ -2,17 +2,18 @@
 
 <div dir="rtl">
 
-עונים על כמה שאלות לכל עבודה — מה זה היה, בשביל מי, מה היה צריך, מה עשיתם ומה
-יצא — והאפליקציה כותבת מזה תיק עבודות ומייצאת אותו כקובץ HTML אחד: העיצוב
-והתמונות בפנים, נפתח בלי אינטרנט, ואפשר לשלוח אותו במייל או להדפיס ל-PDF.
-הכול נשאר במכשיר; שום דבר לא נשלח לשום מקום.
+כותבים שורה לכל דבר שעשיתם — מה זה היה, בשביל מי, מתי ומה יצא — והאפליקציה
+מפרקת את זה לעבודות, כותבת הסבר לכל אחת ומרכיבה קובץ HTML אחד: העיצוב והתמונות
+בפנים, נפתח בלי אינטרנט, ואפשר לשלוח אותו במייל או להדפיס ל-PDF. אפשר גם למלא
+הכול ידנית, ואפשר לתקן כל מה שיצא. הכול נשמר במכשיר; חוץ מהפסקה עצמה, אם בחרתם
+שמודל שפה יקרא אותה, שום דבר לא נשלח לשום מקום.
 
 </div>
 
 The thing most people are missing is not a website. It is a document: a client
 asks "יש לך תיק עבודות?" and the honest answer is a folder of screenshots and a
-memory of what each one was for. This app asks the questions that turn the
-second half into text, and writes the two together into a file.
+memory of what each one was for. This app takes the memory — typed as plainly as
+it would be said out loud — and writes the two together into a file.
 
 ## Running it
 
@@ -29,6 +30,40 @@ Or open the prebuilt single file, which works straight off the disk:
 ```bash
 open dist/portfolio.html
 ```
+
+## The short way in
+
+The first screen asks for three things nobody hesitates over — a name, a phone
+number, an address if there is one — and then for one box of text: what you have
+done, a line per thing. Press the button and the works are in the portfolio.
+
+Two readers sit behind that button, and the screen says which one ran.
+
+**With a key**, a language model reads the prose: it can tell that three
+sentences are about the same website, and it fills the fields the person's own
+sentences answer. The prompt's first instruction is not about the schema, it is
+about not writing: copy their sentences, do not improve them, never invent a
+number. A model asked to describe somebody's work will produce "הובלתי תהליך
+עיצוב מקיף" about an evening on a friend's logo, and that sentence goes out with
+their name on it.
+
+**Without one** — which is most people — a list of rules does what rules can:
+one line is one work, years and months come out by pattern, tools by a closed
+list of names, and what a thing is and who it was for by the handful of Hebrew
+words that say so. It does not guess, and it cannot tell that two sentences are
+one work, so it says that on the screen and offers to split again after you have
+pressed return between them.
+
+Whichever ran, what comes back is a draft. Every field goes through the same
+normalising a typed answer goes through, so a model that returns an invented
+kind, a year in the fourth millennium or a `javascript:` link produces a legal
+work with those parts dropped — never a document with them in it. The works are
+listed by name on the screen when they land, what could not be filled is listed
+too, and "בטל את ההוספה" removes exactly the works that were just added.
+
+The one thing that leaves the device is the paragraph, to the vendor whose key
+you entered. Not the name, not the phone, not the pictures, not the rest of the
+portfolio — and the browser check asserts that against the actual request body.
 
 ## What it does
 
@@ -144,15 +179,26 @@ portfolio/
     core/store.js     the portfolio on the device, and the backup
     data/schema.js    what a work is, and the grammar attached to it
     engine/write.js   the explanation, and the paragraph counted off the works
+    ai/read.js        the paragraph, read by a model, then normalised like a form
+    ai/offline.js     the same job by rule, for the machines with no key
     export/           document model -> html | markdown | download
-    ui/               owner, works list, work editor, the file tab, savewarn
+    ui/               quickstart, owner, works list, work editor, the file tab
     styles/           only what this app adds
 ```
 
-It shares the repo's design system — `src/styles/{fonts,tokens,base,components}.css` —
-and six functions from `src/core/dom.js`: `h`, `clear`, `qs`, `announce`,
-`modal` and `shrinkImage`. Nothing else. No store, no engine, no data, and no
-knowledge of FitAI whatsoever in either direction.
+It shares three things with FitAI and nothing else: the design system
+(`src/styles/{fonts,tokens,base,components}.css`), six functions from
+`src/core/dom.js` — `h`, `clear`, `qs`, `announce`, `modal`, `shrinkImage` —
+and the model layer, which is `src/ai/client.js`, `src/ai/providers.js` and the
+provider/model/key rows in `src/ui/aisettings.js`. No store, no engine, no data,
+and no knowledge of FitAI's domain in either direction.
+
+The model layer is shared for the same reason as the stylesheets and with the
+same cost. It is a vendor table, an HTTP call and a key box — none of it is
+about training plans — and the two apps genuinely want the same thing from it,
+including the one key a person has already entered. What each app does NOT share
+is the question: the prompt and the tool schema for reading a portfolio are in
+`portfolio/src/ai/read.js`, and nothing about a work is known to FitAI.
 
 The last two of those six are worth naming rather than filing under "element
 helpers", because they are not small. `modal()` is a focus-trapped,
@@ -176,7 +222,7 @@ node tools/build-single.js portfolio/index.html dist/portfolio.html
 node tools/portfolio-smoke.mjs --shots                  # the real app in Chromium
 ```
 
-`portfolio-audit.mjs` is 443 assertions over the things a screenshot cannot see.
+`portfolio-audit.mjs` is 479 assertions over the things a screenshot cannot see.
 The first is grammar: "זה אפליקציה שבניתי" looks exactly as correct as "זו
 אפליקציה שבניתי" to anything that is not reading it, so the cases are named in
 the check — one line per kind, with the demonstrative and both pronouns written
@@ -197,7 +243,7 @@ something else, and in both cases the answer that was being typed survives the
 failed save — the work in the form at that moment is worth more than the
 invariant.
 
-`portfolio-smoke.mjs` is 67 checks in Chromium. It fills the form, reloads to
+`portfolio-smoke.mjs` is 85 checks in Chromium. It fills the form, reloads to
 prove any of it was stored, adds and reorders and deletes a work, puts a real
 PNG through the picture path — a File, a canvas, a resize and a re-encode, none
 of which exist in Node — then downloads the file, closes the server, and opens
@@ -211,6 +257,13 @@ and usually no storage, and checks that it boots and says so.
 It also checks the abandoned edit: type, switch tabs before the save lands, and
 the words are still there. That check is the reason screens are released rather
 than painted over.
+
+The model path is exercised without a key and without a network: the request is
+intercepted and answered with the shape a provider really returns, half of it
+deliberately wrong. What that proves is the whole wiring — the body this app
+builds, the tool call it pulls out, the normalising, the works landing in the
+store — and it proves the sentence on the screen about what is sent, by reading
+the request body and asserting the phone number is not in it.
 
 Every assertion in both was watched fail before being trusted, and the counts
 below are measured rather than estimated:
@@ -227,6 +280,9 @@ below are measured rather than estimated:
 | the bidi strip removed from `cleanText` | 1 |
 | the release call removed from the tab switch | the abandoned edit, in Chromium |
 | the details screen stops reporting a failed save | the two save-failure checks, in Chromium |
+| the model's work ids or images are trusted | 1 each |
+| the offline reader splits on full stops | 2 |
+| the word boundary comes off the Latin tool names | 1 — "JavaScript" also matches "Java" |
 
 The first row is the one worth reading twice. Sixty-five is not a sign of a
 thorough check; it is a sign that escaping is load-bearing in sixty-five places,

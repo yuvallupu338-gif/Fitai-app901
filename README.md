@@ -55,13 +55,14 @@ questionnaire, the plan, or any of FitAI's storage. See
 
 ### Also in this repo: `portfolio/`
 
-`portfolio/` is a third app, which shares this repo's design system and six
-functions from `src/core/dom.js` — `modal` and `shrinkImage` among them — and
-nothing else: it interviews somebody about the work they have done and exports a תיק
-עבודות as one self-contained HTML file — the explanation written from their
-answers, the photographs embedded, no script inside it, and Ctrl+P for the PDF —
-with no build step and no network, same as everything else here. It is served at
-`/portfolio/`, keeps its own `localStorage` key, and does not touch the
+`portfolio/` is a third app: you write a line for each thing you have made, and
+it turns those lines into a תיק עבודות — one self-contained HTML file with an
+explanation written from your answers, the photographs embedded, no script
+inside it, and Ctrl+P for the PDF. It shares this repo's design system, six
+functions from `src/core/dom.js` and the model layer, and nothing else. The
+model is optional: with a key it reads the prose, without one a list of rules
+splits it, and the rest of the app never opens a connection at all. It is served
+at `/portfolio/`, keeps its own `localStorage` key, and does not touch the
 questionnaire, the plan or any of FitAI's storage. See
 [`portfolio/README.md`](portfolio/README.md).
 

@@ -170,3 +170,31 @@
   border-radius: var(--r);
   display: block;
 }
+
+/* ---- the quick screen ---- */
+
+.leadcard { border-inline-start: 3px solid var(--cyan); }
+.leadcard h3 { margin-top: 4px; }
+.leadcard .help { margin-top: 6px; }
+
+.aibox {
+  margin-top: 14px;
+  background: var(--steel);
+  border: 1px solid var(--line-soft);
+  border-radius: var(--r);
+  padding: 4px 18px;
+}
+.aibox > summary {
+  cursor: pointer;
+  padding: 12px 0;
+  font-size: 14px;
+  color: var(--dim);
+  /* The marker is kept — this is a disclosure and the arrow is what says so. */
+}
+.aibox[open] > summary { color: var(--chalk); }
+.aiinner { padding-bottom: 14px; }
+.aiinner .help { margin-bottom: 10px; }
+.warnline { border-inline-start: 2px solid var(--amber-deep); padding-inline-start: 10px; }
+
+.readlist { margin: 8px 18px 0; padding: 0; }
+.readlist li { font-size: 14.5px; margin-top: 4px; }

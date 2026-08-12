@@ -39,6 +39,8 @@ const doc = await load('portfolio/src/export/document.js');
 const html = await load('portfolio/src/export/html.js');
 const md = await load('portfolio/src/export/markdown.js');
 const store = await load('portfolio/src/core/store.js');
+const read = await load('portfolio/src/ai/read.js');
+const offline = await load('portfolio/src/ai/offline.js');
 
 const problems = [];
 let checks = 0;
@@ -723,7 +725,127 @@ ok(doc.fileNameFor('', 'html') === 'portfolio.html', 'a name with no date should
 }
 
 /* ------------------------------------------------------------------ *
- * 8. Storage that refuses
+ * 8. The two readers that turn a paragraph into works
+ * ------------------------------------------------------------------ */
+
+/*
+ * A model's answer is a suggestion until it has been through the same
+ * normalising a typed answer goes through.
+ *
+ * The response below is what a wrong, careless or hostile model looks like:
+ * enum values that are not ours, a year in the fourth millennium, a link with a
+ * scheme the document would never allow, an image a text model cannot have, an
+ * id that would let it overwrite a work already in the portfolio, and a work
+ * with no name at all. None of it may reach a work, and — the other half, which
+ * a "nothing got through" check would pass without — everything legitimate in
+ * the same response must survive.
+ */
+{
+  const reading = read.normaliseReading({
+    headline: 'א'.repeat(400),
+    works: [
+      {
+        title: 'אתר למספרה', kind: 'site', context: 'client', clientName: 'מספרת רון',
+        team: 'alone', fromYear: 2024, fromMonth: 3, toYear: 2024, toMonth: 5,
+        brief: 'לא היו באינטרנט.', did: ['עיצבתי', 'בניתי'], tools: ['Figma', 'HTML'],
+        result: 'רוב התורים דרך האתר.',
+      },
+      {
+        title: 'מומצא', kind: 'SUPER_KIND', context: 'nope', team: 'x',
+        fromYear: 3024, fromMonth: 13, id: 'w0-existing',
+        links: [{ url: 'javascript:alert(1)' }, { url: 'data:text/html,x' }],
+        images: [{ src: 'data:image/png;base64,iVBORw0KGgo=' }],
+      },
+      { title: '', brief: 'בלי שם' },
+      { notAWork: true },
+      'לא אובייקט בכלל',
+    ],
+    missing: ['שנים', 'לקוחות', 'תוצאות', 'קישורים', 'חמישי'],
+  });
+
+  ok(reading.works.length === 2, `${reading.works.length} works survived, not 2`);
+  ok(reading.dropped === 3, `${reading.dropped} nameless entries were counted, not 3`);
+
+  const good = reading.works[0];
+  ok(good.title === 'אתר למספרה' && good.kind === 'site' && good.context === 'client',
+    'a well-formed work did not survive the normalising');
+  ok(good.did === 'עיצבתי\nבניתי', `a list of lines came out as ${JSON.stringify(good.did)}`);
+  ok(write.formatPeriod(good.period) === 'מרץ–מאי 2024', 'the dates did not survive');
+  ok(JSON.stringify(good.tools) === JSON.stringify(['Figma', 'HTML']), 'the tools did not survive');
+
+  const bad = reading.works[1];
+  ok(bad.kind === 'other', `an invented kind came through as "${bad.kind}"`);
+  ok(bad.context === 'personal', `an invented context came through as "${bad.context}"`);
+  ok(bad.team === '', `an invented team came through as "${bad.team}"`);
+  ok(bad.period.fromYear === null && bad.period.fromMonth === null, 'an impossible date survived');
+  ok(bad.links.length === 0, `${bad.links.length} links the allowlist forbids reached a work`);
+  ok(bad.images.length === 0, 'a model put an image in a work');
+  ok(bad.id !== 'w0-existing', 'a model chose the id of a work, which is how it would overwrite one');
+  ok(reading.headline.length === 120, `the headline came through ${reading.headline.length} characters long`);
+  ok(reading.missing.length === 4, `${reading.missing.length} "missing" notes came through, not 4`);
+
+  /* And the document built out of that response is still a document. */
+  const out = html.toHtml({ owner: { name: 'א' }, works: reading.works }, AT);
+  ok(!out.includes('javascript:'), 'a model response put a javascript: URL in the file');
+  ok(out.includes('אתר למספרה'), 'the work the model got right is missing from the file');
+}
+
+/*
+ * The reader that runs when there is no key, which is most of the time.
+ *
+ * Its promise is narrow and stated on the screen: one line is one work, and
+ * nothing is guessed. Both halves are checked here — what it finds, and what it
+ * leaves alone.
+ */
+{
+  const text = 'עיצבתי ובניתי אתר למספרה של רון ב-2024, לבד, בפיגמה ו-HTML\n'
+    + 'אפליקציית מתכונים לעצמי, התחלתי ב-2023 ועדיין עובד על זה, React\n'
+    + 'מיתוג לכנס נגישות בעבודה, 2019 עד 2021, הובלתי צוות של שניים\n'
+    + 'צילמתי חתונה של חברים במאי 2022';
+  const r = offline.readOffline(text);
+
+  ok(r.works.length === 4, `the rules split four lines into ${r.works.length} works`);
+  ok(JSON.stringify(r.works.map((w) => w.kind)) === JSON.stringify(['site', 'app', 'brand', 'photo']),
+    `the kinds came out ${JSON.stringify(r.works.map((w) => w.kind))}`);
+  ok(JSON.stringify(r.works.map((w) => w.period.fromYear)) === JSON.stringify([2024, 2023, 2019, 2022]),
+    `the years came out ${JSON.stringify(r.works.map((w) => w.period.fromYear))}`);
+  ok(r.works[1].period.ongoing === true, '"עדיין עובד על זה" did not register as ongoing');
+  ok(r.works[2].period.toYear === 2021, 'a second year in the line was not read as the end');
+  ok(r.works[3].period.fromMonth === 5, 'a named month was not read');
+  ok(JSON.stringify(r.works[0].tools) === JSON.stringify(['Figma', 'HTML']),
+    `the tools came out ${JSON.stringify(r.works[0].tools)}`);
+  ok(r.works[1].tools.indexOf('React') >= 0, 'React was not recognised');
+  ok(r.works[2].team === 'lead' && r.works[0].team === 'alone',
+    `the team words came out ${r.works[2].team} / ${r.works[0].team}`);
+  ok(r.works[1].context === 'personal' && r.works[2].context === 'work',
+    `the context words came out ${r.works[1].context} / ${r.works[2].context}`);
+
+  /* What it does not do. Each of these is a promise the screen makes. */
+  ok(r.works.every((w) => w.brief), 'the line the person wrote was not kept as the brief');
+  ok(r.works.every((w) => !w.role && !w.result && !w.learned),
+    'the offline reader filled a field it cannot know');
+  ok(r.works[3].context === '', 'a line with no context word was given one anyway');
+
+  const blob = offline.readOffline('עשיתי הרבה דברים. אתר, לוגו, וגם צילמתי.');
+  ok(blob.works.length === 1 && blob.oneBlock === true,
+    'an unbroken paragraph was split by sentence, which is a guess about where the works are');
+  ok(blob.works[0].title === 'עשיתי הרבה דברים', `the title came out "${blob.works[0].title}"`);
+
+  ok(offline.readOffline('').works.length === 0, 'an empty text produced a work');
+  ok(offline.readOffline('- אתר\n* לוגו\n1. מיתוג').works.every((w) => !/^[-*\d]/.test(w.title)),
+    'a bullet the person typed became part of the title');
+
+  /* The word-boundary rule for Latin tool names, which fired inside other words
+   * before it was there. */
+  const boundary = offline.readOffline('בניתי משהו ב-JavaScript, סתם בשביל הכיף');
+  ok(JSON.stringify(boundary.works[0].tools) === JSON.stringify(['JavaScript']),
+    `"JavaScript" matched ${JSON.stringify(boundary.works[0].tools)}`);
+  ok(offline.readOffline('just a line').works[0].tools.length === 0,
+    '"just" was read as JavaScript');
+}
+
+/* ------------------------------------------------------------------ *
+ * 9. Storage that refuses
  * ------------------------------------------------------------------ */
 
 /*

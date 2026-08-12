@@ -29,7 +29,7 @@ const EMPTY = {
   version: 1,
   owner: { name: '', headline: '', about: '', email: '', phone: '', site: '', location: '' },
   works: [],
-  ui: { tab: 'owner', editing: null },
+  ui: { tab: 'quick', editing: null },
 };
 
 function normalize(raw) {

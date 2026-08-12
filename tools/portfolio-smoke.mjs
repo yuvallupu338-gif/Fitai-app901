@@ -124,6 +124,10 @@ function makePng(width, height) {
 
 const IMAGE_MAX_PX = 1400;
 
+const PARAGRAPH = 'עיצבתי ובניתי אתר למספרה של רון ב-2024, לבד, בפיגמה ו-HTML\n'
+  + 'אפליקציית מתכונים לעצמי, התחלתי ב-2023 ועדיין עובד על זה, React\n'
+  + 'מיתוג לכנס נגישות בעבודה, 2019 עד 2021, הובלתי צוות של שניים';
+
 /* The one work the whole run is about. Its answers are ordinary on purpose —
  * the hostile ones are the audit's job — except the title, which carries a
  * script tag through the form, the store, a reload and the export. */
@@ -162,15 +166,118 @@ async function main() {
   await page.goto(base, { waitUntil: 'load' });
   await page.waitForSelector('.tabs');
 
-  /* ---- the person ---- */
+  /* ---- the short way in: three details and a paragraph ---- */
 
-  await page.getByLabel('שם', { exact: true }).fill('נועה בר');
+  check((await page.locator('.tabs .btn.on').textContent()) === 'מהיר',
+    'an empty app does not open on the quick screen');
+
+  await page.getByLabel('איך קוראים לך', { exact: true }).fill('נועה בר');
+  /* Written with spaces on purpose: this is the phone shape that used to be
+   * laid out backwards in the exported document. */
+  await page.getByLabel('טלפון', { exact: true }).fill('03 6961234');
+  await page.getByLabel('אתר או פרופיל, אם יש', { exact: true }).fill('noabar.co.il');
+  await page.getByLabel('מה עשית?', { exact: true }).fill(PARAGRAPH);
+  await shot('01-quick');
+
+  await page.getByRole('button', { name: 'בלי מודל' }).click();
+  await page.waitForSelector('.readlist');
+  const readTitles = await page.locator('.readlist li').allTextContents();
+  check(readTitles.length === 3, `the rules split the paragraph into ${readTitles.length} works, not 3`);
+  check(readTitles[0].startsWith('עיצבתי ובניתי אתר למספרה'), `the first work is "${readTitles[0]}"`);
+  check((await page.locator('.readlist').locator('..').textContent()).includes('בלי מודל'),
+    'the screen does not say which of the two readers ran');
+  const offlineKinds = await page.evaluate(() => window.portfolio.store.get().works.map((w) => w.kind));
+  check(JSON.stringify(offlineKinds) === JSON.stringify(['site', 'app', 'brand']),
+    `the rules read the kinds as ${JSON.stringify(offlineKinds)}`);
+  const offlineYears = await page.evaluate(() => window.portfolio.store.get().works.map((w) => w.period.fromYear));
+  check(JSON.stringify(offlineYears) === JSON.stringify([2024, 2023, 2019]),
+    `the years came out ${JSON.stringify(offlineYears)}`);
+  await shot('02-read');
+
+  /* Undo has to be a real undo, or the button is a lie about somebody's work. */
+  await page.getByRole('button', { name: 'בטל את ההוספה' }).click();
+  check((await page.evaluate(() => window.portfolio.store.get().works.length)) === 0,
+    'undoing the import left works behind');
+
+  /* ---- the same paragraph, through a stubbed model ---- */
+
+  /*
+   * The model path with no key and no network: the request is intercepted and
+   * answered with the shape a provider really returns. What that proves is the
+   * whole wiring — the request body this app builds, the tool call it extracts,
+   * the normalising, and the works landing in the store — and it proves the
+   * privacy claim on the screen, which is that the paragraph is the only thing
+   * that leaves.
+   */
+  let sent = null;
+  await page.route('https://api.anthropic.com/**', async (route) => {
+    sent = route.request().postData();
+    await route.fulfill({
+      status: 200,
+      contentType: 'application/json',
+      body: JSON.stringify({
+        content: [{
+          type: 'tool_use',
+          name: 'fill_portfolio',
+          input: {
+            headline: 'מעצבת מוצר',
+            works: [
+              {
+                title: 'אתר תדמית למספרה', kind: 'site', context: 'client', clientName: 'מספרת רון',
+                team: 'alone', fromYear: 2024, fromMonth: 3, toYear: 2024, toMonth: 5,
+                brief: 'לא היו באינטרנט בכלל.', did: ['עיצבתי בפיגמה', 'בניתי בלי תלויות'],
+                tools: ['Figma', 'HTML'], result: 'התורים נקבעים דרך האתר.',
+              },
+              /* Everything below is what a wrong or hostile answer looks like. */
+              { title: 'עבודה עם סוג מומצא', kind: 'SUPER_KIND', context: 'nope', team: 'x', fromYear: 3024 },
+              { title: '', brief: 'בלי שם' },
+              { title: 'קישור אסור', kind: 'site', links: [{ url: 'javascript:alert(1)' }] },
+            ],
+            missing: ['שנים', 'מה יצא'],
+          },
+        }],
+      }),
+    });
+  });
+  await page.evaluate(() => window.localStorage.setItem('fitai.key.anthropic', 'sk-ant-' + 'x'.repeat(24)));
+  await page.reload({ waitUntil: 'load' });
+  await page.getByLabel('מה עשית?', { exact: true }).fill(PARAGRAPH);
+  await page.getByRole('button', { name: 'תרכיב לי את התיק' }).click();
+  await page.waitForSelector('.readlist', { timeout: 20000 });
+
+  check(!!sent, 'the model button sent no request');
+  const body = JSON.parse(sent || '{}');
+  check(body.tools && body.tools[0] && body.tools[0].name === 'fill_portfolio',
+    'the request does not ask for the portfolio tool');
+  check(JSON.stringify(body.messages || []).includes('מספרה'), 'the paragraph was not in the request');
+  check(!JSON.stringify(body).includes('6961234'), 'the phone number was sent to the model');
+  check(!JSON.stringify(body).includes('noabar.co.il'), "the person's site was sent to the model");
+
+  const fromModel = await page.evaluate(() => window.portfolio.store.get().works.map((w) => ({
+    title: w.title, kind: w.kind, context: w.context, links: w.links.length, from: w.period.fromYear,
+  })));
+  check(fromModel.length === 3, `${fromModel.length} works survived normalising, not 3`);
+  check(fromModel[1].kind === 'other' && fromModel[1].context === 'personal',
+    `an invented enum survived as ${fromModel[1].kind}/${fromModel[1].context}`);
+  check(fromModel[1].from === null, 'a year in the year 3024 survived');
+  check(fromModel[2].links === 0, 'a javascript: link from the model reached a work');
+  check((await page.locator('.readlist li').count()) === 3, 'the report does not list what was added');
+  check((await page.textContent('.callout.good')).includes('המודל קרא'), 'the screen does not say the model ran');
+  await shot('03-model');
+
+  await page.getByRole('button', { name: 'בטל את ההוספה' }).click();
+  await page.unroute('https://api.anthropic.com/**');
+  await page.evaluate(() => window.localStorage.removeItem('fitai.key.anthropic'));
+
+  /* ---- the rest of the details, on the tab that holds all of them ---- */
+
+  await page.getByRole('button', { name: 'פרטים' }).click();
   await page.getByLabel('במשפט אחד', { exact: true }).fill('מעצבת מוצר');
   await page.getByLabel('אימייל', { exact: true }).fill('noa@example.com');
   await page.waitForTimeout(600);
   check((await page.locator('.explain h3').textContent()).includes('נועה בר'),
-    'the panel under the details does not show the name as it is typed');
-  await shot('01-owner');
+    'the name typed on the quick screen did not reach the details screen');
+  await shot('04-owner');
   await page.getByRole('button', { name: 'לעבודות ←' }).click();
 
   /* ---- one work ---- */
@@ -433,7 +540,7 @@ async function main() {
   });
   await full.goto(base, { waitUntil: 'load' });
   await full.waitForSelector('.tabs');
-  await full.getByLabel('שם', { exact: true }).fill('מי שאין לו מקום');
+  await full.getByLabel('איך קוראים לך', { exact: true }).fill('מי שאין לו מקום');
   /* Waited for rather than asserted on, and the absence is a reported failure
    * rather than a timeout — a check that dies takes the rest of the run with
    * it, and this one sits before the file:// pass. */
@@ -441,7 +548,7 @@ async function main() {
   check(warned, 'a device with no room left says nothing on the details screen');
   const fullText = warned ? await full.locator('.warnbox.hot').first().textContent() : '';
   check(fullText.includes('אין מקום'), `a full device says "${fullText.slice(0, 40)}…"`);
-  check((await full.getByLabel('שם', { exact: true }).inputValue()) === 'מי שאין לו מקום',
+  check((await full.getByLabel('איך קוראים לך', { exact: true }).inputValue()) === 'מי שאין לו מקום',
     'a save that failed also took the answer out of the form');
   await full.close();
 
@@ -549,7 +656,7 @@ async function main() {
       doc: window.portfolio.html({ now: new Date('2026-08-12T09:00:00Z') }).slice(0, 15),
       warned: document.body.innerText.includes('לא שומר'),
     }));
-    check(built.tabs === 3, `the bundle opened with ${built.tabs} tabs`);
+    check(built.tabs === 4, `the bundle opened with ${built.tabs} tabs`);
     check(built.doc === '<!DOCTYPE html>', 'the bundle cannot build a document');
     check(built.persists || built.warned, 'the bundle cannot save and does not say so');
     check(offlineErrors.length === 0, `the bundle logged ${offlineErrors.join(' | ')}`);

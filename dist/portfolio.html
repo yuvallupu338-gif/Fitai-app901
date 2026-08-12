@@ -1232,6 +1232,34 @@ body.resting .modal-back { padding-bottom: 96px; }
   display: block;
 }
 
+/* ---- the quick screen ---- */
+
+.leadcard { border-inline-start: 3px solid var(--cyan); }
+.leadcard h3 { margin-top: 4px; }
+.leadcard .help { margin-top: 6px; }
+
+.aibox {
+  margin-top: 14px;
+  background: var(--steel);
+  border: 1px solid var(--line-soft);
+  border-radius: var(--r);
+  padding: 4px 18px;
+}
+.aibox > summary {
+  cursor: pointer;
+  padding: 12px 0;
+  font-size: 14px;
+  color: var(--dim);
+  /* The marker is kept — this is a disclosure and the arrow is what says so. */
+}
+.aibox[open] > summary { color: var(--chalk); }
+.aiinner { padding-bottom: 14px; }
+.aiinner .help { margin-bottom: 10px; }
+.warnline { border-inline-start: 2px solid var(--amber-deep); padding-inline-start: 10px; }
+
+.readlist { margin: 8px 18px 0; padding: 0; }
+.readlist li { font-size: 14.5px; margin-top: 4px; }
+
 </style>
 </head>
 <body>
@@ -1905,7 +1933,7 @@ const EMPTY = {
   version: 1,
   owner: { name: '', headline: '', about: '', email: '', phone: '', site: '', location: '' },
   works: [],
-  ui: { tab: 'owner', editing: null },
+  ui: { tab: 'quick', editing: null },
 };
 
 function normalize(raw) {
@@ -2128,6 +2156,1746 @@ function importJson(text) {
     "setUi": setUi,
     "exportJson": exportJson,
     "importJson": importJson,
+  };
+})();
+
+__m["src/ai/providers.js"] = (function () {
+/*
+ * providers.js — the model vendors this app can talk to, and the shape each one
+ * wants its request in.
+ *
+ * Two vendors so far, and they differ in more than a hostname: Anthropic takes
+ * the system prompt as a top-level field and returns a tool call as a content
+ * block with a parsed object; the OpenAI-compatible ones take system as the
+ * first message and return the tool arguments as a JSON *string* that has to be
+ * parsed and can therefore be malformed. Both shapes live here so the rest of
+ * the app can ask for "a structured answer" without knowing which.
+ *
+ * VISION IS A CAPABILITY, NOT A PREFERENCE.
+ *
+ * The photo scan reads two photographs. A text-only model cannot do it — not
+ * slowly, not badly, not at all — so `vision: false` providers are excluded
+ * from that job by the code rather than by a warning someone can click past.
+ * They are perfectly good at the text jobs, and get those instead.
+ */
+
+/* ------------------------------------------------------------------ *
+ * Request builders
+ * ------------------------------------------------------------------ */
+
+function anthropicHeaders(key) {
+  return {
+    'content-type': 'application/json',
+    'x-api-key': key,
+    'anthropic-version': '2023-06-01',
+    // Without this the API rejects any request whose Origin is a browser.
+    'anthropic-dangerous-direct-browser-access': 'true',
+  };
+}
+
+function anthropicBody(req) {
+  return {
+    model: req.model,
+    max_tokens: req.maxTokens,
+    system: req.system,
+    messages: req.messages,
+    tools: [{
+      name: req.tool.name,
+      description: req.tool.description,
+      input_schema: req.tool.schema,
+    }],
+    tool_choice: { type: 'tool', name: req.tool.name },
+  };
+}
+
+function anthropicExtract(data, toolName) {
+  const block = (data.content || []).find((c) => c && c.type === 'tool_use' && c.name === toolName);
+  if (block && block.input && typeof block.input === 'object') return { ok: true, input: block.input };
+  return { ok: false, stop: data.stop_reason };
+}
+
+function bearerHeaders(key) {
+  return { 'content-type': 'application/json', authorization: `Bearer ${key}` };
+}
+
+function openaiBody(req) {
+  // system is a message here, not a field.
+  const messages = req.system
+    ? [{ role: 'system', content: req.system }].concat(req.messages)
+    : req.messages.slice();
+  return {
+    model: req.model,
+    max_tokens: req.maxTokens,
+    messages,
+    tools: [{
+      type: 'function',
+      function: {
+        name: req.tool.name,
+        description: req.tool.description,
+        parameters: req.tool.schema,
+      },
+    }],
+    tool_choice: { type: 'function', function: { name: req.tool.name } },
+  };
+}
+
+function openaiExtract(data, toolName) {
+  const msg = ((data.choices || [])[0] || {}).message || {};
+  const call = (msg.tool_calls || []).find((c) => c && c.function && c.function.name === toolName);
+  if (!call) return { ok: false, stop: ((data.choices || [])[0] || {}).finish_reason };
+  try {
+    // The arguments arrive as a STRING, so this is the one place a well-formed
+    // HTTP 200 can still carry unparseable content.
+    const input = JSON.parse(call.function.arguments);
+    if (input && typeof input === 'object') return { ok: true, input };
+  } catch (e) { /* fall through to the same "no usable tool call" path */ }
+  return { ok: false, stop: 'bad_arguments' };
+}
+
+/* ------------------------------------------------------------------ *
+ * The table
+ * ------------------------------------------------------------------ */
+
+const PROVIDERS = [
+  {
+    id: 'anthropic',
+    label: 'Anthropic',
+    endpoint: 'https://api.anthropic.com/v1/messages',
+    consoleHost: 'console.anthropic.com',
+    keyHint: 'sk-ant-…',
+    vision: true,
+    // Anthropic documents and supports calls straight from a browser.
+    browserOk: true,
+    headers: anthropicHeaders,
+    body: anthropicBody,
+    extract: anthropicExtract,
+    image: (mediaType, data) => ({
+      type: 'image',
+      source: { type: 'base64', media_type: mediaType, data },
+    }),
+    models: [
+      {
+        value: 'claude-sonnet-5', label: 'מהיר', vision: true,
+        desc: 'קריאה טובה של שתי התמונות בכמה שניות. ברירת המחדל.',
+      },
+      {
+        value: 'claude-opus-5', label: 'מעמיק', vision: true,
+        desc: 'איטי ויקר יותר, מדייק יותר כשהתמונה קשה או שהיעד גבולי.',
+      },
+    ],
+  },
+  {
+    id: 'deepseek',
+    label: 'DeepSeek',
+    endpoint: 'https://api.deepseek.com/chat/completions',
+    consoleHost: 'platform.deepseek.com',
+    keyHint: 'sk-…',
+    // Text only. Both hosted models take text in and text out; there is no
+    // image content type to send them, so the scan never offers this provider.
+    vision: false,
+    // Not documented as browser-callable. The request may be refused by the
+    // browser before it leaves the machine, and the error path says so.
+    browserOk: false,
+    headers: bearerHeaders,
+    body: openaiBody,
+    extract: openaiExtract,
+    image: null,
+    models: [
+      {
+        value: 'deepseek-v4-flash', label: 'מהיר', vision: false,
+        desc: 'זול ומהיר. מתאים לניסוח ולהבנת טקסט חופשי.',
+      },
+      {
+        value: 'deepseek-v4-pro', label: 'מעמיק', vision: false,
+        desc: 'איטי ויקר יותר, מדייק יותר בטקסט מורכב.',
+      },
+    ],
+  },
+];
+
+const BY_ID = new Map(PROVIDERS.map((p) => [p.id, p]));
+
+function providerById(id) {
+  return BY_ID.get(id) || null;
+}
+
+/** Providers able to do a given job. `vision` jobs exclude the text-only ones. */
+function providersFor(job) {
+  return job === 'vision' ? PROVIDERS.filter((p) => p.vision) : PROVIDERS.slice();
+}
+
+/** The models of one provider that can do the job. */
+function modelsFor(provider, job) {
+  if (!provider) return [];
+  return job === 'vision' ? provider.models.filter((m) => m.vision) : provider.models.slice();
+}
+
+function defaultProviderFor(job) {
+  const list = providersFor(job);
+  return list.length ? list[0] : null;
+}
+
+  return {
+    "PROVIDERS": PROVIDERS,
+    "providerById": providerById,
+    "providersFor": providersFor,
+    "modelsFor": modelsFor,
+    "defaultProviderFor": defaultProviderFor,
+  };
+})();
+
+__m["src/ai/client.js"] = (function () {
+/*
+ * client.js — the only module in this app that opens a network connection.
+ *
+ * Everything else runs on the device. This one asks a model for a STRUCTURED
+ * answer — never free prose — and hands back the object it produced. Which
+ * vendor answers is a setting; the shape of the question and the shape of the
+ * reply are not.
+ *
+ * Keys are stored per vendor, under their own storage keys, so exporting a
+ * profile never carries one along and adding a second vendor never overwrites
+ * the first one's key. Each key goes to exactly one host: the endpoint of the
+ * provider it belongs to.
+ *
+ * Jobs, not models, are what the app asks for. 'vision' means the request
+ * carries photographs and only a vision-capable provider can serve it; 'text'
+ * means it does not. The distinction is enforced here rather than in the UI,
+ * because a text-only model pointed at the photo scan does not degrade — it
+ * fails, and it fails after the user has already uploaded their pictures.
+ */
+
+const { PROVIDERS, providerById, providersFor, modelsFor, defaultProviderFor } = __m["src/ai/providers.js"];
+
+const KEY_PREFIX = 'fitai.key.';
+const CHOICE_PREFIX = 'fitai.ai.';
+
+/* ------------------------------------------------------------------ *
+ * Keys
+ * ------------------------------------------------------------------ */
+
+function loadKey(providerId) {
+  try {
+    return window.localStorage.getItem(KEY_PREFIX + providerId) || '';
+  } catch (e) {
+    return '';
+  }
+}
+
+function saveKey(providerId, key) {
+  const clean = String(key || '').trim();
+  try {
+    if (clean) window.localStorage.setItem(KEY_PREFIX + providerId, clean);
+    else window.localStorage.removeItem(KEY_PREFIX + providerId);
+    return true;
+  } catch (e) {
+    return false;
+  }
+}
+
+function hasKey(providerId) {
+  return !!loadKey(providerId);
+}
+
+/** A key is a long opaque string; catching the obvious paste error is worth it. */
+function keyLooksValid(key) {
+  const k = String(key || '').trim();
+  return k.length >= 20 && !/\s/.test(k);
+}
+
+/* ------------------------------------------------------------------ *
+ * Which provider and model serve which job
+ * ------------------------------------------------------------------ */
+
+/**
+ * Returns { provider, model } for a job, falling back to the first provider
+ * that can actually do it. A stored choice that has become invalid — a text-only
+ * provider saved against the vision job, a model removed from the table — is
+ * discarded rather than trusted.
+ */
+function choiceFor(job) {
+  let stored = null;
+  try {
+    stored = JSON.parse(window.localStorage.getItem(CHOICE_PREFIX + job) || 'null');
+  } catch (e) { /* a corrupt choice is the same as no choice */ }
+
+  const allowed = providersFor(job);
+  let provider = stored && allowed.some((p) => p.id === stored.provider)
+    ? providerById(stored.provider)
+    : defaultProviderFor(job);
+  if (!provider) provider = defaultProviderFor(job);
+
+  const models = modelsFor(provider, job);
+  const model = stored && models.some((m) => m.value === stored.model)
+    ? stored.model
+    : (models[0] && models[0].value) || '';
+
+  return { provider, model };
+}
+
+function saveChoice(job, providerId, model) {
+  const allowed = providersFor(job);
+  if (!allowed.some((p) => p.id === providerId)) return false;
+  const provider = providerById(providerId);
+  if (!modelsFor(provider, job).some((m) => m.value === model)) return false;
+  try {
+    window.localStorage.setItem(CHOICE_PREFIX + job, JSON.stringify({ provider: providerId, model }));
+    return true;
+  } catch (e) {
+    return false;
+  }
+}
+
+/* ------------------------------------------------------------------ *
+ * Errors
+ * ------------------------------------------------------------------ */
+
+/**
+ * An error carrying a Hebrew sentence the UI can show as-is, plus a `kind` the
+ * caller can branch on. Everything thrown from this module is one of these.
+ */
+class AiError extends Error {
+  constructor(kind, he, detail) {
+    super(he);
+    this.kind = kind;
+    this.he = he;
+    this.detail = detail || null;
+  }
+}
+
+const STATUS_HE = {
+  400: 'הבקשה נדחתה. לרוב זה אומר שהתמונה גדולה או פגומה, או שהמודל לא תומך במה שנשלח.',
+  401: 'המפתח לא התקבל. בדוק שהעתקת אותו במלואו, ושהוא עדיין פעיל בחשבון שלך.',
+  402: 'אין יתרה בחשבון של הספק. טען אותו ונסה שוב.',
+  403: 'למפתח הזה אין הרשאה למודל שנבחר.',
+  404: 'המודל שנבחר לא נמצא בחשבון שלך. נסה מודל אחר.',
+  413: 'הבקשה כבדה מדי לשליחה. בחר תמונות קטנות יותר.',
+  422: 'הספק דחה את מבנה הבקשה. נסה מודל אחר.',
+  429: 'חרגת ממכסת הבקשות. חכה דקה ונסה שוב.',
+  500: 'תקלה בצד של השרת. נסה שוב עוד רגע.',
+  503: 'השירות לא זמין כרגע. נסה שוב עוד דקה.',
+  529: 'השרת עמוס כרגע. נסה שוב עוד דקה.',
+};
+
+/* ------------------------------------------------------------------ *
+ * The call
+ * ------------------------------------------------------------------ */
+
+/**
+ * Sends one structured request and returns the tool input the model produced.
+ *
+ * @param {Object} req  { job, system, messages, tool: {name, description, schema},
+ *                        maxTokens, provider, model, signal }
+ * @returns {Promise<Object>} the tool input object, unvalidated by this app
+ */
+async function callTool(req) {
+  const job = req.job || 'text';
+  const chosen = choiceFor(job);
+  const provider = req.provider ? providerById(req.provider) : chosen.provider;
+  const model = req.model || chosen.model;
+
+  if (!provider) {
+    throw new AiError('no_provider', 'אין ספק מודל שמתאים למשימה הזאת.');
+  }
+  if (job === 'vision' && !provider.vision) {
+    // Reachable only from a bug or a hand-edited setting; the UI never offers
+    // a text-only provider for this job.
+    throw new AiError('no_vision',
+      `${provider.label} הוא מודל טקסט בלבד ולא מקבל תמונות. בחר ספק עם ראייה.`);
+  }
+
+  const key = loadKey(provider.id);
+  if (!key) {
+    throw new AiError('no_key', `אין מפתח API ל־${provider.label}. הזן מפתח כדי להפעיל.`);
+  }
+
+  let res;
+  try {
+    res = await fetch(provider.endpoint, {
+      method: 'POST',
+      headers: provider.headers(key),
+      body: JSON.stringify(provider.body({
+        model,
+        maxTokens: req.maxTokens || 2000,
+        system: req.system,
+        messages: req.messages,
+        tool: req.tool,
+      })),
+      signal: req.signal,
+    });
+  } catch (e) {
+    if (e && e.name === 'AbortError') throw new AiError('aborted', 'הפעולה בוטלה.');
+    // A browser reports CORS refusals, DNS failures and a dead connection with
+    // the same contentless TypeError, so name all three — and name the one that
+    // is specific to this provider.
+    throw new AiError('network',
+      'לא הצלחתי להגיע לשרת. בדוק את החיבור לאינטרנט. '
+      + (provider.browserOk
+        ? 'אם פתחת את הקובץ ישירות מהדיסק, חלק מהדפדפנים חוסמים את הבקשה — נסה מדפדפן אחר או משרת מקומי.'
+        : `${provider.label} לא מצהיר על תמיכה בקריאה ישירה מדפדפן, ולכן ייתכן שהדפדפן חסם את הבקשה `
+          + 'לפני שיצאה. במקרה כזה צריך שרת ביניים, וזה לא משהו שהאפליקציה הזאת מריצה.'),
+      String((e && e.message) || e));
+  }
+
+  if (!res.ok) {
+    let detail = '';
+    try {
+      const err = await res.json();
+      detail = (err && ((err.error && err.error.message) || err.message)) || '';
+    } catch (e) { /* a non-JSON error body is still an error */ }
+    throw new AiError(`http_${res.status}`, STATUS_HE[res.status] || `השרת החזיר שגיאה ${res.status}.`, detail);
+  }
+
+  let data;
+  try {
+    data = await res.json();
+  } catch (e) {
+    throw new AiError('bad_json', 'התשובה מהשרת לא הייתה קריאה. נסה שוב.');
+  }
+
+  const got = provider.extract(data, req.tool.name);
+  if (!got.ok) {
+    if (got.stop === 'max_tokens' || got.stop === 'length') {
+      throw new AiError('truncated', 'התשובה נקטעה באמצע. נסה שוב.');
+    }
+    if (got.stop === 'refusal') {
+      throw new AiError('refused',
+        'המודל סירב לענות על הבקשה הזאת. נסה קלט אחר.');
+    }
+    if (got.stop === 'bad_arguments') {
+      throw new AiError('bad_tool', 'המודל החזיר תשובה פגומה. נסה שוב.');
+    }
+    throw new AiError('no_tool', 'המודל לא החזיר תשובה בפורמט שביקשתי. נסה שוב, או מודל אחר.');
+  }
+  return got.input;
+}
+
+/* ------------------------------------------------------------------ *
+ * Images
+ * ------------------------------------------------------------------ */
+
+const DATA_URL_RE = /^data:image\/(jpeg|jpg|png|webp|gif);base64,([A-Za-z0-9+/=]+)$/;
+
+/**
+ * Turns a stored data URL into the image block the given provider wants.
+ * Returns null for anything that is not one, so a corrupted profile cannot put
+ * garbage on the wire, and null for a provider with no image format at all.
+ */
+function imageBlock(dataUrl, provider) {
+  const m = DATA_URL_RE.exec(String(dataUrl || ''));
+  if (!m || !provider || !provider.image) return null;
+  const type = m[1] === 'jpg' ? 'jpeg' : m[1];
+  return provider.image(`image/${type}`, m[2]);
+}
+
+/** Rough byte size of a base64 payload, for the "too big" check before sending. */
+function dataUrlBytes(dataUrl) {
+  const m = DATA_URL_RE.exec(String(dataUrl || ''));
+  return m ? Math.floor((m[2].length * 3) / 4) : 0;
+}
+
+
+
+  return {
+    "loadKey": loadKey,
+    "saveKey": saveKey,
+    "hasKey": hasKey,
+    "keyLooksValid": keyLooksValid,
+    "choiceFor": choiceFor,
+    "saveChoice": saveChoice,
+    "AiError": AiError,
+    "callTool": callTool,
+    "imageBlock": imageBlock,
+    "dataUrlBytes": dataUrlBytes,
+    "PROVIDERS": PROVIDERS,
+    "providerById": providerById,
+    "providersFor": providersFor,
+    "modelsFor": modelsFor,
+  };
+})();
+
+__m["src/ui/aisettings.js"] = (function () {
+/*
+ * aisettings.js — the provider, key and model rows, shared by every screen that
+ * calls a model.
+ *
+ * There are two such screens now and they need the same three controls with
+ * different answers, because the jobs have different requirements: the photo
+ * scan needs a provider that can see, and the intake reader does not. Passing
+ * the job through means the vision-only filter is applied once, here, instead
+ * of being remembered separately at each call site.
+ */
+
+const { h } = __m["src/core/dom.js"];
+const { loadKey, saveKey, keyLooksValid, saveChoice, providersFor, modelsFor, providerById, } = __m["src/ai/client.js"];
+
+/**
+ * The key field for one provider. Typing does NOT redraw — that would steal
+ * focus mid-word — so `onChange` is expected to refresh only what depends on
+ * whether a key is present.
+ */
+function keyRow(provider, onChange) {
+  const input = h('input', {
+    type: 'password', value: loadKey(provider.id), placeholder: provider.keyHint,
+    autocomplete: 'off', spellcheck: 'false', dir: 'ltr',
+    'aria-label': `מפתח API של ${provider.label}`,
+    oninput: (e) => { saveKey(provider.id, e.target.value); onChange(); },
+  });
+
+  const reveal = h('button.fbtn', {
+    type: 'button', 'aria-pressed': 'false',
+    title: 'הצג או הסתר את המפתח',
+    onclick: (e) => {
+      const shown = input.type === 'text';
+      input.type = shown ? 'password' : 'text';
+      e.currentTarget.setAttribute('aria-pressed', shown ? 'false' : 'true');
+      e.currentTarget.textContent = shown ? 'הצג' : 'הסתר';
+    },
+  }, 'הצג');
+
+  return h('div.field',
+    h('label', `מפתח API · ${provider.label}`),
+    h('div.keyrow', input, reveal),
+    h('p.help',
+      `מפתח משלך מ־${provider.consoleHost}. נשמר במכשיר שלך בלבד, לא נכלל בייצוא הנתונים, `
+      + `ונשלח רק לכתובת אחת — ${hostOf(provider.endpoint)}. `
+      + 'לכל ספק מפתח נפרד, והוספת אחד לא דורסת את השני.'),
+  );
+}
+
+function hostOf(url) {
+  try {
+    return new URL(url).host;
+  } catch (e) {
+    return url;
+  }
+}
+
+/**
+ * The provider picker. Hidden when the job has only one candidate — a choice of
+ * one is not a choice. For a vision job the text-only providers are absent
+ * rather than disabled: they cannot do the work at all, so offering them with a
+ * warning would just be a slower way to reach the same error.
+ */
+function providerRow(job, current, onPick) {
+  const options = providersFor(job);
+  if (options.length < 2) return null;
+  return h('div.field',
+    h('label', 'ספק'),
+    h('div.opts.two', options.map((pv) => h('button.opt' + (pv.id === current.id ? '.on' : ''), {
+      type: 'button', 'aria-pressed': pv.id === current.id ? 'true' : 'false',
+      onclick: () => onPick(pv.id),
+    },
+    h('span.tick', pv.id === current.id ? '✓' : ''),
+    h('span.otext',
+      h('span.otitle', pv.label),
+      h('span.odesc', pv.vision ? 'טקסט ותמונות' : 'טקסט בלבד')))),
+    ),
+  );
+}
+
+function modelRow(job, provider, current, label, onPick) {
+  const models = modelsFor(provider, job);
+  return h('div.field',
+    h('label', label || 'מודל'),
+    h('div.opts.two', models.map((m) => h('button.opt' + (m.value === current ? '.on' : ''), {
+      type: 'button', 'aria-pressed': m.value === current ? 'true' : 'false',
+      onclick: () => onPick(m.value),
+    },
+    h('span.tick', m.value === current ? '✓' : ''),
+    h('span.otext', h('span.otitle', m.label), h('span.odesc', m.desc))))),
+  );
+}
+
+/**
+ * All three rows for a job, wired to persist and redraw. Returns an array so
+ * the caller can place them among its own fields.
+ */
+function settingsRows(job, choice, opts) {
+  const o = opts || {};
+  const rows = [];
+  const pRow = providerRow(job, choice.provider, (id) => {
+    const first = modelsFor(providerById(id), job)[0];
+    saveChoice(job, id, first ? first.value : '');
+    if (o.onRedraw) o.onRedraw();
+  });
+  if (pRow) rows.push(pRow);
+  rows.push(keyRow(choice.provider, o.onKeyInput || (() => {})));
+  rows.push(modelRow(job, choice.provider, choice.model, o.modelLabel, (value) => {
+    saveChoice(job, choice.provider.id, value);
+    if (o.onRedraw) o.onRedraw();
+  }));
+  return rows;
+}
+
+
+
+  return {
+    "keyRow": keyRow,
+    "providerRow": providerRow,
+    "modelRow": modelRow,
+    "settingsRows": settingsRows,
+    "keyLooksValid": keyLooksValid,
+    "loadKey": loadKey,
+  };
+})();
+
+__m["portfolio/src/ai/read.js"] = (function () {
+/*
+ * read.js — a paragraph in, a list of works out.
+ *
+ * Fifteen questions per work is the reason somebody opens this app, types one
+ * work, and never comes back. Most people can describe three years of what they
+ * did in five sentences — "עיצבתי אתר למספרה של רון ב-2024, בניתי לבד בפיגמה,
+ * אחרי זה עשיתי אפליקציית מתכונים לעצמי" — and every clause in that is an
+ * answer to a question further down the form.
+ *
+ * WHAT COMES BACK IS A DRAFT, NOT A PORTFOLIO.
+ *
+ * The model proposes works. Every field of every one of them is then put
+ * through `normaliseWork` — the same function a typed answer goes through —
+ * which clamps the lengths, drops any enum value that is not one of ours, keeps
+ * only links whose scheme is allowed and refuses images outright. So the worst a
+ * wrong or hostile answer can do is fill the form with a legal work that the
+ * person can see and correct, which is the whole reason the works land in the
+ * editor rather than in the file.
+ *
+ * It cannot write a field the form does not have, and it cannot put a value in
+ * one the form would reject. `tools/portfolio-audit.mjs` drives this module with
+ * hostile responses and asserts exactly that.
+ *
+ * The one instruction that matters more than the schema is at the top of the
+ * prompt: copy the person's own sentences, do not improve them. A model asked
+ * to describe somebody's work will write "הובלתי תהליך עיצוב מקיף" about an
+ * evening's work on a friend's logo, and that sentence goes into a document
+ * that gets sent to an employer with the person's name on it.
+ */
+
+const { KINDS, CONTEXTS, TEAMS, YEAR_MIN, YEAR_MAX, normaliseWork, cleanLine, cleanText } = __m["portfolio/src/data/schema.js"];
+const { callTool, AiError } = __m["src/ai/client.js"];
+
+const KIND_IDS = KINDS.map((k) => k.id);
+const CONTEXT_IDS = CONTEXTS.map((c) => c.id);
+const TEAM_IDS = TEAMS.map((t) => t.id);
+
+const SYSTEM = `You read what a person wrote about the work they have done, in Hebrew, and
+split it into the separate works of a portfolio. The app is Hebrew and so is
+their text.
+
+THE RULE THAT MATTERS MOST: use their own words. For every field that is free
+text — brief, did, result, learned — copy the sentences they wrote about that
+work, trimmed to the field, in their words and their register. Do not improve
+them, do not make them sound professional, do not add adjectives. If they wrote
+"עשיתי לוגו לחבר", the brief is that they made a logo for a friend, not that
+they "led a comprehensive branding process". A sentence you invented looks
+exactly like a sentence they wrote, on a document they will send to an employer
+with their name on it.
+
+Fill ONLY what they actually said. Leaving a field out is always correct and
+always safe: the app names the empty fields and asks for them later, with its
+own defaults. Guessing is not safe, because a wrong answer looks identical to a
+right one on the review screen and will be scrolled past.
+
+Specifics that decide most cases:
+
+  * One work per thing they made. Two sentences about the same website are one
+    work; a website and a logo for the same client are two.
+  * "title" is what they would call it in conversation — "אתר למספרה", not
+    "פרויקט עיצוב ופיתוח אתר תדמית".
+  * "kind" is what the thing IS. A website is site, a mobile or web app is app,
+    a logo or a brand system is brand, a poster or a screen design is design,
+    photographs are photo, a written piece is writing, code that is not an app
+    is software, teaching is teaching. When nothing fits, use other.
+  * "context" is who it was for: a paying client is client, a job is work,
+    school or university is study, their own idea is personal, unpaid for an
+    organisation is volunteer, made for the portfolio itself is spec.
+  * Dates: fill fromYear/toYear only when a year is actually stated or plainly
+    implied ("לפני שנתיים" is not a year you know). Months only when named. Set
+    ongoing when they say it is still going.
+  * "did" is a list of the things they actually did — one short line each, in
+    their words. Not a summary, not a plan.
+  * "tools" only for tools, software, languages or equipment they named.
+  * "links" only for addresses they wrote themselves.
+  * Never invent a number. A result of "הרבה יותר פניות" stays that; it does not
+    become "עלייה של 40%".
+
+Also fill "headline": one line describing the person, in their words, only if
+they said what they do. And list in "missing" the things that would most improve
+the portfolio and that they did not say — at most four, each two or three words,
+in Hebrew ("שנים", "שמות לקוחות", "מה יצא מכל עבודה").`;
+
+const TOOL = {
+  name: 'fill_portfolio',
+  description: 'Split what the person wrote into the works of their portfolio, in their own words.',
+  schema: {
+    type: 'object',
+    properties: {
+      headline: { type: 'string', description: 'One line about the person, in their words. Omit if unsaid.' },
+      works: {
+        type: 'array',
+        description: 'One entry per thing they made. Omit the whole field if they described nothing.',
+        items: {
+          type: 'object',
+          properties: {
+            title: { type: 'string', description: 'What they would call it in conversation.' },
+            kind: { type: 'string', enum: KIND_IDS },
+            role: { type: 'string', description: 'Their part in it, in their words.' },
+            context: { type: 'string', enum: CONTEXT_IDS },
+            clientName: { type: 'string', description: 'Only if they named the client, employer or school.' },
+            fromYear: { type: 'integer' },
+            fromMonth: { type: 'integer', description: '1-12, only if a month was named.' },
+            toYear: { type: 'integer' },
+            toMonth: { type: 'integer' },
+            ongoing: { type: 'boolean' },
+            team: { type: 'string', enum: TEAM_IDS },
+            brief: { type: 'string', description: 'What was needed, in their words.' },
+            did: { type: 'array', items: { type: 'string' }, description: 'What they did, one short line each.' },
+            tools: { type: 'array', items: { type: 'string' } },
+            result: { type: 'string', description: 'What came of it, in their words. Never a number they did not say.' },
+            learned: { type: 'string' },
+            links: {
+              type: 'array',
+              items: {
+                type: 'object',
+                properties: { label: { type: 'string' }, url: { type: 'string' } },
+                required: ['url'],
+              },
+            },
+          },
+          required: ['title'],
+        },
+      },
+      missing: {
+        type: 'array',
+        items: { type: 'string' },
+        description: 'Up to four things they did not say that the portfolio would be better for.',
+      },
+    },
+    required: ['works'],
+  },
+};
+
+/*
+ * Everything above is a suggestion until it has been through here.
+ *
+ * `normaliseWork` does the heavy work — it is the same function the form uses —
+ * so this only has to get the shape right and refuse the two things the model
+ * has no business sending at all: an id, which would let a response overwrite a
+ * work already in the portfolio, and images, which are not something a text
+ * model can have.
+ */
+function normaliseReading(raw) {
+  const r = raw && typeof raw === 'object' ? raw : {};
+  const list = Array.isArray(r.works) ? r.works.slice(0, MAX_WORKS) : [];
+  const works = [];
+  let dropped = 0;
+
+  for (const item of list) {
+    const w = item && typeof item === 'object' ? item : {};
+    const title = cleanLine(w.title, 120);
+    /* A work with no name has no heading, and the document drops it later
+     * anyway. Counted rather than silently skipped, so the screen can say. */
+    if (!title) { dropped += 1; continue; }
+    works.push(normaliseWork({
+      id: '',
+      title,
+      kind: pick(w.kind, KIND_IDS, 'other'),
+      role: cleanLine(w.role, 120),
+      context: pick(w.context, CONTEXT_IDS, 'personal'),
+      clientName: cleanLine(w.clientName, 120),
+      period: {
+        fromYear: year(w.fromYear),
+        fromMonth: month(w.fromMonth),
+        toYear: year(w.toYear),
+        toMonth: month(w.toMonth),
+        ongoing: w.ongoing === true,
+      },
+      team: pick(w.team, TEAM_IDS, ''),
+      brief: cleanText(w.brief, 1200),
+      did: lines(w.did),
+      tools: Array.isArray(w.tools) ? w.tools : [],
+      result: cleanText(w.result, 800),
+      learned: cleanText(w.learned, 600),
+      links: Array.isArray(w.links) ? w.links.slice(0, 6) : [],
+      images: [],
+    }, works.length));
+  }
+
+  return {
+    works,
+    dropped,
+    headline: cleanLine(r.headline, 120),
+    missing: Array.isArray(r.missing)
+      ? r.missing.map((m) => cleanLine(m, 40)).filter(Boolean).slice(0, 4)
+      : [],
+  };
+}
+
+const MAX_WORKS = 20;
+const MAX_INPUT = 6000;
+
+function pick(value, allowed, fallback) {
+  const v = cleanLine(value, 40);
+  return allowed.indexOf(v) >= 0 ? v : fallback;
+}
+
+function year(value) {
+  const n = Math.trunc(Number(value));
+  return Number.isFinite(n) && n >= YEAR_MIN && n <= YEAR_MAX ? n : null;
+}
+
+function month(value) {
+  const n = Math.trunc(Number(value));
+  return Number.isFinite(n) && n >= 1 && n <= 12 ? n : null;
+}
+
+/* "did" may come back as a list or as one string; both become lines. */
+function lines(value) {
+  const list = Array.isArray(value) ? value : String(value === undefined || value === null ? '' : value).split('\n');
+  return list.map((l) => cleanLine(l, 200)).filter(Boolean).slice(0, 12).join('\n');
+}
+
+/**
+ * Reads the paragraph and returns { works, headline, missing, dropped }.
+ *
+ * @param {string} description  the person's own words
+ * @param {Object} [opts]       { signal }
+ */
+async function readWorks(description, opts) {
+  const o = opts || {};
+  const body = cleanText(description, MAX_INPUT);
+  if (body.length < 15) {
+    throw new AiError('too_short',
+      'כתבו קצת יותר — מה עשיתם, בשביל מי, ומתי. משפט או שניים לכל עבודה מספיקים.');
+  }
+
+  const input = await callTool({
+    job: 'text',
+    system: SYSTEM,
+    messages: [{
+      role: 'user',
+      content: 'זה מה שהמשתמש כתב על העבודות שלו:\n\n' + body + '\n\n'
+        + 'פרק את זה לעבודות נפרדות, במילים שלו. מה שהוא לא אמר — אל תמלא.',
+    }],
+    tool: TOOL,
+    maxTokens: 4000,
+    signal: o.signal,
+  });
+
+  return normaliseReading(input);
+}
+
+
+
+  return {
+    "SYSTEM": SYSTEM,
+    "TOOL": TOOL,
+    "normaliseReading": normaliseReading,
+    "readWorks": readWorks,
+    "AiError": AiError,
+  };
+})();
+
+__m["portfolio/src/ai/offline.js"] = (function () {
+/*
+ * offline.js — the same job without a model, and without pretending otherwise.
+ *
+ * Most people who open this app do not have an API key and are not going to get
+ * one to write a portfolio. This is what they get instead: a list of rules,
+ * applied to what they typed. It reads years, months, known tools, and the
+ * handful of Hebrew words that say what a thing is and who it was for, and it
+ * puts each line into a work with the text they wrote kept whole.
+ *
+ * It is worth being exact about the difference, because the app says so on the
+ * screen. A model reads prose and can tell that three sentences are about one
+ * website; this cannot, and does not guess. Its rule is stated rather than
+ * inferred: ONE LINE IS ONE WORK. A single unbroken paragraph therefore comes
+ * back as a single work — which is a true answer, and the screen asks the
+ * person to press return between their works if they want them split.
+ *
+ * Everything it does not know it leaves empty, where the app will list it by
+ * name. Nothing here writes a sentence the person did not type: the only
+ * generated text in the whole path is the title, which is the opening clause of
+ * their own line.
+ */
+
+const { MONTHS, normaliseWork, cleanLine, cleanText } = __m["portfolio/src/data/schema.js"];
+
+/*
+ * What a thing is, by the word people use for it.
+ *
+ * Order matters: the first match wins, so the specific ones come before the
+ * general. "אתר תדמית" is a site before it is anything else, and "עיצבתי אתר"
+ * is a site rather than a design job — what the thing IS beats what was done
+ * to it, which is the same rule the prompt gives the model.
+ */
+const KIND_WORDS = [
+  ['site', ['אתר', 'אתרים', 'דף נחיתה', 'לנדינג']],
+  ['app', ['אפליקציה', 'אפליקציית', 'אפליקציות', 'אפליקציה סלולרית']],
+  ['brand', ['מיתוג', 'לוגו', 'שפה חזותית', 'ברendינג']],
+  ['illustration', ['איור', 'איורים', 'אייר', 'ציירתי']],
+  ['photo', ['צילום', 'צילומים', 'צילמתי', 'סשן']],
+  ['video', ['סרטון', 'וידאו', 'קליפ', 'עריכת וידאו']],
+  ['audio', ['פודקאסט', 'סאונד', 'מוזיקה', 'הלחנתי', 'הקלטתי']],
+  ['writing', ['מאמר', 'טקסט', 'כתבתי', 'קופי', 'תוכן', 'ספר']],
+  ['research', ['מחקר', 'סקר', 'עבודה סמינריונית', 'תזה']],
+  ['product', ['מוצר', 'פיתחתי מוצר', 'אב טיפוס', 'פרוטוטייפ']],
+  ['event', ['אירוע', 'כנס', 'הפקה', 'פסטיבל', 'תערוכה']],
+  ['teaching', ['סדנה', 'הדרכה', 'קורס', 'לימדתי', 'העברתי']],
+  ['software', ['קוד', 'תוכנה', 'סקריפט', 'מערכת', 'שרת', 'API']],
+  ['design', ['עיצוב', 'עיצבתי', 'פוסטר', 'כרזה', 'ממשק']],
+];
+
+/* Who it was for. The word that gives it away is usually a preposition. */
+const CONTEXT_WORDS = [
+  ['client', ['ללקוח', 'ללקוחה', 'לקוח', 'עבור', 'בתשלום', 'פרילנס']],
+  ['work', ['בעבודה', 'במשרד', 'בחברה', 'בסטארטאפ', 'במקום העבודה', 'כשכיר']],
+  ['study', ['בלימודים', 'באוניברסיטה', 'במכללה', 'בקורס', 'בבית הספר', 'סמינריון']],
+  ['volunteer', ['התנדבות', 'בהתנדבות', 'עמותה', 'התנדבתי']],
+  ['personal', ['לעצמי', 'פרויקט אישי', 'בשביל עצמי', 'לכיף', 'לבד בבית']],
+  ['spec', ['לתיק', 'תרגיל', 'לתרגול']],
+];
+
+const TEAM_WORDS = [
+  ['lead', ['הובלתי', 'ניהלתי צוות', 'בראש צוות', 'ניהלתי את הצוות']],
+  ['team', ['בצוות', 'עם צוות', 'עם עוד', 'ביחד עם', 'עם שותף', 'עם שותפה']],
+  ['alone', ['לבד', 'לבדי', 'בעצמי', 'הכול לבד']],
+];
+
+/*
+ * Tools are matched as whole words against a list rather than guessed.
+ *
+ * A tool is the one field where a wrong value is embarrassing in a specific
+ * way — claiming software you have never opened, to somebody who is hiring for
+ * it. So the list is closed, both spellings of the ones people write in Hebrew
+ * are in it, and anything not on it is left for the person to type.
+ */
+const TOOLS = [
+  ['Figma', ['figma', 'פיגמה']],
+  ['Photoshop', ['photoshop', 'פוטושופ', 'פוטושופ']],
+  ['Illustrator', ['illustrator', 'אילוסטרייטור']],
+  ['InDesign', ['indesign', 'אינדיזיין']],
+  ['After Effects', ['after effects', 'אפטר']],
+  ['Premiere', ['premiere', 'פרימייר']],
+  ['Lightroom', ['lightroom', 'לייטרום']],
+  ['Procreate', ['procreate', 'פרוקריאט']],
+  ['Sketch', ['sketch']],
+  ['Canva', ['canva', 'קנבה']],
+  ['Blender', ['blender', 'בלנדר']],
+  ['Unity', ['unity', 'יוניטי']],
+  ['WordPress', ['wordpress', 'וורדפרס', 'וורדפרס']],
+  ['Wix', ['wix', 'ויקס']],
+  ['Webflow', ['webflow']],
+  ['Shopify', ['shopify']],
+  ['HTML', ['html']],
+  ['CSS', ['css']],
+  ['JavaScript', ['javascript', "js", 'ג׳אווהסקריפט']],
+  ['TypeScript', ['typescript']],
+  ['React', ['react', 'ריאקט']],
+  ['Vue', ['vue']],
+  ['Node', ['node.js', 'node']],
+  ['Python', ['python', 'פייתון']],
+  ['SQL', ['sql']],
+  ['PHP', ['php']],
+  ['Java', ['java']],
+  ['Swift', ['swift']],
+  ['Kotlin', ['kotlin']],
+  ['Excel', ['excel', 'אקסל']],
+  ['AutoCAD', ['autocad', 'אוטוקאד']],
+  ['SolidWorks', ['solidworks', 'סולידוורקס']],
+];
+
+const ONGOING_WORDS = ['עדיין', 'ממשיך', 'ממשיכה', 'עד היום', 'בתהליך', 'עובד על זה', 'עובדת על זה'];
+
+const MAX_WORKS = 20;
+
+/**
+ * Splits the text into works and fills what the rules can see.
+ *
+ * Returns the same shape as the model reader, so the screen showing the result
+ * does not need to know which of the two produced it.
+ */
+function readOffline(description) {
+  const body = cleanText(description, 6000);
+  const chunks = splitWorks(body);
+  const works = [];
+  let dropped = 0;
+
+  for (const chunk of chunks.slice(0, MAX_WORKS)) {
+    const title = titleOf(chunk);
+    if (!title) { dropped += 1; continue; }
+    const low = chunk.toLowerCase();
+    works.push(normaliseWork({
+      id: '',
+      title,
+      kind: firstWord(chunk, KIND_WORDS) || 'other',
+      context: firstWord(chunk, CONTEXT_WORDS) || '',
+      team: firstWord(chunk, TEAM_WORDS) || '',
+      period: periodOf(chunk),
+      brief: chunk,
+      tools: toolsIn(low),
+    }, works.length));
+  }
+
+  return {
+    works,
+    dropped,
+    headline: '',
+    /* Named rather than counted, because these are the fields the rules here
+     * cannot fill at all — not the ones this particular text happened to miss. */
+    missing: works.length ? ['התפקיד שלך', 'מה יצא מכל עבודה'] : [],
+    /* True whenever the split had nothing to go on, which is what the screen
+     * turns into "press return between the works and I will split them". */
+    oneBlock: chunks.length === 1 && body.indexOf('\n') < 0,
+  };
+}
+
+/*
+ * One line is one work.
+ *
+ * Blank lines are honoured first, because somebody who separated their works
+ * with an empty line has already told us where the boundaries are. Otherwise
+ * every non-empty line is a work. Sentences are deliberately NOT split on: "יש
+ * לי מספרה. עשיתי לה אתר." is one work in two sentences, and there is no rule
+ * here that can tell that apart from two works in two sentences.
+ */
+function splitWorks(body) {
+  const byBlank = body.split(/\n{2,}/).map((s) => s.trim()).filter(Boolean);
+  if (byBlank.length > 1) return byBlank;
+  return body.split('\n').map((s) => s.trim()).filter(Boolean);
+}
+
+/*
+ * The title is the opening clause of the person's own line.
+ *
+ * Cut at the first comma, full stop or dash, because that is where a Hebrew
+ * sentence usually stops naming the thing and starts describing it. A bullet
+ * marker or a number they typed is removed first — it is punctuation, not part
+ * of the name.
+ */
+function titleOf(chunk) {
+  const first = cleanLine(chunk, 400).replace(/^[-*•·]\s*/, '').replace(/^\d+[.)]\s*/, '');
+  const cut = first.split(/[,.;:—–]|\s-\s/)[0].trim();
+  const title = cut || first;
+  return cleanLine(title.length > 60 ? title.slice(0, 57).trim() + '…' : title, 120);
+}
+
+function firstWord(chunk, table) {
+  for (const [id, words] of table) {
+    for (const w of words) {
+      if (chunk.indexOf(w) >= 0) return id;
+    }
+  }
+  return '';
+}
+
+function toolsIn(low) {
+  const found = [];
+  for (const [label, spellings] of TOOLS) {
+    for (const s of spellings) {
+      /* Latin names are matched on a word boundary so "js" does not fire inside
+       * "just" and "java" does not fire inside "javascript" — which it would,
+       * and did, before the boundary was there. */
+      const hit = /^[a-z]/.test(s)
+        ? new RegExp('(^|[^a-z])' + s.replace(/[.*+?^${}()|[\]\\]/g, '\\</body>') + '([^a-z]|$)').test(low)
+        : low.indexOf(s) >= 0;
+      if (hit) { found.push(label); break; }
+    }
+  }
+  return found;
+}
+
+/*
+ * Years, and months only when a month is named beside them.
+ *
+ * Two years in a line are a range; one is a start with no end, which is exactly
+ * what the person told us. A year in the future is somebody's typo and is left
+ * for `normaliseWork` to drop.
+ */
+function periodOf(chunk) {
+  const years = (chunk.match(/\b(19|20)\d{2}\b/g) || []).map(Number);
+  const months = MONTHS.map((m, i) => ({ m, i: i + 1 })).filter((x) => chunk.indexOf(x.m) >= 0);
+  const ongoing = ONGOING_WORDS.some((w) => chunk.indexOf(w) >= 0);
+  return {
+    fromYear: years.length ? years[0] : null,
+    fromMonth: months.length ? months[0].i : null,
+    toYear: years.length > 1 ? years[1] : null,
+    toMonth: months.length > 1 ? months[1].i : null,
+    ongoing,
+  };
+}
+
+  return {
+    "readOffline": readOffline,
+  };
+})();
+
+__m["portfolio/src/ui/fields.js"] = (function () {
+/*
+ * fields.js — the form controls, once.
+ *
+ * Two screens ask questions here: the person's details and a work. They share
+ * every control except the ones only a work needs, so the controls live in one
+ * place and the screens are left as a list of questions, which is what they
+ * should read like.
+ *
+ * The controls all follow the same rule about redrawing: they never do it. Each
+ * takes an `onChange` and reports the new value, and the screen decides what to
+ * repaint — because repainting a field while somebody is typing in it moves the
+ * caret to the end of the line, and there is no version of that a person does
+ * not notice immediately.
+ */
+
+const { h, shrinkImage } = __m["src/core/dom.js"];
+const { MONTHS, YEAR_MIN, YEAR_MAX, cleanChips, MAX_IMAGES_PER_WORK, MAX_LINKS_PER_WORK } = __m["portfolio/src/data/schema.js"];
+
+/* A photograph, resized on the way in. localStorage holds a few megabytes and a
+ * phone picture is several, so an original would fill the whole portfolio's
+ * budget with one image — and nothing in a document 780px wide can show it. */
+const IMAGE_MAX_PX = 1400;
+const IMAGE_QUALITY = 0.72;
+
+let seq = 0;
+
+/**
+ * A labelled question.
+ *
+ * The label is tied to its control rather than just sitting above it, which is
+ * what makes tapping the words focus the box and what lets a screen reader say
+ * the question before the answer. Where the "control" is really several — two
+ * dates, a list of links — there is nothing single to tie it to, so the group
+ * is named instead. Both forms are one line of markup and neither is optional:
+ * a form is the part of an app that is hardest to use without sight.
+ */
+function field(label, control, help) {
+  seq += 1;
+  const id = 'f' + seq;
+  const labelNode = h('label', { id: id + '-l' }, label);
+  const helpNode = help ? h('p.help', { id: id + '-h' }, help) : null;
+  const single = isControl(control) ? control : onlyControlIn(control);
+
+  if (single) {
+    single.id = id;
+    labelNode.setAttribute('for', id);
+    if (helpNode) single.setAttribute('aria-describedby', id + '-h');
+  } else {
+    control.setAttribute('role', 'group');
+    control.setAttribute('aria-labelledby', id + '-l');
+    if (helpNode) control.setAttribute('aria-describedby', id + '-h');
+  }
+
+  return h('div.field', [labelNode, control, helpNode]);
+}
+
+function isControl(node) {
+  return node && (node.tagName === 'INPUT' || node.tagName === 'TEXTAREA' || node.tagName === 'SELECT');
+}
+
+/*
+ * A wrapper says which of its controls the label belongs to, if any.
+ *
+ * Counting them instead — "one control, so label that one" — was wrong in a way
+ * that only appears later: the pictures field holds exactly one control until
+ * the first picture is added, so the label would bind to the file input and
+ * then, on the repaint that follows, point at an element that no longer exists.
+ * Saying so explicitly cannot drift with the contents.
+ */
+function onlyControlIn(node) {
+  return node && node.querySelector ? node.querySelector('[data-label-target]') : null;
+}
+
+function textInput(value, onChange, attrs) {
+  const node = h('input', Object.assign({
+    type: 'text',
+    value: value || '',
+    oninput: (e) => onChange(e.target.value),
+  }, attrs || {}));
+  return node;
+}
+
+function textArea(value, onChange, attrs) {
+  return h('textarea', Object.assign({
+    rows: 4,
+    oninput: (e) => onChange(e.target.value),
+  }, attrs || {}), value || '');
+}
+
+/**
+ * A closed list.
+ *
+ * Rendered as a `select` rather than the app's chip buttons because these lists
+ * run to fifteen items — the chip grid that suits four options becomes a wall
+ * at fifteen, and a native select on a phone is a scrollable sheet the person
+ * already knows how to use.
+ */
+function picker(options, value, onChange) {
+  const node = h('select', { onchange: (e) => onChange(e.target.value) });
+  /*
+   * A value that matches nothing — which a hand-edited backup can carry, and
+   * backups are text files people edit — would otherwise leave the browser
+   * showing the first option while the work holds none. The control would be
+   * lying about the answer, and these controls never redraw to correct it.
+   */
+  if (!options.some((o) => o.id === value)) {
+    node.appendChild(h('option', { value: '', selected: true }, '— בחרו —'));
+  }
+  for (const o of options) {
+    node.appendChild(h('option', { value: o.id, selected: o.id === value ? true : null }, o.he));
+  }
+  return node;
+}
+
+/**
+ * Free-form tags, typed as one line.
+ *
+ * A tag editor with an add button and an × on every chip is more code and more
+ * taps than a comma. What the person typed stays in the box; the chips under it
+ * are what the document will actually show, which is the part worth seeing.
+ */
+function chipsInput(list, onChange) {
+  const wrap = h('div');
+  const preview = h('div.chipline');
+  const paint = (items) => {
+    preview.textContent = '';
+    for (const t of items) preview.appendChild(h('span.chip', t));
+  };
+  const node = h('input', {
+    type: 'text',
+    'data-label-target': '',
+    value: (list || []).join(', '),
+    oninput: (e) => {
+      const items = cleanChips(e.target.value, 20);
+      paint(items);
+      onChange(items);
+    },
+  });
+  paint(list || []);
+  wrap.appendChild(node);
+  wrap.appendChild(preview);
+  return wrap;
+}
+
+/**
+ * When the work happened.
+ *
+ * Month is optional on purpose. People remember the year of a job from four
+ * years ago and not the month, and a date input that demands a day would get an
+ * invented one — so the smallest true answer the person has is the one the
+ * control accepts, and the writer downstream says as much as it was given.
+ */
+function periodInput(period, onChange) {
+  const p = Object.assign({ fromYear: null, fromMonth: null, toYear: null, toMonth: null, ongoing: false }, period || {});
+  const box = h('div');
+
+  /*
+   * The control owns the period while it is on screen.
+   *
+   * Five inputs write into one value, and the screen around them does not
+   * redraw while somebody is filling it in — so a handler that built its patch
+   * from the value this function was called with would undo every earlier
+   * answer as soon as the second one was given. It reads as the month erasing
+   * the year, which is exactly what it was.
+   */
+  const emit = (patch) => {
+    Object.assign(p, patch);
+    onChange(Object.assign({}, p));
+  };
+
+  const monthSel = (value, key) => {
+    const sel = h('select', { 'aria-label': key === 'fromMonth' ? 'חודש התחלה' : 'חודש סיום', onchange: (e) => emit({ [key]: e.target.value ? Number(e.target.value) : null }) });
+    sel.appendChild(h('option', { value: '' }, 'חודש'));
+    MONTHS.forEach((m, i) => {
+      sel.appendChild(h('option', { value: String(i + 1), selected: value === i + 1 ? true : null }, m));
+    });
+    return sel;
+  };
+
+  const yearInput = (value, key) => h('input', {
+    type: 'number',
+    min: String(YEAR_MIN),
+    max: String(YEAR_MAX),
+    step: '1',
+    placeholder: 'שנה',
+    'aria-label': key === 'fromYear' ? 'שנת התחלה' : 'שנת סיום',
+    value: value === null || value === undefined ? '' : String(value),
+    oninput: (e) => emit({ [key]: e.target.value ? Number(e.target.value) : null }),
+  });
+
+  /* Repainted only when "still going" is ticked, because that is the one answer
+   * that changes which questions are on the screen — and it is a checkbox, so
+   * nobody is mid-word when it happens. */
+  function paint() {
+    box.textContent = '';
+    box.appendChild(h('div.daterow', [
+      h('span.rowlabel', 'מ־'), monthSel(p.fromMonth, 'fromMonth'), yearInput(p.fromYear, 'fromYear'),
+    ]));
+    if (!p.ongoing) {
+      box.appendChild(h('div.daterow', [
+        h('span.rowlabel', 'עד'), monthSel(p.toMonth, 'toMonth'), yearInput(p.toYear, 'toYear'),
+      ]));
+    }
+    box.appendChild(h('label.checkline', [
+      h('input', {
+        type: 'checkbox',
+        checked: p.ongoing ? true : null,
+        onchange: (e) => { emit({ ongoing: e.target.checked }); paint(); },
+      }),
+      'עוד עובדים על זה',
+    ]));
+  }
+
+  paint();
+  return box;
+}
+
+/**
+ * Links to the work itself.
+ *
+ * The label is optional and defaults to the address, because "לצפייה באתר" is
+ * better than a URL in a printed document and a URL is better than nothing.
+ * Rows are added and removed by the caller's repaint — this control reports the
+ * whole list every time, which keeps the caller from having to track indices.
+ */
+function linksInput(links, onChange) {
+  const list = (links || []).slice();
+  const box = h('div');
+  const emit = () => onChange(list.slice());
+
+  const row = (link, i) => h('div.linkrow', [
+    h('input', {
+      type: 'text', value: link.label || '', placeholder: 'מה זה', 'aria-label': 'תיאור הקישור',
+      oninput: (e) => { list[i] = Object.assign({}, list[i], { label: e.target.value }); emit(); },
+    }),
+    h('input', {
+      type: 'text', dir: 'ltr', value: link.url || '', placeholder: 'https://', 'aria-label': 'כתובת',
+      oninput: (e) => { list[i] = Object.assign({}, list[i], { url: e.target.value }); emit(); },
+    }),
+    h('button.iconbtn', {
+      type: 'button', 'aria-label': 'מחיקת הקישור',
+      onclick: () => { list.splice(i, 1); paint(); emit(); },
+    }, '×'),
+  ]);
+
+  function paint() {
+    box.textContent = '';
+    list.forEach((l, i) => box.appendChild(row(l, i)));
+    if (list.length < MAX_LINKS_PER_WORK) {
+      box.appendChild(h('button.btn.ghost', {
+        type: 'button',
+        onclick: () => { list.push({ label: '', url: '' }); paint(); },
+      }, '+ קישור'));
+    }
+  }
+
+  paint();
+  return box;
+}
+
+/**
+ * Pictures of the work.
+ *
+ * They are stored as data URLs and travel inside the exported file, which is
+ * the only arrangement where the document still shows them after it has been
+ * emailed. The cost is the quota, which is why they are resized here and capped
+ * at six, and why the app says so rather than letting a save fail quietly.
+ */
+function imagesInput(images, onChange, onError) {
+  const list = (images || []).slice();
+  const box = h('div');
+  let cancelled = false;
+  const emit = () => { if (!cancelled) onChange(list.slice()); };
+
+  function paint() {
+    box.textContent = '';
+    const grid = h('div.thumbs');
+    list.forEach((img, i) => {
+      grid.appendChild(h('figure.thumb', [
+        h('img', { src: img.src, alt: img.caption || '' }),
+        h('input', {
+          type: 'text', value: img.caption || '', placeholder: 'כיתוב (לא חובה)', 'aria-label': 'כיתוב לתמונה',
+          oninput: (e) => { list[i] = Object.assign({}, list[i], { caption: e.target.value }); emit(); },
+        }),
+        h('button.iconbtn', {
+          type: 'button', 'aria-label': 'מחיקת התמונה',
+          onclick: () => { list.splice(i, 1); paint(); emit(); },
+        }, '×'),
+      ]));
+    });
+    box.appendChild(grid);
+
+    if (list.length < MAX_IMAGES_PER_WORK) {
+      /* The native file input renders its own English label — "Choose Files",
+       * "No file chosen" — which is the one place in this app where the browser
+       * writes the copy. The input still does the work; it is behind a label
+       * that says what it does in the app's language. */
+      box.appendChild(h('label.btn.ghost.filebtn', [
+        '+ תמונות',
+        h('input', {
+          type: 'file',
+          accept: 'image/*',
+          multiple: true,
+          'aria-label': 'הוספת תמונות',
+          onchange: (e) => add(Array.from(e.target.files || []), e.target),
+        }),
+      ]));
+    } else {
+      box.appendChild(h('p.help', 'זה המקסימום. כדי להוסיף עוד, מחקו אחת.'));
+    }
+  }
+
+  async function add(files, input) {
+    for (const file of files) {
+      if (cancelled) return;
+      if (list.length >= MAX_IMAGES_PER_WORK) break;
+      try {
+        const src = await shrinkImage(file, IMAGE_MAX_PX, IMAGE_QUALITY);
+        list.push({ src, caption: '' });
+      } catch (e) {
+        console.error(e);
+        if (onError) onError('לא הצלחתי לקרוא את ' + (file.name || 'הקובץ') + '.');
+      }
+    }
+    /* The input keeps the file it just read, and a second pick of the same file
+     * fires no change event at all — so it is cleared before the repaint. */
+    if (input) input.value = '';
+    if (cancelled) return;
+    paint();
+    emit();
+  }
+
+  /*
+   * Reading a photograph takes long enough to outlive the screen it was started
+   * from. The editor calls this when it is released, so a file that finishes
+   * decoding afterwards is dropped rather than reported to a form that is no
+   * longer on the page — the alternative was a stale draft being written over
+   * newer edits a second after the person had moved on.
+   */
+  box.cancelPending = () => { cancelled = true; };
+
+  paint();
+  return box;
+}
+
+  return {
+    "field": field,
+    "textInput": textInput,
+    "textArea": textArea,
+    "picker": picker,
+    "chipsInput": chipsInput,
+    "periodInput": periodInput,
+    "linksInput": linksInput,
+    "imagesInput": imagesInput,
+  };
+})();
+
+__m["portfolio/src/ui/savewarn.js"] = (function () {
+/*
+ * savewarn.js — what the app says when the device would not keep the answer.
+ *
+ * Two screens write to storage and both can fail the same two ways, so the
+ * wording lives in one place. It matters that the two are told apart: "delete a
+ * photograph" is useless advice to somebody whose browser has storage switched
+ * off entirely, and "download the file before you close the tab" is the wrong
+ * advice to somebody who simply has six pictures in one work.
+ */
+
+const { h, clear } = __m["src/core/dom.js"];
+
+const TEXT = {
+  quota: 'אין מקום לשמור את זה במכשיר — כנראה בגלל התמונות. מחקו תמונה, או הורידו גיבוי מהלשונית "הקובץ" לפני שתסגרו.',
+  blocked: 'הדפדפן הזה לא נותן לשמור. אפשר להמשיך לעבוד ולהוריד את הקובץ, אבל אל תסגרו את הלשונית לפני שהורדתם אותו.',
+};
+
+/** Paints the message for `kind` into `box`, or empties it when nothing failed. */
+function paintSaveError(box, kind) {
+  clear(box);
+  if (!kind) return false;
+  box.appendChild(h('div.warnbox.hot', TEXT[kind] || TEXT.blocked));
+  return true;
+}
+
+  return {
+    "paintSaveError": paintSaveError,
+  };
+})();
+
+__m["portfolio/src/ui/quickstart.js"] = (function () {
+/*
+ * quickstart.js — "תכתוב, ואני ארכיב" — the screen the app opens on.
+ *
+ * Fifteen questions per work is the honest way to build a portfolio and the
+ * reason somebody fills in one work and never comes back. This screen asks for
+ * three things nobody hesitates on — a name, a phone number, an address if
+ * there is one — and then for one paragraph about what they have done, and
+ * turns that into the works.
+ *
+ * It fills the form and then gets out of the way. It does not export, it does
+ * not skip the editor, and it does not hide what it did: every work it made is
+ * named on the screen, what it could not fill is named too, and undoing the
+ * whole thing is one button for as long as the report is up. A model that fills
+ * a document the person never opens is a model whose mistakes get emailed to an
+ * employer.
+ *
+ * Two readers sit behind the one button. With a key, a language model reads the
+ * prose. Without one — which is most people — a list of rules splits it by line
+ * and pulls out years, tools and the handful of words that say what a thing is.
+ * The screen says which of the two ran, because they are not equally good and
+ * pretending otherwise is how somebody ends up trusting the wrong one.
+ */
+
+const { h, clear, announce } = __m["src/core/dom.js"];
+const { choiceFor, hasKey } = __m["src/ai/client.js"];
+const { settingsRows } = __m["src/ui/aisettings.js"];
+const store = __m["portfolio/src/core/store.js"];
+const { readWorks, AiError } = __m["portfolio/src/ai/read.js"];
+const { readOffline } = __m["portfolio/src/ai/offline.js"];
+const { field, textInput, textArea } = __m["portfolio/src/ui/fields.js"];
+const { paintSaveError } = __m["portfolio/src/ui/savewarn.js"];
+
+const SAVE_DELAY = 400;
+
+const PLACEHOLDER = 'למשל:\n'
+  + 'עיצבתי ובניתי אתר למספרה של רון ב-2024, לבד, בפיגמה ו-HTML. '
+  + 'הם לא היו באינטרנט בכלל וחיפשו אותם לפי טלפון.\n'
+  + 'אפליקציית מתכונים לעצמי, התחלתי ב-2023 ועדיין עובד עליה.\n'
+  + 'מיתוג לכנס נגישות בעבודה, בין 2019 ל-2021, הובלתי צוות של שניים.';
+
+function renderQuickstart(root, opts) {
+  const o = opts || {};
+  const view = h('section');
+  root.appendChild(view);
+
+  const draft = Object.assign({}, store.get().owner);
+  let timer = null;
+  let text = '';
+  let running = false;
+  let controller = null;
+  let error = null;
+  let report = null;
+
+  function flush() {
+    if (timer) { clearTimeout(timer); timer = null; }
+    store.setOwner(draft);
+    paintSaveError(errorBox, store.saveError());
+  }
+
+  function touch() {
+    if (timer) clearTimeout(timer);
+    timer = setTimeout(flush, SAVE_DELAY);
+  }
+
+  const errorBox = h('div');
+  const resultBox = h('div');
+  const busyBox = h('div');
+
+  /* ---- the three details, which are the ones people know by heart ---- */
+
+  const details = h('div.formcard', [
+    field('איך קוראים לך', textInput(draft.name, (v) => { draft.name = v; touch(); }, {
+      maxlength: '80', placeholder: 'שם מלא',
+    }), 'זה מה שיופיע בראש הקובץ.'),
+    field('טלפון', textInput(draft.phone, (v) => { draft.phone = v; touch(); }, {
+      maxlength: '40', dir: 'ltr', placeholder: '050-0000000',
+    }), null),
+    field('אתר או פרופיל, אם יש', textInput(draft.site, (v) => { draft.site = v; touch(); }, {
+      maxlength: '300', dir: 'ltr', placeholder: 'linkedin.com/in/…',
+    }), 'לא חובה. אפשר גם לינקדאין, בהאנס או גיטהאב.'),
+  ]);
+
+  /* ---- the paragraph ---- */
+
+  const box = textArea('', (v) => { text = v; }, {
+    rows: 9,
+    maxlength: '6000',
+    placeholder: PLACEHOLDER,
+  });
+
+  const writing = h('div.formcard', [
+    field('מה עשית?', box,
+      'שורה לכל עבודה. מה זה היה, בשביל מי, מתי, ומה יצא מזה — במילים שלך.'),
+  ]);
+
+  /* ---- the model, which is optional and says so ---- */
+
+  const settings = h('details.aibox', [
+    h('summary', 'מודל שפה (לא חובה)'),
+    h('div.aiinner'),
+  ]);
+
+  function paintSettings() {
+    const inner = settings.querySelector('.aiinner');
+    clear(inner);
+    const choice = choiceFor('text');
+    inner.appendChild(h('p.help',
+      'בלי מודל אני מחלקת את הטקסט לפי שורות ומוציאה ממנו שנים, כלים וסוג עבודה — '
+      + 'בלי לנחש מה לא כתוב. עם מודל, הוא קורא את הפסקה ומפרק אותה לבד, וגם מבין '
+      + 'שלושה משפטים שמדברים על אותה עבודה.'));
+    inner.appendChild(h('p.help.warnline',
+      'מה שנשלח: רק הפסקה שכתבת, לספק שבחרת. השם, הטלפון, התמונות ושאר התיק לא נשלחים לשום מקום.'));
+    for (const row of settingsRows('text', choice, { onRedraw: paintSettings, onKeyInput: paintSettings })) {
+      inner.appendChild(row);
+    }
+  }
+
+  /* ---- the run ---- */
+
+  async function run(useModel) {
+    if (running) return;
+    error = null;
+    report = null;
+    running = true;
+    controller = useModel ? new AbortController() : null;
+    paintBusy();
+    flush();
+
+    try {
+      const reading = useModel
+        ? await readWorks(text, { signal: controller.signal })
+        : readOffline(text);
+      apply(reading, useModel);
+    } catch (e) {
+      error = e instanceof AiError ? e : new AiError('unknown', 'משהו נשבר בקריאה. נסו שוב.', String(e));
+      console.error(e);
+    } finally {
+      running = false;
+      controller = null;
+      paintBusy();
+      paintResult();
+    }
+  }
+
+  /*
+   * The works land in the store, and the report holds their ids — which is what
+   * makes "בטל" a real undo rather than a promise. The person is one button
+   * from having their portfolio back exactly as it was.
+   */
+  function apply(reading, byModel) {
+    const added = [];
+    for (const w of reading.works) added.push(store.addWork(w).id);
+    if (reading.headline && !draft.headline) {
+      draft.headline = reading.headline;
+      flush();
+    }
+    report = {
+      byModel,
+      added,
+      titles: reading.works.map((w) => w.title),
+      dropped: reading.dropped,
+      missing: reading.missing,
+      oneBlock: !!reading.oneBlock,
+    };
+    paintSaveError(errorBox, store.saveError());
+    announce(added.length ? added.length + ' עבודות נוספו' : 'לא נמצאו עבודות בטקסט');
+  }
+
+  function undo() {
+    if (!report) return;
+    for (const id of report.added) store.removeWork(id);
+    announce('ההוספה בוטלה');
+    report = null;
+    paintResult();
+  }
+
+  function paintBusy() {
+    clear(busyBox);
+    if (!running) return;
+    busyBox.appendChild(h('div.callout', [
+      h('p', 'קוראת את מה שכתבת…'),
+      controller
+        ? h('button.btn.ghost', { onclick: () => controller.abort() }, 'ביטול')
+        : null,
+    ]));
+  }
+
+  function paintResult() {
+    clear(resultBox);
+
+    if (error) {
+      resultBox.appendChild(h('div.warnbox.hot', [
+        h('b', error.he || 'משהו נשבר.'),
+        error.detail ? h('p.help', String(error.detail).slice(0, 300)) : null,
+      ]));
+      /* The offline path is right there and needs nothing, so it is offered at
+       * the moment the model failed rather than left to be discovered. */
+      resultBox.appendChild(h('div.toolbar', [
+        h('button.btn', { onclick: () => run(false) }, 'תחלקי בלי מודל'),
+      ]));
+      return;
+    }
+
+    if (!report) return;
+
+    if (!report.added.length) {
+      resultBox.appendChild(h('div.warnbox', 'לא מצאתי בטקסט עבודה עם שם. כתבו שורה לכל עבודה, '
+        + 'ותתחילו בשם של הדבר עצמו — "אתר למספרה", "אפליקציית מתכונים".'));
+      return;
+    }
+
+    const lines = [
+      h('p.eyebrow', report.byModel ? 'המודל קרא' : 'חילקתי לפי הכללים, בלי מודל'),
+      h('h3', report.titles.length + ' עבודות נכנסו לתיק'),
+      h('ol.readlist', report.titles.map((t) => h('li', t))),
+    ];
+    if (report.oneBlock) {
+      lines.push(h('p.help', 'הכול היה שורה אחת, אז זו עבודה אחת. '
+        + 'אם היו כאן כמה — לחצו Enter ביניהן ותנו לי לחלק שוב.'));
+    }
+    if (report.dropped) {
+      lines.push(h('p.help', report.dropped + ' שורות לא נכנסו כי לא היה בהן שם לעבודה.'));
+    }
+    if (report.missing.length) {
+      lines.push(h('p.lead', 'מה שלא מילאתי: ' + report.missing.join(', ') + '. '
+        + 'זה נכנס בעריכה, וההסבר ייכתב גם בלי זה.'));
+    }
+    lines.push(h('div.toolbar', [
+      h('button.btn.primary', { onclick: () => o.onDone && o.onDone() }, 'לעבודות — לעבור עליהן ←'),
+      h('button.btn.ghost', { onclick: undo }, 'בטל את ההוספה'),
+    ]));
+    resultBox.appendChild(h('div.callout.good', lines));
+  }
+
+  /* ---- layout ---- */
+
+  view.appendChild(h('div.formcard.leadcard', [
+    h('p.eyebrow', 'הדרך הקצרה'),
+    h('h3', 'תכתבו בשורות, ואני ארכיב'),
+    h('p.help', 'שלוש שאלות ופסקה אחת. אחר כך אפשר לעבור על מה שיצא, לתקן, להוסיף תמונות — '
+      + 'או פשוט להוריד את הקובץ.'),
+  ]));
+  view.appendChild(errorBox);
+  view.appendChild(details);
+  view.appendChild(writing);
+  view.appendChild(settings);
+  paintSettings();
+
+  view.appendChild(h('div.toolbar', [
+    h('button.btn.primary.lg', {
+      onclick: () => run(hasKey(choiceFor('text').provider ? choiceFor('text').provider.id : '')),
+    }, 'תרכיב לי את התיק'),
+    h('button.btn.ghost', { onclick: () => run(false) }, 'בלי מודל'),
+    h('button.btn.ghost', { onclick: () => o.onDone && o.onDone() }, 'אמלא ידנית'),
+  ]));
+  view.appendChild(busyBox);
+  view.appendChild(resultBox);
+
+  const onHide = () => flush();
+  window.addEventListener('pagehide', onHide);
+  window.addEventListener('beforeunload', onHide);
+
+  return {
+    redraw: paintResult,
+    flush,
+    release: () => {
+      if (controller) controller.abort();
+      flush();
+      window.removeEventListener('pagehide', onHide);
+      window.removeEventListener('beforeunload', onHide);
+    },
+  };
+}
+
+  return {
+    "renderQuickstart": renderQuickstart,
   };
 })();
 
@@ -2535,395 +4303,6 @@ function hasTool(work, tool) {
   };
 })();
 
-__m["portfolio/src/ui/fields.js"] = (function () {
-/*
- * fields.js — the form controls, once.
- *
- * Two screens ask questions here: the person's details and a work. They share
- * every control except the ones only a work needs, so the controls live in one
- * place and the screens are left as a list of questions, which is what they
- * should read like.
- *
- * The controls all follow the same rule about redrawing: they never do it. Each
- * takes an `onChange` and reports the new value, and the screen decides what to
- * repaint — because repainting a field while somebody is typing in it moves the
- * caret to the end of the line, and there is no version of that a person does
- * not notice immediately.
- */
-
-const { h, shrinkImage } = __m["src/core/dom.js"];
-const { MONTHS, YEAR_MIN, YEAR_MAX, cleanChips, MAX_IMAGES_PER_WORK, MAX_LINKS_PER_WORK } = __m["portfolio/src/data/schema.js"];
-
-/* A photograph, resized on the way in. localStorage holds a few megabytes and a
- * phone picture is several, so an original would fill the whole portfolio's
- * budget with one image — and nothing in a document 780px wide can show it. */
-const IMAGE_MAX_PX = 1400;
-const IMAGE_QUALITY = 0.72;
-
-let seq = 0;
-
-/**
- * A labelled question.
- *
- * The label is tied to its control rather than just sitting above it, which is
- * what makes tapping the words focus the box and what lets a screen reader say
- * the question before the answer. Where the "control" is really several — two
- * dates, a list of links — there is nothing single to tie it to, so the group
- * is named instead. Both forms are one line of markup and neither is optional:
- * a form is the part of an app that is hardest to use without sight.
- */
-function field(label, control, help) {
-  seq += 1;
-  const id = 'f' + seq;
-  const labelNode = h('label', { id: id + '-l' }, label);
-  const helpNode = help ? h('p.help', { id: id + '-h' }, help) : null;
-  const single = isControl(control) ? control : onlyControlIn(control);
-
-  if (single) {
-    single.id = id;
-    labelNode.setAttribute('for', id);
-    if (helpNode) single.setAttribute('aria-describedby', id + '-h');
-  } else {
-    control.setAttribute('role', 'group');
-    control.setAttribute('aria-labelledby', id + '-l');
-    if (helpNode) control.setAttribute('aria-describedby', id + '-h');
-  }
-
-  return h('div.field', [labelNode, control, helpNode]);
-}
-
-function isControl(node) {
-  return node && (node.tagName === 'INPUT' || node.tagName === 'TEXTAREA' || node.tagName === 'SELECT');
-}
-
-/*
- * A wrapper says which of its controls the label belongs to, if any.
- *
- * Counting them instead — "one control, so label that one" — was wrong in a way
- * that only appears later: the pictures field holds exactly one control until
- * the first picture is added, so the label would bind to the file input and
- * then, on the repaint that follows, point at an element that no longer exists.
- * Saying so explicitly cannot drift with the contents.
- */
-function onlyControlIn(node) {
-  return node && node.querySelector ? node.querySelector('[data-label-target]') : null;
-}
-
-function textInput(value, onChange, attrs) {
-  const node = h('input', Object.assign({
-    type: 'text',
-    value: value || '',
-    oninput: (e) => onChange(e.target.value),
-  }, attrs || {}));
-  return node;
-}
-
-function textArea(value, onChange, attrs) {
-  return h('textarea', Object.assign({
-    rows: 4,
-    oninput: (e) => onChange(e.target.value),
-  }, attrs || {}), value || '');
-}
-
-/**
- * A closed list.
- *
- * Rendered as a `select` rather than the app's chip buttons because these lists
- * run to fifteen items — the chip grid that suits four options becomes a wall
- * at fifteen, and a native select on a phone is a scrollable sheet the person
- * already knows how to use.
- */
-function picker(options, value, onChange) {
-  const node = h('select', { onchange: (e) => onChange(e.target.value) });
-  /*
-   * A value that matches nothing — which a hand-edited backup can carry, and
-   * backups are text files people edit — would otherwise leave the browser
-   * showing the first option while the work holds none. The control would be
-   * lying about the answer, and these controls never redraw to correct it.
-   */
-  if (!options.some((o) => o.id === value)) {
-    node.appendChild(h('option', { value: '', selected: true }, '— בחרו —'));
-  }
-  for (const o of options) {
-    node.appendChild(h('option', { value: o.id, selected: o.id === value ? true : null }, o.he));
-  }
-  return node;
-}
-
-/**
- * Free-form tags, typed as one line.
- *
- * A tag editor with an add button and an × on every chip is more code and more
- * taps than a comma. What the person typed stays in the box; the chips under it
- * are what the document will actually show, which is the part worth seeing.
- */
-function chipsInput(list, onChange) {
-  const wrap = h('div');
-  const preview = h('div.chipline');
-  const paint = (items) => {
-    preview.textContent = '';
-    for (const t of items) preview.appendChild(h('span.chip', t));
-  };
-  const node = h('input', {
-    type: 'text',
-    'data-label-target': '',
-    value: (list || []).join(', '),
-    oninput: (e) => {
-      const items = cleanChips(e.target.value, 20);
-      paint(items);
-      onChange(items);
-    },
-  });
-  paint(list || []);
-  wrap.appendChild(node);
-  wrap.appendChild(preview);
-  return wrap;
-}
-
-/**
- * When the work happened.
- *
- * Month is optional on purpose. People remember the year of a job from four
- * years ago and not the month, and a date input that demands a day would get an
- * invented one — so the smallest true answer the person has is the one the
- * control accepts, and the writer downstream says as much as it was given.
- */
-function periodInput(period, onChange) {
-  const p = Object.assign({ fromYear: null, fromMonth: null, toYear: null, toMonth: null, ongoing: false }, period || {});
-  const box = h('div');
-
-  /*
-   * The control owns the period while it is on screen.
-   *
-   * Five inputs write into one value, and the screen around them does not
-   * redraw while somebody is filling it in — so a handler that built its patch
-   * from the value this function was called with would undo every earlier
-   * answer as soon as the second one was given. It reads as the month erasing
-   * the year, which is exactly what it was.
-   */
-  const emit = (patch) => {
-    Object.assign(p, patch);
-    onChange(Object.assign({}, p));
-  };
-
-  const monthSel = (value, key) => {
-    const sel = h('select', { 'aria-label': key === 'fromMonth' ? 'חודש התחלה' : 'חודש סיום', onchange: (e) => emit({ [key]: e.target.value ? Number(e.target.value) : null }) });
-    sel.appendChild(h('option', { value: '' }, 'חודש'));
-    MONTHS.forEach((m, i) => {
-      sel.appendChild(h('option', { value: String(i + 1), selected: value === i + 1 ? true : null }, m));
-    });
-    return sel;
-  };
-
-  const yearInput = (value, key) => h('input', {
-    type: 'number',
-    min: String(YEAR_MIN),
-    max: String(YEAR_MAX),
-    step: '1',
-    placeholder: 'שנה',
-    'aria-label': key === 'fromYear' ? 'שנת התחלה' : 'שנת סיום',
-    value: value === null || value === undefined ? '' : String(value),
-    oninput: (e) => emit({ [key]: e.target.value ? Number(e.target.value) : null }),
-  });
-
-  /* Repainted only when "still going" is ticked, because that is the one answer
-   * that changes which questions are on the screen — and it is a checkbox, so
-   * nobody is mid-word when it happens. */
-  function paint() {
-    box.textContent = '';
-    box.appendChild(h('div.daterow', [
-      h('span.rowlabel', 'מ־'), monthSel(p.fromMonth, 'fromMonth'), yearInput(p.fromYear, 'fromYear'),
-    ]));
-    if (!p.ongoing) {
-      box.appendChild(h('div.daterow', [
-        h('span.rowlabel', 'עד'), monthSel(p.toMonth, 'toMonth'), yearInput(p.toYear, 'toYear'),
-      ]));
-    }
-    box.appendChild(h('label.checkline', [
-      h('input', {
-        type: 'checkbox',
-        checked: p.ongoing ? true : null,
-        onchange: (e) => { emit({ ongoing: e.target.checked }); paint(); },
-      }),
-      'עוד עובדים על זה',
-    ]));
-  }
-
-  paint();
-  return box;
-}
-
-/**
- * Links to the work itself.
- *
- * The label is optional and defaults to the address, because "לצפייה באתר" is
- * better than a URL in a printed document and a URL is better than nothing.
- * Rows are added and removed by the caller's repaint — this control reports the
- * whole list every time, which keeps the caller from having to track indices.
- */
-function linksInput(links, onChange) {
-  const list = (links || []).slice();
-  const box = h('div');
-  const emit = () => onChange(list.slice());
-
-  const row = (link, i) => h('div.linkrow', [
-    h('input', {
-      type: 'text', value: link.label || '', placeholder: 'מה זה', 'aria-label': 'תיאור הקישור',
-      oninput: (e) => { list[i] = Object.assign({}, list[i], { label: e.target.value }); emit(); },
-    }),
-    h('input', {
-      type: 'text', dir: 'ltr', value: link.url || '', placeholder: 'https://', 'aria-label': 'כתובת',
-      oninput: (e) => { list[i] = Object.assign({}, list[i], { url: e.target.value }); emit(); },
-    }),
-    h('button.iconbtn', {
-      type: 'button', 'aria-label': 'מחיקת הקישור',
-      onclick: () => { list.splice(i, 1); paint(); emit(); },
-    }, '×'),
-  ]);
-
-  function paint() {
-    box.textContent = '';
-    list.forEach((l, i) => box.appendChild(row(l, i)));
-    if (list.length < MAX_LINKS_PER_WORK) {
-      box.appendChild(h('button.btn.ghost', {
-        type: 'button',
-        onclick: () => { list.push({ label: '', url: '' }); paint(); },
-      }, '+ קישור'));
-    }
-  }
-
-  paint();
-  return box;
-}
-
-/**
- * Pictures of the work.
- *
- * They are stored as data URLs and travel inside the exported file, which is
- * the only arrangement where the document still shows them after it has been
- * emailed. The cost is the quota, which is why they are resized here and capped
- * at six, and why the app says so rather than letting a save fail quietly.
- */
-function imagesInput(images, onChange, onError) {
-  const list = (images || []).slice();
-  const box = h('div');
-  let cancelled = false;
-  const emit = () => { if (!cancelled) onChange(list.slice()); };
-
-  function paint() {
-    box.textContent = '';
-    const grid = h('div.thumbs');
-    list.forEach((img, i) => {
-      grid.appendChild(h('figure.thumb', [
-        h('img', { src: img.src, alt: img.caption || '' }),
-        h('input', {
-          type: 'text', value: img.caption || '', placeholder: 'כיתוב (לא חובה)', 'aria-label': 'כיתוב לתמונה',
-          oninput: (e) => { list[i] = Object.assign({}, list[i], { caption: e.target.value }); emit(); },
-        }),
-        h('button.iconbtn', {
-          type: 'button', 'aria-label': 'מחיקת התמונה',
-          onclick: () => { list.splice(i, 1); paint(); emit(); },
-        }, '×'),
-      ]));
-    });
-    box.appendChild(grid);
-
-    if (list.length < MAX_IMAGES_PER_WORK) {
-      /* The native file input renders its own English label — "Choose Files",
-       * "No file chosen" — which is the one place in this app where the browser
-       * writes the copy. The input still does the work; it is behind a label
-       * that says what it does in the app's language. */
-      box.appendChild(h('label.btn.ghost.filebtn', [
-        '+ תמונות',
-        h('input', {
-          type: 'file',
-          accept: 'image/*',
-          multiple: true,
-          'aria-label': 'הוספת תמונות',
-          onchange: (e) => add(Array.from(e.target.files || []), e.target),
-        }),
-      ]));
-    } else {
-      box.appendChild(h('p.help', 'זה המקסימום. כדי להוסיף עוד, מחקו אחת.'));
-    }
-  }
-
-  async function add(files, input) {
-    for (const file of files) {
-      if (cancelled) return;
-      if (list.length >= MAX_IMAGES_PER_WORK) break;
-      try {
-        const src = await shrinkImage(file, IMAGE_MAX_PX, IMAGE_QUALITY);
-        list.push({ src, caption: '' });
-      } catch (e) {
-        console.error(e);
-        if (onError) onError('לא הצלחתי לקרוא את ' + (file.name || 'הקובץ') + '.');
-      }
-    }
-    /* The input keeps the file it just read, and a second pick of the same file
-     * fires no change event at all — so it is cleared before the repaint. */
-    if (input) input.value = '';
-    if (cancelled) return;
-    paint();
-    emit();
-  }
-
-  /*
-   * Reading a photograph takes long enough to outlive the screen it was started
-   * from. The editor calls this when it is released, so a file that finishes
-   * decoding afterwards is dropped rather than reported to a form that is no
-   * longer on the page — the alternative was a stale draft being written over
-   * newer edits a second after the person had moved on.
-   */
-  box.cancelPending = () => { cancelled = true; };
-
-  paint();
-  return box;
-}
-
-  return {
-    "field": field,
-    "textInput": textInput,
-    "textArea": textArea,
-    "picker": picker,
-    "chipsInput": chipsInput,
-    "periodInput": periodInput,
-    "linksInput": linksInput,
-    "imagesInput": imagesInput,
-  };
-})();
-
-__m["portfolio/src/ui/savewarn.js"] = (function () {
-/*
- * savewarn.js — what the app says when the device would not keep the answer.
- *
- * Two screens write to storage and both can fail the same two ways, so the
- * wording lives in one place. It matters that the two are told apart: "delete a
- * photograph" is useless advice to somebody whose browser has storage switched
- * off entirely, and "download the file before you close the tab" is the wrong
- * advice to somebody who simply has six pictures in one work.
- */
-
-const { h, clear } = __m["src/core/dom.js"];
-
-const TEXT = {
-  quota: 'אין מקום לשמור את זה במכשיר — כנראה בגלל התמונות. מחקו תמונה, או הורידו גיבוי מהלשונית "הקובץ" לפני שתסגרו.',
-  blocked: 'הדפדפן הזה לא נותן לשמור. אפשר להמשיך לעבוד ולהוריד את הקובץ, אבל אל תסגרו את הלשונית לפני שהורדתם אותו.',
-};
-
-/** Paints the message for `kind` into `box`, or empties it when nothing failed. */
-function paintSaveError(box, kind) {
-  clear(box);
-  if (!kind) return false;
-  box.appendChild(h('div.warnbox.hot', TEXT[kind] || TEXT.blocked));
-  return true;
-}
-
-  return {
-    "paintSaveError": paintSaveError,
-  };
-})();
-
 __m["portfolio/src/ui/owner.js"] = (function () {
 /*
  * owner.js — who the portfolio belongs to.
@@ -3003,8 +4382,11 @@ function renderOwner(root, opts) {
     const attrs = { maxlength: String(f.max), placeholder: f.hint || '' };
     /* Latin-only fields are typed left to right whatever the page direction is,
      * and an address that renders with its scheme at the wrong end looks broken
-     * to the person typing it. */
-    if (f.type === 'email' || f.type === 'url') attrs.dir = 'ltr';
+     * to the person typing it. The phone number is in the same list for the same
+     * reason: "03 6961234" in an RTL field is shown as "6961234 03" while it is
+     * being typed, which is the bug the exported document had and is worse here,
+     * because the person is looking straight at it. */
+    if (f.type === 'email' || f.type === 'url' || f.key === 'phone') attrs.dir = 'ltr';
     if (f.type === 'email') attrs.type = 'email';
     const control = textInput(draft[f.key], set, attrs);
     const help = f.key === 'email'
@@ -4214,18 +5596,24 @@ function countLabel(n) {
 
 __m["portfolio/src/app.js"] = (function () {
 /*
- * app.js — boot and the three tabs.
+ * app.js — boot and the four tabs.
  *
- * The shape of the app is the shape of the job: say who you are, list what you
- * made, take the file. Nothing is a wizard here — unlike a questionnaire, a
- * portfolio is written over weeks, one work at a time, and a flow that insists
- * on an order would be wrong on the second visit.
+ * The shape of the app is the shape of the job: write down what you did, say
+ * who you are, go over the works, take the file. Nothing is a wizard here —
+ * unlike a questionnaire, a portfolio is written over weeks, one work at a
+ * time, and a flow that insists on an order would be wrong on the second visit.
+ *
+ * The first tab is the short way in: three details and a paragraph, turned into
+ * works by a model if there is a key for one and by a list of rules if there is
+ * not. The other three are the same app as before, and somebody who would
+ * rather answer fifteen questions per work can go straight to them.
  *
  * This is the only file in the app that touches the DOM at module top level.
  */
 
 const { h, clear, qs, announce } = __m["src/core/dom.js"];
 const store = __m["portfolio/src/core/store.js"];
+const { renderQuickstart } = __m["portfolio/src/ui/quickstart.js"];
 const { renderOwner } = __m["portfolio/src/ui/owner.js"];
 const { renderWorks } = __m["portfolio/src/ui/works.js"];
 const { renderFile } = __m["portfolio/src/ui/file.js"];
@@ -4234,6 +5622,7 @@ const { toHtml } = __m["portfolio/src/export/html.js"];
 const root = qs('#app');
 
 const TABS = [
+  { id: 'quick', label: 'מהיר' },
   { id: 'owner', label: 'פרטים' },
   { id: 'works', label: 'העבודות' },
   { id: 'file', label: 'הקובץ' },
@@ -4245,7 +5634,8 @@ function renderApp() {
   root.appendChild(h('header.head', [
     h('p.eyebrow', 'תיק עבודות'),
     h('h1', ['מה שעשית, ', h('em', 'כתוב'), '.']),
-    h('p.sub', 'עונים על כמה שאלות לכל עבודה, והאפליקציה כותבת מזה קובץ אחד שאפשר לשלוח, להדפיס או לשמור כ-PDF.'),
+    h('p.sub', 'כותבים בשורות מה עשיתם, והאפליקציה מרכיבה מזה תיק עבודות: הסבר כתוב לכל עבודה, '
+      + 'בקובץ אחד שאפשר לשלוח, להדפיס או לשמור כ-PDF.'),
   ]));
 
   if (!store.persists()) {
@@ -4294,7 +5684,8 @@ function renderApp() {
     paintTabs(tab);
     store.setUi({ tab });
     try {
-      if (tab === 'owner') open = renderOwner(body, { onDone: () => show('works') });
+      if (tab === 'quick') open = renderQuickstart(body, { onDone: () => show('works') });
+      else if (tab === 'owner') open = renderOwner(body, { onDone: () => show('works') });
       else if (tab === 'works') open = renderWorks(body, { onDone: () => show('file') });
       else open = renderFile(body);
     } catch (e) {
@@ -4304,8 +5695,14 @@ function renderApp() {
     window.scrollTo(0, 0);
   }
 
+  /*
+   * An empty app opens on the short way in, and an app with works in it opens
+   * where it was left. Somebody coming back to add a fourth work does not need
+   * to be asked again for the name they already gave.
+   */
   const st = store.get();
-  show(TABS.some((t) => t.id === st.ui.tab) ? st.ui.tab : 'owner');
+  const remembered = TABS.some((t) => t.id === st.ui.tab) ? st.ui.tab : '';
+  show(remembered && st.works.length ? remembered : 'quick');
 
   /*
    * The handle the Chromium check drives the app through. It is the same store
