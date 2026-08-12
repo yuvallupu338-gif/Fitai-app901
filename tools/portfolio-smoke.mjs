@@ -179,6 +179,19 @@ async function main() {
   await page.getByLabel('מה עשית?', { exact: true }).fill(PARAGRAPH);
   await shot('01-quick');
 
+  /* The model box is FitAI's provider/model/key rows, mounted in this app. It is
+   * shared code and therefore the thing most likely to break silently here. */
+  await page.locator('.aibox > summary').click();
+  check((await page.locator('.aibox input[type="password"]').count()) === 1,
+    'the model box has no key field');
+  /* Provider and model are chip rows, not selects — that is how the shared
+   * settings render them, and asserting on the wrong element is how a check
+   * fails for a reason that has nothing to do with the app. */
+  check((await page.locator('.aibox .opts .opt').count()) >= 2,
+    'the model box has no provider or model picker');
+  check((await page.textContent('.aibox')).includes('רק הפסקה שכתבת'),
+    'the model box does not say what is sent');
+
   await page.getByRole('button', { name: 'בלי מודל' }).click();
   await page.waitForSelector('.readlist');
   const readTitles = await page.locator('.readlist li').allTextContents();

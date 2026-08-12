@@ -27,6 +27,7 @@ import { settingsRows } from '../../../src/ui/aisettings.js';
 import * as store from '../core/store.js';
 import { readWorks, AiError } from '../ai/read.js';
 import { readOffline } from '../ai/offline.js';
+import { countPhrase } from '../engine/write.js';
 import { field, textInput, textArea } from './fields.js';
 import { paintSaveError } from './savewarn.js';
 
@@ -163,7 +164,9 @@ export function renderQuickstart(root, opts) {
       oneBlock: !!reading.oneBlock,
     };
     paintSaveError(errorBox, store.saveError());
-    announce(added.length ? added.length + ' עבודות נוספו' : 'לא נמצאו עבודות בטקסט');
+    announce(added.length
+      ? countPhrase(added.length, 'עבודה', 'עבודות', 'f') + ' נוספו'
+      : 'לא נמצאו עבודות בטקסט');
   }
 
   function undo() {
@@ -211,7 +214,9 @@ export function renderQuickstart(root, opts) {
 
     const lines = [
       h('p.eyebrow', report.byModel ? 'המודל קרא' : 'חילקתי לפי הכללים, בלי מודל'),
-      h('h3', report.titles.length + ' עבודות נכנסו לתיק'),
+      h('h3', report.titles.length === 1
+        ? 'עבודה אחת נכנסה לתיק'
+        : countPhrase(report.titles.length, 'עבודה', 'עבודות', 'f') + ' נכנסו לתיק'),
       h('ol.readlist', report.titles.map((t) => h('li', t))),
     ];
     if (report.oneBlock) {
@@ -219,7 +224,11 @@ export function renderQuickstart(root, opts) {
         + 'אם היו כאן כמה — לחצו Enter ביניהן ותנו לי לחלק שוב.'));
     }
     if (report.dropped) {
-      lines.push(h('p.help', report.dropped + ' שורות לא נכנסו כי לא היה בהן שם לעבודה.'));
+      /* "1 שורות" is the shape of a number printed by a program. The numeral
+       * and the verb both decline, so both are written out. */
+      lines.push(h('p.help', report.dropped === 1
+        ? 'שורה אחת לא נכנסה, כי לא היה בה שם לעבודה.'
+        : countPhrase(report.dropped, 'שורה', 'שורות', 'f') + ' לא נכנסו, כי לא היה בהן שם לעבודה.'));
     }
     if (report.missing.length) {
       lines.push(h('p.lead', 'מה שלא מילאתי: ' + report.missing.join(', ') + '. '

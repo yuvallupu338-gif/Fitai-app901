@@ -243,7 +243,7 @@ something else, and in both cases the answer that was being typed survives the
 failed save — the work in the form at that moment is worth more than the
 invariant.
 
-`portfolio-smoke.mjs` is 85 checks in Chromium. It fills the form, reloads to
+`portfolio-smoke.mjs` is 88 checks in Chromium. It fills the form, reloads to
 prove any of it was stored, adds and reorders and deletes a work, puts a real
 PNG through the picture path — a File, a canvas, a resize and a re-encode, none
 of which exist in Node — then downloads the file, closes the server, and opens
