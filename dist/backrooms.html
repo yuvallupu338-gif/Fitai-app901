@@ -1330,7 +1330,7 @@ uniform vec3  uFogColor;
 uniform float uFogDensity;
 uniform float uFogHeight;               /* 0 = uniform fog, >0 = ground fog    */
 
-#define MAX_MATS 13
+#define MAX_MATS 14
 uniform vec4 uMatA[MAX_MATS];  /* uvScale, roughnessMul, emissive, specular    */
 uniform vec4 uMatB[MAX_MATS];  /* water, normalStrength, alphaCut, tintAmount  */
 uniform vec4 uMatTint[MAX_MATS];
@@ -2727,8 +2727,11 @@ const MAT = {
    * the grin and the stare are two readable things and not one orange smear
    * once the bloom has had them. */
   TOOTH: 12,
+  /* The inside of a mouth. Not emissive and not lit — a hole, so that an open
+   * jaw reads as depth rather than as a differently-coloured lump. */
+  MAW: 13,
 };
-const MAT_COUNT = 13;
+const MAT_COUNT = 14;
 
 class Chunk {
   constructor(level, cx, cz) {
@@ -3499,6 +3502,27 @@ class Renderer {
       const d = mb.finish();
       return createMeshVAO(gl, this.scene, d.vertices, d.indices);
     };
+    /*
+     * As `make`, but hangs the CPU-side vertices off the mesh. A body is built
+     * out of decorative detail — ribs, teeth, knuckles — laid on top of a
+     * larger volume, and detail that ends up *inside* that volume costs a few
+     * hundred triangles a frame and renders nothing. Nothing about that is
+     * visible to a test that only reads part transforms, and it is not obvious
+     * by eye either, so the geometry is kept where a test can measure it. It is
+     * a few tens of kilobytes for the handful of meshes it is used on.
+     */
+    const makeKeep = (fn) => {
+      const mb = new MeshBuilder(256);
+      fn(mb);
+      const d = mb.finish();
+      const mesh = createMeshVAO(gl, this.scene, d.vertices, d.indices);
+      mesh.cpu = {
+        vertices: d.vertices,
+        count: d.vertexCount,
+        stride: d.vertexCount ? d.vertices.length / d.vertexCount : 0,
+      };
+      return mesh;
+    };
 
     /* Almond water: a carton, because the bottle is a later invention and the
      * carton is what people picture. */
@@ -3527,11 +3551,82 @@ class Renderer {
     const F = MAT.FLESH;
     const shade = (v) => () => v;
 
-    this.dyn.entTorso = make((mb) => {
-      /* Shoulders down to hips, tapering in. */
-      addLimb(mb, 0, 1.44, 0, [0.20, 0.11], [0.13, 0.09], 0.56, F, { ao: shade(0.62) });
-      /* Neck. */
-      addLimb(mb, 0, 1.52, 0, [0.05, 0.05], [0.06, 0.06], 0.10, F, { ao: shade(0.5) });
+    /*
+     * The torso is starved on purpose: a deep ribcage over almost nothing at
+     * the waist. Everything that reads at fog distance is the *outline* — a
+     * heavy chest, a pinched middle, and far too much daylight between the
+     * limbs — so the ribs are there for the two seconds you spend closer than
+     * you wanted to be, and the proportions are there for the rest.
+     *
+     * Both halves of that were wrong in the first cut and it is worth saying
+     * why, because neither shows up in a part-transform test. The chest was an
+     * `addLimb`, and `addLimb` builds a tapered *rectangular* prism: from the
+     * front that is a plank and from the side a slab, which is the one shape a
+     * ribcage is not. It is an ellipsoid now.
+     *
+     * And the ribs were flat slabs whose front faces sat 6mm to 30mm *inside*
+     * the chest wall, so the front of the chest — the only place a rib reads —
+     * showed nothing at all. What did show was an accident: the lower three
+     * were fractionally wider than the tapering prism and their outer edges
+     * broke the surface by 2mm to 9mm, which drew a few faint horizontal
+     * scratches down the flank and looked like a texture seam. Laid on the
+     * surface properly below.
+     */
+    const CHEST_Y = 1.46, CHEST_H = 0.26, CHEST_A = 0.215, CHEST_B = 0.115;
+    /* Published so a test can check the ribs against the chest the renderer
+     * actually built, rather than against a copy of these numbers. */
+    this.chest = { y: CHEST_Y, h: CHEST_H, a: CHEST_A, b: CHEST_B };
+    this.dyn.entTorso = makeKeep((mb) => {
+      /* Ribcage: widest across the mid-chest, narrowing to both shoulder and
+       * waist, which is what an egg does and what a starved chest looks like. */
+      addSphere(mb, 0, CHEST_Y, 0, CHEST_A, 14, 10, F,
+        { ao: shade(0.60), scaleY: CHEST_H / CHEST_A, scaleZ: CHEST_B / CHEST_A });
+      /* Waist: barely there. It is what sells the chest above it. */
+      addSphere(mb, 0, 1.16, 0, 0.100, 12, 9, F,
+        { ao: shade(0.50), scaleY: 0.90, scaleZ: 0.85 });
+      /* Pelvis, wider again, where the legs hang from (hips ride at y=1.05).
+       * Kept flat rather than round — at 0.76 tall it hung below the hips as a
+       * distinct ball between the legs instead of reading as a hip girdle. */
+      addSphere(mb, 0, 1.05, 0, 0.128, 12, 8, F,
+        { ao: shade(0.52), scaleY: 0.62, scaleZ: 0.66 });
+      /*
+       * The hunch. Two masses sitting above and behind the neck line, which is
+       * what makes the head read as *sunk between* the shoulders rather than
+       * sitting on top of them — the single most consistent thing about the
+       * shape of these.
+       */
+      for (const sx of [-0.145, 0.145]) {
+        addSphere(mb, sx, 1.63, 0.045, 0.10, 9, 7, F,
+          { ao: shade(0.52), scaleY: 0.68, scaleZ: 0.85 });
+      }
+      /*
+       * Ribs, as arcs of short boxes laid along the chest's own elliptical
+       * cross-section and pushed a few millimetres proud of it. Each segment is
+       * yawed onto the local tangent so the arc bends round the flank instead
+       * of cutting a straight chord through it.
+       */
+      const RIB_N = 5, RIB_SPAN = 1.05, PUSH = 0.011;
+      const dPhi = (RIB_SPAN * 2) / (RIB_N - 1);
+      for (let i = 0; i < 5; i++) {
+        const ry = 1.62 - i * 0.075;
+        /* Half-extents of the chest at this height, straight off the ellipsoid. */
+        const k = Math.sqrt(Math.max(0, 1 - ((ry - CHEST_Y) / CHEST_H) ** 2));
+        const a = CHEST_A * k, b = CHEST_B * k;
+        for (let j = 0; j < RIB_N; j++) {
+          const phi = -RIB_SPAN + j * dPhi;
+          const sp = Math.sin(phi), cp = Math.cos(phi);
+          /* Outward normal of an ellipse is (x/a², z/b²), not the radius. */
+          let nx = sp / a, nz = -cp / b;
+          const nl = Math.hypot(nx, nz) || 1;
+          nx /= nl; nz /= nl;
+          const tan = Math.hypot(a * cp, b * sp);
+          addBox(mb, a * sp + nx * PUSH, ry, -b * cp + nz * PUSH,
+            tan * dPhi * 1.25, 0.024, 0.030,
+            Math.atan2(b * sp, a * cp), F, { ao: shade(0.74) });
+        }
+      }
+      /* Neck: long, thin, and pitched forward so the head leads the body. */
+      addLimb(mb, 0, 1.80, -0.02, [0.043, 0.043], [0.052, 0.055], 0.16, F, { ao: shade(0.44) });
     });
     /*
      * The head, with eyes. The eyes are the whole reason anything here is
@@ -3543,10 +3638,29 @@ class Renderer {
      * Local -Z is forward for this yaw convention, so they go in front.
      */
     this.dyn.entHead = make((mb) => {
-      addSphere(mb, 0, 0, 0, 0.115, 12, 9, F,
-        { ao: shade(0.7), scaleY: 1.22, scaleZ: 1.05 });
-      for (const ex of [-0.045, 0.045]) {
-        addSphere(mb, ex, 0.022, -0.095, 0.023, 7, 5, MAT.EYE, { ao: () => 1 });
+      /* A smooth domed cranium — no brow, no jawline, nothing that reads as a
+       * face until you are close enough for the mouth. */
+      addSphere(mb, 0, 0.02, 0.01, 0.108, 12, 9, F,
+        { ao: shade(0.72), scaleY: 1.30, scaleZ: 1.18 });
+      /*
+       * The mouth: a vertical slot running from under the dome down the front
+       * of the throat, dark inside. Vertical rather than horizontal because a
+       * mouth across the face reads as a mouth, and this is supposed to read
+       * as a head that has come apart.
+       */
+      addLimb(mb, 0, 0.03, -0.075, [0.030, 0.052], [0.020, 0.030], 0.20, MAT.MAW,
+        { ao: shade(0.10) });
+      /* A short row of needles down each side of the slot. */
+      for (let i = 0; i < 5; i++) {
+        const ty = 0.00 - i * 0.036;
+        for (const tx of [-0.026, 0.026]) {
+          addBox(mb, tx, ty, -0.088, 0.011, 0.026, 0.010, 0, MAT.TOOTH,
+            { ao: shade(0.85) });
+        }
+      }
+      /* Eyes: small, high, and set close — a cluster rather than a pair. */
+      for (const ex of [-0.038, 0.038]) {
+        addSphere(mb, ex, 0.072, -0.082, 0.017, 7, 5, MAT.EYE, { ao: () => 1 });
       }
     });
     /*
@@ -3557,18 +3671,74 @@ class Renderer {
      * an unfinished model — it reads as a face that has had them taken out.
      */
     this.dyn.entHeadBlind = make((mb) => {
-      addSphere(mb, 0, 0, 0, 0.115, 12, 9, F,
-        { ao: shade(0.7), scaleY: 1.22, scaleZ: 1.05 });
-      for (const ex of [-0.045, 0.045]) {
-        addSphere(mb, ex, 0.022, -0.088, 0.024, 7, 5, F, { ao: shade(0.18) });
+      addSphere(mb, 0, 0.02, 0.01, 0.108, 12, 9, F,
+        { ao: shade(0.72), scaleY: 1.30, scaleZ: 1.18 });
+      addLimb(mb, 0, 0.03, -0.075, [0.030, 0.052], [0.020, 0.030], 0.20, MAT.MAW,
+        { ao: shade(0.10) });
+      for (let i = 0; i < 5; i++) {
+        const ty = 0.00 - i * 0.036;
+        for (const tx of [-0.026, 0.026]) {
+          addBox(mb, tx, ty, -0.088, 0.011, 0.026, 0.010, 0, MAT.TOOTH,
+            { ao: shade(0.85) });
+        }
+      }
+      for (const ex of [-0.038, 0.038]) {
+        addSphere(mb, ex, 0.072, -0.078, 0.018, 7, 5, F, { ao: shade(0.16) });
       }
     });
-    /* Origin at the joint, hanging down. */
-    this.dyn.entArm = make((mb) => {
-      addLimb(mb, 0, 0, 0, [0.055, 0.055], [0.032, 0.032], 0.66, F, { ao: shade(0.55) });
+
+    /*
+     * Limbs, in segments, all with their origin at the joint they hang from.
+     *
+     * The arms are two bones and a hand rather than one taper because the
+     * elbow is what makes an arm this long look like an arm rather than a
+     * rope, and the legs are three because these do not stand like people:
+     * the references all have a digitigrade back leg — thigh forward, shin
+     * raked back, and a long foot on the toes — and that reversed knee is
+     * more recognisable at forty metres than anything above the waist.
+     */
+    this.dyn.entArmUpper = make((mb) => {
+      addLimb(mb, 0, 0, 0, [0.050, 0.050], [0.034, 0.034], 0.48, F, { ao: shade(0.55) });
     });
-    this.dyn.entLeg = make((mb) => {
-      addLimb(mb, 0, 0, 0, [0.075, 0.075], [0.045, 0.05], 0.88, F, { ao: shade(0.5) });
+    this.dyn.entArmFore = make((mb) => {
+      addLimb(mb, 0, 0, 0, [0.034, 0.034], [0.024, 0.024], 0.56, F, { ao: shade(0.50) });
+    });
+    /*
+     * The hand is most of the silhouette below the waist, so it gets the
+     * detail: a small palm and four fingers that are nearly as long as the
+     * forearm, splayed and curling in. Long fingers on a thin arm is the one
+     * thing every one of these designs agrees on.
+     */
+    this.dyn.entHand = make((mb) => {
+      addLimb(mb, 0, 0, 0, [0.028, 0.020], [0.030, 0.018], 0.07, F, { ao: shade(0.52) });
+      for (let i = 0; i < 4; i++) {
+        const fx = (i - 1.5) * 0.019;
+        const lean = (i - 1.5) * 0.055;
+        /* Two knuckles each, the second swung inward, so they hook. */
+        addLimb(mb, fx, -0.06, lean * 0.3, [0.011, 0.011], [0.008, 0.008], 0.16, F,
+          { ao: shade(0.48) });
+        addLimb(mb, fx + lean * 0.35, -0.21, lean * 0.5 - 0.02,
+          [0.008, 0.008], [0.003, 0.003], 0.13, F, { ao: shade(0.42) });
+      }
+    });
+
+    /* 0.066 across the top, not 0.082: a 16cm-wide thigh on a body with a
+     * 10cm waist is the one limb that stops reading as starved, and being a
+     * four-sided prism it presents that width as a single flat face. */
+    this.dyn.entThigh = make((mb) => {
+      addLimb(mb, 0, 0, 0, [0.066, 0.066], [0.044, 0.044], 0.50, F, { ao: shade(0.5) });
+    });
+    this.dyn.entShin = make((mb) => {
+      addLimb(mb, 0, 0, 0, [0.050, 0.050], [0.029, 0.029], 0.52, F, { ao: shade(0.46) });
+    });
+    /* The foot is long and thin and it walks on the toes. */
+    this.dyn.entFoot = make((mb) => {
+      addLimb(mb, 0, 0, 0, [0.038, 0.038], [0.028, 0.028], 0.22, F, { ao: shade(0.44) });
+      for (let i = 0; i < 3; i++) {
+        const tx = (i - 1) * 0.026;
+        addLimb(mb, tx, -0.21, -0.02, [0.012, 0.012], [0.005, 0.005], 0.10, F,
+          { ao: shade(0.40) });
+      }
     });
 
     /*
@@ -4068,6 +4238,12 @@ function normaliseMaterials(level) {
     {
       kind: 'glow', color: '#eaf4ff', tile: 1, emissive: 1,
       roughMul: 0.3, specular: 0.4, bump: 0.05,
+    },
+    /* Slot 13 — the inside of a mouth. Almost black and completely matte, so
+     * an open jaw is a hole in the head and not a dark grey tongue. */
+    {
+      kind: 'stucco', color: '#140a0c', tile: 0.4, bump: 0.5,
+      normalStrength: 0.4, roughMul: 1, specular: 0.03,
     },
   ];
   for (let i = 0; i < MAT_COUNT; i++) {
@@ -6198,7 +6374,7 @@ __m["backrooms/src/game/entities.js"] = (function () {
  *            you are crossing with company.
  *   swarm    several small ones at once, deaf until you sprint. The counter is
  *            patience, which is expensive when something else is behind you.
- *   titan    three and a half metres, slow, and it does not stop, ever. You
+ *   titan    over three metres, slow, and it does not stop, ever. You
  *            cannot outrun it forever in a corridor; you have to break line of
  *            sight and mean it.
  *   blind    cannot see at all. It walks to wherever you last made a noise,
@@ -6235,13 +6411,13 @@ const { findPath, clearLine } = __m["backrooms/src/game/pathfind.js"];
  * `height` is how far the model actually reaches above the floor, and it is
  * here rather than in a comment because the world suite reads it: a level may
  * not be given a kind that does not fit under its ceiling. The titan is the
- * reason — at 1.85× a biped it stands 3.22m, which rules out most interiors,
+ * reason — at 1.55× a biped it stands 3.15m, which rules out most interiors,
  * and "it clips through the ceiling on level 20" is not something a screenshot
  * of level 0 would ever have shown.
  */
 const BEHAVIOUR = {
-  hound:   { mesh: 'biped',   speed: 3.6, sight: 26, reach: 1.15, damage: 0.34, hp: 3, height: 1.74 },
-  watcher: { mesh: 'biped',   speed: 2.4, sight: 30, reach: 1.05, damage: 0.28, hp: 3, height: 1.74 },
+  hound:   { mesh: 'biped',   speed: 3.6, sight: 26, reach: 1.15, damage: 0.34, hp: 3, height: 2.03 },
+  watcher: { mesh: 'biped',   speed: 2.4, sight: 30, reach: 1.05, damage: 0.28, hp: 3, height: 2.03 },
   crawler: { mesh: 'crawler', speed: 3.9, sight: 15, reach: 0.95, damage: 0.22, hp: 2, height: 0.52 },
   /*
    * A shape rather than a body: a dark silhouette with two lit eyes, which is
@@ -6253,25 +6429,36 @@ const BEHAVIOUR = {
   /* Nothing but the eyes. Fast in the dark, and it will not come into light. */
   smiler:  { mesh: 'smiler',  speed: 4.2, sight: 30, reach: 1.00, damage: 0.26, hp: 2, height: 1.72 },
   /* Slow-looking until it is not. `speed` here is the charge, not the walk. */
-  lurker:  { mesh: 'biped',   speed: 5.4, sight: 9,  reach: 1.10, damage: 0.40, hp: 3, height: 1.74 },
+  lurker:  { mesh: 'biped',   speed: 5.4, sight: 9,  reach: 1.10, damage: 0.40, hp: 3, height: 2.03 },
   /* Slightly faster than a walk and slightly slower than a sprint, on purpose:
    * it stays with you while you walk and falls behind if you commit to running,
    * which is the trade the whole behaviour exists to offer. */
-  stalker: { mesh: 'biped',   speed: 3.2, sight: 40, reach: 1.05, damage: 0.24, hp: 3, height: 1.74 },
+  stalker: { mesh: 'biped',   speed: 3.2, sight: 40, reach: 1.05, damage: 0.24, hp: 3, height: 2.03 },
   /* Individually trivial, and they do not arrive individually. */
   swarm:   { mesh: 'crawler', speed: 4.4, sight: 18, reach: 0.85, damage: 0.12, hp: 1, height: 0.52 },
   /* Reach and damage scale with the size of the thing. It does not need speed. */
-  titan:   { mesh: 'titan',   speed: 1.9, sight: 44, reach: 2.10, damage: 0.55, hp: 6, height: 3.22 },
+  titan:   { mesh: 'titan',   speed: 1.9, sight: 44, reach: 2.10, damage: 0.55, hp: 6, height: 3.15 },
   /* `sight: 0` is not a placeholder — it cannot see at all, and everything it
    * does is driven by the noise map instead. */
-  blind:   { mesh: 'blind',   speed: 3.4, sight: 0,  reach: 1.15, damage: 0.32, hp: 3, height: 1.74 },
+  blind:   { mesh: 'blind',   speed: 3.4, sight: 0,  reach: 1.15, damage: 0.32, hp: 3, height: 2.03 },
   /* Lives on the ceiling. `speed` applies only after it has come down. */
   dropper: { mesh: 'dropper', speed: 4.6, sight: 12, reach: 0.95, damage: 0.36, hp: 2, height: 0.52 },
   /* Its position is a reflection of yours, so `speed` never applies. */
-  twin:    { mesh: 'biped',   speed: 0,   sight: 60, reach: 1.10, damage: 0.30, hp: 4, height: 1.74 },
+  twin:    { mesh: 'biped',   speed: 0,   sight: 60, reach: 1.10, damage: 0.30, hp: 4, height: 2.03 },
   /* Trivial damage per bite. The cost of a leech is what it does to your legs. */
   leech:   { mesh: 'crawler', speed: 4.0, sight: 16, reach: 0.90, damage: 0.10, hp: 1, height: 0.52 },
 };
+
+/*
+ * How much bigger a titan is than the biped rig it borrows.
+ *
+ * It is a factor rather than a second model because every joint offset in
+ * dynamics() is in metres, so one multiplier scales the whole skeleton and it
+ * stays assembled. 1.55 and not the old 1.85: the body underneath got taller,
+ * and the product has to stay under the lowest ceiling any titan level has —
+ * 2.03 × 1.55 is 3.15m, which clears a 3.4m warehouse and nothing tighter.
+ */
+const TITAN = 1.55;
 
 /* How many of a kind may exist at once, before the depth bonus. A swarm that
  * capped at four would not be a swarm; a twin that came in pairs would not be
@@ -6843,44 +7030,87 @@ class Entities {
        * 3.5m figure taking one stride to your three reads as an entirely
        * different animal without a single new triangle.
        */
-      const S = e.mesh === 'titan' ? 1.85 : 1;
+      const S = e.mesh === 'titan' ? TITAN : 1;
 
       out.push({ mesh: 'entTorso', x: e.x, y, z: e.z, rot: e.rot, scale: S });
-      /* 1.60, not 1.68: the head has to overlap the top of the neck stub
-       * (which reaches 1.52) or it visibly floats above the shoulders.
-       *
-       * The blind one gets the same head without the eyes, which is the only
-       * thing on it that tells the player why it walked past them: a body with
-       * no lights in its face, going somewhere else. */
+      /*
+       * The head sits low, at 1.87 against a neck that reaches 1.96, so the
+       * skull is sunk *between* the shoulder masses rather than perched above
+       * them — which is the difference between a tall man and the thing in
+       * the reference. The blind one gets the same skull with nothing lit in
+       * it, which is the only thing that tells the player why it walked past.
+       */
       out.push({
         mesh: e.mesh === 'blind' ? 'entHeadBlind' : 'entHead',
-        x: e.x, y: y + 1.60 * S, z: e.z,
+        x: e.x, y: y + 1.87 * S, z: e.z,
         rot: e.rot + e.headYaw, scale: S,
       });
 
       const c = Math.cos(e.rot), s = Math.sin(e.rot);
+
       /*
-       * Shoulders and hips, offset sideways from the body's centre line. The
-       * shoulders sit at 0.26 rather than tucked in at 0.235: the torso is
-       * 0.20 wide up there and an arm half-hidden behind it reads as no arm
-       * at all, which is exactly how the first screenshots came out — a slab
-       * with legs. The gap is what makes the silhouette a body.
+       * Forward kinematics down each limb.
+       *
+       * `modelInto` maps a model-space point through yaw then pitch, and a
+       * segment is built hanging straight down from its own origin, so the far
+       * end of a segment of length L pitched by p sits at
+       *
+       *     joint - L * (sinθ·sin p,  cos p,  cosθ·sin p)
+       *
+       * which is the column the pitch rotation puts local -Y into. Chaining
+       * that gives the next joint, and the whole leg assembles from three
+       * numbers instead of a skeleton format.
        */
-      for (const [ox, mesh, yj, amp, ph] of [
-        [-0.26, 'entArm', 1.42, 0.62, sw],
-        [0.26, 'entArm', 1.42, 0.62, sw2],
-        [-0.095, 'entLeg', 0.90, 0.80, sw2],
-        [0.095, 'entLeg', 0.90, 0.80, sw],
-      ]) {
-        out.push({
-          mesh,
-          x: e.x + ox * S * c,
-          y: y + yj * S,
-          z: e.z + ox * S * s,
-          rot: e.rot,
-          pitch: ph * amp,
-          scale: S,
-        });
+      const seg = (jx, jy, jz, pitch, len, mesh) => {
+        out.push({ mesh, x: jx, y: jy, z: jz, rot: e.rot, pitch, scale: S });
+        return [
+          jx - len * S * s * Math.sin(pitch),
+          jy - len * S * Math.cos(pitch),
+          jz - len * S * c * Math.sin(pitch),
+        ];
+      };
+
+      /*
+       * Arms. Long enough that the hands hang below the knee, hunched forward
+       * at the shoulder, and hooked in at the wrist. The swing is small — a
+       * body this thin flailing looks comic, and the reference is something
+       * that carries its arms rather than swings them.
+       */
+      /*
+       * 0.245 and not 0.30. The chest is 0.17 half-wide at shoulder height and
+       * the hunched blade on top of it reaches about 0.23, so an arm hung at
+       * 0.30 started a clear finger's width outside the shoulder it was
+       * supposed to grow from and read as a pole standing beside the body
+       * rather than an arm attached to it. At 0.245 the top of the bone sits
+       * inside the blade.
+       */
+      for (const [ox, ph] of [[-0.245, sw], [0.245, sw2]]) {
+        const sx = e.x + ox * S * c, sz = e.z + ox * S * s;
+        const sy = y + 1.62 * S;
+        const [ex2, ey2, ez2] = seg(sx, sy, sz, 0.20 + ph * 0.30, 0.48, 'entArmUpper');
+        const [wx, wy, wz] = seg(ex2, ey2, ez2, -0.13 + ph * 0.22, 0.56, 'entArmFore');
+        seg(wx, wy, wz, 0.22 + ph * 0.12, 0.07, 'entHand');
+      }
+
+      /*
+       * Legs, digitigrade: the thigh swings forward, the shin rakes back, and
+       * the foot goes forward again onto its toes. The three pitches are what
+       * make the knee read as bending the wrong way, which is the single most
+       * recognisable thing about the shape from any distance.
+       */
+      for (const [ox, ph] of [[-0.115, sw2], [0.115, sw]]) {
+        const hx = e.x + ox * S * c, hz = e.z + ox * S * s;
+        /*
+         * 1.05, not the 1.18 the abdomen bottoms out at. A digitigrade leg
+         * spends a lot of its length going backwards rather than downwards —
+         * the three segments here are 1.24m of bone that only reaches 1.05m
+         * of floor — so a hip placed where the body ends leaves the whole
+         * animal hovering a hand's width above the carpet.
+         */
+        const hy = y + 1.05 * S;
+        const [kx, ky, kz] = seg(hx, hy, hz, 0.30 + ph * 0.42, 0.50, 'entThigh');
+        const [ax, ay, az] = seg(kx, ky, kz, -0.46 - ph * 0.30, 0.52, 'entShin');
+        seg(ax, ay, az, 1.28 + ph * 0.10, 0.22, 'entFoot');
       }
     }
     return out;
@@ -8785,6 +9015,32 @@ function ambientFor(raw) {
   return lum(sky) > lum(authored) ? sky : raw.amb;
 }
 
+/*
+ * One global dimmer, applied on the way out of every level.
+ *
+ * The hundred were authored one at a time and each was judged on its own, so
+ * collectively they came out lit like a building that still has a facilities
+ * department. Dropping the ambient and pulling the fixtures down turns the
+ * torch from a convenience into the thing you navigate by, which is the whole
+ * point of the place.
+ *
+ * The floor matters as much as the factor. Multiplying a colour by 0.55 takes
+ * an already-black level to nothing at all, and a frame with one colour in it
+ * is not atmosphere, it is a bug — so the darkest channel is held at a value
+ * that still separates a wall from a doorway. Levels that are *meant* to be
+ * pitch black were already at that floor and are left where they are.
+ */
+const DIM = 0.55;
+const FLOOR = 0x06;
+
+function darken(hex) {
+  if (!hex || hex[0] !== '#') return hex;
+  const n = parseInt(hex.slice(1), 16);
+  const ch = [(n >> 16) & 255, (n >> 8) & 255, n & 255]
+    .map((v) => Math.max(Math.min(v, FLOOR), Math.round(v * DIM)));
+  return `#${ch.map((v) => v.toString(16).padStart(2, '0')).join('')}`;
+}
+
 function finalise(raw) {
   const seed = (raw.id + 1) * 7919;
   const level = {
@@ -8798,10 +9054,14 @@ function finalise(raw) {
     arch: raw.arch,
     cellSize: raw.cell ?? 3.2,
     ceilHeight: raw.ceil ?? 3.0,
-    fogColor: raw.fog,
-    fogFar: raw.far ?? 32,
+    /* The fog is what the dark *looks* like at distance, so it dims with the
+     * ambient — a bright haze in front of an unlit room reads as smoke, not
+     * as darkness, and washes out the one silhouette you needed to see. */
+    fogColor: darken(raw.fog),
+    /* And you see less far in it. */
+    fogFar: Math.round((raw.far ?? 32) * 0.82),
     fogHeight: raw.fogHeight ?? 0,
-    ambient: ambientFor(raw),
+    ambient: darken(ambientFor(raw)),
     /* On the inverted level the bounce comes from the ceiling, because the
      * ceiling is the carpet. The materials are already swapped in its `mats`;
      * this is the half of the inversion the eye actually notices. */
@@ -8823,6 +9083,15 @@ function finalise(raw) {
     sub: 2,
     gen: Object.assign({}, DEFAULT_GEN, raw.gen, { seed }),
   };
+  /*
+   * The fixtures come down too, and more of them are dead. Dimming only the
+   * ambient makes a level *contrastier* rather than darker — bright pools
+   * under every panel with black between them — and what was wanted was less
+   * light, not harder light. A quarter of the tubes being out does more for
+   * the feeling of the place than any amount of colour grading.
+   */
+  level.gen.lightIntensity *= 0.72;
+  level.gen.deadLights = Math.min(70, Math.round(level.gen.deadLights * 1.45 + 6));
   /* Walls run to the ceiling unless the archetype overrode it. Levels almost
    * never want to say this twice. */
   if (level.gen.wallHeight === undefined) level.gen.wallHeight = level.ceilHeight;
