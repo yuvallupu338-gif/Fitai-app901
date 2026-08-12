@@ -277,11 +277,29 @@ on read. Offline works: cut the network, reload, the app comes up. The share car
 falls back to a download where Web Share is missing, and the XP a toast promises
 is the XP the code adds.
 
+## The skill tree climbs whatever you train
+
+Picking "gym" changed which exercises the planner prescribed and nothing else:
+the tree stayed four bodyweight ladders, the accessory pool stayed bodyweight,
+and a gym profile was climbing wall push-ups. There is a gym ladder per category
+now — machine chest press up to weighted dips, machine row up to a weighted
+pull-up, leg extension up to a deadlift, machine crunch up to a weighted hanging
+leg raise. Calisthenics climbs the bodyweight ladders, gym climbs the gym ones,
+and hybrid takes four of each per level, which keeps the nine slots, the progress
+bars and the "five to open the next level" rule exactly as they were.
+
+Three places recovered an exercise's base name by reaching straight into `PROG`,
+the bodyweight ladder, rather than the one the slot actually climbed. On a gym
+tree that answered with the wrong movement — wrong demo, wrong video, wrong
+muscle marks, and no kilo field on a lift that takes one. They ask the style
+now. The working weight itself is back too, and appears only on rungs that are
+actually loaded, which is why it is on a machine press and not on a wall
+push-up.
+
 ## The rest of the app
 
 The planner sits on top of an app that was already there: a ten-level skill
-tree — now laddering wall push-ups to the one-arm push-up, prone Y raises to the
-muscle-up, chair squats to the pistol, and knee planks to the dragon flag — food
+tree, food
 logging against calculated targets with a recipe bank per diet, dynamic and
 static stretch routines, weight and measurement tracking, streaks and XP, a
 four-week mesocycle, a four-week ramp for coming back after a layoff, reminders,
