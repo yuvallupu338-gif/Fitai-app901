@@ -305,6 +305,62 @@ static stretch routines, weight and measurement tracking, streaks and XP, a
 four-week mesocycle, a four-week ramp for coming back after a layoff, reminders,
 and profile export/import. Hebrew, English and Spanish.
 
+## Errors and logic errors
+
+A sweep that fires every action the app binds — 813 of them — on every screen,
+under all three styles, ten edge-case profiles (blank, no training days, every
+injury declared, no kit, 95 years old, 190 kg, level 10, mid-comeback, vegan
+with allergies), then all three languages against both themes, and drives a
+whole workout from warm-up to finish including a swap and an undo. Zero
+exceptions, zero console errors.
+
+Alongside it, the invariants that have to hold whatever the profile: calories
+positive and above a floor, the four meals summing to exactly the day's target,
+macros multiplying back to the same number, the XP curve monotonic with its
+progress never outside its own bracket, streaks never negative or longer than
+the days ever logged, water between 1.5 and 12 litres, the assessment always
+landing in 1–10, every session matching the exercise count its duration
+promises, warm-up plus strength plus cool-down equalling the chosen minutes, no
+prescription with zero sets or zero rest, the return-from-a-break ramp never
+cutting below one set and expiring after four weeks, the ISO week seed stable
+inside a week and different across one, a swapped exercise surviving a rebuild,
+and the level gate opening at exactly five. Nothing rendering NaN, undefined or
+[object Object] — with the base64 blobs excluded, because "NaN" occurs in base64
+often enough to make a naive scan useless.
+
+What that turned up, and what was fixed:
+
+**A gym profile from an older build arrived with no gym.** The pre-styles model
+derived a gym from `location==='gym'` and never stored equipment for it, so
+upgrading landed you on style "gym" with an empty kit — the screen said gym
+while the generator, having nothing to work with, fell back to bodyweight and
+showed no kilos. The kit is seeded from the style on the first boot that finds
+it missing. Not in `migrateDB`, though: that runs at the top of the script and
+the kit lists are `const`s in a block injected further down, so reaching for
+them there is a temporal dead zone that takes the whole boot with it. It was
+written that way first, and the migration test caught it.
+
+**"Both" was true about nine times in ten.** The setting says a hybrid session
+is built from bodyweight and gym movements together, and picking purely by tier
+then level made that a tendency rather than a rule — a hybrid leg day at level
+10 came out entirely bodyweight, 47 of 420 sessions across the kits and levels
+measured. A one-sided session now gives its lowest-priority pick to the best
+candidate from the missing side. It is 420 of 420.
+
+**Two dead generators that did not know about styles.** `generateWorkout()` and
+`woSwap()` are what `buildSession()` and `openSwapSheet()` replaced, and neither
+has had a caller since — the action named `woSwap` calls `openSwapSheet`, which
+is what made the name look live. They were also the only three places left
+testing `style==='bodyweight'`, a value no profile can hold any more, which made
+them the only code in the file that would silently ignore the training style if
+anything ever called them again. Removed.
+
+Also checked and clean: every `data-act` the HTML emits has a handler (no button
+that does nothing), no duplicate `case` labels, no duplicate keys in any object
+literal, no assignment where a comparison was meant, and every one of the seven
+remaining unreferenced functions is a one-line helper rather than a second
+implementation of something.
+
 ## Checking it still works
 
 The planner is covered by headless-Chromium scripts that drive the real page
