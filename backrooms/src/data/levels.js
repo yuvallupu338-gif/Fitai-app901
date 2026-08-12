@@ -1241,16 +1241,70 @@ function ambientFor(raw) {
 const DIM = 0.55;
 const FLOOR = 0x06;
 
-function darken(hex) {
-  if (!hex || hex[0] !== '#') return hex;
-  const n = parseInt(hex.slice(1), 16);
+/*
+ * How hard a level can be dimmed depends on how much light it had to start
+ * with, and a flat factor across all hundred does not survive contact with the
+ * dark end of them. Applied flat, Service Alleys came back with seven distinct
+ * colours in the frame and a mean of 3/255, and The Last Corridor with twelve
+ * — both of them levels with no torch, where the ceiling tubes are the only
+ * light there is and most of them were already out. That is not a dark level,
+ * it is a black screen with a walk cycle behind it.
+ *
+ * So the dimmer is scaled by the level's own starting light: a lobby with
+ * working fixtures and a pale ambient loses the full 45%, a corridor lit by
+ * one failing tube loses almost nothing, and everything in between slides.
+ */
+const clamp01 = (v) => Math.max(0, Math.min(1, v));
+
+/*
+ * A level is dimmable while it still has *a* working light source, and the two
+ * kinds do not substitute for one another in the frame: ambient lands on every
+ * surface, a ceiling tube lights a pool under itself. So each is scored on its
+ * own and the level takes the better of the two — one good source is enough.
+ *
+ * The constants are where the measurements went. Service Alleys (1.05 of
+ * fixture light, 0.087 ambient) and The Last Corridor (0.79 and 0.058) are the
+ * two that broke, so both must land near zero; the Lobby (1.83 of fixture
+ * light) and the sky-lit fields (0.5 to 0.74 ambient) took the full 45%
+ * without complaint, so those must land near one.
+ */
+function dimAmount(raw) {
+  const amb = lum(parseColor(ambientFor(raw)));
+  const g = raw.gen || {};
+  const fixtures = (g.lightSpacing ?? 0) === 0
+    ? 0
+    : (g.lightIntensity ?? 2.2) * (1 - Math.min(90, g.deadLights ?? 0) / 100);
+  return Math.max(
+    clamp01((amb - 0.06) / 0.22),
+    clamp01((fixtures - 0.90) / 1.10),
+  );
+}
+
+/*
+ * Ambient arrives as either a hex string or, on the levels lit by their own
+ * sky, an array of floats — and the first cut of this only handled the string,
+ * returned the array untouched, and so quietly exempted every outdoor level in
+ * the game from the one change that was asked for. Field of Wheat and Terrace
+ * Fields came out of the "darker" pass at exactly their authored brightness.
+ */
+function darken(color, s) {
+  const f = 1 - (1 - DIM) * s;
+  if (Array.isArray(color)) {
+    const floor = FLOOR / 255;
+    return color.map((v) => Math.max(Math.min(v, floor), v * f));
+  }
+  if (!color || color[0] !== '#') return color;
+  const n = parseInt(color.slice(1), 16);
   const ch = [(n >> 16) & 255, (n >> 8) & 255, n & 255]
-    .map((v) => Math.max(Math.min(v, FLOOR), Math.round(v * DIM)));
+    .map((v) => Math.max(Math.min(v, FLOOR), Math.round(v * f)));
   return `#${ch.map((v) => v.toString(16).padStart(2, '0')).join('')}`;
 }
 
 function finalise(raw) {
   const seed = (raw.id + 1) * 7919;
+  /* How much of the dimmer this level can absorb. 0 leaves it exactly as it
+   * was authored. */
+  const s = dimAmount(raw);
   const level = {
     id: raw.id,
     name: raw.name,
@@ -1265,11 +1319,11 @@ function finalise(raw) {
     /* The fog is what the dark *looks* like at distance, so it dims with the
      * ambient — a bright haze in front of an unlit room reads as smoke, not
      * as darkness, and washes out the one silhouette you needed to see. */
-    fogColor: darken(raw.fog),
+    fogColor: darken(raw.fog, s),
     /* And you see less far in it. */
-    fogFar: Math.round((raw.far ?? 32) * 0.82),
+    fogFar: Math.round((raw.far ?? 32) * (1 - 0.18 * s)),
     fogHeight: raw.fogHeight ?? 0,
-    ambient: darken(ambientFor(raw)),
+    ambient: darken(ambientFor(raw), s),
     /* On the inverted level the bounce comes from the ceiling, because the
      * ceiling is the carpet. The materials are already swapped in its `mats`;
      * this is the half of the inversion the eye actually notices. */
@@ -1298,8 +1352,13 @@ function finalise(raw) {
    * light, not harder light. A quarter of the tubes being out does more for
    * the feeling of the place than any amount of colour grading.
    */
-  level.gen.lightIntensity *= 0.72;
-  level.gen.deadLights = Math.min(70, Math.round(level.gen.deadLights * 1.45 + 6));
+  level.gen.lightIntensity *= 1 - 0.28 * s;
+  /* Killing tubes takes a share of what is still *working*, rather than a flat
+   * multiple. A flat 1.45× turned a level that was already 55% dark into one
+   * with three tubes alight in the whole draw distance, which is where the
+   * black screens came from. */
+  level.gen.deadLights = Math.min(70,
+    Math.round(level.gen.deadLights + (70 - level.gen.deadLights) * 0.30 * s));
   /* Walls run to the ceiling unless the archetype overrode it. Levels almost
    * never want to say this twice. */
   if (level.gen.wallHeight === undefined) level.gen.wallHeight = level.ceilHeight;
