@@ -3719,12 +3719,25 @@ __m["portfolio/src/export/markdown.js"] = (function () {
 
 const { buildDocument } = __m["portfolio/src/export/document.js"];
 
-const BLOCK_START = /^(\s*)([#>|]|[-*+]\s|\d+[.)]\s)/;
+/*
+ * The two shapes a line can start with that would stop it being a line.
+ *
+ * They are escaped differently because Markdown only honours a backslash before
+ * punctuation: "\-" and "\#" are the escaped characters, but "\1." is a literal
+ * backslash followed by a list — the digit is not escapable, so the full stop
+ * after it is the one to reach for, and "1\." is an ordinary sentence again.
+ */
+const BLOCK_MARK = /^(\s*)([#>|~=+*-])/;
+const BLOCK_NUMBER = /^(\s*)(\d+)([.)])/;
 
 function block(text) {
   return String(text || '')
     .split('\n')
-    .map((line) => (BLOCK_START.test(line) ? line.replace(BLOCK_START, '$1\\$2') : line))
+    .map((line) => {
+      if (BLOCK_NUMBER.test(line)) return line.replace(BLOCK_NUMBER, '$1$2\\$3');
+      if (BLOCK_MARK.test(line)) return line.replace(BLOCK_MARK, '$1\\$2');
+      return line;
+    })
     .join('\n');
 }
 

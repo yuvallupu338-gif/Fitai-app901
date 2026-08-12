@@ -22,7 +22,7 @@
  */
 
 import { createServer } from 'node:http';
-import { readFile, mkdir, mkdtemp, rm } from 'node:fs/promises';
+import { readFile, writeFile, mkdir, mkdtemp, rm } from 'node:fs/promises';
 import { existsSync } from 'node:fs';
 import { tmpdir } from 'node:os';
 import { resolve, dirname, extname, join } from 'node:path';
@@ -65,6 +65,10 @@ async function serve() {
   await new Promise((r) => server.listen(0, '127.0.0.1', r));
   return { server, port: server.address().port };
 }
+
+/* Four pixels of grey. Big enough to be a picture, small enough to read here. */
+const PNG_4PX = 'iVBORw0KGgoAAAANSUhEUgAAAAQAAAAECAIAAAAmkwkpAAAAGElEQVR4nGP8//8/A27AhEd'
+  + 'uSMgAAP//JCUDaKUdSTIAAAAASUVORK5CYII=';
 
 /* The one work the whole run is about. Its answers are ordinary on purpose —
  * the hostile ones are the audit's job — except the title, which carries a
@@ -160,6 +164,59 @@ async function main() {
   check((await page.locator('.workrow .gapline.ok').count()) === 1,
     'after a reload the work no longer counts as complete');
   await shot('03-works');
+
+  /* ---- a second work, moved and then deleted ---- */
+
+  /*
+   * Order is the person's, not a sort, so it is a pair of buttons — and the
+   * order in the list has to be the order in the document, which is the part a
+   * count of rows would not notice.
+   */
+  await page.getByRole('button', { name: '+ עבודה חדשה' }).click();
+  await page.getByLabel('שם העבודה', { exact: true }).fill('עבודה שנייה');
+  await page.getByRole('button', { name: 'שמירה וחזרה' }).click();
+  await page.waitForSelector('.workrow');
+  check((await page.locator('.workrow').count()) === 2, 'a second work did not appear in the list');
+
+  await page.locator('.workrow').nth(1).getByRole('button', { name: 'העלאה למעלה ברשימה' }).click();
+  check((await page.locator('.workrow .namebtn').first().textContent()) === 'עבודה שנייה',
+    'moving a work up did not move it');
+  check(await page.locator('.workrow').nth(0).getByRole('button', { name: 'העלאה למעלה ברשימה' }).isDisabled(),
+    'the first work can still be moved up');
+
+  await page.getByRole('button', { name: 'הקובץ' }).click();
+  await page.waitForSelector('iframe.preview');
+  const ordered = await page.getAttribute('iframe.preview', 'srcdoc');
+  check(ordered.indexOf('עבודה שנייה') < ordered.indexOf('מספרת רון'),
+    'the order in the list is not the order in the document');
+  check(ordered.includes('<nav class="toc">') === false, 'two works should not get a contents list');
+
+  await page.getByRole('button', { name: 'העבודות' }).click();
+  await page.locator('.workrow .namebtn').first().click();
+  await page.getByRole('button', { name: 'מחיקת העבודה' }).click();
+  await page.waitForSelector('.workrow');
+  check((await page.locator('.workrow').count()) === 1, 'deleting a work left it in the list');
+  check((await page.locator('.workrow .namebtn').first().textContent()) === WORK.title,
+    'deleting a work took the wrong one');
+
+  /* ---- a photograph, which is the only thing here that leaves the browser bigger than it arrived ---- */
+
+  /*
+   * The picture path is the one that cannot be checked without a browser at all:
+   * a File is read, drawn to a canvas, resized and re-encoded, and what comes
+   * out is a JPEG data URL whether a PNG went in. Node has none of those.
+   */
+  const png = join(downloads, 'shot.png');
+  await writeFile(png, Buffer.from(PNG_4PX, 'base64'));
+  await page.locator('.workrow .namebtn').first().click();
+  await page.waitForSelector('.explain');
+  await page.setInputFiles('.formcard .filebtn input[type="file"]', png);
+  await page.waitForSelector('.thumb img');
+  const thumb = await page.getAttribute('.thumb img', 'src');
+  check(thumb.startsWith('data:image/jpeg;base64,'), `the picture was stored as "${thumb.slice(0, 30)}…"`);
+  await page.locator('.thumb input').fill('עמוד הבית');
+  await page.getByRole('button', { name: 'שמירה וחזרה' }).click();
+  await page.waitForSelector('.workrow');
 
   /*
    * An edit that is abandoned mid-keystroke by switching tabs.
@@ -257,6 +314,10 @@ async function main() {
     sections: Array.from(document.querySelectorAll('.sec h3')).map((n) => n.textContent),
     bullets: document.querySelectorAll('.sec li').length,
     chips: Array.from(document.querySelectorAll('.chip')).map((n) => n.textContent),
+    images: document.querySelectorAll('.shots img').length,
+    imageSrc: ((document.querySelector('.shots img') || {}).getAttribute
+      ? document.querySelector('.shots img').getAttribute('src') : '').slice(0, 23),
+    caption: (document.querySelector('.shots figcaption') || {}).textContent || '',
     dir: document.documentElement.getAttribute('dir'),
     lang: document.documentElement.getAttribute('lang'),
     externals: Array.from(document.querySelectorAll('[src], link[href]'))
@@ -278,6 +339,9 @@ async function main() {
     `the file's sections are ${JSON.stringify(seen.sections)}`);
   check(seen.bullets === 3, `three lines of "מה עשיתי" produced ${seen.bullets} bullets`);
   check(seen.chips.includes('Figma') && seen.chips.includes('CSS'), 'the tools are missing from the file');
+  check(seen.images === 1, `the file carries ${seen.images} pictures, not 1`);
+  check(seen.imageSrc === 'data:image/jpeg;base64,', `the picture is not embedded: "${seen.imageSrc}"`);
+  check(seen.caption === 'עמוד הבית', `the caption came out "${seen.caption}"`);
   check(seen.dir === 'rtl' && seen.lang === 'he', `the file is ${seen.lang}/${seen.dir}`);
   check(seen.externals.length === 0,
     `the file asks the network for ${JSON.stringify(seen.externals.slice(0, 3))} — it is not self-contained`);

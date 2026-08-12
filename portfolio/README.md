@@ -163,8 +163,8 @@ node tools/build-single.js portfolio/index.html dist/portfolio.html
 node tools/portfolio-smoke.mjs --shots                  # the real app in Chromium
 ```
 
-`portfolio-audit.mjs` is 314 assertions over the two things a screenshot cannot
-see. The first is grammar: "זה אפליקציה שבניתי" looks exactly as correct as "זו
+`portfolio-audit.mjs` is 329 assertions over the things a screenshot cannot see.
+The first is grammar: "זה אפליקציה שבניתי" looks exactly as correct as "זו
 אפליקציה שבניתי" to anything that is not reading it, so the cases are named in
 the check — one line per kind, with the demonstrative and both pronouns written
 out. They are written out rather than read from `schema.js`, because a check that
@@ -178,11 +178,23 @@ an answer containing the word `onerror` is escaped into an alt attribute and is
 still, correctly, that word. The question was never whether those characters
 appear, it is whether the text minted an element.
 
-`portfolio-smoke.mjs` fills the form in a real browser, reloads to prove any of
-it was stored, downloads the file, closes the server, and opens the download
-over `file://` — where it asserts against a real DOM that the document has no
-script elements, that nothing in it opened a dialog, that the `<script>` tag
-typed into the title came out as text, and that it asks the network for nothing.
+It also covers the two failures that are not about text at all: a device with no
+room left says "remove a photograph" and a browser with storage switched off says
+something else, and in both cases the answer that was being typed survives the
+failed save — the work in the form at that moment is worth more than the
+invariant.
+
+`portfolio-smoke.mjs` is 49 checks in Chromium. It fills the form, reloads to
+prove any of it was stored, adds and reorders and deletes a work, puts a real
+PNG through the picture path — a File, a canvas, a resize and a re-encode, none
+of which exist in Node — then downloads the file, closes the server, and opens
+the download over `file://`. There it asserts against a real DOM that the
+document has no script elements, that nothing in it opened a dialog, that the
+`<script>` tag typed into the title came out as text, that the photograph is
+embedded rather than linked, and that the page asks the network for nothing. Last
+it opens `dist/portfolio.html` the same way, where the app itself has no server
+and usually no storage, and checks that it boots and says so.
+
 It also checks the abandoned edit: type, switch tabs before the save lands, and
 the words are still there. That check is the reason screens are released rather
 than painted over.

@@ -413,12 +413,19 @@ for (const [input, expected] of IMAGES) {
 {
   const tricky = schema.normalisePortfolio({
     owner: { name: 'א' },
-    works: [{ title: 'עבודה', kind: 'site', context: 'personal', brief: '## לא כותרת\n- לא רשימה\n> לא ציטוט' }],
+    works: [{
+      title: 'עבודה', kind: 'site', context: 'personal',
+      brief: '## לא כותרת\n- לא רשימה\n> לא ציטוט\n1. לא ממוספר\n=== לא כותרת setext',
+    }],
   });
   const text = md.toMarkdown(tricky, AT);
   ok(text.includes('\\## לא כותרת'), 'a heading marker in an answer became a heading');
   ok(text.includes('\\- לא רשימה'), 'a dash in an answer became a list item');
   ok(text.includes('\\> לא ציטוט'), 'a chevron in an answer became a quote');
+  ok(text.includes('\\=== לא כותרת setext'), 'an underline in an answer became a heading');
+  /* The digit cannot be escaped, so the full stop after it is. */
+  ok(text.includes('1\\. לא ממוספר'), 'a numbered line in an answer became a numbered list');
+  ok(!text.includes('\\1.'), 'the number was escaped in the one way Markdown does not honour');
 }
 
 /* File names are chosen by this app and typed by nobody, but the name in them is. */
@@ -484,6 +491,60 @@ ok(doc.fileNameFor('', 'html') === 'portfolio.html', 'a name with no date should
   /* The name is only asked for where the sentence needs one. */
   ok(!schema.gapsInWork(workOf({ context: 'personal' })).some((g) => g.key === 'clientName'),
     'a personal project was asked for a client name');
+}
+
+/* ------------------------------------------------------------------ *
+ * 8. Storage that refuses
+ * ------------------------------------------------------------------ */
+
+/*
+ * The two ways saving fails, told apart.
+ *
+ * They have different answers — one is "delete a photograph", the other is
+ * "this browser will not remember anything, download the file before you close
+ * the tab" — and giving the first answer to somebody with the second problem
+ * sends them to delete work that was never the cause. Node has no localStorage,
+ * so the failures are handed to the store directly.
+ */
+{
+  const original = Object.getOwnPropertyDescriptor(globalThis, 'localStorage');
+  const fake = (fail) => ({
+    getItem: () => null,
+    removeItem: () => {},
+    setItem: () => { if (fail) throw fail; },
+  });
+
+  /* The store logs the reason it could not save, which is right in a browser
+   * console and is noise in a passing check — so it is captured here, and the
+   * fact that it was logged at all is one of the things asserted. */
+  const logged = [];
+  const realError = console.error;
+  console.error = (e) => logged.push(e);
+
+  const quota = new Error('exceeded');
+  quota.name = 'QuotaExceededError';
+  globalThis.localStorage = fake(quota);
+  store.reset();
+  store.setOwner({ name: 'מי שאין לו מקום' });
+  ok(store.saveError() === 'quota', `a full device reports "${store.saveError()}"`);
+  ok(store.get().owner.name === 'מי שאין לו מקום',
+    'a save that failed also lost the answer — the work in the form is worth more than the invariant');
+  ok(!store.persists(), 'a device that cannot save still claims it can');
+
+  globalThis.localStorage = fake(new Error('SecurityError: storage is disabled'));
+  store.reset();
+  store.addWork(schema.emptyWork());
+  ok(store.saveError() === 'blocked', `a browser with storage switched off reports "${store.saveError()}"`);
+  ok(store.get().works.length === 1, 'a blocked save lost the work as well');
+  ok(html.toHtml(store.get(), AT).includes('<!DOCTYPE html>'),
+    'a portfolio that could not be saved can no longer be exported — which is the one thing left to do with it');
+
+  store.reset();
+  console.error = realError;
+  if (original) Object.defineProperty(globalThis, 'localStorage', original);
+  else delete globalThis.localStorage;
+
+  ok(logged.length >= 2, `${logged.length} failed saves were logged — a save that fails silently is the worst kind`);
 }
 
 /* ------------------------------------------------------------------ */
