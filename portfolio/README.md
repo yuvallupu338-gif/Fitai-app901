@@ -41,7 +41,18 @@ Two readers sit behind that button, and the screen says which one ran.
 
 **With a key**, a language model reads the prose: it can tell that three
 sentences are about the same website, and it fills the fields the person's own
-sentences answer. The prompt's first instruction is not about the schema, it is
+sentences answer. The default vendor is DeepSeek, which is the cheap one on the
+table and the right shape for this job — Hebrew prose in, a filled form out, no
+images and no long context. It carries a caveat the screen states rather than
+buries: DeepSeek does not document calls made straight from a browser, so a
+browser may refuse the request before it leaves the machine, and there is no
+server here to proxy through. When that happens the app says so, Anthropic is
+one tap up, and the button that needs no key at all is right beside it.
+
+The choice is stored under this app's own job name (`fitai.ai.portfolio`), so
+picking a model to read a portfolio is not the same decision as picking one for
+FitAI's questionnaire, and neither overwrites the other. The key is per vendor
+and shared, because it is the same key to the same account. The prompt's first instruction is not about the schema, it is
 about not writing: copy their sentences, do not improve them, never invent a
 number. A model asked to describe somebody's work will produce "הובלתי תהליך
 עיצוב מקיף" about an evening on a friend's logo, and that sentence goes out with
@@ -113,11 +124,22 @@ SVG is a document with script in it. The list is an allowlist rather than a
 blocklist of the dangerous ones, because a blocklist that has heard of
 `javascript:` has usually not heard of `data:text/html`.
 
-It prints. A portfolio is asked for as a PDF at least as often as it is opened
-in a browser, and Ctrl+P on this file is the whole PDF pipeline — which is why
-the document is ink on white rather than the app's own dark chrome, why headings
-are told not to end a page alone, and why link addresses are printed next to
-their text on paper, where a link is only its text.
+It prints, and there is a button for it. A portfolio is asked for as a PDF at
+least as often as it is opened in a browser, which is why the document is ink on
+white rather than the app's own dark chrome, why headings are told not to end a
+page alone, and why link addresses are printed beside their text on paper, where
+a link is only its text.
+
+"הורדה כ-PDF" opens the browser's print dialog, and that is not the button
+taking a shortcut — it is the only way a page with no server and no libraries
+writes a PDF at all. Writing one here by hand would mean embedding a Hebrew font
+and doing the right-to-left shaping in this app, which is a great deal of code
+to arrive at a worse file: what the print dialog produces has real text in it,
+so the document is searchable, selectable, and readable by the software an
+employer runs over it. What the button owes the person is the one instruction
+that is not obvious — set the destination to "Save as PDF" — and it is on the
+screen before the dialog opens, because a modal dialog is exactly when nobody
+reads the page behind it.
 
 Its name is the one ASCII string in the app, and that is not an aesthetic
 choice. A `download` attribute holding Hebrew is not merely displayed
@@ -243,7 +265,7 @@ something else, and in both cases the answer that was being typed survives the
 failed save — the work in the form at that moment is worth more than the
 invariant.
 
-`portfolio-smoke.mjs` is 88 checks in Chromium. It fills the form, reloads to
+`portfolio-smoke.mjs` is 93 checks in Chromium. It fills the form, reloads to
 prove any of it was stored, adds and reorders and deletes a work, puts a real
 PNG through the picture path — a File, a canvas, a resize and a re-encode, none
 of which exist in Node — then downloads the file, closes the server, and opens
@@ -259,8 +281,11 @@ the words are still there. That check is the reason screens are released rather
 than painted over.
 
 The model path is exercised without a key and without a network: the request is
-intercepted and answered with the shape a provider really returns, half of it
-deliberately wrong. What that proves is the whole wiring — the body this app
+intercepted and answered with the shape DeepSeek really returns, half of it
+deliberately wrong. That is the harder of the two vendor shapes on purpose — the
+system prompt is a message rather than a field, and the tool arguments come back
+as a JSON *string*, which is the one place a perfectly good HTTP 200 can still
+carry unparseable content. What that proves is the whole wiring — the body this app
 builds, the tool call it pulls out, the normalising, the works landing in the
 store — and it proves the sentence on the screen about what is sent, by reading
 the request body and asserting the phone number is not in it.

@@ -22,10 +22,10 @@
  */
 
 import { h, clear, announce } from '../../../src/core/dom.js';
-import { choiceFor, hasKey } from '../../../src/ai/client.js';
+import { hasKey } from '../../../src/ai/client.js';
 import { settingsRows } from '../../../src/ui/aisettings.js';
 import * as store from '../core/store.js';
-import { readWorks, AiError } from '../ai/read.js';
+import { readWorks, readerChoice, JOB, AiError } from '../ai/read.js';
 import { readOffline } from '../ai/offline.js';
 import { countPhrase } from '../engine/write.js';
 import { field, textInput, textArea } from './fields.js';
@@ -104,15 +104,25 @@ export function renderQuickstart(root, opts) {
   function paintSettings() {
     const inner = settings.querySelector('.aiinner');
     clear(inner);
-    const choice = choiceFor('text');
+    const choice = readerChoice();
     inner.appendChild(h('p.help',
       'בלי מודל אני מחלקת את הטקסט לפי שורות ומוציאה ממנו שנים, כלים וסוג עבודה — '
       + 'בלי לנחש מה לא כתוב. עם מודל, הוא קורא את הפסקה ומפרק אותה לבד, וגם מבין '
       + 'שלושה משפטים שמדברים על אותה עבודה.'));
     inner.appendChild(h('p.help.warnline',
       'מה שנשלח: רק הפסקה שכתבת, לספק שבחרת. השם, הטלפון, התמונות ושאר התיק לא נשלחים לשום מקום.'));
-    for (const row of settingsRows('text', choice, { onRedraw: paintSettings, onKeyInput: paintSettings })) {
+    for (const row of settingsRows(JOB, choice, { onRedraw: paintSettings, onKeyInput: paintSettings })) {
       inner.appendChild(row);
+    }
+    /* Stated before the button rather than after the failure. The vendor that
+     * does not document browser calls is the cheaper one and the default, so
+     * the person choosing it deserves to know what can go wrong and that the
+     * other one is right there. */
+    if (choice.provider && !choice.provider.browserOk) {
+      inner.appendChild(h('p.help.warnline',
+        choice.provider.label + ' לא מצהיר על תמיכה בקריאה ישירה מדפדפן, ולכן ייתכן שהדפדפן '
+        + 'יחסום את הבקשה לפני שהיא יוצאת. אם זה קורה — אפשר לעבור ל-Anthropic למעלה, '
+        + 'או פשוט להשתמש בכפתור "בלי מודל".'));
     }
   }
 
@@ -257,7 +267,10 @@ export function renderQuickstart(root, opts) {
 
   view.appendChild(h('div.toolbar', [
     h('button.btn.primary.lg', {
-      onclick: () => run(hasKey(choiceFor('text').provider ? choiceFor('text').provider.id : '')),
+      onclick: () => {
+        const choice = readerChoice();
+        run(hasKey(choice.provider ? choice.provider.id : ''));
+      },
     }, 'תרכיב לי את התיק'),
     h('button.btn.ghost', { onclick: () => run(false) }, 'בלי מודל'),
     h('button.btn.ghost', { onclick: () => o.onDone && o.onDone() }, 'אמלא ידנית'),

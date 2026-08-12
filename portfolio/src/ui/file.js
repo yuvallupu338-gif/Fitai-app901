@@ -25,6 +25,31 @@ export function renderFile(root) {
   const view = h('section');
   root.appendChild(view);
   const notice = h('div');
+  const pdfNote = h('p.help');
+
+  /*
+   * "הורדה כ-PDF" goes through the browser's print dialog, and that is not a
+   * shortcut — it is the only way a page with no server and no libraries writes
+   * a PDF at all. A PDF written by hand here would have to carry an embedded
+   * Hebrew font and do the right-to-left shaping itself, which is a large
+   * amount of code to arrive at a worse file: what the print dialog produces
+   * has real text in it, so the document is searchable, selectable and
+   * copy-pastable, and an employer's ATS can read it.
+   *
+   * What the button owes the person is the one instruction that is not obvious:
+   * the dialog's destination has to be set to "Save as PDF" rather than a
+   * printer. It is written on the screen before the dialog opens, because a
+   * modal dialog is exactly when nobody reads the page behind it.
+   */
+  function toPdf(html) {
+    clear(pdfNote);
+    pdfNote.appendChild(h('b', 'נפתח חלון הדפסה. '));
+    pdfNote.appendChild(document.createTextNode(
+      'ביעד ההדפסה בוחרים "שמירה כ-PDF" (Save as PDF) ואז "שמירה". זה הקובץ עצמו, '
+      + 'עם טקסט אמיתי שאפשר לחפש ולהעתיק — לא צילום מסך שלו.'));
+    announce('נפתח חלון הדפסה. בחרו שמירה כ-PDF.');
+    printHtml(html);
+  }
 
   function draw() {
     clear(view);
@@ -69,7 +94,7 @@ export function renderFile(root) {
             announce('הקובץ ירד');
           },
         }, 'הורדת הקובץ'),
-        h('button.btn', { onclick: () => printHtml(html) }, 'הדפסה / PDF'),
+        h('button.btn', { onclick: () => toPdf(html) }, 'הורדה כ-PDF'),
         h('button.btn', {
           onclick: () => {
             downloadText(fileNameFor(st.owner.name, 'md', now), toMarkdown(st, { now }), 'text/markdown');
@@ -77,8 +102,8 @@ export function renderFile(root) {
           },
         }, 'הורדת טקסט (Markdown)'),
       ]),
-      h('p.help', 'הקובץ עומד בפני עצמו: העיצוב והתמונות בתוכו, והוא נפתח בלי אינטרנט ובלי האפליקציה הזאת. '
-        + '"הדפסה / PDF" פותחת את חלון ההדפסה של הדפדפן — משם בוחרים "שמירה כ-PDF".'),
+      h('p.help', 'הקובץ עומד בפני עצמו: העיצוב והתמונות בתוכו, והוא נפתח בלי אינטרנט ובלי האפליקציה הזאת.'),
+      pdfNote,
     ]));
 
     const frame = h('iframe.preview', {

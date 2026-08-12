@@ -29,7 +29,50 @@
  */
 
 import { KINDS, CONTEXTS, TEAMS, YEAR_MIN, YEAR_MAX, normaliseWork, cleanLine, cleanText } from '../data/schema.js';
-import { callTool, AiError } from '../../../src/ai/client.js';
+import { callTool, AiError, choiceFor, saveChoice } from '../../../src/ai/client.js';
+import { providerById } from '../../../src/ai/providers.js';
+
+/*
+ * This app's own job name, and its own default vendor.
+ *
+ * The job is not 'text' because the choice is stored per job: sharing the name
+ * with FitAI would mean picking a model for a training questionnaire also
+ * picked the model that reads somebody's portfolio, which are not the same
+ * decision and do not even cost the same.
+ *
+ * The default is DeepSeek. This job is reading Hebrew prose and filling a form
+ * from it — no images, no long context — which is the cheap end of what a text
+ * model does, and DeepSeek is the cheap one on the table. It comes with a real
+ * caveat that the screen states rather than hides: DeepSeek does not document
+ * calls straight from a browser, so a browser may refuse the request before it
+ * leaves the machine. There is no server here to proxy through. When that
+ * happens the app says so and the other provider is one tap away.
+ */
+export const JOB = 'portfolio';
+const DEFAULT_PROVIDER = 'deepseek';
+
+/**
+ * Seeds this app's provider choice the first time it is asked for, and returns
+ * it. Without this, `choiceFor` falls back to the first provider in the table,
+ * which is somebody else's default rather than this app's.
+ */
+export function readerChoice() {
+  const stored = choiceFor(JOB);
+  if (!hasStoredChoice() && providerById(DEFAULT_PROVIDER)) {
+    const models = providerById(DEFAULT_PROVIDER).models;
+    if (saveChoice(JOB, DEFAULT_PROVIDER, models[0] ? models[0].value : '')) return choiceFor(JOB);
+  }
+  return stored;
+}
+
+function hasStoredChoice() {
+  try {
+    return !!window.localStorage.getItem('fitai.ai.' + JOB);
+  } catch (e) {
+    /* No storage means no stored choice, and also means nothing to seed. */
+    return false;
+  }
+}
 
 const KIND_IDS = KINDS.map((k) => k.id);
 const CONTEXT_IDS = CONTEXTS.map((c) => c.id);
@@ -226,8 +269,11 @@ export async function readWorks(description, opts) {
       'כתבו קצת יותר — מה עשיתם, בשביל מי, ומתי. משפט או שניים לכל עבודה מספיקים.');
   }
 
+  const chosen = readerChoice();
   const input = await callTool({
-    job: 'text',
+    job: JOB,
+    provider: chosen.provider ? chosen.provider.id : undefined,
+    model: chosen.model,
     system: SYSTEM,
     messages: [{
       role: 'user',

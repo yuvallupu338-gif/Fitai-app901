@@ -191,6 +191,12 @@ async function main() {
     'the model box has no provider or model picker');
   check((await page.textContent('.aibox')).includes('רק הפסקה שכתבת'),
     'the model box does not say what is sent');
+  const chosen = await page.locator('.aibox .opts .opt.on').first().textContent();
+  check(chosen.includes('DeepSeek'), `the reader defaults to "${chosen.trim()}" rather than DeepSeek`);
+  /* The default vendor is the one that does not document browser calls, so the
+   * caveat has to be on the screen before the button, not after the failure. */
+  check((await page.textContent('.aibox')).includes('לא מצהיר על תמיכה בקריאה ישירה מדפדפן'),
+    'the browser-call caveat is missing from the model box');
 
   await page.getByRole('button', { name: 'בלי מודל' }).click();
   await page.waitForSelector('.readlist');
@@ -223,36 +229,48 @@ async function main() {
    * that leaves.
    */
   let sent = null;
-  await page.route('https://api.anthropic.com/**', async (route) => {
+  /*
+   * DeepSeek's shape, not Anthropic's, because that is what this app now asks
+   * by default — and it is the harder of the two to get right: the system
+   * prompt is a message rather than a field, and the tool arguments come back
+   * as a JSON *string*, which is the one place a perfectly good HTTP 200 can
+   * still carry unparseable content.
+   */
+  const TOOL_INPUT = {
+    headline: 'מעצבת מוצר',
+    works: [
+      {
+        title: 'אתר תדמית למספרה', kind: 'site', context: 'client', clientName: 'מספרת רון',
+        team: 'alone', fromYear: 2024, fromMonth: 3, toYear: 2024, toMonth: 5,
+        brief: 'לא היו באינטרנט בכלל.', did: ['עיצבתי בפיגמה', 'בניתי בלי תלויות'],
+        tools: ['Figma', 'HTML'], result: 'התורים נקבעים דרך האתר.',
+      },
+      /* Everything below is what a wrong or hostile answer looks like. */
+      { title: 'עבודה עם סוג מומצא', kind: 'SUPER_KIND', context: 'nope', team: 'x', fromYear: 3024 },
+      { title: '', brief: 'בלי שם' },
+      { title: 'קישור אסור', kind: 'site', links: [{ url: 'javascript:alert(1)' }] },
+    ],
+    missing: ['שנים', 'מה יצא'],
+  };
+
+  await page.route('https://api.deepseek.com/**', async (route) => {
     sent = route.request().postData();
     await route.fulfill({
       status: 200,
       contentType: 'application/json',
       body: JSON.stringify({
-        content: [{
-          type: 'tool_use',
-          name: 'fill_portfolio',
-          input: {
-            headline: 'מעצבת מוצר',
-            works: [
-              {
-                title: 'אתר תדמית למספרה', kind: 'site', context: 'client', clientName: 'מספרת רון',
-                team: 'alone', fromYear: 2024, fromMonth: 3, toYear: 2024, toMonth: 5,
-                brief: 'לא היו באינטרנט בכלל.', did: ['עיצבתי בפיגמה', 'בניתי בלי תלויות'],
-                tools: ['Figma', 'HTML'], result: 'התורים נקבעים דרך האתר.',
-              },
-              /* Everything below is what a wrong or hostile answer looks like. */
-              { title: 'עבודה עם סוג מומצא', kind: 'SUPER_KIND', context: 'nope', team: 'x', fromYear: 3024 },
-              { title: '', brief: 'בלי שם' },
-              { title: 'קישור אסור', kind: 'site', links: [{ url: 'javascript:alert(1)' }] },
-            ],
-            missing: ['שנים', 'מה יצא'],
+        choices: [{
+          message: {
+            tool_calls: [{
+              type: 'function',
+              function: { name: 'fill_portfolio', arguments: JSON.stringify(TOOL_INPUT) },
+            }],
           },
         }],
       }),
     });
   });
-  await page.evaluate(() => window.localStorage.setItem('fitai.key.anthropic', 'sk-ant-' + 'x'.repeat(24)));
+  await page.evaluate(() => window.localStorage.setItem('fitai.key.deepseek', 'sk-' + 'x'.repeat(28)));
   await page.reload({ waitUntil: 'load' });
   await page.getByLabel('מה עשית?', { exact: true }).fill(PARAGRAPH);
   await page.getByRole('button', { name: 'תרכיב לי את התיק' }).click();
@@ -260,8 +278,12 @@ async function main() {
 
   check(!!sent, 'the model button sent no request');
   const body = JSON.parse(sent || '{}');
-  check(body.tools && body.tools[0] && body.tools[0].name === 'fill_portfolio',
-    'the request does not ask for the portfolio tool');
+  check(body.tools && body.tools[0] && body.tools[0].function
+    && body.tools[0].function.name === 'fill_portfolio',
+    'the request was not built in the OpenAI-compatible shape this vendor wants');
+  check((body.messages || [])[0] && body.messages[0].role === 'system',
+    'the system prompt was sent as a field, which is the other vendor\'s shape');
+  check(String(body.model || '').startsWith('deepseek'), `the request names model "${body.model}"`);
   check(JSON.stringify(body.messages || []).includes('מספרה'), 'the paragraph was not in the request');
   check(!JSON.stringify(body).includes('6961234'), 'the phone number was sent to the model');
   check(!JSON.stringify(body).includes('noabar.co.il'), "the person's site was sent to the model");
@@ -279,8 +301,8 @@ async function main() {
   await shot('03-model');
 
   await page.getByRole('button', { name: 'בטל את ההוספה' }).click();
-  await page.unroute('https://api.anthropic.com/**');
-  await page.evaluate(() => window.localStorage.removeItem('fitai.key.anthropic'));
+  await page.unroute('https://api.deepseek.com/**');
+  await page.evaluate(() => window.localStorage.removeItem('fitai.key.deepseek'));
 
   /* ---- the rest of the details, on the tab that holds all of them ---- */
 
@@ -455,7 +477,7 @@ async function main() {
    * dialog, so what is checked is the part that can be wrong on a real machine:
    * that the frame it prints holds the document itself rather than the app.
    */
-  await page.getByRole('button', { name: 'הדפסה / PDF' }).click();
+  await page.getByRole('button', { name: 'הורדה כ-PDF' }).click();
   await page.waitForFunction(() => document.querySelectorAll('iframe').length > 1, null, { timeout: 20000 });
   const printFrame = await page.evaluate(() => {
     const frames = Array.from(document.querySelectorAll('iframe'));
@@ -464,6 +486,10 @@ async function main() {
   });
   check(printFrame.doc === '<!DOCTYPE html>', 'printing does not print the document');
   check(printFrame.hidden === '0', 'the print frame is visible on the page');
+  /* The dialog is modal, so the one instruction that is not obvious has to be
+   * on the page before it opens. */
+  check((await page.textContent('.filecard')).includes('שמירה כ-PDF'),
+    'the PDF button does not say what to choose in the dialog');
 
   const [download] = await Promise.all([
     page.waitForEvent('download'),

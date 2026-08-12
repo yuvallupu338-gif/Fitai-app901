@@ -2772,7 +2772,50 @@ __m["portfolio/src/ai/read.js"] = (function () {
  */
 
 const { KINDS, CONTEXTS, TEAMS, YEAR_MIN, YEAR_MAX, normaliseWork, cleanLine, cleanText } = __m["portfolio/src/data/schema.js"];
-const { callTool, AiError } = __m["src/ai/client.js"];
+const { callTool, AiError, choiceFor, saveChoice } = __m["src/ai/client.js"];
+const { providerById } = __m["src/ai/providers.js"];
+
+/*
+ * This app's own job name, and its own default vendor.
+ *
+ * The job is not 'text' because the choice is stored per job: sharing the name
+ * with FitAI would mean picking a model for a training questionnaire also
+ * picked the model that reads somebody's portfolio, which are not the same
+ * decision and do not even cost the same.
+ *
+ * The default is DeepSeek. This job is reading Hebrew prose and filling a form
+ * from it — no images, no long context — which is the cheap end of what a text
+ * model does, and DeepSeek is the cheap one on the table. It comes with a real
+ * caveat that the screen states rather than hides: DeepSeek does not document
+ * calls straight from a browser, so a browser may refuse the request before it
+ * leaves the machine. There is no server here to proxy through. When that
+ * happens the app says so and the other provider is one tap away.
+ */
+const JOB = 'portfolio';
+const DEFAULT_PROVIDER = 'deepseek';
+
+/**
+ * Seeds this app's provider choice the first time it is asked for, and returns
+ * it. Without this, `choiceFor` falls back to the first provider in the table,
+ * which is somebody else's default rather than this app's.
+ */
+function readerChoice() {
+  const stored = choiceFor(JOB);
+  if (!hasStoredChoice() && providerById(DEFAULT_PROVIDER)) {
+    const models = providerById(DEFAULT_PROVIDER).models;
+    if (saveChoice(JOB, DEFAULT_PROVIDER, models[0] ? models[0].value : '')) return choiceFor(JOB);
+  }
+  return stored;
+}
+
+function hasStoredChoice() {
+  try {
+    return !!window.localStorage.getItem('fitai.ai.' + JOB);
+  } catch (e) {
+    /* No storage means no stored choice, and also means nothing to seed. */
+    return false;
+  }
+}
 
 const KIND_IDS = KINDS.map((k) => k.id);
 const CONTEXT_IDS = CONTEXTS.map((c) => c.id);
@@ -2969,8 +3012,11 @@ async function readWorks(description, opts) {
       'כתבו קצת יותר — מה עשיתם, בשביל מי, ומתי. משפט או שניים לכל עבודה מספיקים.');
   }
 
+  const chosen = readerChoice();
   const input = await callTool({
-    job: 'text',
+    job: JOB,
+    provider: chosen.provider ? chosen.provider.id : undefined,
+    model: chosen.model,
     system: SYSTEM,
     messages: [{
       role: 'user',
@@ -2988,6 +3034,8 @@ async function readWorks(description, opts) {
 
 
   return {
+    "JOB": JOB,
+    "readerChoice": readerChoice,
     "SYSTEM": SYSTEM,
     "TOOL": TOOL,
     "normaliseReading": normaliseReading,
@@ -4048,10 +4096,10 @@ __m["portfolio/src/ui/quickstart.js"] = (function () {
  */
 
 const { h, clear, announce } = __m["src/core/dom.js"];
-const { choiceFor, hasKey } = __m["src/ai/client.js"];
+const { hasKey } = __m["src/ai/client.js"];
 const { settingsRows } = __m["src/ui/aisettings.js"];
 const store = __m["portfolio/src/core/store.js"];
-const { readWorks, AiError } = __m["portfolio/src/ai/read.js"];
+const { readWorks, readerChoice, JOB, AiError } = __m["portfolio/src/ai/read.js"];
 const { readOffline } = __m["portfolio/src/ai/offline.js"];
 const { countPhrase } = __m["portfolio/src/engine/write.js"];
 const { field, textInput, textArea } = __m["portfolio/src/ui/fields.js"];
@@ -4130,15 +4178,25 @@ function renderQuickstart(root, opts) {
   function paintSettings() {
     const inner = settings.querySelector('.aiinner');
     clear(inner);
-    const choice = choiceFor('text');
+    const choice = readerChoice();
     inner.appendChild(h('p.help',
       'בלי מודל אני מחלקת את הטקסט לפי שורות ומוציאה ממנו שנים, כלים וסוג עבודה — '
       + 'בלי לנחש מה לא כתוב. עם מודל, הוא קורא את הפסקה ומפרק אותה לבד, וגם מבין '
       + 'שלושה משפטים שמדברים על אותה עבודה.'));
     inner.appendChild(h('p.help.warnline',
       'מה שנשלח: רק הפסקה שכתבת, לספק שבחרת. השם, הטלפון, התמונות ושאר התיק לא נשלחים לשום מקום.'));
-    for (const row of settingsRows('text', choice, { onRedraw: paintSettings, onKeyInput: paintSettings })) {
+    for (const row of settingsRows(JOB, choice, { onRedraw: paintSettings, onKeyInput: paintSettings })) {
       inner.appendChild(row);
+    }
+    /* Stated before the button rather than after the failure. The vendor that
+     * does not document browser calls is the cheaper one and the default, so
+     * the person choosing it deserves to know what can go wrong and that the
+     * other one is right there. */
+    if (choice.provider && !choice.provider.browserOk) {
+      inner.appendChild(h('p.help.warnline',
+        choice.provider.label + ' לא מצהיר על תמיכה בקריאה ישירה מדפדפן, ולכן ייתכן שהדפדפן '
+        + 'יחסום את הבקשה לפני שהיא יוצאת. אם זה קורה — אפשר לעבור ל-Anthropic למעלה, '
+        + 'או פשוט להשתמש בכפתור "בלי מודל".'));
     }
   }
 
@@ -4283,7 +4341,10 @@ function renderQuickstart(root, opts) {
 
   view.appendChild(h('div.toolbar', [
     h('button.btn.primary.lg', {
-      onclick: () => run(hasKey(choiceFor('text').provider ? choiceFor('text').provider.id : '')),
+      onclick: () => {
+        const choice = readerChoice();
+        run(hasKey(choice.provider ? choice.provider.id : ''));
+      },
     }, 'תרכיב לי את התיק'),
     h('button.btn.ghost', { onclick: () => run(false) }, 'בלי מודל'),
     h('button.btn.ghost', { onclick: () => o.onDone && o.onDone() }, 'אמלא ידנית'),
@@ -5427,6 +5488,31 @@ function renderFile(root) {
   const view = h('section');
   root.appendChild(view);
   const notice = h('div');
+  const pdfNote = h('p.help');
+
+  /*
+   * "הורדה כ-PDF" goes through the browser's print dialog, and that is not a
+   * shortcut — it is the only way a page with no server and no libraries writes
+   * a PDF at all. A PDF written by hand here would have to carry an embedded
+   * Hebrew font and do the right-to-left shaping itself, which is a large
+   * amount of code to arrive at a worse file: what the print dialog produces
+   * has real text in it, so the document is searchable, selectable and
+   * copy-pastable, and an employer's ATS can read it.
+   *
+   * What the button owes the person is the one instruction that is not obvious:
+   * the dialog's destination has to be set to "Save as PDF" rather than a
+   * printer. It is written on the screen before the dialog opens, because a
+   * modal dialog is exactly when nobody reads the page behind it.
+   */
+  function toPdf(html) {
+    clear(pdfNote);
+    pdfNote.appendChild(h('b', 'נפתח חלון הדפסה. '));
+    pdfNote.appendChild(document.createTextNode(
+      'ביעד ההדפסה בוחרים "שמירה כ-PDF" (Save as PDF) ואז "שמירה". זה הקובץ עצמו, '
+      + 'עם טקסט אמיתי שאפשר לחפש ולהעתיק — לא צילום מסך שלו.'));
+    announce('נפתח חלון הדפסה. בחרו שמירה כ-PDF.');
+    printHtml(html);
+  }
 
   function draw() {
     clear(view);
@@ -5471,7 +5557,7 @@ function renderFile(root) {
             announce('הקובץ ירד');
           },
         }, 'הורדת הקובץ'),
-        h('button.btn', { onclick: () => printHtml(html) }, 'הדפסה / PDF'),
+        h('button.btn', { onclick: () => toPdf(html) }, 'הורדה כ-PDF'),
         h('button.btn', {
           onclick: () => {
             downloadText(fileNameFor(st.owner.name, 'md', now), toMarkdown(st, { now }), 'text/markdown');
@@ -5479,8 +5565,8 @@ function renderFile(root) {
           },
         }, 'הורדת טקסט (Markdown)'),
       ]),
-      h('p.help', 'הקובץ עומד בפני עצמו: העיצוב והתמונות בתוכו, והוא נפתח בלי אינטרנט ובלי האפליקציה הזאת. '
-        + '"הדפסה / PDF" פותחת את חלון ההדפסה של הדפדפן — משם בוחרים "שמירה כ-PDF".'),
+      h('p.help', 'הקובץ עומד בפני עצמו: העיצוב והתמונות בתוכו, והוא נפתח בלי אינטרנט ובלי האפליקציה הזאת.'),
+      pdfNote,
     ]));
 
     const frame = h('iframe.preview', {
