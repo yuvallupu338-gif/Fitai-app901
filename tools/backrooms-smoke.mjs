@@ -37,8 +37,25 @@ const arg = (name) => {
 
 /* One level per archetype at minimum, plus the awkward ones: the dark levels,
  * the flooded levels, the outdoor levels and the two that are mostly holes. */
+/*
+ * A spread across the archetypes, plus — deliberately — the levels with the
+ * least light in them.
+ *
+ * The second half of that list was added after a global dimmer shipped that
+ * took Service Alleys to seven distinct colours and The Last Corridor to
+ * twelve, against a bar of twenty-four, and this sample said everything was
+ * fine. It was: none of those levels were in it. A sample chosen for variety
+ * covers the interesting cases and misses the fragile ones, and the fragile
+ * ones here are the levels with no torch and few working tubes, the ones lit
+ * only by their own sky, and the ones where the torch is all there is. One of
+ * each is now permanently in the default run — 92 in particular, whose torch
+ * has never lit it and which nothing caught until it was tested directly.
+ */
 const DEFAULT_SAMPLE = [
   0, 1, 2, 4, 5, 6, 8, 9, 10, 11, 23, 27, 37, 46, 50, 53, 73, 78, 83, 87, 90, 99,
+  /* fixture-lit and nearly out */ 38, 58, 98,
+  /* lit only by their own sky */ 48, 57,
+  /* the torch is the whole level */ 92, 95,
 ];
 const LEVELS = process.argv.includes('--all')
   ? Array.from({ length: 100 }, (_, i) => i)
@@ -204,22 +221,48 @@ async function main() {
     check(st.dark < 0.985, `level ${id}: the frame is not entirely black`);
 
     if (lvl.torch) {
-      /* Point at the floor, the way anyone holding a torch does. */
-      const lit = async (on) => {
-        await page.evaluate((v) => {
-          window.backrooms.player.flashlightOn = v;
-          window.backrooms.player.pitch = -0.45;
-        }, on);
+      /*
+       * Point at the floor, the way anyone holding a torch does — but in more
+       * than one direction.
+       *
+       * This used to sample the single direction the spawn happened to face,
+       * and on Blacksite that direction is a sightline down an unlit run with
+       * no surface inside torch range, so the torch had nothing to land on and
+       * the gain came back at +2.5. The level was reported as having a torch
+       * that does not work. Sweeping it afterwards showed gains of 8 to 41 in
+       * twenty-three of twenty-four directions: the torch was always fine and
+       * the check was describing one bad sightline as a broken level.
+       *
+       * The claim being made is about the level, so the measurement has to be
+       * about the level: turn around and see whether the torch lights the
+       * place anywhere. A torch that genuinely does nothing scores near zero
+       * in every direction and still fails — on Blacksite the best of four is
+       * 35 against a bar of 12, so this is not a threshold squeaking past.
+       */
+      const yaw0 = await page.evaluate(() => window.backrooms.player.yaw);
+      const lit = async (yaw, on) => {
+        await page.evaluate(([y, v]) => {
+          const p = window.backrooms.player;
+          p.yaw = y; p.pitch = -0.45; p.flashlightOn = v;
+        }, [yaw, on]);
         await page.waitForTimeout(260);
         return frameStats(page);
       };
-      const off = await lit(false);
-      const on = await lit(true);
-      const gain = (on.mean[0] + on.mean[1] + on.mean[2])
-                 - (off.mean[0] + off.mean[1] + off.mean[2]);
+      let gain = -Infinity;
+      for (let q = 0; q < 4; q++) {
+        const yaw = yaw0 + (q * Math.PI) / 2;
+        const off = await lit(yaw, false);
+        const on = await lit(yaw, true);
+        gain = Math.max(gain, (on.mean[0] + on.mean[1] + on.mean[2])
+                            - (off.mean[0] + off.mean[1] + off.mean[2]));
+      }
       check(gain > 12,
-        `level ${id}: the torch actually lights the level (+${gain.toFixed(1)} over three channels)`);
-      await page.evaluate(() => { window.backrooms.player.pitch = 0; });
+        `level ${id}: the torch actually lights the level `
+        + `(+${gain.toFixed(1)} over three channels, best of four directions)`);
+      await page.evaluate((y) => {
+        window.backrooms.player.pitch = 0;
+        window.backrooms.player.yaw = y;
+      }, yaw0);
     }
     check(info.chunks > 0, `level ${id}: chunks were drawn (${info.chunks})`);
     check(info.tris > 500, `level ${id}: geometry was built (${Math.round(info.tris)} tris)`);

@@ -721,8 +721,13 @@ const RAW = [
     note: 'סמטאות ברוחב אדם וחצי בין קירות לבנים. הפחים מלאים.',
     arch: 'maze', fog: '#1e1c1a', far: 18, amb: '#171614', ceil: 8.0, cell: 2.4,
     mats: KIT.urban('#2e2c2a', '#5a4a3e', '#4a4642'),
-    gen: { lightSpacing: 3, lightIntensity: 1.5, deadLights: 30, loops: 7,
-      flickerPct: 40 },
+    /* The alley walls run up to an 8m ceiling, but the lamps on it were given
+     * an intensity and a radius tuned for the 3m ceilings everywhere else, so
+     * nothing reached the ground: the frame came back with eleven distinct
+     * colours in it and a mean of 5/255. Lighting a alley from eight metres up
+     * costs more than lighting a corridor from three. */
+    gen: { lightSpacing: 3, lightIntensity: 3.2, lightRadius: 16, deadLights: 22,
+      loops: 7, flickerPct: 40 },
     lightColor: [1.0, 0.78, 0.44],
     entities: { kind: 'crawler', density: 0.7 },
     audio: { tone: 'wind', reverb: 0.45, drips: true } },
@@ -1155,7 +1160,11 @@ const RAW = [
     note: 'מסדרון אחד ברוחב שני מטרים. אין ממנו הסתעפות, ואין לו סוף.',
     arch: 'maze', fog: '#141210', far: 14, amb: '#100e0c', ceil: 2.5, cell: 2.2,
     mats: KIT.office('#3a3226', '#4a4030', '#54503e'),
-    gen: { lightSpacing: 3, lightIntensity: 1.2, lightRadius: 7, deadLights: 34,
+    /* Oppressive was the intent and oppressive it stays, but at a 7m radius
+     * with a third of the tubes out and half the rest flickering it came back
+     * at twenty-one distinct colours — you could not see the corridor you are
+     * supposed to feel trapped in. Enough light to read the walls by, no more. */
+    gen: { lightSpacing: 3, lightIntensity: 1.9, lightRadius: 10, deadLights: 20,
       flickerPct: 50, loops: 2, exitRarity: 8 },
     entities: { kind: 'leech', density: 0.95, shake: 15.8 },
     audio: { tone: 'silence', reverb: 0.3 } },
