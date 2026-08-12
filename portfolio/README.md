@@ -52,9 +52,11 @@ one tap up, and the button that needs no key at all is right beside it.
 The choice is stored under this app's own job name (`fitai.ai.portfolio`), so
 picking a model to read a portfolio is not the same decision as picking one for
 FitAI's questionnaire, and neither overwrites the other. The key is per vendor
-and shared, because it is the same key to the same account. The prompt's first instruction is not about the schema, it is
-about not writing: copy their sentences, do not improve them, never invent a
-number. A model asked to describe somebody's work will produce "הובלתי תהליך
+and shared, because it is the same key to the same account.
+
+Whichever vendor answers, the prompt's first instruction is not about the schema.
+It is about not writing: copy their sentences, do not improve them, never invent
+a number. A model asked to describe somebody's work will produce "הובלתי תהליך
 עיצוב מקיף" about an evening on a friend's logo, and that sentence goes out with
 their name on it.
 
