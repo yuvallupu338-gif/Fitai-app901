@@ -36,6 +36,11 @@ export class Player {
     this.sanity = 1;
     this.health = 1;
     this.damage = 0;
+    /* Seconds left in the hold something has on you, seconds left of the grace
+     * period after it lets go, and what it was. Owned by Entities. */
+    this.held = 0;
+    this.grabRest = 0;
+    this.heldBy = null;
     this.fallFrom = spawn.y;
     this.inWater = 0;
     this.stepPhase = 0;
@@ -89,6 +94,13 @@ export class Player {
      * cannot move at all cannot shake them off either, and the way out of a
      * leech is distance covered. */
     speed *= Math.max(0.35, 1 - (this.grabbed || 0) * 0.20);
+    /*
+     * Held. Not nailed to the floor — you can still lean and scrabble, and
+     * being able to turn means you get to see what has you, which is most of
+     * what makes the three seconds land. But you are not walking out of it;
+     * the way out is that it lets go.
+     */
+    if (this.held > 0) speed *= 0.09;
     speed *= lerp(0.72, 1, this.stamina * 0.35 + 0.65);
 
     /* Rotate the intent into world space. Forward at yaw 0 is -Z, matching

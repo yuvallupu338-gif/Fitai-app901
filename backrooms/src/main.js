@@ -587,6 +587,11 @@ class Game {
           ui.log('משהו נתפס בך. תרוץ.');
         } else if (e.type === 'shaken') {
           ui.log('הוא נפל.');
+        } else if (e.type === 'grab') {
+          audio.lunge();
+          ui.log('משהו תפס אותך. אתה לא זז.');
+        } else if (e.type === 'released') {
+          ui.log('הוא הרפה. זוז עכשיו.');
         }
       }
     }

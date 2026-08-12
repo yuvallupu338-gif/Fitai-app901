@@ -115,6 +115,21 @@ const TITAN = 1.55;
  * a reflection. */
 const CROWD = { swarm: 7, smiler: 3, titan: 1, lurker: 2, twin: 1, leech: 3, dropper: 3, blind: 2 };
 
+/*
+ * A grab: how long it holds you, and how long you get before anything can take
+ * hold again.
+ *
+ * The bite rate while held is deliberately not the free-standing one. A hound
+ * does 0.34 a hit and health caps at 1, so three seconds at the normal 1.1s
+ * cadence is 1.02 of damage — every grab would be fatal from full health, and
+ * a mechanic you cannot survive is not a mechanic. Held bites land slower and
+ * softer; what the three seconds cost you is the three seconds.
+ */
+const GRAB_HOLD = 3.0;
+const GRAB_REST = 5.0;
+const GRAB_BITE_EVERY = 1.35;
+const GRAB_BITE_SCALE = 0.4;
+
 export class Entities {
   constructor(level, world) {
     this.level = level;
@@ -175,6 +190,26 @@ export class Entities {
      * that despawns or gets shaken off stops slowing the player immediately
      * rather than leaving a limp that never wears off. */
     player.grabbed = 0;
+
+    /*
+     * Being caught, and then let go.
+     *
+     * One thing takes hold of you at a time, it keeps you for GRAB_HOLD
+     * seconds, and for GRAB_REST seconds after it lets go nothing can take
+     * hold again. The rest is the whole point: without it, the thing that
+     * released you is still standing on top of you and grabs again on the next
+     * frame, and "caught for three seconds" becomes "caught until you die".
+     * The window is what turns a grab into something you escape from.
+     */
+    const wasHeld = player.held || 0;
+    player.held = Math.max(0, wasHeld - dt);
+    player.grabRest = Math.max(0, (player.grabRest || 0) - dt);
+    if (wasHeld > 0 && player.held === 0) {
+      for (const other of this.list) other.holding = false;
+      player.heldBy = null;
+      player.grabRest = GRAB_REST;
+      this.events.push({ type: 'released' });
+    }
 
     for (let i = this.list.length - 1; i >= 0; i--) {
       const e = this.list[i];
@@ -397,6 +432,20 @@ export class Entities {
         move = e.alerted;
       }
 
+      /*
+       * Whatever has hold of you does not go anywhere while it has hold of
+       * you. It stops walking, keeps facing you and stays where it caught you
+       * — which it can afford to do, because you cannot walk away either.
+       * Checked after every per-kind branch so it overrides all of them: a
+       * smiler that catches you and is then lit by the torch still has to
+       * finish the three seconds before it retreats.
+       */
+      if (e.holding) {
+        move = false;
+        e.moving = false;
+        e.rot = Math.atan2(-toX, -toZ) + Math.PI;
+      }
+
       if (move) {
         let mvX, mvZ;
 
@@ -505,10 +554,27 @@ export class Entities {
 
       /* Retreating is retreating: a smiler pinned by the torch does not get to
        * bite on its way out. Everything else may. */
-      if (mode !== 'flee' && dist < B.reach && e.cooldown <= 0) {
-        e.cooldown = 1.1;
-        player.hurt(B.damage);
-        this.events.push({ type: 'hit', dist });
+      if (mode !== 'flee' && dist < B.reach) {
+        /*
+         * Take hold, if nothing else has you and you are not still getting
+         * your breath back from the last one. A leech is excluded on purpose:
+         * it already has a hold of its own that you break by carrying it far
+         * enough, and giving it this one as well would end that on a timer
+         * instead of on the distance you covered.
+         */
+        if (!player.held && !player.grabRest && kind !== 'leech' && !e.holding) {
+          e.holding = true;
+          player.held = GRAB_HOLD;
+          player.heldBy = kind;
+          e.cooldown = 0;
+          this.events.push({ type: 'grab', dist, kind });
+        }
+        if (e.cooldown <= 0) {
+          const held = !!e.holding;
+          e.cooldown = held ? GRAB_BITE_EVERY : 1.1;
+          player.hurt(B.damage * (held ? GRAB_BITE_SCALE : 1));
+          this.events.push({ type: 'hit', dist });
+        }
       }
       e.cooldown = Math.max(0, e.cooldown - dt);
 

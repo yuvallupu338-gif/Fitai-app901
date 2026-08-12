@@ -478,6 +478,86 @@ async function main() {
     }
   }
 
+  /*
+   * Caught for three seconds, then five seconds where nothing can catch you.
+   *
+   * Driven by stepping the entity system directly at a fixed dt rather than by
+   * watching the clock in a real frame loop. Under software rendering this
+   * page runs at a few frames a second and every wall-clock assertion about a
+   * three-second window becomes a coin toss; stepping it makes the timings
+   * exact and the test deterministic.
+   *
+   * The grace period is the half that matters. Without it the thing that let
+   * go of you is still standing inside its own reach and takes hold again on
+   * the very next step, so "held for three seconds" silently becomes "held
+   * until dead" — which is the bug this asserts against, not a hypothetical.
+   */
+  {
+    const grab = await page.evaluate(() => {
+      const g = window.backrooms;
+      const p = g.player;
+      const DT = 0.05;
+      /* One hound, parked on top of the player and unable to walk away. */
+      g.entities.spec = { kind: 'hound', density: 1, speed: 0 };
+      g.entities.max = 1;
+      g.entities.list.length = 0;
+      g.entities.list.push({
+        x: p.pos.x + 0.4, y: p.pos.y, z: p.pos.z,
+        rot: 0, cooldown: 0, alerted: true, frozen: false,
+        moving: false, bob: 0, cue: 99, seed: 1, phase: 0, swing: 0, headYaw: 0,
+        mesh: 'biped',
+      });
+      p.held = 0; p.grabRest = 0; p.heldBy = null;
+
+      const trace = [];
+      let t = 0, grabs = 0, wasHeld = false;
+      let firstGrabAt = -1, releaseAt = -1, secondGrabAt = -1;
+      for (let i = 0; i < 400; i++) {          /* 20 seconds */
+        /* Health is topped up so the hound cannot end the run by killing the
+         * player before the second grab — the timings are what is under test,
+         * not the damage. */
+        p.health = 1;
+        const e = g.entities.list[0];
+        if (e) { e.x = p.pos.x + 0.4; e.z = p.pos.z; e.y = p.pos.y; }
+        g.entities.update(DT, p, g.world, t);
+        g.entities.events.length = 0;
+        const held = (p.held || 0) > 0;
+        if (held && !wasHeld) {
+          grabs++;
+          if (firstGrabAt < 0) firstGrabAt = t;
+          else if (secondGrabAt < 0) secondGrabAt = t;
+        }
+        if (!held && wasHeld && releaseAt < 0) releaseAt = t;
+        trace.push({ t: +t.toFixed(2), held: +(p.held || 0).toFixed(2),
+          rest: +(p.grabRest || 0).toFixed(2) });
+        wasHeld = held;
+        t += DT;
+      }
+      return { grabs, firstGrabAt, releaseAt, secondGrabAt, trace };
+    });
+
+    check(grab.firstGrabAt >= 0, 'something within reach takes hold of you');
+    if (grab.firstGrabAt >= 0 && grab.releaseAt >= 0) {
+      const hold = grab.releaseAt - grab.firstGrabAt;
+      /* One step of tolerance either way: the hold is decremented once per
+       * step, so it can only be resolved to within a single dt. */
+      check(Math.abs(hold - 3.0) <= 0.06,
+        `the hold lasts three seconds (${hold.toFixed(2)}s)`);
+    }
+    check(grab.releaseAt >= 0, 'it lets go on its own rather than holding you until you die');
+    if (grab.releaseAt >= 0 && grab.secondGrabAt >= 0) {
+      const rest = grab.secondGrabAt - grab.releaseAt;
+      check(Math.abs(rest - 5.0) <= 0.06,
+        `nothing can take hold again for five seconds (${rest.toFixed(2)}s)`);
+    }
+    check(grab.secondGrabAt >= 0,
+      'and it can catch you again once the five seconds are up');
+    /* 20 seconds of a hound standing on you is one grab, then 3 + 5 = 8s a
+     * cycle. Two full cycles and the start of a third is what fits. */
+    check(grab.grabs >= 2 && grab.grabs <= 3,
+      `the cycle repeats at the right rate (${grab.grabs} grabs in 20s)`);
+  }
+
   /* ------------------------------------------------------------------ *
    * The new kinds, each tested on the one claim that makes it worth
    * having. A monster whose distinguishing rule is not asserted anywhere
