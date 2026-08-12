@@ -160,6 +160,43 @@ N hours" meant "on clock hours divisible by N" — every 2 hours gave you 10, 12
 14, 16, 18, 20 and skipped the first one of the day. It is a real interval from
 09:00 now, and the screen prints the times it will actually use.
 
+## The workout clocks
+
+Same bug, worse place. Every countdown did `phaseLeft--` once per `setInterval`
+callback, so it counted how often the browser ran the timer rather than how much
+time had passed — and a throttled tab coalesces the callbacks it owes you. Six
+seconds of real time moved the rest counter by one. Lock the screen during a set
+and the rest is still sitting at 55.
+
+Each tick takes the seconds actually elapsed since the last one and subtracts
+those, so a tab that was away catches up the moment it comes back. A gap long
+enough to cross several warm-up moves advances through all of them, and one that
+outlasts the warm-up carries the overflow through the build screen into the main
+phase instead of parking you at a stage that finished while you were gone.
+Pausing still banks no time — the elapsed clock is reset by hand wherever a
+countdown is set, so a freeze during a pause is not charged on resume.
+
+The upper/lower/full selector is gone. Its three settings produced byte-identical
+sessions: since the planner rewrite the split comes from the number of training
+days and nothing in exercise selection ever read it. The pills themselves had
+already gone when the card was rewritten, but the handler stayed live and the
+build screen kept printing "adapted to level 4 · 45 min · full body" off a value
+no one could set and nothing consulted.
+
+## What was checked and is fine
+
+Auditing for more of the same turned up a lot that holds up, which is worth
+writing down so nobody re-checks it. Session length is real (30/45/60/90 give
+5/6/8/10 exercises). So are level, kit, training days, goal, pace and diet. The
+injury filter is live and correctly selective — a shoulder injury rewrites the
+push days and leaves pull and legs alone. All fourteen settings the UI writes are
+read by real logic; there is no dead field. Food and water roll over daily, on
+boot and on a timer. Restore points really are daily and really are capped at
+four, and the two storage layers are a primary key plus a backup with a fallback
+on read. Offline works: cut the network, reload, the app comes up. The share card
+falls back to a download where Web Share is missing, and the XP a toast promises
+is the XP the code adds.
+
 ## The rest of the app
 
 The planner sits on top of an app that was already there: a ten-level skill
