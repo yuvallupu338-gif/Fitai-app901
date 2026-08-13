@@ -63,15 +63,25 @@ export function drawer() {
   wide.addEventListener('change', (e) => { if (e.matches) close({ refocus: false }); });
 }
 
+/* The bar exists to keep the phone one tap away while the sections that carry
+ * it are off screen — so it hides against both of them, not just the hero.
+ * Over the closing band it was stacking a second gold WhatsApp button a
+ * finger's width under the one already on the page. */
 export function callbar() {
   const bar = $('[data-callbar]');
-  const hero = $('.hero');
-  if (!bar || !hero || !('IntersectionObserver' in window)) return;
+  const zones = [$('.hero'), $('#contact')].filter(Boolean);
+  if (!bar || !zones.length || !('IntersectionObserver' in window)) return;
 
-  const io = new IntersectionObserver(([entry]) => {
-    bar.classList.toggle('is-on', !entry.isIntersecting);
+  const showing = new Set();
+  const io = new IntersectionObserver((entries) => {
+    for (const e of entries) {
+      if (e.isIntersecting) showing.add(e.target);
+      else showing.delete(e.target);
+    }
+    bar.classList.toggle('is-on', showing.size === 0);
   }, { threshold: 0 });
-  io.observe(hero);
+
+  for (const z of zones) io.observe(z);
 }
 
 /* On a phone the hero's first button is a tap away from a dialled call, and

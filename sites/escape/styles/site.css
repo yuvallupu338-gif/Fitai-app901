@@ -918,7 +918,11 @@ h3 { font-size: var(--d3); line-height: 1.22; }
     background: linear-gradient(90deg, transparent, var(--line) 5%, var(--line) 95%, transparent);
   }
 }
-.step { position: relative; padding-block-start: 26px; }
+/* The top padding is the band the ghosted numeral lives in. It has to scale
+   with the numeral: at one column the step is full width, and a numeral sized
+   for a 210px desktop column lands squarely on the paragraph, where a
+   watermark stops reading as a watermark and starts reading as a bug. */
+.step { position: relative; padding-block-start: clamp(44px, 5.4vw, 62px); }
 .step::before {
   content: "";
   position: absolute;
@@ -932,9 +936,10 @@ h3 { font-size: var(--d3); line-height: 1.22; }
    the next step's heading than its own, and reads as belonging to it. */
 .step__n {
   position: absolute;
-  inset-block-start: 14px; inset-inline-start: -8px;
+  /* Below the rail's dot, above the title, and clear of the paragraph. */
+  inset-block-start: 12px; inset-inline-start: -6px;
   font-family: var(--display); font-weight: 900;
-  font-size: clamp(64px, 7.4vw, 96px); line-height: 1;
+  font-size: clamp(56px, 6.6vw, 84px); line-height: .9;
   color: var(--ink);
   opacity: .06;
   pointer-events: none;
