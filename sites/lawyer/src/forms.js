@@ -39,8 +39,10 @@ function summary(form) {
   if (val('when')) lines.push(`מתי קרה: ${val('when')}`);
   if (val('msg')) lines.push(`פרטים: ${val('msg')}`);
 
+  // A checker run from an earlier visit is only worth attaching while it is
+  // still about the same case; otherwise the message would contradict itself.
   const check = load().check;
-  if (check?.q1) {
+  if (check?.q1 && (!val('kind') || check.q1 === val('kind'))) {
     lines.push(`בדיקת הזכאות בדף: ${[check.q1, check.q2, `נזק שטופל: ${check.q3}`, `דיווח: ${check.q4}`].join(' · ')}`);
   }
   return lines.join('\n');

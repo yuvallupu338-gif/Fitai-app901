@@ -214,7 +214,7 @@
   <!-- ============================================================ trust bar -- -->
   <section class="trustbar" aria-label="על המשרד">
     <ul class="shell trustbar__in">
-      <li>חבר לשכת עורכי הדין מ-<span class="num">2008</span></li>
+      <li>חבר לשכת עורכי הדין משנת <span class="num">2008</span></li>
       <li>ייצוג בבתי משפט השלום והמחוזי</li>
       <li>ליווי מול חברות הביטוח והמל״ל</li>
       <li>פגישות גם בבית הלקוח</li>
@@ -227,26 +227,26 @@
       <div class="sect-head" data-reveal>
         <p class="eyebrow">מה המשרד עושה</p>
         <h2 id="areas-h">תחומי עיסוק</h2>
-        <p class="lead">ששה סוגי תיקים. אם מה שקרה לכם לא נמצא ברשימה, זה עדיין שווה טלפון — רוב הפניות מתחילות ב״אני לא בטוח שזה בכלל משהו״.</p>
+        <p class="lead">שישה סוגי תיקים. אם מה שקרה לכם לא נמצא ברשימה זה עדיין שווה טלפון — רוב הפניות מתחילות ב״אני לא בטוח שזה בכלל משהו״.</p>
       </div>
 
       <ul class="areas__grid">
         <li class="area" data-reveal="1">
           <svg class="ico" viewBox="0 0 24 24" aria-hidden="true" focusable="false">
-            <path d="M4.9 16.3H3.9A1.3 1.3 0 0 1 2.6 15V13.1C2.6 12.5 2.9 11.95 3.4 11.6L4.9 10.5L6.5 7.5A2.2 2.2 0 0 1 8.45 6.3H15.55A2.2 2.2 0 0 1 17.5 7.5L19.1 10.5L20.6 11.6C21.1 11.95 21.4 12.5 21.4 13.1V15A1.3 1.3 0 0 1 20.1 16.3H19.1"/>
-            <path d="M5.05 10.5H18.95"/>
+            <path d="M5.2 16.3H4.2A1.3 1.3 0 0 1 2.9 15V13.1C2.9 12.5 3.2 11.95 3.7 11.6L5.2 10.5L6.8 7.5A2.2 2.2 0 0 1 8.75 6.3H15.25A2.2 2.2 0 0 1 17.2 7.5L18.8 10.5L20.3 11.6C20.8 11.95 21.1 12.5 21.1 13.1V15A1.3 1.3 0 0 1 19.8 16.3H18.8"/>
+            <path d="M5.35 10.5H18.65"/>
             <path d="M10.15 16.3H13.85"/>
-            <circle cx="7.9" cy="16.3" r="1.85"/>
-            <circle cx="16.1" cy="16.3" r="1.85"/>
+            <circle cx="8.2" cy="16.3" r="1.85"/>
+            <circle cx="15.8" cy="16.3" r="1.85"/>
           </svg>
           <h3>תאונות דרכים</h3>
           <p>חוק הפיצויים לנפגעי תאונות דרכים לא שואל מי אשם. גם נהג שגרם לתאונה מכוסה, וגם נוסע, הולך רגל ורוכב אופניים חשמליים.</p>
           <div class="disc">
-            <button class="disc__btn" type="button" aria-expanded="false" aria-controls="d-road">
+            <button class="disc__btn" type="button" id="d-road-b" aria-expanded="false" aria-controls="d-road">
               מה זה כולל
               <svg class="chev" viewBox="0 0 24 24" aria-hidden="true" focusable="false"><path d="M14.5 6.5 8.5 12l6 5.5"/></svg>
             </button>
-            <div class="disc__panel" id="d-road" role="region">
+            <div class="disc__panel" id="d-road" role="region" aria-labelledby="d-road-b">
               <ul class="disc__list">
                 <li>תביעה מול חברת הביטוח של הרכב הפוגע, או של הרכב שנסעתם בו</li>
                 <li>מיצוי מקביל של הזכויות בביטוח הלאומי</li>
@@ -258,18 +258,18 @@
 
         <li class="area" data-reveal="2">
           <svg class="ico" viewBox="0 0 24 24" aria-hidden="true" focusable="false">
-            <path d="M5.3 16.1v-1.2a6.7 6.7 0 0 1 13.4 0v1.2"/>
-            <path d="M4 16.1h16a1.3 1.3 0 0 1 0 2.6H4a1.3 1.3 0 0 1 0-2.6Z"/>
-            <path d="M9.9 15.5v-5.3a1.4 1.4 0 0 1 1.4-1.4h1.4a1.4 1.4 0 0 1 1.4 1.4v5.3"/>
+            <path d="M5.2 15.4v-2.05a6.8 6.8 0 0 1 13.6 0v2.05"/>
+            <path d="M4.2 15.4h15.6a1.35 1.35 0 0 1 0 2.7H4.2a1.35 1.35 0 0 1 0-2.7Z"/>
+            <path d="M9.9 15V9.7a1.5 1.5 0 0 1 1.5-1.5h1.2a1.5 1.5 0 0 1 1.5 1.5V15"/>
           </svg>
           <h3>תאונות עבודה</h3>
-          <p>נפגעתם בעבודה או בדרך אליה, ויש שני מסלולים שרצים במקביל: ביטוח לאומי, ותביעה נגד מי שאחראי. רוב האנשים מכירים רק את הראשון.</p>
+          <p>נפגעתם בעבודה או בדרך אליה, ויש שני מסלולים שרצים במקביל: ביטוח לאומי ותביעה נגד מי שאחראי. רוב האנשים מכירים רק את הראשון.</p>
           <div class="disc">
-            <button class="disc__btn" type="button" aria-expanded="false" aria-controls="d-work">
+            <button class="disc__btn" type="button" id="d-work-b" aria-expanded="false" aria-controls="d-work">
               מה זה כולל
               <svg class="chev" viewBox="0 0 24 24" aria-hidden="true" focusable="false"><path d="M14.5 6.5 8.5 12l6 5.5"/></svg>
             </button>
-            <div class="disc__panel" id="d-work" role="region">
+            <div class="disc__panel" id="d-work" role="region" aria-labelledby="d-work-b">
               <ul class="disc__list">
                 <li>דמי פגיעה על ימי ההיעדרות, והכרה בפגיעה כתאונת עבודה</li>
                 <li>ועדה רפואית וקביעת אחוזי נכות, כולל ערר</li>
@@ -281,20 +281,20 @@
 
         <li class="area" data-reveal="3">
           <svg class="ico" viewBox="0 0 24 24" aria-hidden="true" focusable="false">
-            <path d="M6.3 4.3v4.5a4.3 4.3 0 0 0 8.6 0V4.3"/>
-            <path d="M4.8 4.3h3"/>
-            <path d="M13.4 4.3h3"/>
-            <path d="M10.6 13.1v2a3.1 3.1 0 0 0 6.2 0v-1.1"/>
-            <circle cx="16.8" cy="12.1" r="1.9"/>
+            <path d="M6.2 5.6v4.1a4.4 4.4 0 0 0 8.8 0V5.6"/>
+            <path d="M4.8 5.6a1.4 1.4 0 0 1 2.8 0"/>
+            <path d="M13.6 5.6a1.4 1.4 0 0 1 2.8 0"/>
+            <path d="M10.6 14.1v1.7a3.2 3.2 0 0 0 6.4 0v-1.1"/>
+            <circle cx="17" cy="12.5" r="2.2"/>
           </svg>
           <h3>רשלנות רפואית</h3>
           <p>הכול נשען על התיק הרפואי ועל חוות דעת של מומחה. לכן זה מתחיל בהוצאת התיק המלא, הרבה לפני שמדברים על תביעה.</p>
           <div class="disc">
-            <button class="disc__btn" type="button" aria-expanded="false" aria-controls="d-med">
+            <button class="disc__btn" type="button" id="d-med-b" aria-expanded="false" aria-controls="d-med">
               מה זה כולל
               <svg class="chev" viewBox="0 0 24 24" aria-hidden="true" focusable="false"><path d="M14.5 6.5 8.5 12l6 5.5"/></svg>
             </button>
-            <div class="disc__panel" id="d-med" role="region">
+            <div class="disc__panel" id="d-med" role="region" aria-labelledby="d-med-b">
               <ul class="disc__list">
                 <li>הוצאת התיק הרפואי מכל מוסד שטיפל, כולל צילומים ופרוטוקולים</li>
                 <li>חוות דעת מומחה בתחום שבו נעשה הטיפול</li>
@@ -306,20 +306,20 @@
 
         <li class="area" data-reveal="1">
           <svg class="ico" viewBox="0 0 24 24" aria-hidden="true" focusable="false">
-            <path d="M13.4 3.6H6.6A1.6 1.6 0 0 0 5 5.2v13.6a1.6 1.6 0 0 0 1.6 1.6h10.8a1.6 1.6 0 0 0 1.6-1.6V9.2Z"/>
-            <path d="M13.4 3.6v4a1.6 1.6 0 0 0 1.6 1.6h4"/>
-            <path d="M8.3 12.4h7.4"/>
-            <path d="M8.3 15.2h7.4"/>
-            <path d="M8.3 18h4.2"/>
+            <path d="M13.4 4.2H7A1.6 1.6 0 0 0 5.4 5.8v12.4A1.6 1.6 0 0 0 7 19.8h10a1.6 1.6 0 0 0 1.6-1.6V9.4Z"/>
+            <path d="M13.4 4.2v3.6a1.6 1.6 0 0 0 1.6 1.6h3.6"/>
+            <path d="M8.4 12.6h7.2"/>
+            <path d="M8.4 15.2h7.2"/>
+            <path d="M8.4 17.8h4.2"/>
           </svg>
           <h3>נכות מביטוח לאומי</h3>
           <p>נכות כללית, נכות מעבודה, ניידות, שירותים מיוחדים. חלק גדול מהתיקים האלה נופל על טפסים ועל ועדות, לא על הדין.</p>
           <div class="disc">
-            <button class="disc__btn" type="button" aria-expanded="false" aria-controls="d-ni">
+            <button class="disc__btn" type="button" id="d-ni-b" aria-expanded="false" aria-controls="d-ni">
               מה זה כולל
               <svg class="chev" viewBox="0 0 24 24" aria-hidden="true" focusable="false"><path d="M14.5 6.5 8.5 12l6 5.5"/></svg>
             </button>
-            <div class="disc__panel" id="d-ni" role="region">
+            <div class="disc__panel" id="d-ni" role="region" aria-labelledby="d-ni-b">
               <ul class="disc__list">
                 <li>הגשה מסודרת של התביעה עם המסמכים הרפואיים הנכונים</li>
                 <li>הכנה לוועדה: מה להביא, מה להגיד, ומה לא לשכוח להזכיר</li>
@@ -331,17 +331,17 @@
 
         <li class="area" data-reveal="2">
           <svg class="ico" viewBox="0 0 24 24" aria-hidden="true" focusable="false">
-            <path d="M12 3.4a8.6 8.6 0 0 0-8.6 8.6 4.3 1.6 0 0 0 8.6 0 4.3 1.6 0 0 0 8.6 0A8.6 8.6 0 0 0 12 3.4Z"/>
-            <path d="M12 12v6.3a2.3 2.3 0 0 1-4.6 0"/>
+            <path d="M12 4.2a7.8 7.8 0 0 0-7.8 7.8 3.9 1.45 0 0 0 7.8 0 3.9 1.45 0 0 0 7.8 0A7.8 7.8 0 0 0 12 4.2Z"/>
+            <path d="M12 12v5.7a2.15 2.15 0 0 1-4.3 0"/>
           </svg>
           <h3>תביעות ביטוח</h3>
           <p>אובדן כושר עבודה, תאונות אישיות, ביטוח סיעודי. הרבה אנשים מבוטחים דרך המעסיק או דרך הפנסיה בלי לדעת, ולא מגישים כלום.</p>
           <div class="disc">
-            <button class="disc__btn" type="button" aria-expanded="false" aria-controls="d-ins">
+            <button class="disc__btn" type="button" id="d-ins-b" aria-expanded="false" aria-controls="d-ins">
               מה זה כולל
               <svg class="chev" viewBox="0 0 24 24" aria-hidden="true" focusable="false"><path d="M14.5 6.5 8.5 12l6 5.5"/></svg>
             </button>
-            <div class="disc__panel" id="d-ins" role="region">
+            <div class="disc__panel" id="d-ins" role="region" aria-labelledby="d-ins-b">
               <ul class="disc__list">
                 <li>איתור כל הפוליסות הרלוונטיות, כולל אלה שדרך מקום העבודה</li>
                 <li>טיפול בדחיית תביעה או בתשלום חלקי</li>
@@ -353,20 +353,20 @@
 
         <li class="area" data-reveal="3">
           <svg class="ico" viewBox="0 0 24 24" aria-hidden="true" focusable="false">
-            <path d="M12 5.4v13.4"/>
-            <path d="M8.4 18.8h7.2"/>
-            <path d="M4.9 8.4h14.2"/>
-            <path d="M4.9 8.4 2.5 13.4a3.4 3.4 0 0 0 4.8 0Z"/>
-            <path d="M19.1 8.4 21.5 13.4a3.4 3.4 0 0 1-4.8 0Z"/>
+            <path d="M12 5.7v13"/>
+            <path d="M8.6 18.7h6.8"/>
+            <path d="M5.5 8.6h13"/>
+            <path d="M5.5 8.6 3.4 13.2a3.1 3.1 0 0 0 4.2 0Z"/>
+            <path d="M18.5 8.6 20.6 13.2a3.1 3.1 0 0 1-4.2 0Z"/>
           </svg>
           <h3>נזקי גוף כלליים</h3>
           <p>נפילה על מדרכה שבורה, כלב שנשך, פציעה בחצר בית ספר. אין לזה קטגוריה מסודרת בלוח, ויש לזה אחראי.</p>
           <div class="disc">
-            <button class="disc__btn" type="button" aria-expanded="false" aria-controls="d-gen">
+            <button class="disc__btn" type="button" id="d-gen-b" aria-expanded="false" aria-controls="d-gen">
               מה זה כולל
               <svg class="chev" viewBox="0 0 24 24" aria-hidden="true" focusable="false"><path d="M14.5 6.5 8.5 12l6 5.5"/></svg>
             </button>
-            <div class="disc__panel" id="d-gen" role="region">
+            <div class="disc__panel" id="d-gen" role="region" aria-labelledby="d-gen-b">
               <ul class="disc__list">
                 <li>מפגע בכביש, במדרכה, בכניסה לבניין או בבית עסק</li>
                 <li>תאונות של קטינים בגן, בבית ספר או בחוג</li>
@@ -389,13 +389,13 @@
       </div>
 
       <div class="checker" data-checker data-reveal="1">
-        <div class="checker__rail" aria-hidden="true">
+        <div class="checker__rail js-only" aria-hidden="true">
           <span class="checker__seg is-on"></span>
           <span class="checker__seg"></span>
           <span class="checker__seg"></span>
           <span class="checker__seg"></span>
         </div>
-        <p class="checker__count js-only"><span class="num" data-step-now>1</span> מתוך <span class="num">4</span></p>
+        <p class="checker__count js-only">שאלה <span class="num" data-step-now>1</span> מתוך <span class="num">4</span></p>
         <p class="sr-only" role="status" data-live></p>
 
         <div class="checker__body">
@@ -445,7 +445,7 @@
             <svg class="chev chev--back" viewBox="0 0 24 24" aria-hidden="true" focusable="false"><path d="M9.5 6.5 15.5 12l-6 5.5"/></svg>
             חזרה
           </button>
-          <p class="dimmer checker__hint">בחרו תשובה — לחיצה או Enter ממשיכים הלאה.</p>
+          <p class="dimmer checker__hint">בחרו תשובה. לחיצה או Enter ממשיכים.</p>
         </div>
 
         <p class="nojs checker__nojs">
@@ -484,7 +484,7 @@
           <div class="step__b">
             <h3>פגישה ללא עלות</h3>
             <p>חצי שעה. אתם מספרים מה קרה, אני אומר אם יש כאן תיק ומה חסר כדי לדעת.</p>
-            <p class="step__t"><span class="num">עד 3</span> ימים לקביעה</p>
+            <p class="step__t">עד <span class="num">3</span> ימים לקביעה</p>
           </div>
         </li>
         <li class="step">
@@ -531,25 +531,25 @@
   <!-- =============================================== 3.7 · תוצאות נבחרות -- -->
   <section class="section results" id="results" aria-labelledby="results-h">
     <div class="shell">
-      <div class="sect-head results__head" data-reveal>
-        <div>
-          <h2 id="results-h">תוצאות נבחרות</h2>
-          <p class="lead">ארבעה תיקים שנסגרו, בלי פרטים מזהים.</p>
-        </div>
-        <p class="tag tag--demo">נתוני הדגמה</p>
-      </div>
-
       <div class="results__grid">
-        <article class="rcase rcase--lead" data-reveal="1">
-          <p class="rcase__who">רוכב אופנוע, <span class="num">34</span></p>
-          <h3 class="rcase__kind">תאונת דרכים</h3>
-          <p class="rcase__sum num">₪780,000</p>
-          <dl class="rcase__meta">
-            <div><dt>נכות</dt><dd class="num">21%</dd></div>
-            <div><dt>משך התיק</dt><dd><span class="num">14</span> חודשים</dd></div>
-          </dl>
-          <p class="rcase__note">נסגר בפשרה לפני הגשת תביעה, אחרי חוות דעת אורתופדית שנייה.</p>
-        </article>
+        <div class="results__col">
+          <div class="sect-head results__head" data-reveal>
+            <h2 id="results-h">תוצאות נבחרות</h2>
+            <p class="lead">ארבעה תיקים שנסגרו, בלי פרטים מזהים.</p>
+            <p class="tag tag--demo">נתוני הדגמה</p>
+          </div>
+
+          <article class="rcase rcase--lead" data-reveal="1">
+            <p class="rcase__who">רוכב אופנוע, <span class="num">34</span></p>
+            <h3 class="rcase__kind">תאונת דרכים</h3>
+            <p class="rcase__sum num">₪780,000</p>
+            <dl class="rcase__meta">
+              <div><dt>נכות</dt><dd class="num">21%</dd></div>
+              <div><dt>משך התיק</dt><dd><span class="num">14</span> חודשים</dd></div>
+            </dl>
+            <p class="rcase__note">נסגר בפשרה לפני הגשת תביעה, אחרי חוות דעת אורתופדית שנייה.</p>
+          </article>
+        </div>
 
         <ul class="rcase__list">
           <li class="rcase" data-reveal="2">
@@ -602,17 +602,29 @@
         <p class="eyebrow">אודות</p>
         <h2 id="about-h">מי יטפל בתיק</h2>
 
-        <p>רון לביא עוסק בנזקי גוף מ-<span class="num">2008</span>. שלוש שנים לפני כן ישב בצד השני של השולחן, במחלקה המשפטית של חברת ביטוח, ומשם הוא יודע איך נראה תיק מהצד שמשלם — ומה גורם למישהו שם להרים את ההצעה.</p>
+        <p>רון לביא עוסק בנזקי גוף משנת <span class="num">2008</span>. שלוש שנים לפני כן ישב בצד השני של השולחן, במחלקה המשפטית של חברת ביטוח, ומשם הוא יודע איך נראה תיק מהצד שמשלם — ומה גורם למישהו שם להרים את ההצעה.</p>
 
         <p>כל תיק מנוהל על ידי עורך דין מהשיחה הראשונה ועד הסוף, כולל הוועדה הרפואית וכולל המשא ומתן. המשרד קטן במתכוון.</p>
 
-        <p>פגישה ראשונה אפשר לקיים במשרד, בטלפון, או אצלכם בבית. כשההגעה לא אפשרית — מגיעים.</p>
+        <p>פגישה ראשונה אפשר לקיים במשרד, בטלפון, או אצלכם בבית. וכשההגעה לא אפשרית, מגיעים אליכם.</p>
 
         <ul class="creds">
-          <li><span class="creds__k">השכלה</span><span class="creds__v">LL.B, אוניברסיטת תל אביב, <span class="num">2006</span></span></li>
-          <li><span class="creds__k">חברות בלשכה</span><span class="creds__v">חבר לשכת עורכי הדין בישראל מ-<span class="num">2008</span></span></li>
-          <li><span class="creds__k">תחומי התמחות</span><span class="creds__v">נזקי גוף, תאונות דרכים, רשלנות רפואית, ביטוח לאומי</span></li>
-          <li><span class="creds__k">שפות</span><span class="creds__v">עברית, אנגלית, רוסית</span></li>
+          <li>
+            <svg class="tick" viewBox="0 0 24 24" aria-hidden="true" focusable="false"><path d="M4.8 12.4 9.5 17 19.2 7.2"/></svg>
+            <span class="creds__k">השכלה</span><span class="creds__v">LL.B, אוניברסיטת תל אביב, <span class="num">2006</span></span>
+          </li>
+          <li>
+            <svg class="tick" viewBox="0 0 24 24" aria-hidden="true" focusable="false"><path d="M4.8 12.4 9.5 17 19.2 7.2"/></svg>
+            <span class="creds__k">חברות בלשכה</span><span class="creds__v">חבר לשכת עורכי הדין בישראל משנת <span class="num">2008</span></span>
+          </li>
+          <li>
+            <svg class="tick" viewBox="0 0 24 24" aria-hidden="true" focusable="false"><path d="M4.8 12.4 9.5 17 19.2 7.2"/></svg>
+            <span class="creds__k">תחומי התמחות</span><span class="creds__v">נזקי גוף, תאונות דרכים, רשלנות רפואית, ביטוח לאומי</span>
+          </li>
+          <li>
+            <svg class="tick" viewBox="0 0 24 24" aria-hidden="true" focusable="false"><path d="M4.8 12.4 9.5 17 19.2 7.2"/></svg>
+            <span class="creds__k">שפות</span><span class="creds__v">עברית, אנגלית, רוסית</span>
+          </li>
         </ul>
       </div>
     </div>
@@ -623,7 +635,7 @@
     <div class="shell">
       <div class="sect-head" data-reveal>
         <p class="eyebrow">לקוחות</p>
-        <h2 id="voices-h">מה אנשים אמרו אחרי</h2>
+        <h2 id="voices-h">אחרי שהתיק נסגר</h2>
       </div>
 
       <ul class="voices__grid">
@@ -678,7 +690,7 @@
           <div class="acc__panel" id="f1-p" role="region" aria-labelledby="f1-b">
             <div class="acc__in">
               <p>הפגישה הראשונה ובדיקת התיק לא עולות כלום, גם אם בסוף לא פותחים תיק. אחר כך שכר הטרחה מותנה: הוא אחוז מהסכום שמתקבל בפועל, והוא נגבה רק אם התקבל סכום. האחוז נקבע מראש בהסכם בכתב, לפי סוג התיק ולפי השלב שבו הוא נסגר, ואתם רואים אותו לפני שחותמים על משהו.</p>
-              <p>הוצאות חיצוניות הן סיפור נפרד ומסבירים אותן מראש: חוות דעת מומחה עולה בין <span class="num">4,000</span> ל-<span class="num">12,000</span> שקלים לפי התחום, ויש אגרת בית משפט אם מגישים תביעה. אף אחת מההוצאות האלה לא יוצאת בלי שאמרתם כן.</p>
+              <p>הוצאות חיצוניות הן סיפור נפרד ומסבירים אותן מראש: חוות דעת מומחה עולה בדרך כלל <span class="num">4,000–12,000</span> שקלים לפי התחום, ויש אגרת בית משפט אם מגישים תביעה. אף אחת מההוצאות האלה לא יוצאת בלי שאמרתם כן.</p>
             </div>
           </div>
         </div>
@@ -910,7 +922,7 @@
         <li><a class="ulink" href="tel:036100420"><span class="num">03-6100420</span></a></li>
         <li><a class="ulink" href="mailto:office@lavi-law.example">office@lavi-law.example</a></li>
         <li>דרך מנחם בגין <span class="num">132</span>, תל אביב</li>
-        <li>חבר לשכת עורכי הדין בישראל מ-<span class="num">2008</span></li>
+        <li>חבר לשכת עורכי הדין בישראל משנת <span class="num">2008</span></li>
       </ul>
     </div>
 

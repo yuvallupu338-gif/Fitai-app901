@@ -130,7 +130,11 @@ html:not(.js) .js-only { display: none !important; }
   color: var(--accent-ink);
   box-shadow: var(--shadow-sm);
 }
-.btn--primary:hover { filter: brightness(1.09); box-shadow: var(--shadow); }
+.btn--primary:hover { filter: brightness(1.09); box-shadow: var(--shadow); transform: translateY(-1px); }
+/* Restated because the hover rule above outranks the kit's press by source
+   order, and a button that cannot be seen to depress is a button nobody
+   trusts they clicked. */
+.btn--primary:active { transform: translateY(1px) scale(.99); }
 
 .btn--ghost {
   background: transparent;
@@ -142,12 +146,8 @@ html:not(.js) .js-only { display: none !important; }
 .btn--quiet { color: var(--ink-dim); padding-inline: 4px; }
 .btn--quiet:hover { color: var(--ink); }
 
-/* kit's focus rule rewrites border-radius to 3px; these controls keep their
-   own geometry while focused so the ring traces the shape you clicked. */
-.btn:focus-visible, .input:focus-visible, .select:focus-visible,
-.textarea:focus-visible, .brand:focus-visible, .callbar__a:focus-visible {
-  border-radius: var(--r-btn);
-}
+/* A soft wash outside the outline, so the ring reads as designed rather than
+   as the browser default it is built on. */
 :focus-visible { box-shadow: 0 0 0 5px var(--accent-wash); }
 
 /* --------------------------------------------------------------- header -- */
@@ -366,6 +366,8 @@ html.is-locked { overflow: hidden; }
 
 .hero__cta { --gap: 12px; margin-block-start: 30px !important; }
 .hero__cta .btn--ghost { background: var(--surface); }
+/* Two buttons of different widths stacked read as an accident on a phone. */
+@media (max-width: 559px) { .hero__cta .btn { inline-size: 100%; } }
 
 /* ------------------------------------------------------------- lead form -- */
 
@@ -385,13 +387,12 @@ html.is-locked { overflow: hidden; }
 
 .input, .select, .textarea {
   /* On both bands the card and the field would otherwise be the same colour,
-     so the field takes the next surface down rather than a per-band override. */
-  background: var(--surface-2);
+     so the field takes the next surface down rather than a per-band override.
+     background-color and not the shorthand: the shorthand resets
+     background-image, and that is where the kit paints the select's arrow. */
+  background-color: var(--surface-2);
   font-size: 16px;
 }
-/* kit reserves the select arrow's space on the inline-start, but the arrow it
-   paints is at a physical offset — which in RTL is the inline-end. */
-.select { padding-inline: 15px 40px; }
 .input:hover, .select:hover, .textarea:hover { border-color: var(--ink-dimmer); }
 .field > .label { font-size: 13px; letter-spacing: .01em; }
 .err { line-height: 1.45; }
@@ -621,15 +622,17 @@ html.is-locked { overflow: hidden; }
   block-size: 1px;
   background: var(--gold);
 }
+/* The brief calls for this to be visible and not fine print, so it is set at
+   the body size and in body ink — a paragraph, not a footnote. */
 .result__disc {
   margin-block-start: 22px;
-  padding: 14px 16px;
+  padding: 15px 17px;
   background: var(--surface-2);
   border-inline-start: 2px solid var(--gold);
   border-radius: 0 var(--r-sm) var(--r-sm) 0;
-  font-size: 14px;
+  font-size: 15.5px;
   line-height: 1.6;
-  color: var(--ink-dim);
+  color: var(--ink);
   max-inline-size: none;
 }
 .result__cta { --gap: 10px; margin-block-start: 20px; }
@@ -645,17 +648,21 @@ html.is-locked { overflow: hidden; }
 
 /* -------------------------------------------------------- 3.6 · התהליך -- */
 
-.steps { position: relative; display: grid; gap: 26px; }
-.steps::before {
+.steps { --step-n: 46px; position: relative; display: grid; gap: 26px; }
+/* The connector belongs to each step rather than to the rail, so it always
+   starts and stops at a number instead of overshooting the first and last. */
+.step:not(:last-child)::before {
   content: "";
   position: absolute;
-  inset-block: 26px 26px;
-  inset-inline-start: 23px;
+  inset-inline-start: calc(var(--step-n) / 2);
+  inset-block-start: calc(var(--step-n) / 2);
   inline-size: 1px;
+  block-size: calc(100% + 26px);
   background: var(--gold-soft);
 }
-.step { position: relative; display: grid; grid-template-columns: 46px minmax(0, 1fr); gap: 18px; }
+.step { position: relative; display: grid; grid-template-columns: var(--step-n) minmax(0, 1fr); gap: 18px; }
 .step__n {
+  position: relative;
   inline-size: 46px;
   block-size: 46px;
   border-radius: 50%;
@@ -689,8 +696,12 @@ html.is-locked { overflow: hidden; }
 
 @media (min-width: 900px) {
   .steps { grid-template-columns: repeat(5, minmax(0, 1fr)); gap: 24px; }
-  .steps::before { inset-block: 23px auto; inset-inline: 9% 9%; inline-size: auto; block-size: 1px; }
   .step { display: block; }
+  .step:not(:last-child)::before {
+    inset-block-start: calc(var(--step-n) / 2);
+    inline-size: calc(100% + 24px);
+    block-size: 1px;
+  }
   .step__b { margin-block-start: 18px; }
   .step p { font-size: 15px; }
 }
@@ -698,14 +709,9 @@ html.is-locked { overflow: hidden; }
 /* ------------------------------------------------ 3.7 · תוצאות נבחרות -- */
 
 .results { background: var(--surface-2); }
-.results__head {
-  display: flex;
-  align-items: start;
-  justify-content: space-between;
-  gap: 20px;
-  max-inline-size: none;
-}
+.results__head { margin-block-end: clamp(28px, 3vw, 40px); }
 .results__head .lead { margin-block-start: 10px; }
+.tag--demo { display: inline-block; margin-block-start: 20px; }
 
 .results__grid { display: grid; gap: 34px; }
 .rcase__who { font-size: 13.5px; letter-spacing: .04em; color: var(--ink-dimmer); }
@@ -746,10 +752,12 @@ html.is-locked { overflow: hidden; }
 }
 
 @media (min-width: 900px) {
-  /* Unequal on purpose: one case gets room, three get a list. Four identical
-     tiles would say all four mattered the same, which is not true. */
-  .results__grid { grid-template-columns: minmax(0, 1.08fr) minmax(0, 1fr); gap: 56px; align-items: start; }
-  .rcase--lead .rcase__sum { font-size: calc(var(--d3) * 1.18); }
+  /* Unequal on purpose: the section head and one case share a column, three
+     cases run as a list in the other. Four identical tiles would say all four
+     mattered the same, which is not true. */
+  .results__grid { grid-template-columns: minmax(0, 1.04fr) minmax(0, 1fr); gap: 56px; align-items: start; }
+  .rcase--lead .rcase__sum { font-size: calc(var(--d3) * 1.2); }
+  .rcase__list { padding-block-start: 6px; }
 }
 
 /* --------------------------------------------------------- 3.8 · אודות -- */
@@ -805,23 +813,24 @@ html.is-locked { overflow: hidden; }
 
 .creds { margin-block-start: 30px; border-block-start: 1px solid var(--line); }
 .creds li {
+  position: relative;
   display: grid;
   gap: 2px 14px;
   padding-block: 14px;
+  padding-inline-start: 30px;
   border-block-end: 1px solid var(--line-soft);
-  position: relative;
-  padding-inline-start: 28px;
 }
-.creds li::before {
-  content: "";
+.tick {
   position: absolute;
-  inset-inline-start: 2px;
-  inset-block-start: 21px;
-  inline-size: 11px;
-  block-size: 6px;
-  border-inline-start: 1.5px solid var(--gold);
-  border-block-end: 1.5px solid var(--gold);
-  transform: rotate(-45deg);
+  inset-inline-start: 0;
+  inset-block-start: 17px;
+  inline-size: 16px;
+  block-size: 16px;
+  fill: none;
+  stroke: var(--gold);
+  stroke-width: 2;
+  stroke-linecap: round;
+  stroke-linejoin: round;
 }
 .creds__k { font-size: 12.5px; letter-spacing: .06em; color: var(--ink-dimmer); }
 .creds__v { font-size: 15.5px; }
@@ -859,6 +868,7 @@ html.is-locked { overflow: hidden; }
 /* -------------------------------------------------- 3.10 · שאלות נפוצות -- */
 
 .faq__grid { display: grid; gap: 34px; }
+.faq__head { margin-block-end: 0; }
 @media (min-width: 960px) {
   .faq__grid { grid-template-columns: minmax(0, .68fr) minmax(0, 1.32fr); gap: 64px; align-items: start; }
   .faq__head { position: sticky; inset-block-start: calc(var(--header-h) + 30px); margin-block-end: 0; }
