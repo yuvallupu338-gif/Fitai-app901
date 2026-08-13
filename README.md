@@ -542,8 +542,12 @@ picks its own wording now, like the rest.
 Onboarding was outside that audit entirely — it only runs before there is a
 profile — and it was hiding two. **Tuesday's button in both day pickers read
 "g"**: `DOW[2]` is `'ג׳'`, which is also how the app abbreviates grams, so the
-word-by-word pass translated the day into a unit. Both pickers take the day's
-own short name in the chosen language now, marked `data-notr`. And the target
+word-by-word pass translated the day into a unit. Both pickers write the day
+out in full now — ראשון, Sunday, Domingo — in the language being read and
+marked `data-notr`, which is both clearer than a single letter and impossible
+to mistake for a unit. Seven full names do not fit a phone in any language, so
+the row became a grid with an `em` floor like the stat grids: two columns on a
+320px screen, three on a 430px one, one at the largest text size. And the target
 weight field asked "משקל יעד" in every language, which nothing caught because
 it only renders for a cutting goal. Onboarding is now swept the same way the
 app is — four steps, four goals, both non-Hebrew languages — and comes back
