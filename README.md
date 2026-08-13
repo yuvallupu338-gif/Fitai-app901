@@ -120,7 +120,7 @@ ones that only assist.
 **Every exercise has a demo and a video.** Bundled clips where one exists,
 the animated coach doing the movement pattern where one does not, and a video
 button on every exercise everywhere it appears: the plan preview, the workout
-screen, the swap sheet, the skill tree and the machine guide.
+screen, the swap sheet and the skill tree.
 
 ## Recovery
 
@@ -517,10 +517,9 @@ single comma now and asserts that no `,,` survives.
 Hebrew, English and Spanish. The planner picks its own wording per language
 rather than going through the app-wide word substitution, and every exercise in
 the library carries its own Spanish name. The content the app ships — 208
-foods, 47 machines with their steps, tips and common mistakes, 110 recipes with
-ingredients and method, the stretches, the daily tips and the achievements — is
-translated as whole strings, 1,187 of them, which `translateEl` matches exactly
-and swaps wholesale.
+foods, 110 recipes with ingredients and method, the stretches, the daily tips
+and the achievements — is translated as whole strings, which `translateEl`
+matches exactly and swaps wholesale.
 
 That exact-match path exists because the fallback is word-by-word: it rewrites
 known Hebrew words wherever they appear, so a phrase it only half knows comes
@@ -553,9 +552,9 @@ it only renders for a cutting goal. Onboarding is now swept the same way the
 app is — four steps, four goals, both non-Hebrew languages — and comes back
 clean.
 
-A browser-driven audit walks every tab, every sheet, all 47 machine guides, the
-food search and every recipe in both English and Spanish, collecting any text
-node still holding Hebrew. It reports zero.
+A browser-driven audit walks every tab, every sheet, the food search and every
+recipe in both English and Spanish, collecting any text node still holding
+Hebrew. It reports zero.
 
 ## Notes
 
@@ -567,11 +566,14 @@ demonstrate the loaded lifts the generator now prescribes. The five that only
 ever illustrated skill-tree feats — a yoke carry, a double-bodyweight bench, a
 human flag — are still out, because nothing prescribes them.
 
-The 47-machine guide came back too, at 0.14 MB. It was dead code in the file as
-uploaded: a catalogue with steps, cues and common mistakes that nothing linked
-to. It now has a button on the skills tab for anyone not training bodyweight
-only, and the coach figure beside each machine marks the muscles it works,
-read in the order the entry names them — which is what keeps a leg press filed
-under quads and a lying leg curl out of quads entirely.
+The 47-machine guide is gone, and took 0.19 MB with it. It was a second,
+parallel way to build a session — a directory with photos, steps, cues and
+common mistakes, a camera flow that let you photograph a machine and pick it
+off a list, and a cart that turned a set of machines into a workout — and none
+of it knew about the split, the muscles, the level or the recovery windows.
+Everything it demonstrated the movement library already prescribes, with its
+own clip and its own marked figure. Out came the 47 entries, their photographs,
+fourteen functions, four actions, thirteen rules of styling and 842 dictionary
+entries that nothing could reach any more.
 
 The information in the app is not medical advice.
