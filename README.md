@@ -65,6 +65,18 @@ is the full five — pull-up bar, dip bars, rings, bands, ab wheel. It stays a
 hard filter: tick nothing on calisthenics and you still get a full week from a
 floor, a wall and a doorway. Declared injuries filter on top.
 
+**The questionnaire can be answered again.** It ran once, at first launch, and
+after that the only route back to it was the full reset — which throws away the
+history, the weights, the XP and the skill tree to change one answer. So the
+one place the app asks how you train as a question rather than as a setting was
+unreachable for anyone already using it. A button in settings reopens it,
+seeded from the profile: the name, the age, the weight, the style, the kit, the
+days, the strength answers and the diet all come back as you left them, the
+consent screen does not ask twice, and finishing edits the profile instead of
+starting a new one. All nine style-to-style moves through it were checked —
+switching style drops the tick boxes of the style you left and takes on what
+the new one implies, and the weight chart is added to rather than replaced.
+
 **How you train is the first thing in settings** and the first thing
 onboarding asks on its equipment step, above the strength test. It decides
 which half of the movement library the app may look at, which ladders the
