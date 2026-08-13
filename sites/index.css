@@ -199,7 +199,9 @@ h1 em { font-style: normal; color: var(--amber); }
 /* Lawyer — the monogram, and the ruled paper it sits on. */
 .poster--lawyer { background: linear-gradient(160deg, #FFFFFF, #F1EEE6); }
 .poster--lawyer .frame {
-  position: absolute; inset-block-start: 50%; inset-inline-start: 50%;
+  /* Sits above the letterhead band rather than centred, or its outer rule
+     collides with the gold one. */
+  position: absolute; inset-block-start: 38%; inset-inline-start: 50%;
   translate: -50% -50%;
   inline-size: 96px; block-size: 96px;
   border: 1px solid #A9862F;
