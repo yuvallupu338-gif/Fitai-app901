@@ -81,6 +81,14 @@ browser to check accessible names, dead anchors, horizontal overflow at four
 widths, the focus ring, reduced motion, rendering with JavaScript disabled, and
 that no request ever leaves the page. Start at [`sites/`](sites/).
 
+Each one also has a single-file build — `dist/horror.html`,
+`dist/escape.html`, `dist/lawyer.html` — that opens straight off the disk with
+no server and no network, same as `dist/fitai.html`:
+
+```bash
+node tools/build-single.js sites/horror/index.html dist/horror.html
+```
+
 ## What it does
 
 **Intake** — ten steps covering the basics, training history, goal and target

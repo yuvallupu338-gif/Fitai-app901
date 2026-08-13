@@ -91,7 +91,10 @@ function transform(k, mod) {
     const line = d.ns
       ? `const ${d.ns} = __m[${JSON.stringify(target)}];`
       : `const { ${d.named.replace(/\s+/g, ' ').trim()} } = __m[${JSON.stringify(target)}];`;
-    out = out.replace(d.raw, line);
+    /* Replacer function, not a replacement string. In a replacement string `$$`
+       means one literal `$`, so `import { $, $$ }` bundles as `{ $, $ }` and the
+       file dies on a duplicate declaration. See the same trap at the bottom. */
+    out = out.replace(d.raw, () => line);
   }
 
   const exported = new Set();
@@ -150,8 +153,14 @@ let html = htmlSrc;
 html = html
   .replace(/\n?[ \t]*<link rel="stylesheet"[^>]*>/g, '')
   .replace(/[ \t]*<script type="module"[^>]*><\/script>/, '')
-  .replace('</head>', `<style>\n${css}\n</style>\n</head>`)
-  .replace('</body>', `<script>\n${bundle}\n</script>\n</body>`);
+  /* Both of these pass a function rather than a string. A replacement string
+     gives `$` special meaning — `$$` becomes one `$`, `$&` becomes the whole
+     match — and here the "string" is an entire stylesheet and an entire
+     bundle. Anything in the source that happened to contain `$$` came out the
+     other side quietly altered, which is the worst way for a bundler to fail:
+     it emits a file, and the file is wrong. */
+  .replace('</head>', () => `<style>\n${css}\n</style>\n</head>`)
+  .replace('</body>', () => `<script>\n${bundle}\n</script>\n</body>`);
 
 mkdirSync(dirname(resolve(ROOT, HTML_OUT)), { recursive: true });
 writeFileSync(resolve(ROOT, HTML_OUT), html);
