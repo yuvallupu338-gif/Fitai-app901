@@ -58,7 +58,7 @@
   /* -------------------------------------------------------------- type -- */
   --display: 'Karantina', 'Arial Narrow', system-ui, sans-serif;
   --body:    'Rubik', system-ui, sans-serif;
-  --mono:    'IBM Plex Mono', ui-monospace, monospace;
+  --mono:    'IBM Plex Mono', 'Cousine', ui-monospace, monospace;
 
   /* Karantina is drawn tall and narrow with a small x-height, so it needs to
      run larger than a normal display face before it has any weight on the

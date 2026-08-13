@@ -195,9 +195,9 @@
   <div class="hero__base">
     <p class="cue" id="cue" aria-hidden="true"><span class="cue__l"></span>גללו</p>
     <ul class="facts">
-      <li><span class="facts__n num">18+</span><span class="facts__k">בלי יוצא מן הכלל</span></li>
-      <li><span class="facts__n num">45–60</span><span class="facts__k">דקות בפנים</span></li>
-      <li><span class="facts__n num">3</span><span class="facts__k">חדרים, ואין ביניהם דמיון</span></li>
+      <li><span class="facts__n"><span class="num">18+</span></span><span class="facts__k">בלי יוצא מן הכלל</span></li>
+      <li><span class="facts__n"><span class="num">45–60</span></span><span class="facts__k">דקות בפנים</span></li>
+      <li><span class="facts__n"><span class="num">3</span></span><span class="facts__k">חדרים, ואין ביניהם דמיון</span></li>
     </ul>
   </div>
 </section>
@@ -223,33 +223,43 @@
 
       <article class="room room--anna" data-room="anna" data-reveal>
         <div class="still still--anna">
-          <svg viewBox="0 0 400 260" preserveAspectRatio="xMidYMid slice" aria-hidden="true">
+          <svg viewBox="0 0 360 270" preserveAspectRatio="xMidYMid slice" aria-hidden="true">
             <defs>
-              <linearGradient id="sa-wall" gradientUnits="userSpaceOnUse" x1="0" y1="0" x2="0" y2="260">
-                <stop offset="0" class="st-s2"/><stop offset="1" class="st-bg"/>
+              <linearGradient id="sa-wall" gradientUnits="userSpaceOnUse" x1="0" y1="0" x2="0" y2="216">
+                <stop offset="0" class="st-s2"/><stop offset="1" class="st-s1"/>
               </linearGradient>
-              <linearGradient id="sa-leak" gradientUnits="userSpaceOnUse" x1="0" y1="30" x2="0" y2="260">
-                <stop offset="0" class="st-lit-d"/><stop offset=".72" class="st-lit-c"/><stop offset="1" class="st-lit-0"/>
+              <linearGradient id="sa-floor" gradientUnits="userSpaceOnUse" x1="0" y1="216" x2="0" y2="270">
+                <stop offset="0" class="st-s1"/><stop offset="1" class="st-bg"/>
               </linearGradient>
-              <linearGradient id="sa-bleed" gradientUnits="userSpaceOnUse" x1="262" y1="0" x2="330" y2="0">
+              <linearGradient id="sa-leak" gradientUnits="userSpaceOnUse" x1="0" y1="22" x2="0" y2="216">
+                <stop offset="0" class="st-lit-c"/><stop offset=".62" class="st-lit-f"/><stop offset="1" class="st-lit-d"/>
+              </linearGradient>
+              <linearGradient id="sa-bleed" gradientUnits="userSpaceOnUse" x1="222" y1="0" x2="292" y2="0">
                 <stop offset="0" class="st-lit-b"/><stop offset="1" class="st-lit-0"/>
               </linearGradient>
-              <linearGradient id="sa-spill" gradientUnits="userSpaceOnUse" x1="266" y1="0" x2="400" y2="0">
+              <linearGradient id="sa-spill" gradientUnits="userSpaceOnUse" x1="0" y1="216" x2="0" y2="270">
                 <stop offset="0" class="st-lit-c"/><stop offset="1" class="st-lit-0"/>
               </linearGradient>
-              <radialGradient id="sa-red" gradientUnits="userSpaceOnUse" cx="196" cy="256" r="96">
+              <radialGradient id="sa-red" gradientUnits="userSpaceOnUse" cx="150" cy="270" r="72">
                 <stop offset="0" class="st-red-a"/><stop offset="1" class="st-red-0"/>
               </radialGradient>
             </defs>
-            <rect width="400" height="260" fill="url(#sa-wall)"/>
-            <path d="M18 74h64M18 78h44M330 168h52M344 172h38" class="s-scratch"/>
-            <rect x="150" y="20" width="118" height="240" class="s-void"/>
-            <rect x="146" y="16" width="126" height="244" class="s-frame"/>
-            <rect x="262" y="20" width="66" height="240" fill="url(#sa-bleed)"/>
-            <rect x="263" y="24" width="4" height="236" fill="url(#sa-leak)"/>
-            <path d="M267 258L400 214v46z" fill="url(#sa-spill)" opacity=".5"/>
-            <ellipse cx="196" cy="256" rx="96" ry="26" fill="url(#sa-red)"/>
-            <path d="M170 104h22" class="s-red-hair"/>
+            <rect width="360" height="216" fill="url(#sa-wall)"/>
+            <rect y="216" width="360" height="54" fill="url(#sa-floor)"/>
+            <path d="M0 216h360" class="s-hair"/>
+            <path d="M20 62h58M20 66h34M300 178h44" class="s-scratch"/>
+
+            <path d="M226 216L306 270H176z" fill="url(#sa-spill)" opacity=".42"/>
+            <rect x="222" y="16" width="70" height="200" fill="url(#sa-bleed)"/>
+
+            <rect x="88" y="10" width="148" height="206" class="s-frame"/>
+            <rect x="96" y="18" width="132" height="198" class="s-void"/>
+            <path d="M140 18v198" class="s-seam"/>
+            <path d="M96 122h132" class="s-seam"/>
+            <rect x="222" y="20" width="5" height="196" fill="url(#sa-leak)"/>
+
+            <ellipse cx="150" cy="270" rx="72" ry="17" fill="url(#sa-red)"/>
+            <path d="M96 215h132" class="s-red-hair"/>
           </svg>
         </div>
 
@@ -287,41 +297,45 @@
 
       <article class="room room--sanit" data-room="sanit" data-reveal>
         <div class="still still--sanit">
-          <svg viewBox="0 0 400 260" preserveAspectRatio="xMidYMid slice" aria-hidden="true">
+          <svg viewBox="0 0 420 180" preserveAspectRatio="xMidYMid slice" aria-hidden="true">
             <defs>
-              <linearGradient id="sb-wall" gradientUnits="userSpaceOnUse" x1="0" y1="0" x2="0" y2="260">
-                <stop offset="0" class="st-s1"/><stop offset=".7" class="st-bg"/><stop offset="1" class="st-bg"/>
+              <linearGradient id="sb-wall" gradientUnits="userSpaceOnUse" x1="0" y1="0" x2="0" y2="180">
+                <stop offset="0" class="st-s2"/><stop offset=".62" class="st-s1"/><stop offset="1" class="st-bg"/>
               </linearGradient>
-              <linearGradient id="sb-pane" gradientUnits="userSpaceOnUse" x1="0" y1="24" x2="0" y2="174">
+              <linearGradient id="sb-pane" gradientUnits="userSpaceOnUse" x1="0" y1="14" x2="0" y2="118">
                 <stop offset="0" class="st-lit-c"/><stop offset="1" class="st-lit-e"/>
               </linearGradient>
-              <linearGradient id="sb-shaft" gradientUnits="userSpaceOnUse" x1="0" y1="174" x2="0" y2="260">
+              <linearGradient id="sb-shaft" gradientUnits="userSpaceOnUse" x1="0" y1="118" x2="0" y2="180">
                 <stop offset="0" class="st-lit-b"/><stop offset="1" class="st-lit-0"/>
               </linearGradient>
-              <radialGradient id="sb-lamp" gradientUnits="userSpaceOnUse" cx="344" cy="52" r="52">
+              <radialGradient id="sb-lamp" gradientUnits="userSpaceOnUse" cx="356" cy="44" r="26">
                 <stop offset="0" class="st-red-b"/><stop offset="1" class="st-red-0"/>
               </radialGradient>
             </defs>
-            <rect width="400" height="260" fill="url(#sb-wall)"/>
-            <path d="M0 196h400" class="s-hair"/>
-            <path d="M14 34h30M14 40h18M370 226h22" class="s-scratch"/>
-            <g>
-              <path d="M136 174L112 260h20l20-86zM168 174l-12 86h20l6-86zM200 174l1 86h20l-9-86zM232 174l13 86h20l-24-86z" fill="url(#sb-shaft)" opacity=".55"/>
-            </g>
-            <rect x="118" y="22" width="164" height="154" class="s-void"/>
-            <rect x="122" y="26" width="156" height="146" fill="url(#sb-pane)"/>
+            <rect width="420" height="180" fill="url(#sb-wall)"/>
+            <path d="M0 150h420" class="s-hair"/>
+            <path d="M316 132h104" class="s-hair"/>
+            <path d="M18 26h34M18 30h20M392 166h20" class="s-scratch"/>
+
+            <path d="M131 118l-26 62h17l17-62zM159 118l-13 62h17l8-62zM187 118v62h17l-4-62zM215 118l13 62h17l-21-62z"
+                  fill="url(#sb-shaft)" opacity=".5"/>
+
+            <rect x="106" y="14" width="160" height="104" class="s-void"/>
+            <rect x="110" y="18" width="152" height="96" fill="url(#sb-pane)"/>
             <g class="s-bar">
-              <rect x="139" y="26" width="7" height="146"/>
-              <rect x="168" y="26" width="7" height="146"/>
-              <rect x="197" y="26" width="7" height="146"/>
-              <rect x="226" y="26" width="7" height="146"/>
-              <rect x="255" y="26" width="7" height="146"/>
-              <rect x="122" y="92" width="156" height="7"/>
+              <rect x="124" y="18" width="7" height="96"/>
+              <rect x="152" y="18" width="7" height="96"/>
+              <rect x="180" y="18" width="7" height="96"/>
+              <rect x="208" y="18" width="7" height="96"/>
+              <rect x="236" y="18" width="7" height="96"/>
+              <rect x="110" y="62" width="152" height="6"/>
             </g>
-            <rect x="118" y="22" width="164" height="154" class="s-frame"/>
-            <circle cx="344" cy="52" r="52" fill="url(#sb-lamp)"/>
-            <circle cx="344" cy="52" r="4.5" class="s-red-dot"/>
-            <path d="M330 44h28" class="s-red-hair"/>
+            <rect x="106" y="14" width="160" height="104" class="s-frame"/>
+
+            <path d="M356 0v32" class="s-conduit"/>
+            <circle cx="356" cy="44" r="26" fill="url(#sb-lamp)"/>
+            <path d="M348 32h16v6h-16z" class="s-red-mount"/>
+            <circle cx="356" cy="44" r="4" class="s-red-dot"/>
           </svg>
         </div>
 
@@ -359,39 +373,42 @@
 
       <article class="room room--line6" data-room="line6" data-reveal>
         <div class="still still--line6">
-          <svg viewBox="0 0 400 260" preserveAspectRatio="xMidYMid slice" aria-hidden="true">
+          <svg viewBox="0 0 400 225" preserveAspectRatio="xMidYMid slice" aria-hidden="true">
             <defs>
-              <linearGradient id="sc-arch1" gradientUnits="userSpaceOnUse" x1="0" y1="90" x2="0" y2="250">
+              <linearGradient id="sc-arch1" gradientUnits="userSpaceOnUse" x1="0" y1="54" x2="0" y2="214">
                 <stop offset="0" class="st-s2"/><stop offset="1" class="st-s1"/>
               </linearGradient>
-              <linearGradient id="sc-arch2" gradientUnits="userSpaceOnUse" x1="0" y1="120" x2="0" y2="250">
+              <linearGradient id="sc-arch2" gradientUnits="userSpaceOnUse" x1="0" y1="84" x2="0" y2="214">
                 <stop offset="0" class="st-s1"/><stop offset="1" class="st-bg"/>
               </linearGradient>
-              <radialGradient id="sc-head" gradientUnits="userSpaceOnUse" cx="200" cy="206" r="86">
-                <stop offset="0" class="st-lit-f"/><stop offset=".28" class="st-lit-b"/><stop offset="1" class="st-lit-0"/>
+              <radialGradient id="sc-head" gradientUnits="userSpaceOnUse" cx="200" cy="178" r="70">
+                <stop offset="0" class="st-lit-f"/><stop offset=".22" class="st-lit-b"/><stop offset="1" class="st-lit-0"/>
               </radialGradient>
-              <radialGradient id="sc-sig" gradientUnits="userSpaceOnUse" cx="318" cy="128" r="34">
+              <radialGradient id="sc-sig" gradientUnits="userSpaceOnUse" cx="322" cy="94" r="22">
                 <stop offset="0" class="st-red-b"/><stop offset="1" class="st-red-0"/>
               </radialGradient>
             </defs>
-            <rect width="400" height="260" class="s-void"/>
-            <path d="M40 250V132A160 118 0 0 1 360 132V250Z" fill="url(#sc-arch1)"/>
-            <path d="M76 250V148A124 92 0 0 1 324 148V250Z" fill="url(#sc-arch2)"/>
-            <path d="M112 250V166A88 66 0 0 1 288 166V250Z" class="s-arch3"/>
-            <path d="M142 250V180A58 44 0 0 1 258 180V250Z" class="s-arch4"/>
+            <rect width="400" height="225" class="s-void"/>
+
+            <path d="M32 214V138A168 84 0 0 1 368 138V214Z" fill="url(#sc-arch1)"/>
+            <path d="M70 214V150A130 66 0 0 1 330 150V214Z" fill="url(#sc-arch2)"/>
+            <path d="M104 214V162A96 50 0 0 1 296 162V214Z" class="s-arch3"/>
+            <path d="M136 214V174A64 34 0 0 1 264 174V214Z" class="s-arch4"/>
             <g class="s-archline">
-              <path d="M40 250V132A160 118 0 0 1 360 132V250"/>
-              <path d="M76 250V148A124 92 0 0 1 324 148V250"/>
-              <path d="M112 250V166A88 66 0 0 1 288 166V250"/>
+              <path d="M32 214V138A168 84 0 0 1 368 138V214"/>
+              <path d="M70 214V150A130 66 0 0 1 330 150V214"/>
+              <path d="M104 214V162A96 50 0 0 1 296 162V214"/>
             </g>
-            <path d="M168 250V196A32 24 0 0 1 232 196V250Z" class="s-mouth"/>
-            <circle cx="200" cy="206" r="86" fill="url(#sc-head)"/>
-            <circle cx="200" cy="208" r="7" class="s-head"/>
-            <path d="M124 260l64-52M276 260l-64-52" class="s-rail"/>
-            <path d="M150 246h100M164 232h72M175 221h50M184 213h32" class="s-sleeper"/>
-            <circle cx="318" cy="128" r="34" fill="url(#sc-sig)"/>
-            <circle cx="318" cy="128" r="4" class="s-red-dot"/>
-            <path d="M318 128v26" class="s-red-hair"/>
+            <path d="M0 214h400" class="s-hair"/>
+
+            <circle cx="200" cy="178" r="70" fill="url(#sc-head)"/>
+            <path d="M118 225l74-45M282 225l-74-45" class="s-rail"/>
+            <path d="M112 222h176M134 210h132M152 200h96M167 192h66M178 186h44" class="s-sleeper"/>
+            <circle cx="200" cy="180" r="6" class="s-head"/>
+
+            <path d="M322 94v30" class="s-conduit"/>
+            <circle cx="322" cy="94" r="22" fill="url(#sc-sig)"/>
+            <circle cx="322" cy="94" r="3.5" class="s-red-dot"/>
           </svg>
         </div>
 
@@ -472,7 +489,7 @@
             <input type="radio" name="touch" id="touch-no" value="no" class="sr-only" checked>
             <label for="touch-no">לא</label>
           </div>
-          <div class="tg">
+          <div class="tg tg--hot">
             <input type="radio" name="touch" id="touch-yes" value="yes" class="sr-only">
             <label for="touch-yes">כן</label>
           </div>
@@ -547,22 +564,22 @@
 
     <ol class="steps">
       <li class="step" data-reveal>
-        <span class="step__n num" aria-hidden="true">1</span>
+        <span class="step__n" aria-hidden="true">1</span>
         <h3 class="step__t">בוחרים חדר</h3>
         <p class="step__p">שלושה חדרים, שלושה סוגים של פחד. אם אתם מתלבטים בין אנה לסניטריום, תתקשרו — ההבדל ביניהם הוא לא ברמת הקושי אלא במה שנשאר אחר כך.</p>
       </li>
       <li class="step" data-reveal>
-        <span class="step__n num" aria-hidden="true">2</span>
+        <span class="step__n" aria-hidden="true">2</span>
         <h3 class="step__t">בוחרים עוצמה</h3>
         <p class="step__p">ארבע רמות ומגע כן או לא. סוגרים את זה בטלפון לפני שמגיעים, כי אנחנו רוצים לשמוע את הקול של מי שאומר את זה.</p>
       </li>
       <li class="step" data-reveal>
-        <span class="step__n num" aria-hidden="true">3</span>
+        <span class="step__n" aria-hidden="true">3</span>
         <h3 class="step__t">מגיעים <span class="num">15</span> דקות לפני</h3>
         <p class="step__p">חותמים על הצהרת בריאות, משאירים תיקים וטלפונים בלוקר, ומקבלים את ההסבר. מי שמאחר בעשרים דקות מפסיד את התור — יש קבוצה אחרינו.</p>
       </li>
       <li class="step" data-reveal>
-        <span class="step__n num" aria-hidden="true">4</span>
+        <span class="step__n" aria-hidden="true">4</span>
         <h3 class="step__t">יוצאים</h3>
         <p class="step__p">יש חדר עם אור רגיל, מים וכיסאות. יושבים בו כמה שצריך, אף אחד לא ממהר אתכם. אחר כך, אם בא לכם, אנחנו מסבירים איך כל דבר שקרה שם עבד.</p>
       </li>
@@ -575,15 +592,15 @@
   <div class="shell">
     <div class="stats" data-reveal>
       <div class="stat stat--big">
-        <p class="stat__n num">61%</p>
+        <p class="stat__n"><span class="num">61%</span></p>
         <p class="stat__k">יוצאים בזמן. השאר משתמשים במילה, ואנחנו לא רואים בזה כישלון</p>
       </div>
       <div class="stat">
-        <p class="stat__n num">3</p>
+        <p class="stat__n"><span class="num">3</span></p>
         <p class="stat__k">שחקנים בפנים בערב עמוס</p>
       </div>
       <div class="stat">
-        <p class="stat__n num">1,400</p>
+        <p class="stat__n"><span class="num">1,400</span></p>
         <p class="stat__k">קבוצות מאז <span class="num">2019</span></p>
       </div>
     </div>
@@ -597,7 +614,7 @@
     <div class="txs">
       <figure class="tx" data-reveal>
         <figcaption class="tx__m">
-          <span class="tx__no num">תיק 0417</span>
+          <span class="tx__no">תיק <span class="num">0417</span></span>
           <span class="num">12.03.2024</span>
           <span>נ׳</span>
           <span class="tx__r">הסניטריום</span>
@@ -607,7 +624,7 @@
 
       <figure class="tx" data-reveal>
         <figcaption class="tx__m">
-          <span class="tx__no num">תיק 0631</span>
+          <span class="tx__no">תיק <span class="num">0631</span></span>
           <span class="num">02.08.2024</span>
           <span>ר׳</span>
           <span class="tx__r">קו 6</span>
@@ -617,7 +634,7 @@
 
       <figure class="tx" data-reveal>
         <figcaption class="tx__m">
-          <span class="tx__no num">תיק 0902</span>
+          <span class="tx__no">תיק <span class="num">0902</span></span>
           <span class="num">19.01.2025</span>
           <span>ט׳</span>
           <span class="tx__r">החדר של אנה</span>
@@ -627,7 +644,7 @@
 
       <figure class="tx tx--neg" data-reveal>
         <figcaption class="tx__m">
-          <span class="tx__no num">תיק 1108</span>
+          <span class="tx__no">תיק <span class="num">1108</span></span>
           <span class="num">04.05.2025</span>
           <span>א׳</span>
           <span class="tx__r">החדר של אנה · רמה 4</span>
@@ -695,6 +712,7 @@
     </header>
 
     <div class="book__wrap">
+      <div class="book__main">
       <form class="book__f" id="book-form" novalidate>
         <div class="book__cols">
           <div class="field">
@@ -793,6 +811,21 @@
         </p>
         <p class="done__f dimmer">אם וואטסאפ לא נפתח, המספר הוא <a href="tel:039051190" class="num">03-9051190</a>. אנחנו עונים גם לטלפון רגיל.</p>
       </div>
+      </div>
+
+      <aside class="aside" aria-label="פרטים לפני ההזמנה">
+        <p class="aside__k">לפני שממלאים</p>
+        <dl class="aside__l">
+          <dt>כמה זה עולה</dt>
+          <dd><span class="num">180</span> שקל לאדם, אותו מחיר בשלושת החדרים. מינימום שניים. משלמים במקום, מזומן או אשראי.</dd>
+          <dt>איפה</dt>
+          <dd>רחוב הבשמים <span class="num">9</span>, אזור התעשייה, חולון. הבניין בלי שלט, הדלת האפורה מצד ימין.</dd>
+          <dt>מתי</dt>
+          <dd>א׳–ה׳ <span class="num">17:00–01:00</span> · ו׳ <span class="num">10:00–15:00</span> · שבת מצאת השבת עד <span class="num">02:00</span>.</dd>
+          <dt>אם ממהרים</dt>
+          <dd>תתקשרו ל־<a href="tel:039051190" class="num">03-9051190</a>. בערב עונים תוך כמה צלצולים, ואפשר לסגור הכל בשיחה.</dd>
+        </dl>
+      </aside>
     </div>
   </div>
 </section>
@@ -815,8 +848,8 @@
 
     <div class="foot__col">
       <p class="foot__k">מתי</p>
-      <p><span class="num">א׳–ה׳ 17:00–01:00</span></p>
-      <p><span class="num">ו׳ 10:00–15:00</span></p>
+      <p>א׳–ה׳ <span class="num">17:00–01:00</span></p>
+      <p>ו׳ <span class="num">10:00–15:00</span></p>
       <p>שבת — מצאת השבת עד <span class="num">02:00</span></p>
     </div>
 

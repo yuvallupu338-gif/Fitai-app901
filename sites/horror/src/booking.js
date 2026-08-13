@@ -18,7 +18,9 @@ function todayISO() {
 function hebrewDate(iso) {
   const [y, m, d] = iso.split('-');
   const day = new Date(`${iso}T12:00:00`).getDay();
-  return `יום ${WEEKDAY[day]}, ${d}.${m}.${y}`;
+  // Saturday is named, not numbered — "יום שבת" is how nobody says it.
+  const named = day === 6 ? WEEKDAY[day] : `יום ${WEEKDAY[day]}`;
+  return `${named}, ${d}.${m}.${y}`;
 }
 
 /* 17:00 to midnight in half hours — fifteen slots, which is why the grid runs
@@ -131,42 +133,40 @@ export function initBooking() {
     }
   }
 
-  function verify(check, { quiet = false } = {}) {
-    const value = check.control ? check.control.value : '';
-    const message = check.run(value);
-    if (!quiet || !message) mark(check, message);
+  function verify(check) {
+    const message = check.run(check.control ? check.control.value : '');
+    mark(check, message);
     return !message;
   }
 
+  const checkFor = (control) => checks.find((c) => c.control === control);
+
   for (const check of checks) {
-    const controls = check.group ? check.group() : [check.control];
-    for (const el of controls) {
+    for (const el of check.group ? check.group() : [check.control]) {
       if (!el) continue;
-      on(el, 'blur', () => verify(check));
+      // Blur means "finished typing" for a field you write in, and means
+      // nothing at all for a radio or a checkbox somebody merely tabbed past.
+      if (el.type !== 'radio' && el.type !== 'checkbox') on(el, 'blur', () => verify(check));
       // Once a field is wrong, clear it the moment it becomes right rather than
       // making somebody submit again to find out.
       on(el, 'change', () => {
         const field = check.field || check.control.closest('.field');
-        if (field.classList.contains('is-bad')) verify(check);
+        if (field.classList.contains('is-bad') || el.type === 'radio' || el.type === 'checkbox') verify(check);
       });
     }
   }
 
   // Participants and room argue with each other, so changing either re-reads
   // the pair instead of waiting for the number to be touched again.
-  on(room, 'change', () => {
-    const sizeCheck = checks.find((c) => c.control === size);
-    if (size.value) verify(sizeCheck);
-  });
+  on(room, 'change', () => { if (size.value) verify(checkFor(size)); });
 
   for (const link of $$('[data-book]')) {
     on(link, 'click', () => {
       const value = ROOM_BY_KEY[link.dataset.book];
       if (!value) return;
       room.value = value;
-      mark(checks[0], null);
-      const sizeCheck = checks.find((c) => c.control === size);
-      if (size.value) verify(sizeCheck);
+      mark(checkFor(room), null);
+      if (size.value) verify(checkFor(size));
     });
   }
 

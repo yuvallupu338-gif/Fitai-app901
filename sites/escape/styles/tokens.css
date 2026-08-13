@@ -58,7 +58,7 @@
      site from looking like every other neon-on-black escape room page. */
   --display: 'Frank Ruhl Libre', Georgia, serif;
   --body:    'Assistant', system-ui, sans-serif;
-  --mono:    'IBM Plex Mono', ui-monospace, monospace;
+  --mono:    'IBM Plex Mono', 'Cousine', ui-monospace, monospace;
 
   --d1: clamp(40px, 8.2vw, 84px);
   --d2: clamp(28px, 4.6vw, 46px);

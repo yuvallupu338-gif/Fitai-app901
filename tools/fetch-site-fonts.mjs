@@ -23,25 +23,41 @@ const ROOT = resolve(dirname(fileURLToPath(import.meta.url)), '..');
 
 /* Each site's stack: a display face that carries the brand, a body face that
  * has to stay readable at 16px for a paragraph, and — where the design counts
- * things out loud — a mono for digits. Every Hebrew family here ships a real
- * hebrew subset; IBM Plex Mono has no Hebrew and is only ever used for numbers
- * and Latin codes, which is why it is asked for latin alone. */
+ * things out loud — a mono.
+ *
+ * The mono on the two dark sites is two families, and that is the whole reason
+ * this note exists. IBM Plex Mono has no Hebrew. A Hebrew word set in it does
+ * not fail visibly — it falls through to whatever monospace the machine has,
+ * which here is a typewriter face and on a Mac is no Hebrew monospace at all,
+ * so the eyebrows, the case numbers and the transcripts land differently on
+ * every visitor's screen. Cousine has a real hebrew cut but plainer digits,
+ * and the digits are the part doing the work in a lock and a countdown.
+ *
+ * So both ship, and the stack in tokens.css asks for Plex first: the browser
+ * takes every Latin glyph from Plex and reaches Cousine only for the Hebrew
+ * it cannot set. Each is subset to the half it is there for, which costs less
+ * than either family did on its own.
+ *
+ * A family may be given as a string, or as { q, subsets } to keep fewer than
+ * the default hebrew + latin. */
 const SITES = {
   horror: {
     families: [
       'Karantina:wght@400;700',   // display — condensed, brutal, faintly wrong
       'Rubik:wght@400;500;700',   // body
-      'IBM+Plex+Mono:wght@400;600',
+      { q: 'IBM+Plex+Mono:wght@400;600', subsets: ['latin'] },
+      { q: 'Cousine:wght@400;700', subsets: ['hebrew'] },
     ],
-    note: 'Karantina (display), Rubik (body), IBM Plex Mono (case-file numbers)',
+    note: 'Karantina (display), Rubik (body), IBM Plex Mono + Cousine (the case file)',
   },
   escape: {
     families: [
       'Frank+Ruhl+Libre:wght@500;700;900',  // display — a Hebrew serif, bookish
       'Assistant:wght@400;600;700',         // body
-      'IBM+Plex+Mono:wght@400;600',         // locks, codes, the clock
+      { q: 'IBM+Plex+Mono:wght@400;600', subsets: ['latin'] },
+      { q: 'Cousine:wght@400;700', subsets: ['hebrew'] },
     ],
-    note: 'Frank Ruhl Libre (display), Assistant (body), IBM Plex Mono (codes and clock)',
+    note: 'Frank Ruhl Libre (display), Assistant (body), IBM Plex Mono + Cousine (codes and clock)',
   },
   lawyer: {
     families: [
@@ -55,7 +71,12 @@ const SITES = {
 // A modern desktop UA is what makes Google serve woff2 rather than ttf.
 const UA = 'Mozilla/5.0 (X11; Linux x86_64) AppleWebKit/537.36 (KHTML, like Gecko) Chrome/120.0 Safari/537.36';
 
-const KEEP_SUBSETS = new Set(['hebrew', 'latin']);
+const DEFAULT_SUBSETS = ['hebrew', 'latin'];
+
+// Google's family query uses '+' for spaces; the @font-face blocks it returns
+// name the family properly. This maps one to the other so a per-family subset
+// rule can be matched against the block it belongs to.
+const familyKey = (q) => q.split(':')[0].replace(/\+/g, ' ');
 
 async function get(url, asBuffer) {
   const res = await fetch(url, { headers: { 'User-Agent': UA } });
@@ -64,8 +85,15 @@ async function get(url, asBuffer) {
 }
 
 async function build(site, spec) {
+  const wanted = new Map();
+  for (const f of spec.families) {
+    const q = typeof f === 'string' ? f : f.q;
+    const subsets = (typeof f === 'string' ? null : f.subsets) || DEFAULT_SUBSETS;
+    wanted.set(familyKey(q), new Set(subsets));
+  }
+
   const cssUrl = 'https://fonts.googleapis.com/css2?'
-    + spec.families.map((f) => `family=${f}`).join('&')
+    + spec.families.map((f) => `family=${typeof f === 'string' ? f : f.q}`).join('&')
     + '&display=swap';
 
   const css = await get(cssUrl, false);
@@ -90,7 +118,9 @@ async function build(site, spec) {
   let bytes = 0;
 
   for (const [, subset, block] of blocks) {
-    if (!KEEP_SUBSETS.has(subset.trim())) continue;
+    const fam = /font-family:\s*'([^']+)'/.exec(block);
+    const allowed = fam && wanted.get(fam[1]);
+    if (!allowed || !allowed.has(subset.trim())) continue;
     const url = /url\((https:\/\/[^)]+)\)/.exec(block);
     if (!url) continue;
 

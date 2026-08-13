@@ -37,19 +37,18 @@
      palette bleaches them into daylight haze without a second rule. */
   --veil-mid: color-mix(in srgb, var(--bg) 58%, transparent);
   --veil-far: color-mix(in srgb, var(--bg) 94%, transparent);
-  --hair: var(--line-soft);
 
   /* Gradient angles cannot be written logically. Rather than guess, the two
      horizontal scrims read the document direction. */
   --to-inline-end: left;
 
-  --s-1: 6px;
+  /* Four steps, and everything on the page picks one of them. Related things
+     get --s-2, a component's internal gaps get --s-3, unrelated things get
+     --s-4 or --s-5. Section rhythm stays with the kit's --sect. */
   --s-2: 10px;
   --s-3: 16px;
   --s-4: 24px;
   --s-5: 38px;
-  --s-6: 58px;
-  --s-7: 92px;
 
   color-scheme: dark;
 }
@@ -61,9 +60,9 @@
 /* The theme swap is a light going on, not a repaint, so everything that
    carries colour crosses over together at the same 600ms. Specificity zero:
    any component with its own transition keeps it. */
-:where(body, .head, .strip, .strip__in, .room, .still, .lvp, .lv label, .tg label,
+:where(body, .head, .strip, .strip__in, .still, .lvp, .lv label, .tg label,
        .warn__l, .tx, .acc__b, .acc__in, .input, .select, .textarea, .slot label,
-       .foot, .lights__b, .lights__panel, .done, .stat, .step, .veil, .drawer__panel,
+       .foot, .lights__b, .lights__panel, .done, .stat, .step, .drawer__panel,
        svg, svg *) {
   transition: background-color .6s var(--ease), color .6s var(--ease),
               border-color .6s var(--ease), fill .6s var(--ease),
@@ -81,6 +80,10 @@ html.is-locked { overflow: hidden; }
 body {
   font-size: 16px;
   overflow-x: clip;
+  /* The safe-word button is fixed to the bottom of the viewport, so the page
+     has to end above it — without this it sits on the last line of the footer
+     and the copyright is unreadable. */
+  padding-block-end: calc(62px + env(safe-area-inset-bottom));
 }
 
 ::selection { background: var(--accent-deep); color: var(--accent-ink); }
@@ -254,7 +257,7 @@ h1, h2, h3 { font-weight: 700; }
   flex-direction: column;
   gap: var(--s-3);
   padding: var(--s-4) var(--s-4) var(--s-5);
-  background: var(--surface);
+  background: var(--surface-2);
   border-inline-start: 1px solid var(--line);
   box-shadow: var(--shadow);
   /* The panel is pinned to the inline-end, which is physically left here. */
@@ -271,10 +274,11 @@ h1, h2, h3 { font-weight: 700; }
   letter-spacing: .18em;
   color: var(--ink-dimmer);
 }
+/* Inline-end, which is where the hamburger that opened it was standing. */
 .drawer__x {
   position: absolute;
   inset-block-start: 14px;
-  inset-inline-start: 14px;
+  inset-inline-end: 14px;
   inline-size: 34px;
   block-size: 34px;
   display: grid;
@@ -301,8 +305,12 @@ h1, h2, h3 { font-weight: 700; }
 
 /* -------------------------------------------------------------- hero ---- */
 
+/* The header is sticky, so it holds a place in the flow. The hero takes that
+   place back — it is supposed to run under a transparent header, not start
+   below one, and without this the fact row is pushed 66px past the fold. */
 .hero {
   position: relative;
+  margin-block-start: calc(var(--header-h) * -1);
   min-block-size: 100svh;
   display: grid;
   grid-template-rows: 1fr auto;
@@ -325,12 +333,15 @@ h1, h2, h3 { font-weight: 700; }
   inset: -8%;
   background: radial-gradient(56% 50% at 50% 32%, transparent 0 40%, var(--veil-mid) 84%, var(--veil-far) 100%);
 }
+/* Two scrims, and both of them are the bulb's doing: the corridor is brightest
+   under the lamp and falls away downward, so the words sit in the part of the
+   set that was already dark. */
 .hero__scrim {
   position: absolute;
   inset: 0;
   background:
-    linear-gradient(to var(--to-inline-end), var(--veil-far) 0%, var(--veil-mid) 34%, transparent 62%),
-    linear-gradient(to top, var(--bg) 0%, var(--veil-mid) 22%, transparent 54%);
+    linear-gradient(to var(--to-inline-end), var(--veil-far) 0%, var(--veil-mid) 32%, transparent 60%),
+    linear-gradient(to top, var(--bg) 0%, var(--veil-mid) 27%, transparent 59%);
 }
 
 .hero__in {
@@ -344,13 +355,15 @@ h1, h2, h3 { font-weight: 700; }
   padding-block: calc(var(--header-h) + 8vh) clamp(26px, 5vh, 56px);
 }
 .hero__eb { margin-block-end: var(--s-4); }
+/* Both lines are set to run unbroken at every width the page supports — a
+   headline of this size that wraps once has an orphan in it, and the second
+   line is the whole line. */
 .hero__h1 {
   font-family: var(--display);
   font-size: var(--d1);
   line-height: .88;
   letter-spacing: var(--d1-track);
   font-weight: 400;
-  max-inline-size: 16ch;
 }
 .hero__h1 span { display: block; text-wrap: balance; }
 .hero__l2 { color: var(--accent-lit); }
@@ -365,9 +378,10 @@ h1, h2, h3 { font-weight: 700; }
 @media (min-width: 1000px) {
   /* The vanishing point stays centred; the words do not. */
   .hero__in > * { margin-inline-end: auto; }
-  .hero__h1 { max-inline-size: 13ch; }
 }
 
+/* The bottom padding is the safe-word button's height. It is fixed to this
+   corner for the whole visit and it is not allowed to sit on a caption. */
 .hero__base {
   position: relative;
   z-index: 2;
@@ -375,6 +389,7 @@ h1, h2, h3 { font-weight: 700; }
   max-inline-size: var(--shell);
   margin-inline: auto;
   padding-inline: var(--pad);
+  padding-block-end: 46px;
 }
 .facts {
   display: grid;
@@ -515,7 +530,9 @@ html.is-lit .hero__vig { animation: vig-breathe 5.5s ease-in-out infinite; }
   letter-spacing: .2em;
   color: var(--accent-lit);
 }
-.strip__t { font-size: 15px; color: var(--ink); max-inline-size: 66ch; }
+/* Balanced rather than ragged: this line wraps to two on most screens, and a
+   two-word second line reads as an afterthought. It is not one. */
+.strip__t { font-size: 15px; color: var(--ink); max-inline-size: 66ch; text-wrap: balance; }
 
 /* ------------------------------------------------------------- rooms ---- */
 
@@ -538,7 +555,9 @@ html.is-lit .hero__vig { animation: vig-breathe 5.5s ease-in-out infinite; }
   transition:
     translate var(--mid) var(--ease),
     opacity var(--slow) var(--ease) var(--delay, 0s),
-    transform var(--slow) var(--ease) var(--delay, 0s);
+    transform var(--slow) var(--ease) var(--delay, 0s),
+    background-color .6s var(--ease),
+    border-color .6s var(--ease);
 }
 .room::before {
   content: "";
@@ -562,6 +581,18 @@ html.is-lit .hero__vig { animation: vig-breathe 5.5s ease-in-out infinite; }
   padding-inline-start: clamp(18px, 2vw, 28px);
 }
 .room--line6 { border-block-start: 1px solid var(--line-soft); padding-block-start: clamp(24px, 3vw, 40px); }
+/* The third card is the long one, so it is laid on its side and led by the
+   words rather than the picture. Three identical cards in a row is the tell. */
+@media (min-width: 900px) {
+  .room--line6 {
+    display: grid;
+    grid-template-columns: minmax(0, 5fr) minmax(0, 7fr);
+    column-gap: clamp(26px, 3.4vw, 56px);
+    align-items: center;
+  }
+  .room--line6 .still { order: 2; }
+  .room--line6 .room__body { padding-block-start: 0; }
+}
 
 .still {
   position: relative;
@@ -580,23 +611,27 @@ html.is-lit .hero__vig { animation: vig-breathe 5.5s ease-in-out infinite; }
   transition: opacity var(--slow) var(--ease);
 }
 .room:hover .still::after, .room:focus-within .still::after { opacity: 1; }
+/* Each still is drawn at the exact ratio of the frame it hangs in, so `slice`
+   never has anything to cut and the composition survives being sized. */
 .still--sanit { aspect-ratio: 21 / 9; }
 .still--line6 { aspect-ratio: 16 / 9; }
 
 .s-void { fill: var(--bg); }
 .s-frame { fill: none; stroke: var(--line); stroke-width: 2; }
 .s-hair { fill: none; stroke: var(--line-soft); stroke-width: 1.4; }
+.s-seam { fill: none; stroke: var(--line-soft); stroke-width: 1; opacity: .8; }
 .s-scratch { fill: none; stroke: var(--ink-dimmer); stroke-width: 1; opacity: .22; }
 .s-bar rect { fill: var(--bg); }
 .s-arch3 { fill: var(--surface); }
 .s-arch4 { fill: var(--bg); }
 .s-archline path { fill: none; stroke: var(--line); stroke-width: 1.4; opacity: .7; }
-.s-mouth { fill: var(--bg); }
 .s-head { fill: var(--bulb); }
-.s-rail { fill: none; stroke: var(--line); stroke-width: 2.4; opacity: .85; }
+.s-rail { fill: none; stroke: var(--line); stroke-width: 2.4; opacity: .9; }
 .s-sleeper { fill: none; stroke: var(--line-soft); stroke-width: 2; }
+.s-conduit { fill: none; stroke: var(--line); stroke-width: 2; }
+.s-red-mount { fill: var(--surface-3); }
 .s-red-dot { fill: var(--accent-lit); }
-.s-red-hair { fill: none; stroke: var(--accent); stroke-width: 1.4; opacity: .8; }
+.s-red-hair { fill: none; stroke: var(--accent); stroke-width: 1; opacity: .5; }
 
 .room__body { padding-block-start: var(--s-4); }
 .room__t {
@@ -712,7 +747,9 @@ html.is-lit .hero__vig { animation: vig-breathe 5.5s ease-in-out infinite; }
 
 .int { background: linear-gradient(to bottom, var(--bg), color-mix(in srgb, var(--surface) 70%, var(--bg)) 60%, var(--bg)); }
 
-.int__grid { display: grid; gap: clamp(26px, 3vw, 40px); }
+/* The two controls belong together and the warning does not, so the row gap
+   is tight and the warning buys its own distance. */
+.int__grid { display: grid; gap: var(--s-4); }
 @media (min-width: 940px) {
   .int__grid {
     grid-template-columns: minmax(230px, 290px) minmax(0, 1fr);
@@ -723,8 +760,9 @@ html.is-lit .hero__vig { animation: vig-breathe 5.5s ease-in-out infinite; }
   .lvs { grid-area: lvs; }
   .touch { grid-area: touch; }
   .lvps { grid-area: pan; }
-  .warn { grid-area: warn; margin-block-start: var(--s-3); }
+  .warn { grid-area: warn; }
 }
+.warn { margin-block-start: clamp(18px, 3vw, 40px); }
 
 .lvs, .touch { border: 0; min-inline-size: 0; }
 .lvs__lg, .touch__lg {
@@ -764,9 +802,15 @@ html.is-lit .hero__vig { animation: vig-breathe 5.5s ease-in-out infinite; }
   opacity: 0;
   transition: opacity var(--fast) var(--ease);
 }
+/* Hover and checked were the same surface, which makes a four-way control
+   unreadable the moment a cursor is anywhere near it. Three surfaces, three
+   states. */
 .lv label:hover, .tg label:hover { background: var(--surface-2); color: var(--ink); }
-.lv input:checked + label, .tg input:checked + label { background: var(--surface-2); color: var(--ink); }
+.lv input:checked + label, .tg input:checked + label { background: var(--surface-3); color: var(--ink); }
 .lv input:checked + label::before, .tg input:checked + label::before { opacity: 1; }
+/* Saying yes to being handled is the one choice here with a consequence
+   attached, so it is the one that answers in red. */
+.tg--hot input:checked + label { background: var(--red-wash); color: var(--accent-lit); }
 .lv__n { font-family: var(--mono); font-size: 11.5px; color: var(--ink-dimmer); letter-spacing: .1em; }
 .lv input:checked + label .lv__n { color: var(--accent-lit); }
 .lv__t { font-family: var(--display); font-size: 27px; line-height: 1; }
@@ -778,7 +822,6 @@ html.is-lit .hero__vig { animation: vig-breathe 5.5s ease-in-out infinite; }
   color: var(--ink-dimmer);
   max-inline-size: 46ch;
 }
-.touch { margin-block-start: var(--s-2); }
 
 .lvp__k { font-family: var(--mono); font-size: 10.5px; letter-spacing: .22em; color: var(--ink-dimmer); }
 .lvp__t {
@@ -806,24 +849,25 @@ html.is-lit .hero__vig { animation: vig-breathe 5.5s ease-in-out infinite; }
   background: var(--red-live);
 }
 
+/* Deliberately not a flex row: the sentence carries an inline .num, and a flex
+   container would promote every text run around it to its own item and break
+   the line apart. */
 .warn__l {
-  display: flex;
-  flex-wrap: wrap;
-  gap: 4px 12px;
-  align-items: baseline;
-  padding: var(--s-3) 0 var(--s-3) 0;
+  padding-block: var(--s-3);
   padding-inline-start: var(--s-3);
   border-inline-start: 2px solid var(--line);
   font-size: 15px;
+  line-height: 1.7;
   color: var(--ink);
-  max-inline-size: 76ch;
+  max-inline-size: 74ch;
 }
 .warn__k {
   font-family: var(--mono);
   font-size: 10.5px;
   letter-spacing: .2em;
   color: var(--ink-dimmer);
-  flex: none;
+  margin-inline-end: 11px;
+  white-space: nowrap;
 }
 .warn__l--hot { border-inline-start-color: var(--accent); background: var(--red-wash); }
 .warn__l--hot .warn__k { color: var(--accent-lit); }
@@ -852,7 +896,7 @@ html.is-lit .hero__vig { animation: vig-breathe 5.5s ease-in-out infinite; }
   :root:has(#touch-yes:checked):has(#lv-1:checked) .warn__l[data-w="3"],
   :root:has(#touch-yes:checked):has(#lv-2:checked) .warn__l[data-w="3"],
   :root:has(#touch-yes:checked):has(#lv-3:checked) .warn__l[data-w="3"],
-  :root:has(#touch-yes:checked):has(#lv-4:checked) .warn__l[data-w="4"] { display: flex; }
+  :root:has(#touch-yes:checked):has(#lv-4:checked) .warn__l[data-w="4"] { display: block; }
 
   .carry__v > span { display: none; }
   :root:has(#lv-1:checked) .carry__v > [data-lv="1"],
@@ -893,16 +937,22 @@ html.is-lit .hero__vig { animation: vig-breathe 5.5s ease-in-out infinite; }
   block-size: 13px;
   background: var(--red-live);
 }
+/* Behind the title rather than beside it, and allowed to hang past the column
+   into the gutter — the grid is a guide, not a fence. */
 .step__n {
   position: absolute;
   z-index: -1;
-  inset-block-start: 8px;
+  inset-block-start: 10px;
   inset-inline-start: -8px;
   font-family: var(--display);
-  font-size: clamp(86px, 9vw, 128px);
+  font-variant-numeric: tabular-nums;
+  /* The floor matters more than the ceiling here. At one column the step is
+     full width and an 86px numeral is no longer a watermark behind a heading —
+     it is a shape crowding the gutter with its own edge cut off. */
+  font-size: clamp(52px, 9vw, 128px);
   line-height: .8;
   color: var(--ink);
-  opacity: .06;
+  opacity: .07;
 }
 .step__t { font-family: var(--display); font-size: clamp(26px, 2.6vw, 33px); line-height: 1; margin-block-start: var(--s-3); }
 .step__p { margin-block-start: var(--s-2); font-size: 14.8px; color: var(--ink-dim); }
@@ -928,6 +978,9 @@ html.is-lit .hero__vig { animation: vig-breathe 5.5s ease-in-out infinite; }
   line-height: .9;
   color: var(--ink);
 }
+/* .num is here for the bidi isolation only — "61%" and "1,400" both flip in an
+   RTL run without it. The face stays Karantina; these are display figures. */
+.stat__n .num { font-family: inherit; letter-spacing: -.012em; }
 .stat--big .stat__n { font-size: clamp(62px, 9vw, 108px); color: var(--accent-lit); }
 .stat__k { margin-block-start: var(--s-2); font-size: 13.5px; color: var(--ink-dim); max-inline-size: 34ch; }
 
@@ -951,12 +1004,17 @@ html.is-lit .hero__vig { animation: vig-breathe 5.5s ease-in-out infinite; }
 .tx__no { color: var(--accent-lit); }
 .tx__r { color: var(--ink-dim); }
 .tx__q { margin-block-start: var(--s-3); }
+/* Set in --mono, which is now Cousine and has a real Hebrew cut. It used to
+   be IBM Plex Mono, which has none, so the speech fell through to whatever
+   monospace the visitor's machine happened to own — and on a Mac that is no
+   Hebrew monospace at all. The typewriter this is reaching for now actually
+   arrives, and it arrives the same on every machine. */
 .tx__q p {
   font-family: var(--mono);
-  font-size: 13px;
-  line-height: 2;
+  font-size: 14px;
+  line-height: 1.85;
   color: var(--ink-dim);
-  max-inline-size: 58ch;
+  max-inline-size: 56ch;
 }
 .tx:hover .tx__q p, .tx:focus-within .tx__q p { color: var(--ink); }
 
@@ -1032,8 +1090,30 @@ html.is-lit .hero__vig { animation: vig-breathe 5.5s ease-in-out infinite; }
 /* --------------------------------------------------------------- book --- */
 
 .book { background: linear-gradient(to bottom, var(--bg), color-mix(in srgb, var(--surface) 60%, var(--bg))); }
-.book__wrap { position: relative; }
+.book__wrap { display: grid; gap: clamp(34px, 4vw, 56px); }
+@media (min-width: 940px) {
+  .book__wrap { grid-template-columns: minmax(0, 7fr) minmax(0, 4fr); column-gap: clamp(40px, 5vw, 84px); align-items: start; }
+}
 .book__f { max-inline-size: 860px; }
+
+/* The things somebody reaches for a phone to look up while the form is open,
+   put where the form was leaving a hole. */
+.aside { border-block-start: 1px solid var(--line); padding-block-start: var(--s-3); }
+.aside__k { font-family: var(--mono); font-size: 10.5px; letter-spacing: .2em; color: var(--accent-lit); }
+.aside__l { margin-block-start: var(--s-3); }
+.aside__l dt {
+  font-family: var(--mono);
+  font-size: 11px;
+  letter-spacing: .1em;
+  color: var(--ink);
+  padding-block-start: var(--s-3);
+  border-block-start: 1px solid var(--line-soft);
+}
+.aside__l dt:first-of-type { padding-block-start: 0; border-block-start: 0; }
+.aside__l dd { margin-block: 5px var(--s-3); font-size: 13.5px; color: var(--ink-dim); }
+.aside__l dd:last-child { margin-block-end: 0; }
+.aside__l a { color: var(--ink); border-block-end: 1px solid var(--line); }
+.aside__l a:hover { color: var(--accent-lit); border-block-end-color: var(--red-live); }
 
 .book__cols { display: grid; gap: var(--s-4) var(--s-4); grid-template-columns: repeat(6, minmax(0, 1fr)); }
 .book__cols > .field { grid-column: span 6; }
@@ -1049,6 +1129,13 @@ html.is-lit .hero__vig { animation: vig-breathe 5.5s ease-in-out infinite; }
 .input:hover, .select:hover, .textarea:hover { border-color: var(--ink-dimmer); }
 .input:focus, .select:focus, .textarea:focus { box-shadow: 0 0 0 2px var(--accent-wash); }
 .field.is-bad .input, .field.is-bad .select, .field.is-bad .textarea { background: var(--red-wash); }
+/* A select still on its empty option reads as a prompt, not as an answer. */
+.select:has(option[value=""]:checked) { color: var(--ink-dimmer); }
+.input:disabled, .select:disabled, .textarea:disabled {
+  opacity: .45;
+  cursor: not-allowed;
+  border-color: var(--line-soft);
+}
 .err { font-family: var(--mono); font-size: 11.5px; letter-spacing: .04em; color: var(--danger); }
 
 .slots { margin-block-start: var(--s-4); border: 0; min-inline-size: 0; }
@@ -1158,32 +1245,36 @@ html.is-lit .hero__vig { animation: vig-breathe 5.5s ease-in-out infinite; }
 
 /* ---------------------------------------------------------- safe word --- */
 
+/* This sits over the page for the whole visit, so it stays the size of a
+   caption until somebody reaches for it. The note it is described by only
+   takes up room once the button is under a cursor or a focus ring. */
 .lights {
   position: fixed;
-  inset-block-end: 16px;
-  inset-inline-start: 16px;
+  inset-block-end: 14px;
+  inset-inline-start: 14px;
   z-index: 50;
-  inline-size: min(330px, 86vw);
+  inline-size: min(300px, 84vw);
   display: flex;
   flex-direction: column;
   align-items: start;
-  gap: var(--s-2);
+  gap: 7px;
 }
 .lights__b {
   display: flex;
   align-items: center;
-  gap: 11px;
-  padding-block: 8px;
-  padding-inline: 8px 15px;
+  gap: 9px;
+  padding-block: 6px;
+  padding-inline: 6px 13px;
   background: color-mix(in srgb, var(--surface) 88%, transparent);
   backdrop-filter: blur(10px);
   border: 1px solid var(--line);
-  color: var(--ink);
+  color: var(--ink-dim);
   box-shadow: var(--shadow-sm);
-  transition: border-color var(--fast) var(--ease), background var(--fast) var(--ease);
+  user-select: none;
+  transition: border-color var(--fast) var(--ease), background var(--fast) var(--ease), color var(--fast) var(--ease);
 }
-.lights__b:hover { border-color: var(--exit); background: var(--surface-2); }
-.lights__ring { position: relative; inline-size: 30px; block-size: 30px; flex: none; display: grid; place-items: center; }
+.lights__b:hover { border-color: var(--exit); background: var(--surface-2); color: var(--ink); }
+.lights__ring { position: relative; inline-size: 24px; block-size: 24px; flex: none; display: grid; place-items: center; }
 .lights__ring svg { position: absolute; inset: 0; inline-size: 100%; block-size: 100%; fill: none; }
 .lights__trk { stroke: var(--line); stroke-width: 2; }
 .lights__fil {
@@ -1197,34 +1288,47 @@ html.is-lit .hero__vig { animation: vig-breathe 5.5s ease-in-out infinite; }
   transform-box: fill-box;
 }
 .lights__ico {
-  inline-size: 7px;
-  block-size: 7px;
+  inline-size: 6px;
+  block-size: 6px;
   border-radius: 50%;
   background: var(--exit);
   opacity: calc(.3 + .7 * var(--hold, 0));
 }
-.lights__txt { font-family: var(--mono); font-size: 11.5px; letter-spacing: .06em; text-align: start; }
+.lights__txt { font-family: var(--mono); font-size: 11px; letter-spacing: .05em; text-align: start; }
+/* Above the button, not below it. The stack is anchored to the bottom of the
+   viewport, so a note that expands underneath would push the button out from
+   under the finger that is holding it down and cancel the hold. */
 .lights__note {
+  order: -1;
   font-family: var(--mono);
   font-size: 10.5px;
   line-height: 1.6;
   letter-spacing: .04em;
   color: var(--ink-dimmer);
   max-inline-size: 30ch;
+  block-size: 0;
+  opacity: 0;
+  overflow: hidden;
+  transition: opacity var(--fast) var(--ease);
 }
+.lights:hover .lights__note,
+.lights:focus-within .lights__note,
+:root[data-lights="on"] .lights__note { block-size: auto; opacity: 1; }
 
 .lights__panel {
   order: -1;
-  padding: var(--s-3) var(--s-4) var(--s-4);
+  padding: var(--s-3) var(--s-3) var(--s-4);
   background: var(--surface);
   border: 1px solid var(--line);
   border-block-start: 2px solid var(--exit);
   box-shadow: var(--shadow);
-  font-size: 14px;
+  font-size: 13.5px;
+  line-height: 1.6;
   color: var(--ink-dim);
-  max-block-size: min(58vh, 460px);
+  max-block-size: min(56vh, 420px);
   overflow-y: auto;
 }
+.lights__panel p { max-inline-size: none; }
 .lights__panel p + p { margin-block-start: var(--s-2); }
 .lights__k { font-family: var(--mono); font-size: 10.5px; letter-spacing: .2em; color: var(--exit); margin-block-end: var(--s-2); }
 .lights__t { color: var(--ink-dimmer); font-size: 12.5px; border-block-start: 1px solid var(--line-soft); padding-block-start: var(--s-2); margin-block-start: var(--s-3); }
@@ -1248,7 +1352,17 @@ html.is-lit .hero__vig { animation: vig-breathe 5.5s ease-in-out infinite; }
 
 /* ------------------------------------------------------------- veils ---- */
 
-.veil { position: fixed; inset: 0; z-index: 3; pointer-events: none; }
+/* Opacity is deliberately left out of the transition: it is a function of
+   --dread, which is already interpolating over 600ms, and transitioning it a
+   second time makes the page take a sluggish 1.2s to finish darkening. The
+   gradient colours still cross-fade, for the work lights. */
+.veil {
+  position: fixed;
+  inset: 0;
+  z-index: 3;
+  pointer-events: none;
+  transition: background-image .6s var(--ease), background-color .6s var(--ease);
+}
 .veil--grain {
   background-image: var(--grain);
   background-size: 160px;
