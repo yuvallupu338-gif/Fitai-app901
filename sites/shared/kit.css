@@ -1,0 +1,266 @@
+/* kit.css — the foundation the three sites in sites/ are built on.
+ *
+ * This file holds no colour, no typeface and no personality. It is geometry,
+ * behaviour and accessibility: the reset, the RTL-safe layout primitives, the
+ * focus ring, the reduced-motion contract, the form baseline. Everything that
+ * makes a horror house look nothing like a law firm lives in each site's own
+ * tokens.css and site.css.
+ *
+ * The contract: a site must define these custom properties before loading its
+ * own stylesheet, or the kit falls back to something legible but plain.
+ *
+ *   surfaces   --bg  --surface  --surface-2  --line  --line-soft
+ *   ink        --ink  --ink-dim  --ink-dimmer
+ *   accent     --accent  --accent-2  --accent-ink  --accent-wash
+ *   type       --display  --body  --mono
+ *   geometry   --shell  --pad  --r  --r-sm  --r-pill
+ *   motion     --ease  --fast  --mid  --slow
+ *
+ * Everything is written in logical properties (inline-start, margin-block,
+ * padding-inline) rather than left/right. These sites are Hebrew and run in
+ * dir="rtl"; a single hard-coded `left` is the bug that puts an icon on the
+ * wrong side of a button and survives three rounds of review because nobody
+ * reading it in English notices.
+ */
+
+/* ---------------------------------------------------------------- reset -- */
+
+*, *::before, *::after { box-sizing: border-box; }
+* { margin: 0; padding: 0; }
+
+html {
+  -webkit-text-size-adjust: 100%;
+  scroll-behavior: smooth;
+  /* Anything scrolled to by an anchor stops below the sticky header instead of
+     underneath it. Each site sets its own header height. */
+  scroll-padding-block-start: var(--header-h, 72px);
+}
+
+body {
+  background: var(--bg, #fff);
+  color: var(--ink, #111);
+  font-family: var(--body, system-ui, sans-serif);
+  font-size: 16px;
+  line-height: 1.65;
+  /* Hebrew has no case and few ascenders to hang a rhythm on, so it leans on
+     generous leading more than Latin does. */
+  text-rendering: optimizeLegibility;
+  -webkit-font-smoothing: antialiased;
+  overflow-x: clip;
+}
+
+img, svg, video, canvas { display: block; max-width: 100%; }
+svg { fill: currentColor; }
+
+button, input, select, textarea { font: inherit; color: inherit; }
+button { background: none; border: 0; cursor: pointer; }
+
+ul, ol { list-style: none; }
+
+a { color: var(--accent, currentColor); text-decoration: none; }
+a:hover { text-decoration: none; }
+
+/* A paragraph should break at a comfortable measure whatever its container is
+   doing. 66 characters is the number the reference document uses. */
+p { max-inline-size: 66ch; text-wrap: pretty; }
+h1, h2, h3, h4 { text-wrap: balance; }
+
+::selection { background: var(--accent, #000); color: var(--accent-ink, #fff); }
+
+/* ------------------------------------------------------------ structure -- */
+
+.shell {
+  inline-size: 100%;
+  max-inline-size: var(--shell, 1140px);
+  margin-inline: auto;
+  padding-inline: var(--pad, 22px);
+}
+
+/* One vertical rhythm for the whole page. Sections that need to be tighter or
+   looser set --sect on themselves rather than inventing a margin. */
+.section { padding-block: var(--sect, clamp(64px, 9vw, 116px)); }
+.section--tight { --sect: clamp(44px, 6vw, 72px); }
+
+/* Layout primitives. Between them these cover most of a marketing page, and
+   they keep the spacing decisions in one place instead of scattered across
+   forty one-off margins. */
+.stack > * + * { margin-block-start: var(--gap, 16px); }
+.cluster {
+  display: flex; flex-wrap: wrap;
+  gap: var(--gap, 12px);
+  align-items: var(--align, center);
+}
+.grid {
+  display: grid;
+  gap: var(--gap, 20px);
+  grid-template-columns: repeat(auto-fit, minmax(min(var(--min, 280px), 100%), 1fr));
+}
+
+/* ----------------------------------------------------------------- type -- */
+
+.eyebrow {
+  font-family: var(--mono, ui-monospace, monospace);
+  font-size: 11px;
+  letter-spacing: .16em;
+  text-transform: uppercase;
+  color: var(--accent, currentColor);
+}
+
+.lead { font-size: clamp(16px, 2vw, 18.5px); color: var(--ink-dim, inherit); }
+.muted { color: var(--ink-dim, inherit); }
+.dimmer { color: var(--ink-dimmer, inherit); }
+
+/* Digits inside Hebrew prose. Hebrew runs right-to-left and numbers run
+   left-to-right, so a bare "3-5" next to a word can render with the minus on
+   the wrong end. Wrapping the run in .num pins its direction. */
+.num {
+  font-family: var(--mono, ui-monospace, monospace);
+  font-variant-numeric: tabular-nums;
+  direction: ltr;
+  unicode-bidi: isolate;
+}
+
+/* -------------------------------------------------------------- buttons -- */
+
+/* Geometry only. The skin — fill, border, shadow — belongs to each site. */
+.btn {
+  display: inline-flex; align-items: center; justify-content: center;
+  gap: 9px;
+  padding: 13px 26px;
+  /* --r-btn, not --r-pill: a pill CTA reads as friendly, which is right for an
+     escape room and wrong for a horror house, where the corners should be able
+     to cut you. Each site names its own button radius. */
+  border-radius: var(--r-btn, var(--r-pill, 999px));
+  font-weight: 700;
+  font-size: 15px;
+  line-height: 1;
+  text-align: center;
+  cursor: pointer;
+  transition: transform .12s var(--ease, ease), background var(--fast, .18s) var(--ease, ease),
+              border-color var(--fast, .18s) var(--ease, ease), color var(--fast, .18s) var(--ease, ease),
+              box-shadow var(--fast, .18s) var(--ease, ease), opacity var(--fast, .18s);
+}
+.btn:active { transform: translateY(1px) scale(.99); }
+.btn[disabled], .btn[aria-disabled="true"] { opacity: .45; cursor: not-allowed; }
+.btn[disabled]:active { transform: none; }
+.btn--lg { padding: 16px 34px; font-size: 16.5px; }
+.btn--sm { padding: 9px 17px; font-size: 13.5px; }
+.btn--block { inline-size: 100%; }
+
+/* ---------------------------------------------------------------- forms -- */
+
+.field { display: block; }
+.field > .label {
+  display: block;
+  margin-block-end: 7px;
+  font-size: 13.5px;
+  font-weight: 600;
+  color: var(--ink-dim, inherit);
+}
+.input, .select, .textarea {
+  inline-size: 100%;
+  padding: 13px 15px;
+  background: var(--surface, transparent);
+  color: var(--ink, inherit);
+  border: 1px solid var(--line, currentColor);
+  border-radius: var(--r-sm, 10px);
+  transition: border-color var(--fast, .18s), box-shadow var(--fast, .18s), background var(--fast, .18s);
+}
+.textarea { min-block-size: 108px; resize: vertical; }
+.input::placeholder, .textarea::placeholder { color: var(--ink-dimmer, inherit); opacity: 1; }
+.input:focus, .select:focus, .textarea:focus {
+  outline: none;
+  border-color: var(--accent, currentColor);
+  box-shadow: 0 0 0 3px var(--accent-wash, rgba(0, 0, 0, .1));
+}
+.input[aria-invalid="true"], .select[aria-invalid="true"], .textarea[aria-invalid="true"] {
+  border-color: var(--danger, #d33);
+}
+
+/* The native arrow sits on the wrong side in RTL in several browsers, so the
+   select draws its own. The catch: background-position is physical and padding
+   is logical, and getting the pairing wrong reserves the gutter on one side
+   while drawing the arrow on the other — which looks fine in a screenshot and
+   collides the moment an option is long. In RTL the end side is the physical
+   left, so both live there; :dir(ltr) mirrors the pair together. */
+.select {
+  appearance: none;
+  padding-inline-end: 40px;
+  background-image: linear-gradient(45deg, transparent 50%, currentColor 50%),
+                    linear-gradient(135deg, currentColor 50%, transparent 50%);
+  background-position: 16px calc(50% + 1px), 21px calc(50% + 1px);
+  background-size: 5px 5px, 5px 5px;
+  background-repeat: no-repeat;
+}
+:dir(ltr) .select {
+  background-position: right 21px center, right 16px center;
+}
+
+/* A field's error text. Hidden until the field is actually invalid, so the
+   markup can carry it from the start and JS only flips one attribute. */
+.err {
+  display: none;
+  margin-block-start: 6px;
+  font-size: 12.5px;
+  color: var(--danger, #d33);
+}
+.field.is-bad .err { display: block; }
+
+/* --------------------------------------------------------- accessibility -- */
+
+.sr-only {
+  position: absolute; inline-size: 1px; block-size: 1px;
+  padding: 0; margin: -1px; overflow: hidden;
+  clip-path: inset(50%); white-space: nowrap; border: 0;
+}
+
+:focus-visible {
+  outline: 2px solid var(--accent, currentColor);
+  outline-offset: 3px;
+  border-radius: 3px;
+}
+
+/* Keyboard users get to the content without tabbing the whole nav. It is the
+   first element in the body and only visible while focused. */
+.skip {
+  position: fixed; inset-block-start: 10px; inset-inline-start: 10px;
+  z-index: 999;
+  padding: 11px 18px;
+  background: var(--accent, #000); color: var(--accent-ink, #fff);
+  border-radius: var(--r-sm, 10px);
+  font-weight: 700;
+  transform: translateY(-160%);
+  transition: transform var(--fast, .18s) var(--ease, ease);
+}
+.skip:focus { transform: none; }
+
+/* -------------------------------------------------------------- motion -- */
+
+/* Scroll reveal. Elements ship in their final state and only get animated if
+   JS is there to add .reveal — so with JS off nothing is stuck invisible,
+   which is the usual way this pattern breaks a page. */
+.reveal {
+  opacity: 0;
+  transform: translateY(18px);
+  transition: opacity var(--slow, .6s) var(--ease, ease), transform var(--slow, .6s) var(--ease, ease);
+  transition-delay: var(--delay, 0s);
+}
+.reveal.is-in { opacity: 1; transform: none; }
+
+@media (prefers-reduced-motion: reduce) {
+  html { scroll-behavior: auto; }
+  *, *::before, *::after {
+    animation-duration: .001ms !important;
+    animation-iteration-count: 1 !important;
+    transition-duration: .001ms !important;
+    scroll-behavior: auto !important;
+  }
+  .reveal { opacity: 1; transform: none; }
+}
+
+/* Utilities used often enough to be worth a name. */
+[hidden] { display: none !important; }
+.nowrap { white-space: nowrap; }
+.center { text-align: center; }
+.center p, .center .lead { margin-inline: auto; }
+.relative { position: relative; }

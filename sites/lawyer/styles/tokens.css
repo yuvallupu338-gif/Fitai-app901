@@ -1,0 +1,124 @@
+/* tokens.css — עו״ד רון לביא, דף נחיתה (a demo landing page for a law firm).
+ *
+ * The brief is the opposite of the other two sites in this folder. Those sell
+ * an hour of feeling something; this one is read by somebody who was in a car
+ * accident three weeks ago, is in pain, and is deciding in about eleven
+ * seconds whether the person behind this page is serious. Nothing here gets to
+ * be atmospheric. The job is legibility, calm, and proof.
+ *
+ * So: light. A dark landing page for a lawyer looks like a crypto fund. Warm
+ * ivory rather than white — white with a black serif on it is a contract, and
+ * a contract is not a reassuring object. Navy carries authority, gold is the
+ * ornament and never the button, and there is exactly one green, used only for
+ * the things that are true.
+ *
+ * Every ink/surface pair below clears WCAG AA at body size, including the
+ * inverted scope at the bottom — a landing page whose testimonial band is
+ * unreadable in sunlight loses the client it was written for.
+ */
+
+:root {
+  /* ---------------------------------------------------------- surfaces -- */
+  --bg:         #FBFAF7;   /* warm ivory — paper, not screen */
+  --surface:    #FFFFFF;
+  --surface-2:  #F4F2EC;
+  --surface-3:  #EAE7DE;
+  --line:       #E3DFD4;
+  --line-soft:  #EDEAE2;
+
+  /* --------------------------------------------------------------- ink -- */
+  --ink:        #14202F;   /* 14.8:1 on --bg — near-black with navy in it */
+  --ink-dim:    #4B596B;   /*  7.4:1 — body copy                          */
+  --ink-dimmer: #6C798A;   /*  4.6:1 — meta, captions, field hints        */
+
+  /* ------------------------------------------------------------ accent -- */
+  /* Navy is the action colour. Gold is trim: rules, monograms, eyebrows,
+     the ornament on a section head — never a call to action. A gold button
+     on a lawyer's page reads as an ad; a navy one reads as a decision. */
+  --navy:       #14202F;
+  --navy-2:     #1E3047;
+  --navy-deep:  #0C1520;
+  --accent:      var(--navy);
+  --accent-2:    var(--navy-2);
+  --accent-ink:  #FBFAF7;                     /* on navy: 14.8:1 */
+  --accent-wash: rgba(20, 32, 47, .07);
+  --accent-grad: linear-gradient(160deg, var(--navy-2), var(--navy));
+
+  /* Gold, in two strengths. --gold is the ornamental one and is only ever
+     used at 18px+ or bold; --gold-ink is the darkened version for small text,
+     which clears AA on both ivory and white. */
+  --gold:      #A9862F;
+  --gold-ink:  #7C6120;    /* 5.6:1 on --bg */
+  --gold-soft: #D9C58A;
+  --gold-wash: rgba(169, 134, 47, .10);
+
+  --good:      #2E7355;    /* 4.9:1 on --bg — checkmarks, "כן, מגיע לך" */
+  --good-wash: rgba(46, 115, 85, .09);
+  --danger:    #B3261E;
+
+  /* -------------------------------------------------------------- type -- */
+  /* A Hebrew serif for headlines and a neutral grotesk for everything else.
+     The serif is doing one job: saying that this office existed before the
+     landing page did. */
+  --display: 'Noto Serif Hebrew', Georgia, serif;
+  --body:    'Heebo', system-ui, sans-serif;
+  --mono:    'Heebo', ui-monospace, monospace;
+
+  --d1: clamp(33px, 5.2vw, 55px);
+  --d2: clamp(26px, 3.4vw, 38px);
+  --d3: clamp(19px, 2.1vw, 23px);
+
+  /* ---------------------------------------------------------- geometry -- */
+  /* Barely rounded. Sharp enough to be serious, soft enough not to be cold. */
+  --r:       12px;
+  --r-sm:    8px;
+  --r-pill:  999px;
+  --r-btn:   9px;
+  --shell:   1160px;
+  --pad:     22px;
+  --header-h: 74px;
+
+  /* ------------------------------------------------------------ motion -- */
+  /* Restrained on purpose. One short fade per section on entry and nothing
+     else that moves — every extra animation on this page costs trust. */
+  --ease:  cubic-bezier(.25, .8, .35, 1);
+  --fast:  .16s;
+  --mid:   .26s;
+  --slow:  .5s;
+
+  /* -------------------------------------------------------------- misc -- */
+  /* Soft, low, neutral. Shadows here are paper lifting off paper, not glow. */
+  --shadow:    0 20px 44px rgba(20, 32, 47, .10), 0 2px 6px rgba(20, 32, 47, .05);
+  --shadow-sm: 0 6px 18px rgba(20, 32, 47, .07);
+  --shadow-lift: 0 28px 60px rgba(20, 32, 47, .14);
+}
+
+/* The inverted scope. Put this class on any navy band — the footer, the
+   testimonial strip, the closing CTA — and the ink tokens flip to their
+   on-navy values so components inside need no dark-band variants of their
+   own. Contrast was rechecked against --navy for all four. */
+.on-navy {
+  --bg:         var(--navy);
+  --surface:    #1B2B3F;
+  --surface-2:  #22364E;
+  --surface-3:  #2A415B;
+  --line:       #334963;
+  --line-soft:  #26384E;
+
+  --ink:        #F4F2EC;   /* 13.9:1 on navy */
+  --ink-dim:    #B9C4D2;   /*  8.4:1          */
+  --ink-dimmer: #93A2B5;   /*  5.6:1          */
+
+  /* On navy the action colour has to invert too, or the button disappears
+     into the band it sits on. */
+  --accent:      var(--gold-soft);
+  --accent-2:    #E8DAB0;
+  --accent-ink:  #14202F;                     /* on gold-soft: 10.2:1 */
+  --accent-wash: rgba(217, 197, 138, .14);
+  --accent-grad: linear-gradient(160deg, #E8DAB0, var(--gold-soft));
+  --gold-ink:    var(--gold-soft);
+  --good:        #6FC79E;
+
+  background: var(--bg);
+  color: var(--ink);
+}

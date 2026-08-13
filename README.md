@@ -53,6 +53,34 @@ everything else here. It is served at `/backrooms/` and does not touch the
 questionnaire, the plan, or any of FitAI's storage. See
 [`backrooms/README.md`](backrooms/README.md).
 
+### Also in this repo: `sites/`
+
+Three websites, built on one design system, sharing nothing else:
+
+| | | |
+|---|---|---|
+| [`sites/horror/`](sites/horror/) | **מרתף 9** | a live horror house — three rooms, an intensity control that visibly darkens the page, and a hold-to-reveal safe word that turns the work lights on |
+| [`sites/escape/`](sites/escape/) | **אניגמה** | four escape rooms — a brass combination lock whose code is hidden in the page copy, and a real 60:00 clock |
+| [`sites/lawyer/`](sites/lawyer/) | **רון לביא, עורכי דין** | a personal-injury landing page — a four-question eligibility checker that deliberately never quotes a number. The firm and every figure on it are invented, and the page says so |
+
+The system is three layers. [`sites/shared/kit.css`](sites/shared/kit.css) is
+the foundation — reset, layout primitives, button geometry, form baseline, focus
+ring, reduced-motion contract — and it carries no colour and no typeface, so it
+does not know which site it is on. Each site's `styles/tokens.css` is the
+identity: palette, type scale, radii, shadows, easing, with the measured
+contrast ratio written next to every ink. Each site's `styles/site.css` and
+`src/` are the build. Nothing is shared below that line, which is why the three
+could be built at the same time without colliding.
+
+Everything holds to the same rules as the rest of the repo: no dependencies, no
+build step, no network at runtime, and no media files — every image on all three
+sites is drawn in CSS or inline SVG. The Hebrew and Latin font subsets are
+embedded per site by [`tools/fetch-site-fonts.mjs`](tools/fetch-site-fonts.mjs),
+and [`tools/sites-smoke.mjs`](tools/sites-smoke.mjs) drives all three in a real
+browser to check accessible names, dead anchors, horizontal overflow at four
+widths, the focus ring, reduced motion, rendering with JavaScript disabled, and
+that no request ever leaves the page. Start at [`sites/`](sites/).
+
 ## What it does
 
 **Intake** — ten steps covering the basics, training history, goal and target

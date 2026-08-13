@@ -1,0 +1,169 @@
+<!DOCTYPE html>
+<html lang="he" dir="rtl">
+<head>
+<meta charset="utf-8">
+<meta name="viewport" content="width=device-width, initial-scale=1, viewport-fit=cover">
+<meta name="theme-color" content="#0E1520">
+<meta name="description" content="שלושה אתרים — חדר אימה, חדר בריחה ודף נחיתה של משרד עורכי דין — בנויים על מערכת עיצוב אחת: שכבת יסוד משותפת, ערכת טוקנים לכל אתר, וזהות נפרדת לחלוטין לכל אחד.">
+<title>שלושה אתרים · מערכת עיצוב אחת</title>
+
+<!-- The index belongs to the repo, not to any of the three brands, so it is
+     set in the repo's own faces rather than pulling in a fourth type stack. -->
+<link rel="stylesheet" href="../src/styles/fonts.css">
+<link rel="stylesheet" href="index.css">
+
+<link rel="icon" href="data:image/svg+xml,<svg xmlns='http://www.w3.org/2000/svg' viewBox='0 0 32 32'><rect width='32' height='32' rx='7' fill='%230E1520'/><rect x='6' y='9' width='5' height='14' fill='%23C0211A'/><rect x='13.5' y='9' width='5' height='14' fill='%23D9A93C'/><rect x='21' y='9' width='5' height='14' fill='%23F4F2EC'/></svg>">
+</head>
+<body>
+
+<a class="skip" href="#main">דלגו לתוכן</a>
+
+<header class="shell top">
+  <p class="eyebrow">SITES / <span dir="rtl">שלושה אתרים</span></p>
+  <h1>שלושה אתרים.<br><em>מערכת עיצוב אחת.</em></h1>
+  <p class="sub">
+    בית אימה, חדרי בריחה, ודף נחיתה של משרד עורכי דין. שלושתם חולקים שכבת יסוד
+    אחת — אותו reset, אותם פרימיטיבים של פריסה, אותו חוזה נגישות — ומעבר לזה
+    אינם חולקים דבר: לא צבע, לא גופן, לא קצב תנועה. אין ביניהם ולו קובץ תמונה
+    אחד; כל מה שנראה בהם מצויר ב־CSS או ב־SVG.
+  </p>
+</header>
+
+<main id="main" class="shell">
+
+  <ul class="cards">
+
+    <li class="card card--horror">
+      <a href="horror/" aria-labelledby="t-horror">
+        <!-- Each poster is the site's own hero, reduced to the one gesture it
+             is built on: a doorway with light behind it, a brass dial, a
+             hairline frame. -->
+        <div class="poster poster--horror" aria-hidden="true">
+          <div class="door"><i></i></div>
+          <div class="grain"></div>
+        </div>
+        <div class="body">
+          <p class="kind">חדר אימה</p>
+          <h2 id="t-horror">מרתף 9</h2>
+          <p class="line">אתם נכנסים בשלושה. זה לא אומר שתצאו ככה.</p>
+          <ul class="sw" aria-hidden="true">
+            <li style="--c:#08070A"></li><li style="--c:#E9E3D7"></li>
+            <li style="--c:#C0211A"></li><li style="--c:#7FB03C"></li>
+          </ul>
+          <p class="meta">Karantina · Rubik · <span class="num">3</span> חדרים · מצב «אור דלוק»</p>
+          <span class="go">כניסה <svg viewBox="0 0 24 24" width="15" height="15" aria-hidden="true"><path d="M15 5l-7 7 7 7" fill="none" stroke="currentColor" stroke-width="2.2" stroke-linecap="round" stroke-linejoin="round"/></svg></span>
+        </div>
+      </a>
+    </li>
+
+    <li class="card card--escape">
+      <a href="escape/" aria-labelledby="t-escape">
+        <div class="poster poster--escape" aria-hidden="true">
+          <div class="dial"><i></i><i></i></div>
+          <div class="paper"></div>
+        </div>
+        <div class="body">
+          <p class="kind">חדר בריחה</p>
+          <h2 id="t-escape">אניגמה</h2>
+          <p class="line">שישים דקות. דלת אחת. אתם.</p>
+          <ul class="sw" aria-hidden="true">
+            <li style="--c:#091419"></li><li style="--c:#F1E7D0"></li>
+            <li style="--c:#D9A93C"></li><li style="--c:#3FBFAE"></li>
+          </ul>
+          <p class="meta">Frank Ruhl Libre · Assistant · <span class="num">4</span> חדרים · מנעול שאפשר לפתוח</p>
+          <span class="go">כניסה <svg viewBox="0 0 24 24" width="15" height="15" aria-hidden="true"><path d="M15 5l-7 7 7 7" fill="none" stroke="currentColor" stroke-width="2.2" stroke-linecap="round" stroke-linejoin="round"/></svg></span>
+        </div>
+      </a>
+    </li>
+
+    <li class="card card--lawyer">
+      <a href="lawyer/" aria-labelledby="t-lawyer">
+        <div class="poster poster--lawyer" aria-hidden="true">
+          <div class="frame"><span>ר״ל</span></div>
+          <div class="rules"></div>
+        </div>
+        <div class="body">
+          <p class="kind">דף נחיתה</p>
+          <h2 id="t-lawyer">רון לביא, עורכי דין</h2>
+          <p class="line">נפגעתם. עכשיו צריך שמישהו יילחם על זה.</p>
+          <ul class="sw" aria-hidden="true">
+            <li style="--c:#FBFAF7"></li><li style="--c:#14202F"></li>
+            <li style="--c:#A9862F"></li><li style="--c:#2E7355"></li>
+          </ul>
+          <p class="meta">Noto Serif Hebrew · Heebo · בדיקת זכאות · <b>אתר הדגמה</b></p>
+          <span class="go">כניסה <svg viewBox="0 0 24 24" width="15" height="15" aria-hidden="true"><path d="M15 5l-7 7 7 7" fill="none" stroke="currentColor" stroke-width="2.2" stroke-linecap="round" stroke-linejoin="round"/></svg></span>
+        </div>
+      </a>
+    </li>
+
+  </ul>
+
+  <section class="how">
+    <h2>איך זה בנוי</h2>
+    <p class="sub">
+      שלוש שכבות. כל אתר נוגע רק בשכבה השלישית, וזו הסיבה שאפשר היה לבנות את
+      שלושתם במקביל בלי שהם ידרסו זה את זה.
+    </p>
+
+    <ol class="layers">
+      <li>
+        <b><code>shared/kit.css</code></b>
+        <p>
+          היסוד. reset, פרימיטיבים של פריסה, גיאומטריית כפתורים, בסיס טפסים,
+          טבעת פוקוס, וחוזה <code>prefers-reduced-motion</code>. אין בו צבע ואין
+          בו גופן — הוא לא יודע על איזה אתר הוא יושב. הכול כתוב במאפיינים
+          לוגיים, כי בדף בעברית <code>left</code> קשיח הוא באג.
+        </p>
+      </li>
+      <li>
+        <b><code>&lt;site&gt;/styles/tokens.css</code></b>
+        <p>
+          הזהות. פלטה, סולם טיפוגרפי, רדיוסים, צללים, עקומות תנועה. כאן נמצא
+          כל ההבדל בין בית אימה למשרד עורכי דין, וכאן גם רשום ליד כל גוון יחס
+          הניגודיות שנמדד מולו — אתר אימה הוא המקום הקל בעולם לסיים בו עם אפור
+          2:1 על שחור ולקרוא לזה אווירה.
+        </p>
+      </li>
+      <li>
+        <b><code>&lt;site&gt;/styles/site.css</code> + <code>src/</code></b>
+        <p>
+          הבנייה עצמה. רכיבים, פריסות והתנהגות — ES modules, בלי תלויות ובלי
+          שלב build, בדיוק כמו שאר המאגר.
+        </p>
+      </li>
+    </ol>
+
+    <div class="notes">
+      <div>
+        <h3>גופנים מוטמעים</h3>
+        <p>
+          <code>tools/fetch-site-fonts.mjs</code> מוריד את תת־הקבוצות העבריות
+          והלטיניות של הגופנים וכותב אותם כ־base64 לתוך <code>fonts.css</code>
+          של כל אתר בנפרד. לכל אתר רק הגופנים שלו, ואף אתר לא פונה לרשת בזמן
+          ריצה.
+        </p>
+      </div>
+      <div>
+        <h3>בדיקה אוטומטית</h3>
+        <p>
+          <code>tools/sites-smoke.mjs</code> מריץ את שלושת האתרים בדפדפן אמיתי
+          ובודק שם נגיש לכל פקד, עוגנים שמובילים לאנשהו, גלישה אופקית בארבעה
+          רוחבים, טבעת פוקוס, קריאוּת עם JavaScript מכובה, ושאף בקשת רשת לא
+          יוצאת החוצה.
+        </p>
+      </div>
+    </div>
+  </section>
+
+</main>
+
+<footer class="shell">
+  <p>
+    <a href="../">FitAI</a> · <a href="../backrooms/">The Backrooms</a> ·
+    שלושת האתרים כאן הם עבודת עיצוב. השמות, הכתובות, המספרים והעדויות בהם
+    בדיוניים.
+  </p>
+</footer>
+
+</body>
+</html>

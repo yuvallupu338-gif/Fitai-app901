@@ -1,0 +1,279 @@
+/* index.css — the index that presents the three sites.
+ *
+ * Deliberately quiet. It is a contact sheet: the three posters have to be the
+ * loudest thing on it, and each one is allowed to shout in its own palette
+ * while everything around it stays in the repo's own dark blue. Self-contained
+ * apart from the shared font file — it does not load the kit, because at this
+ * size the kit would be most of the page.
+ */
+
+:root {
+  --night: #0E1520;
+  --steel: #182435;
+  --steel-2: #212F44;
+  --line: #2C3D57;
+  --chalk: #EAF0F8;
+  --dim: #8298B4;
+  --dimmer: #788CA8;
+  --amber: #FFB13C;
+  --display: "Secular One", system-ui, sans-serif;
+  --body: "Assistant", system-ui, sans-serif;
+  --mono: "IBM Plex Mono", ui-monospace, monospace;
+  --r: 18px;
+  --ease: cubic-bezier(.2, .8, .3, 1);
+}
+
+*, *::before, *::after { box-sizing: border-box; margin: 0; padding: 0; }
+
+body {
+  background: var(--night);
+  background-image: radial-gradient(ellipse 120% 60% at 50% -10%, rgba(255, 177, 60, .10), transparent 70%);
+  background-attachment: fixed;
+  color: var(--chalk);
+  font-family: var(--body);
+  font-size: 16px;
+  line-height: 1.65;
+  padding-block-end: 60px;
+  overflow-x: clip;
+}
+
+.shell { max-inline-size: 1080px; margin-inline: auto; padding-inline: 20px; }
+ul, ol { list-style: none; }
+a { color: var(--amber); text-decoration: none; }
+img, svg { display: block; }
+
+:focus-visible { outline: 2px solid var(--amber); outline-offset: 3px; border-radius: 4px; }
+
+.skip {
+  position: fixed; inset-block-start: 10px; inset-inline-start: 10px; z-index: 9;
+  padding: 11px 18px; background: var(--amber); color: #1A1206;
+  border-radius: 10px; font-weight: 700;
+  transform: translateY(-160%); transition: transform .18s var(--ease);
+}
+.skip:focus { transform: none; }
+
+/* ------------------------------------------------------------------ head -- */
+
+.top { padding-block: clamp(52px, 9vw, 96px) clamp(30px, 5vw, 48px); }
+
+.eyebrow {
+  font-family: var(--mono); font-size: 11px; letter-spacing: .16em;
+  text-transform: uppercase; color: var(--amber); margin-block-end: 14px;
+}
+
+h1 {
+  font-family: var(--display); font-weight: 400;
+  font-size: clamp(32px, 7vw, 58px); line-height: 1.1; letter-spacing: -.01em;
+  text-wrap: balance;
+}
+h1 em { font-style: normal; color: var(--amber); }
+
+.sub { color: var(--dim); margin-block-start: 16px; max-inline-size: 62ch; text-wrap: pretty; }
+
+/* ----------------------------------------------------------------- cards -- */
+
+.cards {
+  display: grid; gap: 22px;
+  grid-template-columns: repeat(auto-fit, minmax(min(290px, 100%), 1fr));
+  margin-block: 18px 20px;
+}
+
+.card > a {
+  display: block; block-size: 100%;
+  background: var(--steel);
+  border: 1px solid var(--line);
+  border-radius: var(--r);
+  overflow: hidden;
+  color: inherit;
+  transition: transform .3s var(--ease), border-color .3s var(--ease), box-shadow .3s var(--ease);
+}
+.card > a:hover, .card > a:focus-visible {
+  transform: translateY(-5px);
+  /* The accent each card borrows from the site it links to — the only place
+     on this page where the three palettes are allowed out. */
+  border-color: var(--accent);
+  box-shadow: 0 22px 46px rgba(0, 0, 0, .45), 0 0 0 1px var(--accent) inset;
+}
+.card--horror { --accent: #C0211A; }
+.card--escape { --accent: #D9A93C; }
+.card--lawyer { --accent: #A9862F; }
+
+.body { padding: 18px 20px 22px; }
+
+.kind {
+  font-family: var(--mono); font-size: 10.5px; letter-spacing: .14em;
+  text-transform: uppercase; color: var(--accent);
+}
+.card h2 {
+  font-family: var(--display); font-weight: 400; font-size: 25px;
+  line-height: 1.25; margin-block: 6px 4px;
+}
+.line { color: var(--dim); font-size: 14.5px; }
+.meta { color: var(--dimmer); font-size: 12px; margin-block-start: 12px; font-family: var(--mono); line-height: 1.7; }
+.meta b { color: var(--dim); font-weight: 600; }
+.num { direction: ltr; unicode-bidi: isolate; }
+
+.sw { display: flex; gap: 6px; margin-block-start: 14px; }
+.sw li {
+  inline-size: 26px; block-size: 12px; border-radius: 3px;
+  background: var(--c); border: 1px solid rgba(255, 255, 255, .12);
+}
+
+.go {
+  display: inline-flex; align-items: center; gap: 6px;
+  margin-block-start: 16px; font-size: 13.5px; font-weight: 700; color: var(--accent);
+}
+.card > a:hover .go svg { transform: translateX(4px); }
+.go svg { transition: transform .25s var(--ease); }
+
+/* ---------------------------------------------------------------- posters -- */
+
+/* Each poster is one gesture from the site it stands for, drawn in gradients
+   and two or three boxes. Nothing here is an image file. */
+.poster {
+  position: relative; aspect-ratio: 16 / 9; overflow: hidden;
+  border-block-end: 1px solid var(--line);
+}
+
+/* Horror — a doorway with something lit behind it. */
+.poster--horror { background: radial-gradient(ellipse at 50% 120%, #1A1015, #08070A 70%); }
+.poster--horror .door {
+  position: absolute; inset-block-end: 0; inset-inline-start: 50%;
+  translate: 50% 0;
+  inline-size: 34%; block-size: 76%;
+  background: linear-gradient(#0C0A0E, #050406);
+  border: 1px solid #241B20;
+  border-block-end: 0;
+}
+.poster--horror .door i {
+  position: absolute; inset-block: 6% 0; inset-inline-start: 0;
+  inline-size: 18%;
+  background: linear-gradient(90deg, rgba(192, 33, 26, .95), rgba(192, 33, 26, 0));
+  filter: blur(3px);
+}
+.poster--horror .door::after {
+  /* the light on the floor */
+  content: ""; position: absolute; inset-block-end: -14%; inset-inline: -40%;
+  block-size: 16%;
+  background: radial-gradient(ellipse at 50% 0, rgba(192, 33, 26, .5), transparent 70%);
+}
+.poster--horror .grain {
+  position: absolute; inset: 0; opacity: .5; mix-blend-mode: overlay;
+  background-image: url("data:image/svg+xml,%3Csvg xmlns='http://www.w3.org/2000/svg' width='120' height='120'%3E%3Cfilter id='n'%3E%3CfeTurbulence type='fractalNoise' baseFrequency='.85' numOctaves='3'/%3E%3C/filter%3E%3Crect width='120' height='120' filter='url(%23n)' opacity='.45'/%3E%3C/svg%3E");
+}
+
+/* Escape — a brass dial and the edge of a sheet of paper. */
+.poster--escape { background: radial-gradient(ellipse at 50% -20%, #17323C, #091419 72%); }
+.poster--escape .dial {
+  position: absolute; inset-block-start: 50%; inset-inline-start: 42%;
+  translate: 0 -50%;
+  inline-size: 96px; block-size: 96px; border-radius: 50%;
+  background: conic-gradient(from 210deg, #8A661B, #F0CE72 25%, #A57B24 52%, #F0CE72 74%, #8A661B);
+  box-shadow: 0 8px 22px rgba(0, 0, 0, .5), inset 0 1px 0 rgba(255, 255, 255, .4);
+}
+.poster--escape .dial i {
+  position: absolute; inset: 16%; border-radius: 50%;
+  background: radial-gradient(circle at 34% 28%, #17323C, #0C1D24);
+  box-shadow: inset 0 2px 6px rgba(0, 0, 0, .6);
+}
+.poster--escape .dial i + i {
+  inset: 40%;
+  background: #F1E7D0;
+  box-shadow: none;
+}
+.poster--escape .paper {
+  position: absolute; inset-block: 18% 12%; inset-inline-end: 6%;
+  inline-size: 26%;
+  background: linear-gradient(160deg, #F1E7D0, #E3D6B9);
+  border-radius: 3px;
+  rotate: -4deg;
+  box-shadow: 0 10px 24px rgba(0, 0, 0, .45);
+}
+.poster--escape .paper::after {
+  /* ruled lines, so it reads as a document rather than a white rectangle */
+  content: ""; position: absolute; inset: 16% 14%;
+  background: repeating-linear-gradient(#B9A780 0 1px, transparent 1px 9px);
+  opacity: .6;
+}
+
+/* Lawyer — the monogram, and the ruled paper it sits on. */
+.poster--lawyer { background: linear-gradient(160deg, #FFFFFF, #F1EEE6); }
+.poster--lawyer .frame {
+  position: absolute; inset-block-start: 50%; inset-inline-start: 50%;
+  translate: -50% -50%;
+  inline-size: 96px; block-size: 96px;
+  border: 1px solid #A9862F;
+  outline: 1px solid #A9862F; outline-offset: 5px;
+  display: grid; place-items: center;
+}
+.poster--lawyer .frame span {
+  font-family: var(--display); font-size: 34px; color: #14202F; line-height: 1;
+}
+/* Letterhead: a gold rule, then ruled lines under it. A single heavy navy bar
+   read as a divider rather than as paper. */
+.poster--lawyer .rules {
+  position: absolute; inset-block-end: 0; inset-inline: 0; block-size: 30%;
+  background:
+    linear-gradient(#A9862F 0 1.5px, transparent 1.5px),
+    repeating-linear-gradient(180deg, transparent 0 12px, rgba(20, 32, 47, .13) 12px 13px);
+}
+.poster--lawyer .rules::after {
+  /* the short indent every letterhead has under the rule */
+  content: ""; position: absolute; inset-block-start: 7px; inset-inline-start: 12%;
+  inline-size: 22%; block-size: 3px; background: #14202F; opacity: .75;
+}
+
+/* ------------------------------------------------------------------- how -- */
+
+.how { padding-block: clamp(40px, 7vw, 74px) 10px; }
+.how h2 {
+  font-family: var(--display); font-weight: 400;
+  font-size: clamp(24px, 4.4vw, 33px); line-height: 1.2;
+}
+.how h3 { font-family: var(--display); font-weight: 400; font-size: 18px; margin-block-end: 4px; }
+.how p { color: var(--dim); font-size: 14.5px; text-wrap: pretty; }
+
+code {
+  font-family: var(--mono); font-size: .88em; color: var(--amber);
+  background: rgba(255, 177, 60, .09); padding: 1px 5px; border-radius: 5px;
+  direction: ltr; unicode-bidi: isolate;
+}
+
+.layers { counter-reset: l; margin-block-start: 26px; display: grid; gap: 14px; }
+.layers li {
+  counter-increment: l;
+  position: relative;
+  background: var(--steel);
+  border: 1px solid var(--line);
+  border-radius: 14px;
+  padding: 16px 18px 18px;
+  /* the gutter the ghosted numeral sits in */
+  padding-inline-start: 62px;
+}
+.layers li::before {
+  content: counter(l);
+  position: absolute; inset-block-start: 14px; inset-inline-start: 18px;
+  font-family: var(--display); font-size: 26px; color: var(--line);
+  line-height: 1;
+}
+.layers b { font-size: 15px; font-weight: 700; display: block; margin-block-end: 4px; }
+.layers b code { color: var(--chalk); background: none; padding: 0; }
+
+.notes {
+  display: grid; gap: 14px; margin-block-start: 22px;
+  grid-template-columns: repeat(auto-fit, minmax(min(260px, 100%), 1fr));
+}
+.notes > div {
+  background: var(--steel-2); border: 1px solid var(--line);
+  border-radius: 14px; padding: 16px 18px 18px;
+}
+
+footer {
+  margin-block-start: 44px; padding-block-start: 18px;
+  border-block-start: 1px solid var(--line);
+  color: var(--dimmer); font-size: 12.5px;
+}
+
+@media (prefers-reduced-motion: reduce) {
+  *, *::before, *::after { transition: none !important; animation: none !important; }
+}

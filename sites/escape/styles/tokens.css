@@ -1,0 +1,96 @@
+/* tokens.css — אניגמה (Enigma), four escape rooms.
+ *
+ * The brief: an escape room is not a haunted house. Nobody is frightened, and
+ * the feeling being sold is being clever with your friends for an hour. So the
+ * page is dark but warm — the inside of a study at night, brass fittings, lamp
+ * light, and paper. Paper is the motif: a real escape room hands you documents,
+ * and the light parchment cards on this dark page are those documents.
+ *
+ * The palette is ink + brass + one verdigris green for anything solved. Green
+ * is never decorative here; it is the colour a lock turns when it opens, so it
+ * has to stay rare enough to still mean that on the fourth try.
+ */
+
+:root {
+  /* ---------------------------------------------------------- surfaces -- */
+  --bg:         #091419;
+  --surface:    #0F1F26;
+  --surface-2:  #16303A;
+  --surface-3:  #1D3D48;
+  --line:       #24454F;
+  --line-soft:  #183138;
+
+  /* Paper. Clue cards, the rules card, the booking summary — anything the
+     room would physically hand you is printed on this. */
+  --paper:      #F1E7D0;
+  --paper-2:    #E3D6B9;
+  --paper-ink:  #2A2317;              /* 12.6:1 on --paper */
+  --paper-dim:  #5E5340;              /*  6.0:1 on --paper */
+  --paper-line: #C9B896;
+
+  /* --------------------------------------------------------------- ink -- */
+  --ink:        #F2EADA;   /* 14.9:1 on --bg */
+  --ink-dim:    #A6BCBF;   /*  8.0:1 — body copy on dark  */
+  --ink-dimmer: #7C9296;   /*  5.1:1 — meta, hints, labels */
+
+  /* ------------------------------------------------------------ accent -- */
+  /* Brass, lit and unlit. --accent carries small text on dark at 9.2:1, so
+     unlike the horror site this one needs no second lit variant. */
+  --accent:      #D9A93C;
+  --accent-2:    #F0CE72;
+  --accent-deep: #8A661B;
+  --accent-ink:  #0B1A20;                      /* on the brass fill: 10.4:1 */
+  --accent-wash: rgba(217, 169, 60, .13);
+  --accent-grad: linear-gradient(145deg, var(--accent-2), var(--accent));
+
+  /* Verdigris — solved, unlocked, confirmed. */
+  --solved:      #3FBFAE;
+  --solved-wash: rgba(63, 191, 174, .13);
+
+  /* The clock, once it is not on your side. */
+  --danger:      #E4573F;
+  --danger-wash: rgba(228, 87, 63, .13);
+
+  /* -------------------------------------------------------------- type -- */
+  /* A Hebrew serif for the display face. Serifs in Hebrew read as printed
+     matter — a book, a file, a ledger — which is exactly the register an
+     escape room's story wants, and it is the single decision that keeps this
+     site from looking like every other neon-on-black escape room page. */
+  --display: 'Frank Ruhl Libre', Georgia, serif;
+  --body:    'Assistant', system-ui, sans-serif;
+  --mono:    'IBM Plex Mono', ui-monospace, monospace;
+
+  --d1: clamp(40px, 8.2vw, 84px);
+  --d2: clamp(28px, 4.6vw, 46px);
+  --d3: clamp(21px, 2.6vw, 27px);
+
+  /* ---------------------------------------------------------- geometry -- */
+  /* Softened. Brass fittings are turned on a lathe and the paper has rounded
+     corners from handling. */
+  --r:       14px;
+  --r-sm:    9px;
+  --r-pill:  999px;
+  --r-btn:   999px;
+  --shell:   1160px;
+  --pad:     22px;
+  --header-h: 72px;
+
+  /* ------------------------------------------------------------ motion -- */
+  /* Mechanical. A dial that turns, a bolt that throws — quick, with a little
+     overshoot, and nothing that drifts. */
+  --ease:  cubic-bezier(.22, 1, .32, 1);
+  --ease-mech: cubic-bezier(.34, 1.56, .5, 1);
+  --fast:  .18s;
+  --mid:   .32s;
+  --slow:  .62s;
+
+  /* -------------------------------------------------------------- misc -- */
+  /* Paper tooth, on the parchment surfaces only. */
+  --tooth: url("data:image/svg+xml,%3Csvg xmlns='http://www.w3.org/2000/svg' width='120' height='120'%3E%3Cfilter id='t'%3E%3CfeTurbulence type='fractalNoise' baseFrequency='.9' numOctaves='4' stitchTiles='stitch'/%3E%3C/filter%3E%3Crect width='120' height='120' filter='url(%23t)' opacity='.42'/%3E%3C/svg%3E");
+
+  --shadow:    0 24px 54px rgba(0, 0, 0, .5);
+  --shadow-sm: 0 10px 24px rgba(0, 0, 0, .38);
+  /* Brass catches light along one edge. This is what makes a button look
+     turned rather than filled. */
+  --lip: inset 0 1px 0 rgba(255, 255, 255, .28);
+}
