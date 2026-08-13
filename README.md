@@ -65,6 +65,46 @@ is the full five — pull-up bar, dip bars, rings, bands, ab wheel. It stays a
 hard filter: tick nothing on calisthenics and you still get a full week from a
 floor, a wall and a doorway. Declared injuries filter on top.
 
+## The date you want to be there by
+
+The questionnaire ends by asking when. Everything before that step describes
+where you are; the last one asks where you want to be by, and the plan answers
+to it.
+
+**The date is a pace said precisely.** The app already treated its pace setting
+as a number of months — one, three or six — and turned that into how much of the
+calorie change to actually apply. A date feeds the same curve continuously, and
+the three old settings still land on exactly the numbers they always did: 1 →
+1.0, 3 → 0.6, 6 → 0.35. Ninety days out, a 90 kg profile aiming at 75 is given
+2,454 calories; a year out, 2,664.
+
+**It says whether a body does that.** With a target weight it works out the
+kilos, the weeks and the kilos per week, and compares that against what is
+actually safe — up to about three quarters of a percent of bodyweight a week for
+fat, far less for muscle and less again the longer you have trained. Fifteen
+kilos in four weeks is 3.75 a week against a safe 0.68, and it says so: *that is
+faster than a body goes* — then offers the earliest date that is a yes, on a
+button. Taking it lands on 0.65 a week and *within reach at a healthy rate*.
+
+**And it recommends how many days a week.** The count comes off the goal and the
+date, never off what you already train — otherwise satisfying the
+recommendation moves it, and applying "four days" turns into a recommendation
+for five. It is a target: one step above the baseline when the date is tight,
+one below when there is room, and the same answer however many times you ask.
+Verified stable across 864 profiles, applied and re-asked three times each. A
+button on that step spreads the recommended count over the week rather than
+taking the first N days, and turns into a tick once your week already matches.
+
+The date is editable in settings like everything else the questionnaire asks,
+reopening the questionnaire seeds it rather than wiping it, and the home screen
+carries a countdown: weeks left, kilos left, the pace that needs, what is safe,
+and how much you have already moved.
+
+One bug in the plumbing came out of building it: `data-act` was bound on click
+only, so a date typed into a field never reached its handler — the click that
+follows opening a date picker lands on the calendar, not the field. Actions on
+form fields fire on change now.
+
 **The app recommends a track rather than leaving you to guess.** How you train
 is the most consequential question it asks and the one a newcomer has least
 basis to answer, so it answers it: it reads the profile, badges the option it
