@@ -1,0 +1,868 @@
+<!doctype html>
+<html lang="he" dir="rtl" class="no-js">
+<head>
+<meta charset="utf-8">
+<meta name="viewport" content="width=device-width, initial-scale=1">
+<meta name="theme-color" content="#08070A">
+<title>מרתף 9 — בית אימה חי בחולון</title>
+<meta name="description" content="בית אימה חי באזור התעשייה בחולון. שלושה חדרים, שחקנים בפנים, 45 עד 60 דקות, מגיל 18. אתם קובעים את העוצמה מראש, ומילת הביטחון עוצרת את החדר מיד.">
+<meta name="author" content="מרתף 9">
+
+<meta property="og:type" content="website">
+<meta property="og:locale" content="he_IL">
+<meta property="og:site_name" content="מרתף 9">
+<meta property="og:title" content="מרתף 9 — בית אימה חי בחולון">
+<meta property="og:description" content="שלושה חדרים, שחקנים בפנים, 45 עד 60 דקות. אתם קובעים את העוצמה מראש, ומילת הביטחון עוצרת את החדר מיד.">
+<meta property="og:url" content="https://martef9.co.il/">
+<meta name="twitter:card" content="summary">
+
+<link rel="stylesheet" href="styles/fonts.css">
+<link rel="stylesheet" href="styles/tokens.css">
+<link rel="stylesheet" href="../shared/kit.css">
+<link rel="stylesheet" href="styles/site.css">
+
+<!-- The accordion and the room details ship open so the page reads with the
+     stylesheet half-loaded or with JS off. This flips the default before the
+     first paint, which is the only way to close them without a visible jump. -->
+<script>document.documentElement.className = 'js';</script>
+<script type="module" src="src/main.js"></script>
+</head>
+<body>
+
+<a class="skip" href="#main">דילוג לתוכן</a>
+
+<!-- ============================================================ header == -->
+<header class="head" id="top">
+  <div class="head__in">
+    <a class="brand" href="#top">
+      <span class="brand__mark" aria-hidden="true">
+        <svg viewBox="0 0 34 34"><path d="M4 30V7l13-4 13 4v23" class="bm-frame"/><path d="M13 30V17h8v13" class="bm-door"/><path d="M17 3v11" class="bm-cord"/><circle cx="17" cy="16" r="2.6" class="bm-bulb"/></svg>
+      </span>
+      <span class="brand__name">מרתף<span class="brand__n num">9</span></span>
+    </a>
+
+    <nav class="nav" aria-label="ניווט ראשי">
+      <ul class="nav__list">
+        <li><a href="#rooms">החדרים</a></li>
+        <li><a href="#how">איך זה עובד</a></li>
+        <li><a href="#voices">עדויות</a></li>
+        <li><a href="#faq">שאלות</a></li>
+        <li><a href="#book">הזמנה</a></li>
+      </ul>
+    </nav>
+
+    <div class="head__end">
+      <a class="btn btn--primary btn--sm head__cta" href="#book">הזמנת חדר</a>
+      <button class="burger" type="button" id="burger" aria-label="פתיחת התפריט" aria-expanded="false" aria-controls="drawer">
+        <span aria-hidden="true"></span><span aria-hidden="true"></span><span aria-hidden="true"></span>
+      </button>
+    </div>
+  </div>
+</header>
+
+<div class="drawer" id="drawer" hidden>
+  <div class="drawer__scrim" data-close></div>
+  <div class="drawer__panel" role="dialog" aria-modal="true" aria-labelledby="drawer-h">
+    <p class="drawer__h" id="drawer-h">תפריט</p>
+    <button class="drawer__x" type="button" aria-label="סגירת התפריט" data-close>
+      <svg viewBox="0 0 20 20" aria-hidden="true"><path d="M4 4l12 12M16 4L4 16" fill="none" stroke="currentColor" stroke-width="1.6"/></svg>
+    </button>
+    <nav aria-label="ניווט בתפריט">
+      <ul class="drawer__list">
+        <li><a href="#rooms">החדרים</a></li>
+        <li><a href="#intensity">עוצמה</a></li>
+        <li><a href="#how">איך זה עובד</a></li>
+        <li><a href="#voices">עדויות</a></li>
+        <li><a href="#faq">שאלות</a></li>
+        <li><a href="#book">הזמנה</a></li>
+      </ul>
+    </nav>
+    <a class="btn btn--primary btn--block" href="#book">הזמנת חדר</a>
+    <p class="drawer__foot">רחוב הבשמים <span class="num">9</span>, חולון · <a href="tel:039051190" class="drawer__tel num">03-9051190</a></p>
+  </div>
+</div>
+
+<main id="main">
+
+<!-- ============================================================== hero == -->
+<section class="hero" id="hero" aria-labelledby="hero-h">
+  <div class="hero__set" aria-hidden="true">
+    <svg class="corridor" viewBox="0 0 1200 800" preserveAspectRatio="xMidYMid slice">
+      <defs>
+        <clipPath id="cor-a"><path d="M0 0H255L523 334V584L415 800H0Z"/></clipPath>
+        <clipPath id="cor-b"><path d="M1200 0H945L677 334V584L785 800H1200Z"/></clipPath>
+        <clipPath id="cor-c"><path d="M255 0H945L677 334H523Z"/></clipPath>
+        <clipPath id="cor-f"><path d="M415 800L523 584H677L785 800Z"/></clipPath>
+
+        <linearGradient id="cor-wa" gradientUnits="userSpaceOnUse" x1="0" y1="0" x2="523" y2="0">
+          <stop offset="0" class="st-bg"/><stop offset=".55" class="st-s2"/><stop offset="1" class="st-s1"/>
+        </linearGradient>
+        <linearGradient id="cor-wb" gradientUnits="userSpaceOnUse" x1="1200" y1="0" x2="677" y2="0">
+          <stop offset="0" class="st-bg"/><stop offset=".55" class="st-s2"/><stop offset="1" class="st-s1"/>
+        </linearGradient>
+        <linearGradient id="cor-ceil" gradientUnits="userSpaceOnUse" x1="0" y1="0" x2="0" y2="334">
+          <stop offset="0" class="st-bg"/><stop offset="1" class="st-s1"/>
+        </linearGradient>
+        <linearGradient id="cor-floor" gradientUnits="userSpaceOnUse" x1="0" y1="800" x2="0" y2="560">
+          <stop offset="0" class="st-bg"/><stop offset="1" class="st-s3"/>
+        </linearGradient>
+        <radialGradient id="cor-glow" gradientUnits="userSpaceOnUse" cx="600" cy="214" r="430">
+          <stop offset="0" class="st-lit-a"/><stop offset=".38" class="st-lit-b"/><stop offset="1" class="st-lit-0"/>
+        </radialGradient>
+        <radialGradient id="cor-leak" gradientUnits="userSpaceOnUse" cx="600" cy="470" r="210">
+          <stop offset="0" class="st-lit-b"/><stop offset="1" class="st-lit-0"/>
+        </radialGradient>
+        <linearGradient id="cor-sill" gradientUnits="userSpaceOnUse" x1="0" y1="584" x2="0" y2="560">
+          <stop offset="0" class="st-lit-c"/><stop offset="1" class="st-lit-0"/>
+        </linearGradient>
+      </defs>
+
+      <rect width="1200" height="800" class="cor-void"/>
+
+      <g class="cor-plane">
+        <rect width="1200" height="800" fill="url(#cor-ceil)" clip-path="url(#cor-c)"/>
+        <rect width="1200" height="800" fill="url(#cor-floor)" clip-path="url(#cor-f)"/>
+        <rect width="1200" height="800" fill="url(#cor-wa)" clip-path="url(#cor-a)"/>
+        <rect width="1200" height="800" fill="url(#cor-wb)" clip-path="url(#cor-b)"/>
+      </g>
+
+      <!-- Seam spacing is 1/z from the vanishing point at (600,430), not even
+           steps — evenly spaced ribs read as wallpaper, not as depth. -->
+      <g class="cor-seam" clip-path="url(#cor-a)">
+        <path d="M484 0V800M428 0V800M346 0V800M227 0V800M51 0V800"/>
+      </g>
+      <g class="cor-seam" clip-path="url(#cor-b)">
+        <path d="M716 0V800M772 0V800M854 0V800M973 0V800M1149 0V800"/>
+      </g>
+      <g class="cor-seam" clip-path="url(#cor-c)">
+        <path d="M0 334H1200M0 285H1200M0 216H1200M0 113H1200"/>
+      </g>
+      <g class="cor-seam" clip-path="url(#cor-f)">
+        <path d="M0 662H1200M0 774H1200"/>
+      </g>
+      <g class="cor-edge">
+        <path d="M255 0L523 334M945 0L677 334M415 800L523 584M785 800L677 584"/>
+      </g>
+
+      <g class="cor-tape" aria-hidden="true">
+        <path d="M523 334H677" class="cor-tape__a"/>
+        <path d="M484 210V470" class="cor-tape__a"/>
+        <path d="M716 250V520" class="cor-tape__a"/>
+        <path d="M346 96V704" class="cor-tape__b"/>
+        <path d="M854 96V704" class="cor-tape__b"/>
+      </g>
+
+      <g class="cor-door">
+        <rect x="513" y="324" width="174" height="260" class="cor-door__jamb"/>
+        <rect width="1200" height="800" fill="url(#cor-leak)" class="cor-door__halo"/>
+        <rect x="523" y="334" width="154" height="250" class="cor-door__slab"/>
+        <rect x="523" y="576" width="154" height="8" fill="url(#cor-sill)"/>
+        <path d="M523 334V584" class="cor-door__crack"/>
+      </g>
+
+      <g class="cor-light">
+        <rect width="1200" height="800" fill="url(#cor-glow)" clip-path="url(#cor-a)"/>
+        <rect width="1200" height="800" fill="url(#cor-glow)" clip-path="url(#cor-b)"/>
+        <rect width="1200" height="800" fill="url(#cor-glow)" clip-path="url(#cor-c)"/>
+      </g>
+
+      <g class="cor-lamp">
+        <path d="M600 0V196" class="cor-lamp__cord"/>
+        <path d="M592 190h16v14h-16z" class="cor-lamp__cap"/>
+        <circle cx="600" cy="214" r="430" fill="url(#cor-glow)" class="cor-lamp__glow"/>
+        <circle cx="600" cy="216" r="15" class="cor-lamp__glass"/>
+        <path d="M596 210q4 8 8 0" class="cor-lamp__filament"/>
+      </g>
+    </svg>
+    <div class="hero__grain"></div>
+    <div class="hero__vig"></div>
+    <div class="hero__scrim"></div>
+  </div>
+
+  <div class="hero__in">
+    <p class="eyebrow hero__eb">בית אימה חי · חולון · <span class="num">2019</span></p>
+    <h1 class="hero__h1" id="hero-h">
+      <span class="hero__l1">אתם נכנסים בשלושה.</span>
+      <span class="hero__l2">זה לא אומר שתצאו ככה.</span>
+    </h1>
+    <p class="hero__sub">באזור התעשייה בחולון יש בניין בלי שלט. בפנים שלושה חדרים, שחקנים שלא יוצאים מהדמות, ובין <span class="num">45</span> ל־<span class="num">60</span> דקות. מילה אחת עוצרת את הכל, ואנחנו מתכוונים לזה.</p>
+    <p class="hero__cta cluster">
+      <a class="btn btn--primary btn--lg" href="#book">בדקו זמינות</a>
+      <a class="btn btn--ghost btn--lg" href="#rooms">מה מחכה בפנים</a>
+    </p>
+  </div>
+
+  <div class="hero__base">
+    <p class="cue" id="cue" aria-hidden="true"><span class="cue__l"></span>גללו</p>
+    <ul class="facts">
+      <li><span class="facts__n num">18+</span><span class="facts__k">בלי יוצא מן הכלל</span></li>
+      <li><span class="facts__n num">45–60</span><span class="facts__k">דקות בפנים</span></li>
+      <li><span class="facts__n num">3</span><span class="facts__k">חדרים, ואין ביניהם דמיון</span></li>
+    </ul>
+  </div>
+</section>
+
+<!-- ===================================================== warning strip == -->
+<section class="strip" aria-label="מי לא נכנס">
+  <div class="shell strip__in">
+    <span class="strip__k">אזהרה</span>
+    <p class="strip__t">אין כניסה בהריון, עם מחלת לב, עם אפילפסיה, עם קלאוסטרופוביה חריפה, או תחת השפעת אלכוהול או סמים.</p>
+  </div>
+</section>
+
+<!-- ============================================================= rooms == -->
+<section class="section" id="rooms" aria-labelledby="rooms-h">
+  <div class="shell">
+    <header class="sh" data-reveal>
+      <p class="eyebrow">החדרים</p>
+      <h2 class="sh__h" id="rooms-h">שלושה חדרים, שלוש דרכים לצאת רועדים</h2>
+      <p class="sh__p">בוחרים לפי מה שאתם מוכנים שיקרה לכם, לא לפי מה שנשמע הכי קשה. מי שמתלבט, שיתקשר. אנחנו עונים בכנות ולפעמים אומרים לא.</p>
+    </header>
+
+    <div class="rooms">
+
+      <article class="room room--anna" data-room="anna" data-reveal>
+        <div class="still still--anna">
+          <svg viewBox="0 0 400 260" preserveAspectRatio="xMidYMid slice" aria-hidden="true">
+            <defs>
+              <linearGradient id="sa-wall" gradientUnits="userSpaceOnUse" x1="0" y1="0" x2="0" y2="260">
+                <stop offset="0" class="st-s2"/><stop offset="1" class="st-bg"/>
+              </linearGradient>
+              <linearGradient id="sa-leak" gradientUnits="userSpaceOnUse" x1="0" y1="30" x2="0" y2="260">
+                <stop offset="0" class="st-lit-d"/><stop offset=".72" class="st-lit-c"/><stop offset="1" class="st-lit-0"/>
+              </linearGradient>
+              <linearGradient id="sa-bleed" gradientUnits="userSpaceOnUse" x1="262" y1="0" x2="330" y2="0">
+                <stop offset="0" class="st-lit-b"/><stop offset="1" class="st-lit-0"/>
+              </linearGradient>
+              <linearGradient id="sa-spill" gradientUnits="userSpaceOnUse" x1="266" y1="0" x2="400" y2="0">
+                <stop offset="0" class="st-lit-c"/><stop offset="1" class="st-lit-0"/>
+              </linearGradient>
+              <radialGradient id="sa-red" gradientUnits="userSpaceOnUse" cx="196" cy="256" r="96">
+                <stop offset="0" class="st-red-a"/><stop offset="1" class="st-red-0"/>
+              </radialGradient>
+            </defs>
+            <rect width="400" height="260" fill="url(#sa-wall)"/>
+            <path d="M18 74h64M18 78h44M330 168h52M344 172h38" class="s-scratch"/>
+            <rect x="150" y="20" width="118" height="240" class="s-void"/>
+            <rect x="146" y="16" width="126" height="244" class="s-frame"/>
+            <rect x="262" y="20" width="66" height="240" fill="url(#sa-bleed)"/>
+            <rect x="263" y="24" width="4" height="236" fill="url(#sa-leak)"/>
+            <path d="M267 258L400 214v46z" fill="url(#sa-spill)" opacity=".5"/>
+            <ellipse cx="196" cy="256" rx="96" ry="26" fill="url(#sa-red)"/>
+            <path d="M170 104h22" class="s-red-hair"/>
+          </svg>
+        </div>
+
+        <div class="room__body">
+          <h3 class="room__t">החדר של אנה</h3>
+          <p class="room__d">פסיכולוגי, שקט, ואף אחד לא צועק.</p>
+          <ul class="meta">
+            <li><span class="meta__k">משך</span> <span class="num">50</span> דק׳</li>
+            <li><span class="meta__k">משתתפים</span> <span class="num">2–4</span></li>
+            <li><span class="meta__k">שחקנים</span> <span class="num">1</span></li>
+          </ul>
+          <p class="fear" role="img" aria-label="רמת פחד 3 מתוך 5">
+            <span class="fear__k">פחד</span>
+            <span class="fear__t"><i class="on"></i><i class="on"></i><i class="on"></i><i></i><i></i></span>
+            <span class="num fear__n">3/5</span>
+          </p>
+          <p class="room__act">
+            <button class="disc" type="button" id="dt-anna" aria-expanded="true" aria-controls="dp-anna">פרטים<span class="disc__i" aria-hidden="true"></span></button>
+            <a class="room__book" href="#book" data-book="anna">להזמין את אנה</a>
+          </p>
+          <div class="disc__p" id="dp-anna" role="region" aria-labelledby="dt-anna">
+            <div class="disc__in">
+              <dl class="rows">
+                <dt>העלילה</dt>
+                <dd>אנה נשארה בדירה ארבע שנים אחרי שכל המשפחה עזבה אותה. אתם באתם לפנות את הדירה לפני המכירה. היא לא הסכימה לזה, ואף אחד לא טרח לשאול אותה.</dd>
+                <dt>מה יש בחדר</dt>
+                <dd>שחקנית אחת שלא מרימה את הקול אף פעם. חושך חלקי. חפצים שזזים ממקום למקום כשאתם לא מסתכלים. ארון שנכנסים אליו לשתי דקות, בהסכמה.</dd>
+                <dt>מה אין בחדר</dt>
+                <dd>אין חושך מוחלט — תמיד דולק מקור אור אחד. אין קפיצות פתאום מהצדדים, אין רעש חזק, ואין רגע שבו אתם לבד בלי אף אחד מהקבוצה.</dd>
+              </dl>
+            </div>
+          </div>
+        </div>
+      </article>
+
+      <article class="room room--sanit" data-room="sanit" data-reveal>
+        <div class="still still--sanit">
+          <svg viewBox="0 0 400 260" preserveAspectRatio="xMidYMid slice" aria-hidden="true">
+            <defs>
+              <linearGradient id="sb-wall" gradientUnits="userSpaceOnUse" x1="0" y1="0" x2="0" y2="260">
+                <stop offset="0" class="st-s1"/><stop offset=".7" class="st-bg"/><stop offset="1" class="st-bg"/>
+              </linearGradient>
+              <linearGradient id="sb-pane" gradientUnits="userSpaceOnUse" x1="0" y1="24" x2="0" y2="174">
+                <stop offset="0" class="st-lit-c"/><stop offset="1" class="st-lit-e"/>
+              </linearGradient>
+              <linearGradient id="sb-shaft" gradientUnits="userSpaceOnUse" x1="0" y1="174" x2="0" y2="260">
+                <stop offset="0" class="st-lit-b"/><stop offset="1" class="st-lit-0"/>
+              </linearGradient>
+              <radialGradient id="sb-lamp" gradientUnits="userSpaceOnUse" cx="344" cy="52" r="52">
+                <stop offset="0" class="st-red-b"/><stop offset="1" class="st-red-0"/>
+              </radialGradient>
+            </defs>
+            <rect width="400" height="260" fill="url(#sb-wall)"/>
+            <path d="M0 196h400" class="s-hair"/>
+            <path d="M14 34h30M14 40h18M370 226h22" class="s-scratch"/>
+            <g>
+              <path d="M136 174L112 260h20l20-86zM168 174l-12 86h20l6-86zM200 174l1 86h20l-9-86zM232 174l13 86h20l-24-86z" fill="url(#sb-shaft)" opacity=".55"/>
+            </g>
+            <rect x="118" y="22" width="164" height="154" class="s-void"/>
+            <rect x="122" y="26" width="156" height="146" fill="url(#sb-pane)"/>
+            <g class="s-bar">
+              <rect x="139" y="26" width="7" height="146"/>
+              <rect x="168" y="26" width="7" height="146"/>
+              <rect x="197" y="26" width="7" height="146"/>
+              <rect x="226" y="26" width="7" height="146"/>
+              <rect x="255" y="26" width="7" height="146"/>
+              <rect x="122" y="92" width="156" height="7"/>
+            </g>
+            <rect x="118" y="22" width="164" height="154" class="s-frame"/>
+            <circle cx="344" cy="52" r="52" fill="url(#sb-lamp)"/>
+            <circle cx="344" cy="52" r="4.5" class="s-red-dot"/>
+            <path d="M330 44h28" class="s-red-hair"/>
+          </svg>
+        </div>
+
+        <div class="room__body">
+          <h3 class="room__t">הסניטריום</h3>
+          <p class="room__d">האגף הסגור. הכי רועש, הכי צפוף, הכי מהיר.</p>
+          <ul class="meta">
+            <li><span class="meta__k">משך</span> <span class="num">60</span> דק׳</li>
+            <li><span class="meta__k">משתתפים</span> <span class="num">4–8</span></li>
+            <li><span class="meta__k">שחקנים</span> <span class="num">3</span></li>
+          </ul>
+          <p class="fear" role="img" aria-label="רמת פחד 5 מתוך 5">
+            <span class="fear__k">פחד</span>
+            <span class="fear__t"><i class="on"></i><i class="on"></i><i class="on"></i><i class="on"></i><i class="on"></i></span>
+            <span class="num fear__n">5/5</span>
+          </p>
+          <p class="room__act">
+            <button class="disc" type="button" id="dt-sanit" aria-expanded="true" aria-controls="dp-sanit">פרטים<span class="disc__i" aria-hidden="true"></span></button>
+            <a class="room__book" href="#book" data-book="sanit">להזמין את הסניטריום</a>
+          </p>
+          <div class="disc__p" id="dp-sanit" role="region" aria-labelledby="dt-sanit">
+            <div class="disc__in">
+              <dl class="rows">
+                <dt>העלילה</dt>
+                <dd>האגף הסגור נפתח שוב לבדיקה טכנית. הצוות שנשלח לפניכם רשם בדוח שהוא סיים ויצא. את החתימה שלו יש, את היציאה שלו במצלמות אין.</dd>
+                <dt>מה יש בחדר</dt>
+                <dd>שלושה שחקנים שעובדים עליכם במקביל. מסדרון ברוחב שישים סנטימטר. רעש שמגיע ל־<span class="num">85</span> דציבל, אור מהבהב, ריצה קצרה, והפרדה של עד חצי דקה מהקבוצה — ורק ברמות <span class="num">3</span> ומעלה.</dd>
+                <dt>מה אין בחדר</dt>
+                <dd>אין חושך מוחלט. אין מים, אין ריסוס ואין חומרים על הגוף. אין שימוש בכוח, גם אם אישרתם מגע. אף אחד לא ננעל מאחורי דלת בלי מפתח מבפנים.</dd>
+              </dl>
+            </div>
+          </div>
+        </div>
+      </article>
+
+      <article class="room room--line6" data-room="line6" data-reveal>
+        <div class="still still--line6">
+          <svg viewBox="0 0 400 260" preserveAspectRatio="xMidYMid slice" aria-hidden="true">
+            <defs>
+              <linearGradient id="sc-arch1" gradientUnits="userSpaceOnUse" x1="0" y1="90" x2="0" y2="250">
+                <stop offset="0" class="st-s2"/><stop offset="1" class="st-s1"/>
+              </linearGradient>
+              <linearGradient id="sc-arch2" gradientUnits="userSpaceOnUse" x1="0" y1="120" x2="0" y2="250">
+                <stop offset="0" class="st-s1"/><stop offset="1" class="st-bg"/>
+              </linearGradient>
+              <radialGradient id="sc-head" gradientUnits="userSpaceOnUse" cx="200" cy="206" r="86">
+                <stop offset="0" class="st-lit-f"/><stop offset=".28" class="st-lit-b"/><stop offset="1" class="st-lit-0"/>
+              </radialGradient>
+              <radialGradient id="sc-sig" gradientUnits="userSpaceOnUse" cx="318" cy="128" r="34">
+                <stop offset="0" class="st-red-b"/><stop offset="1" class="st-red-0"/>
+              </radialGradient>
+            </defs>
+            <rect width="400" height="260" class="s-void"/>
+            <path d="M40 250V132A160 118 0 0 1 360 132V250Z" fill="url(#sc-arch1)"/>
+            <path d="M76 250V148A124 92 0 0 1 324 148V250Z" fill="url(#sc-arch2)"/>
+            <path d="M112 250V166A88 66 0 0 1 288 166V250Z" class="s-arch3"/>
+            <path d="M142 250V180A58 44 0 0 1 258 180V250Z" class="s-arch4"/>
+            <g class="s-archline">
+              <path d="M40 250V132A160 118 0 0 1 360 132V250"/>
+              <path d="M76 250V148A124 92 0 0 1 324 148V250"/>
+              <path d="M112 250V166A88 66 0 0 1 288 166V250"/>
+            </g>
+            <path d="M168 250V196A32 24 0 0 1 232 196V250Z" class="s-mouth"/>
+            <circle cx="200" cy="206" r="86" fill="url(#sc-head)"/>
+            <circle cx="200" cy="208" r="7" class="s-head"/>
+            <path d="M124 260l64-52M276 260l-64-52" class="s-rail"/>
+            <path d="M150 246h100M164 232h72M175 221h50M184 213h32" class="s-sleeper"/>
+            <circle cx="318" cy="128" r="34" fill="url(#sc-sig)"/>
+            <circle cx="318" cy="128" r="4" class="s-red-dot"/>
+            <path d="M318 128v26" class="s-red-hair"/>
+          </svg>
+        </div>
+
+        <div class="room__body">
+          <h3 class="room__t">קו 6</h3>
+          <p class="room__d">תחנה שנסגרה ב־<span class="num">1974</span>, והרכבת עדיין עוברת.</p>
+          <ul class="meta">
+            <li><span class="meta__k">משך</span> <span class="num">45</span> דק׳</li>
+            <li><span class="meta__k">משתתפים</span> <span class="num">2–6</span></li>
+            <li><span class="meta__k">שחקנים</span> <span class="num">2</span></li>
+          </ul>
+          <p class="fear" role="img" aria-label="רמת פחד 4 מתוך 5">
+            <span class="fear__k">פחד</span>
+            <span class="fear__t"><i class="on"></i><i class="on"></i><i class="on"></i><i class="on"></i><i></i></span>
+            <span class="num fear__n">4/5</span>
+          </p>
+          <p class="room__act">
+            <button class="disc" type="button" id="dt-line6" aria-expanded="true" aria-controls="dp-line6">פרטים<span class="disc__i" aria-hidden="true"></span></button>
+            <a class="room__book" href="#book" data-book="line6">להזמין את קו 6</a>
+          </p>
+          <div class="disc__p" id="dp-line6" role="region" aria-labelledby="dt-line6">
+            <div class="disc__in">
+              <dl class="rows">
+                <dt>העלילה</dt>
+                <dd>התחנה נסגרה אחרי תאונה שלא נכנסה לאף עיתון. אתם צוות תחזוקה שירד לבדוק תקלה בפס, עם שעה עד שהחשמל חוזר.</dd>
+                <dt>מה יש בחדר</dt>
+                <dd>מנהרה שצריך להתכופף בחלק ממנה. רצפה שרועדת. אור אחד שמתקרב אליכם ואי אפשר להסתתר ממנו. שני שחקנים, ואחד מהם לא מדבר בכלל.</dd>
+                <dt>מה אין בחדר</dt>
+                <dd>אין זחילה בחלל סגור ואין מקום שצריך לדחוף בו את הגוף. אין מים ואין בעלי חיים. הגובה המינימלי בכל נקודה הוא מטר ארבעים.</dd>
+              </dl>
+            </div>
+          </div>
+        </div>
+      </article>
+
+    </div>
+  </div>
+</section>
+
+<!-- ========================================================= intensity == -->
+<section class="section int" id="intensity" aria-labelledby="int-h">
+  <div class="shell">
+    <header class="sh sh--wide" data-reveal>
+      <p class="eyebrow">עוצמה</p>
+      <h2 class="sh__h" id="int-h">אתם קובעים כמה רחוק זה הולך</h2>
+      <p class="sh__p">הרמה נסגרת לפני שנכנסים. אפשר לרדת באמצע, אי אפשר לעלות. בחרו כאן וזה ייכנס להזמנה למטה — והעמוד הזה יראה לכם בערך מה בחרתם.</p>
+    </header>
+
+    <div class="int__grid">
+      <fieldset class="lvs">
+        <legend class="lvs__lg">רמה</legend>
+        <div class="lvs__row">
+          <div class="lv">
+            <input type="radio" name="level" id="lv-1" value="1" class="sr-only">
+            <label for="lv-1"><span class="lv__n num">1</span><span class="lv__t">צופה</span></label>
+          </div>
+          <div class="lv">
+            <input type="radio" name="level" id="lv-2" value="2" class="sr-only" checked>
+            <label for="lv-2"><span class="lv__n num">2</span><span class="lv__t">משתתף</span></label>
+          </div>
+          <div class="lv">
+            <input type="radio" name="level" id="lv-3" value="3" class="sr-only">
+            <label for="lv-3"><span class="lv__n num">3</span><span class="lv__t">מטרה</span></label>
+          </div>
+          <div class="lv">
+            <input type="radio" name="level" id="lv-4" value="4" class="sr-only">
+            <label for="lv-4"><span class="lv__n num">4</span><span class="lv__t">ללא רחמים</span></label>
+          </div>
+        </div>
+
+        <p class="lvs__hint">ברירת המחדל היא <span class="num">2</span>. רוב הקבוצות שמגיעות בפעם הראשונה נשארות שם.</p>
+      </fieldset>
+
+      <fieldset class="touch">
+        <legend class="touch__lg">מגע פיזי</legend>
+        <div class="touch__row">
+          <div class="tg">
+            <input type="radio" name="touch" id="touch-no" value="no" class="sr-only" checked>
+            <label for="touch-no">לא</label>
+          </div>
+          <div class="tg">
+            <input type="radio" name="touch" id="touch-yes" value="yes" class="sr-only">
+            <label for="touch-yes">כן</label>
+          </div>
+        </div>
+        <p class="touch__hint">מגע פירושו אחיזה בזרוע, דחיפה קלה והובלה. לא מעבר לזה, אף פעם.</p>
+      </fieldset>
+
+      <div class="lvps">
+        <div class="lvp" data-lv="1">
+          <p class="lvp__k">רמה <span class="num">1</span></p>
+          <h3 class="lvp__t">צופה</h3>
+          <p class="lvp__d">השחקנים עובדים סביבכם ולא איתכם. אתם עומדים בתוך סצנה שקורית לאנשים אחרים, ורואים אותה מקרוב מדי.</p>
+          <ul class="ticks">
+            <li>שומרים על שני מטרים מכם לאורך כל החדר</li>
+            <li>אין רדיפה ואין חסימת מעבר</li>
+            <li>הקצב שלכם. אתם קובעים מתי ממשיכים</li>
+            <li>אפשר לעצור לדקה באמצע ולחזור</li>
+          </ul>
+        </div>
+        <div class="lvp" data-lv="2">
+          <p class="lvp__k">רמה <span class="num">2</span></p>
+          <h3 class="lvp__t">משתתף</h3>
+          <p class="lvp__d">פונים אליכם בשם. מבקשים מכם דברים, ולא תמיד בנימוס. אתם חלק מהסיפור ולא קהל שלו.</p>
+          <ul class="ticks">
+            <li>מדברים אליכם ישירות, קוראים לכם בשם שמסרתם</li>
+            <li>רגע אחד של רדיפה, קצר, בחצי השני</li>
+            <li>הקבוצה נשארת יחד מהתחלה ועד הסוף</li>
+            <li>הקצב עולה אחרי הרבע הראשון ולא יורד</li>
+          </ul>
+        </div>
+        <div class="lvp" data-lv="3">
+          <p class="lvp__k">רמה <span class="num">3</span></p>
+          <h3 class="lvp__t">מטרה</h3>
+          <p class="lvp__d">אחד מכם נבחר בשתי הדקות הראשונות, והוא לא יידע שזה הוא. השאר יבינו את זה לפניו.</p>
+          <ul class="ticks">
+            <li>שחקן אחד נצמד לאדם אחד ולא עוזב</li>
+            <li>רדיפה, צעקה, חסימת מעבר</li>
+            <li>הפרדה מהקבוצה, עד חצי דקה בכל פעם</li>
+            <li>אין הפוגות מתוכננות ברבע האחרון</li>
+          </ul>
+        </div>
+        <div class="lvp" data-lv="4">
+          <p class="lvp__k">רמה <span class="num">4</span></p>
+          <h3 class="lvp__t">ללא רחמים</h3>
+          <p class="lvp__d">אנחנו לא מרפים. זה נמשך שעה, ואין בו רגע שבו אפשר לנשום ולהסתדר. בערך שליש מהקבוצות שמזמינות את זה יוצאות לפני הסוף.</p>
+          <ul class="ticks">
+            <li>לחץ רצוף, בלי הפסקות ובלי חלונות מנוחה</li>
+            <li>הפרדה חוזרת של חברי הקבוצה זה מזה</li>
+            <li>רעש חזק, אור מהבהב, מרחבים צרים ברצף</li>
+            <li>השחקנים לא יוצאים מהדמות אם תבקשו יפה. רק מילת הביטחון מוציאה אותם</li>
+          </ul>
+        </div>
+      </div>
+
+      <div class="warn" aria-live="polite">
+        <p class="warn__l" data-w="1"><span class="warn__k">מה חתמתם עליו</span> אף אחד לא ייגע בכם. המילה ״מרתף״ עוצרת את החדר בכל רגע, ואף אחד לא ישאל אתכם למה.</p>
+        <p class="warn__l" data-w="2"><span class="warn__k">מה חתמתם עליו</span> ברמה הזאת תיבחרו, ייצעקו עליכם ותופרדו מהקבוצה לרגעים קצרים. אף אחד עדיין לא נוגע בכם. המילה ״מרתף״ עוצרת את החדר מיד.</p>
+        <p class="warn__l warn__l--hot" data-w="3"><span class="warn__k">מה חתמתם עליו</span> אישרתם מגע: אחיזה בזרוע, דחיפה קלה, הובלה בכוח מדוד. לא הרמה, לא כבילה, לא נגיעה בפנים או מתחת לבגדים. המילה ״מרתף״ עוצרת את החדר מיד.</p>
+        <p class="warn__l warn__l--hot" data-w="4"><span class="warn__k">קראו את זה עד הסוף</span> רמה <span class="num">4</span> עם מגע היא הגרסה הקשה ביותר שאנחנו מפעילים. יאחזו בכם, ידחפו אתכם ויובילו אתכם בכוח, שוב ושוב, במשך שעה. מי שעבר התקף חרדה בשנה האחרונה לא נכנס לזה, ואנחנו שואלים בטלפון. המילה ״מרתף״ עדיין עוצרת את הכל, מיד ובלי ויכוח.</p>
+      </div>
+    </div>
+  </div>
+</section>
+
+<!-- =============================================================== how == -->
+<section class="section how" id="how" aria-labelledby="how-h">
+  <div class="shell">
+    <header class="sh" data-reveal>
+      <p class="eyebrow">איך זה עובד</p>
+      <h2 class="sh__h" id="how-h">מהרגע שהזמנתם ועד שאתם ברחוב</h2>
+    </header>
+
+    <ol class="steps">
+      <li class="step" data-reveal>
+        <span class="step__n num" aria-hidden="true">1</span>
+        <h3 class="step__t">בוחרים חדר</h3>
+        <p class="step__p">שלושה חדרים, שלושה סוגים של פחד. אם אתם מתלבטים בין אנה לסניטריום, תתקשרו — ההבדל ביניהם הוא לא ברמת הקושי אלא במה שנשאר אחר כך.</p>
+      </li>
+      <li class="step" data-reveal>
+        <span class="step__n num" aria-hidden="true">2</span>
+        <h3 class="step__t">בוחרים עוצמה</h3>
+        <p class="step__p">ארבע רמות ומגע כן או לא. סוגרים את זה בטלפון לפני שמגיעים, כי אנחנו רוצים לשמוע את הקול של מי שאומר את זה.</p>
+      </li>
+      <li class="step" data-reveal>
+        <span class="step__n num" aria-hidden="true">3</span>
+        <h3 class="step__t">מגיעים <span class="num">15</span> דקות לפני</h3>
+        <p class="step__p">חותמים על הצהרת בריאות, משאירים תיקים וטלפונים בלוקר, ומקבלים את ההסבר. מי שמאחר בעשרים דקות מפסיד את התור — יש קבוצה אחרינו.</p>
+      </li>
+      <li class="step" data-reveal>
+        <span class="step__n num" aria-hidden="true">4</span>
+        <h3 class="step__t">יוצאים</h3>
+        <p class="step__p">יש חדר עם אור רגיל, מים וכיסאות. יושבים בו כמה שצריך, אף אחד לא ממהר אתכם. אחר כך, אם בא לכם, אנחנו מסבירים איך כל דבר שקרה שם עבד.</p>
+      </li>
+    </ol>
+  </div>
+</section>
+
+<!-- ============================================================ voices == -->
+<section class="section voices" id="voices" aria-labelledby="voices-h">
+  <div class="shell">
+    <div class="stats" data-reveal>
+      <div class="stat stat--big">
+        <p class="stat__n num">61%</p>
+        <p class="stat__k">יוצאים בזמן. השאר משתמשים במילה, ואנחנו לא רואים בזה כישלון</p>
+      </div>
+      <div class="stat">
+        <p class="stat__n num">3</p>
+        <p class="stat__k">שחקנים בפנים בערב עמוס</p>
+      </div>
+      <div class="stat">
+        <p class="stat__n num">1,400</p>
+        <p class="stat__k">קבוצות מאז <span class="num">2019</span></p>
+      </div>
+    </div>
+
+    <header class="sh sh--voices" data-reveal>
+      <p class="eyebrow">עדויות</p>
+      <h2 class="sh__h" id="voices-h">מה שאנשים אמרו כשיצאו</h2>
+      <p class="sh__p">אנחנו מקליטים את השיחה שאחרי, באישור, כדי לדעת מה עבד ומה לא. אלה קטעים מהתמלולים. שמות ופרטים מזהים מושחרים — העברת עכבר מרימה את השחור.</p>
+    </header>
+
+    <div class="txs">
+      <figure class="tx" data-reveal>
+        <figcaption class="tx__m">
+          <span class="tx__no num">תיק 0417</span>
+          <span class="num">12.03.2024</span>
+          <span>נ׳</span>
+          <span class="tx__r">הסניטריום</span>
+        </figcaption>
+        <blockquote class="tx__q"><p>נכנסנו ארבעה. אחרי <button class="rd" type="button">עשרים דקות</button> כבר לא ידעתי איפה הדלת שנכנסנו ממנה, וזה בדיוק מה שהם רוצים. אמרתי את המילה פעם אחת בשביל <button class="rd" type="button">חבר שלי</button>, החדר נעצר בשנייה, ואז שאלו אותנו בשקט אם ממשיכים. המשכנו.</p></blockquote>
+      </figure>
+
+      <figure class="tx" data-reveal>
+        <figcaption class="tx__m">
+          <span class="tx__no num">תיק 0631</span>
+          <span class="num">02.08.2024</span>
+          <span>ר׳</span>
+          <span class="tx__r">קו 6</span>
+        </figcaption>
+        <blockquote class="tx__q"><p>אני עושה חדרי בריחה שמונה שנים וזה לא אותו דבר בכלל. <button class="rd" type="button">השחקן עם הפנס</button> עמד מולי דקה שלמה בלי לזוז ובלי להגיד מילה. יצאתי עם דופק שלא ירד שעה, ונסעתי הביתה בשקט מוחלט.</p></blockquote>
+      </figure>
+
+      <figure class="tx" data-reveal>
+        <figcaption class="tx__m">
+          <span class="tx__no num">תיק 0902</span>
+          <span class="num">19.01.2025</span>
+          <span>ט׳</span>
+          <span class="tx__r">החדר של אנה</span>
+        </figcaption>
+        <blockquote class="tx__q"><p>באתי מוכן לקרנבל של דם וקיבלתי משהו הרבה יותר שקט. אין שם כמעט כלום — <button class="rd" type="button">שולחן, כיסא ומזרן</button> — והצלחתי לישון רק אחרי שהדלקתי אור במסדרון. אשתי צחקה עליי שבוע.</p></blockquote>
+      </figure>
+
+      <figure class="tx tx--neg" data-reveal>
+        <figcaption class="tx__m">
+          <span class="tx__no num">תיק 1108</span>
+          <span class="num">04.05.2025</span>
+          <span>א׳</span>
+          <span class="tx__r">החדר של אנה · רמה 4</span>
+          <span class="tx__tag">תלונה</span>
+        </figcaption>
+        <blockquote class="tx__q"><p>שילמנו על רמה <span class="num">4</span> וקיבלנו חדר שעבד כמעט רק על <button class="rd" type="button">אחד מהחברים</button>. אנחנו השלושה האחרים עמדנו בצד וחיכינו, וזה מרגיש רע כשמשלמים ‎<span class="num">720</span> שקל. אמרתי את זה בסוף, בלי לצעוק. הם הסכימו, החזירו לנו חצי בלי לריב, והציעו שנחזור לקו <span class="num">6</span> על חשבונם. עוד לא חזרנו.</p></blockquote>
+      </figure>
+    </div>
+  </div>
+</section>
+
+<!-- =============================================================== faq == -->
+<section class="section faq" id="faq" aria-labelledby="faq-h">
+  <div class="shell faq__in">
+    <header class="sh sh--faq" data-reveal>
+      <p class="eyebrow">שאלות</p>
+      <h2 class="sh__h" id="faq-h">מה ששואלים אותנו בטלפון</h2>
+      <p class="sh__p">ואם משהו לא כתוב כאן, תתקשרו. <a href="tel:039051190" class="num">03-9051190</a>.</p>
+    </header>
+
+    <div class="acc" id="acc">
+      <div class="acc__i">
+        <h3 class="acc__h"><button class="acc__b" type="button" id="q1" aria-expanded="true" aria-controls="a1">האם נוגעים בנו<span class="acc__i-x" aria-hidden="true"></span></button></h3>
+        <div class="acc__p" id="a1" role="region" aria-labelledby="q1"><div class="acc__in"><p>לא, אלא אם אישרתם מראש. ברירת המחדל היא בלי מגע, וזה מה שקורה ברוב החדרים. מי שכן מאשר מקבל אחיזה בזרוע, דחיפה קלה והובלה — ובזה זה נגמר. אין הרמה, אין כבילה, אין נגיעה בפנים או מתחת לבגדים, ואין מגע בין המשתתפים לבין עצמם.</p></div></div>
+      </div>
+      <div class="acc__i">
+        <h3 class="acc__h"><button class="acc__b" type="button" id="q2" aria-expanded="true" aria-controls="a2">האם אפשר לצאת באמצע<span class="acc__i-x" aria-hidden="true"></span></button></h3>
+        <div class="acc__p" id="a2" role="region" aria-labelledby="q2"><div class="acc__in"><p>כן, בכל רגע. אומרים ״מרתף״, האור נדלק והשחקנים מורידים ידיים תוך שנייה. מלווה נכנס ומוציא אתכם למסדרון. אין קנס ואין ויכוח, ואפשר גם להוציא רק אדם אחד ולהשאיר את השאר בפנים. מי שיצא אחרי חצי החדר לא מקבל החזר, אבל מקבל חצי מחיר בפעם הבאה.</p></div></div>
+      </div>
+      <div class="acc__i">
+        <h3 class="acc__h"><button class="acc__b" type="button" id="q3" aria-expanded="true" aria-controls="a3">האם חשוך לגמרי<span class="acc__i-x" aria-hidden="true"></span></button></h3>
+        <div class="acc__p" id="a3" role="region" aria-labelledby="q3"><div class="acc__in"><p>אף פעם. תמיד דולק לפחות מקור אור אחד, גם אם הוא חלש ואפילו אם זה נראה לכם אחרת. אנחנו לא מפעילים חושך מוחלט, לא מכסים עיניים ולא מכבים את האור כדי להפחיד. חושך מלא הוא לא מפחיד, הוא רק מסוכן.</p></div></div>
+      </div>
+      <div class="acc__i">
+        <h3 class="acc__h"><button class="acc__b" type="button" id="q4" aria-expanded="true" aria-controls="a4">אני קצת קלאוסטרופוב. זה בשבילי<span class="acc__i-x" aria-hidden="true"></span></button></h3>
+        <div class="acc__p" id="a4" role="region" aria-labelledby="q4"><div class="acc__in"><p>קלאוסטרופוביה חריפה היא מניעה מלאה, בלי גמישות. אי נוחות קלה במקומות סגורים — בואו לחדר של אנה, ותגידו לנו לפני. אין בו מעברים צרים, אין רגע שאתם לבד, והארון הוא בהסכמה ואפשר פשוט לוותר עליו. אל תגלו לנו את זה אחרי שיצאתם.</p></div></div>
+      </div>
+      <div class="acc__i">
+        <h3 class="acc__h"><button class="acc__b" type="button" id="q5" aria-expanded="true" aria-controls="a5">מה קורה אם אנחנו מפחדים מדי<span class="acc__i-x" aria-hidden="true"></span></button></h3>
+        <div class="acc__p" id="a5" role="region" aria-labelledby="q5"><div class="acc__in"><p>יש מפעיל שרואה ושומע כל חדר לאורך כל הזמן, ולא רק כדי להפעיל אפקטים. אם הוא מזהה מצוקה אמיתית — בכי, קפיאה, נשימה שלא מסתדרת — הוא עוצר את החדר בעצמו בלי לחכות למילה. השחקנים מתאמנים על זה, וזמן העצירה נמדד ונרשם אחרי כל חדר.</p></div></div>
+      </div>
+      <div class="acc__i">
+        <h3 class="acc__h"><button class="acc__b" type="button" id="q6" aria-expanded="true" aria-controls="a6">מאיזה גיל<span class="acc__i-x" aria-hidden="true"></span></button></h3>
+        <div class="acc__p" id="a6" role="region" aria-labelledby="q6"><div class="acc__in"><p><span class="num">18</span> ומעלה עם תעודה מזהה, וכן, בודקים בכניסה. מגיל <span class="num">16</span> אפשר בליווי הורה שנכנס לחדר ונשאר בו עד הסוף. מתחת ל־<span class="num">16</span> לא נכנסים, גם לא ברמה <span class="num">1</span> ולא ביום ההולדת.</p></div></div>
+      </div>
+      <div class="acc__i">
+        <h3 class="acc__h"><button class="acc__b" type="button" id="q7" aria-expanded="true" aria-controls="a7">ביטולים ושינויים<span class="acc__i-x" aria-hidden="true"></span></button></h3>
+        <div class="acc__p" id="a7" role="region" aria-labelledby="q7"><div class="acc__in"><p>עד <span class="num">48</span> שעות לפני — ביטול או הזזה בלי עלות. פחות מזה, <span class="num">50</span> אחוז. אי־הגעה בלי הודעה נגבית במלואה. אם מישהו חלה, תשלחו הודעה ונמצא תאריך אחר. זה קרה מספיק פעמים בשביל שנפסיק לריב על זה.</p></div></div>
+      </div>
+      <div class="acc__i">
+        <h3 class="acc__h"><button class="acc__b" type="button" id="q8" aria-expanded="true" aria-controls="a8">איפה חונים<span class="acc__i-x" aria-hidden="true"></span></button></h3>
+        <div class="acc__p" id="a8" role="region" aria-labelledby="q8"><div class="acc__in"><p>יש חניון פתוח ברחוב הבשמים, דקה הליכה, בלי תשלום אחרי <span class="num">17:00</span>. אל תחנו ברחבת הפריקה של הבניין שלנו — גוררים משם, ולא אנחנו.</p></div></div>
+      </div>
+    </div>
+  </div>
+</section>
+
+<!-- ============================================================== book == -->
+<section class="section book" id="book" aria-labelledby="book-h">
+  <div class="shell">
+    <header class="sh sh--book" data-reveal>
+      <p class="eyebrow">הזמנה</p>
+      <h2 class="sh__h" id="book-h">בדקו זמינות</h2>
+      <p class="sh__p">אין כאן תשלום ואין אישור אוטומטי. אתם ממלאים, הטופס פותח לכם הודעה מוכנה בוואטסאפ, ומישהו מאיתנו קורא אותה ועונה — בדרך כלל תוך שעתיים, ואחרי חצות רק בבוקר.</p>
+    </header>
+
+    <div class="book__wrap">
+      <form class="book__f" id="book-form" novalidate>
+        <div class="book__cols">
+          <div class="field">
+            <label class="label" for="bk-room">חדר</label>
+            <select class="select" id="bk-room" name="room" aria-describedby="err-room">
+              <option value="">בחרו</option>
+              <option value="החדר של אנה">החדר של אנה · 2–4 · 50 דק׳</option>
+              <option value="הסניטריום">הסניטריום · 4–8 · 60 דק׳</option>
+              <option value="קו 6">קו 6 · 2–6 · 45 דק׳</option>
+              <option value="עוד לא החלטנו">עוד לא החלטנו — תמליצו לנו</option>
+            </select>
+            <p class="err" id="err-room">בחרו חדר, או ״עוד לא החלטנו״.</p>
+          </div>
+
+          <div class="field">
+            <label class="label" for="bk-date">תאריך</label>
+            <input class="input" type="date" id="bk-date" name="date" autocomplete="off" aria-describedby="err-date">
+            <p class="err" id="err-date">בחרו תאריך מהיום והלאה.</p>
+          </div>
+
+          <div class="field">
+            <label class="label" for="bk-size">מספר משתתפים</label>
+            <select class="select" id="bk-size" name="size" aria-describedby="err-size">
+              <option value="">בחרו</option>
+              <option value="2">2</option><option value="3">3</option><option value="4">4</option>
+              <option value="5">5</option><option value="6">6</option><option value="7">7</option>
+              <option value="8">8</option>
+            </select>
+            <p class="err" id="err-size">בחרו מספר משתתפים.</p>
+          </div>
+
+          <div class="field">
+            <label class="label" for="bk-name">שם</label>
+            <input class="input" type="text" id="bk-name" name="name" autocomplete="name" placeholder="השם שהשחקנים יקראו לכם בו" aria-describedby="err-name">
+            <p class="err" id="err-name">כתבו שם, אפילו רק פרטי.</p>
+          </div>
+
+          <div class="field">
+            <label class="label" for="bk-tel">טלפון</label>
+            <input class="input" type="tel" id="bk-tel" name="tel" autocomplete="tel" inputmode="tel" placeholder="050-0000000" aria-describedby="err-tel">
+            <p class="err" id="err-tel">מספר טלפון ישראלי, <span class="num">9</span> או <span class="num">10</span> ספרות.</p>
+          </div>
+        </div>
+
+        <fieldset class="field slots">
+          <legend class="label">שעה</legend>
+          <div class="slots__g" id="slots"></div>
+          <noscript><p class="dimmer slots__ns">בחירת השעה דורשת דפדפן עם סקריפטים. אפשר גם פשוט להתקשר: <span class="num">03-9051190</span>.</p></noscript>
+          <p class="err" id="err-time">בחרו שעה.</p>
+        </fieldset>
+
+        <div class="carry">
+          <p class="carry__t">
+            <span class="carry__k">עוצמה</span>
+            <output class="carry__v" id="bk-level" for="lv-1 lv-2 lv-3 lv-4">
+              <span data-lv="1"><span class="num">1</span> · צופה</span>
+              <span data-lv="2"><span class="num">2</span> · משתתף</span>
+              <span data-lv="3"><span class="num">3</span> · מטרה</span>
+              <span data-lv="4"><span class="num">4</span> · ללא רחמים</span>
+            </output>
+            <span class="carry__sep" aria-hidden="true"></span>
+            <span class="carry__k">מגע</span>
+            <output class="carry__v" id="bk-touch" for="touch-no touch-yes">
+              <span data-touch="no">לא</span>
+              <span data-touch="yes">כן</span>
+            </output>
+          </p>
+          <a class="carry__go" href="#intensity">לשנות למעלה</a>
+        </div>
+
+        <div class="field">
+          <label class="label" for="bk-note">הערות</label>
+          <textarea class="textarea" id="bk-note" name="note" rows="3" placeholder="יום הולדת, מישהי שמפחדת מרעש, חבר שלא סיפרנו לו לאן הוא בא"></textarea>
+        </div>
+
+        <div class="field chk">
+          <input type="checkbox" id="bk-age" name="age" class="chk__in" aria-describedby="err-age">
+          <label class="chk__lb" for="bk-age">כל מי שנכנס בן <span class="num">18</span> ומעלה, או בן <span class="num">16</span> ומעלה עם הורה שנכנס איתו לחדר.</label>
+          <p class="err" id="err-age">בלי האישור הזה אי אפשר להזמין.</p>
+        </div>
+
+        <div class="book__send">
+          <button class="btn btn--primary btn--lg" type="submit">להכין את ההודעה</button>
+          <p class="book__note dimmer">הכפתור לא שולח כלום בעצמו. הוא פותח לכם וואטסאפ עם כל הפרטים כתובים, ואתם לוחצים שליחה.</p>
+        </div>
+      </form>
+
+      <div class="done" id="book-done" hidden tabindex="-1" role="group" aria-labelledby="done-h">
+        <p class="eyebrow">כמעט</p>
+        <h3 class="done__h" id="done-h">ההודעה מוכנה. תשלחו אותה.</h3>
+        <dl class="done__s" id="done-sum"></dl>
+        <p class="done__c cluster">
+          <a class="btn btn--primary btn--lg" id="done-wa" href="#" target="_blank" rel="noopener">פתיחת וואטסאפ</a>
+          <a class="btn btn--ghost" id="done-mail" href="#">לשלוח במייל במקום</a>
+          <button class="btn btn--quiet" type="button" id="done-back">לתקן פרט</button>
+        </p>
+        <p class="done__f dimmer">אם וואטסאפ לא נפתח, המספר הוא <a href="tel:039051190" class="num">03-9051190</a>. אנחנו עונים גם לטלפון רגיל.</p>
+      </div>
+    </div>
+  </div>
+</section>
+
+</main>
+
+<!-- ============================================================ footer == -->
+<footer class="foot">
+  <div class="shell foot__in">
+    <div class="foot__brand">
+      <p class="foot__name">מרתף<span class="num">9</span></p>
+      <p class="foot__line">אתם נכנסים בשלושה. זה לא אומר שתצאו ככה.</p>
+    </div>
+
+    <div class="foot__col">
+      <p class="foot__k">איפה</p>
+      <p>רחוב הבשמים <span class="num">9</span>, אזור התעשייה, חולון</p>
+      <p><a href="tel:039051190" class="num">03-9051190</a></p>
+    </div>
+
+    <div class="foot__col">
+      <p class="foot__k">מתי</p>
+      <p><span class="num">א׳–ה׳ 17:00–01:00</span></p>
+      <p><span class="num">ו׳ 10:00–15:00</span></p>
+      <p>שבת — מצאת השבת עד <span class="num">02:00</span></p>
+    </div>
+
+    <nav class="foot__col" aria-label="ניווט תחתון">
+      <p class="foot__k">בעמוד</p>
+      <ul class="foot__nav">
+        <li><a href="#rooms">החדרים</a></li>
+        <li><a href="#intensity">עוצמה</a></li>
+        <li><a href="#how">איך זה עובד</a></li>
+        <li><a href="#voices">עדויות</a></li>
+        <li><a href="#faq">שאלות</a></li>
+        <li><a href="#book">הזמנה</a></li>
+      </ul>
+    </nav>
+  </div>
+
+  <div class="shell foot__end">
+    <p class="foot__a11y">הנגשה: החדרים אינם נגישים לכיסא גלגלים — דברו איתנו לפני ההזמנה ונמצא פתרון.</p>
+    <p class="foot__legal"><span class="num">18+</span> · מגיל <span class="num">16</span> בליווי הורה בחדר · <a href="#">תקנון</a> · <span class="num">2019–2026</span> מרתף <span class="num">9</span></p>
+  </div>
+</footer>
+
+<!-- ====================================================== safe word ux == -->
+<div class="lights">
+  <div class="lights__panel" id="lights-panel" hidden aria-live="polite">
+    <p class="lights__k">האור דלוק</p>
+    <p>זה מה שיש כאן באמת: דיקט צבוע, נייר דבק שחור, שני זרקורי עבודה וכבל שרץ מאחורי קיר מדומה.</p>
+    <p>כשמישהו אומר ״מרתף״ בפנים, זה מה שקורה — האור הזה נדלק, השחקנים מורידים ידיים, ומישהו נכנס עם מים. בלי לשאול שאלות ובלי לנסות לשכנע אתכם להמשיך.</p>
+    <p class="lights__t">חוזר לחושך בעוד <span class="num" id="lights-count">12</span> שניות.</p>
+  </div>
+
+  <button class="lights__b" type="button" id="lights-hold" aria-describedby="lights-note">
+    <span class="lights__ring" aria-hidden="true">
+      <svg viewBox="0 0 44 44">
+        <circle cx="22" cy="22" r="19" class="lights__trk"/>
+        <circle cx="22" cy="22" r="19" class="lights__fil"/>
+      </svg>
+      <span class="lights__ico"></span>
+    </span>
+    <span class="lights__txt" id="lights-txt">החזיקו כדי להדליק את האור</span>
+  </button>
+  <p class="lights__note" id="lights-note">מילת הביטחון היא ״מרתף״. כאן ובחדר היא עושה את אותו דבר.</p>
+</div>
+
+<div class="veil veil--grain" aria-hidden="true"></div>
+<div class="veil veil--vig" aria-hidden="true"></div>
+
+</body>
+</html>
