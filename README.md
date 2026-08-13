@@ -489,6 +489,50 @@ then level made that a tendency rather than a rule — a hybrid leg day at level
 measured. A one-sided session now gives its lowest-priority pick to the best
 candidate from the missing side. It is 420 of 420.
 
+### A second hunt, over what the recovery model and the recommender added
+
+**Two of the app's own splits collided with its own recovery windows.** The
+five-day split put core on the shoulders day and again on the arms day, back to
+back; the seven-day split put core on the second leg day and again on the
+mobility day. Twenty-four hours apart is inside core's window for anyone over
+forty or below level five, so the app was recommending a week and then warning
+about it in the same breath. The arms day trains calves now, which leg day last
+touched two days earlier, and core is alone on the mobility day. Checked
+exhaustively afterwards: **every week the app sets for itself warns zero times,
+at every day count, on the hardest profile it models** — 68 years old at level
+one. Of the 127 ways a user can pick their own days, ten still warn on that
+profile, and all ten are the Saturday-then-Sunday wrap the user chose, which is
+the one thing the split cannot arrange and exactly what the warning is for.
+
+**The recommender moved the day count without saying so.** Train one day, or
+two, or seven, and it recommended four — and the apply button would have
+overwritten the days you picked with no line anywhere admitting it. It only
+changes the count when there is a reason now, and the reason is one of the
+bullets: fewer than three days and each muscle comes round too rarely to sit
+inside its window; seven days and there is no full rest day, which is what lets
+the next session be a hard one.
+
+**Reopening the questionnaire was a one-way door.** Press the button by mistake
+and the only way out was to answer all four steps, because nothing on the screen
+did anything but advance or go back a step. A cancel now sits at the top —
+only on a re-run, since first-time onboarding has nowhere to return to — and
+because `obFinish` is the only thing that commits, leaving really does leave
+everything as it was, which the test asserts field by field.
+
+**The half-credit for an assisting muscle ignored the profile.** Everything else
+in the model scales with age and training age; a muscle that only assisted was
+credited half of the *baseline* window instead of half of the window that
+profile actually has. At 68 and level one that is 24 hours of a 59-hour window —
+41%, not the half the rule states. It scales now.
+
+Also checked and clean in the same pass: a muscle's clock never runs backwards;
+finishing a session stamps exactly what it trained and what it leaned on and
+nothing else; the recovery card and today's warning never disagree about which
+muscle is sore; switching style leaves no kit the new style cannot use and lets
+no swapped-in exercise leak across the pools; a split override saved for one day
+count is not used for another; and applying the recommended track leaves XP,
+level, streak, history and the skill tree untouched.
+
 **Two dead generators that did not know about styles.** `generateWorkout()` and
 `woSwap()` are what `buildSession()` and `openSwapSheet()` replaced, and neither
 has had a caller since — the action named `woSwap` calls `openSwapSheet`, which
