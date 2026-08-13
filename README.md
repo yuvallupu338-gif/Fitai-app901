@@ -65,6 +65,26 @@ is the full five — pull-up bar, dip bars, rings, bands, ab wheel. It stays a
 hard filter: tick nothing on calisthenics and you still get a full week from a
 floor, a wall and a doorway. Declared injuries filter on top.
 
+**The app recommends a track rather than leaving you to guess.** How you train
+is the most consequential question it asks and the one a newcomer has least
+basis to answer, so it answers it: it reads the profile, badges the option it
+would pick, and offers a panel in settings with the track written out — the
+style, how many days, how long a session, the split those days produce, and how
+many exercises of each kind a week like that actually comes out to, counted off
+sessions really built under it. One button sets the whole thing up, keeping the
+history, the weights and the tree.
+
+Its usual answer is **the combination**, for the reasons it gives: loaded lifts
+are what keep adding size once bodyweight has run out of ways to get harder —
+you can add a kilo, you cannot add a body — bodyweight is what still works when
+the gym is shut, and each covers where the other is thin. Two profiles get a
+different answer, so it is a reading and not a slogan. Someone strong who is
+only maintaining is told bodyweight alone holds that. Someone who cannot yet
+hold a push-up is told to start on machines, where a press can be loaded at any
+weight at all, and that it turns into the combination once they can do six.
+Age over fifty adds a reason of its own; a pulling base changes which reason
+comes third.
+
 **The questionnaire can be answered again.** It ran once, at first launch, and
 after that the only route back to it was the full reset — which throws away the
 history, the weights, the XP and the skill tree to change one answer. So the
@@ -541,12 +561,15 @@ picks its own wording now, like the rest.
 Onboarding was outside that audit entirely — it only runs before there is a
 profile — and it was hiding two. **Tuesday's button in both day pickers read
 "g"**: `DOW[2]` is `'ג׳'`, which is also how the app abbreviates grams, so the
-word-by-word pass translated the day into a unit. Both pickers write the day
-out in full now — ראשון, Sunday, Domingo — in the language being read and
-marked `data-notr`, which is both clearer than a single letter and impossible
-to mistake for a unit. Seven full names do not fit a phone in any language, so
-the row became a grid with an `em` floor like the stat grids: two columns on a
-320px screen, three on a 430px one, one at the largest text size. And the target
+word-by-word pass translated the day into a unit. All three pickers — the one in
+settings, the one in the questionnaire and the sheet the plan opens — write the
+day out in full now, ראשון / Sunday / Domingo, in the language being read and
+marked `data-notr`. Seven full names do not fit a phone in any language, so the
+row became a grid with an `em` floor like the stat grids: two columns on a
+320px screen, three on a 430px one, one at the largest text size. The little
+week strip in the daily view is the one place seven days really do have to sit
+across one row, so it keeps a short label — but two letters of the day's own
+name, which collides with nothing. And the target
 weight field asked "משקל יעד" in every language, which nothing caught because
 it only renders for a cutting goal. Onboarding is now swept the same way the
 app is — four steps, four goals, both non-Hebrew languages — and comes back
