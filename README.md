@@ -55,19 +55,33 @@ from a chair squat to a pistol; the gym half runs from a machine chest press to
 a front squat. The generator walks the day's muscles in rotation and takes
 compounds before accessories, so a wall sit never opens a leg day.
 
-**It only ever offers what you can actually do.** The kit question changes with
-the style: five things for calisthenics — a pull-up bar, dip bars, rings, bands
-and an ab wheel — and seven for a gym: barbell, dumbbells, bench, machines,
-cables, kettlebell and something to hang off a belt. It is a hard filter. Tick
-nothing on calisthenics and you still get a full week from a floor, a wall and a
-doorway. Declared injuries filter on top.
+**Saying "gym" is the answer to the equipment question.** A gym has the
+barbell, the dumbbells, the bench, the machines and the cables, so picking it
+asks you nothing further — the app says as much where the tick boxes used to
+be. Hybrid is a gym plus whatever you own, so it asks only about the three
+things a gym does not put on the floor for you: rings, bands and an ab wheel.
+Calisthenics is the only style where the kit is a real question, and there it
+is the full five — pull-up bar, dip bars, rings, bands, ab wheel. It stays a
+hard filter: tick nothing on calisthenics and you still get a full week from a
+floor, a wall and a doorway. Declared injuries filter on top.
 
-A thin gym is the awkward case: dumbbells and nothing else have no glute
-movement at level 1, and a room with one machine per muscle has no second
-option to swap to. Rather than hand over a two-exercise day, the generator
+**How you train is the first thing in settings** and the first thing
+onboarding asks on its equipment step, above the strength test. It decides
+which half of the movement library the app may look at, which ladders the
+skill tree climbs and whether weights are logged at all, and it used to sit
+four sections down in settings — under language, display and the
+install-as-an-app card — and between the squat test and the day picker in
+onboarding. Onboarding also opened on "gym", which quietly signed a new user
+up for barbells they might not own; it opens on calisthenics now, the style
+that needs nothing.
+
+A thin kit is the awkward case: dumbbells and nothing else have no glute
+movement at level 1. Rather than hand over a two-exercise day, the generator
 widens in steps — first core work, then the same muscles above the level cap,
-then, for a gym profile, the bodyweight movements that kit already allows. The
-kit and the injuries are never given up. A full gym never reaches that far.
+then the bodyweight movements that kit already allows. The kit and the
+injuries are never given up. Across 3,024 built sessions it now reaches that
+far zero times, where before it reached 885: a gym that is really a gym never
+runs short.
 
 **It refreshes itself once a week.** The selection is seeded from the ISO week,
 so it is identical every time you open the app inside one week and different the
@@ -512,6 +526,16 @@ The audit only sees what is on screen when it runs, which is a real limit: the
 coach's caption ("Your coach trains with you · משיכה") went untranslated for as
 long as the coach happened not to be doing a pull on the day anyone looked. It
 picks its own wording now, like the rest.
+
+Onboarding was outside that audit entirely — it only runs before there is a
+profile — and it was hiding two. **Tuesday's button in both day pickers read
+"g"**: `DOW[2]` is `'ג׳'`, which is also how the app abbreviates grams, so the
+word-by-word pass translated the day into a unit. Both pickers take the day's
+own short name in the chosen language now, marked `data-notr`. And the target
+weight field asked "משקל יעד" in every language, which nothing caught because
+it only renders for a cutting goal. Onboarding is now swept the same way the
+app is — four steps, four goals, both non-Hebrew languages — and comes back
+clean.
 
 A browser-driven audit walks every tab, every sheet, all 47 machine guides, the
 food search and every recipe in both English and Spanish, collecting any text
