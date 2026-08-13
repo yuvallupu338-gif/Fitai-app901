@@ -47,8 +47,8 @@ shoulders, biceps, triceps, quads, hamstrings, glutes, calves, core — and ever
 exercise carries its own badge for the one it is in the session for, plus what
 else it hits.
 
-**The exercises are chosen for you.** A library of 202 movements — 123
-bodyweight and 79 gym — each tagged with the muscle it trains, the kit it needs,
+**The exercises are chosen for you.** A library of 204 movements — 123
+bodyweight and 81 gym — each tagged with the muscle it trains, the kit it needs,
 the level it belongs at and which of the two pools it is in. Bodyweight runs
 from wall push-ups to the one-arm push-up, from table rows to the muscle-up,
 from a chair squat to a pistol; the gym half runs from a machine chest press to
@@ -95,6 +95,44 @@ ones that only assist.
 the animated coach doing the movement pattern where one does not, and a video
 button on every exercise everywhere it appears: the plan preview, the workout
 screen, the swap sheet, the skill tree and the machine guide.
+
+## Recovery
+
+A muscle worked hard yesterday is not ready to be worked hard today, and how
+long it needs depends on which muscle it is. Each of the ten now carries its
+own window: chest, back, glutes, quads and hamstrings want **48–72 hours**;
+shoulders, biceps, triceps, calves and core want **24–48**.
+
+**The clock is per muscle, and it starts when a session ends.** Finishing a
+workout stamps every muscle it was built around; the muscles it only leaned on
+are stamped as if they were already half-recovered, because assisting is not
+the same as leading. A muscle's clock only ever moves forward, so a light day
+never undoes a hard one. Three states come out of it: **recovering** while it
+is still inside its minimum, **good to train** past the minimum, **recovered**
+past the maximum.
+
+**The window is not a constant.** It moves with training intensity, sleep,
+food, age and training age — and the two of those the app actually knows are
+age and level, so those are the two that move it. A 68-year-old at level 2 sees
+chest at 59–89 hours instead of 48–72; a trained 27-year-old sees 44–66. The
+numbers on screen are the adjusted ones, and the card says so when they differ
+from the baseline.
+
+**Three places read it.** Today's card warns before you load a muscle that has
+not served its minimum, naming the muscle and the hours left. The weekly plan
+flags a day pattern that comes back to a muscle too soon. And a card on the
+home screen lists what is still recovering — nothing at all once everything has
+cleared — with the full table behind a fold, including the note that a muscle
+still very sore or weak wants more time regardless of what the clock says.
+
+**The splits were checked against it rather than assumed compliant.** Every one
+of the 127 ways to pick training days, against both a young trained profile and
+an older untrained one. The young profile collides nowhere. The older one
+collides in 20 of them by six hours, all at five days a week or more, which is
+exactly the case the warning exists to name. One real collision turned up in
+the seven-day split and was fixed rather than warned about: the mobility day
+listed glutes the day after the second leg day, inside their 48-hour window. It
+lists calves now, which the week last touched three days earlier.
 
 ## Restraint
 
@@ -255,6 +293,64 @@ adapts to a theme for free, and every hard-coded colour is a place a theme
 switch can break. One survived — `.btn.danger` spelled its pink out — and needed
 its own light-mode line.
 
+## Narrow windows and large text
+
+Measured rather than eyeballed, at 320×568 and 430×932, in three languages, at
+the default text size and the largest one, across all six tabs and all three
+styles — 216 configurations, each scanned at the top of the page and again
+scrolled to the bottom. What it looks for: the page scrolling sideways, an
+element hanging off an edge, text cut off by its own box, a tap target under
+28px, a control that can never be scrolled clear of the fixed nav, and text
+under 11px.
+
+**A track written `1fr` is `minmax(auto, 1fr)`** — it never gets narrower than
+the longest word inside it. Four macro tiles wanted 338px of a 320px screen, so
+the row hung off the side, and every font step made it worse. The floors are in
+`em` now, so the number of columns follows the text size: the row keeps its
+shape while the tiles still fit their words, and drops to fewer columns instead
+of off the screen. Same fix for the seven-day bar chart, where each bar refused
+to shrink below its own label and pushed the last two past the edge.
+
+**Six nav labels do not fit 320px in any language.** Settings sat 7px past the
+window and the page scrolled sideways to reach it. Each label is its own
+element now, ellipsised so no language can overflow its tab, and below 380px
+the labels give way entirely — the icons carry the nav, and every button still
+names itself through `aria-label`.
+
+**Buttons sharing a `.row` are `flex:1`**, so at the largest font they shrank
+below their own text, and `.btn`'s `overflow:hidden` — which is there for the
+ripple — cut the labels in half. They stop shrinking at their longest word now
+and the row wraps instead. Exercise rows wrap too, rather than pushing their
+video button off the screen, and a single long word in a heading breaks rather
+than dragging the page sideways: at the largest font, "Notificaciones" alone
+was 22px wider than the heading holding it.
+
+Four targets measured under 28px — an inline link at 15px tall, a small button
+and the toggle switch a hair under, and the disclosure rows. All four clear it
+now. **The result is zero findings, on every check, in all 216
+configurations.**
+
+Getting to a zero that means anything took fixing the scanner five times, and
+every one of those was the scanner being wrong rather than a defect being
+waved off. Content passing beneath a fixed nav on its way up the page is not
+content stuck under it — that only means anything at the bottom of the page,
+and only when the element really intersects the nav's band rather than sitting
+below it. A fixed element floating above the page overlaps every control that
+scrolls past it, which is not two controls on top of each other. A chip is a
+tap target only when it does something; the nutrition screen uses the same
+look for read-only labels. A form field scrolling its own value is not clipped
+text.
+
+The last one is worth writing down. **A closed `<details>` keeps the rectangle
+its body had when it was last open.** Chromium hides collapsed content with
+`content-visibility`, and everything a script can normally ask — computed
+`display`, computed `visibility`, `getBoundingClientRect`, even
+`checkVisibility({contentVisibilityAuto: true})` — still describes a laid-out,
+visible element. So the seven collapsed days of the weekly plan read as a
+stack of video buttons sitting on top of each other and on top of each day's
+summary: 750 findings out of 823, none of them real, and all of them
+disappearing the moment the check skips anything inside `details:not([open])`.
+
 ## Stretches
 
 `injuryFlags` reports five injuries; the stretch screen knew three. Declare a
@@ -307,7 +403,7 @@ and profile export/import. Hebrew, English and Spanish.
 
 ## Errors and logic errors
 
-A sweep that fires every action the app binds — 813 of them — on every screen,
+A sweep that fires every action the app binds — 759 of them — on every screen,
 under all three styles, ten edge-case profiles (blank, no training days, every
 injury declared, no kit, 95 years old, 190 kg, level 10, mid-comeback, vegan
 with allergies), then all three languages against both themes, and drives a
@@ -379,6 +475,16 @@ the gym entries silently shadowed the bodyweight ones everywhere in the app.
 The generator asserts unique base names now. The second was depth: several
 thin-kit combinations produced sessions of one or two exercises, which is what
 the step-wise widening above exists to prevent.
+
+A third surfaced later, from a count that did not add up: the sweep reported a
+library of 206 movements, 123 bodyweight and 81 gym, which is 204. **The array
+literal had two holes in it** — `},,,` where the two halves were spliced
+together. A hole is an index `length` counts and every iteration method skips,
+so `forEach`, `filter` and `map` all saw the right 204 and only `MOVES.length`
+was wrong; nothing indexes the array directly, so nothing had broken yet. The
+cause was the splice being run more than once: each pass strips the previous
+run's gym lines and leaves that run's separator comma behind. It trims to a
+single comma now and asserts that no `,,` survives.
 
 ## Languages
 
