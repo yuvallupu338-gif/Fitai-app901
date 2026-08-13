@@ -115,7 +115,7 @@
            tab cannot make it lie. -->
       <div class="clockwrap" data-reveal style="--delay:.15s">
         <p class="clock" data-clock>
-          <span class="sr-only">זמן לדוגמה שנותר בחדר:</span>
+          <span class="clock__k">הזמן שנותר בחדר</span>
           <span class="clock__t" data-clock-time>
             <span class="clock__d num" data-clock-mm>60</span><span class="clock__c" data-clock-colon>:</span><span class="clock__d num" data-clock-ss>00</span>
           </span>
@@ -133,7 +133,7 @@
       <ul class="facts" data-reveal style="--delay:.25s">
         <li class="fact"><b class="num">4</b> חדרים</li>
         <li class="fact"><b class="num">2–6</b> שחקנים</li>
-        <li class="fact"><b class="num">47%</b> יוצאים בזמן</li>
+        <li class="fact"><b class="num">40%</b> יוצאים בזמן</li>
       </ul>
     </div>
   </section>
@@ -160,8 +160,8 @@
                 <linearGradient id="apo-bg" x1="0" y1="0" x2="0" y2="1">
                   <stop offset="0" class="st-s2"/><stop offset="1" class="st-bg"/>
                 </linearGradient>
-                <radialGradient id="apo-glow" cx=".5" cy="-.05" r=".85">
-                  <stop offset="0" class="st-a" stop-opacity=".30"/>
+                <radialGradient id="apo-glow" cx=".33" cy="-.08" r=".8">
+                  <stop offset="0" class="st-a" stop-opacity=".22"/>
                   <stop offset="1" class="st-a" stop-opacity="0"/>
                 </radialGradient>
                 <linearGradient id="apo-lamp" x1="0" y1="0" x2="1" y2="0">
@@ -172,51 +172,48 @@
                 <g id="apo-bA"><rect x="0" y="-30" width="16" height="30" rx="2.5"/><rect x="5" y="-37" width="6" height="7"/><rect x="3" y="-40.5" width="10" height="3.5" rx="1"/></g>
                 <g id="apo-bB"><rect x="0" y="-21" width="12" height="21" rx="5.5"/><rect x="3.5" y="-27" width="5" height="6"/></g>
                 <g id="apo-bC"><rect x="0" y="-26" width="21" height="26" rx="3"/><rect x="7" y="-32" width="7" height="6"/><rect x="5" y="-35.2" width="11" height="3.2" rx="1"/></g>
+                <g id="apo-bD"><rect x="0" y="-13" width="26" height="13" rx="2"/><rect x="7" y="-16.2" width="12" height="3.2" rx="1"/></g>
               </defs>
 
               <rect width="320" height="180" fill="url(#apo-bg)"/>
               <rect width="320" height="180" fill="url(#apo-glow)"/>
 
-              <!-- three shelves, each a brass rail with the light caught on its top edge -->
-              <rect x="20" y="64" width="280" height="3" class="p-brass-d"/>
-              <rect x="20" y="64" width="280" height="1" class="p-brass" opacity=".45"/>
-              <rect x="20" y="112" width="280" height="3" class="p-brass-d"/>
-              <rect x="20" y="112" width="280" height="1" class="p-brass" opacity=".45"/>
-              <rect x="20" y="160" width="280" height="3" class="p-brass-d"/>
-              <rect x="20" y="160" width="280" height="1" class="p-brass" opacity=".45"/>
+              <rect x="0" y="62" width="320" height="2.4" class="p-brass-d" opacity=".85"/>
+              <rect x="0" y="62" width="320" height="1" class="p-brass" opacity=".38"/>
+              <rect x="0" y="108" width="320" height="2.4" class="p-brass-d" opacity=".85"/>
+              <rect x="0" y="108" width="320" height="1" class="p-brass" opacity=".38"/>
+              <rect x="0" y="154" width="320" height="2.4" class="p-brass-d" opacity=".85"/>
+              <rect x="0" y="154" width="320" height="1" class="p-brass" opacity=".38"/>
 
-              <use href="#apo-bA" x="34" y="64" class="p-glass"/>
-              <use href="#apo-bB" x="58" y="64" class="p-glass-2"/>
-              <use href="#apo-bC" x="78" y="64" class="p-glass"/>
-              <use href="#apo-bA" x="108" y="64" class="p-glass-2"/>
-              <use href="#apo-bB" x="132" y="64" class="p-glass"/>
-              <use href="#apo-bC" x="154" y="64" class="p-glass-2"/>
-              <use href="#apo-bA" x="186" y="64" class="p-glass"/>
-              <use href="#apo-bB" x="210" y="64" class="p-glass-2"/>
-              <use href="#apo-bC" x="234" y="64" class="p-glass"/>
-              <use href="#apo-bA" x="266" y="64" class="p-glass-2"/>
+              <use href="#apo-bA" x="32" y="62" class="p-glass"/>
+              <use href="#apo-bC" x="52" y="62" class="p-glass-2"/>
+              <use href="#apo-bA" x="86" y="62" class="p-glass-2"/>
+              <use href="#apo-bB" x="108" y="62" class="p-glass"/>
+              <use href="#apo-bC" x="152" y="62" class="p-glass"/>
+              <use href="#apo-bA" x="178" y="62" class="p-glass-2"/>
+              <use href="#apo-bB" x="226" y="62" class="p-glass-2"/>
+              <use href="#apo-bC" x="244" y="62" class="p-glass"/>
+              <use href="#apo-bA" x="276" y="62" class="p-glass-2"/>
 
-              <use href="#apo-bB" x="30" y="112" class="p-glass-2"/>
-              <use href="#apo-bC" x="50" y="112" class="p-glass"/>
-              <use href="#apo-bA" x="82" y="112" class="p-glass-2"/>
-              <use href="#apo-bB" x="106" y="112" class="p-glass"/>
-              <use href="#apo-bC" x="128" y="112" class="p-glass-2"/>
-              <use href="#apo-bA" x="160" y="112" class="p-glass"/>
-              <use href="#apo-bC" x="184" y="112" class="p-glass-2"/>
-              <use href="#apo-bB" x="216" y="112" class="p-glass"/>
-              <use href="#apo-bA" x="238" y="112" class="p-glass-2"/>
-              <use href="#apo-bC" x="264" y="112" class="p-glass"/>
+              <use href="#apo-bD" x="26" y="108" class="p-glass-2"/>
+              <use href="#apo-bB" x="60" y="108" class="p-glass"/>
+              <use href="#apo-bA" x="78" y="108" class="p-glass-2"/>
+              <use href="#apo-bC" x="100" y="108" class="p-glass"/>
+              <use href="#apo-bD" x="156" y="108" class="p-glass"/>
+              <use href="#apo-bA" x="190" y="108" class="p-glass"/>
+              <use href="#apo-bB" x="210" y="108" class="p-glass-2"/>
+              <use href="#apo-bC" x="250" y="108" class="p-glass-2"/>
+              <use href="#apo-bA" x="276" y="108" class="p-glass"/>
 
-              <use href="#apo-bC" x="36" y="160" class="p-glass-2"/>
-              <use href="#apo-bA" x="68" y="160" class="p-glass"/>
-              <use href="#apo-bB" x="92" y="160" class="p-glass-2"/>
-              <use href="#apo-bC" x="114" y="160" class="p-glass"/>
-              <use href="#apo-bA" x="146" y="160" class="p-glass-2"/>
-              <use href="#apo-bB" x="170" y="160" class="p-glass"/>
-              <use href="#apo-bC" x="192" y="160" class="p-glass-2"/>
-              <use href="#apo-bA" x="224" y="160" class="p-glass"/>
-              <use href="#apo-bB" x="248" y="160" class="p-glass-2"/>
-              <use href="#apo-bC" x="270" y="160" class="p-glass"/>
+              <use href="#apo-bC" x="28" y="154" class="p-glass-2"/>
+              <use href="#apo-bA" x="54" y="154" class="p-glass"/>
+              <use href="#apo-bB" x="96" y="154" class="p-glass-2"/>
+              <use href="#apo-bC" x="114" y="154" class="p-glass"/>
+              <use href="#apo-bA" x="142" y="154" class="p-glass-2"/>
+              <use href="#apo-bD" x="164" y="154" class="p-glass"/>
+              <use href="#apo-bB" x="216" y="154" class="p-glass"/>
+              <use href="#apo-bA" x="234" y="154" class="p-glass-2"/>
+              <use href="#apo-bC" x="258" y="154" class="p-glass"/>
 
               <g class="still__light still__light--apo"><rect x="-80" y="0" width="80" height="180" fill="url(#apo-lamp)"/></g>
             </svg>
@@ -247,7 +244,7 @@
             </ul>
 
             <div class="disc">
-              <button type="button" class="disc__btn" id="peek-apo-b" aria-expanded="false" aria-controls="peek-apo">
+              <button type="button" class="disc__btn" id="peek-apo-b" aria-label="הצצה לתסריט של בית המרקחת של ד״ר וייס" aria-expanded="false" aria-controls="peek-apo">
                 <span>הצצה לתסריט</span>
                 <span class="disc__ico" aria-hidden="true"><svg viewBox="0 0 16 16"><path d="M3.5 6l4.5 4.5L12.5 6" class="s-cur" stroke-width="1.6" stroke-linecap="round" stroke-linejoin="round"/></svg></span>
               </button>
@@ -267,7 +264,7 @@
             </div>
 
             <div class="room__cta">
-              <a class="btn btn--brass btn--sm" href="#book" data-room="בית המרקחת של ד״ר וייס">הזמינו</a>
+              <a class="btn btn--brass btn--sm" href="#book" data-room="בית המרקחת של ד״ר וייס" aria-label="הזמינו את בית המרקחת של ד״ר וייס">הזמינו</a>
             </div>
           </div>
         </article>
@@ -281,8 +278,14 @@
                   <stop offset="0" class="st-bg"/><stop offset=".72" class="st-s2"/><stop offset="1" class="st-bg"/>
                 </linearGradient>
                 <linearGradient id="lh-beam" x1="0" y1="0" x2="1" y2="0">
-                  <stop offset="0" class="st-a2" stop-opacity=".55"/>
-                  <stop offset=".55" class="st-a" stop-opacity=".14"/>
+                  <stop offset="0" class="st-a2" stop-opacity=".9"/>
+                  <stop offset=".14" class="st-a2" stop-opacity=".34"/>
+                  <stop offset=".45" class="st-a" stop-opacity=".12"/>
+                  <stop offset="1" class="st-a" stop-opacity="0"/>
+                </linearGradient>
+                <linearGradient id="lh-haze" x1="0" y1="0" x2="1" y2="0">
+                  <stop offset="0" class="st-a" stop-opacity=".22"/>
+                  <stop offset=".5" class="st-a" stop-opacity=".05"/>
                   <stop offset="1" class="st-a" stop-opacity="0"/>
                 </linearGradient>
                 <radialGradient id="lh-halo" cx=".5" cy=".5" r=".5">
@@ -293,28 +296,39 @@
 
               <rect width="320" height="180" fill="url(#lh-sky)"/>
 
-              <circle cx="44" cy="26" r="1.3" class="p-brass" opacity=".55"/>
-              <circle cx="88" cy="44" r="1" class="p-brass" opacity=".35"/>
-              <circle cx="252" cy="22" r="1.2" class="p-brass" opacity=".45"/>
-              <circle cx="284" cy="52" r="1" class="p-brass" opacity=".3"/>
-              <circle cx="122" cy="18" r="1" class="p-brass" opacity=".3"/>
+              <circle cx="212" cy="26" r="1.3" class="p-brass" opacity=".5"/>
+              <circle cx="248" cy="48" r="1" class="p-brass" opacity=".32"/>
+              <circle cx="286" cy="22" r="1.2" class="p-brass" opacity=".42"/>
+              <circle cx="176" cy="16" r="1" class="p-brass" opacity=".28"/>
+              <circle cx="264" cy="86" r="1" class="p-brass" opacity=".22"/>
 
-              <!-- headland, then the sea, so the tower has something to stand on -->
-              <path d="M96 150 Q160 128 224 150 L224 156 L96 156 Z" class="p-ink"/>
-              <rect x="0" y="150" width="320" height="30" class="p-deep"/>
-              <rect x="0" y="149" width="320" height="1" class="p-line" opacity=".8"/>
-              <rect x="0" y="158" width="320" height="1" class="p-brass" opacity=".14"/>
-              <rect x="0" y="168" width="320" height="1" class="p-brass" opacity=".1"/>
+              <path d="M44 156 Q96 130 152 154 L152 162 L44 162 Z" class="p-ink"/>
+              <path d="M138 158 Q166 148 196 158 L196 164 L138 164 Z" class="p-ink" opacity=".7"/>
+              <rect x="0" y="156" width="320" height="24" class="p-deep"/>
+              <rect x="0" y="155" width="320" height="1" class="p-line" opacity=".75"/>
+              <rect x="0" y="163" width="320" height="1" class="p-brass" opacity=".13"/>
+              <rect x="0" y="172" width="320" height="1" class="p-brass" opacity=".09"/>
 
-              <path d="M152 150 L163 66 L189 66 L200 150 Z" class="p-ink-o" stroke-width="1.2"/>
-              <path d="M160.5 96 H191.5" class="s-brass-d" stroke-width="2"/>
-              <path d="M157 124 H195" class="s-brass-d" stroke-width="2"/>
-              <rect x="160" y="50" width="32" height="16" rx="2" class="p-ink-o" stroke-width="1.2"/>
-              <path d="M157 50 L176 39 L195 50 Z" class="p-brass-d"/>
-              <circle cx="176" cy="58" r="12" fill="url(#lh-halo)"/>
-              <circle cx="176" cy="58" r="4.6" class="p-brass-2"/>
+              <path d="M92 156 L104 66 L136 66 L148 156 Z" class="p-ink-o" stroke-width="1.3"/>
+              <path d="M102.6 96 H137.4" class="s-brass-d" stroke-width="2"/>
+              <path d="M99 128 H141" class="s-brass-d" stroke-width="2"/>
+              <rect x="112" y="132" width="16" height="24" rx="7" class="p-deep"/>
+              <rect x="112" y="132" width="16" height="24" rx="7" class="s-brass-d" stroke-width="1.1"/>
+              <rect x="115" y="100" width="10" height="12" rx="4" class="p-brass-d" opacity=".55"/>
 
-              <g class="still__light still__light--lh"><path d="M176 58 L520 -60 L520 176 Z" fill="url(#lh-beam)"/></g>
+              <rect x="94" y="58" width="52" height="8" rx="2" class="p-brass-d"/>
+              <path d="M97 58v-9M107 58v-9M120 58v-9M133 58v-9M143 58v-9" class="s-brass-d" stroke-width="1.4" opacity=".8"/>
+              <path d="M96 49h48" class="s-brass-d" stroke-width="1.6"/>
+              <rect x="101" y="34" width="38" height="18" rx="2" class="p-ink-o" stroke-width="1.3"/>
+              <path d="M96 34 L120 21 L144 34 Z" class="p-brass-d"/>
+              <rect x="117" y="14" width="6" height="8" rx="2" class="p-brass-d"/>
+              <circle cx="120" cy="43" r="16" fill="url(#lh-halo)"/>
+              <circle cx="120" cy="43" r="5.4" class="p-brass-2"/>
+
+              <g class="still__light still__light--lh">
+                <path d="M120 43 L540 -60 L540 146 Z" fill="url(#lh-haze)"/>
+                <path d="M120 43 L540 -22 L540 108 Z" fill="url(#lh-beam)"/>
+              </g>
             </svg>
           </div>
 
@@ -343,7 +357,7 @@
             </ul>
 
             <div class="disc">
-              <button type="button" class="disc__btn" id="peek-lh-b" aria-expanded="false" aria-controls="peek-lh">
+              <button type="button" class="disc__btn" id="peek-lh-b" aria-label="הצצה לתסריט של המגדלור" aria-expanded="false" aria-controls="peek-lh">
                 <span>הצצה לתסריט</span>
                 <span class="disc__ico" aria-hidden="true"><svg viewBox="0 0 16 16"><path d="M3.5 6l4.5 4.5L12.5 6" class="s-cur" stroke-width="1.6" stroke-linecap="round" stroke-linejoin="round"/></svg></span>
               </button>
@@ -363,7 +377,7 @@
             </div>
 
             <div class="room__cta">
-              <a class="btn btn--brass btn--sm" href="#book" data-room="המגדלור">הזמינו</a>
+              <a class="btn btn--brass btn--sm" href="#book" data-room="המגדלור" aria-label="הזמינו את המגדלור">הזמינו</a>
             </div>
           </div>
         </article>
@@ -440,7 +454,7 @@
             </ul>
 
             <div class="disc">
-              <button type="button" class="disc__btn" id="peek-vlt-b" aria-expanded="false" aria-controls="peek-vlt">
+              <button type="button" class="disc__btn" id="peek-vlt-b" aria-label="הצצה לתסריט של כספת 12" aria-expanded="false" aria-controls="peek-vlt">
                 <span>הצצה לתסריט</span>
                 <span class="disc__ico" aria-hidden="true"><svg viewBox="0 0 16 16"><path d="M3.5 6l4.5 4.5L12.5 6" class="s-cur" stroke-width="1.6" stroke-linecap="round" stroke-linejoin="round"/></svg></span>
               </button>
@@ -460,7 +474,7 @@
             </div>
 
             <div class="room__cta">
-              <a class="btn btn--brass btn--sm" href="#book" data-room="כספת 12">הזמינו</a>
+              <a class="btn btn--brass btn--sm" href="#book" data-room="כספת 12" aria-label="הזמינו את כספת 12">הזמינו</a>
             </div>
           </div>
         </article>
@@ -473,35 +487,63 @@
                 <radialGradient id="kep-bg" cx=".5" cy=".5" r=".75">
                   <stop offset="0" class="st-s"/><stop offset="1" class="st-bg"/>
                 </radialGradient>
-                <radialGradient id="kep-planet" cx=".32" cy=".28" r=".85">
-                  <stop offset="0" class="st-a2" stop-opacity=".85"/>
-                  <stop offset=".55" class="st-a" stop-opacity=".5"/>
-                  <stop offset="1" class="st-ad" stop-opacity=".35"/>
+                <radialGradient id="kep-lit" cx=".3" cy=".26" r=".62">
+                  <stop offset="0" class="st-a2" stop-opacity=".82"/>
+                  <stop offset=".55" class="st-a" stop-opacity=".28"/>
+                  <stop offset="1" class="st-a" stop-opacity="0"/>
+                </radialGradient>
+                <radialGradient id="kep-dark" cx=".78" cy=".8" r=".72">
+                  <stop offset="0" class="st-bg" stop-opacity=".92"/>
+                  <stop offset=".7" class="st-bg" stop-opacity=".35"/>
+                  <stop offset="1" class="st-bg" stop-opacity="0"/>
                 </radialGradient>
                 <linearGradient id="kep-glint" x1="0" y1="0" x2="1" y2="0">
                   <stop offset="0" class="st-ink" stop-opacity="0"/>
-                  <stop offset=".5" class="st-ink" stop-opacity=".16"/>
+                  <stop offset=".5" class="st-ink" stop-opacity=".14"/>
                   <stop offset="1" class="st-ink" stop-opacity="0"/>
                 </linearGradient>
                 <clipPath id="kep-clip"><circle cx="160" cy="90" r="63"/></clipPath>
+                <clipPath id="kep-globe"><circle cx="192" cy="104" r="38"/></clipPath>
+                <clipPath id="kep-near"><rect x="90" y="104" width="240" height="90"/></clipPath>
                 <g id="kep-screw"><circle cx="0" cy="0" r="3.4"/></g>
               </defs>
 
               <rect width="320" height="180" fill="url(#kep-bg)"/>
-              <circle cx="36" cy="34" r="1.3" class="p-ink" opacity=".5"/>
-              <circle cx="70" cy="150" r="1" class="p-ink" opacity=".35"/>
-              <circle cx="284" cy="40" r="1.2" class="p-ink" opacity=".45"/>
-              <circle cx="266" cy="152" r="1" class="p-ink" opacity=".3"/>
-              <circle cx="24" cy="96" r="1" class="p-ink" opacity=".3"/>
+              <circle cx="36" cy="34" r="1.3" class="p-ink" opacity=".45"/>
+              <circle cx="70" cy="150" r="1" class="p-ink" opacity=".3"/>
+              <circle cx="284" cy="40" r="1.2" class="p-ink" opacity=".4"/>
+              <circle cx="266" cy="152" r="1" class="p-ink" opacity=".26"/>
+              <circle cx="24" cy="96" r="1" class="p-ink" opacity=".26"/>
 
               <circle cx="160" cy="90" r="63" class="p-deep"/>
               <g clip-path="url(#kep-clip)">
-                <circle cx="126" cy="52" r="1.2" class="p-ink" opacity=".55"/>
-                <circle cx="196" cy="46" r="1" class="p-ink" opacity=".4"/>
-                <circle cx="118" cy="86" r="1" class="p-ink" opacity=".35"/>
-                <ellipse cx="206" cy="126" rx="76" ry="19" transform="rotate(-22 206 126)" class="s-brass-d" stroke-width="2.2" opacity=".75"/>
-                <circle cx="206" cy="126" r="50" fill="url(#kep-planet)"/>
-                <ellipse cx="206" cy="126" rx="76" ry="19" transform="rotate(-22 206 126)" class="s-brass" stroke-width="1.6" opacity=".55" stroke-dasharray="96 300"/>
+                <circle cx="122" cy="46" r="1.4" class="p-ink" opacity=".62"/>
+                <circle cx="196" cy="40" r="1" class="p-ink" opacity=".4"/>
+                <circle cx="110" cy="86" r="1" class="p-ink" opacity=".32"/>
+                <circle cx="134" cy="132" r="1" class="p-ink" opacity=".26"/>
+                <circle cx="212" cy="150" r="1.1" class="p-ink" opacity=".3"/>
+
+                <ellipse cx="192" cy="104" rx="63" ry="15" transform="rotate(-19 192 104)"
+                         class="s-brass-d" stroke-width="3" opacity=".9"/>
+
+                <circle cx="192" cy="104" r="38" class="p-planet"/>
+                <g clip-path="url(#kep-globe)">
+                  <circle cx="192" cy="104" r="38" fill="url(#kep-lit)"/>
+                  <path d="M154 92 Q192 82 230 92" class="s-brass" stroke-width="1.4" opacity=".3"/>
+                  <path d="M154 112 Q192 104 230 112" class="s-brass" stroke-width="1.1" opacity=".2"/>
+                  <path d="M160 126 Q192 120 224 126" class="s-brass" stroke-width="1" opacity=".14"/>
+                  <circle cx="192" cy="104" r="38" fill="url(#kep-dark)"/>
+                </g>
+                <circle cx="192" cy="104" r="38" class="s-brass" stroke-width="1" opacity=".28"/>
+
+                <g clip-path="url(#kep-near)">
+                  <ellipse cx="192" cy="104" rx="63" ry="15" transform="rotate(-19 192 104)"
+                           class="s-brass" stroke-width="2.4" opacity=".85"/>
+                </g>
+
+                <path d="M88 24 L184 24 L184 31 L124 31 L124 38 L88 38 Z" class="p-ink"/>
+                <path d="M88 38 H124 V31 H184" class="s-brass-d" stroke-width="1.2" opacity=".75"/>
+
                 <g class="still__light still__light--kep"><path d="M-10 -40 L48 -40 L-52 220 L-110 220 Z" fill="url(#kep-glint)"/></g>
               </g>
 
@@ -545,7 +587,7 @@
             </ul>
 
             <div class="disc">
-              <button type="button" class="disc__btn" id="peek-kep-b" aria-expanded="false" aria-controls="peek-kep">
+              <button type="button" class="disc__btn" id="peek-kep-b" aria-label="הצצה לתסריט של תחנת קפלר" aria-expanded="false" aria-controls="peek-kep">
                 <span>הצצה לתסריט</span>
                 <span class="disc__ico" aria-hidden="true"><svg viewBox="0 0 16 16"><path d="M3.5 6l4.5 4.5L12.5 6" class="s-cur" stroke-width="1.6" stroke-linecap="round" stroke-linejoin="round"/></svg></span>
               </button>
@@ -565,7 +607,7 @@
             </div>
 
             <div class="room__cta">
-              <a class="btn btn--brass btn--sm" href="#book" data-room="תחנת קפלר">הזמינו</a>
+              <a class="btn btn--brass btn--sm" href="#book" data-room="תחנת קפלר" aria-label="הזמינו את תחנת קפלר">הזמינו</a>
             </div>
           </div>
         </article>
@@ -593,7 +635,7 @@
 
         <article class="who__card" data-reveal style="--delay:.05s">
           <span class="who__ico" aria-hidden="true">
-            <svg viewBox="0 0 32 32"><path d="M6 26V17h20v9z" class="s-cur" stroke-width="1.5" stroke-linejoin="round"/><path d="M6 21h20" class="s-cur" stroke-width="1.5"/><path d="M16 13v-3" class="s-cur" stroke-width="1.5" stroke-linecap="round"/><path d="M16 8c1.6-1.6 1.2-3 0-4-1.2 1-1.6 2.4 0 4z" class="s-cur" stroke-width="1.4" stroke-linejoin="round"/></svg>
+            <svg viewBox="0 0 32 32"><path d="M5 27v-9h22v9z" class="s-cur" stroke-width="1.5" stroke-linejoin="round"/><path d="M5 22.5h22" class="s-cur" stroke-width="1.3"/><path d="M11 18v-3.5M16 18v-4.5M21 18v-3.5" class="s-cur" stroke-width="1.5" stroke-linecap="round"/><path d="M11 14.5c1.4-1.4 1-2.7 0-3.5-1 .8-1.4 2.1 0 3.5zM16 13.5c1.4-1.4 1-2.7 0-3.5-1 .8-1.4 2.1 0 3.5zM21 14.5c1.4-1.4 1-2.7 0-3.5-1 .8-1.4 2.1 0 3.5z" class="s-cur" stroke-width="1.2" stroke-linejoin="round"/></svg>
           </span>
           <h3 class="who__t">ימי הולדת</h3>
           <p>מגיל 10 ומעלה. אחרי המשחק יש פינה עם שולחן, ואפשר להביא עוגה ולשבת.</p>
@@ -601,7 +643,7 @@
 
         <article class="who__card" data-reveal style="--delay:.1s">
           <span class="who__ico" aria-hidden="true">
-            <svg viewBox="0 0 32 32"><circle cx="11" cy="12" r="5" class="s-cur" stroke-width="1.5"/><path d="M15.6 14.4 27 25.8M22 21l-3 3M25 24l-2.4 2.4" class="s-cur" stroke-width="1.5" stroke-linecap="round"/></svg>
+            <svg viewBox="0 0 32 32"><circle cx="16" cy="9.5" r="5.6" class="s-cur" stroke-width="1.5"/><circle cx="16" cy="9.5" r="1.7" class="s-cur" stroke-width="1.2"/><path d="M16 15.1V27" class="s-cur" stroke-width="1.6" stroke-linecap="round"/><path d="M16 19.5h5M16 23.5h3.6" class="s-cur" stroke-width="1.6" stroke-linecap="round"/></svg>
           </span>
           <h3 class="who__t">דייט</h3>
           <p>בית המרקחת בשניים. חמישים דקות של שיחה עם תירוץ מצוין, ובלי טלפונים.</p>
@@ -651,7 +693,7 @@
                   </button>
                   <div class="dial__win" role="spinbutton" tabindex="0" data-dial="0"
                        aria-label="ספרה ראשונה" aria-valuemin="0" aria-valuemax="9" aria-valuenow="0">
-                    <div class="dial__reel" data-reel>
+                    <div class="dial__reel" data-reel aria-hidden="true">
                       <span class="dial__d">0</span><span class="dial__d">1</span><span class="dial__d">2</span><span class="dial__d">3</span><span class="dial__d">4</span><span class="dial__d">5</span><span class="dial__d">6</span><span class="dial__d">7</span><span class="dial__d">8</span><span class="dial__d">9</span>
                     </div>
                   </div>
@@ -666,7 +708,7 @@
                   </button>
                   <div class="dial__win" role="spinbutton" tabindex="0" data-dial="1"
                        aria-label="ספרה שנייה" aria-valuemin="0" aria-valuemax="9" aria-valuenow="0">
-                    <div class="dial__reel" data-reel>
+                    <div class="dial__reel" data-reel aria-hidden="true">
                       <span class="dial__d">0</span><span class="dial__d">1</span><span class="dial__d">2</span><span class="dial__d">3</span><span class="dial__d">4</span><span class="dial__d">5</span><span class="dial__d">6</span><span class="dial__d">7</span><span class="dial__d">8</span><span class="dial__d">9</span>
                     </div>
                   </div>
@@ -681,7 +723,7 @@
                   </button>
                   <div class="dial__win" role="spinbutton" tabindex="0" data-dial="2"
                        aria-label="ספרה שלישית" aria-valuemin="0" aria-valuemax="9" aria-valuenow="0">
-                    <div class="dial__reel" data-reel>
+                    <div class="dial__reel" data-reel aria-hidden="true">
                       <span class="dial__d">0</span><span class="dial__d">1</span><span class="dial__d">2</span><span class="dial__d">3</span><span class="dial__d">4</span><span class="dial__d">5</span><span class="dial__d">6</span><span class="dial__d">7</span><span class="dial__d">8</span><span class="dial__d">9</span>
                     </div>
                   </div>
@@ -696,7 +738,7 @@
                   </button>
                   <div class="dial__win" role="spinbutton" tabindex="0" data-dial="3"
                        aria-label="ספרה רביעית" aria-valuemin="0" aria-valuemax="9" aria-valuenow="0">
-                    <div class="dial__reel" data-reel>
+                    <div class="dial__reel" data-reel aria-hidden="true">
                       <span class="dial__d">0</span><span class="dial__d">1</span><span class="dial__d">2</span><span class="dial__d">3</span><span class="dial__d">4</span><span class="dial__d">5</span><span class="dial__d">6</span><span class="dial__d">7</span><span class="dial__d">8</span><span class="dial__d">9</span>
                     </div>
                   </div>
@@ -776,7 +818,7 @@
           <span class="stat__k">קבוצות</span>
         </li>
         <li class="stat" data-reveal style="--delay:.18s">
-          <span class="stat__n num" data-count="41" data-suffix="%">41%</span>
+          <span class="stat__n num" data-count="40" data-suffix="%">40%</span>
           <span class="stat__k">שיעור יציאה ממוצע</span>
         </li>
       </ul>
@@ -952,12 +994,12 @@
           <div class="field">
             <label class="label" for="b-players">מספר שחקנים</label>
             <div class="stepper">
-              <button type="button" class="stepper__b" data-step="-1" aria-label="שחקן אחד פחות">
-                <svg viewBox="0 0 16 16" aria-hidden="true"><path d="M4 8h8" class="s-cur" stroke-width="1.8" stroke-linecap="round"/></svg>
-              </button>
-              <input class="stepper__v num" id="b-players" name="players" type="number" min="2" max="6" step="1" value="4" inputmode="numeric" data-players>
               <button type="button" class="stepper__b" data-step="1" aria-label="שחקן אחד יותר">
                 <svg viewBox="0 0 16 16" aria-hidden="true"><path d="M8 4v8M4 8h8" class="s-cur" stroke-width="1.8" stroke-linecap="round"/></svg>
+              </button>
+              <input class="stepper__v num" id="b-players" name="players" type="number" min="2" max="6" step="1" value="4" inputmode="numeric" data-players>
+              <button type="button" class="stepper__b" data-step="-1" aria-label="שחקן אחד פחות">
+                <svg viewBox="0 0 16 16" aria-hidden="true"><path d="M4 8h8" class="s-cur" stroke-width="1.8" stroke-linecap="round"/></svg>
               </button>
             </div>
             <p class="err" id="b-players-err">בין 2 ל-6 שחקנים בחדר.</p>

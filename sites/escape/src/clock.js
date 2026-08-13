@@ -54,7 +54,6 @@ export function initClock() {
   const stop = () => {
     halt();
     clock.classList.remove('is-low');
-    clock.classList.add('is-over');
     colon.classList.remove('is-blinking');
     face.hidden = true;
     over.hidden = false;
@@ -64,7 +63,6 @@ export function initClock() {
   restart.addEventListener('click', () => {
     deadline = Date.now() + GAME;
     hiddenAt = 0;
-    clock.classList.remove('is-over');
     face.hidden = false;
     over.hidden = true;
     restart.hidden = true;

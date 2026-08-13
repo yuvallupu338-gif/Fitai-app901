@@ -150,31 +150,34 @@ function niceDate(value) {
 
 function render({ form, date, slotValue, players, list, summary }) {
   const val = (id) => qs(id, form).value.trim();
+  /* The third field says whether the value is a latin run that has to be
+     isolated. Sniffing it from the text does not work — Hebrew letters are
+     non-word characters to a JS regex, so a Hebrew date passes a "looks
+     numeric" test and comes out backwards. */
   const rows = [
-    ['חדר', val('#b-room')],
-    ['תאריך', niceDate(date.value)],
-    ['שעה', slotValue.value],
-    ['שחקנים', players.value],
-    ['שם', val('#b-name')],
-    ['טלפון', val('#b-phone')],
+    ['חדר', val('#b-room'), false],
+    ['תאריך', niceDate(date.value), false],
+    ['שעה', slotValue.value, true],
+    ['שחקנים', players.value, true],
+    ['שם', val('#b-name'), false],
+    ['טלפון', val('#b-phone'), true],
   ];
-  if (val('#b-coupon')) rows.push(['קופון', val('#b-coupon').toUpperCase()]);
-  if (val('#b-notes')) rows.push(['הערות', val('#b-notes')]);
+  if (val('#b-coupon')) rows.push(['קופון', val('#b-coupon').toUpperCase(), true]);
+  if (val('#b-notes')) rows.push(['הערות', val('#b-notes'), false]);
 
   list.textContent = '';
-  for (const [key, value] of rows) {
+  for (const [key, value, latin] of rows) {
     const dt = document.createElement('dt');
     dt.textContent = key;
     const dd = document.createElement('dd');
     dd.textContent = value;
-    /* Times, dates and phone numbers are latin runs inside a Hebrew sheet and
-       flip on their own if nothing isolates them. */
-    if (/^[\d\W]+$/.test(value)) dd.className = 'num';
+    if (latin) dd.className = 'num';
     list.append(dt, dd);
   }
 
   const text = ['שלום, אשמח להזמין חדר באניגמה.', '']
     .concat(rows.map(([key, value]) => `${key}: ${value}`))
+    .concat(['', 'נשמח לאישור.'])
     .join('\n');
 
   qs('[data-wa]').href = `https://wa.me/${WA}?text=${encodeURIComponent(text)}`;
