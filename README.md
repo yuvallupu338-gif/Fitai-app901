@@ -43,15 +43,25 @@ failure would look like a bug in the app.
 Point Pages at the branch root; `index.html` is the entry. `dist/fitai.html` is
 served alongside it as a single-file copy that also works offline.
 
-### Also in this repo: `backrooms/`
+### Also in this repo
 
-`backrooms/` is a separate, self-contained app that shares nothing with FitAI
-but the server: a realistic first-person Backrooms build covering levels 0–99,
+Two further self-contained apps live here. Each shares the server and the
+house style — vanilla ES modules, no build step, no dependencies — and nothing
+else: neither touches FitAI's questionnaire, plan or storage.
+
+`backrooms/` is a realistic first-person Backrooms build covering levels 0–99,
 with a WebGL2 renderer, procedural materials, an endless world generated as you
-walk it, and synthesised audio — no libraries and no media files, same as
-everything else here. It is served at `/backrooms/` and does not touch the
-questionnaire, the plan, or any of FitAI's storage. See
-[`backrooms/README.md`](backrooms/README.md).
+walk it, and synthesised audio — no libraries and no media files. Served at
+`/backrooms/`. See [`backrooms/README.md`](backrooms/README.md).
+
+`skilltree/` is a skill tree for real abilities: an interactive dependency
+graph where skills unlock only when their requirements are met — a quiz passed,
+a code challenge whose tests went green, a standard you can hit. Three trees
+ship with it (Web Development, Mathematics, Calisthenics — 76 skills, 154
+activities), with XP, mastery scoring, achievements and an optional AI coach
+that the core progression does not depend on. Served at `/skilltree/`, and
+`/skilltree/#/demo` fills in a populated profile so the whole product is
+visible at once. See [`skilltree/README.md`](skilltree/README.md).
 
 ## What it does
 

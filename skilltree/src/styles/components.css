@@ -1,0 +1,871 @@
+/*
+ * components.css — cards, buttons, bars, chips, sheets, forms, states.
+ *
+ * Cards deliberately are not all the same. A dashboard where every panel is an
+ * identical rounded rectangle is the visual signature of a generated layout,
+ * and it also flattens the hierarchy: the thing you should look at first looks
+ * exactly like the thing you can ignore. So there are three card weights here
+ * — .card, .card.quiet and .card.feature — and screens pick deliberately.
+ */
+
+/* ------------------------------------------------------------------ *
+ * Cards
+ * ------------------------------------------------------------------ */
+
+.card {
+  background: var(--surface);
+  border: 1px solid var(--line-soft);
+  border-radius: var(--r);
+  padding: var(--s4);
+  box-shadow: var(--shadow-1);
+}
+
+/* Recedes: supporting information, lists of things you already know. */
+.card.quiet {
+  background: transparent;
+  box-shadow: none;
+  border-color: var(--line-soft);
+}
+
+/* Advances: the one thing on the screen worth acting on. */
+.card.feature {
+  background: var(--surface-2);
+  border-color: var(--line);
+  padding: var(--s5);
+  box-shadow: var(--shadow-2);
+}
+
+.card-head {
+  display: flex;
+  align-items: baseline;
+  justify-content: space-between;
+  gap: var(--s3);
+  margin-bottom: var(--s3);
+}
+
+.card-title {
+  font-size: 13px;
+  font-weight: 600;
+  letter-spacing: -.005em;
+  color: var(--bone);
+}
+
+.card-note { font-size: 12px; color: var(--bone-dimmer); }
+
+.grid { display: grid; gap: var(--s4); }
+.grid.cols-2 { grid-template-columns: repeat(auto-fit, minmax(260px, 1fr)); }
+.grid.cols-3 { grid-template-columns: repeat(auto-fit, minmax(210px, 1fr)); }
+
+.row {
+  display: flex;
+  align-items: center;
+  gap: var(--s3);
+}
+.row.between { justify-content: space-between; }
+.row.wrap { flex-wrap: wrap; }
+
+.stack { display: flex; flex-direction: column; gap: var(--s3); }
+.stack.tight { gap: var(--s2); }
+.stack.loose { gap: var(--s5); }
+
+/* ------------------------------------------------------------------ *
+ * Buttons
+ * ------------------------------------------------------------------ */
+
+.btn {
+  display: inline-flex;
+  align-items: center;
+  justify-content: center;
+  gap: var(--s2);
+  padding: 9px var(--s4);
+  min-height: 38px;
+  border: 1px solid var(--line);
+  border-radius: var(--r-sm);
+  background: var(--surface-2);
+  color: var(--bone);
+  font-size: 14px;
+  font-weight: 560;
+  cursor: pointer;
+  transition: background var(--fast) var(--ease),
+              border-color var(--fast) var(--ease),
+              transform var(--fast) var(--ease);
+}
+
+.btn:hover:not(:disabled) { background: var(--surface-3); border-color: var(--bone-dimmer); }
+.btn:active:not(:disabled) { transform: translateY(1px); }
+
+.btn:disabled {
+  opacity: .45;
+  cursor: not-allowed;
+}
+
+/* The accent as a fill — the one place lime is a background, reserved for the
+ * single primary action on a screen. Two lime buttons in one view means the
+ * hierarchy is wrong. */
+.btn.primary {
+  background: var(--lime);
+  border-color: var(--lime);
+  color: var(--lime-ink);
+  font-weight: 620;
+}
+.btn.primary:hover:not(:disabled) { background: var(--lime-hover); border-color: var(--lime-hover); }
+
+.btn.ghost { background: transparent; border-color: transparent; color: var(--bone-dim); }
+.btn.ghost:hover:not(:disabled) { background: var(--surface-2); color: var(--bone); }
+
+.btn.big { min-height: 46px; padding: 12px var(--s5); font-size: 15px; }
+.btn.small { min-height: 30px; padding: 5px var(--s3); font-size: 12.5px; }
+.btn.wide { width: 100%; }
+
+.btn svg { width: 16px; height: 16px; flex: none; }
+
+/* ------------------------------------------------------------------ *
+ * Progress bars
+ * ------------------------------------------------------------------ */
+
+.bar {
+  height: 6px;
+  border-radius: var(--r-pill);
+  background: var(--surface-3);
+  overflow: hidden;
+}
+
+.bar > i {
+  display: block;
+  height: 100%;
+  border-radius: inherit;
+  background: var(--lime);
+  transition: width var(--slow) var(--ease-out);
+}
+
+.bar.tall { height: 9px; }
+
+/* A second, dimmer fill behind the first: used where two ladders gate one
+ * thing (XP and mastery), so the panel can show both without two bars. */
+.bar > i.shadow { position: absolute; background: var(--lime-line); }
+.bar.dual { position: relative; }
+.bar.dual > i { position: absolute; top: 0; left: 0; }
+
+/* ------------------------------------------------------------------ *
+ * Chips, pills, badges
+ * ------------------------------------------------------------------ */
+
+.chip {
+  display: inline-flex;
+  align-items: center;
+  gap: 5px;
+  padding: 3px 9px;
+  border-radius: var(--r-pill);
+  border: 1px solid var(--line);
+  background: var(--surface-2);
+  font-size: 11.5px;
+  font-weight: 560;
+  color: var(--bone-dim);
+  white-space: nowrap;
+}
+
+.chip.on {
+  border-color: var(--lime-line);
+  background: var(--lime-soft);
+  color: var(--lime);
+}
+.chip.warn { border-color: transparent; background: var(--warn-soft); color: var(--warn); }
+.chip.fail { border-color: transparent; background: var(--fail-soft); color: var(--fail); }
+
+.chip button { all: unset; cursor: pointer; }
+
+.lvl {
+  font-family: var(--mono);
+  font-size: 11px;
+  font-weight: 600;
+  letter-spacing: -.02em;
+  padding: 2px 6px;
+  border-radius: 5px;
+  background: var(--surface-3);
+  color: var(--bone-dim);
+}
+.lvl.on { background: var(--lime-soft); color: var(--lime); }
+
+/* ------------------------------------------------------------------ *
+ * Skill node — the tree's atom
+ * ------------------------------------------------------------------ *
+ *
+ * State is signalled three ways at once, on purpose:
+ *   ring style  — dashed (locked), solid thin (available), arc (in progress),
+ *                 full (complete), full + filled face (mastered)
+ *   glyph       — lock, plus, percentage, check, star
+ *   colour      — last, and never the only signal
+ *
+ * That redundancy is what makes the tree readable at a glance, in greyscale,
+ * and with colour vision deficiency.
+ */
+
+.node {
+  position: absolute;
+  display: flex;
+  flex-direction: column;
+  align-items: center;
+  gap: 6px;
+  width: 128px;
+  margin-left: -64px;
+  margin-top: -34px;
+  padding: 0;
+  border: 0;
+  background: none;
+  color: inherit;
+  cursor: pointer;
+  text-align: center;
+  transition: transform var(--fast) var(--ease);
+}
+
+.node:hover { transform: scale(1.045); z-index: 3; }
+.node:focus-visible { z-index: 4; }
+
+.node-ring {
+  position: relative;
+  width: 52px; height: 52px;
+  display: grid;
+  place-items: center;
+  border-radius: 50%;
+  background: var(--st-locked-face);
+  border: 1.5px dashed var(--st-locked-line);
+  color: var(--st-locked-ink);
+  transition: border-color var(--mid) var(--ease), background var(--mid) var(--ease);
+}
+
+.node-label {
+  font-size: 11.5px;
+  font-weight: 560;
+  line-height: 1.25;
+  color: var(--bone-dim);
+  letter-spacing: -.005em;
+  /* Two lines maximum, then ellipsis: a four-line label in a tree turns the
+   * layout into a wall of text and pushes neighbouring nodes apart. */
+  display: -webkit-box;
+  -webkit-line-clamp: 2;
+  -webkit-box-orient: vertical;
+  line-clamp: 2;
+  overflow: hidden;
+}
+
+.node-glyph { width: 17px; height: 17px; }
+.node-pct {
+  font-family: var(--mono);
+  font-size: 12px;
+  font-weight: 620;
+  letter-spacing: -.04em;
+}
+
+.node[data-state="available"] .node-ring {
+  border-style: solid;
+  border-color: var(--st-available-line);
+  background: var(--st-available-face);
+  color: var(--st-available-ink);
+}
+.node[data-state="available"] .node-label { color: var(--bone); }
+
+.node[data-state="in_progress"] .node-ring {
+  border-style: solid;
+  border-color: var(--line);
+  background: var(--st-progress-face);
+  color: var(--st-progress-ink);
+}
+.node[data-state="in_progress"] .node-label { color: var(--bone); font-weight: 600; }
+
+.node[data-state="completed"] .node-ring {
+  border-style: solid;
+  border-color: var(--st-complete-line);
+  background: var(--st-complete-face);
+  color: var(--lime);
+}
+.node[data-state="completed"] .node-label { color: var(--bone); }
+
+.node[data-state="mastered"] .node-ring {
+  border-style: solid;
+  border-color: var(--st-mastered-line);
+  background: var(--st-mastered-face);
+  color: var(--st-mastered-ink);
+}
+.node[data-state="mastered"] .node-label { color: var(--bone); font-weight: 620; }
+
+/* The progress arc for an in-progress node, drawn as a conic gradient ring
+ * rather than an SVG circle — one element, no extra nodes in a tree that may
+ * already hold three hundred. */
+.node-arc {
+  position: absolute;
+  inset: -4px;
+  border-radius: 50%;
+  background: conic-gradient(var(--lime) calc(var(--p) * 1%), transparent 0);
+  -webkit-mask: radial-gradient(circle, transparent 0 61%, #000 62%);
+  mask: radial-gradient(circle, transparent 0 61%, #000 62%);
+}
+
+/* Dimming when something else is highlighted. Applied to the container so one
+ * class toggle repaints the whole tree rather than 300 inline styles. */
+.tree-canvas.focusing .node { opacity: .26; }
+.tree-canvas.focusing .node.lit { opacity: 1; }
+.tree-canvas.focusing .node.lit .node-ring { border-color: var(--lime); }
+
+/* Goal-path membership is a persistent mark, not a hover state: a small filled
+ * dot under the label, so it survives alongside every other state. */
+.node.on-path .node-label::after {
+  content: "";
+  display: block;
+  width: 4px; height: 4px;
+  margin: 4px auto 0;
+  border-radius: 50%;
+  background: var(--lime);
+}
+
+/* ------------------------------------------------------------------ *
+ * Tree canvas
+ * ------------------------------------------------------------------ */
+
+.tree-shell {
+  position: relative;
+  border: 1px solid var(--line-soft);
+  border-radius: var(--r);
+  background:
+    radial-gradient(circle at 1px 1px, var(--line-soft) 1px, transparent 0) 0 0 / 26px 26px,
+    var(--surface);
+  overflow: hidden;
+  height: min(72vh, 720px);
+  touch-action: none; /* we handle pan and pinch ourselves */
+}
+
+.tree-viewport {
+  position: absolute;
+  inset: 0;
+  cursor: grab;
+}
+.tree-viewport.dragging { cursor: grabbing; }
+
+.tree-canvas {
+  position: absolute;
+  top: 0; left: 0;
+  transform-origin: 0 0;
+  will-change: transform;
+}
+
+.tree-edges {
+  position: absolute;
+  top: 0; left: 0;
+  overflow: visible;
+  pointer-events: none;
+}
+
+.tree-edge {
+  fill: none;
+  stroke: var(--line);
+  stroke-width: 1.5;
+  transition: stroke var(--mid) var(--ease);
+}
+.tree-edge.met { stroke: var(--lime-line); }
+.tree-canvas.focusing .tree-edge { stroke: var(--line-soft); }
+.tree-canvas.focusing .tree-edge.lit { stroke: var(--lime); stroke-width: 2; }
+
+.tree-controls {
+  position: absolute;
+  right: var(--s3);
+  bottom: var(--s3);
+  z-index: 5;
+  display: flex;
+  flex-direction: column;
+  gap: var(--s1);
+  padding: var(--s1);
+  border-radius: var(--r-sm);
+  background: color-mix(in srgb, var(--surface) 88%, transparent);
+  backdrop-filter: blur(8px);
+  border: 1px solid var(--line-soft);
+}
+
+.tree-controls button {
+  width: 32px; height: 32px;
+  display: grid; place-items: center;
+  border: 0; border-radius: 7px;
+  background: none; color: var(--bone-dim);
+  cursor: pointer;
+}
+.tree-controls button:hover { background: var(--surface-3); color: var(--bone); }
+
+.tree-legend {
+  position: absolute;
+  left: var(--s3);
+  bottom: var(--s3);
+  z-index: 5;
+  display: flex;
+  gap: var(--s3);
+  flex-wrap: wrap;
+  padding: var(--s2) var(--s3);
+  border-radius: var(--r-sm);
+  background: color-mix(in srgb, var(--surface) 88%, transparent);
+  backdrop-filter: blur(8px);
+  border: 1px solid var(--line-soft);
+  font-size: 11px;
+  color: var(--bone-dimmer);
+}
+.tree-legend b { font-weight: 560; color: var(--bone-dim); }
+
+@media (max-width: 720px) {
+  .tree-shell { height: min(66vh, 560px); }
+  .tree-legend { display: none; }
+}
+
+/* ------------------------------------------------------------------ *
+ * Sheet / modal
+ * ------------------------------------------------------------------ */
+
+.sheet-backdrop {
+  position: fixed;
+  inset: 0;
+  z-index: 60;
+  display: grid;
+  place-items: center;
+  padding: var(--s5);
+  background: rgba(6, 8, 10, .58);
+  backdrop-filter: blur(3px);
+  animation: fade var(--mid) var(--ease);
+}
+
+.sheet {
+  position: relative;
+  width: min(560px, 100%);
+  max-height: min(86vh, 780px);
+  overflow-y: auto;
+  overscroll-behavior: contain;
+  padding: var(--s5);
+  border: 1px solid var(--line);
+  border-radius: var(--r-lg);
+  background: var(--surface);
+  box-shadow: var(--shadow-3);
+  animation: rise var(--slow) var(--ease-out);
+}
+
+.sheet.wide { width: min(840px, 100%); }
+
+.sheet-close {
+  position: absolute;
+  top: var(--s3); right: var(--s3);
+  width: 32px; height: 32px;
+  display: grid; place-items: center;
+  border: 0; border-radius: 8px;
+  background: none;
+  color: var(--bone-dim);
+  font-size: 21px;
+  line-height: 1;
+  cursor: pointer;
+}
+.sheet-close:hover { background: var(--surface-3); color: var(--bone); }
+
+.sheet-backdrop.closing { animation: fade var(--fast) var(--ease) reverse; }
+
+@keyframes fade { from { opacity: 0 } to { opacity: 1 } }
+@keyframes rise { from { opacity: 0; transform: translateY(10px) scale(.99) } to { opacity: 1; transform: none } }
+
+/* On a phone this becomes a bottom sheet — anchored to the thumb, full width,
+ * and swipe-dismissable via the drag handle. §68: the mobile experience is
+ * designed, not scaled down. */
+@media (max-width: 640px) {
+  .sheet-backdrop { padding: 0; place-items: end stretch; }
+
+  .sheet {
+    width: 100%;
+    max-height: 88dvh;
+    border-radius: var(--r-lg) var(--r-lg) 0 0;
+    border-bottom: 0;
+    padding: var(--s5) var(--s4) calc(var(--s5) + env(safe-area-inset-bottom, 0px));
+    animation: slide-up var(--slow) var(--ease-out);
+  }
+
+  .sheet::before {
+    content: "";
+    display: block;
+    width: 36px; height: 4px;
+    margin: -6px auto var(--s4);
+    border-radius: var(--r-pill);
+    background: var(--line);
+  }
+
+  @keyframes slide-up { from { transform: translateY(100%) } to { transform: none } }
+}
+
+/* ------------------------------------------------------------------ *
+ * Forms
+ * ------------------------------------------------------------------ */
+
+.field { display: flex; flex-direction: column; gap: 6px; }
+
+.field label {
+  font-size: 12.5px;
+  font-weight: 560;
+  color: var(--bone-dim);
+}
+
+.input, .textarea, select.input {
+  width: 100%;
+  padding: 10px var(--s3);
+  min-height: 40px;
+  border: 1px solid var(--line);
+  border-radius: var(--r-sm);
+  background: var(--surface-2);
+  color: var(--bone);
+  transition: border-color var(--fast) var(--ease);
+}
+
+.input:focus, .textarea:focus { border-color: var(--lime-line); }
+
+.textarea {
+  min-height: 120px;
+  font-family: var(--mono);
+  font-size: 13px;
+  line-height: 1.6;
+  resize: vertical;
+  tab-size: 2;
+}
+
+/* A selectable card — used for quiz options, onboarding choices, intensity.
+ * One component, because they are the same interaction and having three
+ * near-identical ones is how they drift apart. */
+.pick {
+  display: flex;
+  align-items: flex-start;
+  gap: var(--s3);
+  width: 100%;
+  padding: var(--s3) var(--s4);
+  border: 1px solid var(--line);
+  border-radius: var(--r-sm);
+  background: var(--surface-2);
+  color: var(--bone);
+  text-align: left;
+  font-size: 14px;
+  cursor: pointer;
+  transition: border-color var(--fast) var(--ease), background var(--fast) var(--ease);
+}
+
+.pick:hover { border-color: var(--bone-dimmer); }
+.pick[aria-pressed="true"], .pick.on {
+  border-color: var(--lime);
+  background: var(--lime-soft);
+}
+
+.pick-mark {
+  flex: none;
+  width: 18px; height: 18px;
+  margin-top: 2px;
+  border: 1.5px solid var(--line);
+  border-radius: 50%;
+  display: grid;
+  place-items: center;
+  font-size: 11px;
+}
+.pick[aria-pressed="true"] .pick-mark,
+.pick.on .pick-mark {
+  border-color: var(--lime);
+  background: var(--lime);
+  color: var(--lime-ink);
+}
+.pick.box .pick-mark { border-radius: 5px; }
+
+.pick.right { border-color: var(--lime); background: var(--lime-soft); }
+.pick.wrong { border-color: var(--fail); background: var(--fail-soft); }
+
+.pick-body { flex: 1; min-width: 0; }
+.pick-body small { display: block; color: var(--bone-dimmer); font-size: 12.5px; margin-top: 2px; }
+
+/* ------------------------------------------------------------------ *
+ * States: empty, loading, error
+ * ------------------------------------------------------------------ */
+
+.empty {
+  display: grid;
+  place-items: center;
+  gap: var(--s3);
+  padding: var(--s7) var(--s4);
+  text-align: center;
+  color: var(--bone-dim);
+}
+.empty h3 { color: var(--bone); }
+.empty p { max-width: 42ch; font-size: 14px; margin: 0; }
+.empty svg { width: 28px; height: 28px; color: var(--bone-dimmer); }
+
+.skeleton {
+  border-radius: var(--r-sm);
+  background: linear-gradient(90deg, var(--surface-2) 25%, var(--surface-3) 37%, var(--surface-2) 63%);
+  background-size: 400% 100%;
+  animation: shimmer 1.3s ease-in-out infinite;
+}
+@keyframes shimmer { from { background-position: 100% 0 } to { background-position: 0 0 } }
+
+@media (prefers-reduced-motion: reduce) {
+  .skeleton { animation: none; }
+  .sheet, .sheet-backdrop { animation: none; }
+}
+
+.notice {
+  display: flex;
+  gap: var(--s3);
+  padding: var(--s3) var(--s4);
+  border-radius: var(--r-sm);
+  border: 1px solid var(--line);
+  background: var(--surface-2);
+  font-size: 13px;
+  color: var(--bone-dim);
+}
+.notice.warn { border-color: transparent; background: var(--warn-soft); color: var(--warn); }
+.notice.fail { border-color: transparent; background: var(--fail-soft); color: var(--fail); }
+.notice svg { flex: none; width: 16px; height: 16px; margin-top: 2px; }
+
+/* ------------------------------------------------------------------ *
+ * Toasts and moments
+ * ------------------------------------------------------------------ */
+
+.toasts {
+  position: fixed;
+  z-index: 80;
+  right: var(--s4);
+  bottom: var(--s4);
+  display: flex;
+  flex-direction: column-reverse;
+  gap: var(--s2);
+  pointer-events: none;
+}
+
+@media (max-width: 860px) {
+  .toasts {
+    right: var(--s3);
+    left: var(--s3);
+    bottom: calc(64px + env(safe-area-inset-bottom, 0px));
+  }
+}
+
+.toast {
+  display: flex;
+  align-items: center;
+  gap: var(--s3);
+  padding: var(--s3) var(--s4);
+  border: 1px solid var(--line);
+  border-radius: var(--r-sm);
+  background: var(--surface-2);
+  box-shadow: var(--shadow-2);
+  font-size: 13.5px;
+  font-weight: 540;
+  animation: toast-in var(--slow) var(--ease-out);
+}
+
+.toast.leaving { animation: toast-out var(--mid) var(--ease) forwards; }
+.toast.xp { border-color: var(--lime-line); }
+.toast.xp b { font-family: var(--mono); color: var(--lime); }
+.toast svg { width: 17px; height: 17px; flex: none; color: var(--lime); }
+
+@keyframes toast-in { from { opacity: 0; transform: translateY(8px) } to { opacity: 1; transform: none } }
+@keyframes toast-out { to { opacity: 0; transform: translateY(6px) } }
+
+/*
+ * The level-up moment. One short animation, no loop, no confetti — §64 asks
+ * for satisfying and not annoying, and anything that repeats becomes the
+ * latter by the third time.
+ */
+.moment {
+  text-align: center;
+  padding: var(--s4) 0 var(--s2);
+}
+.moment-kicker {
+  font-size: 11px;
+  font-weight: 640;
+  letter-spacing: .16em;
+  text-transform: uppercase;
+  color: var(--lime);
+}
+.moment-jump {
+  display: flex;
+  align-items: center;
+  justify-content: center;
+  gap: var(--s4);
+  margin: var(--s4) 0;
+  font-family: var(--mono);
+  font-size: 40px;
+  font-weight: 640;
+  letter-spacing: -.04em;
+}
+.moment-jump .to { color: var(--lime); }
+.moment-jump .from { color: var(--bone-dimmer); }
+.moment-jump svg { width: 22px; height: 22px; color: var(--bone-dimmer); }
+.moment ul { margin: 0; padding: 0; list-style: none; color: var(--bone-dim); font-size: 14px; }
+.moment li { padding: 3px 0; }
+
+/* ------------------------------------------------------------------ *
+ * Lists
+ * ------------------------------------------------------------------ */
+
+.list { display: flex; flex-direction: column; }
+
+.list-item {
+  display: flex;
+  align-items: center;
+  gap: var(--s3);
+  width: 100%;
+  padding: var(--s3) 0;
+  border: 0;
+  border-bottom: 1px solid var(--line-soft);
+  background: none;
+  color: inherit;
+  text-align: left;
+  cursor: pointer;
+  transition: background var(--fast) var(--ease);
+}
+.list-item:last-child { border-bottom: 0; }
+.list-item:hover { background: var(--surface-2); }
+/* Bleed the hover into the card padding so the row reads as full-width */
+.card > .list .list-item { padding-left: var(--s2); padding-right: var(--s2); margin: 0 calc(var(--s2) * -1); }
+
+.list-item .grow { flex: 1; min-width: 0; }
+.list-item .title { font-size: 14px; font-weight: 560; }
+.list-item .sub { font-size: 12.5px; color: var(--bone-dimmer); }
+
+.dot {
+  width: 8px; height: 8px;
+  border-radius: 50%;
+  flex: none;
+  background: var(--line);
+}
+.dot.on { background: var(--lime); }
+
+/* ------------------------------------------------------------------ *
+ * Stat readouts
+ * ------------------------------------------------------------------ */
+
+.stat { display: flex; flex-direction: column; gap: 2px; }
+.stat .k {
+  font-size: 11px;
+  font-weight: 580;
+  letter-spacing: .05em;
+  text-transform: uppercase;
+  color: var(--bone-dimmer);
+}
+.stat .v {
+  font-family: var(--mono);
+  font-size: 22px;
+  font-weight: 620;
+  letter-spacing: -.03em;
+}
+.stat.big .v { font-size: 30px; }
+.stat .v small { font-size: 13px; font-weight: 500; color: var(--bone-dimmer); letter-spacing: 0; }
+
+/* ------------------------------------------------------------------ *
+ * Activity screen
+ * ------------------------------------------------------------------ */
+
+.activity-shell {
+  max-width: 720px;
+  margin: 0 auto;
+}
+
+.activity-bar {
+  display: flex;
+  align-items: center;
+  gap: var(--s3);
+  margin-bottom: var(--s5);
+}
+.activity-bar .bar { flex: 1; }
+.activity-bar .count {
+  font-family: var(--mono);
+  font-size: 12px;
+  color: var(--bone-dimmer);
+  white-space: nowrap;
+}
+
+.prose { font-size: 15px; line-height: 1.68; color: var(--bone-dim); }
+.prose p { margin-bottom: var(--s4); }
+.prose p:first-child { color: var(--bone); }
+.prose code {
+  font-family: var(--mono);
+  font-size: .88em;
+  padding: 1px 5px;
+  border-radius: 5px;
+  background: var(--surface-3);
+  color: var(--bone);
+}
+
+.qprompt {
+  font-size: 16px;
+  font-weight: 560;
+  line-height: 1.45;
+  margin-bottom: var(--s4);
+  letter-spacing: -.008em;
+}
+
+.explain {
+  margin-top: var(--s2);
+  padding: var(--s3);
+  border-left: 2px solid var(--lime-line);
+  background: var(--surface-2);
+  border-radius: 0 var(--r-sm) var(--r-sm) 0;
+  font-size: 13px;
+  color: var(--bone-dim);
+}
+
+.testrow {
+  display: flex;
+  align-items: flex-start;
+  gap: var(--s3);
+  padding: var(--s2) var(--s3);
+  border-radius: var(--r-sm);
+  background: var(--surface-2);
+  font-family: var(--mono);
+  font-size: 12px;
+  line-height: 1.5;
+}
+.testrow .mark { flex: none; font-weight: 700; }
+.testrow.pass .mark { color: var(--lime); }
+.testrow.fail .mark { color: var(--fail); }
+.testrow .detail { color: var(--bone-dimmer); overflow-x: auto; }
+
+/* ------------------------------------------------------------------ *
+ * Charts
+ * ------------------------------------------------------------------ */
+
+.chart { width: 100%; display: block; overflow: visible; }
+.chart .axis { stroke: var(--line); stroke-width: 1; }
+.chart .gridline { stroke: var(--line-soft); stroke-width: 1; }
+.chart .tick { fill: var(--bone-dimmer); font-size: 10px; font-family: var(--mono); }
+.chart .area { fill: var(--lime-soft); }
+.chart .line { fill: none; stroke: var(--lime); stroke-width: 1.75; stroke-linejoin: round; stroke-linecap: round; }
+.chart .barfill { fill: var(--lime); }
+.chart .barfill.zero { fill: var(--line); }
+.chart .radar-web { fill: none; stroke: var(--line-soft); stroke-width: 1; }
+.chart .radar-shape { fill: var(--lime-soft); stroke: var(--lime); stroke-width: 1.75; }
+.chart .radar-point { fill: var(--lime); }
+.chart .radar-label { fill: var(--bone-dim); font-size: 11px; }
+
+/* ------------------------------------------------------------------ *
+ * Onboarding
+ * ------------------------------------------------------------------ */
+
+.onboard {
+  min-height: 100vh;
+  min-height: 100dvh;
+  display: grid;
+  place-items: center;
+  padding: var(--s5);
+}
+
+.onboard-card {
+  width: min(520px, 100%);
+  display: flex;
+  flex-direction: column;
+  gap: var(--s5);
+}
+
+.steps {
+  display: flex;
+  gap: 5px;
+}
+.steps i {
+  height: 3px;
+  flex: 1;
+  border-radius: var(--r-pill);
+  background: var(--surface-3);
+  transition: background var(--mid) var(--ease);
+}
+.steps i.on { background: var(--lime); }
+.steps i.done { background: var(--lime-deep); }

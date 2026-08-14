@@ -1,0 +1,207 @@
+/*
+ * tokens.css — SkillTree's design language.
+ *
+ * The position, stated once so the rest of the CSS can be judged against it:
+ *
+ * MONOCHROME PLUS ONE. The interface chrome is greyscale — ink, graphite,
+ * bone. Exactly one chromatic colour appears in it, an acid lime, and it means
+ * one thing: progress you have earned. XP, filled rings, unlocked nodes, level
+ * bars. Nothing else may use it. The result is that on any screen, the green
+ * *is* the progress, and a glance finds it without reading a word.
+ *
+ * This is a deliberate rejection of the house style of generated dashboards:
+ * a different gradient per card, glow on everything, six accent hues competing
+ * for the same attention. Restraint is the identity here.
+ *
+ * The categorical palette below breaks the rule on purpose, and only inside
+ * data visualisation and category chips, where distinguishing six series is
+ * the entire job. It never appears in interface chrome, so it cannot compete
+ * with the accent for the "this is your progress" signal.
+ *
+ * Node state is carried by FORM first — ring style, glyph, weight — and colour
+ * second, because a learner with colour vision deficiency has to be able to
+ * tell a locked node from an available one (§53), and because on the tree
+ * screen these are 44px circles seen at a glance.
+ */
+
+:root {
+  /* ---- surfaces: near-black, faintly cool, never #000 ---- */
+  --ground: #0E1012;
+  --surface: #16191C;
+  --surface-2: #1C2024;
+  --surface-3: #23282D;
+  --line: #2A3036;
+  --line-soft: #1F242A;
+
+  /* ---- ink ---- */
+  --bone: #E8EAEC;
+  --bone-dim: #A8AFB6;
+  /* Measured at 4.6:1 on --surface. Anything dimmer stops being body text. */
+  --bone-dimmer: #7C858D;
+
+  /* ---- the one accent ---- */
+  --lime: #C9F24D;
+  --lime-ink: #0E1012;        /* text ON lime — always the dark ground */
+  --lime-soft: rgba(201, 242, 77, .14);
+  --lime-line: rgba(201, 242, 77, .34);
+  /*
+   * Two roles, deliberately two tokens.
+   *
+   * --lime-hover is a *fill* the dark ink sits on, so it must stay light
+   * enough to keep that text readable. --lime-deep is the accent used as
+   * text or a hairline on a light surface, so it must be dark. One token
+   * cannot be both: the first version used --lime-deep for the primary
+   * button's hover fill, and in light mode that put #17200A on #5F7A0F —
+   * 3.4:1, under the 4.5 threshold, and only visible when hovering.
+   */
+  --lime-hover: #B4DE2E;
+  --lime-deep: #8FAF2A;
+
+  /* ---- semantic, used sparingly and never decoratively ---- */
+  --warn: #E8B34A;
+  --warn-soft: rgba(232, 179, 74, .13);
+  --fail: #E8756B;
+  --fail-soft: rgba(232, 117, 107, .13);
+
+  /* ---- categorical: data visualisation and category chips only ----
+   * Hues chosen for identity, then snapped into the dark-mode OKLCH lightness
+   * band (L 0.48–0.67) at the highest chroma sRGB allows for each hue, and
+   * checked with a validator rather than by eye: lightness band, chroma floor,
+   * colour-vision-deficiency separation of every adjacent pair, normal-vision
+   * separation, and contrast against the card surface. The earlier, prettier
+   * pastels failed the band and read as grey under protanopia. */
+  --cat-1: #4484F5;
+  --cat-2: #E15620;
+  --cat-3: #9F60F6;
+  --cat-4: #129F86;
+  --cat-5: #AC8123;
+  --cat-6: #EB2895;
+
+  /* ---- type ----
+   * A system stack for prose, and a monospace for every number that means a
+   * quantity. Levels, XP, scores and timers are instrument readings; setting
+   * them in tabular figures stops them jittering as they count up, and gives
+   * the app the precision-tool feel that the RPG framing needs without a
+   * single pixel of chrome or bevel. */
+  --sans: ui-sans-serif, system-ui, -apple-system, "Segoe UI", Roboto, "Helvetica Neue", Arial, sans-serif;
+  --mono: ui-monospace, "SF Mono", "JetBrains Mono", "IBM Plex Mono", Menlo, Consolas, monospace;
+
+  /* ---- spacing: the brief's scale, used exclusively ---- */
+  --s1: 4px;
+  --s2: 8px;
+  --s3: 12px;
+  --s4: 16px;
+  --s5: 24px;
+  --s6: 32px;
+  --s7: 48px;
+  --s8: 64px;
+
+  /* ---- geometry ---- */
+  --r-sm: 10px;
+  --r: 14px;
+  --r-lg: 20px;
+  --r-pill: 999px;
+
+  /* ---- motion: 150–300ms, and nothing that loops ---- */
+  --fast: .15s;
+  --mid: .22s;
+  --slow: .3s;
+  --ease: cubic-bezier(.2, .8, .3, 1);
+  --ease-out: cubic-bezier(.16, 1, .3, 1);
+
+  /* ---- depth ----
+   * Elevation is a hairline plus a soft shadow, not a glow. A glow on a card
+   * reads as an alert; these are just surfaces sitting above other surfaces. */
+  --shadow-1: 0 1px 2px rgba(0, 0, 0, .4);
+  --shadow-2: 0 4px 16px rgba(0, 0, 0, .38);
+  --shadow-3: 0 12px 40px rgba(0, 0, 0, .5);
+
+  --nav-w: 232px;
+  --wrap: 1180px;
+}
+
+/*
+ * Light mode.
+ *
+ * Not an inversion — an inverted dark theme always looks like one. The ground
+ * is a warm off-white with a hint of paper rather than #FFF, surfaces are
+ * white so cards lift instead of sinking, and the accent darkens substantially
+ * because acid lime on white is illegible. The accent's *role* is identical;
+ * only its value changes.
+ */
+:root[data-theme="light"] {
+  --ground: #F4F3EF;
+  --surface: #FFFFFF;
+  --surface-2: #FAF9F6;
+  --surface-3: #F0EEE8;
+  --line: #E0DDD5;
+  --line-soft: #EBE8E1;
+
+  --bone: #1A1D20;
+  --bone-dim: #565C63;
+  --bone-dimmer: #6E757C;
+
+  /* Lime is kept for fills, where dark text sits on it; the darker variant is
+   * used wherever the accent has to work as text or a thin line. */
+  --lime: #B4DE2E;
+  --lime-ink: #17200A;
+  --lime-soft: rgba(122, 156, 20, .15);
+  --lime-line: rgba(122, 156, 20, .42);
+  /* 8.8:1 under the dark ink it carries. */
+  --lime-hover: #A2C921;
+  /* 4.9:1 as text on white — this one is for ink, never for a fill. */
+  --lime-deep: #5F7A0F;
+
+  --warn: #9A6A0C;
+  --warn-soft: rgba(154, 106, 12, .12);
+  --fail: #B03A2E;
+  --fail-soft: rgba(176, 58, 46, .1);
+
+  /* Re-stepped for the white card surface and validated independently — a
+   * flipped dark palette is not a light palette. */
+  --cat-1: #2570F5;
+  --cat-2: #C94C1C;
+  --cat-3: #9441F4;
+  --cat-4: #009077;
+  --cat-5: #9C7310;
+  --cat-6: #D22485;
+
+  --shadow-1: 0 1px 2px rgba(28, 25, 20, .07);
+  --shadow-2: 0 4px 14px rgba(28, 25, 20, .09);
+  --shadow-3: 0 12px 34px rgba(28, 25, 20, .13);
+}
+
+/*
+ * Node state colours, defined once and referenced by the tree, the panel, the
+ * search results and the goal path — so a "mastered" node cannot be one colour
+ * in the tree and another in the list beside it.
+ */
+:root {
+  --st-locked-ink: var(--bone-dimmer);
+  --st-locked-face: var(--surface);
+  --st-locked-line: var(--line);
+
+  --st-available-ink: var(--bone);
+  --st-available-face: var(--surface-2);
+  --st-available-line: var(--bone-dimmer);
+
+  --st-progress-ink: var(--bone);
+  --st-progress-face: var(--surface-2);
+  --st-progress-line: var(--lime);
+
+  --st-complete-ink: var(--bone);
+  --st-complete-face: var(--surface-3);
+  --st-complete-line: var(--lime);
+
+  --st-mastered-ink: var(--lime-ink);
+  --st-mastered-face: var(--lime);
+  --st-mastered-line: var(--lime);
+}
+
+@media (prefers-reduced-motion: reduce) {
+  :root {
+    --fast: .01ms;
+    --mid: .01ms;
+    --slow: .01ms;
+  }
+}
