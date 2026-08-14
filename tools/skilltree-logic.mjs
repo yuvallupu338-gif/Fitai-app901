@@ -14,6 +14,7 @@
  *   node tools/skilltree-logic.mjs
  */
 
+import { readFileSync } from 'node:fs';
 import { resolve, dirname } from 'node:path';
 import { fileURLToPath, pathToFileURL } from 'node:url';
 
@@ -1101,6 +1102,64 @@ check('a real attempt after seeding earns First Step',
 eq('a real attempt after seeding starts the streak', seededThenReal.streak.current, 1);
 check('the skill is no longer marked never practised',
   seededThenReal.skills.internet_basics.neverPractised === false);
+
+/* ================================================================== *
+ * Colour contrast
+ *
+ * Read out of tokens.css and computed, rather than asserted in a comment.
+ * Every one of these was wrong at some point *because* it had been measured
+ * against a single surface and then used on four — a token that passes on a
+ * card and fails on the page ground is the failure this exists to catch.
+ * ================================================================== */
+group('Contrast');
+
+const tokensCss = readFileSync(resolve(ROOT, 'skilltree/src/styles/tokens.css'), 'utf8');
+
+/* The light block starts at the [data-theme="light"] selector; everything
+ * before it is the dark default. */
+const lightAt = tokensCss.indexOf('[data-theme="light"]');
+const tokenIn = (where, name) => {
+  const scope = where === 'dark' ? tokensCss.slice(0, lightAt) : tokensCss.slice(lightAt);
+  const hits = [...scope.matchAll(new RegExp(`--${name}:\\s*(#[0-9A-Fa-f]{6})`, 'g'))];
+  return hits.length ? hits[hits.length - 1][1] : null;
+};
+
+function luminance(hexColour) {
+  const raw = hexColour.replace('#', '');
+  const channels = [0, 2, 4].map((i) => parseInt(raw.slice(i, i + 2), 16) / 255);
+  const [r, g, b] = channels.map((c) => (c <= 0.03928 ? c / 12.92 : ((c + 0.055) / 1.055) ** 2.4));
+  return 0.2126 * r + 0.7152 * g + 0.0722 * b;
+}
+
+function contrast(a, b) {
+  const [x, y] = [luminance(a), luminance(b)];
+  return (Math.max(x, y) + 0.05) / (Math.min(x, y) + 0.05);
+}
+
+/* Every surface each of these actually sits on. */
+const SURFACES = ['ground', 'surface', 'surface-2', 'surface-3'];
+
+/* 4.5 for text, 3.0 for the boundary of a control you can operate (1.4.11). */
+const CONTRAST_RULES = [
+  ['bone', 4.5], ['bone-dim', 4.5], ['bone-dimmer', 4.5],
+  ['accent-ink', 4.5], ['warn', 4.5], ['fail', 4.5],
+  ['line-strong', 3],
+];
+
+for (const theme of ['dark', 'light']) {
+  const grounds = SURFACES.map((name) => tokenIn(theme, name));
+  check(`${theme}: every surface token is defined`, grounds.every(Boolean),
+    `got ${JSON.stringify(grounds)}`);
+
+  for (const [name, min] of CONTRAST_RULES) {
+    const colour = tokenIn(theme, name);
+    if (!colour) { check(`${theme}: --${name} is defined`, false); continue; }
+
+    const worst = Math.min(...grounds.map((g) => contrast(colour, g)));
+    check(`${theme}: --${name} clears ${min}:1 on every surface`, worst >= min,
+      `${colour} worst case ${worst.toFixed(2)}:1`);
+  }
+}
 
 /* ================================================================== *
  * The demo profile

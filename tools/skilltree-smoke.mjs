@@ -762,6 +762,37 @@ async function main() {
   });
   check(bottomClear, 'a fixed bottom bar covered the tree controls');
 
+  /*
+   * The dashboard's secondary lists have to say something new.
+   *
+   * On a first run it offered the identical action three times — the "Start
+   * here" button, the day's mission and the top suggestion were all the same
+   * skill — and the demo had four lists restating each other down 1,540px of
+   * page. The lead and the mission list may agree (one is the call to action,
+   * the other tracks completion); everything below them may not repeat either.
+   */
+  await page.goto(`${base}#/demo`);
+  await page.waitForSelector('.card', { timeout: 10000 });
+  await page.waitForTimeout(600);
+  const dashDupes = await page.evaluate(() => {
+    const titlesIn = (name) => {
+      const head = [...document.querySelectorAll('.card-title')].find((t) => t.textContent === name);
+      if (!head) return [];
+      const card = head.closest('.card');
+      return [...card.querySelectorAll('.list-item .title')].map((t) => t.textContent);
+    };
+    const above = new Set([
+      ...titlesIn('Today'),
+      ...titlesIn('In progress'),
+      ...[...document.querySelectorAll('.card.feature .btn')].map((b) => b.textContent),
+    ].map((t) => t.replace(/^(Start|Review|Continue)\s+/, '')));
+
+    return [...titlesIn('Also worth opening'), ...titlesIn('Worth reviewing')]
+      .filter((t) => above.has(t));
+  });
+  check(dashDupes.length === 0,
+    `the dashboard's secondary lists repeated what was already on screen: ${dashDupes.join(', ')}`);
+
   /* Onboarding shows no navigation: every link was inert except for
    * bouncing back to step one and discarding the answers on the way. */
   await page.evaluate(() => window.localStorage.clear());

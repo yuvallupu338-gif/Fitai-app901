@@ -109,7 +109,7 @@
   gap: var(--s2);
   padding: 9px var(--s4);
   min-height: 38px;
-  border: 1px solid var(--line);
+  border: 1px solid var(--line-strong);
   border-radius: var(--r-sm);
   background: var(--surface-2);
   color: var(--bone);
@@ -535,7 +535,8 @@
   width: 100%;
   padding: 10px var(--s3);
   min-height: 40px;
-  border: 1px solid var(--line);
+  /* A control boundary, not a decorative rule — see --line-strong. */
+  border: 1px solid var(--line-strong);
   border-radius: var(--r-sm);
   background: var(--surface-2);
   color: var(--bone);
@@ -1162,3 +1163,8 @@ body.onboarding .demobar { display: none; }
   .demobar-short { display: inline; }
   body.has-demobar .main { padding-bottom: calc(var(--s8) + 92px); }
 }
+
+/* Tree cards in Explore: footers on one line across the row, whatever the
+ * tagline above them does. */
+.tree-card { display: flex; flex-direction: column; }
+.tree-card-foot { margin-top: auto; padding-top: var(--s4); }

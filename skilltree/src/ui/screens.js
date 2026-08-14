@@ -193,13 +193,19 @@ export function renderExplore(host, params, query = {}) {
     const started = tree.skills.filter((s) => state.skills[s.id]).length;
     const mastered = tree.skills.filter((s) => (state.skills[s.id]?.level || 0) >= 5).length;
 
-    return h('div.card',
+    /* `tree-card` makes the card a column and pushes its footer down, so four
+     * taglines of different lengths do not leave four "N skills / Open" rows
+     * at four different heights across one row of cards. */
+    return h('div.card.tree-card',
       h('div.row.between', { style: { marginBottom: 'var(--s3)' } },
         h('span.chip', tree.category),
         started ? h('span.chip.on', `${started} started`) : null),
-      h('h3', { style: { fontSize: '17px', marginBottom: 'var(--s1)' } }, tree.name),
+      /* h2, not h3: the page heading is the h1 above and the generate panel
+       * below is an h2, so an h3 here skipped a level and made the screen read
+       * as having a section that does not exist. */
+      h('h2', { style: { fontSize: '17px', marginBottom: 'var(--s1)' } }, tree.name),
       h('p', { style: { color: 'var(--bone-dim)', fontSize: '13.5px' } }, tree.tagline),
-      h('div.row.between', { style: { marginTop: 'var(--s4)' } },
+      h('div.row.between.tree-card-foot',
         h('span.card-note.num', `${tree.skills.length} skills${mastered ? ` · ${mastered} mastered` : ''}`),
         h('button.btn.small', { onclick: () => go(`tree/${tree.id}`) }, 'Open')));
   })));

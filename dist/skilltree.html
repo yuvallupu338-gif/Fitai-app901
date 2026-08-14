@@ -66,6 +66,21 @@
   --surface-3: #23282D;
   --line: #2A3036;
   --line-soft: #1F242A;
+  /*
+   * The boundary of a control you can operate — an input, a button, a select.
+   *
+   * WCAG 1.4.11 asks for 3:1 against what surrounds it, and --line is a
+   * decorative separator at 1.34:1: on the light theme an empty text field was
+   * genuinely invisible against the card behind it, and you found the field by
+   * clicking where you guessed it was. --line stays as it is for rules and
+   * card edges, which are decoration and are allowed to be quiet.
+   *
+   * Measured against all four surfaces it is used on, not one: 3.89:1 on the
+   * page ground, 3.60:1 on a card, 3.34:1 and 3.03:1 on the two raised
+   * surfaces. Checking against a single ground is how the first attempt landed
+   * at 2.69:1 on the surface where buttons most often sit.
+   */
+  --line-strong: #6E7175;
 
   /* ---- ink ---- */
   --bone: #E8EAEC;
@@ -188,6 +203,8 @@
   --surface-3: #F0EEE8;
   --line: #E0DDD5;
   --line-soft: #EBE8E1;
+  /* 3.16:1 / 3.51:1 / 3.34:1 / 3.03:1 across the four surfaces. */
+  --line-strong: #86898D;
 
   --bone: #1A1D20;
   --bone-dim: #565C63;
@@ -204,13 +221,20 @@
   --lime-hover: #A2C921;
   /* 4.9:1 as text on white — this one is for ink, never for a fill. */
   --lime-deep: #5F7A0F;
-  /* 4.9:1 on card, 4.4:1 on the page ground, 4.2:1 as a bar against its
-   * track. The dark theme can use the bright lime for all of these; light
-   * cannot, and this is the token that lets one rule serve both. */
-  --accent-ink: #5F7A0F;
+  /*
+   * 5.68:1 on a card, 5.12:1 on the page ground, 4.90:1 on the dimmest raised
+   * surface. The previous value was picked against the card alone and read
+   * 4.42:1 on the ground and 4.23:1 on --surface-3 — passing where it was
+   * measured and failing where it was used, which is the failure mode this
+   * whole set of tokens exists to avoid.
+   */
+  --accent-ink: #586F0E;
 
-  --warn: #9A6A0C;
-  --warn-soft: rgba(154, 106, 12, .12);
+  /* 5.08:1 on the page ground, 5.64:1 on a card. The previous #9A6A0C read
+   * 4.26:1 against the ground — passing on a card and failing off it, which is
+   * the worst kind of nearly. */
+  --warn: #8A5F0A;
+  --warn-soft: rgba(138, 95, 10, .12);
   --fail: #B03A2E;
   --fail-soft: rgba(176, 58, 46, .1);
 
@@ -654,7 +678,7 @@ body.onboarding .app { grid-template-columns: 1fr; }
   gap: var(--s2);
   padding: 9px var(--s4);
   min-height: 38px;
-  border: 1px solid var(--line);
+  border: 1px solid var(--line-strong);
   border-radius: var(--r-sm);
   background: var(--surface-2);
   color: var(--bone);
@@ -1080,7 +1104,8 @@ body.onboarding .app { grid-template-columns: 1fr; }
   width: 100%;
   padding: 10px var(--s3);
   min-height: 40px;
-  border: 1px solid var(--line);
+  /* A control boundary, not a decorative rule — see --line-strong. */
+  border: 1px solid var(--line-strong);
   border-radius: var(--r-sm);
   background: var(--surface-2);
   color: var(--bone);
@@ -1707,6 +1732,11 @@ body.onboarding .demobar { display: none; }
   .demobar-short { display: inline; }
   body.has-demobar .main { padding-bottom: calc(var(--s8) + 92px); }
 }
+
+/* Tree cards in Explore: footers on one line across the row, whatever the
+ * tagline above them does. */
+.tree-card { display: flex; flex-direction: column; }
+.tree-card-foot { margin-top: auto; padding-top: var(--s4); }
 
 </style>
 </head>
@@ -11169,8 +11199,19 @@ function renderDashboard(host) {
     h('div.card-note', { style: { marginTop: 'var(--s2)' } },
       `${num(overview.toNextLevel)} XP to level ${overview.level + 1}`)));
 
-  /* ---- the lead ---- */
-  page.appendChild(leadCard(overview, focus, recs, reviews));
+  /*
+   * The lead, and a note of what it points at.
+   *
+   * Everything below has to say something the lead did not. On a first run the
+   * dashboard offered the identical action three times — the "Start here"
+   * button, the day's mission and the top suggestion were all the same skill —
+   * and on a populated profile four lists restated each other over 1,500px of
+   * scrolling. A list that repeats the thing above it is not a second option.
+   */
+  const shown = new Set();
+  const lead = leadCard(overview, focus, recs, reviews);
+  if (lead.dataset.skill) shown.add(lead.dataset.skill);
+  page.appendChild(lead);
 
   /* ---- missions ---- */
   if (missions.length) {
@@ -11179,7 +11220,7 @@ function renderDashboard(host) {
       h('div.card-head',
         h('span.card-title', 'Today'),
         h('span.card-note', `${doneSet.size} of ${missions.length} done`)),
-      h('div.list', ...missions.map((m) => h('button.list-item', {
+      h('div.list', ...missions.map((m) => (m.skillId && shown.add(m.skillId), h('button.list-item', {
         onclick: () => (m.activityId ? go(`activity/${m.activityId}`) : openSkill(m.skillId, { onChange: () => renderDashboard(host) })),
       },
       h('span.dot', { class: doneSet.has(m.id) ? 'on' : '' }),
@@ -11190,7 +11231,7 @@ function renderDashboard(host) {
             : {},
         }, m.title),
         h('div.sub', m.detail)),
-      doneSet.has(m.id) ? h('span.chip.on', 'Done') : h('span.chip', `+${m.xp} XP`))))));
+      doneSet.has(m.id) ? h('span.chip.on', 'Done') : h('span.chip', `+${m.xp} XP`)))))));
   }
 
   /* ---- current focus ---- */
@@ -11241,12 +11282,16 @@ function renderDashboard(host) {
   /* ---- two columns: recommendation + review ---- */
   const columns = h('div.grid.cols-2');
 
-  if (recs.length) {
+  /* Only what is not already on the screen. When that is nothing, the card is
+   * not drawn — an empty "Suggested next" is more honest than a duplicate. */
+  const freshRecs = recs.filter((rec) => !shown.has(rec.skillId));
+
+  if (freshRecs.length) {
     columns.appendChild(h('div.card',
       h('div.card-head',
-        h('span.card-title', 'Suggested next'),
-        h('span.card-note', 'Based on your goal and progress')),
-      h('div.list', ...recs.map((rec) => h('button.list-item', {
+        h('span.card-title', 'Also worth opening'),
+        h('span.card-note', profile.goal?.targetSkillId ? 'On the way to your goal' : 'Based on your progress')),
+      h('div.list', ...freshRecs.map((rec) => h('button.list-item', {
         onclick: () => openSkill(rec.skillId, { onChange: () => renderDashboard(host) }),
       },
       h('div.grow',
@@ -11262,7 +11307,7 @@ function renderDashboard(host) {
       h('div.card-head',
         h('span.card-title', 'Worth reviewing'),
         h('span.card-note', 'Confidence has slipped')),
-      h('div.list', ...reviews.slice(0, 4).map((r) => h('button.list-item', {
+      h('div.list', ...reviews.filter((r) => !shown.has(r.skillId)).slice(0, 4).map((r) => h('button.list-item', {
         onclick: () => openSkill(r.skillId, { onChange: () => renderDashboard(host) }),
       },
       h('div.grow',
@@ -11288,6 +11333,9 @@ function leadCard(overview, focus, recs, reviews) {
   if (!focus.length && !Object.keys(profile.skills).length) {
     const first = recs[0];
     return h('div.card.feature',
+      /* What this card sends you to, so the lists below can avoid repeating
+       * it — see `shown` in renderDashboard. */
+      first ? { data: { skill: first.skillId } } : null,
       h('div.eyebrow', 'Start here'),
       h('h2', 'Pick something and prove you can do it.'),
       h('p', { style: { color: 'var(--bone-dim)', margin: 'var(--s2) 0 var(--s4)' } },
@@ -11306,6 +11354,7 @@ function leadCard(overview, focus, recs, reviews) {
   if (daysAway >= 7 && reviews.length) {
     const top = reviews[0];
     return h('div.card.feature',
+      { data: { skill: top.skillId } },
       h('div.eyebrow', 'Welcome back'),
       h('h2', `It has been ${Math.round(daysAway)} days.`),
       h('p', { style: { color: 'var(--bone-dim)', margin: 'var(--s2) 0 var(--s4)' } },
@@ -11324,6 +11373,7 @@ function leadCard(overview, focus, recs, reviews) {
     const current = focus[0];
     const next = session.nextActivity(current.skillId);
     return h('div.card.feature',
+      { data: { skill: current.skillId } },
       h('div.eyebrow', 'Continue'),
       h('h2', current.skill.name),
       h('p', { style: { color: 'var(--bone-dim)', margin: 'var(--s2) 0 var(--s4)' } },
@@ -11339,6 +11389,7 @@ function leadCard(overview, focus, recs, reviews) {
   const rec = recs[0];
   if (rec) {
     return h('div.card.feature',
+      { data: { skill: rec.skillId } },
       h('div.eyebrow', 'Recommended'),
       h('h2', rec.skill.name),
       h('p', { style: { color: 'var(--bone-dim)', margin: 'var(--s2) 0 var(--s4)' } },
@@ -15024,13 +15075,19 @@ function renderExplore(host, params, query = {}) {
     const started = tree.skills.filter((s) => state.skills[s.id]).length;
     const mastered = tree.skills.filter((s) => (state.skills[s.id]?.level || 0) >= 5).length;
 
-    return h('div.card',
+    /* `tree-card` makes the card a column and pushes its footer down, so four
+     * taglines of different lengths do not leave four "N skills / Open" rows
+     * at four different heights across one row of cards. */
+    return h('div.card.tree-card',
       h('div.row.between', { style: { marginBottom: 'var(--s3)' } },
         h('span.chip', tree.category),
         started ? h('span.chip.on', `${started} started`) : null),
-      h('h3', { style: { fontSize: '17px', marginBottom: 'var(--s1)' } }, tree.name),
+      /* h2, not h3: the page heading is the h1 above and the generate panel
+       * below is an h2, so an h3 here skipped a level and made the screen read
+       * as having a section that does not exist. */
+      h('h2', { style: { fontSize: '17px', marginBottom: 'var(--s1)' } }, tree.name),
       h('p', { style: { color: 'var(--bone-dim)', fontSize: '13.5px' } }, tree.tagline),
-      h('div.row.between', { style: { marginTop: 'var(--s4)' } },
+      h('div.row.between.tree-card-foot',
         h('span.card-note.num', `${tree.skills.length} skills${mastered ? ` · ${mastered} mastered` : ''}`),
         h('button.btn.small', { onclick: () => go(`tree/${tree.id}`) }, 'Open')));
   })));

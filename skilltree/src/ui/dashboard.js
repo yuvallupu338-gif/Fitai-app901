@@ -66,8 +66,19 @@ export function renderDashboard(host) {
     h('div.card-note', { style: { marginTop: 'var(--s2)' } },
       `${num(overview.toNextLevel)} XP to level ${overview.level + 1}`)));
 
-  /* ---- the lead ---- */
-  page.appendChild(leadCard(overview, focus, recs, reviews));
+  /*
+   * The lead, and a note of what it points at.
+   *
+   * Everything below has to say something the lead did not. On a first run the
+   * dashboard offered the identical action three times — the "Start here"
+   * button, the day's mission and the top suggestion were all the same skill —
+   * and on a populated profile four lists restated each other over 1,500px of
+   * scrolling. A list that repeats the thing above it is not a second option.
+   */
+  const shown = new Set();
+  const lead = leadCard(overview, focus, recs, reviews);
+  if (lead.dataset.skill) shown.add(lead.dataset.skill);
+  page.appendChild(lead);
 
   /* ---- missions ---- */
   if (missions.length) {
@@ -76,7 +87,7 @@ export function renderDashboard(host) {
       h('div.card-head',
         h('span.card-title', 'Today'),
         h('span.card-note', `${doneSet.size} of ${missions.length} done`)),
-      h('div.list', ...missions.map((m) => h('button.list-item', {
+      h('div.list', ...missions.map((m) => (m.skillId && shown.add(m.skillId), h('button.list-item', {
         onclick: () => (m.activityId ? go(`activity/${m.activityId}`) : openSkill(m.skillId, { onChange: () => renderDashboard(host) })),
       },
       h('span.dot', { class: doneSet.has(m.id) ? 'on' : '' }),
@@ -87,7 +98,7 @@ export function renderDashboard(host) {
             : {},
         }, m.title),
         h('div.sub', m.detail)),
-      doneSet.has(m.id) ? h('span.chip.on', 'Done') : h('span.chip', `+${m.xp} XP`))))));
+      doneSet.has(m.id) ? h('span.chip.on', 'Done') : h('span.chip', `+${m.xp} XP`)))))));
   }
 
   /* ---- current focus ---- */
@@ -138,12 +149,16 @@ export function renderDashboard(host) {
   /* ---- two columns: recommendation + review ---- */
   const columns = h('div.grid.cols-2');
 
-  if (recs.length) {
+  /* Only what is not already on the screen. When that is nothing, the card is
+   * not drawn — an empty "Suggested next" is more honest than a duplicate. */
+  const freshRecs = recs.filter((rec) => !shown.has(rec.skillId));
+
+  if (freshRecs.length) {
     columns.appendChild(h('div.card',
       h('div.card-head',
-        h('span.card-title', 'Suggested next'),
-        h('span.card-note', 'Based on your goal and progress')),
-      h('div.list', ...recs.map((rec) => h('button.list-item', {
+        h('span.card-title', 'Also worth opening'),
+        h('span.card-note', profile.goal?.targetSkillId ? 'On the way to your goal' : 'Based on your progress')),
+      h('div.list', ...freshRecs.map((rec) => h('button.list-item', {
         onclick: () => openSkill(rec.skillId, { onChange: () => renderDashboard(host) }),
       },
       h('div.grow',
@@ -159,7 +174,7 @@ export function renderDashboard(host) {
       h('div.card-head',
         h('span.card-title', 'Worth reviewing'),
         h('span.card-note', 'Confidence has slipped')),
-      h('div.list', ...reviews.slice(0, 4).map((r) => h('button.list-item', {
+      h('div.list', ...reviews.filter((r) => !shown.has(r.skillId)).slice(0, 4).map((r) => h('button.list-item', {
         onclick: () => openSkill(r.skillId, { onChange: () => renderDashboard(host) }),
       },
       h('div.grow',
@@ -185,6 +200,9 @@ function leadCard(overview, focus, recs, reviews) {
   if (!focus.length && !Object.keys(profile.skills).length) {
     const first = recs[0];
     return h('div.card.feature',
+      /* What this card sends you to, so the lists below can avoid repeating
+       * it — see `shown` in renderDashboard. */
+      first ? { data: { skill: first.skillId } } : null,
       h('div.eyebrow', 'Start here'),
       h('h2', 'Pick something and prove you can do it.'),
       h('p', { style: { color: 'var(--bone-dim)', margin: 'var(--s2) 0 var(--s4)' } },
@@ -203,6 +221,7 @@ function leadCard(overview, focus, recs, reviews) {
   if (daysAway >= 7 && reviews.length) {
     const top = reviews[0];
     return h('div.card.feature',
+      { data: { skill: top.skillId } },
       h('div.eyebrow', 'Welcome back'),
       h('h2', `It has been ${Math.round(daysAway)} days.`),
       h('p', { style: { color: 'var(--bone-dim)', margin: 'var(--s2) 0 var(--s4)' } },
@@ -221,6 +240,7 @@ function leadCard(overview, focus, recs, reviews) {
     const current = focus[0];
     const next = session.nextActivity(current.skillId);
     return h('div.card.feature',
+      { data: { skill: current.skillId } },
       h('div.eyebrow', 'Continue'),
       h('h2', current.skill.name),
       h('p', { style: { color: 'var(--bone-dim)', margin: 'var(--s2) 0 var(--s4)' } },
@@ -236,6 +256,7 @@ function leadCard(overview, focus, recs, reviews) {
   const rec = recs[0];
   if (rec) {
     return h('div.card.feature',
+      { data: { skill: rec.skillId } },
       h('div.eyebrow', 'Recommended'),
       h('h2', rec.skill.name),
       h('p', { style: { color: 'var(--bone-dim)', margin: 'var(--s2) 0 var(--s4)' } },
