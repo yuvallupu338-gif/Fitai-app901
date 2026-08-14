@@ -6,8 +6,10 @@
  * step whose answer is never used again is a lie about being listened to.
  *
  * So: name (used in the greeting), area (picks the tree), level (skips
- * material you already have), time (sets mission intensity), goal (draws the
- * path through the tree). Five questions, each with a visible consequence.
+ * material you already have), time (sets both mission intensity and the
+ * programme's pace), and the goal in the learner's own words — which the goal
+ * engine resolves into an ordered plan. Five questions, each with a visible
+ * consequence, and the last one shows you its consequence as you type.
  *
  * The level answer is the one worth explaining. Claiming "intermediate" does
  * not hand out levels — it seeds the prerequisite skills at a level that makes
@@ -22,7 +24,8 @@ import { icon, brandMark } from './icons.js';
 import * as store from '../core/store.js';
 import * as session from '../core/session.js';
 import { go } from '../core/router.js';
-import { allTrees, getIndex, getTree } from '../data/catalog.js';
+import * as catalog from '../data/catalog.js';
+import { buildProgramme } from '../domain/goals.js';
 import { applyAttempt } from '../domain/progress.js';
 import { INTENSITY } from '../domain/missions.js';
 import { pathTo } from '../domain/graph.js';
@@ -34,6 +37,7 @@ export function renderOnboarding(host) {
     level: 'beginner',
     minutes: 20,
     targetSkillId: null,
+    goalText: '',
   };
 
   let step = 0;
@@ -103,7 +107,7 @@ function whoAreYou(card, answers, nav) {
 }
 
 function whatArea(card, answers, nav) {
-  const trees = allTrees();
+  const trees = catalog.allTrees();
   if (!answers.treeId) answers.treeId = trees[0].id;
 
   const list = h('div.stack.tight', ...trees.map((tree) => h('button.pick', {
@@ -189,42 +193,87 @@ function howMuchTime(card, answers, nav) {
 }
 
 function whatGoal(card, answers, nav) {
-  const tree = getTree(answers.treeId);
-  const index = getIndex(answers.treeId);
+  /*
+   * A written goal, not a menu.
+   *
+   * The earlier version offered the five deepest nodes of the chosen tree and
+   * called it a goal. That is the app's vocabulary, not the learner's — nobody
+   * arrives wanting "Full Stack Developer", they arrive wanting to build
+   * websites for people who will pay them. Taking the sentence they would
+   * actually say and resolving it to skills is the whole point of the goal
+   * engine, and this is where it earns its place.
+   */
+  const tree = catalog.getTree(answers.treeId);
 
-  /* Candidate goals are the deep nodes — the ones that require several
-   * branches. Offering every skill as a goal would be a 33-item list where
-   * most entries are waypoints rather than destinations. */
-  const candidates = tree.skills
-    .filter((s) => (s.requires || []).length >= 2 || s.category === 'Milestone')
-    .sort((a, b) => (b.requires?.length || 0) - (a.requires?.length || 0))
-    .slice(0, 5);
+  const suggestions = {
+    web: ['Become a frontend developer', 'Open a web design business', 'Build and ship my own app'],
+    math: ['Get comfortable with calculus', 'Stop being afraid of algebra', 'Understand statistics properly'],
+    calisthenics: ['Do a muscle-up', 'Hold a handstand', 'Get a front lever'],
+    business: ['Open a web design business', 'Get my first paying client', 'Go full-time freelance'],
+  }[answers.treeId] || [];
 
-  if (!answers.targetSkillId && candidates.length) answers.targetSkillId = candidates[0].id;
+  const preview = h('div');
 
-  const list = h('div.stack.tight', ...candidates.map((skill) => {
-    const steps = pathTo(index, skill.id).length;
-    return h('button.pick', {
-      'aria-pressed': String(answers.targetSkillId === skill.id),
-      onclick: () => {
-        answers.targetSkillId = skill.id;
-        for (const btn of list.children) btn.setAttribute('aria-pressed', 'false');
-        list.children[candidates.indexOf(skill)].setAttribute('aria-pressed', 'true');
-      },
-    },
-    h('span.pick-mark'),
-    h('span.pick-body', skill.name, h('small', `${steps} skills on the path · ${skill.description}`)));
-  }));
+  const input = h('input.input', {
+    type: 'text',
+    value: answers.goalText,
+    placeholder: 'e.g. open a web design business',
+    'aria-label': 'What do you want to be able to do?',
+    oninput: (e) => { answers.goalText = e.target.value; showPreview(); },
+    onkeydown: (e) => { if (e.key === 'Enter' && answers.goalText.trim().length > 2) nav.finish(); },
+  });
+
+  /* Live feedback while typing: seeing "27 skills, about 2 years at 20 min a
+   * day" before committing is the difference between a goal and a wish. */
+  let pending = null;
+  function showPreview() {
+    window.clearTimeout(pending);
+    pending = window.setTimeout(() => {
+      clear(preview);
+      const text = answers.goalText.trim();
+      if (text.length < 3) return;
+
+      const programme = buildProgramme({
+        catalog,
+        state: store.get() || { skills: {} },
+        goalText: text,
+        minutesPerDay: answers.minutes,
+      });
+
+      if (!programme.ok) {
+        preview.appendChild(h('div.notice.warn', icon('info', { size: 16 }),
+          h('span', 'Nothing built in covers that yet — you can still continue, and generate a tree for it from Explore.')));
+        return;
+      }
+
+      preview.appendChild(h('div.notice', icon('target', { size: 16 }),
+        h('span', `${programme.totalSteps} skills, about ${programme.remainingHours} hours — roughly ${programme.weeks} weeks at ${answers.minutes} minutes a day. Ending at ${programme.targets.map((t) => t.name).join(' and ')}.`)));
+    }, 250);
+  }
 
   card.appendChild(h('div.stack.loose',
     h('div',
       h('h1', 'What are you aiming at?'),
       h('p', { style: { color: 'var(--bone-dim)', marginTop: 'var(--s2)' } },
-        'This draws a path through the tree and shapes what gets recommended. You can change it any time.')),
-    list,
+        'In your own words — the thing you want to be true, not a skill name. The app works out which skills that needs and in what order.')),
+    input,
+    preview,
+    suggestions.length
+      ? h('div.row.wrap', { style: { gap: 'var(--s2)' } },
+        ...suggestions.map((text) => h('button.chip', {
+          onclick: () => { answers.goalText = text; input.value = text; showPreview(); },
+        }, text)))
+      : null,
     h('div.row', { style: { gap: 'var(--s2)' } },
       h('button.btn', { onclick: nav.back }, 'Back'),
-      h('button.btn.primary.wide', { onclick: nav.finish }, 'Build my tree'))));
+      h('button.btn.primary.wide', {
+        onclick: () => {
+          if (!answers.goalText.trim()) answers.goalText = suggestions[0] || tree.name;
+          nav.finish();
+        },
+      }, 'Build my plan'))));
+
+  window.requestAnimationFrame(() => input.focus());
 }
 
 /* ------------------------------------------------------------------ *
@@ -242,20 +291,30 @@ function whatGoal(card, answers, nav) {
  * sequence of events could have produced.
  */
 function commit(answers) {
-  const index = getIndex(answers.treeId);
+  const index = catalog.getIndex(answers.treeId);
   const intensity = answers.minutes <= 10 ? 'light' : answers.minutes >= 45 ? 'intensive' : 'normal';
 
   store.update((profile) => {
+    const goalText = answers.goalText.trim();
+
+    /* Resolve the written goal to a destination so the tree screen's goal path
+     * lights up too. If nothing matches, the plan is still stored — Explore can
+     * generate a tree for it, and the plan screen says so. */
+    const programme = goalText
+      ? buildProgramme({ catalog, state: profile, goalText, minutesPerDay: answers.minutes })
+      : { ok: false };
+
     let next = {
       ...profile,
       name: answers.name.trim(),
       onboarded: true,
       settings: { ...profile.settings, intensity },
-      goal: answers.targetSkillId
+      plan: goalText ? { goalText, createdAt: Date.now(), minutesPerDay: answers.minutes } : null,
+      goal: programme.ok
         ? {
-          treeId: answers.treeId,
-          targetSkillId: answers.targetSkillId,
-          text: index.byId.get(answers.targetSkillId)?.name || '',
+          treeId: programme.targets[0].treeId,
+          targetSkillId: programme.targets[0].skillId,
+          text: goalText,
           createdAt: Date.now(),
         }
         : null,

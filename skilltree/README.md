@@ -4,8 +4,13 @@ A skill tree for real abilities. Skills unlock when you meet their
 requirements — a quiz you passed, a challenge whose tests went green, a
 standard you can actually hit — not when you press "done".
 
-Three trees ship with it: Web Development (33 skills), Mathematics (21) and
-Calisthenics (22), with 154 activities between them.
+Tell it what you want to be able to do — "open a web design business" — and it
+works out which skills that needs, in what order, and how long it takes at your
+pace.
+
+Four trees ship with it: Web Development (33 skills), Mathematics (21),
+Calisthenics (22) and Freelance & Business (21), with 208 activities between
+them.
 
 ## Running it
 
@@ -39,6 +44,9 @@ progress. See [Demo data](#demo-data) for why none of it is hand-written.
 
 Everything below is wired up. There are no buttons that do nothing.
 
+- **Goals in your own words** — a written goal becomes an ordered programme
+  across every tree, with phases, hour estimates and a projected finish date.
+  See [Goals](#goals).
 - **Interactive graph** — drag to pan, wheel or pinch to zoom, click a node to
   open it, hover or focus to light its whole dependency chain in both
   directions, arrow keys to move between nodes.
@@ -58,6 +66,39 @@ Everything below is wired up. There are no buttons that do nothing.
   thousand pixels of scrolling, the skill panel is a bottom sheet, and panning
   is clamped so the canvas cannot be dragged into empty space.
 - **AI coach and tree generation** — optional. See [AI](#ai).
+
+## Goals
+
+The headline feature, and the one with the most design in it.
+
+You write a goal the way you would say it. A scored term search over every
+skill's name, category, description and rationale finds what it touches, and a
+small set of intent rules covers the gap between what people type and what they
+need: "open a web design business" contains no word matching *Pricing* or
+*Contracts*, yet those are exactly what stands between someone and a paid
+project. The rules map recognisable goals onto the skills that actually
+constitute them.
+
+From the matched destinations, every prerequisite is pulled in, ordered, and
+grouped into phases — what you already have, what is open today, what comes
+after. Each step carries an hour estimate reduced by how far into it you
+already are, so a plan built by someone who already knows HTML does not bill
+them six hours for it.
+
+**It works with no API key.** An AI-only version would have been three lines
+and would have left the headline feature broken for anyone without one (§80).
+AI is only used to generate a tree for a domain the app does not cover at all.
+
+Two things it deliberately does not do. It does not promote your goal: ask for
+a muscle-up and the destination is Muscle-Up, not the tree's furthest
+milestone — an earlier version did that and answered an 11-step goal with a
+416-hour programme. And it does not flatter you about time: "open a web design
+business" at half an hour a day is genuinely about two years, so the screen
+says so, and puts the daily-time control directly beside the number that
+changes with it.
+
+Goals it cannot map fail honestly and offer AI tree generation, rather than
+guessing at the nearest match.
 
 ## How progression works
 
@@ -154,7 +195,8 @@ root
     xpEvents[]             append-only ledger: amount, reason, skillId, kind, at, key
     achievements[id]       -> earned timestamp
     streak                 current, longest, lastDay
-    goal                   treeId, targetSkillId, text
+    plan                   the goal as written, and minutes per day
+    goal                   treeId, targetSkillId, text — resolved from the plan
     missions               day, items[], completed[]
     analytics[]            internal event trail, bounded
     settings               theme, intensity, aiRecommendations, leaderboard
@@ -297,6 +339,9 @@ Every path is relative, so it works from a project subpath
   authored trees; what is missing is the editing interface.
 - **More content per skill.** The graph is deep; several skills have a lesson
   and a quiz where they want a project.
+- **More intent rules, or a better matcher.** The goal engine covers the
+  domains the trees cover. Every new tree wants a rule, and a smarter matcher
+  would need fewer of them.
 - **Verification levels.** The model has room for self / AI / teacher /
   official verification (`selfReported` already flows through grading); only
   self-verification is implemented.

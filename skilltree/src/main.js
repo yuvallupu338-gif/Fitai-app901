@@ -14,6 +14,7 @@ import { buildShell, syncNav, syncTheme, applyTheme } from './ui/shell.js';
 import { renderDashboard } from './ui/dashboard.js';
 import { renderActivity } from './ui/activity.js';
 import { renderOnboarding } from './ui/onboarding.js';
+import { renderPlan } from './ui/plan.js';
 import {
   renderTree, renderExplore, renderProgress, renderAchievements, renderProfile, renderSettings,
 } from './ui/screens.js';
@@ -57,6 +58,7 @@ function guarded(fn) {
 }
 
 route('dashboard', guarded((host) => renderDashboard(host)));
+route('plan', guarded((host) => renderPlan(host)));
 route('tree', guarded((host, params, query) => renderTree(host, params, query)));
 route('explore', guarded((host) => renderExplore(host)));
 route('progress', guarded((host) => renderProgress(host)));

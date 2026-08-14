@@ -57,7 +57,10 @@ export function renderTree(host, params, query) {
   /* A tree-level notice — the calisthenics safety framing (§40) — shown once,
    * at the top, rather than repeated inside every node. */
   if (tree.notice) {
-    page.appendChild(h('div.notice', icon('info', { size: 16 }), h('span', tree.notice)));
+    const noticeText = h('span.tree-notice', tree.notice);
+    page.appendChild(h('div.notice', {
+      onclick: () => noticeText.classList.toggle('open'),
+    }, icon('info', { size: 16 }), noticeText));
   }
 
   /* Search across every tree, not just this one. */
@@ -178,6 +181,7 @@ export function renderExplore(host) {
     type: 'text',
     placeholder: 'e.g. game development, bread baking, music theory',
     'aria-label': 'What do you want to learn?',
+    onkeydown: (e) => { if (e.key === 'Enter') runGeneration(input.value, genHost, host); },
   });
 
   const generateBtn = h('button.btn.primary', { onclick: () => runGeneration(input.value, genHost, host) },
@@ -455,7 +459,13 @@ export function renderSettings(host) {
   page.appendChild(h('div.page-head', h('div', h('h1', 'Settings'))));
 
   /* ---- profile ---- */
-  const nameInput = h('input.input', { type: 'text', value: state.name, 'aria-label': 'Your name' });
+  const saveName = () => { store.patch({ name: nameInput.value.trim() }); announce('Name saved'); renderSettings(host); };
+  const nameInput = h('input.input', {
+    type: 'text',
+    value: state.name,
+    'aria-label': 'Your name',
+    onkeydown: (e) => { if (e.key === 'Enter') saveName(); },
+  });
   page.appendChild(h('div.card',
     h('div.card-head', h('span.card-title', 'Profile')),
     h('div.stack.tight',
@@ -463,9 +473,7 @@ export function renderSettings(host) {
         h('label', { for: 'st-name' }, 'Name'),
         nameInput),
       h('div.row.wrap', { style: { gap: 'var(--s2)' } },
-        h('button.btn.small', {
-          onclick: () => { store.patch({ name: nameInput.value.trim() }); announce('Name saved'); renderSettings(host); },
-        }, 'Save'),
+        h('button.btn.small', { onclick: saveName }, 'Save'),
         ...store.listProfiles().filter((p) => p.id !== state.id).map((p) => h('button.chip', {
           onclick: () => { store.switchProfile(p.id); go('dashboard'); },
         }, `Switch to ${p.name || 'Unnamed'}`)),
@@ -532,12 +540,20 @@ function aiCard(host) {
       'Used for the coach and for generating new trees. Progression, XP, unlocks and grading are all deterministic and work without a key.'));
 
   for (const provider of PROVIDERS) {
+    const saveThisKey = () => {
+      saveKey(provider.id, input.value.trim());
+      if (input.value.trim()) saveChoice(provider.id, provider.defaultModel);
+      announce(`${provider.name} key saved`);
+      renderSettings(host);
+    };
+
     const input = h('input.input', {
       type: 'password',
       value: loadKey(provider.id),
       placeholder: provider.keyHint,
       'aria-label': `${provider.name} API key`,
       autocomplete: 'off',
+      onkeydown: (e) => { if (e.key === 'Enter') saveThisKey(); },
     });
 
     const status = h('span.card-note');
@@ -552,15 +568,7 @@ function aiCard(host) {
       h('label', provider.name),
       h('div.row', { style: { gap: 'var(--s2)' } },
         input,
-        h('button.btn.small', {
-          onclick: () => {
-            saveKey(provider.id, input.value.trim());
-            if (input.value.trim()) saveChoice(provider.id, provider.defaultModel);
-            refreshStatus();
-            announce(`${provider.name} key saved`);
-            renderSettings(host);
-          },
-        }, 'Save')),
+        h('button.btn.small', { onclick: saveThisKey }, 'Save')),
       status));
   }
 

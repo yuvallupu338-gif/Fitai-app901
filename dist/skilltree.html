@@ -1447,12 +1447,27 @@ button, input, select, textarea {
   .tree-switch::-webkit-scrollbar { display: none; }
   .tree-switch .chip { flex: none; }
 
-  /* Header (compact title + one chip row + search) plus the tab bar and a
-   * margin. Tuned against a 375x812 phone so the canvas ends just above the
-   * bar rather than a few pixels behind it. */
+  /* A starting value only — mountTree measures the real space left and sets an
+   * explicit height, because any figure here is an assumption about how tall
+   * the header is, and a tree with a notice breaks it. */
   .tree-shell {
     height: calc(100dvh - 268px);
     min-height: 300px;
+  }
+
+  /* A tree-level notice is important but it is not the screen. Two lines on a
+   * phone, tap to read the rest. */
+  .tree-notice {
+    display: -webkit-box;
+    -webkit-line-clamp: 2;
+    -webkit-box-orient: vertical;
+    line-clamp: 2;
+    overflow: hidden;
+    cursor: pointer;
+  }
+  .tree-notice.open {
+    -webkit-line-clamp: unset;
+    line-clamp: unset;
   }
 
   /* The search is secondary here — the canvas is the screen. */
@@ -1919,6 +1934,10 @@ function emptyProfile(name = '', id = null) {
     achievements: {},
     streak: { current: 0, longest: 0, lastDay: null },
     goal: null,
+    /* The goal in the learner's own words. The programme itself is derived
+     * from live progress on every render rather than stored, so it cannot go
+     * stale the moment something is completed. */
+    plan: null,
     missions: null,
     analytics: [],
     settings: {
@@ -5552,6 +5571,1019 @@ const CALISTHENICS_TREE = {
   };
 })();
 
+__m["skilltree/src/data/tree.business.js"] = (function () {
+/*
+ * tree.business.js — Freelance & Business.
+ *
+ * Twenty-one skills covering the work that turns a craft into an income:
+ * deciding what you sell, finding people who want it, quoting, contracting,
+ * delivering, getting paid, and doing it again without burning out.
+ *
+ * This tree exists because a goal like "open a web design business" is half
+ * craft and half business, and the app could previously only answer the craft
+ * half. The programme builder (domain/goals.js) draws from both, so that goal
+ * produces a path through HTML and CSS *and* through pricing and contracts —
+ * which is what actually stands between someone and a first paid project.
+ *
+ * How it grades. There is no sandbox for "sent a proposal", so like the
+ * calisthenics tree this is self-attested against written standards — and the
+ * standards are the useful part. "Found a client" is vague; "had a paid
+ * conversation with someone you did not already know" is a thing you either
+ * did or did not do. Every checklist item here is an observable action rather
+ * than a feeling of readiness.
+ *
+ * On advice: contracts, tax and company structure are jurisdiction-specific
+ * and this is not legal or financial advice. The skills here teach what the
+ * questions are and why they matter, and say plainly where to get a real
+ * answer.
+ */
+
+const q = (prompt, options, answer, explain) => ({ prompt, options, answer, explain });
+
+const check = (id, title, brief, checklist, extra = {}) => ({
+  id, kind: extra.kind || 'challenge', title, brief, checklist, ...extra,
+});
+
+const BUSINESS_TREE = {
+  id: 'business',
+  name: 'Freelance & Business',
+  tagline: 'Turning something you can do into something people pay for.',
+  category: 'Business',
+  icon: 'trend',
+  notice: 'Progress here is self-reported — these are real-world actions the app cannot observe. Nothing in this tree is legal, tax or financial advice; where those come up it says so and tells you what to ask a professional.',
+  skills: [
+    {
+      id: 'what_you_sell',
+      name: 'What You Sell',
+      category: 'Foundations',
+      difficulty: 1,
+      estimatedHours: [2, 5],
+      requires: [],
+      description: 'Turning "I can build websites" into a specific offer someone can say yes to.',
+      why: 'Nobody buys "web design". They buy a specific outcome for a specific problem. Until you can say yours in one sentence, every conversation starts from zero.',
+      activities: [
+        {
+          id: 'what_you_sell.learn',
+          kind: 'learn',
+          title: 'An offer, not a skill list',
+          body: [
+            'A skill is what you can do. An offer is what someone gets, what it costs, and roughly how long it takes. "I know HTML, CSS and JavaScript" is a skill list. "I build a five-page site for local trades that gets you found on Google, in three weeks, from £1,200" is an offer.',
+            'The difference is that an offer can be said yes or no to. A skill list makes the buyer do the work of imagining what you would actually deliver, and most of them will not bother.',
+            'Be specific about who it is for, and accept that this excludes people. "Websites for anyone" competes with everyone on earth and mostly on price. "Booking sites for small clinics" competes with far fewer people, and you get better at it faster because the second one is like the first.',
+            'Your first offer will be wrong. That is fine — it is a starting position, not a tattoo. You change it once you have talked to ten people, not once you have thought about it harder.',
+          ],
+        },
+        {
+          id: 'what_you_sell.quiz',
+          kind: 'quiz',
+          title: 'Check yourself',
+          questions: [
+            q('Which is an offer rather than a skill list?',
+              ['"A three-week booking site for clinics, from £1,200"', '"I know React, Node and Figma"', '"Professional, modern web design"', '"Ten years of experience in the industry"'],
+              0,
+              'It names who it is for, what they get, how long, and what it costs. The rest make the buyer guess.'),
+            q('Why does narrowing who you serve usually help?',
+              ['You compete with fewer people and improve faster on repeated work', 'It lets you charge everyone more', 'It is required to register a business', 'Broad markets have no demand'],
+              0,
+              '"Websites for anyone" competes with the whole internet, usually on price.'),
+            q('Your first offer turns out to be wrong. What should change it?',
+              ['Conversations with real potential buyers', 'More time thinking it through', 'A competitor\'s pricing page', 'Waiting until your portfolio is bigger'],
+              0,
+              'You cannot reason your way to what people will pay for. You find out by asking them.'),
+          ],
+        },
+        check('what_you_sell.gate', 'Write your offer',
+          'One sentence. Say it out loud to someone who is not in your field and see if they understand it.',
+          [
+            'Written one sentence naming who it is for and what they get',
+            'It includes a rough price or price range',
+            'It includes a rough timeframe',
+            'Said it to at least one person outside your field who understood it without follow-up questions',
+          ]),
+      ],
+    },
+
+    {
+      id: 'portfolio',
+      name: 'Portfolio',
+      category: 'Foundations',
+      difficulty: 2,
+      estimatedHours: [6, 20],
+      requires: [{ skillId: 'what_you_sell', minLevel: 2 }],
+      description: 'Three pieces of work that show you can do the thing you say you do.',
+      why: 'It is the single thing that most often decides whether a stranger replies. And you do not need paid work to build one.',
+      activities: [
+        {
+          id: 'portfolio.learn',
+          kind: 'learn',
+          title: 'Three is enough',
+          body: [
+            'Three strong pieces beat twelve mediocre ones. A long portfolio is read as "here is everything I have ever done"; a short one is read as "here is what I am good at". Nobody has ever hired someone for their fourth-best project.',
+            'Show the work that matches the offer. If you want clinic booking sites, a clinic booking site — even an invented one — is worth more than a beautiful unrelated project. Buyers are bad at imagining transfer; make it unnecessary.',
+            'Each piece needs three lines: what the problem was, what you did, what changed. Screenshots without context are decoration. "Bookings by phone were eating two hours a day; I built an online booking flow; that dropped to about twenty minutes" is a sales argument.',
+            'No clients yet? Invent the brief. Redesign something real and badly done, and say plainly that it is a self-directed project. Nobody minds, as long as you are honest about it — passing spec work off as a client project is the one thing that will actually cost you.',
+          ],
+        },
+        {
+          id: 'portfolio.quiz',
+          kind: 'quiz',
+          title: 'Check yourself',
+          questions: [
+            q('You have no paid work. What is the strongest portfolio move?',
+              ['Build self-directed projects matching your offer, labelled honestly', 'Wait until a client hires you', 'Show university coursework', 'List technologies you have studied'],
+              0,
+              'Nobody minds a self-directed project. They mind not being able to tell what you can do.'),
+            q('What belongs beside each portfolio piece?',
+              ['The problem, what you did, and what changed', 'The technologies used', 'How long it took', 'A link to the repository'],
+              0,
+              'Screenshots without context are decoration. The story is the argument.'),
+            q('Why is a shorter portfolio usually stronger?',
+              ['It reads as "what I am good at" rather than "everything I have done"', 'It loads faster', 'It is easier to maintain', 'Buyers have no time to read'],
+              0,
+              'Your weakest piece sets the impression, so it should not be there.'),
+          ],
+        },
+        check('portfolio.gate', 'Three pieces, published',
+          'It has to be somewhere you can send a link to.',
+          [
+            'Three pieces published at a URL you can send to a stranger',
+            'Each has the problem, what you did, and the outcome in writing',
+            'At least two match the offer you wrote',
+            'Any self-directed work is labelled as such',
+            'A person outside your field could tell what you do within ten seconds',
+          ]),
+      ],
+    },
+
+    {
+      id: 'pricing',
+      name: 'Pricing',
+      category: 'Money',
+      difficulty: 3,
+      estimatedHours: [3, 8],
+      requires: [{ skillId: 'what_you_sell', minLevel: 2 }],
+      description: 'Deciding what to charge, and being able to say the number out loud.',
+      why: 'Underpricing is the most common reason freelancers quit. It is not modesty — it is a slow way of running out of money while working constantly.',
+      activities: [
+        {
+          id: 'pricing.learn',
+          kind: 'learn',
+          title: 'The arithmetic nobody does',
+          body: [
+            'Work out your actual required rate before quoting anything. Take what you need to earn in a year. Add tax, software, hardware, insurance, pension, and time off. Then divide by *billable* hours — not 2,000. Between admin, sales, invoicing and gaps between projects, most solo freelancers bill 15–25 hours a week at best. That arithmetic usually produces a number two to three times higher than people guess, and that number is the floor, not the ambition.',
+            'Prefer quoting the project, not the hour. Hourly billing punishes you for getting faster and turns every efficiency into a pay cut. It also invites the client to audit your time instead of your work.',
+            'Price the outcome where you can. A booking system that saves a clinic ten hours a month is not worth "forty hours of work" — it is worth some fraction of what those hours are worth to them. This is why the specific offer matters: you cannot price an outcome you have not named.',
+            'Say the number and then stop talking. The silence after a price feels much longer to you than to them, and filling it with a discount nobody asked for is the most expensive habit in freelancing.',
+          ],
+        },
+        {
+          id: 'pricing.quiz',
+          kind: 'quiz',
+          title: 'Check yourself',
+          questions: [
+            q('Why divide your target income by billable hours rather than all working hours?',
+              ['Admin, sales and gaps are unpaid, so billable hours are far fewer', 'Tax is calculated that way', 'Clients expect it', 'It produces a rounder number'],
+              0,
+              'Most solo freelancers bill 15–25 hours a week. Dividing by 40 undercharges by roughly half.'),
+            q('What is the main problem with hourly billing?',
+              ['Getting faster reduces your pay', 'Clients dislike it', 'It is harder to invoice', 'It is not legal in some countries'],
+              0,
+              'Every efficiency you gain becomes a discount you give away.'),
+            q('You say your price and the client goes quiet. Best move?',
+              ['Stay quiet and let them respond', 'Offer a discount to fill the silence', 'Explain your hourly breakdown', 'Ask if it is too expensive'],
+              0,
+              'The pause feels far longer to you than to them. Discounting into silence is the most expensive habit there is.'),
+          ],
+        },
+        check('pricing.gate', 'Know your floor',
+          'Do the arithmetic properly, on paper.',
+          [
+            'Calculated a required annual income including tax, tools and time off',
+            'Estimated realistic billable hours per week — not 40',
+            'Derived a floor rate from those two numbers',
+            'Written a price for your standard offer',
+            'Said that price out loud to another person without immediately discounting it',
+          ]),
+      ],
+    },
+
+    {
+      id: 'finding_clients',
+      name: 'Finding Clients',
+      category: 'Sales',
+      difficulty: 3,
+      estimatedHours: [8, 30],
+      requires: [
+        { skillId: 'portfolio', minLevel: 2 },
+        { skillId: 'what_you_sell', minLevel: 3 },
+      ],
+      description: 'Getting in front of people who might pay you, repeatedly and on purpose.',
+      why: 'The hardest part, and the one most people avoid by redesigning their own logo instead.',
+      activities: [
+        {
+          id: 'finding_clients.learn',
+          kind: 'learn',
+          title: 'Outreach beats waiting',
+          body: [
+            'Waiting to be found is a strategy that works once you are established and not before. Early on, the only reliable channel is you contacting people directly — and it is uncomfortable, which is why most people do everything else first.',
+            'Warm beats cold by a wide margin. Former colleagues, people from your old industry, anyone who already knows you are competent. Tell them specifically what you now do and who for; "let me know if you hear of anything" produces nothing, because it gives them nothing to match against.',
+            'For cold outreach, lead with something you noticed about *them*. A specific observation about their booking flow beats any amount of description of yourself. The reply rate on templates is near zero and the sending is free, which is exactly why they do not work.',
+            'Volume and rhythm matter more than perfect messages. Ten thoughtful messages a week, every week, will out-earn one perfect message a month. Track what you sent and what came back, or you will conclude "outreach does not work" after eleven attempts.',
+            'Expect a low reply rate and a lower conversion rate. That is not a verdict on you; it is the normal shape of the activity, and knowing the numbers is what stops one silent week from ending the effort.',
+          ],
+        },
+        {
+          id: 'finding_clients.quiz',
+          kind: 'quiz',
+          title: 'Check yourself',
+          questions: [
+            q('Which opening is most likely to get a reply from a stranger?',
+              ['A specific observation about their business or site', 'A summary of your experience', 'A list of your services and rates', 'A link to your portfolio with no message'],
+              0,
+              'Leading with them proves you looked. Leading with you reads as a template, because it usually is.'),
+            q('You tell an old colleague "let me know if you hear of anything". Why is that weak?',
+              ['It gives them nothing specific to match against', 'It sounds desperate', 'They will forget you exist', 'It is too formal'],
+              0,
+              'People connect you to what they can picture. Name the work and who it is for.'),
+            q('After eleven cold messages and no replies, what is the right conclusion?',
+              ['Eleven is too small a sample to conclude anything', 'Cold outreach does not work', 'Your offer is wrong', 'Your prices are too high'],
+              0,
+              'Reply rates are low by nature. Without tracking volume you will misread normal variance as failure.'),
+          ],
+        },
+        check('finding_clients.gate', 'Actually reach out',
+          'This one is only passed by doing it. There is no reading your way through.',
+          [
+            'Listed 20 specific people or businesses who could plausibly buy your offer',
+            'Contacted at least 10 of them individually, each message referencing something specific about them',
+            'Told at least 5 people who already know you exactly what you now do and who for',
+            'Recorded what you sent and what came back somewhere you can review',
+            'Had at least one real conversation come out of it',
+          ]),
+      ],
+    },
+
+    {
+      id: 'scoping',
+      name: 'Scoping a Project',
+      category: 'Delivery',
+      difficulty: 3,
+      estimatedHours: [3, 8],
+      requires: [{ skillId: 'finding_clients', minLevel: 2 }],
+      description: 'Finding out what the work actually is before agreeing to do it.',
+      why: 'Almost every disastrous project was scoped in ten minutes and delivered over ten months.',
+      activities: [
+        {
+          id: 'scoping.learn',
+          kind: 'learn',
+          title: 'Ask before you quote',
+          body: [
+            'The brief a client gives you is a guess at a solution. Your job before quoting is to find the problem underneath it. "We need a new website" is usually "we are not getting enquiries", and those have different answers — sometimes an answer that is not a website at all.',
+            'Four questions do most of the work. What happens today, and what is wrong with it? What does success look like in a number? Who has to approve it? What is the deadline, and what is driving it?',
+            'That third question is the one people skip and the one that sinks projects. Work approved by one person ships. Work approved by a committee that was not in the room gets redesigned twice at your expense.',
+            'Write down what is *not* included, explicitly. Every project has an obvious-to-you boundary that is invisible to the client — content writing, photography, hosting, training, ongoing changes. Unwritten boundaries are where scope creep enters.',
+            'If the answers are vague and the client will not engage with the questions, that is information about the project, not a hurdle to push past.',
+          ],
+        },
+        {
+          id: 'scoping.quiz',
+          kind: 'quiz',
+          title: 'Check yourself',
+          questions: [
+            q('A client says "we need a new website". What should you establish first?',
+              ['What is going wrong today that a website is meant to fix', 'Which pages they want', 'Their preferred colour scheme', 'Which platform to build on'],
+              0,
+              'The stated brief is a guessed solution. The problem underneath may have a different answer.'),
+            q('Which question most often prevents a project going wrong?',
+              ['Who has to approve this?', 'What is your budget?', 'When do you need it?', 'Who is your competition?'],
+              0,
+              'Unnamed approvers appear late and redesign work you have already been paid for.'),
+            q('Why write down what is NOT included?',
+              ['Boundaries obvious to you are invisible to the client', 'It makes the document look thorough', 'It is legally required', 'It justifies the price'],
+              0,
+              'Content, photos, hosting and training are the usual unspoken assumptions — and where scope creep starts.'),
+          ],
+        },
+        check('scoping.gate', 'Scope one real project',
+          'On an actual enquiry, not a hypothetical.',
+          [
+            'Asked what is happening today and what is wrong with it',
+            'Got a definition of success you could measure',
+            'Established who has to approve the work',
+            'Established the deadline and what is driving it',
+            'Written a list of what is explicitly not included',
+          ]),
+      ],
+    },
+
+    {
+      id: 'proposals',
+      name: 'Proposals',
+      category: 'Sales',
+      difficulty: 3,
+      estimatedHours: [3, 8],
+      requires: [
+        { skillId: 'scoping', minLevel: 2 },
+        { skillId: 'pricing', minLevel: 3 },
+      ],
+      description: 'Putting the price in writing in a way that gets agreed to.',
+      why: 'A good proposal closes without a negotiation, because everything that would have been negotiated is already answered.',
+      activities: [
+        {
+          id: 'proposals.learn',
+          kind: 'learn',
+          title: 'Short, specific, and dated',
+          body: [
+            'A proposal is a decision document, not a brochure. One or two pages: the problem in their words, what you will deliver, what it costs, how long it takes, what you need from them, and what happens next. Nobody has ever bought because a proposal was fourteen pages.',
+            'Restating the problem in their own words is the highest-value paragraph in the document. It is the proof that you listened, and it is what separates you from the person who sent a price list.',
+            'Name what you need from them and when — content, logins, feedback within three working days. Half of all late projects are late because the client did not know they were the bottleneck.',
+            'Give it an expiry date. Not as a pressure tactic, but because your availability and costs are real: "this quote holds for 30 days" is true and it stops proposals coming back to life six months later at last year\'s price.',
+            'Offering two or three options, rather than one price, changes the question from "yes or no" to "which one" — and it lets someone with a smaller budget say yes to something.',
+          ],
+        },
+        {
+          id: 'proposals.quiz',
+          kind: 'quiz',
+          title: 'Check yourself',
+          questions: [
+            q('What is the highest-value paragraph in a proposal?',
+              ['The problem restated in the client\'s own words', 'Your experience and background', 'The detailed technical approach', 'The list of deliverables'],
+              0,
+              'It proves you listened, which is what distinguishes you from a price list.'),
+            q('Why state what you need from the client and by when?',
+              ['Half of late projects are late because the client was the bottleneck', 'It shifts blame in a dispute', 'It fills out the document', 'Clients expect a checklist'],
+              0,
+              'They usually do not know they are holding it up until you tell them in advance.'),
+            q('Why give a proposal an expiry date?',
+              ['Your costs and availability are real and change', 'It pressures the client to decide', 'It is standard practice', 'It voids the contract'],
+              0,
+              'It also stops a quote resurfacing a year later at a price you no longer accept.'),
+          ],
+        },
+        check('proposals.gate', 'Send a real proposal',
+          'To an actual prospect.',
+          [
+            'Two pages or fewer',
+            'Opens by restating their problem in their words',
+            'States deliverables, price and timeline explicitly',
+            'Lists what you need from them and when',
+            'Has an expiry date',
+            'Sent to a real prospect',
+          ]),
+      ],
+    },
+
+    {
+      id: 'contracts',
+      name: 'Contracts',
+      category: 'Delivery',
+      difficulty: 3,
+      estimatedHours: [2, 6],
+      requires: [{ skillId: 'proposals', minLevel: 2 }],
+      description: 'What has to be written down before work starts.',
+      why: 'The contract is not for when things go well. It is the thing you will be very glad exists on the one project that goes badly.',
+      activities: [
+        {
+          id: 'contracts.learn',
+          kind: 'learn',
+          title: 'The clauses that actually get used',
+          body: [
+            'This is not legal advice and contract law differs by country — use a template from a professional body in your jurisdiction, or have a lawyer look at yours once. What follows is what to make sure it covers, so you know whether the template you picked is adequate.',
+            'Payment terms: how much, when, and what happens if it is late. A deposit before starting is standard and is the single clause that filters out the worst clients. Staged payments tied to milestones beat everything on delivery.',
+            'Scope and revisions: what is included, and how many rounds of changes. "Unlimited revisions" is how a three-week project becomes a six-month one.',
+            'Who owns the work, and when. Common and sensible: ownership transfers on final payment. Without that clause you can be arguing about copyright while unpaid.',
+            'How it ends early. Either side may need to stop; agreeing in advance what is owed for work already done turns a potential dispute into a calculation.',
+            'The point of writing this down is not distrust. It is that you and the client currently have slightly different pictures in your heads, and the document is where you find that out cheaply.',
+          ],
+        },
+        {
+          id: 'contracts.quiz',
+          kind: 'quiz',
+          title: 'Check yourself',
+          questions: [
+            q('Which clause most reliably filters out the worst clients?',
+              ['A deposit before work starts', 'A confidentiality clause', 'A late-delivery penalty', 'An arbitration clause'],
+              0,
+              'People who will not pay anything up front are disproportionately the ones who will not pay at the end.'),
+            q('Why specify a number of revision rounds?',
+              ['"Unlimited" turns a three-week project into a six-month one', 'Clients expect a limit', 'It is legally required', 'It reduces your tax'],
+              0,
+              'Open-ended revisions are the most common way a profitable project becomes a loss.'),
+            q('When should ownership of the work usually transfer?',
+              ['On final payment', 'When the contract is signed', 'When work begins', 'It never transfers'],
+              0,
+              'Otherwise you can find yourself unpaid and with no leverage.'),
+          ],
+        },
+        check('contracts.gate', 'Have a contract you would use',
+          'A real document, not an intention.',
+          [
+            'Have a written agreement template, from a professional body or reviewed by a lawyer in your jurisdiction',
+            'It covers payment terms including a deposit',
+            'It covers scope and a limit on revisions',
+            'It covers ownership transferring on final payment',
+            'It covers how either side ends the work early',
+            'Used it, or sent it, on at least one real project',
+          ]),
+      ],
+    },
+
+    {
+      id: 'first_client',
+      name: 'First Paid Project',
+      category: 'Milestone',
+      difficulty: 4,
+      estimatedHours: [20, 80],
+      requires: [
+        { skillId: 'proposals', minLevel: 2 },
+        { skillId: 'contracts', minLevel: 2 },
+      ],
+      description: 'Money in, work delivered, both sides content.',
+      why: 'The step that converts all the preparation into evidence. Everything after this is easier because you can point at it.',
+      activities: [
+        check('first_client.gate', 'Complete a paid project',
+          'The whole loop, start to finish.',
+          [
+            'Agreed a written scope and price with a client',
+            'Received a deposit before starting',
+            'Delivered the work',
+            'Been paid in full',
+            'Asked the client for feedback afterwards',
+          ]),
+      ],
+    },
+
+    {
+      id: 'client_communication',
+      name: 'Client Communication',
+      category: 'Delivery',
+      difficulty: 3,
+      estimatedHours: [3, 10],
+      requires: [{ skillId: 'scoping', minLevel: 2 }],
+      description: 'Keeping people informed so problems stay small.',
+      why: 'Most client relationships fail from silence, not from bad work.',
+      activities: [
+        {
+          id: 'client_communication.learn',
+          kind: 'learn',
+          title: 'Silence is the problem',
+          body: [
+            'A short update on a fixed day, every week, whether or not there is progress, prevents most of what goes wrong. Clients do not chase because they are impatient; they chase because they cannot see what is happening and have started imagining the worst.',
+            'Deliver bad news early and with a plan. "This will take a week longer, here is why, here are two options" is a professional conversation. The same news on the deadline is a crisis, and the delay was never the real damage.',
+            'Give feedback a shape. "What do you think?" invites redecoration; "Does this booking flow match how patients actually behave?" gets you an answer you can use. Open questions produce opinions about colours.',
+            'Put decisions in writing after a call. Not as a legal manoeuvre — because two people leave every call with slightly different memories, and a three-line summary is where you discover that while it is still cheap.',
+          ],
+        },
+        {
+          id: 'client_communication.quiz',
+          kind: 'quiz',
+          title: 'Check yourself',
+          questions: [
+            q('A project will be a week late. When do you say so?',
+              ['As soon as you know, with options', 'At the deadline, with an apology', 'Once you have made up the time', 'Only if they ask'],
+              0,
+              'Early it is a conversation. On the deadline it is a crisis, and the lateness was never the real damage.'),
+            q('Why send an update in a week where nothing progressed?',
+              ['Clients chase because they cannot see what is happening', 'It fills billable time', 'It is contractually required', 'It prevents them hiring anyone else'],
+              0,
+              'Silence gets filled with the worst available explanation.'),
+            q('Why avoid asking "what do you think?"',
+              ['It invites opinions about colours instead of useful answers', 'It sounds unprofessional', 'Clients dislike open questions', 'It implies uncertainty'],
+              0,
+              'Specific questions get feedback you can act on.'),
+          ],
+        },
+        check('client_communication.gate', 'Run a project on a rhythm',
+          'On a real project, over at least three weeks.',
+          [
+            'Sent an update on the same day every week, including quiet weeks',
+            'Raised at least one problem before it became urgent',
+            'Asked for feedback with specific questions rather than "what do you think"',
+            'Followed at least one call with a written summary of decisions',
+          ]),
+      ],
+    },
+
+    {
+      id: 'scope_creep',
+      name: 'Managing Scope Creep',
+      category: 'Delivery',
+      difficulty: 4,
+      estimatedHours: [2, 6],
+      requires: [
+        { skillId: 'client_communication', minLevel: 2 },
+        { skillId: 'contracts', minLevel: 2 },
+      ],
+      description: 'Handling "could you just…" without becoming difficult or working for free.',
+      why: 'Scope creep is rarely one big request. It is thirty small ones, none of which felt worth objecting to.',
+      activities: [
+        {
+          id: 'scope_creep.learn',
+          kind: 'learn',
+          title: '"Yes, and here is what that changes"',
+          body: [
+            'The instinct is to say yes to small things to seem easy to work with. Thirty small yeses is a month of unpaid work, and the client never knew they were asking for it — from their side each request took you ten minutes.',
+            'The move is not refusal. It is: "Yes, we can do that. It is outside the current scope, so it adds about £X and three days — shall I add it?" Now it is a normal commercial decision instead of a favour, and you are not the person who says no.',
+            'Say it the first time, not the fifth. Once you have absorbed four requests silently, objecting to the fifth looks arbitrary and the client is entitled to be confused.',
+            'Keep a running list of what was added. At the end it is the honest answer to "why did this take longer than you said", and it is often the strongest argument for a bigger budget next time.',
+          ],
+        },
+        {
+          id: 'scope_creep.quiz',
+          kind: 'quiz',
+          title: 'Check yourself',
+          questions: [
+            q('A client asks for something small and out of scope. Best response?',
+              ['Agree, and state what it adds in cost and time', 'Do it quietly to keep them happy', 'Refuse and cite the contract', 'Add it to a list to discuss at the end'],
+              0,
+              'It becomes a commercial decision rather than a favour, and you are not the one saying no.'),
+            q('Why raise the first out-of-scope request rather than the fifth?',
+              ['Objecting after four silent yeses looks arbitrary', 'The first is usually the largest', 'Contracts require prompt notice', 'It sets a friendly tone'],
+              0,
+              'You have already established that these are free. Changing that mid-project is confusing for them.'),
+            q('What is the real cost of scope creep?',
+              ['Many small unpaid additions that were never priced', 'One large unreasonable demand', 'Damaged client relationships', 'Missed deadlines'],
+              0,
+              'Each one is individually too small to object to, which is exactly the problem.'),
+          ],
+        },
+        check('scope_creep.gate', 'Handle it once, properly',
+          'On a real project.',
+          [
+            'Identified an out-of-scope request when it happened',
+            'Responded with a yes plus its cost and time impact',
+            'The client made an explicit decision either way',
+            'Kept a written record of what was added',
+          ]),
+      ],
+    },
+
+    {
+      id: 'invoicing',
+      name: 'Invoicing & Getting Paid',
+      category: 'Money',
+      difficulty: 2,
+      estimatedHours: [2, 5],
+      requires: [{ skillId: 'pricing', minLevel: 2 }],
+      description: 'Sending invoices that get paid, and chasing the ones that do not.',
+      why: 'Work you have done and not been paid for is not income. It is a loan you did not agree to make.',
+      activities: [
+        {
+          id: 'invoicing.learn',
+          kind: 'learn',
+          title: 'Invoice immediately, chase without drama',
+          body: [
+            'Invoice on the day the milestone completes. Every day you delay is a day added to the end of the payment term, and there is no version of this where waiting helps.',
+            'Make the invoice easy to pay: a number, a date, exactly what it is for, the payment terms, and the details needed to pay it. An invoice that has to be queried gets set aside, and things that get set aside get forgotten.',
+            'Chase on a schedule and without emotion. A short note the day after it is due, another a week later, a firmer one with the contract terms after two. Most late payment is administrative rather than malicious, and a calm reminder resolves the large majority of it.',
+            'Deposits and staged payments beat any amount of chasing. If a client will not pay a deposit, you have learned something important before doing the work rather than after.',
+          ],
+        },
+        {
+          id: 'invoicing.quiz',
+          kind: 'quiz',
+          title: 'Check yourself',
+          questions: [
+            q('When should you send an invoice?',
+              ['The day the milestone completes', 'At the end of the month', 'When the client asks for it', 'After the project fully finishes'],
+              0,
+              'Payment terms start from the invoice date, so delay is pure cost to you.'),
+            q('An invoice is a week overdue. First step?',
+              ['A short, unemotional reminder', 'Stop work immediately', 'Threaten legal action', 'Wait another week'],
+              0,
+              'Most late payment is administrative. A calm reminder resolves most of it.'),
+            q('What beats chasing payment?',
+              ['Deposits and staged payments', 'Longer payment terms', 'Late fees', 'Invoicing more often'],
+              0,
+              'And a refusal to pay a deposit is information you would rather have before the work than after.'),
+          ],
+        },
+        check('invoicing.gate', 'Get paid once, cleanly',
+          'A real invoice, a real payment.',
+          [
+            'Sent an invoice with a number, date, description, terms and payment details',
+            'Sent it on the day the work or milestone completed',
+            'Have a written chase schedule you would actually follow',
+            'Been paid',
+          ]),
+      ],
+    },
+
+    {
+      id: 'money_admin',
+      name: 'Money Admin',
+      category: 'Money',
+      difficulty: 3,
+      estimatedHours: [3, 10],
+      requires: [{ skillId: 'invoicing', minLevel: 2 }],
+      description: 'Separating the money, setting tax aside, and knowing your runway.',
+      why: 'The most common freelance disaster is not a lost client. It is a tax bill on money that has already been spent.',
+      activities: [
+        {
+          id: 'money_admin.learn',
+          kind: 'learn',
+          title: 'Three habits',
+          body: [
+            'Rules differ by country and this is not tax advice — the point here is which habits to have, and to get the specifics from an accountant in your jurisdiction. One conversation with one usually pays for itself.',
+            'Separate the money. A business account, even a basic one, means you can see what the business earned without unpicking your grocery shopping. It also makes the annual paperwork an afternoon instead of a weekend.',
+            'Move a percentage of every payment aside for tax the day it arrives, into a separate account you do not touch. The figure depends on where you are; ask once and then apply it mechanically. The disaster is not the rate — it is having spent it.',
+            'Know your runway: how many months you could go with no new income. That number decides whether you can turn down a bad client, which is the difference between running a business and being at the mercy of one.',
+          ],
+        },
+        {
+          id: 'money_admin.quiz',
+          kind: 'quiz',
+          title: 'Check yourself',
+          questions: [
+            q('When should you set money aside for tax?',
+              ['The day each payment arrives', 'At the end of the tax year', 'When the bill arrives', 'Monthly, from what is left'],
+              0,
+              'Setting aside what remains at month end means setting aside whatever you did not spend.'),
+            q('What does knowing your runway actually buy you?',
+              ['The ability to turn down bad work', 'A better credit rating', 'Lower tax', 'Faster payment from clients'],
+              0,
+              'It is the difference between running a business and being at the mercy of one.'),
+            q('Why a separate business account?',
+              ['You can see what the business earned without unpicking personal spending', 'It is legally required everywhere', 'It reduces tax', 'Clients trust it more'],
+              0,
+              'It also turns annual paperwork from a weekend into an afternoon.'),
+          ],
+        },
+        check('money_admin.gate', 'Put the habits in place',
+          'Set up once, then automatic.',
+          [
+            'A separate account for business income',
+            'A percentage moved aside for tax on receipt of every payment',
+            'Confirmed the right percentage for your country with an accountant or official guidance',
+            'Can state your runway in months',
+          ]),
+      ],
+    },
+
+    {
+      id: 'delivery_handover',
+      name: 'Delivery & Handover',
+      category: 'Delivery',
+      difficulty: 3,
+      estimatedHours: [3, 8],
+      requires: [{ skillId: 'client_communication', minLevel: 3 }],
+      description: 'Finishing properly, so the project actually ends.',
+      why: 'A project without a clear ending becomes unpaid support forever.',
+      activities: [
+        {
+          id: 'delivery_handover.learn',
+          kind: 'learn',
+          title: 'Ending on purpose',
+          body: [
+            'Projects rarely end; they trail off into small requests. A defined handover is what converts "mostly done" into "done", and it is as much for you as for them.',
+            'Hand over everything they need to not need you: logins, files, where things live, how to make the common changes. Withholding access to stay indispensable is a strategy that produces resentful clients who leave and say so.',
+            'A short recorded walkthrough answers most of the questions that would otherwise arrive one at a time over the following months, and costs twenty minutes once.',
+            'State what happens next explicitly: what support is included, for how long, and what ongoing help costs. Ambiguity here is what turns a finished project into a permanent unpaid obligation.',
+          ],
+        },
+        check('delivery_handover.gate', 'Hand over cleanly',
+          'On a real project.',
+          [
+            'Handed over all access, files and accounts',
+            'Provided a written or recorded walkthrough of common changes',
+            'Stated in writing what support is included and for how long',
+            'Stated what further work would cost',
+            'Client confirmed they consider it complete',
+          ]),
+      ],
+    },
+
+    {
+      id: 'testimonials',
+      name: 'Testimonials & Referrals',
+      category: 'Sales',
+      difficulty: 2,
+      estimatedHours: [1, 4],
+      requires: [{ skillId: 'delivery_handover', minLevel: 2 }],
+      description: 'Turning one happy client into the next two.',
+      why: 'Referred work converts far better than anything cold, and it costs one conversation.',
+      activities: [
+        {
+          id: 'testimonials.learn',
+          kind: 'learn',
+          title: 'Ask, specifically, at the right moment',
+          body: [
+            'Ask right after something has gone well — the handover, a good result, a compliment. Weeks later the enthusiasm has cooled and the request feels like it came from nowhere.',
+            'Do not ask "would you write me a testimonial", which hands someone a blank page and a chore. Ask two or three specific questions — what was the problem before, what changed, what would you say to someone considering it — and offer to draft something from their answers for approval. Response rates are transformed by this.',
+            'Referrals need the same specificity as outreach. "Do you know anyone who needs a website" is unanswerable. "Do you know other clinics with the same booking problem" is a question with a name attached.',
+            'A specific testimonial about a result beats a warm general one. "Enquiries doubled in two months" outperforms "great to work with" by a wide margin, because the second one describes every freelancer alive.',
+          ],
+        },
+        check('testimonials.gate', 'Get one, and ask once',
+          'From a real client.',
+          [
+            'Asked a client specific questions rather than for a blank testimonial',
+            'Have at least one written testimonial you can publish',
+            'It mentions a concrete outcome, not only that you were pleasant',
+            'Asked at least one client a specific referral question',
+          ]),
+      ],
+    },
+
+    {
+      id: 'positioning',
+      name: 'Positioning',
+      category: 'Growth',
+      difficulty: 4,
+      estimatedHours: [4, 12],
+      requires: [
+        { skillId: 'first_client', minLevel: 2 },
+        { skillId: 'testimonials', minLevel: 2 },
+      ],
+      description: 'Becoming the obvious choice for a specific kind of work.',
+      why: 'It is what lets you stop competing on price, and the only durable way to raise rates.',
+      activities: [
+        {
+          id: 'positioning.learn',
+          kind: 'learn',
+          title: 'Narrower is stronger',
+          body: [
+            'Generalists compete with everyone and are chosen on price and availability. Specialists are chosen on fit, and fit does not have a market rate.',
+            'Position on a problem or an industry rather than a technology. "React developer" competes with every React developer on earth. "Booking systems for clinics" competes with almost nobody and gets easier every time you do it — you have seen the failure modes before.',
+            'You can only position credibly on evidence you have. Three clinic projects lets you claim clinics. Wanting to work with clinics does not, and claiming it before the evidence exists is transparent.',
+            'The fear is that narrowing means less work. In practice it means fewer, better enquiries — and it is reversible at any time, which the fear tends to forget.',
+          ],
+        },
+        {
+          id: 'positioning.quiz',
+          kind: 'quiz',
+          title: 'Check yourself',
+          questions: [
+            q('Why position on a problem rather than a technology?',
+              ['A technology puts you in a huge undifferentiated pool', 'Technologies change too fast', 'Clients do not understand technology', 'It is easier to market'],
+              0,
+              '"React developer" competes with every React developer alive; "booking systems for clinics" competes with almost nobody.'),
+            q('What lets you credibly claim a specialism?',
+              ['Evidence — work you have actually delivered in it', 'Deciding to specialise', 'A rewritten website', 'Studying the industry'],
+              0,
+              'Claiming a niche before you have any evidence for it is transparent to buyers.'),
+            q('What actually happens when you narrow your positioning?',
+              ['Fewer but better-matched enquiries', 'Fewer enquiries and less income', 'The same work at higher prices', 'More competition'],
+              0,
+              'And it is reversible, which the fear of narrowing tends to overlook.'),
+          ],
+        },
+        check('positioning.gate', 'Commit to a position',
+          'And put it in public where it costs you something.',
+          [
+            'Named a specific problem or industry you serve',
+            'Have at least two pieces of delivered work supporting it',
+            'Rewritten your offer and portfolio around it',
+            'It is public — on your site or profile, not just a decision in your head',
+          ]),
+      ],
+    },
+
+    {
+      id: 'marketing',
+      name: 'Being Found',
+      category: 'Growth',
+      difficulty: 3,
+      estimatedHours: [5, 30],
+      requires: [{ skillId: 'positioning', minLevel: 2 }],
+      description: 'One channel, done consistently, so enquiries arrive without outreach.',
+      why: 'Outreach is a job you have to keep doing. Being found compounds.',
+      activities: [
+        {
+          id: 'marketing.learn',
+          kind: 'learn',
+          title: 'One channel, long enough to work',
+          body: [
+            'Pick one channel and stay on it for six months. Most people try four for a fortnight each, conclude that marketing does not work, and go back to outreach. Nothing works in a fortnight.',
+            'Choose where your buyers already are, not where you are comfortable. If clinic managers are on LinkedIn and in trade associations, being excellent on a developer forum reaches nobody who can hire you.',
+            'Publish something specific and useful rather than something clever. "Why your booking form loses half its visitors" is findable, forwardable and demonstrates competence. "Ten web design trends for 2027" is written by everyone and read by nobody who buys.',
+            'Keep outreach running the whole time. Being found takes months to produce anything, and stopping outreach the moment you start publishing is how people end up with neither.',
+          ],
+        },
+        check('marketing.gate', 'Run one channel for real',
+          'Consistency is the whole standard here.',
+          [
+            'Chosen one channel where your buyers actually are',
+            'Published at least six things on it',
+            'Each is specific and useful rather than generic',
+            'Sustained it for at least eight weeks',
+            'Kept doing outreach alongside it',
+          ]),
+      ],
+    },
+
+    {
+      id: 'choosing_clients',
+      name: 'Choosing Clients',
+      category: 'Growth',
+      difficulty: 4,
+      estimatedHours: [2, 6],
+      requires: [{ skillId: 'first_client', minLevel: 3 }],
+      description: 'Recognising the bad ones early, and being able to say no.',
+      why: 'One bad client can cost more than two good ones earn — in time, in money, and in wanting to keep doing this.',
+      activities: [
+        {
+          id: 'choosing_clients.learn',
+          kind: 'learn',
+          title: 'The signals, and the ability to act on them',
+          body: [
+            'The warning signs are visible before you sign, and they are consistent: haggling hard before understanding the work, urgency with no reason behind it, speaking badly about their last three freelancers, refusing a deposit, and being unable to say who decides.',
+            'Any one might be circumstance. Two or three together is a pattern, and the pattern is reliable enough to act on.',
+            'Saying no needs nothing more than "I do not think I am the right fit for this — good luck with it." No justification, no invented excuse. Explaining invites negotiation about your reasons.',
+            'The ability to refuse is built from runway and pipeline, not from confidence. This is why the money and outreach skills sit underneath this one: without them, "no" is not a real option and you will take the project anyway.',
+          ],
+        },
+        {
+          id: 'choosing_clients.quiz',
+          kind: 'quiz',
+          title: 'Check yourself',
+          questions: [
+            q('Which is the most reliable early warning sign?',
+              ['Speaking badly about several previous freelancers', 'Asking for a discount', 'Wanting it done quickly', 'Asking a lot of questions'],
+              0,
+              'Sometimes everyone else was the problem. Usually the common factor is the common factor.'),
+            q('What actually makes it possible to turn down bad work?',
+              ['Runway and a pipeline', 'Confidence', 'A strong portfolio', 'Higher rates'],
+              0,
+              'Without money in the bank and other prospects, "no" is not available however you feel about it.'),
+            q('How much explanation does a refusal need?',
+              ['None — "not the right fit" is complete', 'A detailed reason', 'An alternative recommendation', 'A higher quote to price yourself out'],
+              0,
+              'Explaining invites negotiation about your reasons rather than acceptance of your answer.'),
+          ],
+        },
+        check('choosing_clients.gate', 'Have criteria, and use them',
+          'Written down before you need them.',
+          [
+            'Written a list of your warning signs',
+            'Written what you require before starting — deposit, written scope, a named decision-maker',
+            'Declined at least one enquiry that did not meet them',
+            'Have enough runway or pipeline that declining was a real choice',
+          ]),
+      ],
+    },
+
+    {
+      id: 'raising_rates',
+      name: 'Raising Your Rates',
+      category: 'Money',
+      difficulty: 4,
+      estimatedHours: [1, 4],
+      requires: [
+        { skillId: 'positioning', minLevel: 2 },
+        { skillId: 'choosing_clients', minLevel: 2 },
+      ],
+      description: 'Charging more, on purpose, without losing the work.',
+      why: 'Rates do not rise on their own. Nobody will offer you more than you asked for.',
+      activities: [
+        {
+          id: 'raising_rates.learn',
+          kind: 'learn',
+          title: 'Raise on new quotes first',
+          body: [
+            'The low-risk move is to raise the price on the next new prospect, not on existing clients. You find out whether the number holds without endangering current income, and you can do it repeatedly.',
+            'Raise until you start losing some work. Winning every single project is evidence that you are too cheap — a healthy win rate is well under 100%, and the projects you lose on price were usually the least profitable.',
+            'For existing clients, give notice and a date: "from March my rate for new projects will be X." No apology and no justification. Explaining your reasoning invites a negotiation about whether your reasons are good enough.',
+            'Expect to lose someone, and price that in. Losing your cheapest client while raising everyone else usually increases both income and the amount of your life you get back.',
+          ],
+        },
+        {
+          id: 'raising_rates.quiz',
+          kind: 'quiz',
+          title: 'Check yourself',
+          questions: [
+            q('You win every project you quote for. What does that suggest?',
+              ['You are priced too low', 'Your sales process is excellent', 'You are in a strong market', 'Nothing in particular'],
+              0,
+              'A healthy win rate is well under 100%. Losing some work on price is the signal you are near the right number.'),
+            q('Safest place to test a higher rate?',
+              ['The next new prospect', 'Your largest existing client', 'All clients at once', 'Your oldest client'],
+              0,
+              'You learn whether the number holds without risking current income.'),
+            q('How much justification does a rate increase need?',
+              ['None — a date and the new number', 'A detailed cost breakdown', 'Evidence of improved skills', 'A comparison to market rates'],
+              0,
+              'Justifying it invites a debate about whether your reasons are sufficient.'),
+          ],
+        },
+        check('raising_rates.gate', 'Actually raise it',
+          'Not a plan to raise it.',
+          [
+            'Quoted a new prospect at a higher rate than your last project',
+            'Did not discount it unprompted',
+            'Either won it, or lost it and quoted the next one at the same higher rate',
+          ]),
+      ],
+    },
+
+    {
+      id: 'retainers',
+      name: 'Recurring Revenue',
+      category: 'Growth',
+      difficulty: 4,
+      estimatedHours: [3, 10],
+      requires: [
+        { skillId: 'delivery_handover', minLevel: 3 },
+        { skillId: 'raising_rates', minLevel: 2 },
+      ],
+      description: 'Income that arrives whether or not you closed a new project this month.',
+      why: 'Project work means starting from zero every month. Recurring work is what makes the income predictable enough to plan around.',
+      activities: [
+        {
+          id: 'retainers.learn',
+          kind: 'learn',
+          title: 'Sell an outcome, not availability',
+          body: [
+            'A retainer that sells hours becomes a monthly argument about whether the hours were used. A retainer that sells an outcome — the site stays fast, secure and current; changes happen within two working days — is judged on whether that happened, which is a much better conversation.',
+            'The best candidates are clients who already come back with small work every month. You are converting unpredictable requests into predictable income, and they get faster responses. Both sides are better off, which is why these are easier to sell than they feel.',
+            'Cap it explicitly. "Up to four hours of changes a month, larger work quoted separately" prevents the arrangement quietly becoming unlimited access to you.',
+            'Two or three retainers changes the character of the business: the rent is covered, so project work becomes a choice. That is worth more than the revenue itself.',
+          ],
+        },
+        check('retainers.gate', 'Propose one',
+          'To a real client.',
+          [
+            'Identified a client who repeatedly returns with small work',
+            'Written a retainer offer defined by outcomes rather than hours',
+            'It states an explicit cap and what falls outside',
+            'Proposed it to them',
+          ]),
+      ],
+    },
+
+    {
+      id: 'systems',
+      name: 'Systems & Templates',
+      category: 'Growth',
+      difficulty: 3,
+      estimatedHours: [3, 10],
+      requires: [{ skillId: 'first_client', minLevel: 3 }],
+      description: 'Doing the repeated parts once instead of every time.',
+      why: 'The admin around a project is nearly identical every time. Templating it buys back days per year.',
+      activities: [
+        {
+          id: 'systems.learn',
+          kind: 'learn',
+          title: 'Template the repeated parts',
+          body: [
+            'The proposal, the contract, the kick-off questions, the weekly update, the handover, the invoice, the testimonial request. Each is roughly the same every project, and each is currently being rewritten from memory.',
+            'Build them as you go rather than in one heroic session. The second time you write something, save it. The third time, refine it. A template written in advance for a process you have not run yet is usually wrong.',
+            'Templates are starting points, not scripts. The client-specific paragraph is what makes a proposal land; the surrounding structure is what you should stop retyping.',
+            'The gain is not only time. Consistency means you stop forgetting the deposit clause on the project where it turns out to matter.',
+          ],
+        },
+        check('systems.gate', 'Build the set',
+          'Real documents you would send today.',
+          [
+            'A proposal template',
+            'A contract template',
+            'A kick-off question list',
+            'A handover checklist',
+            'An invoice template',
+            'Used at least three of them on a real project',
+          ]),
+      ],
+    },
+
+    {
+      id: 'working_business',
+      name: 'A Working Business',
+      category: 'Milestone',
+      difficulty: 5,
+      estimatedHours: [40, 200],
+      requires: [
+        { skillId: 'raising_rates', minLevel: 3 },
+        { skillId: 'marketing', minLevel: 2 },
+        { skillId: 'money_admin', minLevel: 3 },
+        { skillId: 'systems', minLevel: 2 },
+      ],
+      description: 'Repeatable income from work you chose, with the admin under control.',
+      why: 'The capstone. Not one big client — a process that reliably produces the next one.',
+      activities: [
+        {
+          id: 'working_business.mastery',
+          kind: 'mastery',
+          title: 'It runs',
+          brief: 'The standard for a business rather than a series of lucky projects.',
+          checklist: [
+            'Three or more paid projects delivered and paid in full',
+            'At least one client came from being found rather than outreach',
+            'Current rate is meaningfully higher than your first project',
+            'Turned down at least one project you did not want',
+            'Tax is set aside as payments arrive and you know your runway',
+            'Could describe how the next client will arrive, rather than hoping',
+          ],
+        },
+      ],
+    },
+  ],
+};
+
+  return {
+    "BUSINESS_TREE": BUSINESS_TREE,
+  };
+})();
+
 __m["skilltree/src/data/catalog.js"] = (function () {
 /*
  * catalog.js — the registry of every tree the app knows about, and the only
@@ -5566,10 +6598,11 @@ __m["skilltree/src/data/catalog.js"] = (function () {
  * downstream — same index, same search, same layout, same gates.
  */
 
-const { indexTree, layoutTree } = __m["skilltree/src/domain/graph.js"];
+const { indexTree, layoutTree, ancestorsOf, pathTo } = __m["skilltree/src/domain/graph.js"];
 const { WEB_TREE } = __m["skilltree/src/data/tree.web.js"];
 const { MATH_TREE } = __m["skilltree/src/data/tree.math.js"];
 const { CALISTHENICS_TREE } = __m["skilltree/src/data/tree.calisthenics.js"];
+const { BUSINESS_TREE } = __m["skilltree/src/data/tree.business.js"];
 
 const trees = new Map();
 const indexCache = new Map();
@@ -5655,7 +6688,7 @@ function registerTree(rawTree) {
   return index;
 }
 
-for (const tree of [WEB_TREE, MATH_TREE, CALISTHENICS_TREE]) registerTree(tree);
+for (const tree of [WEB_TREE, MATH_TREE, CALISTHENICS_TREE, BUSINESS_TREE]) registerTree(tree);
 
 function allTrees() {
   return [...trees.values()];
@@ -5682,6 +6715,10 @@ function getLayout(treeId) {
   }
   return layoutCache.get(treeId);
 }
+
+/* Re-exported so the goal engine can reason about the graph without importing
+ * both the catalogue and the graph module and getting them out of step. */
+
 
 /** Find a skill anywhere, without the caller having to know its tree. */
 function findSkill(skillId) {
@@ -5761,6 +6798,8 @@ function categories() {
     "findActivity": findActivity,
     "searchSkills": searchSkills,
     "categories": categories,
+    "ancestorsOf": ancestorsOf,
+    "pathTo": pathTo,
   };
 })();
 
@@ -8395,6 +9434,7 @@ const session = __m["skilltree/src/core/session.js"];
 
 const NAV = [
   { name: 'dashboard', label: 'Home', icon: 'home' },
+  { name: 'plan', label: 'Goal', icon: 'target' },
   { name: 'tree', label: 'Tree', icon: 'tree' },
   { name: 'explore', label: 'Explore', icon: 'compass' },
   { name: 'progress', label: 'Progress', icon: 'chart' },
@@ -8402,9 +9442,9 @@ const NAV = [
   { name: 'profile', label: 'Profile', icon: 'user' },
 ];
 
-/* The tab bar takes five; Settings lives inside Profile's reach on mobile
- * rather than being crammed into a sixth 60px-wide tab. */
-const MOBILE_NAV = NAV.filter((n) => n.name !== 'achievements');
+/* The tab bar takes five. Explore and Awards are the two that survive being a
+ * tap further away — the goal, the tree and progress are the daily loop. */
+const MOBILE_NAV = NAV.filter((n) => !['achievements', 'explore'].includes(n.name));
 
 /**
  * Apply a theme. Dark is the default and is what an unset preference gets —
@@ -8477,8 +9517,11 @@ function syncNav() {
 
   /* Title follows the route: it is what a browser tab, a bookmark and the
    * back-button history all read from. */
-  const label = [...NAV, { name: 'settings', label: 'Settings' }, { name: 'activity', label: 'Activity' }]
-    .find((n) => n.name === active);
+  const label = [...NAV,
+    { name: 'settings', label: 'Settings' },
+    { name: 'activity', label: 'Activity' },
+    { name: 'explore', label: 'Explore' },
+  ].find((n) => n.name === active);
   document.title = label && label.name !== 'dashboard' ? `${label.label} · SkillTree` : 'SkillTree';
 }
 
@@ -8718,6 +9761,458 @@ function findIn(skillId) {
   };
 })();
 
+__m["skilltree/src/domain/goals.js"] = (function () {
+/*
+ * goals.js — "I want to open a web design business" → a programme.
+ *
+ * The app could already draw a path to a *node you picked from a list*. This
+ * turns a goal written in a person's own words into an ordered plan across
+ * every tree, with dates, and it does it without a model.
+ *
+ * That last part is the constraint that shaped the file. An AI-only version
+ * would be three lines and would leave the headline feature of the app broken
+ * for anyone without an API key (§80). So matching is a scored term search
+ * over the catalogue — names, categories, descriptions and the "why" text —
+ * plus a small set of intent rules for the goals people actually type. AI, when
+ * present, only adds skills the catalogue genuinely lacks.
+ *
+ * Pure module: it takes a catalogue and a goal string, and returns a plan. No
+ * storage, no DOM, and the clock arrives as an argument.
+ */
+
+const { statusOf, STATUS } = __m["skilltree/src/domain/unlock.js"];
+const { levelFor } = __m["skilltree/src/domain/levels.js"];
+
+/* Words that carry no signal about *what* someone wants to learn. Without this
+ * "I want to learn to build a business" matches every skill containing "build". */
+const STOP = new Set([
+  'i', 'a', 'an', 'the', 'to', 'and', 'or', 'of', 'for', 'my', 'me', 'my own',
+  'want', 'wants', 'wanting', 'would', 'like', 'love', 'need', 'get', 'getting',
+  'become', 'becoming', 'be', 'being', 'make', 'making', 'do', 'doing', 'able',
+  'learn', 'learning', 'study', 'studying', 'better', 'good', 'great', 'more',
+  'start', 'starting', 'begin', 'how', 'can', 'with', 'in', 'on', 'at', 'as',
+  'is', 'are', 'it', 'that', 'this', 'so', 'up', 'own', 'some', 'thing', 'things',
+  'skills', 'skill', 'work', 'working', 'job', 'career', 'life', 'goal',
+]);
+
+/*
+ * Intent rules.
+ *
+ * A term search alone misses the obvious: "open a web design business" contains
+ * no word matching "Pricing" or "Contracts", yet those are exactly what the
+ * person is missing. These map recognisable goals onto the skills that
+ * actually constitute them.
+ *
+ * Deliberately small and readable. It is a lookup table of common intents, not
+ * an attempt at language understanding — anything it does not recognise still
+ * gets the term search, and the UI is honest about what it matched.
+ */
+const INTENTS = [
+  {
+    id: 'freelance_web',
+    /* Every pattern must match for the rule to fire, so "web design" alone does
+     * not drag in the whole business tree. */
+    all: [/\b(web\w*|site\w*|design\w*|dev|develop\w*|frontend|digital)\b/, /\b(business\w*|freelanc\w*|agenc\w*|client\w*|self.?employ\w*|studio|compan\w*|sell\w*|money|income|paid|earn\w*|charge)\b/],
+    label: 'Freelance web work',
+    trees: ['web', 'business'],
+    /* Order matters — see the anchor weighting in matchSkills. The business
+     * milestone leads; enough front-end to actually deliver a site follows. */
+    anchors: ['working_business', 'css_responsive'],
+  },
+  {
+    id: 'freelance_any',
+    all: [/\b(freelanc\w*|self.?employ\w*|own business|start a business|agenc\w*|client\w*)\b/],
+    label: 'Working for yourself',
+    trees: ['business'],
+    anchors: ['working_business', 'first_client'],
+  },
+  {
+    id: 'frontend',
+    all: [/\b(frontend|front.end|web develop\w*|website\w*|react|css|html|ui develop\w*)\b/],
+    label: 'Front-end development',
+    trees: ['web'],
+    anchors: ['react_routing', 'css_responsive'],
+  },
+  {
+    id: 'fullstack',
+    all: [/\b(full.?stack|backend|back.end|api|apis|server\w*|database\w*)\b/],
+    label: 'Full-stack development',
+    trees: ['web'],
+    anchors: ['fullstack'],
+  },
+  {
+    id: 'calisthenics',
+    all: [/\b(muscle.?up\w*|pull.?up\w*|push.?up\w*|handstand\w*|lever|calisthenic\w*|bodyweight|stronger|fitness|fitter)\b/],
+    label: 'Bodyweight strength',
+    trees: ['calisthenics'],
+    /* Only a general "get stronger" should reach the athlete milestone; a
+     * goal naming one move is served by that move, which the term match
+     * scores far higher. */
+    anchors: ['calisthenics_athlete'],
+  },
+  {
+    id: 'maths',
+    all: [/\b(math\w*|calculus|algebra|statistic\w*|geometr\w*|trigonometr\w*)\b/],
+    label: 'Mathematics',
+    trees: ['math'],
+    anchors: ['calculus_mastery'],
+  },
+];
+
+function tokenise(text) {
+  return String(text || '')
+    .toLowerCase()
+    .replace(/[^a-z0-9\s+#.-]/g, ' ')
+    .split(/\s+/)
+    .map((w) => w.replace(/^[.\-]+|[.\-]+$/g, ''))
+    .filter((w) => w.length > 1 && !STOP.has(w));
+}
+
+/*
+ * Crude but effective stemming: match on a prefix so "designing" hits "design"
+ * and "businesses" hits "business". A real stemmer is not worth a dependency
+ * here, and the failure mode of prefix matching — an occasional loose match —
+ * is much kinder than missing the obvious one.
+ */
+function termHit(term, text) {
+  if (!text) return false;
+  const haystack = text.toLowerCase();
+  if (haystack.includes(term)) return true;
+  if (term.length > 4 && haystack.includes(term.slice(0, Math.max(4, term.length - 2)))) return true;
+  return false;
+}
+
+/**
+ * Score every skill in the catalogue against a goal.
+ *
+ * Weighted by where the term was found: a hit in the skill's name means far
+ * more than a hit in a paragraph of its lesson description.
+ */
+function matchSkills(goalText, catalog) {
+  const terms = tokenise(goalText);
+  if (!terms.length) return { matches: [], intents: [], terms };
+
+  const raw = String(goalText || '').toLowerCase();
+  const intents = INTENTS.filter((intent) => intent.all.every((re) => re.test(raw)));
+  const intentTrees = new Set(intents.flatMap((i) => i.trees));
+
+  /*
+   * Anchor weight, by position and by how well-evidenced the intent is.
+   *
+   * An intent whose rules required two independent signals — "web design" AND
+   * "business" — is a confident reading of a broad goal, and its destination
+   * should outrank an incidental name match. Without that, "I want to build
+   * websites for clients" produced a plan aimed at Choosing Clients and Client
+   * Communication, because those skills happen to have "client" in the name,
+   * while the actual destination scored lower.
+   *
+   * A single-signal intent stays modest, so a goal that names one specific
+   * thing — "muscle up" — is still served by that thing rather than by the
+   * tree's furthest milestone.
+   */
+  const anchorWeight = new Map();
+  for (const intent of intents) {
+    const confident = intent.all.length >= 2;
+    const scale = confident ? [20, 11, 6] : [12, 7, 4];
+    intent.anchors.forEach((id, i) => {
+      const weight = scale[i] ?? 3;
+      if ((anchorWeight.get(id) ?? 0) < weight) anchorWeight.set(id, weight);
+    });
+  }
+
+  const matches = [];
+
+  for (const tree of catalog.allTrees()) {
+    for (const skill of tree.skills) {
+      let score = 0;
+      const why = [];
+
+      for (const term of terms) {
+        /* A hit in the name is the learner naming the thing. It has to
+         * outrank everything else, or "I want to do a muscle up" produces a
+         * plan whose destination is a front lever. */
+        if (termHit(term, skill.name)) { score += 14; why.push(term); }
+        else if (termHit(term, skill.category)) score += 4;
+        else if (termHit(term, skill.description)) score += 2;
+        else if (termHit(term, skill.why)) score += 1;
+      }
+
+      /* A recognised intent pulls in its whole tree, which is what makes
+       * "open a web design business" reach Pricing and Contracts — words the
+       * learner never typed but unmistakably needs. */
+      if (intentTrees.has(tree.id)) score += 5;
+
+      /* Anchors are ranked, not a flat set. A flat +14 for every anchor made
+       * each intent produce three or four destinations, and a plan with four
+       * destinations is four plans — it was returning 226-week programmes. */
+      score += anchorWeight.get(skill.id) ?? 0;
+
+      if (score > 0) matches.push({ skill, tree, score, terms: [...new Set(why)] });
+    }
+  }
+
+  matches.sort((a, b) => b.score - a.score || a.skill.name.localeCompare(b.skill.name));
+  return { matches, intents, terms };
+}
+
+/*
+ * Pick the destinations.
+ *
+ * A programme needs targets, not a list of forty loosely-related skills. The
+ * highest-scoring skills are taken as destinations, and everything they depend
+ * on comes along automatically — so choosing "A Working Business" quietly
+ * includes pricing, proposals and contracts without them needing to score.
+ *
+ * Skills that are prerequisites of other chosen targets are dropped as
+ * destinations, because a plan whose milestones are "HTML" and "React" reads
+ * as two goals when it is one.
+ */
+function chooseTargets(matches, catalog, limit = 3) {
+  const chosen = [];
+  if (!matches.length) return chosen;
+
+  /*
+   * Only destinations comparable to the strongest one.
+   *
+   * Taking the top N regardless of score was the bug that produced four-year
+   * programmes: "open a web design business" acquired Web Performance and
+   * Accessibility as destinations simply by being fourth and fifth in a long
+   * list. A destination has to be nearly as good a match as the best one, or
+   * it is not what the person asked for.
+   */
+  const floor = matches[0].score * 0.7;
+
+  for (const match of matches) {
+    if (chosen.length >= limit) break;
+    if (match.score < floor) break;
+    const index = catalog.getIndex(match.tree.id);
+    if (!index) continue;
+
+    const alreadyImplied = chosen.some((c) => {
+      if (c.tree.id !== match.tree.id) return false;
+      return catalog.ancestorsOf(index, c.skill.id).has(match.skill.id);
+    });
+    if (alreadyImplied) continue;
+
+    /*
+     * A lower-scoring skill that sits *beyond* an already-chosen destination
+     * is skipped rather than replacing it.
+     *
+     * An earlier version promoted to the furthest milestone in the tree, on
+     * the theory that it subsumed the smaller one. The effect was that "I want
+     * to do a muscle up" produced a plan whose destination was Calisthenics
+     * Athlete — 416 hours including handstands and front levers, neither of
+     * which a muscle-up needs. If someone names a destination, that is the
+     * destination.
+     */
+    const beyondAChosenTarget = chosen.some((c) => c.tree.id === match.tree.id
+      && catalog.ancestorsOf(index, match.skill.id).has(c.skill.id));
+    if (beyondAChosenTarget) continue;
+
+    chosen.push(match);
+  }
+
+  return chosen;
+}
+
+/*
+ * Weekly capacity, in hours.
+ *
+ * The onboarding asks for minutes per day, which is what people can estimate.
+ * Multiplying by seven would produce a plan nobody meets, so this assumes
+ * about five active days a week — matching how people actually behave, and
+ * making the dates the plan produces defensible rather than optimistic.
+ */
+function weeklyHours(minutesPerDay) {
+  const minutes = Math.max(5, Number(minutesPerDay) || 20);
+  return (minutes * 5) / 60;
+}
+
+/**
+ * Build the programme.
+ *
+ * Returns ordered steps with cumulative hours and a projected week for each,
+ * grouped into phases. Skills the learner has already completed are marked
+ * done and contribute no remaining time — so a plan built by someone who
+ * already knows HTML does not tell them to spend six hours on it.
+ *
+ * @param opts { catalog, state, goalText, minutesPerDay, now }
+ */
+function buildProgramme(opts) {
+  const { catalog, state, goalText } = opts;
+  const now = opts.now ?? Date.now();
+  const perWeek = weeklyHours(opts.minutesPerDay);
+
+  const { matches, intents, terms } = matchSkills(goalText, catalog);
+  if (!matches.length) {
+    return { ok: false, reason: 'no_match', terms, goalText };
+  }
+
+  const targets = chooseTargets(matches, catalog);
+
+  /* Collect every skill needed for every target, in dependency order. */
+  const seen = new Set();
+  const steps = [];
+
+  for (const target of targets) {
+    const index = catalog.getIndex(target.tree.id);
+    const needed = catalog.pathTo(index, target.skill.id);
+
+    for (const skillId of needed) {
+      if (seen.has(skillId)) continue;
+      seen.add(skillId);
+
+      const skill = index.byId.get(skillId);
+      const progress = state.skills[skillId];
+      const status = statusOf(index, skillId, (id) => state.skills[id]);
+
+      const level = progress
+        ? levelFor({
+          xp: progress.xp || 0,
+          masteryScore: progress.masteryScore || 0,
+          capacity: progress.capacity || 0,
+          started: !!progress.startedAt,
+        })
+        : 0;
+
+      /* Estimated hours remaining: the midpoint of the skill's range, reduced
+       * by how far in the learner already is. Completed skills cost nothing. */
+      const range = skill.estimatedHours || [2, 4];
+      const midpoint = (range[0] + range[1]) / 2;
+      const done = level >= 3;
+      const remaining = done ? 0 : midpoint * (1 - Math.min(1, level / 3) * 0.6);
+
+      steps.push({
+        skillId,
+        skill,
+        tree: target.tree,
+        treeId: target.tree.id,
+        status,
+        level,
+        done,
+        hours: Math.round(remaining * 10) / 10,
+        isTarget: skillId === target.skill.id,
+        targetFor: skillId === target.skill.id ? target.skill.name : null,
+      });
+    }
+  }
+
+  /* Cumulative time and a projected week per step. */
+  let cumulative = 0;
+  for (const step of steps) {
+    cumulative += step.hours;
+    step.cumulativeHours = Math.round(cumulative * 10) / 10;
+    step.week = step.done ? 0 : Math.max(1, Math.ceil(cumulative / perWeek));
+  }
+
+  const remainingHours = Math.round(cumulative * 10) / 10;
+  const weeks = Math.max(1, Math.ceil(remainingHours / perWeek));
+
+  return {
+    ok: true,
+    goalText,
+    terms,
+    intents: intents.map((i) => ({ id: i.id, label: i.label })),
+    targets: targets.map((t) => ({ skillId: t.skill.id, name: t.skill.name, treeId: t.tree.id, treeName: t.tree.name })),
+    steps,
+    phases: intoPhases(steps),
+    totalSteps: steps.length,
+    doneSteps: steps.filter((s) => s.done).length,
+    remainingHours,
+    weeks,
+    perWeek: Math.round(perWeek * 10) / 10,
+    finishesAt: now + weeks * 7 * 86400000,
+    trees: [...new Set(steps.map((s) => s.treeId))],
+  };
+}
+
+/*
+ * Group the steps into phases.
+ *
+ * A flat list of thirty skills is a wall. Phases give the plan a shape a
+ * person can hold — and the boundaries are meaningful rather than decorative:
+ * everything already done, then what is open now, then what each remaining
+ * target unlocks.
+ */
+function intoPhases(steps) {
+  const phases = [];
+
+  const done = steps.filter((s) => s.done);
+  if (done.length) {
+    phases.push({
+      key: 'done',
+      title: 'Already yours',
+      blurb: 'Counted, and skipped in the estimate.',
+      steps: done,
+    });
+  }
+
+  const rest = steps.filter((s) => !s.done);
+  if (!rest.length) return phases;
+
+  /* Up to four steps you could start today. More than that is not a next
+   * action, it is another list. */
+  const openNow = rest.filter((s) => s.status !== STATUS.LOCKED).slice(0, 4);
+  if (openNow.length) {
+    phases.push({
+      key: 'now',
+      title: 'Start here',
+      blurb: 'Open to you today.',
+      steps: openNow,
+    });
+  }
+
+  const later = rest.filter((s) => !openNow.includes(s));
+  if (later.length) {
+    /* Split the remainder in two so the far end reads as "later" rather than
+     * as an equally urgent thirty-item list. */
+    const half = Math.ceil(later.length / 2);
+    phases.push({
+      key: 'next',
+      title: 'Then',
+      blurb: 'Opens as the earlier steps land.',
+      steps: later.slice(0, half),
+    });
+    if (later.length > half) {
+      phases.push({
+        key: 'later',
+        title: 'Later',
+        blurb: 'The far end of the plan.',
+        steps: later.slice(half),
+      });
+    }
+  }
+
+  return phases;
+}
+
+/**
+ * This week's work: the next few unfinished, unlocked steps, with the specific
+ * activity to do in each. Keeps the plan actionable rather than admirable.
+ */
+function thisWeek(programme, nextActivityFor, state, limit = 3) {
+  if (!programme?.ok) return [];
+
+  return programme.steps
+    .filter((s) => !s.done && s.status !== STATUS.LOCKED)
+    .slice(0, limit)
+    .map((step) => ({
+      ...step,
+      activity: nextActivityFor(step.skill, state.skills[step.skillId]),
+    }))
+    .filter((s) => s.activity);
+}
+
+  return {
+    "tokenise": tokenise,
+    "matchSkills": matchSkills,
+    "chooseTargets": chooseTargets,
+    "weeklyHours": weeklyHours,
+    "buildProgramme": buildProgramme,
+    "thisWeek": thisWeek,
+  };
+})();
+
 __m["skilltree/src/ui/dashboard.js"] = (function () {
 /*
  * dashboard.js — the home screen (§6), and the intelligence behind it (§67).
@@ -8743,6 +10238,8 @@ const session = __m["skilltree/src/core/session.js"];
 const { go } = __m["skilltree/src/core/router.js"];
 const { openSkill } = __m["skilltree/src/ui/skillpanel.js"];
 const { persists } = __m["skilltree/src/core/store.js"];
+const catalog = __m["skilltree/src/data/catalog.js"];
+const { buildProgramme } = __m["skilltree/src/domain/goals.js"];
 
 function renderDashboard(host) {
   const overview = session.overview();
@@ -8827,6 +10324,33 @@ function renderDashboard(host) {
           h('div.bar', h('i', { style: { width: `${pct}%` } }))),
         h('span.lvl', `Lv.${f.level}`));
       }))));
+  }
+
+  /* ---- the goal, if one is set ---- */
+  if (profile.plan?.goalText) {
+    const programme = buildProgramme({
+      catalog,
+      state: profile,
+      goalText: profile.plan.goalText,
+      minutesPerDay: profile.plan.minutesPerDay || 20,
+    });
+
+    if (programme.ok) {
+      const pct = programme.totalSteps
+        ? Math.round((programme.doneSteps / programme.totalSteps) * 100) : 0;
+      page.appendChild(h('button.card', {
+        style: { width: '100%', textAlign: 'left', cursor: 'pointer' },
+        onclick: () => go('plan'),
+      },
+      h('div.card-head',
+        h('span.card-title', 'Goal'),
+        h('span.card-note.num', `${programme.doneSteps} / ${programme.totalSteps} skills`)),
+      h('div', { style: { fontSize: '15px', fontWeight: '560', marginBottom: 'var(--s2)' } },
+        profile.plan.goalText),
+      h('div.bar.tall', h('i', { style: { width: `${pct}%` } })),
+      h('div.card-note', { style: { marginTop: 'var(--s2)' } },
+        `${num(programme.remainingHours)} hours left at ${programme.perWeek} h/week`)));
+    }
   }
 
   /* ---- two columns: recommendation + review ---- */
@@ -10187,8 +11711,10 @@ __m["skilltree/src/ui/onboarding.js"] = (function () {
  * step whose answer is never used again is a lie about being listened to.
  *
  * So: name (used in the greeting), area (picks the tree), level (skips
- * material you already have), time (sets mission intensity), goal (draws the
- * path through the tree). Five questions, each with a visible consequence.
+ * material you already have), time (sets both mission intensity and the
+ * programme's pace), and the goal in the learner's own words — which the goal
+ * engine resolves into an ordered plan. Five questions, each with a visible
+ * consequence, and the last one shows you its consequence as you type.
  *
  * The level answer is the one worth explaining. Claiming "intermediate" does
  * not hand out levels — it seeds the prerequisite skills at a level that makes
@@ -10203,7 +11729,8 @@ const { icon, brandMark } = __m["skilltree/src/ui/icons.js"];
 const store = __m["skilltree/src/core/store.js"];
 const session = __m["skilltree/src/core/session.js"];
 const { go } = __m["skilltree/src/core/router.js"];
-const { allTrees, getIndex, getTree } = __m["skilltree/src/data/catalog.js"];
+const catalog = __m["skilltree/src/data/catalog.js"];
+const { buildProgramme } = __m["skilltree/src/domain/goals.js"];
 const { applyAttempt } = __m["skilltree/src/domain/progress.js"];
 const { INTENSITY } = __m["skilltree/src/domain/missions.js"];
 const { pathTo } = __m["skilltree/src/domain/graph.js"];
@@ -10215,6 +11742,7 @@ function renderOnboarding(host) {
     level: 'beginner',
     minutes: 20,
     targetSkillId: null,
+    goalText: '',
   };
 
   let step = 0;
@@ -10284,7 +11812,7 @@ function whoAreYou(card, answers, nav) {
 }
 
 function whatArea(card, answers, nav) {
-  const trees = allTrees();
+  const trees = catalog.allTrees();
   if (!answers.treeId) answers.treeId = trees[0].id;
 
   const list = h('div.stack.tight', ...trees.map((tree) => h('button.pick', {
@@ -10370,42 +11898,87 @@ function howMuchTime(card, answers, nav) {
 }
 
 function whatGoal(card, answers, nav) {
-  const tree = getTree(answers.treeId);
-  const index = getIndex(answers.treeId);
+  /*
+   * A written goal, not a menu.
+   *
+   * The earlier version offered the five deepest nodes of the chosen tree and
+   * called it a goal. That is the app's vocabulary, not the learner's — nobody
+   * arrives wanting "Full Stack Developer", they arrive wanting to build
+   * websites for people who will pay them. Taking the sentence they would
+   * actually say and resolving it to skills is the whole point of the goal
+   * engine, and this is where it earns its place.
+   */
+  const tree = catalog.getTree(answers.treeId);
 
-  /* Candidate goals are the deep nodes — the ones that require several
-   * branches. Offering every skill as a goal would be a 33-item list where
-   * most entries are waypoints rather than destinations. */
-  const candidates = tree.skills
-    .filter((s) => (s.requires || []).length >= 2 || s.category === 'Milestone')
-    .sort((a, b) => (b.requires?.length || 0) - (a.requires?.length || 0))
-    .slice(0, 5);
+  const suggestions = {
+    web: ['Become a frontend developer', 'Open a web design business', 'Build and ship my own app'],
+    math: ['Get comfortable with calculus', 'Stop being afraid of algebra', 'Understand statistics properly'],
+    calisthenics: ['Do a muscle-up', 'Hold a handstand', 'Get a front lever'],
+    business: ['Open a web design business', 'Get my first paying client', 'Go full-time freelance'],
+  }[answers.treeId] || [];
 
-  if (!answers.targetSkillId && candidates.length) answers.targetSkillId = candidates[0].id;
+  const preview = h('div');
 
-  const list = h('div.stack.tight', ...candidates.map((skill) => {
-    const steps = pathTo(index, skill.id).length;
-    return h('button.pick', {
-      'aria-pressed': String(answers.targetSkillId === skill.id),
-      onclick: () => {
-        answers.targetSkillId = skill.id;
-        for (const btn of list.children) btn.setAttribute('aria-pressed', 'false');
-        list.children[candidates.indexOf(skill)].setAttribute('aria-pressed', 'true');
-      },
-    },
-    h('span.pick-mark'),
-    h('span.pick-body', skill.name, h('small', `${steps} skills on the path · ${skill.description}`)));
-  }));
+  const input = h('input.input', {
+    type: 'text',
+    value: answers.goalText,
+    placeholder: 'e.g. open a web design business',
+    'aria-label': 'What do you want to be able to do?',
+    oninput: (e) => { answers.goalText = e.target.value; showPreview(); },
+    onkeydown: (e) => { if (e.key === 'Enter' && answers.goalText.trim().length > 2) nav.finish(); },
+  });
+
+  /* Live feedback while typing: seeing "27 skills, about 2 years at 20 min a
+   * day" before committing is the difference between a goal and a wish. */
+  let pending = null;
+  function showPreview() {
+    window.clearTimeout(pending);
+    pending = window.setTimeout(() => {
+      clear(preview);
+      const text = answers.goalText.trim();
+      if (text.length < 3) return;
+
+      const programme = buildProgramme({
+        catalog,
+        state: store.get() || { skills: {} },
+        goalText: text,
+        minutesPerDay: answers.minutes,
+      });
+
+      if (!programme.ok) {
+        preview.appendChild(h('div.notice.warn', icon('info', { size: 16 }),
+          h('span', 'Nothing built in covers that yet — you can still continue, and generate a tree for it from Explore.')));
+        return;
+      }
+
+      preview.appendChild(h('div.notice', icon('target', { size: 16 }),
+        h('span', `${programme.totalSteps} skills, about ${programme.remainingHours} hours — roughly ${programme.weeks} weeks at ${answers.minutes} minutes a day. Ending at ${programme.targets.map((t) => t.name).join(' and ')}.`)));
+    }, 250);
+  }
 
   card.appendChild(h('div.stack.loose',
     h('div',
       h('h1', 'What are you aiming at?'),
       h('p', { style: { color: 'var(--bone-dim)', marginTop: 'var(--s2)' } },
-        'This draws a path through the tree and shapes what gets recommended. You can change it any time.')),
-    list,
+        'In your own words — the thing you want to be true, not a skill name. The app works out which skills that needs and in what order.')),
+    input,
+    preview,
+    suggestions.length
+      ? h('div.row.wrap', { style: { gap: 'var(--s2)' } },
+        ...suggestions.map((text) => h('button.chip', {
+          onclick: () => { answers.goalText = text; input.value = text; showPreview(); },
+        }, text)))
+      : null,
     h('div.row', { style: { gap: 'var(--s2)' } },
       h('button.btn', { onclick: nav.back }, 'Back'),
-      h('button.btn.primary.wide', { onclick: nav.finish }, 'Build my tree'))));
+      h('button.btn.primary.wide', {
+        onclick: () => {
+          if (!answers.goalText.trim()) answers.goalText = suggestions[0] || tree.name;
+          nav.finish();
+        },
+      }, 'Build my plan'))));
+
+  window.requestAnimationFrame(() => input.focus());
 }
 
 /* ------------------------------------------------------------------ *
@@ -10423,20 +11996,30 @@ function whatGoal(card, answers, nav) {
  * sequence of events could have produced.
  */
 function commit(answers) {
-  const index = getIndex(answers.treeId);
+  const index = catalog.getIndex(answers.treeId);
   const intensity = answers.minutes <= 10 ? 'light' : answers.minutes >= 45 ? 'intensive' : 'normal';
 
   store.update((profile) => {
+    const goalText = answers.goalText.trim();
+
+    /* Resolve the written goal to a destination so the tree screen's goal path
+     * lights up too. If nothing matches, the plan is still stored — Explore can
+     * generate a tree for it, and the plan screen says so. */
+    const programme = goalText
+      ? buildProgramme({ catalog, state: profile, goalText, minutesPerDay: answers.minutes })
+      : { ok: false };
+
     let next = {
       ...profile,
       name: answers.name.trim(),
       onboarded: true,
       settings: { ...profile.settings, intensity },
-      goal: answers.targetSkillId
+      plan: goalText ? { goalText, createdAt: Date.now(), minutesPerDay: answers.minutes } : null,
+      goal: programme.ok
         ? {
-          treeId: answers.treeId,
-          targetSkillId: answers.targetSkillId,
-          text: index.byId.get(answers.targetSkillId)?.name || '',
+          treeId: programme.targets[0].treeId,
+          targetSkillId: programme.targets[0].skillId,
+          text: goalText,
           createdAt: Date.now(),
         }
         : null,
@@ -10499,6 +12082,309 @@ function shallowSkills(index, maxDepth) {
 
   return {
     "renderOnboarding": renderOnboarding,
+  };
+})();
+
+__m["skilltree/src/ui/plan.js"] = (function () {
+/*
+ * plan.js — the goal screen: write what you want, get a programme.
+ *
+ * The design problem here is that honest estimates are discouraging. "Open a
+ * web design business" at half an hour a day genuinely is a couple of years,
+ * and a screen whose headline is "125 weeks" is a screen people close.
+ *
+ * The answer is not to lie about the number. It is to lead with the part that
+ * is actionable — the next thing, and the first milestone — and put the full
+ * horizon where someone can find it, next to the lever that changes it (their
+ * daily time). So: what to do this week, then the phases, then the total with
+ * its assumption stated.
+ */
+
+const { h, clear, num } = __m["skilltree/src/core/dom.js"];
+const { icon } = __m["skilltree/src/ui/icons.js"];
+const session = __m["skilltree/src/core/session.js"];
+const store = __m["skilltree/src/core/store.js"];
+const catalog = __m["skilltree/src/data/catalog.js"];
+const { go } = __m["skilltree/src/core/router.js"];
+const { openSkill } = __m["skilltree/src/ui/skillpanel.js"];
+const { buildProgramme, thisWeek } = __m["skilltree/src/domain/goals.js"];
+const { nextActivityFor } = __m["skilltree/src/domain/missions.js"];
+const { STATUS } = __m["skilltree/src/domain/unlock.js"];
+const { hasAnyKey } = __m["skilltree/src/ai/provider.js"];
+
+const EXAMPLES = [
+  'Open a web design business',
+  'Become a frontend developer',
+  'Do a muscle-up',
+  'Get comfortable with calculus',
+];
+
+function renderPlan(host) {
+  const profile = session.freshProfile();
+  const page = h('div.wrap.stack.loose');
+
+  page.appendChild(h('div.page-head',
+    h('div',
+      h('h1', 'Your goal'),
+      h('p', 'Say what you want to be able to do. The app works out which skills that needs, in what order, and how long it takes at your pace.'))));
+
+  const body = h('div.stack.loose');
+  page.appendChild(body);
+
+  clear(host);
+  host.appendChild(page);
+
+  if (profile.plan?.goalText) drawProgramme(body, profile, host);
+  else drawGoalForm(body, profile, host);
+}
+
+/* ------------------------------------------------------------------ *
+ * Asking
+ * ------------------------------------------------------------------ */
+
+function drawGoalForm(host, profile, screenHost) {
+  clear(host);
+
+  const input = h('input.input', {
+    type: 'text',
+    placeholder: 'e.g. open a web design business',
+    'aria-label': 'What do you want to be able to do?',
+    'data-autofocus': '',
+    onkeydown: (e) => { if (e.key === 'Enter') submit(); },
+  });
+
+  const feedback = h('div');
+
+  function submit() {
+    const text = input.value.trim();
+    if (text.length < 3) {
+      clear(feedback);
+      feedback.appendChild(h('div.notice.warn', icon('alert', { size: 16 }),
+        h('span', 'Say a bit more — a few words about what you want to be able to do.')));
+      return;
+    }
+    setGoal(text, screenHost);
+  }
+
+  host.appendChild(h('div.card.feature',
+    h('div.eyebrow', 'Start here'),
+    h('h2', 'What do you want to be able to do?'),
+    h('p', { style: { color: 'var(--bone-dim)', margin: 'var(--s2) 0 var(--s4)' } },
+      'In your own words. Not a skill — the thing you want to be true.'),
+    h('div.row.wrap', { style: { gap: 'var(--s2)' } },
+      input,
+      h('button.btn.primary', { onclick: submit }, 'Build my plan')),
+    feedback,
+    h('div.row.wrap', { style: { gap: 'var(--s2)', marginTop: 'var(--s4)' } },
+      h('span.card-note', 'For example:'),
+      ...EXAMPLES.map((example) => h('button.chip', {
+        onclick: () => { input.value = example; submit(); },
+      }, example)))));
+}
+
+function setGoal(text, screenHost) {
+  const profile = session.freshProfile();
+  const programme = buildProgramme({
+    catalog,
+    state: profile,
+    goalText: text,
+    minutesPerDay: profile.plan?.minutesPerDay || minutesFromIntensity(profile),
+  });
+
+  if (!programme.ok) {
+    /* Honest failure with the one real way forward, rather than a shrug. */
+    const host = screenHost.querySelector('.wrap .stack.loose') || screenHost;
+    const notice = h('div.card', h('div.stack',
+      h('h3', `Nothing in the app covers "${text}" yet`),
+      h('p', { style: { color: 'var(--bone-dim)' } },
+        hasAnyKey()
+          ? 'The built-in trees do not reach that. You can generate a tree for it, then set it as your goal.'
+          : 'The built-in trees cover programming, mathematics, calisthenics and freelance business. You can generate a tree for anything else with an AI key, or try wording it differently.'),
+      h('div.row.wrap', { style: { gap: 'var(--s2)' } },
+        h('button.btn.primary', { onclick: () => go('explore') }, 'Generate a tree for it'),
+        h('button.btn', { onclick: () => renderPlan(screenHost) }, 'Try different words'))));
+    clear(host);
+    host.appendChild(notice);
+    return;
+  }
+
+  /* The goal is stored, not the programme: it is derived from live progress,
+   * so caching it would go stale the moment anything is completed. The primary
+   * target also becomes the tree-screen goal, so the existing goal path lights
+   * up without a second concept. */
+  store.update((p) => ({
+    ...p,
+    plan: { goalText: text, createdAt: Date.now(), minutesPerDay: p.plan?.minutesPerDay || minutesFromIntensity(p) },
+    goal: {
+      treeId: programme.targets[0].treeId,
+      targetSkillId: programme.targets[0].skillId,
+      text,
+      createdAt: Date.now(),
+    },
+  }));
+
+  renderPlan(screenHost);
+}
+
+function minutesFromIntensity(profile) {
+  return { light: 10, normal: 20, intensive: 45 }[profile.settings?.intensity || 'normal'] || 20;
+}
+
+/* ------------------------------------------------------------------ *
+ * Showing
+ * ------------------------------------------------------------------ */
+
+function drawProgramme(host, profile, screenHost) {
+  clear(host);
+
+  const minutesPerDay = profile.plan.minutesPerDay || minutesFromIntensity(profile);
+  const programme = buildProgramme({
+    catalog,
+    state: profile,
+    goalText: profile.plan.goalText,
+    minutesPerDay,
+  });
+
+  if (!programme.ok) {
+    host.appendChild(h('div.card', h('div.empty',
+      icon('alert', { size: 28 }),
+      h('h3', 'That goal no longer maps to anything'),
+      h('p', 'The trees it referred to may have changed.'),
+      h('button.btn.primary', { onclick: () => clearGoal(screenHost) }, 'Set a new goal'))));
+    return;
+  }
+
+  const week = thisWeek(programme, nextActivityFor, profile, 3);
+  const pct = programme.totalSteps ? Math.round((programme.doneSteps / programme.totalSteps) * 100) : 0;
+
+  /* ---- the goal itself ---- */
+  host.appendChild(h('div.card.feature',
+    h('div.row.between', { style: { alignItems: 'flex-start', gap: 'var(--s3)' } },
+      h('div',
+        h('div.eyebrow', 'Goal'),
+        h('h2', profile.plan.goalText)),
+      h('button.btn.ghost.small', { onclick: () => clearGoal(screenHost) }, 'Change')),
+
+    h('div.row.wrap', { style: { gap: 'var(--s2)', marginTop: 'var(--s3)' } },
+      ...programme.targets.map((t) => h('button.chip.on', {
+        onclick: () => openSkill(t.skillId, { onChange: () => renderPlan(screenHost) }),
+      }, t.name))),
+
+    h('div.bar.tall', { style: { marginTop: 'var(--s4)' } },
+      h('i', { style: { width: `${pct}%` } })),
+    h('div.row.between', { style: { marginTop: 'var(--s2)', fontSize: '12px', color: 'var(--bone-dimmer)' } },
+      h('span.num', `${programme.doneSteps} of ${programme.totalSteps} skills`),
+      h('span.num', `${pct}%`))));
+
+  /* ---- what to do now ---- */
+  if (week.length) {
+    host.appendChild(h('div.card',
+      h('div.card-head',
+        h('span.card-title', 'Do this next'),
+        h('span.card-note', 'The first open steps on the path')),
+      h('div.list', ...week.map((step) => h('button.list-item', {
+        onclick: () => go(`activity/${step.activity.id}`),
+      },
+      h('span', { style: { color: 'var(--lime)', display: 'flex' }, 'aria-hidden': 'true' }, icon('play', { size: 15 })),
+      h('div.grow',
+        h('div.title', step.skill.name),
+        h('div.sub', step.activity.title)),
+      h('span.chip', `~${step.hours}h`))))));
+  } else if (programme.doneSteps === programme.totalSteps) {
+    host.appendChild(h('div.card', h('div.empty',
+      icon('star', { size: 28 }),
+      h('h3', 'You have reached it'),
+      h('p', `Every skill on the path to "${profile.plan.goalText}" is complete.`),
+      h('button.btn.primary', { onclick: () => clearGoal(screenHost) }, 'Set a new goal'))));
+  }
+
+  /* ---- the estimate, with its assumption stated ---- */
+  const finish = new Date(programme.finishesAt);
+  host.appendChild(h('div.card',
+    h('div.card-head',
+      h('span.card-title', 'How long'),
+      h('span.card-note', `at ${minutesPerDay} min a day`)),
+    h('div.grid.cols-3.stats', { style: { gap: 'var(--s3)' } },
+      h('div.card.quiet', h('div.stat', h('span.k', 'Remaining'), h('span.v', num(programme.remainingHours), h('small', ' h')))),
+      h('div.card.quiet', h('div.stat', h('span.k', 'At your pace'), h('span.v', horizon(programme.weeks)))),
+      h('div.card.quiet', h('div.stat', h('span.k', 'On track for'),
+        h('span.v', { style: { fontSize: '17px' } },
+          finish.toLocaleDateString('en-GB', { month: 'short', year: 'numeric' }))))),
+
+    /* The lever that changes the number, right beside it. */
+    h('div', { style: { marginTop: 'var(--s4)' } },
+      h('div.card-note', { style: { marginBottom: 'var(--s2)' } }, 'Change your daily time and the plan re-times itself:'),
+      h('div.row.wrap', { style: { gap: 'var(--s2)' } },
+        ...[10, 20, 30, 45, 60].map((mins) => h('button.chip', {
+          class: mins === minutesPerDay ? 'on' : '',
+          onclick: () => {
+            store.update((p) => ({ ...p, plan: { ...p.plan, minutesPerDay: mins } }));
+            renderPlan(screenHost);
+          },
+        }, `${mins} min`)))),
+
+    h('div.card-note', { style: { marginTop: 'var(--s3)' } },
+      'Estimates come from each skill\'s own hour range, reduced by how far into it you already are. They are a projection, not a promise.')));
+
+  /* ---- the phases ---- */
+  for (const phase of programme.phases) {
+    host.appendChild(h('div.card',
+      h('div.card-head',
+        h('span.card-title', phase.title),
+        h('span.card-note', phase.blurb)),
+      h('div.list', ...phase.steps.map((step) => stepRow(step, screenHost)))));
+  }
+
+  /* ---- where it came from ---- */
+  host.appendChild(h('div.notice',
+    icon('info', { size: 16 }),
+    h('span', programme.intents.length
+      ? `Read as: ${programme.intents.map((i) => i.label).join(', ')}. Spanning ${programme.trees.map((id) => catalog.getTree(id)?.name).filter(Boolean).join(' and ')}.`
+      : `Matched on: ${programme.terms.join(', ')}. Spanning ${programme.trees.map((id) => catalog.getTree(id)?.name).filter(Boolean).join(' and ')}.`)));
+}
+
+function stepRow(step, screenHost) {
+  const locked = step.status === STATUS.LOCKED;
+
+  return h('button.list-item', {
+    onclick: () => openSkill(step.skillId, { onChange: () => renderPlan(screenHost) }),
+  },
+  h('span', {
+    style: { color: step.done ? 'var(--lime)' : 'var(--bone-dimmer)', display: 'flex' },
+    'aria-hidden': 'true',
+  }, icon(step.done ? 'check' : locked ? 'lock' : 'play', { size: 15 })),
+
+  h('div.grow',
+    h('div.title', {
+      style: step.done ? { color: 'var(--bone-dim)' } : {},
+    }, step.skill.name),
+    h('div.sub', step.tree.name + (step.isTarget ? ' · destination' : ''))),
+
+  step.done
+    ? h('span.chip.on', `Lv.${step.level}`)
+    : h('span.chip', `~${step.hours}h`));
+}
+
+/*
+ * Weeks are a poor unit past about three months — "125 weeks" is a number
+ * nobody converts. Past that, say it the way a person would.
+ */
+function horizon(weeks) {
+  if (weeks <= 1) return 'this week';
+  if (weeks < 9) return `${weeks} weeks`;
+  const months = Math.round(weeks / 4.35);
+  if (months < 18) return `${months} months`;
+  const years = Math.round((months / 12) * 10) / 10;
+  return `${years} years`;
+}
+
+function clearGoal(screenHost) {
+  store.update((p) => ({ ...p, plan: null }));
+  renderPlan(screenHost);
+}
+
+  return {
+    "renderPlan": renderPlan,
   };
 })();
 
@@ -10963,9 +12849,33 @@ function mountTree(host, opts) {
 
   /* Frame once the shell has a measured size. Calling it synchronously gives a
    * zero-width box on first paint and the graph lands off-screen. */
-  window.requestAnimationFrame(() => frameView());
+  window.requestAnimationFrame(() => { sizeShell(); frameView(); });
 
-  const onResize = () => frameView();
+  /*
+   * Size the canvas from what is actually left on screen.
+   *
+   * This was a CSS `calc(100dvh - 268px)` tuned against one screen, and it
+   * broke the moment a tree carried a notice: the business tree's disclaimer
+   * added ~180px of header and pushed the canvas 105px behind the tab bar.
+   * Any fixed figure encodes an assumption about content that content will
+   * eventually violate, so the height is measured instead — from the shell's
+   * own position to the top of the tab bar.
+   *
+   * Desktop keeps the CSS height; there the page scrolls normally and the
+   * canvas does not need to fit a fixed viewport.
+   */
+  function sizeShell() {
+    if (window.innerWidth > 860) { shell.style.removeProperty('height'); return; }
+
+    const top = shell.getBoundingClientRect().top;
+    const tabbar = document.querySelector('.tabbar');
+    const floor = tabbar ? tabbar.getBoundingClientRect().top : window.innerHeight;
+    const available = floor - top - 12;
+
+    shell.style.height = `${Math.max(300, Math.round(available))}px`;
+  }
+
+  const onResize = () => { sizeShell(); frameView(); };
   window.addEventListener('resize', onResize);
 
   return {
@@ -11882,7 +13792,10 @@ function renderTree(host, params, query) {
   /* A tree-level notice — the calisthenics safety framing (§40) — shown once,
    * at the top, rather than repeated inside every node. */
   if (tree.notice) {
-    page.appendChild(h('div.notice', icon('info', { size: 16 }), h('span', tree.notice)));
+    const noticeText = h('span.tree-notice', tree.notice);
+    page.appendChild(h('div.notice', {
+      onclick: () => noticeText.classList.toggle('open'),
+    }, icon('info', { size: 16 }), noticeText));
   }
 
   /* Search across every tree, not just this one. */
@@ -12003,6 +13916,7 @@ function renderExplore(host) {
     type: 'text',
     placeholder: 'e.g. game development, bread baking, music theory',
     'aria-label': 'What do you want to learn?',
+    onkeydown: (e) => { if (e.key === 'Enter') runGeneration(input.value, genHost, host); },
   });
 
   const generateBtn = h('button.btn.primary', { onclick: () => runGeneration(input.value, genHost, host) },
@@ -12280,7 +14194,13 @@ function renderSettings(host) {
   page.appendChild(h('div.page-head', h('div', h('h1', 'Settings'))));
 
   /* ---- profile ---- */
-  const nameInput = h('input.input', { type: 'text', value: state.name, 'aria-label': 'Your name' });
+  const saveName = () => { store.patch({ name: nameInput.value.trim() }); announce('Name saved'); renderSettings(host); };
+  const nameInput = h('input.input', {
+    type: 'text',
+    value: state.name,
+    'aria-label': 'Your name',
+    onkeydown: (e) => { if (e.key === 'Enter') saveName(); },
+  });
   page.appendChild(h('div.card',
     h('div.card-head', h('span.card-title', 'Profile')),
     h('div.stack.tight',
@@ -12288,9 +14208,7 @@ function renderSettings(host) {
         h('label', { for: 'st-name' }, 'Name'),
         nameInput),
       h('div.row.wrap', { style: { gap: 'var(--s2)' } },
-        h('button.btn.small', {
-          onclick: () => { store.patch({ name: nameInput.value.trim() }); announce('Name saved'); renderSettings(host); },
-        }, 'Save'),
+        h('button.btn.small', { onclick: saveName }, 'Save'),
         ...store.listProfiles().filter((p) => p.id !== state.id).map((p) => h('button.chip', {
           onclick: () => { store.switchProfile(p.id); go('dashboard'); },
         }, `Switch to ${p.name || 'Unnamed'}`)),
@@ -12357,12 +14275,20 @@ function aiCard(host) {
       'Used for the coach and for generating new trees. Progression, XP, unlocks and grading are all deterministic and work without a key.'));
 
   for (const provider of PROVIDERS) {
+    const saveThisKey = () => {
+      saveKey(provider.id, input.value.trim());
+      if (input.value.trim()) saveChoice(provider.id, provider.defaultModel);
+      announce(`${provider.name} key saved`);
+      renderSettings(host);
+    };
+
     const input = h('input.input', {
       type: 'password',
       value: loadKey(provider.id),
       placeholder: provider.keyHint,
       'aria-label': `${provider.name} API key`,
       autocomplete: 'off',
+      onkeydown: (e) => { if (e.key === 'Enter') saveThisKey(); },
     });
 
     const status = h('span.card-note');
@@ -12377,15 +14303,7 @@ function aiCard(host) {
       h('label', provider.name),
       h('div.row', { style: { gap: 'var(--s2)' } },
         input,
-        h('button.btn.small', {
-          onclick: () => {
-            saveKey(provider.id, input.value.trim());
-            if (input.value.trim()) saveChoice(provider.id, provider.defaultModel);
-            refreshStatus();
-            announce(`${provider.name} key saved`);
-            renderSettings(host);
-          },
-        }, 'Save')),
+        h('button.btn.small', { onclick: saveThisKey }, 'Save')),
       status));
   }
 
@@ -12548,6 +14466,20 @@ const CALISTHENICS_PLAN = [
   { id: 'pullups', score: 100, days: 9, partial: true },
 ];
 
+/*
+ * A little progress on the business side.
+ *
+ * The demo's stated goal is "Open a web design business", and a learner with
+ * that goal and zero business progress is incoherent — the plan screen would
+ * show every business skill untouched while claiming it as the destination.
+ * Two skills in, one part-done, is what someone eight weeks into this actually
+ * looks like.
+ */
+const BUSINESS_PLAN = [
+  { id: 'what_you_sell', score: 100, days: 21 },
+  { id: 'portfolio', score: 100, days: 11, partial: true },
+];
+
 const MATH_PLAN = [
   { id: 'arithmetic', score: 96, days: 60 },
   { id: 'fractions', score: 89, days: 54 },
@@ -12631,6 +14563,7 @@ function buildDemoProfile(now = Date.now()) {
   state = runPlan(state, 'web', WEB_PLAN, now);
   state = runPlan(state, 'calisthenics', CALISTHENICS_PLAN, now);
   state = runPlan(state, 'math', MATH_PLAN, now);
+  state = runPlan(state, 'business', BUSINESS_PLAN, now);
 
   /*
    * A recent run of daily practice.
@@ -12650,10 +14583,17 @@ function buildDemoProfile(now = Date.now()) {
    */
   state = runDailyHabit(state, now);
 
+  /* A written goal, phrased the way someone would actually say it, so the
+   * demo shows the plan screen doing its job rather than an empty state. */
+  state.plan = {
+    goalText: 'Open a web design business',
+    createdAt: now - 80 * DAY,
+    minutesPerDay: 30,
+  };
   state.goal = {
-    treeId: 'web',
-    targetSkillId: 'fullstack',
-    text: 'Full Stack Developer',
+    treeId: 'business',
+    targetSkillId: 'working_business',
+    text: 'Open a web design business',
     createdAt: now - 80 * DAY,
   };
 
@@ -12785,6 +14725,7 @@ const { buildShell, syncNav, syncTheme, applyTheme } = __m["skilltree/src/ui/she
 const { renderDashboard } = __m["skilltree/src/ui/dashboard.js"];
 const { renderActivity } = __m["skilltree/src/ui/activity.js"];
 const { renderOnboarding } = __m["skilltree/src/ui/onboarding.js"];
+const { renderPlan } = __m["skilltree/src/ui/plan.js"];
 const { renderTree, renderExplore, renderProgress, renderAchievements, renderProfile, renderSettings, } = __m["skilltree/src/ui/screens.js"];
 const { buildDemoProfile } = __m["skilltree/src/data/demo.js"];
 const { findActivity, findSkill, allTrees } = __m["skilltree/src/data/catalog.js"];
@@ -12826,6 +14767,7 @@ function guarded(fn) {
 }
 
 route('dashboard', guarded((host) => renderDashboard(host)));
+route('plan', guarded((host) => renderPlan(host)));
 route('tree', guarded((host, params, query) => renderTree(host, params, query)));
 route('explore', guarded((host) => renderExplore(host)));
 route('progress', guarded((host) => renderProgress(host)));

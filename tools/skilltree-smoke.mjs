@@ -151,9 +151,12 @@ async function main() {
   /* Time */
   await page.locator('.pick').nth(1).click();
   await page.getByRole('button', { name: 'Continue' }).click();
-  /* Goal */
-  await page.locator('.pick').first().click();
-  await page.getByRole('button', { name: 'Build my tree' }).click();
+  /* Goal — now free text rather than a menu. */
+  await page.locator('input[aria-label="What do you want to be able to do?"]').fill('open a web design business');
+  await page.waitForTimeout(500);
+  check(/skills, about/i.test(await page.locator('.onboard-card').innerText()),
+    'the goal step does not preview the programme as you type');
+  await page.getByRole('button', { name: 'Build my plan' }).click();
 
   await page.waitForSelector('.card', { timeout: 10000 });
   check(page.url().includes('#/dashboard'), `onboarding did not land on the dashboard (${page.url()})`);
@@ -162,9 +165,43 @@ async function main() {
   const afterOnboarding = await page.evaluate(() => ({
     onboarded: window.SkillTree.store.get().onboarded,
     goal: window.SkillTree.store.get().goal?.targetSkillId || null,
+    goalText: window.SkillTree.store.get().plan?.goalText || null,
   }));
   check(afterOnboarding.onboarded === true, 'onboarding did not mark the profile onboarded');
   check(!!afterOnboarding.goal, 'onboarding did not record a goal');
+  check(afterOnboarding.goalText === 'open a web design business',
+    `onboarding did not keep the goal as written (${afterOnboarding.goalText})`);
+
+  /* ---- the programme the written goal produced ---- */
+  await page.goto(`${base}#/plan`);
+  await page.waitForSelector('.card.feature', { timeout: 8000 });
+  const planText = await page.locator('body').innerText();
+  check(/open a web design business/i.test(planText), 'the plan screen does not show the goal as written');
+  check(/A Working Business/i.test(planText), 'the plan did not resolve to a destination');
+  check(/Do this next/i.test(planText), 'the plan offers no immediate next step');
+
+  /* The whole point: it reaches skills the learner never typed. */
+  check(/Pricing|Contracts|Proposals/i.test(planText),
+    'the plan did not include the business skills the goal implies');
+
+  /* And it spans both trees rather than only the words that matched. */
+  check(/Web Development/i.test(planText) && /Freelance/i.test(planText),
+    'the plan did not span both the craft and the business trees');
+
+  /* The pace control must re-time the plan rather than being decorative. */
+  const beforePace = await page.locator('.grid.stats').first().innerText();
+  await page.getByRole('button', { name: '60 min' }).click();
+  await page.waitForTimeout(500);
+  const afterPace = await page.locator('.grid.stats').first().innerText();
+  check(beforePace !== afterPace, 'changing the daily time did not re-time the programme');
+
+  /* A step in the plan opens its skill. */
+  await page.locator('.list-item').first().click();
+  await page.waitForTimeout(600);
+  check(await page.locator('.sheet').count() === 1 || page.url().includes('#/activity/'),
+    'a plan step neither opened a skill nor started an activity');
+  await page.keyboard.press('Escape');
+  await page.waitForTimeout(300);
   await shot(page, 'dashboard-new');
 
   /* ============================================================== *
@@ -375,6 +412,7 @@ async function main() {
    * ============================================================== */
   for (const [route, marker] of [
     ['dashboard', '.card'],
+    ['plan', '.card'],
     ['tree', '.node'],
     ['explore', '.card'],
     ['progress', '.chart'],

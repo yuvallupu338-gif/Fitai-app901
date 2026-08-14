@@ -11,10 +11,11 @@
  * downstream — same index, same search, same layout, same gates.
  */
 
-import { indexTree, layoutTree } from '../domain/graph.js';
+import { indexTree, layoutTree, ancestorsOf, pathTo } from '../domain/graph.js';
 import { WEB_TREE } from './tree.web.js';
 import { MATH_TREE } from './tree.math.js';
 import { CALISTHENICS_TREE } from './tree.calisthenics.js';
+import { BUSINESS_TREE } from './tree.business.js';
 
 const trees = new Map();
 const indexCache = new Map();
@@ -100,7 +101,7 @@ export function registerTree(rawTree) {
   return index;
 }
 
-for (const tree of [WEB_TREE, MATH_TREE, CALISTHENICS_TREE]) registerTree(tree);
+for (const tree of [WEB_TREE, MATH_TREE, CALISTHENICS_TREE, BUSINESS_TREE]) registerTree(tree);
 
 export function allTrees() {
   return [...trees.values()];
@@ -127,6 +128,10 @@ export function getLayout(treeId) {
   }
   return layoutCache.get(treeId);
 }
+
+/* Re-exported so the goal engine can reason about the graph without importing
+ * both the catalogue and the graph module and getting them out of step. */
+export { ancestorsOf, pathTo };
 
 /** Find a skill anywhere, without the caller having to know its tree. */
 export function findSkill(skillId) {

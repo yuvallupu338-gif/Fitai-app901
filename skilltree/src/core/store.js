@@ -79,6 +79,10 @@ export function emptyProfile(name = '', id = null) {
     achievements: {},
     streak: { current: 0, longest: 0, lastDay: null },
     goal: null,
+    /* The goal in the learner's own words. The programme itself is derived
+     * from live progress on every render rather than stored, so it cannot go
+     * stale the moment something is completed. */
+    plan: null,
     missions: null,
     analytics: [],
     settings: {

@@ -955,12 +955,27 @@
   .tree-switch::-webkit-scrollbar { display: none; }
   .tree-switch .chip { flex: none; }
 
-  /* Header (compact title + one chip row + search) plus the tab bar and a
-   * margin. Tuned against a 375x812 phone so the canvas ends just above the
-   * bar rather than a few pixels behind it. */
+  /* A starting value only — mountTree measures the real space left and sets an
+   * explicit height, because any figure here is an assumption about how tall
+   * the header is, and a tree with a notice breaks it. */
   .tree-shell {
     height: calc(100dvh - 268px);
     min-height: 300px;
+  }
+
+  /* A tree-level notice is important but it is not the screen. Two lines on a
+   * phone, tap to read the rest. */
+  .tree-notice {
+    display: -webkit-box;
+    -webkit-line-clamp: 2;
+    -webkit-box-orient: vertical;
+    line-clamp: 2;
+    overflow: hidden;
+    cursor: pointer;
+  }
+  .tree-notice.open {
+    -webkit-line-clamp: unset;
+    line-clamp: unset;
   }
 
   /* The search is secondary here — the canvas is the screen. */

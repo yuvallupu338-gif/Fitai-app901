@@ -22,6 +22,8 @@ import * as session from '../core/session.js';
 import { go } from '../core/router.js';
 import { openSkill } from './skillpanel.js';
 import { persists } from '../core/store.js';
+import * as catalog from '../data/catalog.js';
+import { buildProgramme } from '../domain/goals.js';
 
 export function renderDashboard(host) {
   const overview = session.overview();
@@ -106,6 +108,33 @@ export function renderDashboard(host) {
           h('div.bar', h('i', { style: { width: `${pct}%` } }))),
         h('span.lvl', `Lv.${f.level}`));
       }))));
+  }
+
+  /* ---- the goal, if one is set ---- */
+  if (profile.plan?.goalText) {
+    const programme = buildProgramme({
+      catalog,
+      state: profile,
+      goalText: profile.plan.goalText,
+      minutesPerDay: profile.plan.minutesPerDay || 20,
+    });
+
+    if (programme.ok) {
+      const pct = programme.totalSteps
+        ? Math.round((programme.doneSteps / programme.totalSteps) * 100) : 0;
+      page.appendChild(h('button.card', {
+        style: { width: '100%', textAlign: 'left', cursor: 'pointer' },
+        onclick: () => go('plan'),
+      },
+      h('div.card-head',
+        h('span.card-title', 'Goal'),
+        h('span.card-note.num', `${programme.doneSteps} / ${programme.totalSteps} skills`)),
+      h('div', { style: { fontSize: '15px', fontWeight: '560', marginBottom: 'var(--s2)' } },
+        profile.plan.goalText),
+      h('div.bar.tall', h('i', { style: { width: `${pct}%` } })),
+      h('div.card-note', { style: { marginTop: 'var(--s2)' } },
+        `${num(programme.remainingHours)} hours left at ${programme.perWeek} h/week`)));
+    }
   }
 
   /* ---- two columns: recommendation + review ---- */

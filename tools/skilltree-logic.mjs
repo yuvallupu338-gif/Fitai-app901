@@ -39,6 +39,9 @@ const { CALISTHENICS_TREE } = await load('data/tree.calisthenics.js');
 const { buildDemoProfile } = await load('data/demo.js');
 const { allTrees: registeredTrees, getIndex: registeredIndex } = await load('data/catalog.js');
 const { emptyProfile } = await load('core/store.js');
+const goals = await load('domain/goals.js');
+const { BUSINESS_TREE } = await load('data/tree.business.js');
+const catalogModule = await load('data/catalog.js');
 
 let passed = 0;
 const failures = [];
@@ -191,7 +194,7 @@ check('a stale mastered skill is urgent',
  * ================================================================== */
 group('Graph and dependencies');
 
-const trees = [WEB_TREE, MATH_TREE, CALISTHENICS_TREE];
+const trees = [WEB_TREE, MATH_TREE, CALISTHENICS_TREE, BUSINESS_TREE];
 for (const tree of trees) {
   check(`${tree.id}: no cycle`, findCycle(tree) === null, String(findCycle(tree)));
   const index = indexTree(tree);
@@ -678,6 +681,101 @@ check('missions are completed by doing the work, not by ticking', (() => {
 })());
 
 /* ================================================================== *
+ * Goals — free text to a programme
+ * ================================================================== */
+group('Goal programmes');
+
+const blank = emptyProfile('Goal test');
+const plan = (text, minutes = 30, st = blank) => goals.buildProgramme({
+  catalog: catalogModule, state: st, goalText: text, minutesPerDay: minutes, now: t0,
+});
+
+check('stop words are dropped', !goals.tokenise('I want to learn to be better').includes('want'));
+check('content words survive', ['web', 'design', 'business']
+  .every((w) => goals.tokenise('open a web design business').includes(w)),
+  goals.tokenise('open a web design business').join(','));
+
+/* The example the whole feature exists for. */
+const web = plan('open a web design business');
+check('a business goal produces a programme', web.ok);
+check('it spans both the craft and the business', web.trees.includes('web') && web.trees.includes('business'),
+  `trees: ${web.trees}`);
+check('it reaches skills the learner never named', web.steps.some((s) => s.skillId === 'pricing')
+  && web.steps.some((s) => s.skillId === 'contracts'),
+  'pricing and contracts are the point of the intent rules');
+check('its destination is the business milestone',
+  web.targets.some((t) => t.skillId === 'working_business'), JSON.stringify(web.targets));
+
+/*
+ * The bug that made the first version useless: promoting to the furthest
+ * milestone in the tree, so a specific goal produced a plan for a different,
+ * much larger one.
+ */
+const muscleUp = plan('I want to do a muscle up');
+check('a named destination is honoured, not promoted',
+  muscleUp.targets.length === 1 && muscleUp.targets[0].skillId === 'muscle_up',
+  JSON.stringify(muscleUp.targets));
+check('and it does not drag in unrelated branches',
+  !muscleUp.steps.some((s) => s.skillId === 'front_lever' || s.skillId === 'handstand'),
+  'a muscle-up needs neither');
+
+/* Inflections: \bfreelanc\b never matched "freelancing". */
+check('inflected words still match intents', plan('start freelancing').ok);
+check('plurals match too', plan('I want to build websites for clients').ok);
+
+check('an unknown domain fails honestly rather than guessing',
+  !plan('learn underwater basket weaving').ok);
+
+check('programme steps are in dependency order', (() => {
+  const position = new Map(web.steps.map((s, i) => [s.skillId, i]));
+  return web.steps.every((step) => {
+    const index = catalogModule.getIndex(step.treeId);
+    return (index.byId.get(step.skillId).requires || []).every((r) => (
+      !position.has(r.skillId) || position.get(r.skillId) < position.get(step.skillId)
+    ));
+  });
+})());
+
+check('every step is reachable from a destination', web.steps.length >= web.targets.length);
+check('a shorter goal makes a shorter plan', plan('learn to price my work').totalSteps < web.totalSteps);
+
+/* Time scales with the stated pace, and only with it. */
+const slow = plan('become a frontend developer', 10);
+const fast = plan('become a frontend developer', 60);
+eq('pace does not change the work', slow.remainingHours, fast.remainingHours);
+check('but it does change the horizon', slow.weeks > fast.weeks * 3);
+check('weekly hours assume five days, not seven', Math.abs(goals.weeklyHours(60) - 5) < 0.01);
+
+/* Existing progress must reduce the estimate, or the plan ignores the learner. */
+const experienced = buildDemoProfile(t0);
+const fresh1 = plan('become a frontend developer', 30);
+const withProgress = plan('become a frontend developer', 30, experienced);
+check('completed skills are marked done', withProgress.doneSteps > 0);
+check('and they cost no remaining time', withProgress.remainingHours < fresh1.remainingHours,
+  `${withProgress.remainingHours} should be under ${fresh1.remainingHours}`);
+check('done steps report zero hours',
+  withProgress.steps.filter((s) => s.done).every((s) => s.hours === 0));
+
+check('phases always start with something actionable', (() => {
+  const p = plan('open a web design business', 30, experienced);
+  const now = p.phases.find((f) => f.key === 'now');
+  return now && now.steps.length > 0 && now.steps.every((s) => !s.done);
+})());
+
+check('this week only offers unlocked, unfinished work', (() => {
+  const p = plan('open a web design business', 30, experienced);
+  const week = goals.thisWeek(p, nextActivityFor, experienced, 3);
+  return week.length > 0 && week.every((s) => !s.done && s.activity);
+})());
+
+group('Business tree');
+check('the business tree has no cycle', findCycle(BUSINESS_TREE) === null);
+check('it has enough content', BUSINESS_TREE.skills.length >= 18);
+check('it has a root', BUSINESS_TREE.skills.some((sk) => !(sk.requires || []).length));
+check('every skill has activities', BUSINESS_TREE.skills.every((sk) => (sk.activities || []).length > 0));
+check('it carries a disclaimer about advice', /not legal|not .*advice/i.test(BUSINESS_TREE.notice || ''));
+
+/* ================================================================== *
  * The demo profile
  * ================================================================== */
 group('Demo profile');
@@ -690,10 +788,18 @@ check('the demo has mastered skills', Object.values(demo.skills).some((sk) => sk
 check('the demo has in-progress skills', Object.values(demo.skills).some((sk) => sk.level > 0 && sk.level < 3));
 check('the demo has achievements', Object.keys(demo.achievements).length >= 4);
 check('the demo has a goal', !!demo.goal?.targetSkillId);
+check('the demo has a written goal', typeof demo.plan?.goalText === 'string' && demo.plan.goalText.length > 3);
+check('the demo goal resolves to a programme', (() => {
+  const p = goals.buildProgramme({
+    catalog: catalogModule, state: demo, goalText: demo.plan.goalText,
+    minutesPerDay: demo.plan.minutesPerDay, now: Date.UTC(2026, 1, 20),
+  });
+  return p.ok && p.doneSteps > 0 && p.doneSteps < p.totalSteps;
+})());
 check('the demo has a streak', demo.streak.longest > 1);
 check('the demo has a failure to learn from',
   Object.values(demo.skills).some((sk) => (sk.attempts || []).some((a) => !a.passed)));
-check('the demo touches all three trees', (() => {
+check('the demo touches every tree', (() => {
   const ids = new Set(Object.keys(demo.skills));
   return trees.every((tree) => tree.skills.some((sk) => ids.has(sk.id)));
 })());

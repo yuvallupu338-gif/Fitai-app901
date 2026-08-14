@@ -13,6 +13,7 @@ import * as session from '../core/session.js';
 
 const NAV = [
   { name: 'dashboard', label: 'Home', icon: 'home' },
+  { name: 'plan', label: 'Goal', icon: 'target' },
   { name: 'tree', label: 'Tree', icon: 'tree' },
   { name: 'explore', label: 'Explore', icon: 'compass' },
   { name: 'progress', label: 'Progress', icon: 'chart' },
@@ -20,9 +21,9 @@ const NAV = [
   { name: 'profile', label: 'Profile', icon: 'user' },
 ];
 
-/* The tab bar takes five; Settings lives inside Profile's reach on mobile
- * rather than being crammed into a sixth 60px-wide tab. */
-const MOBILE_NAV = NAV.filter((n) => n.name !== 'achievements');
+/* The tab bar takes five. Explore and Awards are the two that survive being a
+ * tap further away — the goal, the tree and progress are the daily loop. */
+const MOBILE_NAV = NAV.filter((n) => !['achievements', 'explore'].includes(n.name));
 
 /**
  * Apply a theme. Dark is the default and is what an unset preference gets —
@@ -95,8 +96,11 @@ export function syncNav() {
 
   /* Title follows the route: it is what a browser tab, a bookmark and the
    * back-button history all read from. */
-  const label = [...NAV, { name: 'settings', label: 'Settings' }, { name: 'activity', label: 'Activity' }]
-    .find((n) => n.name === active);
+  const label = [...NAV,
+    { name: 'settings', label: 'Settings' },
+    { name: 'activity', label: 'Activity' },
+    { name: 'explore', label: 'Explore' },
+  ].find((n) => n.name === active);
   document.title = label && label.name !== 'dashboard' ? `${label.label} · SkillTree` : 'SkillTree';
 }
 

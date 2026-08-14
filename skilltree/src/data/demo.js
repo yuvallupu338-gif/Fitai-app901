@@ -69,6 +69,20 @@ const CALISTHENICS_PLAN = [
   { id: 'pullups', score: 100, days: 9, partial: true },
 ];
 
+/*
+ * A little progress on the business side.
+ *
+ * The demo's stated goal is "Open a web design business", and a learner with
+ * that goal and zero business progress is incoherent — the plan screen would
+ * show every business skill untouched while claiming it as the destination.
+ * Two skills in, one part-done, is what someone eight weeks into this actually
+ * looks like.
+ */
+const BUSINESS_PLAN = [
+  { id: 'what_you_sell', score: 100, days: 21 },
+  { id: 'portfolio', score: 100, days: 11, partial: true },
+];
+
 const MATH_PLAN = [
   { id: 'arithmetic', score: 96, days: 60 },
   { id: 'fractions', score: 89, days: 54 },
@@ -152,6 +166,7 @@ export function buildDemoProfile(now = Date.now()) {
   state = runPlan(state, 'web', WEB_PLAN, now);
   state = runPlan(state, 'calisthenics', CALISTHENICS_PLAN, now);
   state = runPlan(state, 'math', MATH_PLAN, now);
+  state = runPlan(state, 'business', BUSINESS_PLAN, now);
 
   /*
    * A recent run of daily practice.
@@ -171,10 +186,17 @@ export function buildDemoProfile(now = Date.now()) {
    */
   state = runDailyHabit(state, now);
 
+  /* A written goal, phrased the way someone would actually say it, so the
+   * demo shows the plan screen doing its job rather than an empty state. */
+  state.plan = {
+    goalText: 'Open a web design business',
+    createdAt: now - 80 * DAY,
+    minutesPerDay: 30,
+  };
   state.goal = {
-    treeId: 'web',
-    targetSkillId: 'fullstack',
-    text: 'Full Stack Developer',
+    treeId: 'business',
+    targetSkillId: 'working_business',
+    text: 'Open a web design business',
     createdAt: now - 80 * DAY,
   };
 

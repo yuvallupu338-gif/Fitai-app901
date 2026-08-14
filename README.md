@@ -54,14 +54,17 @@ with a WebGL2 renderer, procedural materials, an endless world generated as you
 walk it, and synthesised audio — no libraries and no media files. Served at
 `/backrooms/`. See [`backrooms/README.md`](backrooms/README.md).
 
-`skilltree/` is a skill tree for real abilities: an interactive dependency
-graph where skills unlock only when their requirements are met — a quiz passed,
-a code challenge whose tests went green, a standard you can hit. Three trees
-ship with it (Web Development, Mathematics, Calisthenics — 76 skills, 154
-activities), with XP, mastery scoring, achievements and an optional AI coach
-that the core progression does not depend on. Served at `/skilltree/`, and
-`/skilltree/#/demo` fills in a populated profile so the whole product is
-visible at once. See [`skilltree/README.md`](skilltree/README.md).
+`skilltree/` is a skill tree for real abilities. You write what you want to be
+able to do — "open a web design business" — and it builds an ordered programme
+across its trees, with hour estimates and a finish date at your stated pace.
+Skills unlock only when their requirements are met: a quiz passed, a code
+challenge whose tests actually ran green, a standard you can hit. Four trees
+ship with it (Web Development, Mathematics, Calisthenics, Freelance & Business
+— 97 skills, 208 activities), with XP, mastery scoring, achievements and an
+optional AI coach that none of the progression depends on. Served at
+`/skilltree/`, and `/skilltree/#/demo` fills in a populated profile so the
+whole product is visible at once. See
+[`skilltree/README.md`](skilltree/README.md).
 
 ## What it does
 

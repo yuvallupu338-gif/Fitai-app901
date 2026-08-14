@@ -458,9 +458,33 @@ export function mountTree(host, opts) {
 
   /* Frame once the shell has a measured size. Calling it synchronously gives a
    * zero-width box on first paint and the graph lands off-screen. */
-  window.requestAnimationFrame(() => frameView());
+  window.requestAnimationFrame(() => { sizeShell(); frameView(); });
 
-  const onResize = () => frameView();
+  /*
+   * Size the canvas from what is actually left on screen.
+   *
+   * This was a CSS `calc(100dvh - 268px)` tuned against one screen, and it
+   * broke the moment a tree carried a notice: the business tree's disclaimer
+   * added ~180px of header and pushed the canvas 105px behind the tab bar.
+   * Any fixed figure encodes an assumption about content that content will
+   * eventually violate, so the height is measured instead — from the shell's
+   * own position to the top of the tab bar.
+   *
+   * Desktop keeps the CSS height; there the page scrolls normally and the
+   * canvas does not need to fit a fixed viewport.
+   */
+  function sizeShell() {
+    if (window.innerWidth > 860) { shell.style.removeProperty('height'); return; }
+
+    const top = shell.getBoundingClientRect().top;
+    const tabbar = document.querySelector('.tabbar');
+    const floor = tabbar ? tabbar.getBoundingClientRect().top : window.innerHeight;
+    const available = floor - top - 12;
+
+    shell.style.height = `${Math.max(300, Math.round(available))}px`;
+  }
+
+  const onResize = () => { sizeShell(); frameView(); };
   window.addEventListener('resize', onResize);
 
   return {
