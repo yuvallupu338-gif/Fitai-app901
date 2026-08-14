@@ -1,0 +1,217 @@
+/*
+ * base.css — reset, typography, and the rules that make RTL correct by default
+ * rather than by exception.
+ *
+ * THE RULE: no physical direction in this file, or in any other, unless the
+ * thing being positioned is genuinely physical (a shadow's y-offset, a
+ * viewport edge). `margin-left` on a Hebrew interface is a bug that renders
+ * correctly on the developer's machine, which is the worst kind. Everything
+ * here uses the logical axis — inline-start/inline-end — so the same rule
+ * lays out mirrored without a second stylesheet.
+ */
+
+*, *::before, *::after { box-sizing: border-box; }
+* { margin: 0; padding: 0; }
+
+html {
+  -webkit-text-size-adjust: 100%;
+  scroll-behavior: smooth;
+}
+
+body {
+  background: var(--bg);
+  color: var(--ink);
+  font-family: var(--body);
+  font-size: var(--t-base);
+  line-height: 1.6;
+  font-weight: 400;
+  overflow-x: hidden;
+  min-height: 100svh;
+  /* Hebrew has no case and fewer ascender/descender cues than Latin, so its
+     texture depends more on even spacing than on letterform contrast. */
+  text-rendering: optimizeLegibility;
+  -webkit-font-smoothing: antialiased;
+}
+
+/* ------------------------------------------------------------------ *
+ * Type scale
+ * ------------------------------------------------------------------ */
+
+h1, h2, h3 {
+  font-family: var(--display);
+  font-weight: 500;
+  line-height: 1.22;
+  letter-spacing: -.011em;
+}
+
+h1 { font-size: var(--t-2xl); }
+h2 { font-size: var(--t-xl); }
+h3 { font-size: var(--t-lg); }
+h4 { font-family: var(--body); font-size: var(--t-md); font-weight: 600; line-height: 1.4; }
+h5 { font-family: var(--body); font-size: var(--t-base); font-weight: 600; }
+
+p { line-height: 1.65; }
+
+a {
+  color: var(--accent);
+  text-decoration-color: var(--accent-line);
+  text-underline-offset: 3px;
+}
+a:hover { color: var(--accent-hover); }
+
+small { font-size: var(--t-sm); }
+
+b, strong { font-weight: 600; }
+
+/* Digits, clock times, durations and counts. Tabular so a column of times does
+   not jitter, and LTR because a number is LTR even inside a Hebrew sentence. */
+.num {
+  font-family: var(--mono);
+  font-feature-settings: 'tnum' 1;
+  font-variant-numeric: tabular-nums;
+  direction: ltr;
+  unicode-bidi: isolate;
+}
+
+/* A small all-caps label. Latin small-caps do not exist in Hebrew, so this is
+   letterspaced mono rather than text-transform, which would do nothing. */
+.eyebrow {
+  font-family: var(--mono);
+  font-size: var(--t-xs);
+  font-weight: 500;
+  letter-spacing: .1em;
+  color: var(--ink-3);
+}
+
+.muted { color: var(--ink-2); }
+.quiet { color: var(--ink-3); }
+.tiny { font-size: var(--t-sm); }
+
+/* ------------------------------------------------------------------ *
+ * Form controls — inherit the type, respect the inline axis
+ * ------------------------------------------------------------------ */
+
+input, textarea, select, button {
+  font: inherit;
+  color: inherit;
+  font-family: var(--body);
+}
+
+input, textarea, select {
+  width: 100%;
+  background: var(--surface);
+  border: 1px solid var(--line);
+  border-radius: var(--r-sm);
+  padding: 9px 12px;
+  color: var(--ink);
+  text-align: start;
+  transition: border-color var(--fast) var(--ease), box-shadow var(--fast) var(--ease);
+}
+
+input::placeholder, textarea::placeholder { color: var(--ink-3); opacity: 1; }
+
+input:focus, textarea:focus, select:focus {
+  outline: none;
+  border-color: var(--accent);
+  box-shadow: 0 0 0 3px var(--accent-wash);
+}
+
+textarea { resize: vertical; min-height: 84px; line-height: 1.6; }
+
+/* A date or time input renders its own LTR widget; forcing the field LTR stops
+   the picker chrome from landing on the wrong edge inside an RTL form. */
+input[type='date'], input[type='time'], input[type='datetime-local'] {
+  direction: ltr;
+  text-align: start;
+}
+
+button {
+  background: none;
+  border: none;
+  cursor: pointer;
+  color: inherit;
+  text-align: start;
+}
+
+button:disabled { cursor: not-allowed; opacity: .5; }
+
+/* ------------------------------------------------------------------ *
+ * Focus — visible, and never only a colour change
+ * ------------------------------------------------------------------ */
+
+:focus-visible {
+  outline: 2px solid var(--accent);
+  outline-offset: 2px;
+  border-radius: var(--r-xs);
+}
+
+/* ------------------------------------------------------------------ *
+ * Screen-reader-only, and skip link
+ * ------------------------------------------------------------------ */
+
+.sr-only {
+  position: absolute;
+  width: 1px; height: 1px;
+  padding: 0; margin: -1px;
+  overflow: hidden;
+  clip: rect(0 0 0 0);
+  white-space: nowrap;
+  border: 0;
+}
+
+.skip-link {
+  position: absolute;
+  inset-block-start: -100px;
+  inset-inline-start: var(--sp-4);
+  z-index: var(--z-toast);
+  background: var(--accent);
+  color: var(--accent-ink);
+  padding: 10px 16px;
+  border-radius: var(--r-sm);
+  font-weight: 600;
+}
+.skip-link:focus { inset-block-start: var(--sp-4); }
+
+/* ------------------------------------------------------------------ *
+ * Tables — start-aligned, so they mirror
+ * ------------------------------------------------------------------ */
+
+table { width: 100%; border-collapse: collapse; font-size: var(--t-sm); }
+th, td { text-align: start; padding: 9px 12px; border-bottom: 1px solid var(--line-soft); }
+th { color: var(--ink-3); font-weight: 500; font-size: var(--t-xs); }
+
+/* ------------------------------------------------------------------ *
+ * Scrollbars — thin, themed, and not a scrollbar-shaped hole in dark mode
+ * ------------------------------------------------------------------ */
+
+* { scrollbar-width: thin; scrollbar-color: var(--line-strong) transparent; }
+*::-webkit-scrollbar { width: 10px; height: 10px; }
+*::-webkit-scrollbar-track { background: transparent; }
+*::-webkit-scrollbar-thumb {
+  background: var(--line-strong);
+  border-radius: var(--r-pill);
+  border: 3px solid transparent;
+  background-clip: content-box;
+}
+
+::selection { background: var(--accent-wash); color: var(--ink); }
+
+hr { border: none; border-block-start: 1px solid var(--line-soft); margin: var(--sp-5) 0; }
+
+ul, ol { padding-inline-start: 1.25em; }
+li { margin-block: 2px; }
+
+img, svg, canvas { max-width: 100%; }
+
+/* ------------------------------------------------------------------ *
+ * Reduced motion — asked for, honoured completely
+ * ------------------------------------------------------------------ */
+
+@media (prefers-reduced-motion: reduce) {
+  html { scroll-behavior: auto; }
+  *, *::before, *::after {
+    transition-duration: .01ms !important;
+    animation-duration: .01ms !important;
+    animation-iteration-count: 1 !important;
+  }
+}

@@ -1,0 +1,621 @@
+/*
+ * layout.css — the app shell, the calendar grid, and the full-screen surfaces
+ * (focus mode, command palette, onboarding).
+ *
+ * The sidebar is placed with `inset-inline-start`, which in an RTL document
+ * puts it on the right without a single RTL-specific rule. Below 900px it is
+ * replaced — not shrunk — by a bottom bar, because a 240px rail on a 390px
+ * phone is a drawer nobody opens.
+ */
+
+/* ------------------------------------------------------------------ *
+ * Shell
+ * ------------------------------------------------------------------ */
+
+.shell {
+  display: flex;
+  min-height: 100svh;
+}
+
+.sidebar {
+  position: fixed;
+  inset-block: 0;
+  inset-inline-start: 0;
+  width: var(--sidebar-w);
+  background: var(--surface);
+  border-inline-end: 1px solid var(--line);
+  display: flex;
+  flex-direction: column;
+  z-index: var(--z-nav);
+  padding: var(--sp-4) var(--sp-3);
+  gap: var(--sp-1);
+  overflow-y: auto;
+}
+
+.brand {
+  display: flex;
+  align-items: center;
+  gap: var(--sp-3);
+  padding: var(--sp-2) var(--sp-3) var(--sp-4);
+}
+.brand-mark {
+  width: 28px; height: 28px;
+  border-radius: 8px;
+  background: var(--accent);
+  color: var(--accent-ink);
+  display: grid;
+  place-items: center;
+  flex: 0 0 auto;
+}
+.brand-mark svg { width: 17px; height: 17px; }
+.brand-name {
+  font-family: var(--display);
+  font-size: var(--t-md);
+  font-weight: 600;
+  letter-spacing: -.01em;
+}
+
+.nav-group { display: flex; flex-direction: column; gap: 1px; }
+.nav-heading {
+  font-size: var(--t-xs);
+  color: var(--ink-3);
+  font-weight: 500;
+  padding: var(--sp-4) var(--sp-3) 6px;
+}
+
+.nav-item {
+  display: flex;
+  align-items: center;
+  gap: var(--sp-3);
+  padding: 8px var(--sp-3);
+  border-radius: var(--r-sm);
+  font-size: var(--t-base);
+  font-weight: 500;
+  color: var(--ink-2);
+  transition: background var(--fast) var(--ease), color var(--fast) var(--ease);
+  min-height: 38px;
+  position: relative;
+}
+.nav-item svg { width: 18px; height: 18px; flex: 0 0 auto; color: var(--ink-3); transition: color var(--fast) var(--ease); }
+.nav-item:hover { background: var(--surface-2); color: var(--ink); }
+.nav-item:hover svg { color: var(--ink-2); }
+.nav-item[aria-current='page'] {
+  background: var(--accent-wash);
+  color: var(--accent-quiet);
+  font-weight: 600;
+}
+.nav-item[aria-current='page'] svg { color: var(--accent); }
+.nav-label { flex: 1 1 auto; min-width: 0; }
+.nav-count {
+  font-family: var(--mono);
+  font-size: var(--t-xs);
+  color: var(--ink-3);
+  background: var(--surface-2);
+  border-radius: var(--r-pill);
+  padding: 1px 7px;
+  flex: 0 0 auto;
+}
+.nav-item[aria-current='page'] .nav-count { background: var(--surface); color: var(--accent-quiet); }
+.nav-count-alert { background: var(--risk-wash); color: var(--risk); }
+
+.sidebar-foot { margin-block-start: auto; padding-block-start: var(--sp-4); }
+
+/* Main column. Offset by the rail on the inline axis. */
+.main {
+  flex: 1 1 auto;
+  min-width: 0;
+  margin-inline-start: var(--sidebar-w);
+  display: flex;
+  flex-direction: column;
+}
+
+.topbar {
+  position: sticky;
+  inset-block-start: 0;
+  z-index: var(--z-sticky);
+  background: color-mix(in srgb, var(--bg) 88%, transparent);
+  backdrop-filter: blur(12px);
+  -webkit-backdrop-filter: blur(12px);
+  border-block-end: 1px solid var(--line-soft);
+  padding: var(--sp-3) var(--sp-5);
+  display: flex;
+  align-items: center;
+  gap: var(--sp-3);
+  min-height: 56px;
+}
+.topbar-title { font-family: var(--display); font-size: var(--t-lg); font-weight: 500; }
+
+.content {
+  flex: 1 1 auto;
+  width: 100%;
+  max-width: var(--content-max);
+  margin: 0 auto;
+  padding: var(--sp-5);
+  padding-block-end: var(--sp-7);
+}
+.content-wide { max-width: 1240px; }
+
+/* ------------------------------------------------------------------ *
+ * Mobile: bottom bar replaces the rail
+ * ------------------------------------------------------------------ */
+
+.bottom-nav { display: none; }
+
+@media (max-width: 900px) {
+  .sidebar { display: none; }
+  .main { margin-inline-start: 0; }
+  .content { padding: var(--sp-4) var(--sp-3); padding-block-end: calc(var(--bottom-nav-h) + var(--sp-6) + env(safe-area-inset-bottom)); }
+  .topbar { padding: var(--sp-3) var(--sp-4); }
+
+  .bottom-nav {
+    position: fixed;
+    inset-inline: 0;
+    inset-block-end: 0;
+    z-index: var(--z-nav);
+    display: flex;
+    background: color-mix(in srgb, var(--surface) 94%, transparent);
+    backdrop-filter: blur(14px);
+    -webkit-backdrop-filter: blur(14px);
+    border-block-start: 1px solid var(--line);
+    padding-block-end: env(safe-area-inset-bottom);
+  }
+  .bottom-item {
+    flex: 1 1 0;
+    display: flex;
+    flex-direction: column;
+    align-items: center;
+    justify-content: center;
+    gap: 3px;
+    height: var(--bottom-nav-h);
+    font-size: 10.5px;
+    font-weight: 500;
+    color: var(--ink-3);
+    transition: color var(--fast) var(--ease);
+    position: relative;
+  }
+  .bottom-item svg { width: 21px; height: 21px; }
+  .bottom-item[aria-current='page'] { color: var(--accent); }
+  /* A dot as well as a colour, so the current tab is not colour-only. */
+  .bottom-item[aria-current='page']::after {
+    content: '';
+    position: absolute;
+    inset-block-start: 4px;
+    width: 4px; height: 4px;
+    border-radius: 50%;
+    background: var(--accent);
+  }
+  .bottom-badge {
+    position: absolute;
+    inset-block-start: 6px;
+    inset-inline-end: calc(50% - 20px);
+    min-width: 16px;
+    height: 16px;
+    padding: 0 4px;
+    border-radius: var(--r-pill);
+    background: var(--risk);
+    color: #fff;
+    font-family: var(--mono);
+    font-size: 9.5px;
+    display: grid;
+    place-items: center;
+  }
+}
+
+/* ------------------------------------------------------------------ *
+ * Quick capture — always reachable
+ * ------------------------------------------------------------------ */
+
+.capture {
+  display: flex;
+  align-items: center;
+  gap: var(--sp-2);
+  background: var(--surface);
+  border: 1px solid var(--line);
+  border-radius: var(--r-pill);
+  padding: 4px 5px 4px var(--sp-4);
+  transition: border-color var(--fast) var(--ease), box-shadow var(--fast) var(--ease);
+}
+.capture:focus-within { border-color: var(--accent); box-shadow: 0 0 0 3px var(--accent-wash); }
+.capture input {
+  border: none;
+  background: none;
+  padding: 6px 0;
+  flex: 1 1 auto;
+  min-width: 0;
+}
+.capture input:focus { box-shadow: none; border: none; }
+.capture-go {
+  flex: 0 0 auto;
+  width: 32px; height: 32px;
+  border-radius: 50%;
+  background: var(--accent);
+  color: var(--accent-ink);
+  display: grid;
+  place-items: center;
+  transition: background var(--fast) var(--ease), opacity var(--fast) var(--ease);
+}
+.capture-go svg { width: 16px; height: 16px; }
+.capture-go:disabled { background: var(--surface-3); color: var(--ink-3); }
+
+/* The floating capture button on mobile, above the bottom bar. */
+.fab {
+  display: none;
+  position: fixed;
+  inset-block-end: calc(var(--bottom-nav-h) + var(--sp-4) + env(safe-area-inset-bottom));
+  inset-inline-start: var(--sp-4);
+  z-index: var(--z-nav);
+  width: 52px; height: 52px;
+  border-radius: 50%;
+  background: var(--accent);
+  color: var(--accent-ink);
+  box-shadow: var(--shadow-lg);
+  place-items: center;
+}
+.fab svg { width: 23px; height: 23px; }
+@media (max-width: 900px) { .fab { display: grid; } }
+
+/* ------------------------------------------------------------------ *
+ * Calendar
+ * ------------------------------------------------------------------ */
+
+.cal-grid {
+  display: grid;
+  border: 1px solid var(--line);
+  border-radius: var(--r);
+  overflow: hidden;
+  background: var(--surface);
+}
+
+/* Month view: seven columns starting Sunday. In RTL the browser fills grid
+   columns from the right automatically, so Sunday lands on the right — which
+   is exactly where an Israeli reader looks for it. */
+.cal-month { grid-template-columns: repeat(7, minmax(0, 1fr)); }
+.cal-dow {
+  padding: 8px 6px;
+  text-align: center;
+  font-size: var(--t-xs);
+  font-weight: 500;
+  color: var(--ink-3);
+  background: var(--surface-2);
+  border-block-end: 1px solid var(--line);
+}
+.cal-day {
+  min-height: 96px;
+  padding: 5px;
+  border-inline-end: 1px solid var(--grid-line);
+  border-block-end: 1px solid var(--grid-line);
+  display: flex;
+  flex-direction: column;
+  gap: 3px;
+  text-align: start;
+  transition: background var(--fast) var(--ease);
+  align-items: stretch;
+}
+.cal-day:hover { background: var(--surface-2); }
+.cal-day:nth-child(7n) { border-inline-end: none; }
+.cal-daynum {
+  font-family: var(--mono);
+  font-size: var(--t-xs);
+  color: var(--ink-2);
+  align-self: flex-end;
+  padding: 1px 4px;
+  border-radius: var(--r-xs);
+}
+.cal-day-out { background: var(--surface-sunk); }
+.cal-day-out .cal-daynum { color: var(--ink-3); opacity: .6; }
+.cal-day-rest { background: var(--surface-2); }
+.cal-today .cal-daynum { background: var(--accent); color: var(--accent-ink); font-weight: 600; }
+.cal-pip {
+  font-size: 10.5px;
+  padding: 1px 5px;
+  border-radius: var(--r-xs);
+  background: var(--accent-wash);
+  color: var(--accent-quiet);
+  overflow: hidden;
+  text-overflow: ellipsis;
+  white-space: nowrap;
+  text-align: start;
+}
+.cal-pip-event { background: var(--info-wash); color: var(--info); }
+.cal-pip-more { color: var(--ink-3); background: none; padding-inline-start: 5px; }
+
+/* Day / week view: an hour rail plus one column per day. */
+.cal-time {
+  display: grid;
+  grid-template-columns: 52px 1fr;
+  position: relative;
+  max-height: 68svh;
+  overflow-y: auto;
+}
+.cal-hours { border-inline-end: 1px solid var(--line); background: var(--surface-2); }
+.cal-hour {
+  height: 52px;
+  font-family: var(--mono);
+  font-size: 10.5px;
+  color: var(--ink-3);
+  padding-inline-end: 6px;
+  text-align: end;
+  position: relative;
+  inset-block-start: -6px;
+}
+.cal-cols { display: grid; position: relative; }
+.cal-col { position: relative; border-inline-end: 1px solid var(--grid-line); }
+.cal-col:last-child { border-inline-end: none; }
+.cal-col-head {
+  position: sticky;
+  inset-block-start: 0;
+  z-index: 2;
+  background: var(--surface-2);
+  border-block-end: 1px solid var(--line);
+  padding: 6px 4px;
+  text-align: center;
+  font-size: var(--t-xs);
+  font-weight: 500;
+}
+.cal-slot { height: 52px; border-block-end: 1px solid var(--grid-line); }
+.cal-slot:nth-child(even) { border-block-end-color: var(--grid-line-hour); }
+
+/* An entry sits absolutely inside its column, on the inline axis so it mirrors. */
+.cal-entry {
+  position: absolute;
+  inset-inline: 3px;
+  border-radius: var(--r-xs);
+  padding: 3px 6px;
+  font-size: 11.5px;
+  line-height: 1.3;
+  overflow: hidden;
+  text-align: start;
+  border-inline-start: 3px solid var(--accent);
+  background: var(--accent-wash);
+  color: var(--ink);
+  cursor: pointer;
+  transition: filter var(--fast) var(--ease);
+}
+.cal-entry:hover { filter: brightness(.97); }
+.cal-entry-event { border-inline-start-color: var(--info); background: var(--info-wash); }
+.cal-entry-fixed { border-inline-start-color: var(--ink-3); background: var(--surface-3); }
+.cal-entry-done { opacity: .55; }
+.cal-entry-title { font-weight: 600; overflow: hidden; text-overflow: ellipsis; white-space: nowrap; }
+.cal-entry-time { font-family: var(--mono); font-size: 10px; color: var(--ink-2); }
+
+.cal-now {
+  position: absolute;
+  inset-inline: 0;
+  height: 0;
+  border-block-start: 1.5px solid var(--now);
+  z-index: 3;
+  pointer-events: none;
+}
+.cal-now::before {
+  content: '';
+  position: absolute;
+  inset-inline-start: -4px;
+  inset-block-start: -4px;
+  width: 7px; height: 7px;
+  border-radius: 50%;
+  background: var(--now);
+}
+
+/* Drop target while dragging a task onto the calendar. */
+.cal-col.drop-live { background: var(--accent-wash); }
+.cal-drop-hint {
+  position: absolute;
+  inset-inline: 3px;
+  border: 1.5px dashed var(--accent);
+  border-radius: var(--r-xs);
+  background: var(--accent-wash);
+  pointer-events: none;
+  z-index: 4;
+}
+
+/* ------------------------------------------------------------------ *
+ * Agenda view
+ * ------------------------------------------------------------------ */
+
+.agenda-day { display: grid; grid-template-columns: 74px 1fr; gap: var(--sp-3); padding-block: var(--sp-3); border-block-end: 1px solid var(--line-soft); }
+.agenda-date { text-align: start; }
+.agenda-dow { font-size: var(--t-xs); color: var(--ink-3); }
+.agenda-num { font-family: var(--display); font-size: var(--t-lg); font-weight: 500; }
+.agenda-today .agenda-num { color: var(--accent); }
+
+/* ------------------------------------------------------------------ *
+ * Focus mode — a full surface with nothing else on it
+ * ------------------------------------------------------------------ */
+
+.focus-screen {
+  position: fixed;
+  inset: 0;
+  z-index: var(--z-modal);
+  background: var(--bg);
+  display: flex;
+  flex-direction: column;
+  align-items: center;
+  justify-content: center;
+  padding: var(--sp-5);
+  text-align: center;
+  gap: var(--sp-5);
+}
+.focus-label { font-size: var(--t-sm); color: var(--ink-3); letter-spacing: .06em; }
+.focus-task { font-family: var(--display); font-size: clamp(21px, 5vw, 31px); font-weight: 500; max-width: 22ch; line-height: 1.3; }
+.focus-clock {
+  font-family: var(--mono);
+  font-size: clamp(58px, 17vw, 104px);
+  font-weight: 500;
+  letter-spacing: -.02em;
+  line-height: 1;
+  direction: ltr;
+  unicode-bidi: isolate;
+  font-variant-numeric: tabular-nums;
+}
+.focus-ring { position: relative; display: grid; place-items: center; }
+.focus-ring svg { transform: rotate(-90deg); }
+.focus-ring-track { stroke: var(--surface-3); }
+.focus-ring-fill { stroke: var(--accent); transition: stroke-dashoffset 1s linear; }
+.focus-actions { display: flex; gap: var(--sp-3); }
+.focus-paused .focus-clock { color: var(--ink-3); }
+
+/* ------------------------------------------------------------------ *
+ * Command palette
+ * ------------------------------------------------------------------ */
+
+.palette-scrim {
+  position: fixed;
+  inset: 0;
+  background: var(--scrim);
+  z-index: var(--z-palette);
+  display: flex;
+  align-items: flex-start;
+  justify-content: center;
+  padding: 12svh var(--sp-4) var(--sp-4);
+}
+.palette {
+  width: min(620px, 100%);
+  background: var(--surface);
+  border: 1px solid var(--line);
+  border-radius: var(--r-lg);
+  box-shadow: var(--shadow-pop);
+  overflow: hidden;
+  animation: pop var(--mid) var(--ease-out);
+  display: flex;
+  flex-direction: column;
+  max-height: 70svh;
+}
+.palette-input {
+  border: none;
+  border-radius: 0;
+  border-block-end: 1px solid var(--line-soft);
+  padding: var(--sp-4);
+  font-size: var(--t-md);
+  background: none;
+}
+.palette-input:focus { box-shadow: none; border-color: var(--line-soft); }
+.palette-list { overflow-y: auto; padding: 5px; }
+.palette-item {
+  display: flex;
+  align-items: center;
+  gap: var(--sp-3);
+  width: 100%;
+  padding: 9px 11px;
+  border-radius: var(--r-sm);
+  font-size: var(--t-base);
+  color: var(--ink-2);
+  min-height: 40px;
+}
+.palette-item svg { width: 17px; height: 17px; color: var(--ink-3); flex: 0 0 auto; }
+.palette-item[aria-selected='true'] { background: var(--accent-wash); color: var(--accent-quiet); }
+.palette-item[aria-selected='true'] svg { color: var(--accent); }
+.palette-kind { margin-inline-start: auto; font-size: var(--t-xs); color: var(--ink-3); flex: 0 0 auto; }
+.palette-group { padding: 9px 11px 4px; font-size: var(--t-xs); color: var(--ink-3); font-weight: 500; }
+
+/* ------------------------------------------------------------------ *
+ * Onboarding and auth — centred single column
+ * ------------------------------------------------------------------ */
+
+.centered {
+  min-height: 100svh;
+  display: flex;
+  align-items: center;
+  justify-content: center;
+  padding: var(--sp-5) var(--sp-4);
+}
+.centered-box { width: min(480px, 100%); }
+.centered-wide { width: min(660px, 100%); }
+
+.steps { display: flex; gap: 5px; margin-block-end: var(--sp-5); }
+.step-pip { height: 3px; flex: 1 1 0; border-radius: var(--r-pill); background: var(--surface-3); transition: background var(--mid) var(--ease); }
+.step-pip-on { background: var(--accent); }
+
+/* ------------------------------------------------------------------ *
+ * Charts — small, honest, and drawn from real numbers
+ * ------------------------------------------------------------------ */
+
+.spark { display: block; width: 100%; height: 40px; overflow: visible; }
+.chart-bars { display: flex; align-items: flex-end; gap: 5px; height: 118px; }
+.chart-bar-col { flex: 1 1 0; display: flex; flex-direction: column; align-items: center; gap: 5px; min-width: 0; }
+.chart-bar {
+  width: 100%;
+  max-width: 34px;
+  background: var(--accent);
+  border-radius: var(--r-xs) var(--r-xs) 0 0;
+  min-height: 2px;
+  transition: height var(--slow) var(--ease);
+}
+.chart-bar-quiet { background: var(--surface-3); }
+.chart-bar-label { font-size: 10.5px; color: var(--ink-3); }
+
+.legend { display: flex; flex-wrap: wrap; gap: var(--sp-3); font-size: var(--t-sm); color: var(--ink-2); }
+.legend-item { display: inline-flex; align-items: center; gap: 6px; }
+
+/* ------------------------------------------------------------------ *
+ * Timeline (activity feed)
+ * ------------------------------------------------------------------ */
+
+.timeline { position: relative; padding-inline-start: var(--sp-5); }
+.timeline::before {
+  content: '';
+  position: absolute;
+  inset-block: 6px 6px;
+  inset-inline-start: 4px;
+  width: 1px;
+  background: var(--line);
+}
+.tl-item { position: relative; padding-block: 7px; }
+.tl-item::before {
+  content: '';
+  position: absolute;
+  inset-inline-start: calc(-1 * var(--sp-5) + 1px);
+  inset-block-start: 13px;
+  width: 7px; height: 7px;
+  border-radius: 50%;
+  background: var(--line-strong);
+  border: 2px solid var(--bg);
+}
+.tl-item-accent::before { background: var(--accent); }
+.tl-time { font-family: var(--mono); font-size: var(--t-xs); color: var(--ink-3); }
+
+/* ------------------------------------------------------------------ *
+ * Habit grid
+ * ------------------------------------------------------------------ */
+
+.habit-week { display: flex; gap: 4px; }
+.habit-cell {
+  width: 26px; height: 26px;
+  border-radius: var(--r-xs);
+  background: var(--surface-2);
+  border: 1px solid var(--line-soft);
+  display: grid;
+  place-items: center;
+  font-size: 10px;
+  color: var(--ink-3);
+  cursor: pointer;
+  transition: all var(--fast) var(--ease);
+  flex: 0 0 auto;
+}
+.habit-cell:hover { border-color: var(--accent); }
+.habit-cell-done { background: var(--accent); border-color: var(--accent); color: var(--accent-ink); }
+/* The minimum version was done — a partial fill, not a different colour alone. */
+.habit-cell-min { background: var(--accent-wash); border-color: var(--accent-line); color: var(--accent-quiet); }
+.habit-cell-future { opacity: .45; cursor: default; }
+.habit-cell-future:hover { border-color: var(--line-soft); }
+@media (pointer: coarse) { .habit-cell { width: 32px; height: 32px; } }
+
+/* ------------------------------------------------------------------ *
+ * Drag and drop
+ * ------------------------------------------------------------------ */
+
+.dragging { opacity: .4; }
+.drag-handle { cursor: grab; color: var(--ink-3); touch-action: none; }
+.drag-handle:active { cursor: grabbing; }
+.drop-before { box-shadow: inset 0 2px 0 var(--accent); }
+.drop-after { box-shadow: inset 0 -2px 0 var(--accent); }
+
+/* ------------------------------------------------------------------ *
+ * Print — a day plan someone actually wants on paper
+ * ------------------------------------------------------------------ */
+
+@media print {
+  .sidebar, .bottom-nav, .fab, .topbar, .toasts { display: none !important; }
+  .main { margin-inline-start: 0; }
+  .content { max-width: none; padding: 0; }
+  .card { break-inside: avoid; box-shadow: none; }
+}
