@@ -190,6 +190,9 @@ export function mountTree(host, opts) {
   function paint() {
     frame = null;
     canvas.style.transform = `translate3d(${tx}px, ${ty}px, 0) scale(${scale})`;
+    /* The count follows the view, so panning and zooming keep it true rather
+     * than leaving a number from the opening frame. */
+    if (typeof syncViewNote === 'function') syncViewNote();
   }
 
   function schedule() {
@@ -467,6 +470,42 @@ export function mountTree(host, opts) {
     setScale(scale * factor, box.width / 2, box.height / 2);
   }
 
+  /*
+   * How much of the tree you are looking at, and how to see the rest.
+   *
+   * The opening view is a readable scale rather than a fit (see frameView), so
+   * on a laptop about half the nodes sit outside the canvas and on a phone
+   * almost all of them do. That is the right trade — a fitted 33-skill tree is
+   * an illegible smear — but nothing on the screen said the canvas continued,
+   * so it read as a tree with fifteen nodes and a lot of empty space. This says
+   * what is off-screen and gives the one control that shows it.
+   */
+  const viewNote = h('span.tree-viewnote');
+  const viewBar = h('div.tree-viewbar',
+    viewNote,
+    h('button.btn.small', { onclick: () => fit() }, 'Fit all'));
+
+  function syncViewNote() {
+    const box = shell.getBoundingClientRect();
+    if (!box.width) return;
+
+    let visible = 0;
+    for (const el of nodeEls.values()) {
+      const r = el.getBoundingClientRect();
+      if (r.right > box.left && r.left < box.right && r.bottom > box.top && r.top < box.bottom) visible += 1;
+    }
+
+    const total = nodeEls.size;
+    /* Short on a phone, where the long form wrapped to two lines and pushed
+     * the Fit button into wrapping with it. */
+    const roomy = box.width > 520;
+    viewNote.textContent = visible >= total
+      ? (roomy ? `All ${total} skills in view — drag to move around.` : `All ${total} in view`)
+      : (roomy
+        ? `${visible} of ${total} skills in view — drag to see the rest.`
+        : `${visible} of ${total} in view — drag to explore`);
+  }
+
   const legend = h('div.tree-legend',
     ...[
       ['locked', 'Locked'],
@@ -481,10 +520,11 @@ export function mountTree(host, opts) {
 
   clear(host);
   host.appendChild(shell);
+  host.appendChild(viewBar);
 
   /* Frame once the shell has a measured size. Calling it synchronously gives a
    * zero-width box on first paint and the graph lands off-screen. */
-  window.requestAnimationFrame(() => { sizeShell(); frameView(); });
+  window.requestAnimationFrame(() => { sizeShell(); frameView(); syncViewNote(); });
 
   /*
    * Size the canvas from what is actually left on screen.
@@ -500,13 +540,34 @@ export function mountTree(host, opts) {
    * canvas does not need to fit a fixed viewport.
    */
   function sizeShell() {
-    if (window.innerWidth > 860) { shell.style.removeProperty('height'); return; }
+    /*
+     * The floor is whatever fixed furniture is closest to the bottom — the tab
+     * bar on a phone, the demo banner when it is up, both at once, or the
+     * viewport edge. Measuring only the tab bar meant the banner sat on top of
+     * the legend and the zoom controls, which live at the bottom of the shell.
+     */
+    const fixed = ['.tabbar', '.demobar']
+      .map((sel) => document.querySelector(sel))
+      .filter((el) => el && !el.hidden && el.getBoundingClientRect().height > 0)
+      .map((el) => el.getBoundingClientRect().top);
+
+    const floor = fixed.length ? Math.min(...fixed) : window.innerHeight;
+
+    if (window.innerWidth > 860 && !fixed.length) {
+      shell.style.removeProperty('height');
+      return;
+    }
 
     const top = shell.getBoundingClientRect().top;
-    const tabbar = document.querySelector('.tabbar');
-    const floor = tabbar ? tabbar.getBoundingClientRect().top : window.innerHeight;
-    const available = floor - top - 12;
-
+    /*
+     * The view bar sits below the canvas and needs its own room, or it is the
+     * thing that ends up hidden behind whatever is fixed to the bottom. Its
+     * margin is not part of offsetHeight, hence the second term — without it
+     * the bar cleared the banner by a negative seven pixels.
+     */
+    const below = (viewBar.offsetHeight || 30)
+      + parseFloat(getComputedStyle(viewBar).marginTop || '0');
+    const available = floor - top - below - 12;
     shell.style.height = `${Math.max(300, Math.round(available))}px`;
   }
 
@@ -592,20 +653,35 @@ function labelFor(status, progress) {
   }
 }
 
+/*
+ * A legend key, drawn the way the node it describes is drawn.
+ *
+ * Five near-identical 9px circles taught nothing: the nodes are distinguished
+ * by a glyph — a padlock, a plus, a percentage, a tick, a star — and the
+ * legend showed rings, so it explained an encoding that is not on the screen.
+ * It now carries the same glyph in the same ring, at legend size.
+ */
+const LEGEND_GLYPH = {
+  locked: 'lock',
+  available: 'plus',
+  in_progress: null,
+  completed: 'check',
+  mastered: 'star',
+};
+
 function legendDot(state) {
-  const dot = h('span', {
-    style: {
-      width: '9px',
-      height: '9px',
-      borderRadius: '50%',
-      display: 'inline-block',
-      border: '1.5px solid var(--line)',
-    },
-  });
-  if (state === 'locked') dot.style.borderStyle = 'dashed';
-  if (state === 'available') dot.style.borderColor = 'var(--bone-dimmer)';
-  if (state === 'in_progress' || state === 'completed') dot.style.borderColor = 'var(--accent-ink)';
-  if (state === 'mastered') { dot.style.background = 'var(--accent-ink)'; dot.style.borderColor = 'var(--accent-ink)'; }
-  return dot;
+  const glyph = LEGEND_GLYPH[state];
+  const key = h('span.legend-key', { class: state },
+    glyph ? icon(glyph, { size: 10 }) : h('span.legend-arc'));
+
+  if (state === 'locked') key.style.borderStyle = 'dashed';
+  if (state === 'available') key.style.borderColor = 'var(--bone-dimmer)';
+  if (state === 'in_progress' || state === 'completed') key.style.borderColor = 'var(--accent-ink)';
+  if (state === 'mastered') {
+    key.style.background = 'var(--accent-ink)';
+    key.style.borderColor = 'var(--accent-ink)';
+    key.style.color = 'var(--lime-ink)';
+  }
+  return key;
 }
 

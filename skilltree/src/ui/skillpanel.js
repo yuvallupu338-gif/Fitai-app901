@@ -108,19 +108,33 @@ export function openSkill(skillId, opts = {}) {
     body.appendChild(h('div',
       h('div.card-title', { style: { marginBottom: 'var(--s2)' } },
         status === STATUS.LOCKED ? 'Requirements to unlock' : 'Requirements'),
-      h('div.list', ...reqs.map((r) => h('div.list-item', { style: { cursor: 'default' } },
-        h('span', {
-          style: { color: r.met ? 'var(--accent-ink)' : 'var(--bone-dimmer)', display: 'flex' },
-          'aria-hidden': 'true',
-        }, icon(r.met ? 'check' : 'lock', { size: 16 })),
-        h('div.grow',
-          h('div.title', r.name),
-          h('div.sub', r.met
-            ? `Level ${r.haveLevel} — met`
-            : `Needs level ${r.needLevel}, you are at ${r.haveLevel}`)),
-        /* Text, not just a colour — the same rule the accessibility lesson
-         * in the web tree teaches. */
-        h('span.chip', { class: r.met ? 'on' : '' }, r.met ? 'Met' : 'Not yet'))))));
+      /*
+       * Every requirement is a link to the skill it names.
+       *
+       * On a locked skill this list was inert text while the "Unlocks:" chips
+       * below it — pointing at skills locked even deeper — were working
+       * buttons. The one move the learner needs ("take me to Pricing, the
+       * thing standing in my way") was the only one not offered.
+       */
+      h('div.list', ...reqs.map((r) => h('button.list-item', {
+        onclick: () => { close(); openSkill(r.skillId, opts); },
+        'aria-label': r.met
+          ? `${r.name}, met at level ${r.haveLevel}. Open it.`
+          : `${r.name}, needs level ${r.needLevel}, you are at ${r.haveLevel}. Open it.`,
+      },
+      h('span', {
+        style: { color: r.met ? 'var(--accent-ink)' : 'var(--bone-dimmer)', display: 'flex' },
+        'aria-hidden': 'true',
+      }, icon(r.met ? 'check' : 'lock', { size: 16 })),
+      h('div.grow',
+        h('div.title', r.name),
+        h('div.sub', r.met
+          ? `Level ${r.haveLevel} — met`
+          : `Needs level ${r.needLevel}, you are at ${r.haveLevel}`)),
+      /* Text, not just a colour — the same rule the accessibility lesson
+       * in the web tree teaches. */
+      h('span.chip', { class: r.met ? 'on' : '' }, r.met ? 'Met' : 'Not yet'),
+      icon('chevron', { size: 15 }))))));
   }
 
   /* ---- activities ---- */

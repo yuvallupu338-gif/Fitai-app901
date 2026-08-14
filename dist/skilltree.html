@@ -1333,6 +1333,14 @@ body.onboarding .app { grid-template-columns: 1fr; }
  * Stat readouts
  * ------------------------------------------------------------------ */
 
+/*
+ * A row of stats is read across, so the numbers have to line up across it.
+ *
+ * They did not: "CURRENT STREAK" is the one label long enough to wrap, so its
+ * value sat 17px below its six neighbours and the row read as broken. The
+ * labels take a fixed two lines' worth of space whether they use it or not,
+ * which costs one line of height and buys a straight baseline.
+ */
 .stat { display: flex; flex-direction: column; gap: 2px; }
 .stat .k {
   font-size: 11px;
@@ -1340,6 +1348,13 @@ body.onboarding .app { grid-template-columns: 1fr; }
   letter-spacing: .05em;
   text-transform: uppercase;
   color: var(--bone-dimmer);
+}
+.stats .stat .k {
+  line-height: 1.3;
+  /* Two lines of this label, whether it needs them or not. */
+  min-height: 2.6em;
+  display: flex;
+  align-items: flex-start;
 }
 .stat .v {
   font-family: var(--mono);
@@ -1604,6 +1619,93 @@ body.onboarding .app { grid-template-columns: 1fr; }
    * font at 16px. */
   .textarea { min-height: 200px; font-size: 16px; }
   .input { font-size: 16px; }
+}
+
+/* ------------------------------------------------------------------ *
+ * Demo banner
+ * ------------------------------------------------------------------ */
+
+/*
+ * Fixed to the bottom, above the tab bar, and impossible to miss — the demo
+ * used to be indistinguishable from a real profile once you were in it.
+ */
+.demobar {
+  position: fixed;
+  left: 0; right: 0;
+  bottom: 0;
+  z-index: 40;
+  display: flex;
+  flex-wrap: wrap;
+  align-items: center;
+  justify-content: center;
+  gap: var(--s3);
+  padding: var(--s3) var(--s4) calc(var(--s3) + env(safe-area-inset-bottom, 0px));
+  background: var(--surface-2);
+  border-top: 1px solid var(--line);
+  color: var(--bone-dim);
+  font-size: 13px;
+}
+.demobar[hidden] { display: none; }
+
+/* Room for it, so it never covers the last card on the page. */
+body.has-demobar .main { padding-bottom: calc(var(--s8) + 56px); }
+
+@media (max-width: 860px) {
+  /* Above the tab bar rather than over it. */
+  .demobar { bottom: var(--tab-h, 64px); padding-bottom: var(--s3); }
+  body.has-demobar .main { padding-bottom: calc(var(--s8) + 112px); }
+}
+
+/* Onboarding has no shell at all, including this. */
+body.onboarding .demobar { display: none; }
+
+/*
+ * Legend keys carry the node's own glyph at legend size, so the legend teaches
+ * the encoding that is actually on the canvas.
+ */
+.legend-key {
+  display: inline-flex;
+  align-items: center;
+  justify-content: center;
+  width: 15px;
+  height: 15px;
+  flex: none;
+  border-radius: 50%;
+  border: 1.5px solid var(--line);
+  color: var(--bone-dim);
+}
+.legend-key svg { width: 10px; height: 10px; }
+
+/* In progress has no glyph on a node either — it shows a partial ring. */
+.legend-arc {
+  width: 9px;
+  height: 9px;
+  border-radius: 50%;
+  border: 1.5px solid transparent;
+  border-top-color: var(--accent-ink);
+  border-right-color: var(--accent-ink);
+}
+
+/* How much of the tree is in view, and the way to see the rest. */
+.tree-viewbar {
+  display: flex;
+  align-items: center;
+  justify-content: space-between;
+  gap: var(--s3);
+  margin-top: var(--s2);
+  padding: 0 var(--s1);
+}
+.tree-viewnote { font-size: 12px; color: var(--bone-dimmer); }
+.tree-viewbar .btn { white-space: nowrap; flex: none; }
+
+.demobar-short { display: none; }
+
+@media (max-width: 860px) {
+  /* One line: a label and the way out. */
+  .demobar { flex-wrap: nowrap; padding: var(--s2) var(--s3); font-size: 12.5px; }
+  .demobar-long { display: none; }
+  .demobar-short { display: inline; }
+  body.has-demobar .main { padding-bottom: calc(var(--s8) + 92px); }
 }
 
 </style>
@@ -10025,7 +10127,7 @@ __m["skilltree/src/core/session.js"] = (function () {
  */
 
 const store = __m["skilltree/src/core/store.js"];
-const { getIndex, findSkill, findActivity, allTrees, registerTree, forgetTree as dropTree } = __m["skilltree/src/data/catalog.js"];
+const { getIndex, findSkill, findActivity, allTrees, registerTree, forgetTree: dropTree } = __m["skilltree/src/data/catalog.js"];
 const { applyAttempt, startSkill, refreshDerived, liveStreak } = __m["skilltree/src/domain/progress.js"];
 const { skillCapacity } = __m["skilltree/src/domain/xp.js"];
 const { award } = __m["skilltree/src/domain/achievements.js"];
@@ -10416,6 +10518,33 @@ function nextActivity(skillId) {
 }
 
 /**
+ * What to offer after finishing `activityId` — the next thing *forward*.
+ *
+ * `nextActivity` answers "where should I resume this skill", which is a
+ * different question and falls back to the last graded activity once
+ * everything is passed. Used as the "Next" button on a result panel, that
+ * pointed backwards: fail a quiz and the app offered the lesson you had read a
+ * minute earlier, labelled "Next".
+ *
+ * So this only ever looks later in the author's order, and only at work not
+ * already passed. Nothing suitable returns null, and the panel simply offers
+ * the way back to the tree.
+ */
+function nextActivityAfter(skillId, activityId) {
+  const found = findSkill(skillId);
+  if (!found) return null;
+
+  const activities = found.skill.activities || [];
+  const here = activities.findIndex((a) => a.id === activityId);
+  if (here === -1) return null;
+
+  const passed = new Set((store.get()?.skills?.[skillId]?.attempts || [])
+    .filter((a) => a.passed).map((a) => a.activityId));
+
+  return activities.slice(here + 1).find((a) => !passed.has(a.id)) || null;
+}
+
+/**
  * Set the goal — both halves of it, in one place.
  *
  * `plan` is what the learner wrote; `goal` is the destination it resolved to,
@@ -10470,6 +10599,7 @@ function awardPending() {
     "currentFocus": currentFocus,
     "recentlyUnlocked": recentlyUnlocked,
     "nextActivity": nextActivity,
+    "nextActivityAfter": nextActivityAfter,
     "setGoal": setGoal,
     "awardPending": awardPending,
   };
@@ -10578,6 +10708,7 @@ const { h, clear, qsa, ensureLiveRegion } = __m["skilltree/src/core/dom.js"];
 const { icon, brandMark } = __m["skilltree/src/ui/icons.js"];
 const { go, currentRoute } = __m["skilltree/src/core/router.js"];
 const session = __m["skilltree/src/core/session.js"];
+const store = __m["skilltree/src/core/store.js"];
 
 const NAV = [
   { name: 'dashboard', label: 'Home', icon: 'home' },
@@ -10647,9 +10778,48 @@ function buildShell() {
 
   document.body.appendChild(app);
   document.body.appendChild(tabbar);
+  document.body.appendChild(demoBar());
   ensureLiveRegion();
 
   return { main };
+}
+
+/*
+ * A banner while the demo profile is active.
+ *
+ * #/demo switches to a populated profile called Alex and says nothing about
+ * it. Everything afterwards reads as the learner's own — "Good afternoon,
+ * Alex", 1,346 XP, a 15-day streak — and the only route back was Settings,
+ * below Appearance and Daily missions, where nobody would think to look for
+ * it. Someone who tried the demo out of curiosity was simply left in it.
+ */
+function demoBar() {
+  const bar = h('div.demobar', { hidden: true, role: 'status' });
+
+  const sync = () => {
+    const profile = store.get();
+    const on = !!profile?.demo;
+    bar.hidden = !on;
+    document.body.classList.toggle('has-demobar', on);
+    if (!on) return;
+
+    clear(bar);
+    const mine = store.listProfiles().find((p) => !p.demo);
+    /* Short on a phone, where two wrapped lines plus a button took a fifth of
+     * the screen away from the canvas below it. */
+    bar.appendChild(h('span.demobar-long', "Demo profile — this progress belongs to Alex, not to you."));
+    bar.appendChild(h('span.demobar-short', 'Demo profile'));
+    bar.appendChild(h('button.btn.small', {
+      onclick: () => {
+        if (mine) store.switchProfile(mine.id);
+        else go('onboarding');
+      },
+    }, mine ? `Back to ${mine.name || 'my profile'}` : 'Start my own'));
+  };
+
+  sync();
+  store.subscribe(sync);
+  return bar;
 }
 
 /** Mark the active nav item in both navigations at once. */
@@ -10813,19 +10983,33 @@ function openSkill(skillId, opts = {}) {
     body.appendChild(h('div',
       h('div.card-title', { style: { marginBottom: 'var(--s2)' } },
         status === STATUS.LOCKED ? 'Requirements to unlock' : 'Requirements'),
-      h('div.list', ...reqs.map((r) => h('div.list-item', { style: { cursor: 'default' } },
-        h('span', {
-          style: { color: r.met ? 'var(--accent-ink)' : 'var(--bone-dimmer)', display: 'flex' },
-          'aria-hidden': 'true',
-        }, icon(r.met ? 'check' : 'lock', { size: 16 })),
-        h('div.grow',
-          h('div.title', r.name),
-          h('div.sub', r.met
-            ? `Level ${r.haveLevel} — met`
-            : `Needs level ${r.needLevel}, you are at ${r.haveLevel}`)),
-        /* Text, not just a colour — the same rule the accessibility lesson
-         * in the web tree teaches. */
-        h('span.chip', { class: r.met ? 'on' : '' }, r.met ? 'Met' : 'Not yet'))))));
+      /*
+       * Every requirement is a link to the skill it names.
+       *
+       * On a locked skill this list was inert text while the "Unlocks:" chips
+       * below it — pointing at skills locked even deeper — were working
+       * buttons. The one move the learner needs ("take me to Pricing, the
+       * thing standing in my way") was the only one not offered.
+       */
+      h('div.list', ...reqs.map((r) => h('button.list-item', {
+        onclick: () => { close(); openSkill(r.skillId, opts); },
+        'aria-label': r.met
+          ? `${r.name}, met at level ${r.haveLevel}. Open it.`
+          : `${r.name}, needs level ${r.needLevel}, you are at ${r.haveLevel}. Open it.`,
+      },
+      h('span', {
+        style: { color: r.met ? 'var(--accent-ink)' : 'var(--bone-dimmer)', display: 'flex' },
+        'aria-hidden': 'true',
+      }, icon(r.met ? 'check' : 'lock', { size: 16 })),
+      h('div.grow',
+        h('div.title', r.name),
+        h('div.sub', r.met
+          ? `Level ${r.haveLevel} — met`
+          : `Needs level ${r.needLevel}, you are at ${r.haveLevel}`)),
+      /* Text, not just a colour — the same rule the accessibility lesson
+       * in the web tree teaches. */
+      h('span.chip', { class: r.met ? 'on' : '' }, r.met ? 'Met' : 'Not yet'),
+      icon('chevron', { size: 15 }))))));
   }
 
   /* ---- activities ---- */
@@ -11718,9 +11902,9 @@ Rules:
  * screen it was called from. A failure degrades to the offline coach with the
  * reason attached.
  */
-async function coachFor({ skill, activity, source, question, history = [] }) {
+async function coachFor({ skill, activity, source, question, history = [], seenHint = false }) {
   if (!hasAnyKey()) {
-    return { text: offlineAnswer({ skill, activity, question, source }), offline: true };
+    return { text: offlineAnswer({ skill, activity, question, source, seenHint }), offline: true };
   }
 
   const context = contextFor(skill);
@@ -11760,14 +11944,20 @@ async function coachFor({ skill, activity, source, question, history = [] }) {
  * prerequisites or activity list. It is not pretending to be a model — the UI
  * labels it — but it answers the four questions learners actually ask.
  */
-function offlineAnswer({ skill, activity, question, source }) {
+/*
+ * `seenHint` says the learner has already been shown `activity.hint` — they
+ * pressed Hint before asking. Returning it again produced the same paragraph
+ * twice, stacked, which reads as the coach having nothing to say. It moves on
+ * to the next-best answer instead.
+ */
+function offlineAnswer({ skill, activity, question, source, seenHint = false }) {
   const q = String(question || '').toLowerCase();
   const state = session.freshProfile();
   const progress = state?.skills?.[skill.id];
 
   /* "give me an easier one" / "I'm stuck" */
   if (/stuck|hint|nudge|easier|help|hard/.test(q)) {
-    if (activity?.hint) return activity.hint;
+    if (activity?.hint && !seenHint) return activity.hint;
 
     if (source && !source.trim()) {
       return `Start by writing the function signature and returning something — anything. Getting a failing test to fail *differently* tells you more than staring at a blank editor.`;
@@ -11877,7 +12067,7 @@ __m["skilltree/src/ui/activity.js"] = (function () {
  * layer, and the domain layer looks at the answers, not at the DOM.
  */
 
-const { h, clear, num, announce } = __m["skilltree/src/core/dom.js"];
+const { h, clear, num, announce, reduceMotion } = __m["skilltree/src/core/dom.js"];
 const { icon } = __m["skilltree/src/ui/icons.js"];
 const { findActivity } = __m["skilltree/src/data/catalog.js"];
 const { statusOf, STATUS, requirementStatus } = __m["skilltree/src/domain/unlock.js"];
@@ -11885,7 +12075,7 @@ const session = __m["skilltree/src/core/session.js"];
 const { go } = __m["skilltree/src/core/router.js"];
 const { announceEvents } = __m["skilltree/src/ui/toast.js"];
 const { show } = __m["skilltree/src/domain/verify.js"];
-const { labelForKind } = __m["skilltree/src/domain/xp.js"];
+const { labelForKind, baseXpFor } = __m["skilltree/src/domain/xp.js"];
 const { coachFor } = __m["skilltree/src/ai/coach.js"];
 
 
@@ -12078,13 +12268,15 @@ function renderResult(host, found, outcome, opts = {}) {
   }
 
   /* ---- what next ---- */
-  const next = session.nextActivity(skill.id);
+  /* Strictly forward, and never something already passed — see
+   * session.nextActivityAfter. */
+  const next = session.nextActivityAfter(skill.id, activity.id);
   const actions = h('div.row.wrap', { style: { marginTop: 'var(--s5)', gap: 'var(--s2)' } });
 
   if (!result.passed) {
     actions.appendChild(h('button.btn.primary', { onclick: () => opts.onRetry && opts.onRetry() }, 'Try again'));
   }
-  if (next && next.id !== activity.id) {
+  if (next) {
     actions.appendChild(h('button.btn', { class: result.passed ? 'primary' : '', onclick: () => go(`activity/${next.id}`) },
       `Next — ${next.title}`));
   }
@@ -12092,7 +12284,7 @@ function renderResult(host, found, outcome, opts = {}) {
   panel.appendChild(actions);
 
   host.appendChild(panel);
-  panel.scrollIntoView({ behavior: 'smooth', block: 'nearest' });
+  panel.scrollIntoView({ behavior: reduceMotion ? 'auto' : 'smooth', block: 'nearest' });
   panel.focus();
 }
 
@@ -12121,13 +12313,18 @@ function renderLesson(host, found, startedAt) {
   body.appendChild(h('div.card',
     h('div.prose', ...(activity.body || []).map((p) => h('p', p)))));
 
+  /* The mission chip that sent the learner here promised "+10 XP"; the button
+   * it pointed at said only "Mark as read". Same number, from the same table
+   * the engine pays from. */
   const actions = h('div', { style: { marginTop: 'var(--s5)' } },
     h('button.btn.primary.big', {
       onclick: async () => {
         actions.remove();
         await finish(found, {}, startedAt, body);
       },
-    }, 'Mark as read'));
+    }, 'Mark as read'),
+    h('span.card-note', { style: { marginLeft: 'var(--s3)' } },
+      `+${baseXpFor(activity.kind)} XP`));
 
   body.appendChild(actions);
   host.appendChild(body);
@@ -12298,17 +12495,23 @@ function renderCode(host, found, startedAt) {
   const hintBox = h('div');
   const runBtn = h('button.btn.primary.big', 'Run tests');
 
+  /* Whether the written hint has already been revealed. Without this the
+   * offline coach answered "I am stuck" with that same hint, so pressing Hint
+   * and then Ask the coach printed the identical paragraph twice, stacked. */
+  let seenHint = false;
+
   const actions = h('div.row.wrap', { style: { marginTop: 'var(--s4)', gap: 'var(--s2)' } },
     runBtn,
     activity.hint
       ? h('button.btn', {
         onclick: (e) => {
+          seenHint = true;
           e.target.remove();
           hintBox.appendChild(h('div.notice', icon('info', { size: 16 }), h('span', activity.hint)));
         },
       }, 'Hint')
       : null,
-    h('button.btn.ghost', { onclick: () => askCoach(found, editor.value, hintBox) },
+    h('button.btn.ghost', { onclick: () => askCoach(found, editor.value, hintBox, seenHint) },
       icon('sparkle', { size: 15 }), 'Ask the coach'));
 
   runBtn.addEventListener('click', async () => {
@@ -12337,7 +12540,7 @@ function renderCode(host, found, startedAt) {
   host.appendChild(body);
 }
 
-async function askCoach(found, source, host) {
+async function askCoach(found, source, host, seenHint = false) {
   const box = h('div.card.quiet', { style: { marginTop: 'var(--s3)' } },
     h('div.row', { style: { gap: 'var(--s2)', color: 'var(--bone-dim)', fontSize: '13px' } },
       icon('sparkle', { size: 15 }), 'Thinking…'));
@@ -12347,6 +12550,7 @@ async function askCoach(found, source, host) {
     skill: found.skill,
     activity: found.activity,
     source,
+    seenHint,
     question: 'I am stuck on this challenge. Give me a nudge, not the answer.',
   });
 
@@ -13371,6 +13575,9 @@ function mountTree(host, opts) {
   function paint() {
     frame = null;
     canvas.style.transform = `translate3d(${tx}px, ${ty}px, 0) scale(${scale})`;
+    /* The count follows the view, so panning and zooming keep it true rather
+     * than leaving a number from the opening frame. */
+    if (typeof syncViewNote === 'function') syncViewNote();
   }
 
   function schedule() {
@@ -13648,6 +13855,42 @@ function mountTree(host, opts) {
     setScale(scale * factor, box.width / 2, box.height / 2);
   }
 
+  /*
+   * How much of the tree you are looking at, and how to see the rest.
+   *
+   * The opening view is a readable scale rather than a fit (see frameView), so
+   * on a laptop about half the nodes sit outside the canvas and on a phone
+   * almost all of them do. That is the right trade — a fitted 33-skill tree is
+   * an illegible smear — but nothing on the screen said the canvas continued,
+   * so it read as a tree with fifteen nodes and a lot of empty space. This says
+   * what is off-screen and gives the one control that shows it.
+   */
+  const viewNote = h('span.tree-viewnote');
+  const viewBar = h('div.tree-viewbar',
+    viewNote,
+    h('button.btn.small', { onclick: () => fit() }, 'Fit all'));
+
+  function syncViewNote() {
+    const box = shell.getBoundingClientRect();
+    if (!box.width) return;
+
+    let visible = 0;
+    for (const el of nodeEls.values()) {
+      const r = el.getBoundingClientRect();
+      if (r.right > box.left && r.left < box.right && r.bottom > box.top && r.top < box.bottom) visible += 1;
+    }
+
+    const total = nodeEls.size;
+    /* Short on a phone, where the long form wrapped to two lines and pushed
+     * the Fit button into wrapping with it. */
+    const roomy = box.width > 520;
+    viewNote.textContent = visible >= total
+      ? (roomy ? `All ${total} skills in view — drag to move around.` : `All ${total} in view`)
+      : (roomy
+        ? `${visible} of ${total} skills in view — drag to see the rest.`
+        : `${visible} of ${total} in view — drag to explore`);
+  }
+
   const legend = h('div.tree-legend',
     ...[
       ['locked', 'Locked'],
@@ -13662,10 +13905,11 @@ function mountTree(host, opts) {
 
   clear(host);
   host.appendChild(shell);
+  host.appendChild(viewBar);
 
   /* Frame once the shell has a measured size. Calling it synchronously gives a
    * zero-width box on first paint and the graph lands off-screen. */
-  window.requestAnimationFrame(() => { sizeShell(); frameView(); });
+  window.requestAnimationFrame(() => { sizeShell(); frameView(); syncViewNote(); });
 
   /*
    * Size the canvas from what is actually left on screen.
@@ -13681,13 +13925,34 @@ function mountTree(host, opts) {
    * canvas does not need to fit a fixed viewport.
    */
   function sizeShell() {
-    if (window.innerWidth > 860) { shell.style.removeProperty('height'); return; }
+    /*
+     * The floor is whatever fixed furniture is closest to the bottom — the tab
+     * bar on a phone, the demo banner when it is up, both at once, or the
+     * viewport edge. Measuring only the tab bar meant the banner sat on top of
+     * the legend and the zoom controls, which live at the bottom of the shell.
+     */
+    const fixed = ['.tabbar', '.demobar']
+      .map((sel) => document.querySelector(sel))
+      .filter((el) => el && !el.hidden && el.getBoundingClientRect().height > 0)
+      .map((el) => el.getBoundingClientRect().top);
+
+    const floor = fixed.length ? Math.min(...fixed) : window.innerHeight;
+
+    if (window.innerWidth > 860 && !fixed.length) {
+      shell.style.removeProperty('height');
+      return;
+    }
 
     const top = shell.getBoundingClientRect().top;
-    const tabbar = document.querySelector('.tabbar');
-    const floor = tabbar ? tabbar.getBoundingClientRect().top : window.innerHeight;
-    const available = floor - top - 12;
-
+    /*
+     * The view bar sits below the canvas and needs its own room, or it is the
+     * thing that ends up hidden behind whatever is fixed to the bottom. Its
+     * margin is not part of offsetHeight, hence the second term — without it
+     * the bar cleared the banner by a negative seven pixels.
+     */
+    const below = (viewBar.offsetHeight || 30)
+      + parseFloat(getComputedStyle(viewBar).marginTop || '0');
+    const available = floor - top - below - 12;
     shell.style.height = `${Math.max(300, Math.round(available))}px`;
   }
 
@@ -13773,21 +14038,36 @@ function labelFor(status, progress) {
   }
 }
 
+/*
+ * A legend key, drawn the way the node it describes is drawn.
+ *
+ * Five near-identical 9px circles taught nothing: the nodes are distinguished
+ * by a glyph — a padlock, a plus, a percentage, a tick, a star — and the
+ * legend showed rings, so it explained an encoding that is not on the screen.
+ * It now carries the same glyph in the same ring, at legend size.
+ */
+const LEGEND_GLYPH = {
+  locked: 'lock',
+  available: 'plus',
+  in_progress: null,
+  completed: 'check',
+  mastered: 'star',
+};
+
 function legendDot(state) {
-  const dot = h('span', {
-    style: {
-      width: '9px',
-      height: '9px',
-      borderRadius: '50%',
-      display: 'inline-block',
-      border: '1.5px solid var(--line)',
-    },
-  });
-  if (state === 'locked') dot.style.borderStyle = 'dashed';
-  if (state === 'available') dot.style.borderColor = 'var(--bone-dimmer)';
-  if (state === 'in_progress' || state === 'completed') dot.style.borderColor = 'var(--accent-ink)';
-  if (state === 'mastered') { dot.style.background = 'var(--accent-ink)'; dot.style.borderColor = 'var(--accent-ink)'; }
-  return dot;
+  const glyph = LEGEND_GLYPH[state];
+  const key = h('span.legend-key', { class: state },
+    glyph ? icon(glyph, { size: 10 }) : h('span.legend-arc'));
+
+  if (state === 'locked') key.style.borderStyle = 'dashed';
+  if (state === 'available') key.style.borderColor = 'var(--bone-dimmer)';
+  if (state === 'in_progress' || state === 'completed') key.style.borderColor = 'var(--accent-ink)';
+  if (state === 'mastered') {
+    key.style.background = 'var(--accent-ink)';
+    key.style.borderColor = 'var(--accent-ink)';
+    key.style.color = 'var(--lime-ink)';
+  }
+  return key;
 }
 
 
@@ -15281,7 +15561,7 @@ __m["skilltree/src/data/demo.js"] = (function () {
  */
 
 const { getIndex, allTrees } = __m["skilltree/src/data/catalog.js"];
-const { applyAttempt, dayNumber } = __m["skilltree/src/domain/progress.js"];
+const { applyAttempt } = __m["skilltree/src/domain/progress.js"];
 const { award } = __m["skilltree/src/domain/achievements.js"];
 const { computeDepths } = __m["skilltree/src/domain/graph.js"];
 const { emptyProfile } = __m["skilltree/src/core/store.js"];
@@ -15363,9 +15643,15 @@ function jitter(seed, spread) {
   return Math.round((x - Math.floor(x)) * spread * 2 - spread);
 }
 
-function runPlan(state, treeId, plan, now) {
+/*
+ * Read a plan into a flat list of attempts, without applying any of them.
+ *
+ * Separated from the applying so every plan across every tree can be merged
+ * and then replayed in *calendar* order — see `buildDemoProfile`.
+ */
+function planAttempts(treeId, plan, now) {
   const index = getIndex(treeId);
-  let next = state;
+  const out = [];
   let seed = 1;
 
   for (const entry of plan) {
@@ -15387,34 +15673,40 @@ function runPlan(state, treeId, plan, now) {
          gives the mastery algorithm a real recency curve to work with. */
       const fails = i === 0 ? (entry.failFirst || 0) : 0;
       for (let f = 0; f < fails; f += 1) {
-        const applied = applyAttempt(next, index, {
-          skillId: entry.id,
-          activityId: activity.id,
-          kind: activity.kind,
-          score: Math.max(20, entry.score - 30 + jitter(seed + f, 6)),
-          passed: false,
-          id: `demo:${activity.id}:fail${f}`,
-        }, at - (fails - f) * DAY);
-        next = applied.state;
+        out.push({
+          treeId,
+          at: at - (fails - f) * DAY,
+          attempt: {
+            skillId: entry.id,
+            activityId: activity.id,
+            kind: activity.kind,
+            score: Math.max(20, entry.score - 30 + jitter(seed + f, 6)),
+            passed: false,
+            id: `demo:${activity.id}:fail${f}`,
+          },
+        });
       }
 
       const score = activity.kind === 'learn'
         ? null
         : Math.max(35, Math.min(100, entry.score + jitter(seed, 7)));
 
-      const applied = applyAttempt(next, index, {
-        skillId: entry.id,
-        activityId: activity.id,
-        kind: activity.kind,
-        score,
-        passed: activity.kind === 'learn' ? true : score >= 60,
-        id: `demo:${activity.id}`,
-      }, at + i * 3600000);
-      next = applied.state;
+      out.push({
+        treeId,
+        at: at + i * 3600000,
+        attempt: {
+          skillId: entry.id,
+          activityId: activity.id,
+          kind: activity.kind,
+          score,
+          passed: activity.kind === 'learn' ? true : score >= 60,
+          id: `demo:${activity.id}`,
+        },
+      });
     }
   }
 
-  return next;
+  return out;
 }
 
 /**
@@ -15424,52 +15716,38 @@ function runPlan(state, treeId, plan, now) {
 function buildDemoProfile(now = Date.now()) {
   let state = { ...emptyProfile('Alex'), onboarded: true };
 
-  state = runPlan(state, 'web', WEB_PLAN, now);
-  state = runPlan(state, 'calisthenics', CALISTHENICS_PLAN, now);
-  state = runPlan(state, 'math', MATH_PLAN, now);
-  state = runPlan(state, 'business', BUSINESS_PLAN, now);
-
   /*
-   * A recent run of daily practice.
+   * Every attempt from every plan, merged and replayed in calendar order.
    *
-   * Without this the demo's longest streak is three days, because the study
-   * plan above puts each skill on its own date and consecutive days happen only
-   * by accident. Three days does not demonstrate a streak.
-   *
-   * The fix is to give the demo learner an actual habit rather than to write a
-   * bigger number into `streak`: eleven consecutive days of short review
-   * sessions on skills they already hold. Every one is a real attempt with a
-   * real score that flows through the same pipeline, so the streak, the XP
-   * chart, the consistency component of mastery and the daily-XP bars all agree
-   * with each other. Writing `longest: 21` by hand would have shown a streak the
-   * ledger could not account for, which is the kind of demo data that falls
-   * apart the moment anyone clicks through to the chart.
+   * The order matters more than it looks. Applying tree by tree meant the
+   * engine saw 6 May, then 12 July, then 3 June — so `touchStreak` counted
+   * days out of sequence and produced a number that had to be overwritten
+   * afterwards, and mastery's recency weighting was fed a history that ran
+   * backwards. Sorting first means the demo goes through exactly the pipeline a
+   * real learner does, and the streak, the daily-XP chart and the mastery
+   * curve are all derived rather than asserted.
    */
-  state = runDailyHabit(state, now);
-
-  /* A written goal, phrased the way someone would actually say it, so the
-   * demo shows the plan screen doing its job rather than an empty state. */
-  state.plan = {
-    goalText: 'Open a web design business',
-    createdAt: now - 80 * DAY,
-    minutesPerDay: 30,
-  };
-  state.goal = {
-    treeId: 'business',
-    targetSkillId: 'working_business',
-    text: 'Open a web design business',
-    createdAt: now - 80 * DAY,
-  };
-
-  /*
-   * The streak is the one thing a replay cannot produce honestly. Attempts are
-   * applied in plan order, not calendar order, so `touchStreak` sees the days
-   * out of sequence and lands on a number that means nothing. Rather than
-   * leaving a wrong value, it is computed here from the distinct calendar days
-   * the seeded attempts actually fall on — which is the same thing the live
-   * streak counts, just derived after the fact.
-   */
-  state.streak = streakFromAttempts(state, now);
+  const timeline = [
+    ...planAttempts('web', WEB_PLAN, now),
+    ...planAttempts('calisthenics', CALISTHENICS_PLAN, now),
+    ...planAttempts('math', MATH_PLAN, now),
+    ...planAttempts('business', BUSINESS_PLAN, now),
+    /*
+     * A recent run of daily practice.
+     *
+     * Without this the demo's longest streak is three days, because the study
+     * plan above puts each skill on its own date and consecutive days happen
+     * only by accident. Three days does not demonstrate a streak.
+     *
+     * The fix is to give the demo learner an actual habit rather than to write
+     * a bigger number into `streak`: eleven consecutive days of short review
+     * sessions on skills they already hold. Every one is a real attempt with a
+     * real score flowing through the same pipeline, so the streak, the XP
+     * chart, the consistency component of mastery and the daily-XP bars all
+     * agree with each other.
+     */
+    ...habitAttempts(now),
+  ].sort((a, b) => a.at - b.at);
 
   /*
    * Evaluate the demo against every registered tree, not a hardcoded list.
@@ -15497,9 +15775,40 @@ function buildDemoProfile(now = Date.now()) {
     }
     return 0;
   };
+  const badgeCtx = { depthOf, treeOf, requirementCount };
 
-  const withBadges = award(state, { depthOf, treeOf, requirementCount }, now);
-  return withBadges.state;
+  /*
+   * Replay, awarding as we go.
+   *
+   * Awarding once at the end stamped every badge with `now`, so an eighty-day-
+   * old profile displayed ten achievements all reading "Earned just now" — a
+   * detail small enough to ignore and precisely the kind that tells someone the
+   * data is made up. Awarding after each attempt gives every badge the date of
+   * the work that earned it, because that is when it was earned.
+   */
+  for (const { treeId, at, attempt } of timeline) {
+    const index = getIndex(treeId);
+    if (!index.byId.has(attempt.skillId)) continue;
+    state = applyAttempt(state, index, attempt, at).state;
+    state = award(state, badgeCtx, at).state;
+  }
+
+  /* A written goal, phrased the way someone would actually say it, so the
+   * demo shows the plan screen doing its job rather than an empty state. */
+  state.plan = {
+    goalText: 'Open a web design business',
+    createdAt: now - 80 * DAY,
+    minutesPerDay: 30,
+  };
+  state.goal = {
+    treeId: 'business',
+    targetSkillId: 'working_business',
+    text: 'Open a web design business',
+    createdAt: now - 80 * DAY,
+  };
+
+  /* The goal badges depend on the goal, which is set after the replay. */
+  return award(state, badgeCtx, now - 80 * DAY).state;
 }
 
 /*
@@ -15512,15 +15821,15 @@ function buildDemoProfile(now = Date.now()) {
  * Rotates over skills the learner already has, which is what review actually
  * looks like, and keeps the scores high because these are not new material.
  */
-function runDailyHabit(state, now) {
+function habitAttempts(now) {
   const index = getIndex('web');
   const rotation = ['js_arrays', 'js_functions', 'css_flexbox', 'js_objects', 'git'];
-  let next = state;
+  const out = [];
 
   for (let dayBack = 11; dayBack >= 1; dayBack -= 1) {
     const skillId = rotation[(11 - dayBack) % rotation.length];
     const skill = index.byId.get(skillId);
-    if (!skill || !next.skills[skillId]) continue;
+    if (!skill) continue;
 
     const activities = (skill.activities || []).filter((a) => a.kind !== 'learn');
     if (!activities.length) continue;
@@ -15532,51 +15841,23 @@ function runDailyHabit(state, now) {
     const at = new Date(now - dayBack * DAY);
     at.setHours(10, 30, 0, 0);
 
-    const applied = applyAttempt(next, index, {
-      skillId,
-      activityId: activity.id,
-      kind: activity.kind,
-      score: 88 + jitter(dayBack, 8),
-      passed: true,
-      id: `demo:habit:${dayBack}`,
-    }, at.getTime());
-    next = applied.state;
+    out.push({
+      treeId: 'web',
+      at: at.getTime(),
+      attempt: {
+        skillId,
+        activityId: activity.id,
+        kind: activity.kind,
+        score: 88 + jitter(dayBack, 8),
+        passed: true,
+        id: `demo:habit:${dayBack}`,
+      },
+    });
   }
 
-  return next;
+  return out;
 }
 
-/*
- * Distinct local days with activity, folded into a current and longest run.
- * Local days rather than UTC, for the same reason `dayNumber` uses them: a
- * learner at 23:50 and 00:10 has been active twice.
- */
-function streakFromAttempts(state, now) {
-  const days = new Set();
-  for (const skill of Object.values(state.skills)) {
-    /* `dayNumber` rather than a second copy of the arithmetic — the two must
-     * agree on where a day starts or the demo's streak disagrees with the one
-     * the app computes live. */
-    for (const attempt of skill.attempts || []) days.add(dayNumber(attempt.at));
-  }
-
-  const sorted = [...days].sort((a, b) => a - b);
-  let longest = 0;
-  let run = 0;
-  let previous = null;
-
-  for (const day of sorted) {
-    run = previous !== null && day === previous + 1 ? run + 1 : 1;
-    longest = Math.max(longest, run);
-    previous = day;
-  }
-
-  const today = dayNumber(now);
-  const last = sorted[sorted.length - 1];
-  const alive = last === today || last === today - 1;
-
-  return { current: alive ? run : 0, longest, lastDay: last ?? null };
-}
 
   return {
     "buildDemoProfile": buildDemoProfile,

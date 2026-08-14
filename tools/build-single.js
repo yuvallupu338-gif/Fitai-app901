@@ -19,6 +19,7 @@
 import { readFileSync, writeFileSync, mkdirSync } from 'node:fs';
 import { resolve, dirname, relative } from 'node:path';
 import { fileURLToPath } from 'node:url';
+import { Script } from 'node:vm';
 
 const ROOT = resolve(dirname(fileURLToPath(import.meta.url)), '..');
 
@@ -88,9 +89,22 @@ function transform(k, mod) {
   // imports -> registry destructuring
   for (const d of mod.deps) {
     const target = key(resolve(dirname(mod.abs), d.spec));
+    /*
+     * `import { a as b }` becomes `const { a: b }`, not `const { a as b }`.
+     *
+     * Without the rewrite the bundler emitted a destructuring pattern using
+     * the import keyword, which is a syntax error — and because the emitted
+     * file is only parsed by the browser, the build reported success and the
+     * single-file app failed to boot with "Unexpected identifier 'as'". The
+     * served build was fine, so nothing else caught it.
+     */
+    const named = d.named
+      ? d.named.replace(/\s+/g, ' ').trim().replace(/\b(\w[\w$]*)\s+as\s+(\w[\w$]*)/g, '$1: $2')
+      : null;
+
     const line = d.ns
       ? `const ${d.ns} = __m[${JSON.stringify(target)}];`
-      : `const { ${d.named.replace(/\s+/g, ' ').trim()} } = __m[${JSON.stringify(target)}];`;
+      : `const { ${named} } = __m[${JSON.stringify(target)}];`;
     out = out.replace(d.raw, line);
   }
 
@@ -140,6 +154,19 @@ const bundle = [
   ...order.map((k) => transform(k, seen.get(k))),
   '})();',
 ].join('\n\n');
+
+/*
+ * Parse what we are about to ship.
+ *
+ * The rewriting here is textual, so a construct the transform gets wrong
+ * produces a file that is written successfully, reports a cheerful module
+ * count, and then throws on the first line the browser parses. That happened:
+ * `import { a as b }` became `const { a as b }`, and the single-file build shipped
+ * dead — the served build was fine, so no other check noticed. Compiling with
+ * `vm.Script` parses without running, and turns a silent bad build into a
+ * failed one.
+ */
+new Script(bundle, { filename: HTML_OUT });
 
 const css = CSS_FILES.map((f) => readFileSync(f, 'utf8')).join('\n\n');
 

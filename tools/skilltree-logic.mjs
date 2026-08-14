@@ -1114,6 +1114,55 @@ check('the demo has many skills', Object.keys(demo.skills).length >= 25);
 check('the demo has mastered skills', Object.values(demo.skills).some((sk) => sk.level >= 5));
 check('the demo has in-progress skills', Object.values(demo.skills).some((sk) => sk.level > 0 && sk.level < 3));
 check('the demo has achievements', Object.keys(demo.achievements).length >= 4);
+
+/*
+ * The demo has to survive being read closely, because that is what it is for.
+ *
+ * Two things gave it away. Every achievement was stamped with the build time,
+ * so an eighty-day-old profile showed ten badges all reading "Earned just
+ * now"; and the attempts were applied tree by tree rather than in date order,
+ * so the streak `touchStreak` produced was meaningless and had to be
+ * overwritten with a separately-computed one — leaving the headline number and
+ * the daily-XP chart below it derived from different things.
+ */
+const demoNow = Date.UTC(2026, 1, 20);
+const demoAt = buildDemoProfile(demoNow);
+
+check('demo achievements are dated when they were earned', (() => {
+  const times = Object.values(demoAt.achievements);
+  const atBuildTime = times.filter((t) => Math.abs(demoNow - t) < 60000).length;
+  return times.length >= 4 && atBuildTime === 0;
+})(), 'every badge carried the build timestamp');
+
+check('demo achievements are spread over its history', (() => {
+  const times = Object.values(demoAt.achievements).sort((a, b) => a - b);
+  return (times[times.length - 1] - times[0]) > 30 * DAY;
+})());
+
+check('the demo streak is what its own ledger implies', (() => {
+  const days = [...new Set(Object.values(demoAt.skills)
+    .flatMap((s) => (s.attempts || []).map((a) => dayNumber(a.at))))].sort((a, b) => a - b);
+
+  let longest = 0;
+  let run = 0;
+  let previous = null;
+  for (const day of days) {
+    run = previous !== null && day === previous + 1 ? run + 1 : 1;
+    longest = Math.max(longest, run);
+    previous = day;
+  }
+  const today = dayNumber(demoNow);
+  const current = previous === today || previous === today - 1 ? run : 0;
+
+  return current === demoAt.streak.current && longest === demoAt.streak.longest;
+})(), `profile says ${JSON.stringify(demoAt.streak)}, ledger says otherwise`);
+
+check('the demo is deterministic', (() => {
+  const again = buildDemoProfile(demoNow);
+  return totalXp(again.xpEvents) === totalXp(demoAt.xpEvents)
+    && Object.keys(again.skills).length === Object.keys(demoAt.skills).length
+    && deepEqual(again.streak, demoAt.streak);
+})());
 check('the demo has a goal', !!demo.goal?.targetSkillId);
 check('the demo has a written goal', typeof demo.plan?.goalText === 'string' && demo.plan.goalText.length > 3);
 check('the demo goal resolves to a programme', (() => {

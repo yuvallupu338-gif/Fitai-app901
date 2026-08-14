@@ -20,7 +20,7 @@
  */
 
 import { getIndex, allTrees } from './catalog.js';
-import { applyAttempt, dayNumber } from '../domain/progress.js';
+import { applyAttempt } from '../domain/progress.js';
 import { award } from '../domain/achievements.js';
 import { computeDepths } from '../domain/graph.js';
 import { emptyProfile } from '../core/store.js';
@@ -102,9 +102,15 @@ function jitter(seed, spread) {
   return Math.round((x - Math.floor(x)) * spread * 2 - spread);
 }
 
-function runPlan(state, treeId, plan, now) {
+/*
+ * Read a plan into a flat list of attempts, without applying any of them.
+ *
+ * Separated from the applying so every plan across every tree can be merged
+ * and then replayed in *calendar* order — see `buildDemoProfile`.
+ */
+function planAttempts(treeId, plan, now) {
   const index = getIndex(treeId);
-  let next = state;
+  const out = [];
   let seed = 1;
 
   for (const entry of plan) {
@@ -126,34 +132,40 @@ function runPlan(state, treeId, plan, now) {
          gives the mastery algorithm a real recency curve to work with. */
       const fails = i === 0 ? (entry.failFirst || 0) : 0;
       for (let f = 0; f < fails; f += 1) {
-        const applied = applyAttempt(next, index, {
-          skillId: entry.id,
-          activityId: activity.id,
-          kind: activity.kind,
-          score: Math.max(20, entry.score - 30 + jitter(seed + f, 6)),
-          passed: false,
-          id: `demo:${activity.id}:fail${f}`,
-        }, at - (fails - f) * DAY);
-        next = applied.state;
+        out.push({
+          treeId,
+          at: at - (fails - f) * DAY,
+          attempt: {
+            skillId: entry.id,
+            activityId: activity.id,
+            kind: activity.kind,
+            score: Math.max(20, entry.score - 30 + jitter(seed + f, 6)),
+            passed: false,
+            id: `demo:${activity.id}:fail${f}`,
+          },
+        });
       }
 
       const score = activity.kind === 'learn'
         ? null
         : Math.max(35, Math.min(100, entry.score + jitter(seed, 7)));
 
-      const applied = applyAttempt(next, index, {
-        skillId: entry.id,
-        activityId: activity.id,
-        kind: activity.kind,
-        score,
-        passed: activity.kind === 'learn' ? true : score >= 60,
-        id: `demo:${activity.id}`,
-      }, at + i * 3600000);
-      next = applied.state;
+      out.push({
+        treeId,
+        at: at + i * 3600000,
+        attempt: {
+          skillId: entry.id,
+          activityId: activity.id,
+          kind: activity.kind,
+          score,
+          passed: activity.kind === 'learn' ? true : score >= 60,
+          id: `demo:${activity.id}`,
+        },
+      });
     }
   }
 
-  return next;
+  return out;
 }
 
 /**
@@ -163,52 +175,38 @@ function runPlan(state, treeId, plan, now) {
 export function buildDemoProfile(now = Date.now()) {
   let state = { ...emptyProfile('Alex'), onboarded: true };
 
-  state = runPlan(state, 'web', WEB_PLAN, now);
-  state = runPlan(state, 'calisthenics', CALISTHENICS_PLAN, now);
-  state = runPlan(state, 'math', MATH_PLAN, now);
-  state = runPlan(state, 'business', BUSINESS_PLAN, now);
-
   /*
-   * A recent run of daily practice.
+   * Every attempt from every plan, merged and replayed in calendar order.
    *
-   * Without this the demo's longest streak is three days, because the study
-   * plan above puts each skill on its own date and consecutive days happen only
-   * by accident. Three days does not demonstrate a streak.
-   *
-   * The fix is to give the demo learner an actual habit rather than to write a
-   * bigger number into `streak`: eleven consecutive days of short review
-   * sessions on skills they already hold. Every one is a real attempt with a
-   * real score that flows through the same pipeline, so the streak, the XP
-   * chart, the consistency component of mastery and the daily-XP bars all agree
-   * with each other. Writing `longest: 21` by hand would have shown a streak the
-   * ledger could not account for, which is the kind of demo data that falls
-   * apart the moment anyone clicks through to the chart.
+   * The order matters more than it looks. Applying tree by tree meant the
+   * engine saw 6 May, then 12 July, then 3 June — so `touchStreak` counted
+   * days out of sequence and produced a number that had to be overwritten
+   * afterwards, and mastery's recency weighting was fed a history that ran
+   * backwards. Sorting first means the demo goes through exactly the pipeline a
+   * real learner does, and the streak, the daily-XP chart and the mastery
+   * curve are all derived rather than asserted.
    */
-  state = runDailyHabit(state, now);
-
-  /* A written goal, phrased the way someone would actually say it, so the
-   * demo shows the plan screen doing its job rather than an empty state. */
-  state.plan = {
-    goalText: 'Open a web design business',
-    createdAt: now - 80 * DAY,
-    minutesPerDay: 30,
-  };
-  state.goal = {
-    treeId: 'business',
-    targetSkillId: 'working_business',
-    text: 'Open a web design business',
-    createdAt: now - 80 * DAY,
-  };
-
-  /*
-   * The streak is the one thing a replay cannot produce honestly. Attempts are
-   * applied in plan order, not calendar order, so `touchStreak` sees the days
-   * out of sequence and lands on a number that means nothing. Rather than
-   * leaving a wrong value, it is computed here from the distinct calendar days
-   * the seeded attempts actually fall on — which is the same thing the live
-   * streak counts, just derived after the fact.
-   */
-  state.streak = streakFromAttempts(state, now);
+  const timeline = [
+    ...planAttempts('web', WEB_PLAN, now),
+    ...planAttempts('calisthenics', CALISTHENICS_PLAN, now),
+    ...planAttempts('math', MATH_PLAN, now),
+    ...planAttempts('business', BUSINESS_PLAN, now),
+    /*
+     * A recent run of daily practice.
+     *
+     * Without this the demo's longest streak is three days, because the study
+     * plan above puts each skill on its own date and consecutive days happen
+     * only by accident. Three days does not demonstrate a streak.
+     *
+     * The fix is to give the demo learner an actual habit rather than to write
+     * a bigger number into `streak`: eleven consecutive days of short review
+     * sessions on skills they already hold. Every one is a real attempt with a
+     * real score flowing through the same pipeline, so the streak, the XP
+     * chart, the consistency component of mastery and the daily-XP bars all
+     * agree with each other.
+     */
+    ...habitAttempts(now),
+  ].sort((a, b) => a.at - b.at);
 
   /*
    * Evaluate the demo against every registered tree, not a hardcoded list.
@@ -236,9 +234,40 @@ export function buildDemoProfile(now = Date.now()) {
     }
     return 0;
   };
+  const badgeCtx = { depthOf, treeOf, requirementCount };
 
-  const withBadges = award(state, { depthOf, treeOf, requirementCount }, now);
-  return withBadges.state;
+  /*
+   * Replay, awarding as we go.
+   *
+   * Awarding once at the end stamped every badge with `now`, so an eighty-day-
+   * old profile displayed ten achievements all reading "Earned just now" — a
+   * detail small enough to ignore and precisely the kind that tells someone the
+   * data is made up. Awarding after each attempt gives every badge the date of
+   * the work that earned it, because that is when it was earned.
+   */
+  for (const { treeId, at, attempt } of timeline) {
+    const index = getIndex(treeId);
+    if (!index.byId.has(attempt.skillId)) continue;
+    state = applyAttempt(state, index, attempt, at).state;
+    state = award(state, badgeCtx, at).state;
+  }
+
+  /* A written goal, phrased the way someone would actually say it, so the
+   * demo shows the plan screen doing its job rather than an empty state. */
+  state.plan = {
+    goalText: 'Open a web design business',
+    createdAt: now - 80 * DAY,
+    minutesPerDay: 30,
+  };
+  state.goal = {
+    treeId: 'business',
+    targetSkillId: 'working_business',
+    text: 'Open a web design business',
+    createdAt: now - 80 * DAY,
+  };
+
+  /* The goal badges depend on the goal, which is set after the replay. */
+  return award(state, badgeCtx, now - 80 * DAY).state;
 }
 
 /*
@@ -251,15 +280,15 @@ export function buildDemoProfile(now = Date.now()) {
  * Rotates over skills the learner already has, which is what review actually
  * looks like, and keeps the scores high because these are not new material.
  */
-function runDailyHabit(state, now) {
+function habitAttempts(now) {
   const index = getIndex('web');
   const rotation = ['js_arrays', 'js_functions', 'css_flexbox', 'js_objects', 'git'];
-  let next = state;
+  const out = [];
 
   for (let dayBack = 11; dayBack >= 1; dayBack -= 1) {
     const skillId = rotation[(11 - dayBack) % rotation.length];
     const skill = index.byId.get(skillId);
-    if (!skill || !next.skills[skillId]) continue;
+    if (!skill) continue;
 
     const activities = (skill.activities || []).filter((a) => a.kind !== 'learn');
     if (!activities.length) continue;
@@ -271,48 +300,20 @@ function runDailyHabit(state, now) {
     const at = new Date(now - dayBack * DAY);
     at.setHours(10, 30, 0, 0);
 
-    const applied = applyAttempt(next, index, {
-      skillId,
-      activityId: activity.id,
-      kind: activity.kind,
-      score: 88 + jitter(dayBack, 8),
-      passed: true,
-      id: `demo:habit:${dayBack}`,
-    }, at.getTime());
-    next = applied.state;
+    out.push({
+      treeId: 'web',
+      at: at.getTime(),
+      attempt: {
+        skillId,
+        activityId: activity.id,
+        kind: activity.kind,
+        score: 88 + jitter(dayBack, 8),
+        passed: true,
+        id: `demo:habit:${dayBack}`,
+      },
+    });
   }
 
-  return next;
+  return out;
 }
 
-/*
- * Distinct local days with activity, folded into a current and longest run.
- * Local days rather than UTC, for the same reason `dayNumber` uses them: a
- * learner at 23:50 and 00:10 has been active twice.
- */
-function streakFromAttempts(state, now) {
-  const days = new Set();
-  for (const skill of Object.values(state.skills)) {
-    /* `dayNumber` rather than a second copy of the arithmetic — the two must
-     * agree on where a day starts or the demo's streak disagrees with the one
-     * the app computes live. */
-    for (const attempt of skill.attempts || []) days.add(dayNumber(attempt.at));
-  }
-
-  const sorted = [...days].sort((a, b) => a - b);
-  let longest = 0;
-  let run = 0;
-  let previous = null;
-
-  for (const day of sorted) {
-    run = previous !== null && day === previous + 1 ? run + 1 : 1;
-    longest = Math.max(longest, run);
-    previous = day;
-  }
-
-  const today = dayNumber(now);
-  const last = sorted[sorted.length - 1];
-  const alive = last === today || last === today - 1;
-
-  return { current: alive ? run : 0, longest, lastDay: last ?? null };
-}

@@ -10,6 +10,7 @@ import { h, clear, qsa, ensureLiveRegion } from '../core/dom.js';
 import { icon, brandMark } from './icons.js';
 import { go, currentRoute } from '../core/router.js';
 import * as session from '../core/session.js';
+import * as store from '../core/store.js';
 
 const NAV = [
   { name: 'dashboard', label: 'Home', icon: 'home' },
@@ -79,9 +80,48 @@ export function buildShell() {
 
   document.body.appendChild(app);
   document.body.appendChild(tabbar);
+  document.body.appendChild(demoBar());
   ensureLiveRegion();
 
   return { main };
+}
+
+/*
+ * A banner while the demo profile is active.
+ *
+ * #/demo switches to a populated profile called Alex and says nothing about
+ * it. Everything afterwards reads as the learner's own — "Good afternoon,
+ * Alex", 1,346 XP, a 15-day streak — and the only route back was Settings,
+ * below Appearance and Daily missions, where nobody would think to look for
+ * it. Someone who tried the demo out of curiosity was simply left in it.
+ */
+function demoBar() {
+  const bar = h('div.demobar', { hidden: true, role: 'status' });
+
+  const sync = () => {
+    const profile = store.get();
+    const on = !!profile?.demo;
+    bar.hidden = !on;
+    document.body.classList.toggle('has-demobar', on);
+    if (!on) return;
+
+    clear(bar);
+    const mine = store.listProfiles().find((p) => !p.demo);
+    /* Short on a phone, where two wrapped lines plus a button took a fifth of
+     * the screen away from the canvas below it. */
+    bar.appendChild(h('span.demobar-long', "Demo profile — this progress belongs to Alex, not to you."));
+    bar.appendChild(h('span.demobar-short', 'Demo profile'));
+    bar.appendChild(h('button.btn.small', {
+      onclick: () => {
+        if (mine) store.switchProfile(mine.id);
+        else go('onboarding');
+      },
+    }, mine ? `Back to ${mine.name || 'my profile'}` : 'Start my own'));
+  };
+
+  sync();
+  store.subscribe(sync);
+  return bar;
 }
 
 /** Mark the active nav item in both navigations at once. */

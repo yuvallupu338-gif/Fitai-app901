@@ -404,6 +404,33 @@ export function nextActivity(skillId) {
 }
 
 /**
+ * What to offer after finishing `activityId` — the next thing *forward*.
+ *
+ * `nextActivity` answers "where should I resume this skill", which is a
+ * different question and falls back to the last graded activity once
+ * everything is passed. Used as the "Next" button on a result panel, that
+ * pointed backwards: fail a quiz and the app offered the lesson you had read a
+ * minute earlier, labelled "Next".
+ *
+ * So this only ever looks later in the author's order, and only at work not
+ * already passed. Nothing suitable returns null, and the panel simply offers
+ * the way back to the tree.
+ */
+export function nextActivityAfter(skillId, activityId) {
+  const found = findSkill(skillId);
+  if (!found) return null;
+
+  const activities = found.skill.activities || [];
+  const here = activities.findIndex((a) => a.id === activityId);
+  if (here === -1) return null;
+
+  const passed = new Set((store.get()?.skills?.[skillId]?.attempts || [])
+    .filter((a) => a.passed).map((a) => a.activityId));
+
+  return activities.slice(here + 1).find((a) => !passed.has(a.id)) || null;
+}
+
+/**
  * Set the goal — both halves of it, in one place.
  *
  * `plan` is what the learner wrote; `goal` is the destination it resolved to,

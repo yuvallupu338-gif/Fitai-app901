@@ -685,7 +685,95 @@ async function main() {
   check(liveRegions > 0, 'no live region for announcing XP and unlocks');
 
   /* ============================================================== *
-   * 11. No console errors anywhere in that run
+   * 11. Ways the app used to trap or mislead you
+   *
+   * Each of these was found by walking the app and each one left the
+   * learner either stuck or looking at something untrue.
+   * ============================================================== */
+
+  /* A sheet must not outlive the screen it was opened from. Pressing Back
+   * left the backdrop mounted over the dashboard, covering every control
+   * with nothing visible to dismiss — the app was simply unusable. */
+  await page.goto(`${base}#/demo`);
+  await page.waitForTimeout(900);
+  await page.goto(`${base}#/tree`);
+  await page.waitForSelector('.node', { timeout: 8000 });
+  await page.locator('.node').first().click();
+  await page.waitForTimeout(400);
+  check(await page.locator('.sheet-backdrop').count() === 1, 'a skill sheet did not open');
+
+  await page.goBack();
+  await page.waitForTimeout(700);
+  const afterBack = await page.evaluate(() => ({
+    backdrops: document.querySelectorAll('.sheet-backdrop').length,
+    locked: document.body.classList.contains('sheet-open'),
+    top: (document.elementFromPoint(120, 100) || {}).className || '',
+  }));
+  check(afterBack.backdrops === 0 && !afterBack.locked && !/backdrop/.test(afterBack.top),
+    `going back left a sheet over the page: ${JSON.stringify(afterBack)}`);
+
+  /* On a locked skill, the requirement that is blocking you has to be the
+   * thing you can click. It was inert text, while the deeper locked skills
+   * under "Unlocks" were working buttons. */
+  await page.goto(`${base}#/tree/web`);
+  await page.waitForSelector('.node[data-state=locked]', { timeout: 8000 });
+  /* Clicked through the DOM rather than by pointer: a locked node can sit
+   * outside the framed view or under the zoom controls, and this test is about
+   * the panel's contents, not about hit-testing. */
+  await page.evaluate(() => document.querySelector('.node[data-state=locked]').click());
+  await page.waitForSelector('.sheet', { timeout: 8000 });
+  await page.waitForTimeout(300);
+  const reqRows = await page.evaluate(() => {
+    const head = [...document.querySelectorAll('.card-title')].find((t) => /Requirements/.test(t.textContent));
+    if (!head) return null;
+    return [...head.parentElement.querySelector('.list').children].map((c) => c.tagName);
+  });
+  check(reqRows && reqRows.length > 0 && reqRows.every((t) => t === 'BUTTON'),
+    `requirements were not clickable: ${JSON.stringify(reqRows)}`);
+  await page.keyboard.press('Escape');
+  await page.waitForTimeout(400);
+
+  /* The demo has to say it is the demo, and offer the way out. */
+  const demoBar = await page.evaluate(() => {
+    const b = document.querySelector('.demobar');
+    return b && !b.hidden ? { text: b.innerText, buttons: b.querySelectorAll('button').length } : null;
+  });
+  check(demoBar && /demo/i.test(demoBar.text) && demoBar.buttons >= 1,
+    'the demo profile gave no sign it was the demo, and no way back');
+
+  /* The tree opens at a readable scale rather than a fit, so most of a large
+   * tree is off-canvas. That is deliberate — but it has to be said, or the
+   * screen reads as a tree with fifteen nodes and a lot of empty space. */
+  const viewNote = await page.evaluate(() => document.querySelector('.tree-viewnote')?.textContent || '');
+  check(/\d+\s+of\s+\d+/.test(viewNote) || /^All \d+/.test(viewNote),
+    `the tree did not say how much of it was in view: "${viewNote}"`);
+
+  /* Nothing fixed to the bottom of the window may cover the tree's own
+   * controls — the demo banner did exactly that to the legend and the zoom
+   * buttons. */
+  const bottomClear = await page.evaluate(() => {
+    const bar = document.querySelector('.tree-viewbar').getBoundingClientRect();
+    const fixed = ['.tabbar', '.demobar']
+      .map((s) => document.querySelector(s))
+      .filter((el) => el && !el.hidden && getComputedStyle(el).display !== 'none')
+      .map((el) => el.getBoundingClientRect().top);
+    const floor = fixed.length ? Math.min(...fixed) : window.innerHeight;
+    return Math.round(bar.bottom) <= Math.round(floor) + 1;
+  });
+  check(bottomClear, 'a fixed bottom bar covered the tree controls');
+
+  /* Onboarding shows no navigation: every link was inert except for
+   * bouncing back to step one and discarding the answers on the way. */
+  await page.evaluate(() => window.localStorage.clear());
+  await page.goto(`${base}#/onboarding`);
+  await page.waitForTimeout(700);
+  const navDuringOnboarding = await page.evaluate(() => ['.nav', '.tabbar']
+    .map((s) => document.querySelector(s))
+    .filter((el) => el && getComputedStyle(el).display !== 'none').length);
+  check(navDuringOnboarding === 0, 'onboarding still showed navigation that only discards your answers');
+
+  /* ============================================================== *
+   * 12. No console errors anywhere in that run
    * ============================================================== */
   const realErrors = consoleErrors.filter((e) => !/favicon|ERR_FILE_NOT_FOUND/i.test(e));
   check(realErrors.length === 0, `console errors:\n    ${realErrors.slice(0, 6).join('\n    ')}`);

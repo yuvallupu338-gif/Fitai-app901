@@ -13,7 +13,7 @@
  * layer, and the domain layer looks at the answers, not at the DOM.
  */
 
-import { h, clear, num, announce } from '../core/dom.js';
+import { h, clear, num, announce, reduceMotion } from '../core/dom.js';
 import { icon } from './icons.js';
 import { findActivity } from '../data/catalog.js';
 import { statusOf, STATUS, requirementStatus } from '../domain/unlock.js';
@@ -21,7 +21,7 @@ import * as session from '../core/session.js';
 import { go } from '../core/router.js';
 import { announceEvents } from './toast.js';
 import { show } from '../domain/verify.js';
-import { labelForKind } from '../domain/xp.js';
+import { labelForKind, baseXpFor } from '../domain/xp.js';
 import { coachFor } from '../ai/coach.js';
 
 
@@ -214,13 +214,15 @@ function renderResult(host, found, outcome, opts = {}) {
   }
 
   /* ---- what next ---- */
-  const next = session.nextActivity(skill.id);
+  /* Strictly forward, and never something already passed — see
+   * session.nextActivityAfter. */
+  const next = session.nextActivityAfter(skill.id, activity.id);
   const actions = h('div.row.wrap', { style: { marginTop: 'var(--s5)', gap: 'var(--s2)' } });
 
   if (!result.passed) {
     actions.appendChild(h('button.btn.primary', { onclick: () => opts.onRetry && opts.onRetry() }, 'Try again'));
   }
-  if (next && next.id !== activity.id) {
+  if (next) {
     actions.appendChild(h('button.btn', { class: result.passed ? 'primary' : '', onclick: () => go(`activity/${next.id}`) },
       `Next — ${next.title}`));
   }
@@ -228,7 +230,7 @@ function renderResult(host, found, outcome, opts = {}) {
   panel.appendChild(actions);
 
   host.appendChild(panel);
-  panel.scrollIntoView({ behavior: 'smooth', block: 'nearest' });
+  panel.scrollIntoView({ behavior: reduceMotion ? 'auto' : 'smooth', block: 'nearest' });
   panel.focus();
 }
 
@@ -257,13 +259,18 @@ function renderLesson(host, found, startedAt) {
   body.appendChild(h('div.card',
     h('div.prose', ...(activity.body || []).map((p) => h('p', p)))));
 
+  /* The mission chip that sent the learner here promised "+10 XP"; the button
+   * it pointed at said only "Mark as read". Same number, from the same table
+   * the engine pays from. */
   const actions = h('div', { style: { marginTop: 'var(--s5)' } },
     h('button.btn.primary.big', {
       onclick: async () => {
         actions.remove();
         await finish(found, {}, startedAt, body);
       },
-    }, 'Mark as read'));
+    }, 'Mark as read'),
+    h('span.card-note', { style: { marginLeft: 'var(--s3)' } },
+      `+${baseXpFor(activity.kind)} XP`));
 
   body.appendChild(actions);
   host.appendChild(body);
@@ -434,17 +441,23 @@ function renderCode(host, found, startedAt) {
   const hintBox = h('div');
   const runBtn = h('button.btn.primary.big', 'Run tests');
 
+  /* Whether the written hint has already been revealed. Without this the
+   * offline coach answered "I am stuck" with that same hint, so pressing Hint
+   * and then Ask the coach printed the identical paragraph twice, stacked. */
+  let seenHint = false;
+
   const actions = h('div.row.wrap', { style: { marginTop: 'var(--s4)', gap: 'var(--s2)' } },
     runBtn,
     activity.hint
       ? h('button.btn', {
         onclick: (e) => {
+          seenHint = true;
           e.target.remove();
           hintBox.appendChild(h('div.notice', icon('info', { size: 16 }), h('span', activity.hint)));
         },
       }, 'Hint')
       : null,
-    h('button.btn.ghost', { onclick: () => askCoach(found, editor.value, hintBox) },
+    h('button.btn.ghost', { onclick: () => askCoach(found, editor.value, hintBox, seenHint) },
       icon('sparkle', { size: 15 }), 'Ask the coach'));
 
   runBtn.addEventListener('click', async () => {
@@ -473,7 +486,7 @@ function renderCode(host, found, startedAt) {
   host.appendChild(body);
 }
 
-async function askCoach(found, source, host) {
+async function askCoach(found, source, host, seenHint = false) {
   const box = h('div.card.quiet', { style: { marginTop: 'var(--s3)' } },
     h('div.row', { style: { gap: 'var(--s2)', color: 'var(--bone-dim)', fontSize: '13px' } },
       icon('sparkle', { size: 15 }), 'Thinking…'));
@@ -483,6 +496,7 @@ async function askCoach(found, source, host) {
     skill: found.skill,
     activity: found.activity,
     source,
+    seenHint,
     question: 'I am stuck on this challenge. Give me a nudge, not the answer.',
   });
 

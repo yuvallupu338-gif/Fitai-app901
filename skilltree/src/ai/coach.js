@@ -84,9 +84,9 @@ Rules:
  * screen it was called from. A failure degrades to the offline coach with the
  * reason attached.
  */
-export async function coachFor({ skill, activity, source, question, history = [] }) {
+export async function coachFor({ skill, activity, source, question, history = [], seenHint = false }) {
   if (!hasAnyKey()) {
-    return { text: offlineAnswer({ skill, activity, question, source }), offline: true };
+    return { text: offlineAnswer({ skill, activity, question, source, seenHint }), offline: true };
   }
 
   const context = contextFor(skill);
@@ -126,14 +126,20 @@ export async function coachFor({ skill, activity, source, question, history = []
  * prerequisites or activity list. It is not pretending to be a model — the UI
  * labels it — but it answers the four questions learners actually ask.
  */
-function offlineAnswer({ skill, activity, question, source }) {
+/*
+ * `seenHint` says the learner has already been shown `activity.hint` — they
+ * pressed Hint before asking. Returning it again produced the same paragraph
+ * twice, stacked, which reads as the coach having nothing to say. It moves on
+ * to the next-best answer instead.
+ */
+function offlineAnswer({ skill, activity, question, source, seenHint = false }) {
   const q = String(question || '').toLowerCase();
   const state = session.freshProfile();
   const progress = state?.skills?.[skill.id];
 
   /* "give me an easier one" / "I'm stuck" */
   if (/stuck|hint|nudge|easier|help|hard/.test(q)) {
-    if (activity?.hint) return activity.hint;
+    if (activity?.hint && !seenHint) return activity.hint;
 
     if (source && !source.trim()) {
       return `Start by writing the function signature and returning something — anything. Getting a failing test to fail *differently* tells you more than staring at a blank editor.`;
