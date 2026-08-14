@@ -16,7 +16,8 @@ import { mountTree } from './tree.js';
 import { openSkill } from './skillpanel.js';
 import { xpChart, radarChart } from './charts.js';
 import { allTrees, getTree, getIndex, searchSkills, findSkill } from '../data/catalog.js';
-import { statusOf, STATUS } from '../domain/unlock.js';
+import { statusOf, STATUS, requirementStatus } from '../domain/unlock.js';
+import { computeDepths } from '../domain/graph.js';
 import { xpByDay, totalXp, xpSince } from '../domain/xp.js';
 import { ACHIEVEMENTS } from '../domain/achievements.js';
 import { INTENSITY } from '../domain/missions.js';
@@ -30,6 +31,27 @@ import { toast } from './toast.js';
  * ------------------------------------------------------------------ */
 
 let mounted = null;
+
+/*
+ * Map or list, remembered for the session.
+ *
+ * The graph is 2,100 to 2,820 pixels wide and a phone canvas is 343. At any
+ * scale where a label can be read, that is roughly two columns of nodes — so
+ * the canvas on a phone is a window you pan, and no amount of reframing
+ * changes that; fitting the height instead only trades legibility for the same
+ * three or four visible nodes.
+ *
+ * A list does not have that problem. Same data, same statuses, same gates,
+ * ordered by depth so it reads as the progression it is — and every row is a
+ * tap. It defaults to the list on a narrow screen and the map on a wide one,
+ * and either can be chosen anywhere, because an index of a big tree is useful
+ * on a laptop too.
+ */
+let treeView = null;
+
+function defaultTreeView() {
+  return (typeof window !== 'undefined' && window.innerWidth <= 860) ? 'list' : 'map';
+}
 
 /**
  * Unmount the graph.
@@ -48,7 +70,15 @@ export function destroyTree() {
 export function renderTree(host, params, query) {
   const state = session.freshProfile();
   const trees = allTrees();
-  const treeId = params[0] && getTree(params[0]) ? params[0] : (state.goal?.treeId || trees[0].id);
+  /* Which tree to open when the URL does not say: the one the programme is
+   * actually working through, then the stored goal's, then the first. Using
+   * `goal.treeId` alone opened the tree holding the primary destination even
+   * when every unfinished step was in the other one. */
+  const planned = session.programme();
+  const nextStep = planned?.steps.find((s) => !s.done);
+  const treeId = params[0] && getTree(params[0])
+    ? params[0]
+    : (nextStep?.treeId || state.goal?.treeId || trees[0].id);
   const tree = getTree(treeId);
 
   /*
@@ -97,7 +127,15 @@ export function renderTree(host, params, query) {
     page.appendChild(toggle);
   }
 
-  /* Search across every tree, not just this one. */
+  /*
+   * Search across every tree, not just this one.
+   *
+   * Collapsed behind its own icon on a phone. It was a permanent 39px row plus
+   * its margin above the canvas, on a screen where the canvas had 447 of 812
+   * pixels — and searching is the rarer thing to want here. The toggle is a
+   * real button with aria-expanded rather than a decoration, and the field is
+   * always present on a wide screen, where the space is not contested.
+   */
   const results = h('div');
   const search = h('input.input', {
     type: 'search',
@@ -105,12 +143,40 @@ export function renderTree(host, params, query) {
     'aria-label': 'Search skills',
     oninput: (e) => renderSearch(results, e.target.value, host),
   });
-  page.appendChild(h('div.row.tree-search', { style: { gap: 'var(--s2)' } },
-    h('span', { style: { color: 'var(--bone-dimmer)', display: 'flex' } }, icon('search', { size: 17 })),
-    search));
+
+  const searchRow = h('div.row.tree-search', { style: { gap: 'var(--s2)' } },
+    h('span.tree-search-mark', { style: { color: 'var(--bone-dimmer)', display: 'flex' } },
+      icon('search', { size: 17 })),
+    search);
+
+  const searchToggle = h('button.btn.small.tree-search-toggle', {
+    type: 'button',
+    'aria-expanded': 'false',
+    'aria-label': 'Search skills',
+    onclick: () => {
+      const open = searchRow.classList.toggle('open');
+      searchToggle.setAttribute('aria-expanded', String(open));
+      if (open) search.focus();
+      else { search.value = ''; clear(results); }
+      if (mounted) window.requestAnimationFrame(() => mounted.resize());
+    },
+  }, icon('search', { size: 16 }));
+
+  page.appendChild(searchRow);
   page.appendChild(results);
 
+  const view = treeView || defaultTreeView();
+
+  const viewSwitch = h('div.row.viewswitch', { role: 'group', 'aria-label': 'Tree view' },
+    ...[['map', 'Map', 'tree'], ['list', 'List', 'list']].map(([key, label, glyph]) => h('button.chip', {
+      type: 'button',
+      class: view === key ? 'on' : '',
+      'aria-pressed': String(view === key),
+      onclick: () => { treeView = key; renderTree(host, params, query); },
+    }, icon(glyph, { size: 14 }), label)));
+
   const canvasHost = h('div');
+  page.appendChild(h('div.row.between.tree-toolbar', searchToggle, viewSwitch));
   page.appendChild(canvasHost);
 
   /*
@@ -143,6 +209,16 @@ export function renderTree(host, params, query) {
   host.appendChild(page);
 
   if (mounted) mounted.destroy();
+  mounted = null;
+
+  if (view === 'list') {
+    renderTreeList(canvasHost, {
+      treeId, state, goalSet: new Set(goalPath),
+      onChange: () => renderTree(host, params, query),
+    });
+    return;
+  }
+
   mounted = mountTree(canvasHost, {
     treeId,
     state,
@@ -155,6 +231,68 @@ export function renderTree(host, params, query) {
   /* Deep link from a result or from an activity's back button. */
   const target = query?.skill;
   if (target && mounted) window.requestAnimationFrame(() => mounted.focusSkill(target));
+}
+
+/*
+ * The tree as a list.
+ *
+ * Grouped by depth — every skill at the same distance from a root sits
+ * together — because that is the order the graph encodes and the order a
+ * learner moves through it. Each row carries the same three signals the node
+ * does: status, level, and whether it is on the goal path. Locked rows say
+ * what is missing rather than merely being dimmed, which is the one thing the
+ * canvas cannot show without opening the panel.
+ */
+function renderTreeList(host, { treeId, state, goalSet, onChange }) {
+  const index = getIndex(treeId);
+  const depths = computeDepths(index);
+  const progressOf = (id) => state.skills[id];
+
+  const tiers = new Map();
+  for (const [skillId, depth] of depths) {
+    if (!tiers.has(depth)) tiers.set(depth, []);
+    tiers.get(depth).push(skillId);
+  }
+
+  const list = h('div.stack.tree-list');
+
+  for (const depth of [...tiers.keys()].sort((a, b) => a - b)) {
+    const ids = tiers.get(depth).sort((a, b) => (
+      index.byId.get(a).name.localeCompare(index.byId.get(b).name)));
+
+    const rows = ids.map((skillId) => {
+      const skill = index.byId.get(skillId);
+      const status = statusOf(index, skillId, progressOf);
+      const progress = state.skills[skillId];
+      const missing = status === STATUS.LOCKED
+        ? requirementStatus(index, skillId, progressOf).filter((r) => !r.met)
+        : [];
+
+      return h('button.list-item', {
+        class: goalSet.has(skillId) ? 'on-path-row' : '',
+        onclick: () => openSkill(skillId, { onChange }),
+      },
+      h('div.grow',
+        h('div.title', skill.name),
+        h('div.sub', missing.length
+          ? `Needs ${missing.map((r) => `${r.name} at level ${r.needLevel}`).join(', ')}`
+          : `${skill.category || ''}${progress?.masteryScore ? ` · mastery ${Math.round(progress.masteryScore)}%` : ''}`)),
+      h('div.row.list-meta', { style: { gap: 'var(--s2)' } },
+        /* The accent bar down the left already marks the path on a narrow
+         * row, so the chip is dropped there rather than crushing the title. */
+        goalSet.has(skillId) ? h('span.chip.on.hide-narrow', 'On your path') : null,
+        h('span.chip', { class: status === STATUS.LOCKED ? '' : 'on' }, statusLabel(status)),
+        progress?.level ? h('span.lvl', { class: progress.level >= 5 ? 'on' : '' }, `Lv.${progress.level}`) : null));
+    });
+
+    list.appendChild(h('div.card',
+      h('div.card-head',
+        h('span.card-title', depth === 0 ? 'Start here' : `Step ${depth + 1}`),
+        h('span.card-note.num', `${ids.length} skill${ids.length === 1 ? '' : 's'}`)),
+      h('div.list', ...rows)));
+  }
+
+  host.appendChild(list);
 }
 
 function renderSearch(host, query, screenHost) {

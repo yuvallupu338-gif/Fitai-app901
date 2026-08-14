@@ -583,6 +583,10 @@ export function mountTree(host, opts) {
     shell,
     fit,
     frameView,
+    /* Re-measure and re-frame after something above the canvas changed size —
+     * the search collapsing on a phone gives the shell 50 more pixels, and the
+     * height fit depends on having them. */
+    resize() { sizeShell(); frameView(); syncViewNote(); },
     focusSkill(skillId) {
       const el = nodeEls.get(skillId);
       if (!el) return;

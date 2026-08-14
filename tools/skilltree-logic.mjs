@@ -1103,6 +1103,22 @@ eq('a real attempt after seeding starts the streak', seededThenReal.streak.curre
 check('the skill is no longer marked never practised',
   seededThenReal.skills.internet_basics.neverPractised === false);
 
+/*
+ * A goal that spans two trees is served from both.
+ *
+ * The candidate set and the "on the path to your goal" boost were built from
+ * `goal.treeId`, which names one tree — so for "open a web design business",
+ * which needs the business tree *and* the web tree, half the plan could not be
+ * recommended from at all and none of its skills were boosted.
+ */
+check('a cross-tree goal recommends from every tree it crosses', (() => {
+  const p = buildDemoProfile(Date.UTC(2026, 1, 20));
+  const spans = new Set(goals.buildProgramme({
+    catalog: catalogModule, state: p, goalText: p.plan.goalText, minutesPerDay: 30,
+  }).steps.map((s) => s.treeId));
+  return spans.size >= 2;
+})(), 'the demo goal no longer spans more than one tree — pick another for this test');
+
 /* ================================================================== *
  * Colour contrast
  *

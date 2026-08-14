@@ -293,12 +293,24 @@ export function recommendations(limit = 3, now = Date.now()) {
     const treeId = treeOf(skillId);
     if (treeId) treeIds.add(treeId);
   }
-  if (p.goal?.treeId) treeIds.add(p.goal.treeId);
+
+  /*
+   * The whole programme, not just the tree holding the primary destination.
+   *
+   * `goal.treeId` names one tree, and a goal like "open a web design business"
+   * spans two — so half the plan could not be recommended from, and the
+   * boosting that makes a recommendation "on the way to your goal" simply did
+   * not apply to those skills. The programme knows every tree it crosses; both
+   * the candidate set and the path boost now come from it.
+   */
+  const plan = programme(now);
+  const path = plan ? plan.steps.map((s) => s.skillId) : [];
+  if (plan) for (const step of plan.steps) treeIds.add(step.treeId);
+  else if (p.goal?.treeId) treeIds.add(p.goal.treeId);
+
   /* A brand-new profile has touched nothing; recommend from every tree rather
    * than returning an empty list to a learner who has just signed up. */
   if (!treeIds.size) for (const t of allTrees()) treeIds.add(t.id);
-
-  const path = p.goal ? goalPathFor(p.goal).map((s) => s.skillId) : [];
 
   const merged = [];
   for (const treeId of treeIds) {

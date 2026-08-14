@@ -1767,6 +1767,56 @@ body.onboarding .demobar { display: none; }
 .tree-card { display: flex; flex-direction: column; }
 .tree-card-foot { margin-top: auto; padding-top: var(--s4); }
 
+/* ------------------------------------------------------------------ *
+ * Tree search, collapsible on a phone
+ * ------------------------------------------------------------------ */
+
+/* On a wide screen the field is simply there and the toggle is not needed. */
+.tree-search-toggle { display: none; }
+
+@media (max-width: 860px) {
+  /*
+   * The canvas is the screen here, and a permanent search row cost it 50px of
+   * an already tight budget. The toggle sits in the flow above the canvas and
+   * the field appears under it when asked for.
+   */
+  .tree-search-toggle {
+    display: inline-flex;
+    align-self: flex-start;
+    width: 40px;
+    padding: 0;
+  }
+  .tree-search { display: none; }
+  .tree-search.open { display: flex; }
+}
+
+/* Map / List switch, and the toolbar that carries it with the search toggle. */
+.tree-toolbar { margin-bottom: var(--s3); gap: var(--s3); }
+.viewswitch { gap: var(--s2); }
+.viewswitch .chip { cursor: pointer; padding: 5px 11px; }
+.viewswitch .chip svg { width: 14px; height: 14px; }
+
+/* A goal-path row in the list carries the same accent mark the node does. */
+.list-item.on-path-row { box-shadow: inset 2px 0 0 var(--accent-ink); }
+
+/*
+ * Tree-list rows.
+ *
+ * The status chips and the level badge together are wider than a phone row has
+ * to spare, and flex duly took it out of the title — "How the Web Works" set
+ * one character per line. The title gets the first line to itself and the meta
+ * wraps under it; on a wide screen it all sits on one line as before.
+ */
+.tree-list .list-item { flex-wrap: wrap; row-gap: var(--s2); }
+.tree-list .list-item .grow { min-width: 55%; }
+.tree-list .list-meta { margin-left: auto; flex: none; }
+
+@media (max-width: 560px) {
+  .tree-list .list-item .grow { min-width: 100%; }
+  .tree-list .list-meta { margin-left: 0; }
+  .hide-narrow { display: none; }
+}
+
 </style>
 </head>
 <body>
@@ -2108,6 +2158,7 @@ const PATHS = {
 
   /* actions */
   search: ['M11 19a8 8 0 1 0 0-16 8 8 0 0 0 0 16Z', 'm21 21-4.3-4.3'],
+  list: ['M8 6h13', 'M8 12h13', 'M8 18h13', 'M3.5 6h.01', 'M3.5 12h.01', 'M3.5 18h.01'],
   arrow: ['M5 12h14', 'm13 6 6 6-6 6'],
   back: ['M19 12H5', 'm11 18-6-6 6-6'],
   chevron: ['m9 6 6 6-6 6'],
@@ -10481,12 +10532,24 @@ function recommendations(limit = 3, now = Date.now()) {
     const treeId = treeOf(skillId);
     if (treeId) treeIds.add(treeId);
   }
-  if (p.goal?.treeId) treeIds.add(p.goal.treeId);
+
+  /*
+   * The whole programme, not just the tree holding the primary destination.
+   *
+   * `goal.treeId` names one tree, and a goal like "open a web design business"
+   * spans two — so half the plan could not be recommended from, and the
+   * boosting that makes a recommendation "on the way to your goal" simply did
+   * not apply to those skills. The programme knows every tree it crosses; both
+   * the candidate set and the path boost now come from it.
+   */
+  const plan = programme(now);
+  const path = plan ? plan.steps.map((s) => s.skillId) : [];
+  if (plan) for (const step of plan.steps) treeIds.add(step.treeId);
+  else if (p.goal?.treeId) treeIds.add(p.goal.treeId);
+
   /* A brand-new profile has touched nothing; recommend from every tree rather
    * than returning an empty list to a learner who has just signed up. */
   if (!treeIds.size) for (const t of allTrees()) treeIds.add(t.id);
-
-  const path = p.goal ? goalPathFor(p.goal).map((s) => s.skillId) : [];
 
   const merged = [];
   for (const treeId of treeIds) {
@@ -14081,6 +14144,10 @@ function mountTree(host, opts) {
     shell,
     fit,
     frameView,
+    /* Re-measure and re-frame after something above the canvas changed size —
+     * the search collapsing on a phone gives the shell 50 more pixels, and the
+     * height fit depends on having them. */
+    resize() { sizeShell(); frameView(); syncViewNote(); },
     focusSkill(skillId) {
       const el = nodeEls.get(skillId);
       if (!el) return;
@@ -14965,7 +15032,8 @@ const { mountTree } = __m["skilltree/src/ui/tree.js"];
 const { openSkill } = __m["skilltree/src/ui/skillpanel.js"];
 const { xpChart, radarChart } = __m["skilltree/src/ui/charts.js"];
 const { allTrees, getTree, getIndex, searchSkills, findSkill } = __m["skilltree/src/data/catalog.js"];
-const { statusOf, STATUS } = __m["skilltree/src/domain/unlock.js"];
+const { statusOf, STATUS, requirementStatus } = __m["skilltree/src/domain/unlock.js"];
+const { computeDepths } = __m["skilltree/src/domain/graph.js"];
 const { xpByDay, totalXp, xpSince } = __m["skilltree/src/domain/xp.js"];
 const { ACHIEVEMENTS } = __m["skilltree/src/domain/achievements.js"];
 const { INTENSITY } = __m["skilltree/src/domain/missions.js"];
@@ -14979,6 +15047,27 @@ const { toast } = __m["skilltree/src/ui/toast.js"];
  * ------------------------------------------------------------------ */
 
 let mounted = null;
+
+/*
+ * Map or list, remembered for the session.
+ *
+ * The graph is 2,100 to 2,820 pixels wide and a phone canvas is 343. At any
+ * scale where a label can be read, that is roughly two columns of nodes — so
+ * the canvas on a phone is a window you pan, and no amount of reframing
+ * changes that; fitting the height instead only trades legibility for the same
+ * three or four visible nodes.
+ *
+ * A list does not have that problem. Same data, same statuses, same gates,
+ * ordered by depth so it reads as the progression it is — and every row is a
+ * tap. It defaults to the list on a narrow screen and the map on a wide one,
+ * and either can be chosen anywhere, because an index of a big tree is useful
+ * on a laptop too.
+ */
+let treeView = null;
+
+function defaultTreeView() {
+  return (typeof window !== 'undefined' && window.innerWidth <= 860) ? 'list' : 'map';
+}
 
 /**
  * Unmount the graph.
@@ -14997,7 +15086,15 @@ function destroyTree() {
 function renderTree(host, params, query) {
   const state = session.freshProfile();
   const trees = allTrees();
-  const treeId = params[0] && getTree(params[0]) ? params[0] : (state.goal?.treeId || trees[0].id);
+  /* Which tree to open when the URL does not say: the one the programme is
+   * actually working through, then the stored goal's, then the first. Using
+   * `goal.treeId` alone opened the tree holding the primary destination even
+   * when every unfinished step was in the other one. */
+  const planned = session.programme();
+  const nextStep = planned?.steps.find((s) => !s.done);
+  const treeId = params[0] && getTree(params[0])
+    ? params[0]
+    : (nextStep?.treeId || state.goal?.treeId || trees[0].id);
   const tree = getTree(treeId);
 
   /*
@@ -15046,7 +15143,15 @@ function renderTree(host, params, query) {
     page.appendChild(toggle);
   }
 
-  /* Search across every tree, not just this one. */
+  /*
+   * Search across every tree, not just this one.
+   *
+   * Collapsed behind its own icon on a phone. It was a permanent 39px row plus
+   * its margin above the canvas, on a screen where the canvas had 447 of 812
+   * pixels — and searching is the rarer thing to want here. The toggle is a
+   * real button with aria-expanded rather than a decoration, and the field is
+   * always present on a wide screen, where the space is not contested.
+   */
   const results = h('div');
   const search = h('input.input', {
     type: 'search',
@@ -15054,12 +15159,40 @@ function renderTree(host, params, query) {
     'aria-label': 'Search skills',
     oninput: (e) => renderSearch(results, e.target.value, host),
   });
-  page.appendChild(h('div.row.tree-search', { style: { gap: 'var(--s2)' } },
-    h('span', { style: { color: 'var(--bone-dimmer)', display: 'flex' } }, icon('search', { size: 17 })),
-    search));
+
+  const searchRow = h('div.row.tree-search', { style: { gap: 'var(--s2)' } },
+    h('span.tree-search-mark', { style: { color: 'var(--bone-dimmer)', display: 'flex' } },
+      icon('search', { size: 17 })),
+    search);
+
+  const searchToggle = h('button.btn.small.tree-search-toggle', {
+    type: 'button',
+    'aria-expanded': 'false',
+    'aria-label': 'Search skills',
+    onclick: () => {
+      const open = searchRow.classList.toggle('open');
+      searchToggle.setAttribute('aria-expanded', String(open));
+      if (open) search.focus();
+      else { search.value = ''; clear(results); }
+      if (mounted) window.requestAnimationFrame(() => mounted.resize());
+    },
+  }, icon('search', { size: 16 }));
+
+  page.appendChild(searchRow);
   page.appendChild(results);
 
+  const view = treeView || defaultTreeView();
+
+  const viewSwitch = h('div.row.viewswitch', { role: 'group', 'aria-label': 'Tree view' },
+    ...[['map', 'Map', 'tree'], ['list', 'List', 'list']].map(([key, label, glyph]) => h('button.chip', {
+      type: 'button',
+      class: view === key ? 'on' : '',
+      'aria-pressed': String(view === key),
+      onclick: () => { treeView = key; renderTree(host, params, query); },
+    }, icon(glyph, { size: 14 }), label)));
+
   const canvasHost = h('div');
+  page.appendChild(h('div.row.between.tree-toolbar', searchToggle, viewSwitch));
   page.appendChild(canvasHost);
 
   /*
@@ -15092,6 +15225,16 @@ function renderTree(host, params, query) {
   host.appendChild(page);
 
   if (mounted) mounted.destroy();
+  mounted = null;
+
+  if (view === 'list') {
+    renderTreeList(canvasHost, {
+      treeId, state, goalSet: new Set(goalPath),
+      onChange: () => renderTree(host, params, query),
+    });
+    return;
+  }
+
   mounted = mountTree(canvasHost, {
     treeId,
     state,
@@ -15104,6 +15247,68 @@ function renderTree(host, params, query) {
   /* Deep link from a result or from an activity's back button. */
   const target = query?.skill;
   if (target && mounted) window.requestAnimationFrame(() => mounted.focusSkill(target));
+}
+
+/*
+ * The tree as a list.
+ *
+ * Grouped by depth — every skill at the same distance from a root sits
+ * together — because that is the order the graph encodes and the order a
+ * learner moves through it. Each row carries the same three signals the node
+ * does: status, level, and whether it is on the goal path. Locked rows say
+ * what is missing rather than merely being dimmed, which is the one thing the
+ * canvas cannot show without opening the panel.
+ */
+function renderTreeList(host, { treeId, state, goalSet, onChange }) {
+  const index = getIndex(treeId);
+  const depths = computeDepths(index);
+  const progressOf = (id) => state.skills[id];
+
+  const tiers = new Map();
+  for (const [skillId, depth] of depths) {
+    if (!tiers.has(depth)) tiers.set(depth, []);
+    tiers.get(depth).push(skillId);
+  }
+
+  const list = h('div.stack.tree-list');
+
+  for (const depth of [...tiers.keys()].sort((a, b) => a - b)) {
+    const ids = tiers.get(depth).sort((a, b) => (
+      index.byId.get(a).name.localeCompare(index.byId.get(b).name)));
+
+    const rows = ids.map((skillId) => {
+      const skill = index.byId.get(skillId);
+      const status = statusOf(index, skillId, progressOf);
+      const progress = state.skills[skillId];
+      const missing = status === STATUS.LOCKED
+        ? requirementStatus(index, skillId, progressOf).filter((r) => !r.met)
+        : [];
+
+      return h('button.list-item', {
+        class: goalSet.has(skillId) ? 'on-path-row' : '',
+        onclick: () => openSkill(skillId, { onChange }),
+      },
+      h('div.grow',
+        h('div.title', skill.name),
+        h('div.sub', missing.length
+          ? `Needs ${missing.map((r) => `${r.name} at level ${r.needLevel}`).join(', ')}`
+          : `${skill.category || ''}${progress?.masteryScore ? ` · mastery ${Math.round(progress.masteryScore)}%` : ''}`)),
+      h('div.row.list-meta', { style: { gap: 'var(--s2)' } },
+        /* The accent bar down the left already marks the path on a narrow
+         * row, so the chip is dropped there rather than crushing the title. */
+        goalSet.has(skillId) ? h('span.chip.on.hide-narrow', 'On your path') : null,
+        h('span.chip', { class: status === STATUS.LOCKED ? '' : 'on' }, statusLabel(status)),
+        progress?.level ? h('span.lvl', { class: progress.level >= 5 ? 'on' : '' }, `Lv.${progress.level}`) : null));
+    });
+
+    list.appendChild(h('div.card',
+      h('div.card-head',
+        h('span.card-title', depth === 0 ? 'Start here' : `Step ${depth + 1}`),
+        h('span.card-note.num', `${ids.length} skill${ids.length === 1 ? '' : 's'}`)),
+      h('div.list', ...rows)));
+  }
+
+  host.appendChild(list);
 }
 
 function renderSearch(host, query, screenHost) {

@@ -1197,3 +1197,53 @@ body.onboarding .demobar { display: none; }
  * tagline above them does. */
 .tree-card { display: flex; flex-direction: column; }
 .tree-card-foot { margin-top: auto; padding-top: var(--s4); }
+
+/* ------------------------------------------------------------------ *
+ * Tree search, collapsible on a phone
+ * ------------------------------------------------------------------ */
+
+/* On a wide screen the field is simply there and the toggle is not needed. */
+.tree-search-toggle { display: none; }
+
+@media (max-width: 860px) {
+  /*
+   * The canvas is the screen here, and a permanent search row cost it 50px of
+   * an already tight budget. The toggle sits in the flow above the canvas and
+   * the field appears under it when asked for.
+   */
+  .tree-search-toggle {
+    display: inline-flex;
+    align-self: flex-start;
+    width: 40px;
+    padding: 0;
+  }
+  .tree-search { display: none; }
+  .tree-search.open { display: flex; }
+}
+
+/* Map / List switch, and the toolbar that carries it with the search toggle. */
+.tree-toolbar { margin-bottom: var(--s3); gap: var(--s3); }
+.viewswitch { gap: var(--s2); }
+.viewswitch .chip { cursor: pointer; padding: 5px 11px; }
+.viewswitch .chip svg { width: 14px; height: 14px; }
+
+/* A goal-path row in the list carries the same accent mark the node does. */
+.list-item.on-path-row { box-shadow: inset 2px 0 0 var(--accent-ink); }
+
+/*
+ * Tree-list rows.
+ *
+ * The status chips and the level badge together are wider than a phone row has
+ * to spare, and flex duly took it out of the title — "How the Web Works" set
+ * one character per line. The title gets the first line to itself and the meta
+ * wraps under it; on a wide screen it all sits on one line as before.
+ */
+.tree-list .list-item { flex-wrap: wrap; row-gap: var(--s2); }
+.tree-list .list-item .grow { min-width: 55%; }
+.tree-list .list-meta { margin-left: auto; flex: none; }
+
+@media (max-width: 560px) {
+  .tree-list .list-item .grow { min-width: 100%; }
+  .tree-list .list-meta { margin-left: 0; }
+  .hide-narrow { display: none; }
+}

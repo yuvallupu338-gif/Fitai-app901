@@ -592,10 +592,18 @@ async function main() {
       check(statRows.rows < statRows.tiles,
         `${label}: ${statRows.tiles} stat tiles occupy ${statRows.rows} rows — they are stacking one per row`);
 
-      /* The tree is the product on this screen: its canvas must be visible
+      /*
+       * The tree is the product on this screen: its canvas must be visible
        * above the tab bar, with its controls reachable, and the tree switcher
-       * must not wrap into several rows and push it down. */
+       * must not wrap into several rows and push it down.
+       *
+       * A phone opens on the list, so the map has to be asked for — see the
+       * view switch. The geometry below is about the canvas, so this switches
+       * to it deliberately rather than assuming which view is showing.
+       */
       await page.goto(`${base}#/tree`);
+      await page.waitForSelector('.viewswitch', { timeout: 8000 });
+      await page.locator('.viewswitch .chip', { hasText: 'Map' }).click();
       await page.waitForSelector('.node', { timeout: 8000 });
       await page.waitForTimeout(600);
       const treeFit = await page.evaluate(() => {
@@ -631,6 +639,8 @@ async function main() {
   /* The skill panel becomes a bottom sheet on a phone. */
   await page.setViewportSize({ width: 375, height: 812 });
   await page.goto(`${base}#/tree/web`);
+  await page.waitForSelector('.viewswitch', { timeout: 8000 });
+  await page.locator('.viewswitch .chip', { hasText: 'Map' }).click();
   await page.waitForSelector('.node', { timeout: 8000 });
   /* The canvas re-frames itself on mount and on resize, both inside an
    * animation frame. Measuring before that settles gives coordinates that are
@@ -843,6 +853,45 @@ async function main() {
   check(pathMarks.edges > 0, 'the goal path was marked on nodes but not on the edges between them');
   check(pathMarks.marked === pathMarks.chips,
     `the canvas marks ${pathMarks.marked} skills on the goal path, the list below shows ${pathMarks.chips}`);
+
+  /*
+   * The tree is usable on a phone.
+   *
+   * The graph is 2,100–2,820px wide and a phone canvas is 343, so at any scale
+   * where a label can be read that is about two columns — three or four of
+   * thirty-three nodes, in a canvas that looked broken. No reframing fixes
+   * that; fitting the height only trades legibility for the same few nodes. So
+   * the tree screen also has a list, defaulted to on a narrow screen, which
+   * reaches every skill.
+   */
+  await page.setViewportSize({ width: 375, height: 812 });
+  await page.goto(`${base}#/tree/web`);
+  /* A full reload, because the map/list choice is remembered for the session
+   * and earlier phases of this run have used the map. The default is what is
+   * under test here. */
+  await page.reload();
+  await page.waitForSelector('.viewswitch', { timeout: 8000 });
+  await page.waitForTimeout(800);
+
+  const onPhone = await page.evaluate(() => ({
+    view: document.querySelector('.viewswitch .chip.on')?.textContent.trim(),
+    rows: document.querySelectorAll('.tree-list .list-item').length,
+    canvas: !!document.querySelector('.tree-shell'),
+    crushed: [...document.querySelectorAll('.tree-list .title')]
+      .filter((t) => t.getBoundingClientRect().width < 120).length,
+  }));
+  check(onPhone.view === 'List', `the tree did not default to the list on a phone (${onPhone.view})`);
+  check(onPhone.rows >= 30, `the list reached only ${onPhone.rows} of the web tree's skills`);
+  check(!onPhone.canvas, 'the list view still mounted the canvas');
+  check(onPhone.crushed === 0, `${onPhone.crushed} list titles were squeezed to under 120px`);
+
+  /* And the map is one tap away, and still works. */
+  await page.locator('.viewswitch .chip', { hasText: 'Map' }).click();
+  await page.waitForSelector('.tree-shell', { timeout: 8000 });
+  check(await page.locator('.node').count() > 0, 'switching back to the map drew no nodes');
+
+  await page.setViewportSize({ width: 1440, height: 900 });
+  await page.waitForTimeout(400);
 
   /* Onboarding shows no navigation: every link was inert except for
    * bouncing back to step one and discarding the answers on the way. */
