@@ -17,6 +17,7 @@ import { renderOnboarding } from './ui/onboarding.js';
 import { renderPlan } from './ui/plan.js';
 import {
   renderTree, renderExplore, renderProgress, renderAchievements, renderProfile, renderSettings,
+  destroyTree,
 } from './ui/screens.js';
 import { buildDemoProfile } from './data/demo.js';
 import { findActivity, findSkill, allTrees } from './data/catalog.js';
@@ -106,7 +107,11 @@ onNavigate(() => {
   syncNav();
   /* Reset scroll on navigation. Without this, moving from a long tree page to
    * the dashboard lands halfway down it. */
-  if (currentRoute()?.name !== 'tree') window.scrollTo(0, 0);
+  if (currentRoute()?.name !== 'tree') {
+    window.scrollTo(0, 0);
+    /* And let the graph go: it holds a window resize listener. */
+    destroyTree();
+  }
 });
 
 /*

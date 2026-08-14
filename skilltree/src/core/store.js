@@ -85,12 +85,20 @@ export function emptyProfile(name = '', id = null) {
     plan: null,
     missions: null,
     analytics: [],
+    /*
+     * Only settings something actually reads.
+     *
+     * There were three more — aiRecommendations, leaderboard, reducedMotion —
+     * written into every profile, persisted forever, and read by nothing. Two
+     * of them describe features that do not exist (recommendations here are
+     * deterministic, and there is no server to hold a leaderboard), and
+     * reduced motion is taken from the OS media query, which is the setting
+     * the learner already made. A stored flag nothing consults is a promise
+     * the app is not keeping.
+     */
     settings: {
       theme: 'dark',
       intensity: 'normal',
-      aiRecommendations: true,
-      leaderboard: false,
-      reducedMotion: false,
     },
   };
 }

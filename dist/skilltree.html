@@ -2230,12 +2230,20 @@ function emptyProfile(name = '', id = null) {
     plan: null,
     missions: null,
     analytics: [],
+    /*
+     * Only settings something actually reads.
+     *
+     * There were three more — aiRecommendations, leaderboard, reducedMotion —
+     * written into every profile, persisted forever, and read by nothing. Two
+     * of them describe features that do not exist (recommendations here are
+     * deterministic, and there is no server to hold a leaderboard), and
+     * reduced motion is taken from the OS media query, which is the setting
+     * the learner already made. A stored flag nothing consults is a promise
+     * the app is not keeping.
+     */
     settings: {
       theme: 'dark',
       intensity: 'normal',
-      aiRecommendations: true,
-      leaderboard: false,
-      reducedMotion: false,
     },
   };
 }
@@ -9353,6 +9361,11 @@ function freshCopy(value) {
 async function runCase(source, entry, test, timeoutMs) {
   const args = freshCopy(test.args || []);
   const expected = freshCopy(test.expected);
+  /* Cleared in `finally`, so the timer for a test that passed in 2ms is not
+   * left holding a rejection for another quarter second. Running a challenge's
+   * eight cases left eight of them pending, and a learner iterating on a code
+   * challenge runs them over and over. */
+  let timer = null;
   try {
     const fn = buildRunner(source, entry, test, timeoutMs);
     /* The guard handles synchronous loops; the race additionally catches an
@@ -9360,7 +9373,7 @@ async function runCase(source, entry, test, timeoutMs) {
     const value = await Promise.race([
       Promise.resolve(fn(args)),
       new Promise((_, reject) => {
-        setTimeout(() => reject(new Error(`timed out after ${timeoutMs}ms`)), timeoutMs + 250);
+        timer = setTimeout(() => reject(new Error(`timed out after ${timeoutMs}ms`)), timeoutMs + 250);
       }),
     ]);
     return {
@@ -9380,6 +9393,8 @@ async function runCase(source, entry, test, timeoutMs) {
       error: message,
       timedOut: /timed out/.test(message),
     };
+  } finally {
+    if (timer !== null) clearTimeout(timer);
   }
 }
 
@@ -11454,9 +11469,18 @@ const { icon } = __m["skilltree/src/ui/icons.js"];
 
 let layer = null;
 
+/*
+ * The toast layer is for eyes only.
+ *
+ * It used to be a live region itself, while `announceEvents` also wrote one
+ * combined line to the app's live region — so finishing an activity was read
+ * out twice, once as five separate toasts stacking and once as the summary.
+ * The summary is the better of the two and the comment below already says so;
+ * this makes the DOM agree with it.
+ */
 function ensureLayer() {
   if (!layer || !layer.isConnected) {
-    layer = h('div.toasts', { 'aria-live': 'polite', 'aria-atomic': 'false' });
+    layer = h('div.toasts', { 'aria-hidden': 'true' });
     document.body.appendChild(layer);
   }
   return layer;
@@ -11465,6 +11489,10 @@ function ensureLayer() {
 /**
  * A corner toast. `body` may contain elements, so an XP figure can be set in
  * the monospace face without the caller building the DOM.
+ *
+ * Because the layer is hidden from assistive tech, a toast raised on its own
+ * speaks itself. `announceEvents` passes `silent` — it composes one line from
+ * the whole batch instead.
  */
 function toast(body, opts = {}) {
   const el = h(`div.toast${opts.kind ? `.${opts.kind}` : ''}`,
@@ -11472,6 +11500,11 @@ function toast(body, opts = {}) {
     h('span', body));
 
   ensureLayer().appendChild(el);
+
+  if (!opts.silent) {
+    const text = el.textContent.trim();
+    if (text) announce(text);
+  }
 
   const life = opts.duration ?? 3200;
   window.setTimeout(() => {
@@ -11494,23 +11527,23 @@ function announceEvents(events, badges = [], opts = {}) {
 
   const xp = list.find((e) => e.type === 'xp');
   if (xp) {
-    toast([h('b', `+${xp.amount} XP`)], { kind: 'xp', icon: 'bolt', duration: 2600 });
+    toast([h('b', `+${xp.amount} XP`)], { kind: 'xp', icon: 'bolt', duration: 2600, silent: true });
   }
 
   for (const e of list) {
     if (e.type === 'mastered') {
-      toast([h('b', 'Mastered.'), ' ', opts.nameOf ? opts.nameOf(e.skillId) : ''], { icon: 'star', duration: 4000 });
+      toast([h('b', 'Mastered.'), ' ', opts.nameOf ? opts.nameOf(e.skillId) : ''], { icon: 'star', duration: 4000, silent: true });
     }
     if (e.type === 'skill_level' && e.to < 5) {
-      toast([opts.nameOf ? opts.nameOf(e.skillId) : 'Skill', ' is now ', h('b', `level ${e.to}`)], { icon: 'trend' });
+      toast([opts.nameOf ? opts.nameOf(e.skillId) : 'Skill', ' is now ', h('b', `level ${e.to}`)], { icon: 'trend', silent: true });
     }
     if (e.type === 'unlocked') {
-      toast([h('b', e.name), ' unlocked.'], { icon: 'plus', duration: 4000 });
+      toast([h('b', e.name), ' unlocked.'], { icon: 'plus', duration: 4000, silent: true });
     }
   }
 
   for (const badge of badges || []) {
-    toast([h('b', badge.name), ' — ', badge.description], { icon: 'award', duration: 4600 });
+    toast([h('b', badge.name), ' — ', badge.description], { icon: 'award', duration: 4600, silent: true });
   }
 
   const levelUp = list.find((e) => e.type === 'global_level');
@@ -14913,6 +14946,20 @@ const { toast } = __m["skilltree/src/ui/toast.js"];
 
 let mounted = null;
 
+/**
+ * Unmount the graph.
+ *
+ * `destroy` unbinds a window resize listener and cancels a pending animation
+ * frame, and it was only ever called from `renderTree` — so leaving the tree
+ * screen left the listener bound to a detached shell, and it went on firing on
+ * every resize for the rest of the session, once more for each visit. Called
+ * from the router when the route stops being the tree.
+ */
+function destroyTree() {
+  if (mounted) mounted.destroy();
+  mounted = null;
+}
+
 function renderTree(host, params, query) {
   const state = session.freshProfile();
   const trees = allTrees();
@@ -15586,6 +15633,7 @@ function confirmReset(host) {
 
 
   return {
+    "destroyTree": destroyTree,
     "renderTree": renderTree,
     "renderExplore": renderExplore,
     "renderProgress": renderProgress,
@@ -15939,7 +15987,7 @@ const { renderDashboard } = __m["skilltree/src/ui/dashboard.js"];
 const { renderActivity } = __m["skilltree/src/ui/activity.js"];
 const { renderOnboarding } = __m["skilltree/src/ui/onboarding.js"];
 const { renderPlan } = __m["skilltree/src/ui/plan.js"];
-const { renderTree, renderExplore, renderProgress, renderAchievements, renderProfile, renderSettings, } = __m["skilltree/src/ui/screens.js"];
+const { renderTree, renderExplore, renderProgress, renderAchievements, renderProfile, renderSettings, destroyTree, } = __m["skilltree/src/ui/screens.js"];
 const { buildDemoProfile } = __m["skilltree/src/data/demo.js"];
 const { findActivity, findSkill, allTrees } = __m["skilltree/src/data/catalog.js"];
 
@@ -16028,7 +16076,11 @@ onNavigate(() => {
   syncNav();
   /* Reset scroll on navigation. Without this, moving from a long tree page to
    * the dashboard lands halfway down it. */
-  if (currentRoute()?.name !== 'tree') window.scrollTo(0, 0);
+  if (currentRoute()?.name !== 'tree') {
+    window.scrollTo(0, 0);
+    /* And let the graph go: it holds a window resize listener. */
+    destroyTree();
+  }
 });
 
 /*

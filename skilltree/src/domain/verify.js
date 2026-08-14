@@ -281,6 +281,11 @@ function freshCopy(value) {
 async function runCase(source, entry, test, timeoutMs) {
   const args = freshCopy(test.args || []);
   const expected = freshCopy(test.expected);
+  /* Cleared in `finally`, so the timer for a test that passed in 2ms is not
+   * left holding a rejection for another quarter second. Running a challenge's
+   * eight cases left eight of them pending, and a learner iterating on a code
+   * challenge runs them over and over. */
+  let timer = null;
   try {
     const fn = buildRunner(source, entry, test, timeoutMs);
     /* The guard handles synchronous loops; the race additionally catches an
@@ -288,7 +293,7 @@ async function runCase(source, entry, test, timeoutMs) {
     const value = await Promise.race([
       Promise.resolve(fn(args)),
       new Promise((_, reject) => {
-        setTimeout(() => reject(new Error(`timed out after ${timeoutMs}ms`)), timeoutMs + 250);
+        timer = setTimeout(() => reject(new Error(`timed out after ${timeoutMs}ms`)), timeoutMs + 250);
       }),
     ]);
     return {
@@ -308,6 +313,8 @@ async function runCase(source, entry, test, timeoutMs) {
       error: message,
       timedOut: /timed out/.test(message),
     };
+  } finally {
+    if (timer !== null) clearTimeout(timer);
   }
 }
 

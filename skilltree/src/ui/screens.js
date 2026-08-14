@@ -31,6 +31,20 @@ import { toast } from './toast.js';
 
 let mounted = null;
 
+/**
+ * Unmount the graph.
+ *
+ * `destroy` unbinds a window resize listener and cancels a pending animation
+ * frame, and it was only ever called from `renderTree` — so leaving the tree
+ * screen left the listener bound to a detached shell, and it went on firing on
+ * every resize for the rest of the session, once more for each visit. Called
+ * from the router when the route stops being the tree.
+ */
+export function destroyTree() {
+  if (mounted) mounted.destroy();
+  mounted = null;
+}
+
 export function renderTree(host, params, query) {
   const state = session.freshProfile();
   const trees = allTrees();

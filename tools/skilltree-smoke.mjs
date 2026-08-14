@@ -681,8 +681,6 @@ async function main() {
     .filter((n) => !n.getAttribute('aria-label')).length);
   check(unlabelled === 0, `${unlabelled} tree nodes have no aria-label`);
 
-  const liveRegions = await page.locator('[aria-live]').count();
-  check(liveRegions > 0, 'no live region for announcing XP and unlocks');
 
   /* ============================================================== *
    * 11. Ways the app used to trap or mislead you
@@ -792,6 +790,35 @@ async function main() {
   });
   check(dashDupes.length === 0,
     `the dashboard's secondary lists repeated what was already on screen: ${dashDupes.join(', ')}`);
+
+  /*
+   * Exactly one live region — no more, and no fewer.
+   *
+   * The toast layer was one, and `announceEvents` writes a combined summary to
+   * another, so finishing an activity was read out twice: once as the toasts
+   * stacked and once as the summary. The summary is the better of the two.
+   */
+  const liveRegions = await page.evaluate(() => [...document.querySelectorAll('[aria-live]')]
+    .map((e) => e.className || e.tagName));
+  check(liveRegions.length === 1,
+    `expected exactly one live region for XP and unlocks, found ${liveRegions.length}: ${liveRegions.join(', ')}`);
+  check(await page.evaluate(() => {
+    const layer = document.querySelector('.toasts');
+    return !layer || layer.getAttribute('aria-hidden') === 'true';
+  }), 'the toast layer is still announced separately from the summary');
+
+  /* Leaving the tree releases it: `destroy` unbinds a window resize listener,
+   * and it used to run only when the tree screen re-rendered itself. */
+  const shellsLeft = await page.evaluate(async () => {
+    for (let i = 0; i < 3; i += 1) {
+      window.location.hash = '#/tree';
+      await new Promise((r) => { setTimeout(r, 350); });
+      window.location.hash = '#/dashboard';
+      await new Promise((r) => { setTimeout(r, 350); });
+    }
+    return document.querySelectorAll('.tree-shell').length;
+  });
+  check(shellsLeft === 0, `${shellsLeft} tree shells still mounted after leaving the screen`);
 
   /* Onboarding shows no navigation: every link was inert except for
    * bouncing back to step one and discarding the answers on the way. */

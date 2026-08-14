@@ -20,9 +20,18 @@ import { icon } from './icons.js';
 
 let layer = null;
 
+/*
+ * The toast layer is for eyes only.
+ *
+ * It used to be a live region itself, while `announceEvents` also wrote one
+ * combined line to the app's live region — so finishing an activity was read
+ * out twice, once as five separate toasts stacking and once as the summary.
+ * The summary is the better of the two and the comment below already says so;
+ * this makes the DOM agree with it.
+ */
 function ensureLayer() {
   if (!layer || !layer.isConnected) {
-    layer = h('div.toasts', { 'aria-live': 'polite', 'aria-atomic': 'false' });
+    layer = h('div.toasts', { 'aria-hidden': 'true' });
     document.body.appendChild(layer);
   }
   return layer;
@@ -31,6 +40,10 @@ function ensureLayer() {
 /**
  * A corner toast. `body` may contain elements, so an XP figure can be set in
  * the monospace face without the caller building the DOM.
+ *
+ * Because the layer is hidden from assistive tech, a toast raised on its own
+ * speaks itself. `announceEvents` passes `silent` — it composes one line from
+ * the whole batch instead.
  */
 export function toast(body, opts = {}) {
   const el = h(`div.toast${opts.kind ? `.${opts.kind}` : ''}`,
@@ -38,6 +51,11 @@ export function toast(body, opts = {}) {
     h('span', body));
 
   ensureLayer().appendChild(el);
+
+  if (!opts.silent) {
+    const text = el.textContent.trim();
+    if (text) announce(text);
+  }
 
   const life = opts.duration ?? 3200;
   window.setTimeout(() => {
@@ -60,23 +78,23 @@ export function announceEvents(events, badges = [], opts = {}) {
 
   const xp = list.find((e) => e.type === 'xp');
   if (xp) {
-    toast([h('b', `+${xp.amount} XP`)], { kind: 'xp', icon: 'bolt', duration: 2600 });
+    toast([h('b', `+${xp.amount} XP`)], { kind: 'xp', icon: 'bolt', duration: 2600, silent: true });
   }
 
   for (const e of list) {
     if (e.type === 'mastered') {
-      toast([h('b', 'Mastered.'), ' ', opts.nameOf ? opts.nameOf(e.skillId) : ''], { icon: 'star', duration: 4000 });
+      toast([h('b', 'Mastered.'), ' ', opts.nameOf ? opts.nameOf(e.skillId) : ''], { icon: 'star', duration: 4000, silent: true });
     }
     if (e.type === 'skill_level' && e.to < 5) {
-      toast([opts.nameOf ? opts.nameOf(e.skillId) : 'Skill', ' is now ', h('b', `level ${e.to}`)], { icon: 'trend' });
+      toast([opts.nameOf ? opts.nameOf(e.skillId) : 'Skill', ' is now ', h('b', `level ${e.to}`)], { icon: 'trend', silent: true });
     }
     if (e.type === 'unlocked') {
-      toast([h('b', e.name), ' unlocked.'], { icon: 'plus', duration: 4000 });
+      toast([h('b', e.name), ' unlocked.'], { icon: 'plus', duration: 4000, silent: true });
     }
   }
 
   for (const badge of badges || []) {
-    toast([h('b', badge.name), ' — ', badge.description], { icon: 'award', duration: 4600 });
+    toast([h('b', badge.name), ' — ', badge.description], { icon: 'award', duration: 4600, silent: true });
   }
 
   const levelUp = list.find((e) => e.type === 'global_level');
