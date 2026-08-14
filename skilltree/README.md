@@ -52,7 +52,11 @@ Everything below is wired up. There are no buttons that do nothing.
   requirements list, so the two can never disagree.
 - **Achievements, streaks, goal paths, daily missions, a review queue.**
 - **Progress analytics** — daily XP and a skill radar, both with a table view.
-- **Dark and light themes**, a designed mobile layout, keyboard operation.
+- **Dark and light themes**, keyboard operation, and a phone layout that is
+  designed rather than scaled: the tree fills the screen with its switcher on
+  one scrolling row, stat tiles stay multi-column instead of stacking into a
+  thousand pixels of scrolling, the skill panel is a bottom sheet, and panning
+  is clamped so the canvas cannot be dragged into empty space.
 - **AI coach and tree generation** — optional. See [AI](#ai).
 
 ## How progression works

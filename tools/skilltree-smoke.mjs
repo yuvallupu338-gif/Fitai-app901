@@ -460,6 +460,67 @@ async function main() {
         return tabs.filter((t) => t.getBoundingClientRect().height < 44).length;
       });
       check(small === 0, `${label}: ${small} tab targets are under 44px tall`);
+
+      /*
+       * The bottom of a page must be reachable.
+       *
+       * Measured after scrolling to the end — a long page having content below
+       * the fold is just scrolling. What matters is whether the final card is
+       * still stuck behind the bar once you have scrolled as far as you can,
+       * which is what too little bottom padding causes.
+       */
+      await page.evaluate(() => window.scrollTo(0, document.documentElement.scrollHeight));
+      await page.waitForTimeout(300);
+      const behindBar = await page.evaluate(() => {
+        const bar = document.querySelector('.tabbar').getBoundingClientRect();
+        const last = document.querySelector('.main .wrap')?.lastElementChild;
+        if (!last) return 0;
+        return Math.max(0, Math.round(last.getBoundingClientRect().bottom - bar.top));
+      });
+      check(behindBar <= 0, `${label}: at the end of the scroll the last card is still ${behindBar}px behind the tab bar`);
+      await page.evaluate(() => window.scrollTo(0, 0));
+
+      /*
+       * Stat tiles must stay multi-column. Stacking nine of them one per row
+       * turned the Progress screen into a thousand pixels of scrolling; this
+       * asserts the tiles share rows rather than each owning one.
+       */
+      await page.goto(`${base}#/progress`);
+      await page.waitForSelector('.grid.stats', { timeout: 8000 });
+      const statRows = await page.evaluate(() => {
+        const tiles = [...document.querySelectorAll('.grid.stats > *')];
+        return { tiles: tiles.length, rows: new Set(tiles.map((t) => Math.round(t.getBoundingClientRect().top))).size };
+      });
+      check(statRows.rows < statRows.tiles,
+        `${label}: ${statRows.tiles} stat tiles occupy ${statRows.rows} rows — they are stacking one per row`);
+
+      /* The tree is the product on this screen: its canvas must be visible
+       * above the tab bar, with its controls reachable, and the tree switcher
+       * must not wrap into several rows and push it down. */
+      await page.goto(`${base}#/tree`);
+      await page.waitForSelector('.node', { timeout: 8000 });
+      await page.waitForTimeout(600);
+      const treeFit = await page.evaluate(() => {
+        const shell = document.querySelector('.tree-shell').getBoundingClientRect();
+        const bar = document.querySelector('.tabbar').getBoundingClientRect();
+        const controls = document.querySelector('.tree-controls').getBoundingClientRect();
+        const chips = [...document.querySelectorAll('.tree-switch .chip')];
+        return {
+          shellBottom: Math.round(shell.bottom),
+          shellHeight: Math.round(shell.height),
+          barTop: Math.round(bar.top),
+          controlsBottom: Math.round(controls.bottom),
+          chipRows: new Set(chips.map((c) => Math.round(c.getBoundingClientRect().top))).size,
+        };
+      });
+      check(treeFit.shellBottom <= treeFit.barTop,
+        `${label}: the tree canvas runs ${treeFit.shellBottom - treeFit.barTop}px behind the tab bar`);
+      check(treeFit.controlsBottom <= treeFit.barTop,
+        `${label}: the zoom controls are hidden behind the tab bar`);
+      check(treeFit.chipRows === 1,
+        `${label}: the tree switcher wraps onto ${treeFit.chipRows} rows`);
+      check(treeFit.shellHeight >= 300,
+        `${label}: the tree canvas is only ${treeFit.shellHeight}px tall`);
     } else {
       await page.goto(`${base}#/dashboard`);
       await page.waitForTimeout(300);

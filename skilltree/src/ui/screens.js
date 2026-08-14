@@ -42,11 +42,13 @@ export function renderTree(host, params, query) {
 
   const page = h('div.wrap.stack');
 
-  page.appendChild(h('div.page-head',
+  /* `compact` drops the tagline and shrinks the title on a phone, where the
+   * canvas below is what the screen is for. */
+  page.appendChild(h('div.page-head.compact',
     h('div',
       h('h1', tree.name),
       h('p', tree.tagline)),
-    h('div.row.wrap', { style: { gap: 'var(--s2)' } },
+    h('div.tree-switch.row', { style: { gap: 'var(--s2)' } },
       ...trees.map((t) => h('button.chip', {
         class: t.id === treeId ? 'on' : '',
         onclick: () => go(`tree/${t.id}`),
@@ -66,7 +68,7 @@ export function renderTree(host, params, query) {
     'aria-label': 'Search skills',
     oninput: (e) => renderSearch(results, e.target.value, host),
   });
-  page.appendChild(h('div.row', { style: { gap: 'var(--s2)' } },
+  page.appendChild(h('div.row.tree-search', { style: { gap: 'var(--s2)' } },
     h('span', { style: { color: 'var(--bone-dimmer)', display: 'flex' } }, icon('search', { size: 17 })),
     search));
   page.appendChild(results);
@@ -282,7 +284,7 @@ export function renderProgress(host) {
   const graded = attempts.filter((a) => Number.isFinite(a.score));
   const avg = graded.length ? Math.round(graded.reduce((s, a) => s + a.score, 0) / graded.length) : 0;
 
-  page.appendChild(h('div.grid.cols-3',
+  page.appendChild(h('div.grid.cols-3.stats',
     stat('Total XP', num(overview.xp)),
     stat('Level', String(overview.level)),
     stat('Skills started', String(overview.skillsStarted)),
@@ -400,7 +402,7 @@ export function renderProfile(host) {
   /* The character sheet (§20) — the numbers that describe who this learner is,
    * set in the monospace face so it reads as a record rather than marketing. */
   page.appendChild(h('div.card.feature',
-    h('div.grid.cols-3',
+    h('div.grid.cols-3.stats',
       h('div.stat.big', h('span.k', 'Level'), h('span.v', String(overview.level))),
       h('div.stat.big', h('span.k', 'Total XP'), h('span.v', num(overview.xp))),
       h('div.stat.big', h('span.k', 'Mastered'), h('span.v', String(overview.skillsMastered))),

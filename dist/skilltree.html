@@ -548,6 +548,17 @@ button, input, select, textarea {
 .grid.cols-2 { grid-template-columns: repeat(auto-fit, minmax(260px, 1fr)); }
 .grid.cols-3 { grid-template-columns: repeat(auto-fit, minmax(210px, 1fr)); }
 
+/*
+ * Stat tiles are not content cards, and on a phone the difference matters.
+ *
+ * A tree card or an achievement wants the full width — it has a title, a
+ * description and an action. A stat tile holds a label and a short number, and
+ * stacking nine of them one per row turns a summary you should take in at a
+ * glance into a thousand pixels of scrolling. So they get their own grid that
+ * stays multi-column all the way down.
+ */
+.grid.stats { grid-template-columns: repeat(auto-fit, minmax(150px, 1fr)); }
+
 .row {
   display: flex;
   align-items: center;
@@ -1361,6 +1372,108 @@ button, input, select, textarea {
 }
 .steps i.on { background: var(--lime); }
 .steps i.done { background: var(--lime-deep); }
+
+
+/* ================================================================== *
+ * Phone
+ * ==================================================================
+ *
+ * Not a scaled-down desktop (§68). These are the places where the small
+ * screen wants a different decision rather than the same one at a smaller
+ * size — denser stat grids, a tree that fills the screen instead of sitting
+ * under a header, and content that clears the tab bar.
+ */
+
+@media (max-width: 560px) {
+  /* Two across, not one. Every value here is short; the labels wrap happily
+   * and the whole summary fits on one screen instead of five. */
+  .grid.stats {
+    grid-template-columns: repeat(2, minmax(0, 1fr));
+    gap: var(--s2);
+  }
+
+  .grid.stats > .card { padding: var(--s3); }
+
+  /* An odd final tile left alone in a two-column row reads as a layout
+   * mistake; letting it span reads as the end of the list. Scoped to this
+   * breakpoint — at wider sizes the grid auto-fits and the column count is
+   * not two, so the same rule would stretch an arbitrary tile. */
+  .grid.stats > :last-child:nth-child(odd) { grid-column: 1 / -1; }
+
+  .grid.stats .stat .v { font-size: 19px; }
+  .grid.stats .stat .k { font-size: 10px; letter-spacing: .04em; }
+
+  /* The character sheet is a block of numbers read together, so it stays
+   * dense inside its feature card rather than becoming a list. */
+  .card.feature > .grid.stats { gap: var(--s3) var(--s4); }
+  .card.feature > .grid.stats .stat.big .v { font-size: 22px; }
+
+  .page-head { gap: var(--s3); }
+  .page-head p { font-size: 13.5px; }
+}
+
+@media (max-width: 860px) {
+  /* Clear the tab bar. 64px of bar plus breathing room, so the last card in a
+   * list is not permanently half-hidden behind it. */
+  .main {
+    padding-bottom: calc(88px + env(safe-area-inset-bottom, 0px));
+  }
+
+  /*
+   * The tree fills the screen.
+   *
+   * Previously the title, tagline, three wrapping tree chips and a full-width
+   * search box consumed the top half of an 812px phone, leaving the canvas a
+   * letterbox whose zoom controls sat underneath the tab bar. The canvas is
+   * the product on this screen, so it gets the space: the header is compact,
+   * the chips scroll sideways on one line, and the shell takes whatever is
+   * left of the viewport.
+   */
+  .page-head.compact { margin-bottom: var(--s3); }
+  .page-head.compact p { display: none; }
+  .page-head.compact h1 { font-size: 21px; }
+
+  .tree-switch {
+    display: flex;
+    gap: var(--s2);
+    overflow-x: auto;
+    flex-wrap: nowrap !important;
+    /* Bleed to the screen edges so the row reads as scrollable rather than
+     * as a truncated list. */
+    margin: 0 calc(var(--s4) * -1);
+    padding: 2px var(--s4);
+    scrollbar-width: none;
+  }
+  .tree-switch::-webkit-scrollbar { display: none; }
+  .tree-switch .chip { flex: none; }
+
+  /* Header (compact title + one chip row + search) plus the tab bar and a
+   * margin. Tuned against a 375x812 phone so the canvas ends just above the
+   * bar rather than a few pixels behind it. */
+  .tree-shell {
+    height: calc(100dvh - 268px);
+    min-height: 300px;
+  }
+
+  /* The search is secondary here — the canvas is the screen. */
+  .tree-search .input { min-height: 36px; padding: 6px var(--s3); }
+
+  /* Bigger touch targets for zoom and fit — 32px is a mouse size. */
+  .tree-controls button { width: 40px; height: 40px; }
+}
+
+@media (max-width: 560px) {
+  /* A long activity title at display size costs three lines before the task
+   * itself is visible. */
+  .activity-shell h1 { font-size: 21px; }
+  .qprompt { font-size: 15px; }
+
+  /* The editor is the whole point of a code challenge; give it the room the
+   * removed chrome freed up, and stop iOS zooming on focus by keeping the
+   * font at 16px. */
+  .textarea { min-height: 200px; font-size: 16px; }
+  .input { font-size: 16px; }
+}
 
 </style>
 </head>
@@ -3295,7 +3408,7 @@ const WEB_TREE = {
 
     {
       id: 'react_state',
-      name: 'State',
+      name: 'React State',
       category: 'Frontend',
       difficulty: 3,
       estimatedHours: [4, 7],
@@ -3400,7 +3513,7 @@ const WEB_TREE = {
 
     {
       id: 'react_routing',
-      name: 'Routing',
+      name: 'Client-Side Routing',
       category: 'Frontend',
       difficulty: 3,
       estimatedHours: [2, 4],
@@ -10564,6 +10677,53 @@ function mountTree(host, opts) {
     if (frame === null) frame = window.requestAnimationFrame(paint);
   }
 
+  /*
+   * Keep the graph in the frame.
+   *
+   * Without this you can pan into empty space in every direction, and — more
+   * visibly — centring on a node near the top of the graph leaves the upper
+   * half of the canvas blank while the rest of the tree runs off the bottom.
+   * That was the state of the tree screen on a phone: a correct centring on
+   * the right node, and 300px of nothing above it.
+   *
+   * So: when the scaled graph is larger than the viewport, the translation is
+   * clamped so its edges cannot come further inside than a small margin; when
+   * it is smaller, it is centred outright. The margin is deliberate slack —
+   * being unable to nudge a node away from the very edge feels stuck.
+   */
+  function clampPan() {
+    const box = shell.getBoundingClientRect();
+    if (!box.width || !box.height) return;
+
+    /*
+     * Clamp against where the nodes actually are, not against the canvas.
+     *
+     * The canvas carries PAD of empty space on every side, and the layout
+     * centres short columns against the tallest one, so its bounding box is
+     * considerably larger than the region containing anything. Clamping to the
+     * canvas therefore still permitted ~90px of guaranteed emptiness at an
+     * edge — which on a phone is a fifth of the visible height.
+     *
+     * The node region in canvas coordinates is inset by exactly PAD.
+     */
+    const margin = 48;
+    const left = PAD * scale;
+    const right = (width - PAD) * scale;
+    const top = PAD * scale;
+    const bottom = (height - PAD) * scale;
+
+    const contentW = right - left;
+    const contentH = bottom - top;
+
+    tx = contentW <= box.width - margin
+      ? (box.width - contentW) / 2 - left
+      : Math.min(margin - left, Math.max(box.width - margin - right, tx));
+
+    ty = contentH <= box.height - margin
+      ? (box.height - contentH) / 2 - top
+      : Math.min(margin - top, Math.max(box.height - margin - bottom, ty));
+  }
+
   function setScale(next, originX, originY) {
     const clamped = Math.max(MIN_SCALE, Math.min(MAX_SCALE, next));
     if (clamped === scale) return;
@@ -10576,6 +10736,7 @@ function mountTree(host, opts) {
     scale = clamped;
     tx = originX - gx * scale;
     ty = originY - gy * scale;
+    clampPan();
     schedule();
   }
 
@@ -10659,6 +10820,7 @@ function mountTree(host, opts) {
     if (targetScale) scale = Math.max(MIN_SCALE, Math.min(MAX_SCALE, targetScale));
     tx = box.width * biasX - p.x * scale;
     ty = box.height / 2 - p.y * scale;
+    clampPan();
     schedule();
   }
 
@@ -10709,6 +10871,7 @@ function mountTree(host, opts) {
     if (panFrom) {
       tx = e.clientX - panFrom.x;
       ty = e.clientY - panFrom.y;
+      clampPan();
       schedule();
     }
   });
@@ -11704,11 +11867,13 @@ function renderTree(host, params, query) {
 
   const page = h('div.wrap.stack');
 
-  page.appendChild(h('div.page-head',
+  /* `compact` drops the tagline and shrinks the title on a phone, where the
+   * canvas below is what the screen is for. */
+  page.appendChild(h('div.page-head.compact',
     h('div',
       h('h1', tree.name),
       h('p', tree.tagline)),
-    h('div.row.wrap', { style: { gap: 'var(--s2)' } },
+    h('div.tree-switch.row', { style: { gap: 'var(--s2)' } },
       ...trees.map((t) => h('button.chip', {
         class: t.id === treeId ? 'on' : '',
         onclick: () => go(`tree/${t.id}`),
@@ -11728,7 +11893,7 @@ function renderTree(host, params, query) {
     'aria-label': 'Search skills',
     oninput: (e) => renderSearch(results, e.target.value, host),
   });
-  page.appendChild(h('div.row', { style: { gap: 'var(--s2)' } },
+  page.appendChild(h('div.row.tree-search', { style: { gap: 'var(--s2)' } },
     h('span', { style: { color: 'var(--bone-dimmer)', display: 'flex' } }, icon('search', { size: 17 })),
     search));
   page.appendChild(results);
@@ -11944,7 +12109,7 @@ function renderProgress(host) {
   const graded = attempts.filter((a) => Number.isFinite(a.score));
   const avg = graded.length ? Math.round(graded.reduce((s, a) => s + a.score, 0) / graded.length) : 0;
 
-  page.appendChild(h('div.grid.cols-3',
+  page.appendChild(h('div.grid.cols-3.stats',
     stat('Total XP', num(overview.xp)),
     stat('Level', String(overview.level)),
     stat('Skills started', String(overview.skillsStarted)),
@@ -12062,7 +12227,7 @@ function renderProfile(host) {
   /* The character sheet (§20) — the numbers that describe who this learner is,
    * set in the monospace face so it reads as a record rather than marketing. */
   page.appendChild(h('div.card.feature',
-    h('div.grid.cols-3',
+    h('div.grid.cols-3.stats',
       h('div.stat.big', h('span.k', 'Level'), h('span.v', String(overview.level))),
       h('div.stat.big', h('span.k', 'Total XP'), h('span.v', num(overview.xp))),
       h('div.stat.big', h('span.k', 'Mastered'), h('span.v', String(overview.skillsMastered))),

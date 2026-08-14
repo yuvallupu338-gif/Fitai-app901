@@ -981,7 +981,7 @@ export const WEB_TREE = {
 
     {
       id: 'react_state',
-      name: 'State',
+      name: 'React State',
       category: 'Frontend',
       difficulty: 3,
       estimatedHours: [4, 7],
@@ -1086,7 +1086,7 @@ export const WEB_TREE = {
 
     {
       id: 'react_routing',
-      name: 'Routing',
+      name: 'Client-Side Routing',
       category: 'Frontend',
       difficulty: 3,
       estimatedHours: [2, 4],

@@ -172,6 +172,53 @@ export function mountTree(host, opts) {
     if (frame === null) frame = window.requestAnimationFrame(paint);
   }
 
+  /*
+   * Keep the graph in the frame.
+   *
+   * Without this you can pan into empty space in every direction, and — more
+   * visibly — centring on a node near the top of the graph leaves the upper
+   * half of the canvas blank while the rest of the tree runs off the bottom.
+   * That was the state of the tree screen on a phone: a correct centring on
+   * the right node, and 300px of nothing above it.
+   *
+   * So: when the scaled graph is larger than the viewport, the translation is
+   * clamped so its edges cannot come further inside than a small margin; when
+   * it is smaller, it is centred outright. The margin is deliberate slack —
+   * being unable to nudge a node away from the very edge feels stuck.
+   */
+  function clampPan() {
+    const box = shell.getBoundingClientRect();
+    if (!box.width || !box.height) return;
+
+    /*
+     * Clamp against where the nodes actually are, not against the canvas.
+     *
+     * The canvas carries PAD of empty space on every side, and the layout
+     * centres short columns against the tallest one, so its bounding box is
+     * considerably larger than the region containing anything. Clamping to the
+     * canvas therefore still permitted ~90px of guaranteed emptiness at an
+     * edge — which on a phone is a fifth of the visible height.
+     *
+     * The node region in canvas coordinates is inset by exactly PAD.
+     */
+    const margin = 48;
+    const left = PAD * scale;
+    const right = (width - PAD) * scale;
+    const top = PAD * scale;
+    const bottom = (height - PAD) * scale;
+
+    const contentW = right - left;
+    const contentH = bottom - top;
+
+    tx = contentW <= box.width - margin
+      ? (box.width - contentW) / 2 - left
+      : Math.min(margin - left, Math.max(box.width - margin - right, tx));
+
+    ty = contentH <= box.height - margin
+      ? (box.height - contentH) / 2 - top
+      : Math.min(margin - top, Math.max(box.height - margin - bottom, ty));
+  }
+
   function setScale(next, originX, originY) {
     const clamped = Math.max(MIN_SCALE, Math.min(MAX_SCALE, next));
     if (clamped === scale) return;
@@ -184,6 +231,7 @@ export function mountTree(host, opts) {
     scale = clamped;
     tx = originX - gx * scale;
     ty = originY - gy * scale;
+    clampPan();
     schedule();
   }
 
@@ -267,6 +315,7 @@ export function mountTree(host, opts) {
     if (targetScale) scale = Math.max(MIN_SCALE, Math.min(MAX_SCALE, targetScale));
     tx = box.width * biasX - p.x * scale;
     ty = box.height / 2 - p.y * scale;
+    clampPan();
     schedule();
   }
 
@@ -317,6 +366,7 @@ export function mountTree(host, opts) {
     if (panFrom) {
       tx = e.clientX - panFrom.x;
       ty = e.clientY - panFrom.y;
+      clampPan();
       schedule();
     }
   });
