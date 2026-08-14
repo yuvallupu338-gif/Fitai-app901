@@ -12,7 +12,7 @@
  * one set of habits to learn: what is ticked is what happens.
  */
 
-import { h, replace, dialog, checkbox } from '../core/dom.js';
+import { h, replace, dialog } from '../core/dom.js';
 import { icon } from '../core/icons.js';
 import { t, plural } from '../core/i18n.js';
 import { originNote } from './components.js';
@@ -52,7 +52,10 @@ export function openPreview(opts) {
 
   function sync() {
     const n = count();
-    replace(countHost, n ? plural('count.items', n) : t('planning.previewNone'));
+    const total = groups.reduce((s, g) => s + g.items.length, 0);
+    replace(countHost, total === 0 ? ''
+      : n === 0 ? t('planning.previewNone')
+        : `${n} ${t('common.of')} ${plural('count.items', total)}`);
     if (applyButton) applyButton.disabled = n === 0;
   }
 
@@ -78,30 +81,35 @@ export function openPreview(opts) {
       }, icon(all ? 'check' : 'plus', { size: 14 }), t('planning.previewSelectAll')));
     }
 
+    /* The whole row is the checkbox, rather than a box next to a row that also
+     * toggles: two controls that do the same thing are two things to hear and
+     * two places to miss on a phone. */
     const list = group.items.map((item) => {
-      const checkHost = h('div.shrink0');
+      const row = h('button.trow', {
+        type: 'button',
+        role: 'checkbox',
+        onclick: () => { item.selected = !item.selected; paint(); paintAll(); sync(); },
+      });
+
       function paint() {
-        replace(checkHost, checkbox(item.selected, {
-          label: item.label,
-          onChange: (next) => { item.selected = next; paint(); paintAll(); sync(); },
-        }));
+        row.setAttribute('aria-checked', item.selected ? 'true' : 'false');
+        replace(row,
+          /* Hidden from the reader, which already hears the row's state — the
+           * aria-checked here is the hook the stylesheet ticks the box with. */
+          h('span.tcheck', {
+            'aria-hidden': 'true',
+            'aria-checked': item.selected ? 'true' : 'false',
+          }, icon('check', { weight: 3 })),
+          h('div.trow-body',
+            h('div.trow-title', item.label),
+            item.note
+              ? h('div.tiny.quiet', { style: { marginBlockStart: '3px' } }, item.note)
+              : null));
       }
+
       rows.push(paint);
       paint();
-
-      return h('div.trow',
-        checkHost,
-        h('button.trow-body', {
-          type: 'button',
-          onclick: () => {
-            item.selected = !item.selected;
-            paint();
-            paintAll();
-            sync();
-          },
-        },
-        h('div.trow-title', item.label),
-        item.note ? h('div.tiny.quiet', { style: { marginBlockStart: '3px' } }, item.note) : null));
+      return row;
     });
 
     paintAll();

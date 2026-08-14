@@ -57,6 +57,7 @@ function collect(abs) {
   reject(src, k);
 
   const deps = [];
+  const dynamic = [];
   /* `[\s\S]*?` inside the braces so a named import may wrap over several
    * lines, which is how anything importing more than three symbols is
    * actually written. The `m` flag still anchors the statement to its own
@@ -69,17 +70,40 @@ function collect(abs) {
     deps.push({ ns: m[2], named: m[3], spec, raw: m[0] });
   }
 
-  for (const d of deps) collect(resolve(dirname(abs), d.spec));
+  /*
+   * Dynamic imports, which LifeOS uses to keep the calendar and the analytics
+   * out of the first paint of its Today screen. In the bundle there is nothing
+   * to defer — every module is already in the file — so these become a lookup
+   * wrapped in a resolved promise, and the awaiting code is unchanged.
+   *
+   * They are collected as dependencies so the modules are actually included;
+   * they are NOT rewritten as destructuring, because the call site consumes a
+   * namespace object.
+   */
+  const dynamicRe = /\bimport\s*\(\s*['"]([^'"]+)['"]\s*\)/g;
+  while ((m = dynamicRe.exec(src))) {
+    const spec = m[1];
+    if (!spec.startsWith('.')) throw new Error(`${k}: bare dynamic import "${spec}" — not bundleable`);
+    dynamic.push({ spec, raw: m[0] });
+  }
 
-  seen.set(k, { abs, src, deps });
+  for (const d of deps) collect(resolve(dirname(abs), d.spec));
+  for (const d of dynamic) collect(resolve(dirname(abs), d.spec));
+
+  seen.set(k, { abs, src, deps, dynamic });
   order.push(k);
 }
 
 function reject(src, k) {
   if (/\bexport\s+default\b/.test(src)) throw new Error(`${k}: export default is not supported`);
   if (/\bexport\s+\*/.test(src)) throw new Error(`${k}: export * is not supported`);
-  if (/\bimport\s*\(/.test(src)) throw new Error(`${k}: dynamic import() is not supported`);
   if (/\bimport\.meta\b/.test(src)) throw new Error(`${k}: import.meta is not supported`);
+  /* A dynamic import built from a variable cannot be resolved at build time,
+   * and silently emitting it would produce a file that throws on a route
+   * change rather than at build. */
+  if (/\bimport\s*\(\s*[^'")]/.test(src)) {
+    throw new Error(`${k}: dynamic import() with a computed specifier is not bundleable`);
+  }
 }
 
 function transform(k, mod) {
@@ -92,6 +116,13 @@ function transform(k, mod) {
       ? `const ${d.ns} = __m[${JSON.stringify(target)}];`
       : `const { ${d.named.replace(/\s+/g, ' ').trim()} } = __m[${JSON.stringify(target)}];`;
     out = out.replace(d.raw, line);
+  }
+
+  /* Dynamic imports become a resolved promise over the registry entry, so the
+   * `await import(...)` at the call site keeps working verbatim. */
+  for (const d of mod.dynamic || []) {
+    const target = key(resolve(dirname(mod.abs), d.spec));
+    out = out.split(d.raw).join(`Promise.resolve(__m[${JSON.stringify(target)}])`);
   }
 
   const exported = new Set();

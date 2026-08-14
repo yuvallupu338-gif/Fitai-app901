@@ -667,9 +667,10 @@ export function openTaskEditor(taskId, rerender, defaults) {
       hosts.dates,
       hosts.estimate,
       h('div', gap, energyField),
-      h('div.field-row', gap,
-        scaleField('tasks.importance', 'importance'),
-        scaleField('tasks.urgency', 'urgency')),
+      /* Stacked rather than paired: five chips reading "נמוך מאוד" do not fit
+       * half a phone's width without wrapping into an unreadable block. */
+      h('div', gap, scaleField('tasks.importance', 'importance')),
+      h('div', gap, scaleField('tasks.urgency', 'urgency')),
       h('div', gap, scaleField('tasks.goalImpact', 'goalImpact')),
       hosts.status,
       hosts.waiting,
