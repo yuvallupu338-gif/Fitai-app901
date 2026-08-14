@@ -820,6 +820,30 @@ async function main() {
   });
   check(shellsLeft === 0, `${shellsLeft} tree shells still mounted after leaving the screen`);
 
+  /*
+   * The goal path is visible on the canvas, and it is the same path the chip
+   * list below shows.
+   *
+   * Path membership used to be a 4px dot under the label — across thirty-odd
+   * grey padlocks that is noise, and the route to the thing the learner asked
+   * for was invisible on the screen built to show it. The nodes and the edges
+   * between them are both marked now.
+   */
+  await page.goto(`${base}#/tree/web`);
+  await page.waitForSelector('.node', { timeout: 8000 });
+  await page.waitForTimeout(700);
+  const pathMarks = await page.evaluate(() => {
+    const marked = [...document.querySelectorAll('.node.on-path')].map((n) => n.dataset.skill);
+    const chipCard = [...document.querySelectorAll('.card-title')]
+      .find((t) => /goal path/i.test(t.textContent))?.closest('.card');
+    const chips = chipCard ? [...chipCard.querySelectorAll('.chip')].length : 0;
+    return { marked: marked.length, chips, edges: document.querySelectorAll('.tree-edge.on-path').length };
+  });
+  check(pathMarks.marked > 0, 'no node on the canvas was marked as being on the goal path');
+  check(pathMarks.edges > 0, 'the goal path was marked on nodes but not on the edges between them');
+  check(pathMarks.marked === pathMarks.chips,
+    `the canvas marks ${pathMarks.marked} skills on the goal path, the list below shows ${pathMarks.chips}`);
+
   /* Onboarding shows no navigation: every link was inert except for
    * bouncing back to step one and discarding the answers on the way. */
   await page.evaluate(() => window.localStorage.clear());

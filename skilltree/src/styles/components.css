@@ -336,8 +336,27 @@
 .tree-canvas.focusing .node.lit { opacity: 1; }
 .tree-canvas.focusing .node.lit .node-ring { border-color: var(--accent-ink); }
 
-/* Goal-path membership is a persistent mark, not a hover state: a small filled
- * dot under the label, so it survives alongside every other state. */
+/*
+ * Goal-path membership, drawn so it can actually be found.
+ *
+ * It was a 4px dot under the label. Across thirty-three otherwise identical
+ * grey padlocks that reads as noise, and the route to the thing the learner
+ * said they wanted was invisible on the screen built to show it — the chip
+ * list below the canvas was the only usable signal.
+ *
+ * Now the node carries a halo in the accent, which sits outside the ring and
+ * so does not disturb the state encoding the ring itself carries. The label
+ * brightens with it. Both survive every state, because being on the path is
+ * orthogonal to being locked, ready or mastered.
+ */
+.node.on-path .node-ring {
+  /* A hard ring, not a glow: two flat rings, one of the canvas colour to hold
+   * it off the node's own border and one of the accent. No blur — a glow on
+   * sixteen nodes is the look this palette exists to avoid. */
+  box-shadow: 0 0 0 2px var(--surface), 0 0 0 4px var(--accent-ink);
+}
+.node.on-path .node-label { color: var(--bone); }
+
 .node.on-path .node-label::after {
   content: "";
   display: block;
@@ -345,6 +364,16 @@
   margin: 4px auto 0;
   border-radius: 50%;
   background: var(--accent-ink);
+}
+
+/* The edges between consecutive steps, so the route reads as a route rather
+ * than as a scatter of marked nodes. */
+/* The route to the goal, distinct from --lime-line's "prerequisite already
+ * met": solid rather than washed out, and a little heavier. */
+.tree-edge.on-path {
+  stroke: var(--accent-ink);
+  stroke-width: 2.5;
+  opacity: .7;
 }
 
 /* ------------------------------------------------------------------ *

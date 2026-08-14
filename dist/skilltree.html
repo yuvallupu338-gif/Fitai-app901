@@ -905,8 +905,27 @@ body.onboarding .app { grid-template-columns: 1fr; }
 .tree-canvas.focusing .node.lit { opacity: 1; }
 .tree-canvas.focusing .node.lit .node-ring { border-color: var(--accent-ink); }
 
-/* Goal-path membership is a persistent mark, not a hover state: a small filled
- * dot under the label, so it survives alongside every other state. */
+/*
+ * Goal-path membership, drawn so it can actually be found.
+ *
+ * It was a 4px dot under the label. Across thirty-three otherwise identical
+ * grey padlocks that reads as noise, and the route to the thing the learner
+ * said they wanted was invisible on the screen built to show it — the chip
+ * list below the canvas was the only usable signal.
+ *
+ * Now the node carries a halo in the accent, which sits outside the ring and
+ * so does not disturb the state encoding the ring itself carries. The label
+ * brightens with it. Both survive every state, because being on the path is
+ * orthogonal to being locked, ready or mastered.
+ */
+.node.on-path .node-ring {
+  /* A hard ring, not a glow: two flat rings, one of the canvas colour to hold
+   * it off the node's own border and one of the accent. No blur — a glow on
+   * sixteen nodes is the look this palette exists to avoid. */
+  box-shadow: 0 0 0 2px var(--surface), 0 0 0 4px var(--accent-ink);
+}
+.node.on-path .node-label { color: var(--bone); }
+
 .node.on-path .node-label::after {
   content: "";
   display: block;
@@ -914,6 +933,16 @@ body.onboarding .app { grid-template-columns: 1fr; }
   margin: 4px auto 0;
   border-radius: 50%;
   background: var(--accent-ink);
+}
+
+/* The edges between consecutive steps, so the route reads as a route rather
+ * than as a scatter of marked nodes. */
+/* The route to the goal, distinct from --lime-line's "prerequisite already
+ * met": solid rather than washed out, and a little heavier. */
+.tree-edge.on-path {
+  stroke: var(--accent-ink);
+  stroke-width: 2.5;
+  opacity: .7;
 }
 
 /* ------------------------------------------------------------------ *
@@ -13561,6 +13590,11 @@ function mountTree(host, opts) {
     const fromLevel = state.skills[edge.from]?.level || 0;
     if (fromLevel >= (edge.minLevel ?? 1)) path.classList.add('met');
 
+    /* An edge between two steps of the goal path is part of the route to the
+     * thing the learner said they wanted, so it is drawn as one. Without this
+     * the marked nodes read as a scatter rather than a path. */
+    if (goalSet.has(edge.from) && goalSet.has(edge.to)) path.classList.add('on-path');
+
     edgeLayer.appendChild(path);
     if (!edgeEls.has(edge.to)) edgeEls.set(edge.to, []);
     if (!edgeEls.has(edge.from)) edgeEls.set(edge.from, []);
@@ -14966,9 +15000,16 @@ function renderTree(host, params, query) {
   const treeId = params[0] && getTree(params[0]) ? params[0] : (state.goal?.treeId || trees[0].id);
   const tree = getTree(treeId);
 
-  const goalPath = state.goal?.treeId === treeId
-    ? session.goalPathFor(state.goal).map((s) => s.skillId)
-    : [];
+  /*
+   * The path drawn on the canvas is the same programme the chip list below it
+   * shows, and the same one the dashboard and plan count — see
+   * session.programme. It used to come from a separate single-target walk, so
+   * the highlighted nodes and the list under them could disagree, and a tree
+   * that the goal genuinely passes through lit up only if it happened to hold
+   * the primary destination.
+   */
+  const inTree = session.programmeInTree(treeId);
+  const goalPath = inTree ? inTree.steps.map((s) => s.skillId) : [];
 
   const page = h('div.wrap.stack');
 
@@ -15030,7 +15071,6 @@ function renderTree(host, params, query) {
    * scoped — and now says it is, instead of looking like a second opinion on
    * the same number.
    */
-  const inTree = session.programmeInTree(treeId);
   if (inTree && inTree.steps.length) {
     const scoped = inTree.steps.length !== inTree.total;
     page.appendChild(h('div.card',

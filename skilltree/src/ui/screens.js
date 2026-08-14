@@ -51,9 +51,16 @@ export function renderTree(host, params, query) {
   const treeId = params[0] && getTree(params[0]) ? params[0] : (state.goal?.treeId || trees[0].id);
   const tree = getTree(treeId);
 
-  const goalPath = state.goal?.treeId === treeId
-    ? session.goalPathFor(state.goal).map((s) => s.skillId)
-    : [];
+  /*
+   * The path drawn on the canvas is the same programme the chip list below it
+   * shows, and the same one the dashboard and plan count — see
+   * session.programme. It used to come from a separate single-target walk, so
+   * the highlighted nodes and the list under them could disagree, and a tree
+   * that the goal genuinely passes through lit up only if it happened to hold
+   * the primary destination.
+   */
+  const inTree = session.programmeInTree(treeId);
+  const goalPath = inTree ? inTree.steps.map((s) => s.skillId) : [];
 
   const page = h('div.wrap.stack');
 
@@ -115,7 +122,6 @@ export function renderTree(host, params, query) {
    * scoped — and now says it is, instead of looking like a second opinion on
    * the same number.
    */
-  const inTree = session.programmeInTree(treeId);
   if (inTree && inTree.steps.length) {
     const scoped = inTree.steps.length !== inTree.total;
     page.appendChild(h('div.card',

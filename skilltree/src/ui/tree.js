@@ -92,6 +92,11 @@ export function mountTree(host, opts) {
     const fromLevel = state.skills[edge.from]?.level || 0;
     if (fromLevel >= (edge.minLevel ?? 1)) path.classList.add('met');
 
+    /* An edge between two steps of the goal path is part of the route to the
+     * thing the learner said they wanted, so it is drawn as one. Without this
+     * the marked nodes read as a scatter rather than a path. */
+    if (goalSet.has(edge.from) && goalSet.has(edge.to)) path.classList.add('on-path');
+
     edgeLayer.appendChild(path);
     if (!edgeEls.has(edge.to)) edgeEls.set(edge.to, []);
     if (!edgeEls.has(edge.from)) edgeEls.set(edge.from, []);
