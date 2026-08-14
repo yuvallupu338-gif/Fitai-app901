@@ -36,8 +36,14 @@
   /* ---- ink ---- */
   --bone: #E8EAEC;
   --bone-dim: #A8AFB6;
-  /* Measured at 4.6:1 on --surface. Anything dimmer stops being body text. */
-  --bone-dimmer: #7C858D;
+  /*
+   * Measured on every surface it is actually used on, not just one.
+   *
+   * The previous value was chosen against --surface (4.70:1) and used on three
+   * other surfaces where it fell to 3.96:1 — across roughly 220 elements:
+   * every card note, list subtitle, chip and stat label. Now 4.76:1 at worst.
+   */
+  --bone-dimmer: #8A939B;
 
   /* ---- the one accent ---- */
   --lime: #C9F24D;
@@ -56,6 +62,18 @@
    */
   --lime-hover: #B4DE2E;
   --lime-deep: #8FAF2A;
+  /*
+   * The accent when it IS the mark — text, a ring, a bar fill, a chart line.
+   *
+   * Distinct from --lime, which is a *fill* that dark ink sits on. The two
+   * were the same token, and in light mode that put #B4DE2E text on white at
+   * 1.56:1: every level badge, every "on" chip, the whole XP chart and every
+   * progress bar were a pale wash on near-white. The rule was already written
+   * in this file — "--lime-deep is for ink, never for a fill" — and the
+   * stylesheet broke it in nine places, which is what happens when a rule has
+   * no token to enforce it.
+   */
+  --accent-ink: #C9F24D;
 
   /* ---- semantic, used sparingly and never decoratively ---- */
   --warn: #E8B34A;
@@ -139,7 +157,8 @@
 
   --bone: #1A1D20;
   --bone-dim: #565C63;
-  --bone-dimmer: #6E757C;
+  /* Likewise re-measured: 4.59:1 at worst, on --surface-3. */
+  --bone-dimmer: #656C73;
 
   /* Lime is kept for fills, where dark text sits on it; the darker variant is
    * used wherever the accent has to work as text or a thin line. */
@@ -151,6 +170,10 @@
   --lime-hover: #A2C921;
   /* 4.9:1 as text on white — this one is for ink, never for a fill. */
   --lime-deep: #5F7A0F;
+  /* 4.9:1 on card, 4.4:1 on the page ground, 4.2:1 as a bar against its
+   * track. The dark theme can use the bright lime for all of these; light
+   * cannot, and this is the token that lets one rule serve both. */
+  --accent-ink: #5F7A0F;
 
   --warn: #9A6A0C;
   --warn-soft: rgba(154, 106, 12, .12);
@@ -187,11 +210,11 @@
 
   --st-progress-ink: var(--bone);
   --st-progress-face: var(--surface-2);
-  --st-progress-line: var(--lime);
+  --st-progress-line: var(--accent-ink);
 
   --st-complete-ink: var(--bone);
   --st-complete-face: var(--surface-3);
-  --st-complete-line: var(--lime);
+  --st-complete-line: var(--accent-ink);
 
   --st-mastered-ink: var(--lime-ink);
   --st-mastered-face: var(--lime);

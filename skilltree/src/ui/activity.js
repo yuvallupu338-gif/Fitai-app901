@@ -21,12 +21,10 @@ import * as session from '../core/session.js';
 import { go } from '../core/router.js';
 import { announceEvents } from './toast.js';
 import { show } from '../domain/verify.js';
+import { labelForKind } from '../domain/xp.js';
 import { coachFor } from '../ai/coach.js';
 
-const KIND_LABEL = {
-  learn: 'Lesson', quiz: 'Quiz', practice: 'Practice', challenge: 'Challenge',
-  project: 'Project', assessment: 'Assessment', mastery: 'Mastery challenge',
-};
+
 
 export function renderActivity(host, activityId) {
   const found = findActivity(activityId);
@@ -76,7 +74,7 @@ export function renderActivity(host, activityId) {
   shell.appendChild(h('div.row.between', { style: { marginBottom: 'var(--s5)' } },
     h('button.btn.ghost.small', { onclick: () => go(`tree/${found.tree.id}?skill=${skill.id}`) },
       icon('back', { size: 15 }), skill.name),
-    h('span.chip', KIND_LABEL[activity.kind] || 'Activity')));
+    h('span.chip', labelForKind(activity.kind))));
 
   shell.appendChild(h('div', { style: { marginBottom: 'var(--s5)' } },
     h('h1', activity.title),
@@ -154,9 +152,13 @@ function renderResult(host, found, outcome, opts = {}) {
 
   panel.appendChild(h('div.row.between', { style: { marginBottom: 'var(--s3)' } },
     h('h2', result.passed ? passHeadline(activity.kind) : 'Not yet'),
-    h('span.stat', { style: { textAlign: 'right' } },
-      h('span.k', 'Score'),
-      h('span.v', `${result.score}`, h('small', '%')))));
+    /* A lesson has no score. Showing "100%" for reading something was a
+     * fabricated grade, and the panel should not print one. */
+    Number.isFinite(result.score)
+      ? h('span.stat', { style: { textAlign: 'right' } },
+        h('span.k', 'Score'),
+        h('span.v', `${result.score}`, h('small', '%')))
+      : null));
 
   const xpEvent = outcome.events.find((e) => e.type === 'xp');
   if (xpEvent) {
@@ -184,7 +186,7 @@ function renderResult(host, found, outcome, opts = {}) {
     panel.appendChild(h('div.stack', { style: { marginTop: 'var(--s4)' } },
       ...result.results.map((r, i) => h('div',
         h('div', { style: { fontSize: '13.5px', fontWeight: '560', marginBottom: '4px' } },
-          h('span', { style: { color: r.correct ? 'var(--lime)' : 'var(--fail)', marginRight: '6px' } },
+          h('span', { style: { color: r.correct ? 'var(--accent-ink)' : 'var(--fail)', marginRight: '6px' } },
             r.correct ? '✓' : '✗'),
           `${i + 1}. ${r.prompt}`),
         !r.correct
@@ -329,13 +331,27 @@ function renderQuiz(host, found, startedAt) {
   host.appendChild(body);
 }
 
+/*
+ * Mark the graded options.
+ *
+ * Border colour alone was the only signal, and the chosen option kept its
+ * accent-filled dot — so a wrong answer showed an accent dot inside a red
+ * border, and under protanopia the correct row and the wrong row were
+ * indistinguishable. Each marked row now carries a word.
+ */
 function markQuiz(body, questions, answers) {
   const cards = [...body.querySelectorAll('.card')];
   questions.forEach((question, qi) => {
     const picks = [...cards[qi].querySelectorAll('.pick')];
     picks.forEach((pick, oi) => {
-      if (oi === question.answer) pick.classList.add('right');
-      else if (answers[qi] === oi) pick.classList.add('wrong');
+      const chosen = answers[qi] === oi;
+      if (oi === question.answer) {
+        pick.classList.add('right');
+        pick.appendChild(h('span.pick-verdict', chosen ? 'Correct' : 'Answer'));
+      } else if (chosen) {
+        pick.classList.add('wrong');
+        pick.appendChild(h('span.pick-verdict', 'Your answer'));
+      }
     });
   });
 }
@@ -360,7 +376,9 @@ function renderNumeric(host, found, startedAt) {
   questions.forEach((question, qi) => {
     const input = h('input.input', {
       type: 'text',
-      inputmode: 'decimal',
+      /* Not `decimal`: on iOS that keypad has no minus key at all, which made
+       * every negative-answer question unanswerable on an iPhone. */
+      inputmode: 'text',
       autocomplete: 'off',
       spellcheck: 'false',
       'aria-label': question.prompt,
@@ -377,7 +395,7 @@ function renderNumeric(host, found, startedAt) {
   /* Said once, at the point of entry, because a learner who types 1/2 and is
    * marked wrong will not try it again. */
   body.appendChild(h('div.card-note', { style: { marginBottom: 'var(--s4)' } },
-    'Decimals, fractions and percentages all work — 0.5, 1/2 and 50% are the same answer.'));
+    'Decimals, fractions and percentages all work — 0.5, 1/2 and 50% are all accepted.'));
 
   const actions = h('div', submitBtn);
   submitBtn.addEventListener('click', async () => {
@@ -470,7 +488,7 @@ async function askCoach(found, source, host) {
 
   clear(box);
   box.appendChild(h('div.row', { style: { gap: 'var(--s2)', alignItems: 'flex-start' } },
-    h('span', { style: { color: 'var(--lime)', display: 'flex', marginTop: '2px' } }, icon('sparkle', { size: 15 })),
+    h('span', { style: { color: 'var(--accent-ink)', display: 'flex', marginTop: '2px' } }, icon('sparkle', { size: 15 })),
     h('div', { style: { fontSize: '13.5px', lineHeight: '1.6', color: 'var(--bone-dim)' } }, reply.text)));
 
   if (reply.offline) {
@@ -528,4 +546,3 @@ function renderChecklist(host, found, startedAt) {
   host.appendChild(body);
 }
 
-export { num };

@@ -104,15 +104,6 @@ export function skillLevelMeta(level) {
  */
 const LEVEL_FRACTION = [0, 0, 0.25, 0.5, 0.75, 1];
 
-/*
- * Harder skills take longer per level. Kept for callers that reason about
- * difficulty directly; the level thresholds get it via capacity.
- */
-export function difficultyFactor(difficulty) {
-  const d = Math.max(1, Math.min(5, Number(difficulty) || 1));
-  return 1 + (d - 1) * 0.2;
-}
-
 export function xpForSkillLevel(level, capacity = 0) {
   const n = Math.max(0, Math.min(5, Math.round(Number(level) || 0)));
   return Math.round(LEVEL_FRACTION[n] * Math.max(0, Number(capacity) || 0));

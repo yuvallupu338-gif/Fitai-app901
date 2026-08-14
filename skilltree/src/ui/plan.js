@@ -31,6 +31,21 @@ const EXAMPLES = [
   'Get comfortable with calculus',
 ];
 
+/*
+ * Is the learner currently rewriting their goal?
+ *
+ * "Change" used to call `clearGoal`, which wrote `plan: null, goal: null` the
+ * instant it was clicked. One tap on a small secondary button destroyed the
+ * stated goal with no confirmation and no undo — and the damage spread: the
+ * dashboard's goal card vanished, its primary action changed to a skill from a
+ * tree the learner had never chosen, and "Suggested next" went on saying
+ * "based on your goal and progress" with no goal to base anything on.
+ *
+ * Editing is a screen state, not a stored one. The goal is replaced only when
+ * a new one has been successfully built, so backing out costs nothing.
+ */
+let editing = false;
+
 export function renderPlan(host) {
   const profile = session.freshProfile();
   const page = h('div.wrap.stack.loose');
@@ -46,7 +61,7 @@ export function renderPlan(host) {
   clear(host);
   host.appendChild(page);
 
-  if (profile.plan?.goalText) drawProgramme(body, profile, host);
+  if (profile.plan?.goalText && !editing) drawProgramme(body, profile, host);
   else drawGoalForm(body, profile, host);
 }
 
@@ -78,14 +93,23 @@ function drawGoalForm(host, profile, screenHost) {
     setGoal(text, screenHost);
   }
 
+  /* Rewriting an existing goal, rather than setting a first one: say which
+   * goal is still in force, and offer the way back to it. */
+  const current = profile.plan?.goalText;
+
   host.appendChild(h('div.card.feature',
-    h('div.eyebrow', 'Start here'),
+    h('div.eyebrow', current ? 'Change your goal' : 'Start here'),
     h('h2', 'What do you want to be able to do?'),
     h('p', { style: { color: 'var(--bone-dim)', margin: 'var(--s2) 0 var(--s4)' } },
-      'In your own words. Not a skill — the thing you want to be true.'),
+      current
+        ? `Your goal is still "${current}" until you replace it.`
+        : 'In your own words. Not a skill — the thing you want to be true.'),
     h('div.row.wrap', { style: { gap: 'var(--s2)' } },
       input,
-      h('button.btn.primary', { onclick: submit }, 'Build my plan')),
+      h('button.btn.primary', { onclick: submit }, 'Build my plan'),
+      current
+        ? h('button.btn', { onclick: () => { editing = false; renderPlan(screenHost); } }, 'Keep my goal')
+        : null),
     feedback,
     h('div.row.wrap', { style: { gap: 'var(--s2)', marginTop: 'var(--s4)' } },
       h('span.card-note', 'For example:'),
@@ -113,8 +137,18 @@ function setGoal(text, screenHost) {
           ? 'The built-in trees do not reach that. You can generate a tree for it, then set it as your goal.'
           : 'The built-in trees cover programming, mathematics, calisthenics and freelance business. You can generate a tree for anything else with an AI key, or try wording it differently.'),
       h('div.row.wrap', { style: { gap: 'var(--s2)' } },
-        h('button.btn.primary', { onclick: () => go('explore') }, 'Generate a tree for it'),
-        h('button.btn', { onclick: () => renderPlan(screenHost) }, 'Try different words'))));
+        /* Carry the goal through. Sending someone to a blank Explore screen
+         * made them retype what they had just typed, on a screen that gives no
+         * sign it was expecting anything. */
+        h('button.btn.primary', {
+          onclick: () => go(`explore?generate=${encodeURIComponent(text)}`),
+        }, 'Generate a tree for it'),
+        h('button.btn', { onclick: () => renderPlan(screenHost) }, 'Try different words'),
+        profile.plan?.goalText
+          ? h('button.btn', {
+            onclick: () => { editing = false; renderPlan(screenHost); },
+          }, `Keep "${profile.plan.goalText}"`)
+          : null)));
     clear(host);
     host.appendChild(notice);
     return;
@@ -124,17 +158,14 @@ function setGoal(text, screenHost) {
    * so caching it would go stale the moment anything is completed. The primary
    * target also becomes the tree-screen goal, so the existing goal path lights
    * up without a second concept. */
-  store.update((p) => ({
-    ...p,
-    plan: { goalText: text, createdAt: Date.now(), minutesPerDay: p.plan?.minutesPerDay || minutesFromIntensity(p) },
-    goal: {
-      treeId: programme.targets[0].treeId,
-      targetSkillId: programme.targets[0].skillId,
-      text,
-      createdAt: Date.now(),
-    },
-  }));
+  session.setGoal({
+    goalText: text,
+    minutesPerDay: profile.plan?.minutesPerDay || minutesFromIntensity(profile),
+    treeId: programme.targets[0].treeId,
+    targetSkillId: programme.targets[0].skillId,
+  });
 
+  editing = false;
   renderPlan(screenHost);
 }
 
@@ -175,7 +206,9 @@ function drawProgramme(host, profile, screenHost) {
       h('div',
         h('div.eyebrow', 'Goal'),
         h('h2', profile.plan.goalText)),
-      h('button.btn.ghost.small', { onclick: () => clearGoal(screenHost) }, 'Change')),
+      h('button.btn.ghost.small', {
+        onclick: () => { editing = true; renderPlan(screenHost); },
+      }, 'Change')),
 
     h('div.row.wrap', { style: { gap: 'var(--s2)', marginTop: 'var(--s3)' } },
       ...programme.targets.map((t) => h('button.chip.on', {
@@ -197,7 +230,7 @@ function drawProgramme(host, profile, screenHost) {
       h('div.list', ...week.map((step) => h('button.list-item', {
         onclick: () => go(`activity/${step.activity.id}`),
       },
-      h('span', { style: { color: 'var(--lime)', display: 'flex' }, 'aria-hidden': 'true' }, icon('play', { size: 15 })),
+      h('span', { style: { color: 'var(--accent-ink)', display: 'flex' }, 'aria-hidden': 'true' }, icon('play', { size: 15 })),
       h('div.grow',
         h('div.title', step.skill.name),
         h('div.sub', step.activity.title)),
@@ -252,7 +285,7 @@ function drawProgramme(host, profile, screenHost) {
     icon('info', { size: 16 }),
     h('span', programme.intents.length
       ? `Read as: ${programme.intents.map((i) => i.label).join(', ')}. Spanning ${programme.trees.map((id) => catalog.getTree(id)?.name).filter(Boolean).join(' and ')}.`
-      : `Matched on: ${programme.terms.join(', ')}. Spanning ${programme.trees.map((id) => catalog.getTree(id)?.name).filter(Boolean).join(' and ')}.`)));
+      : `Matched on: ${(programme.evidence.length ? programme.evidence : programme.terms).join(', ')}. Spanning ${programme.trees.map((id) => catalog.getTree(id)?.name).filter(Boolean).join(' and ')}.`)));
 }
 
 function stepRow(step, screenHost) {
@@ -262,7 +295,7 @@ function stepRow(step, screenHost) {
     onclick: () => openSkill(step.skillId, { onChange: () => renderPlan(screenHost) }),
   },
   h('span', {
-    style: { color: step.done ? 'var(--lime)' : 'var(--bone-dimmer)', display: 'flex' },
+    style: { color: step.done ? 'var(--accent-ink)' : 'var(--bone-dimmer)', display: 'flex' },
     'aria-hidden': 'true',
   }, icon(step.done ? 'check' : locked ? 'lock' : 'play', { size: 15 })),
 
@@ -290,7 +323,20 @@ function horizon(weeks) {
   return `${years} years`;
 }
 
+/*
+ * Clear both halves.
+ *
+ * The goal is stored twice — `plan` holds what the learner wrote, `goal` holds
+ * the destination it resolved to and drives the tree screen, the goal-path
+ * card, the profile bar and the recommendation weighting. Clearing only `plan`
+ * left all of those pointing at a goal the learner had just abandoned, with no
+ * way to reach it.
+ */
+/* Genuinely discard the goal. Reached from "Set a new goal" on the reached and
+ * broken-goal states, where there is nothing worth keeping — never from
+ * "Change", which only opens the editor. */
 function clearGoal(screenHost) {
-  store.update((p) => ({ ...p, plan: null }));
+  store.update((p) => ({ ...p, plan: null, goal: null }));
+  editing = false;
   renderPlan(screenHost);
 }

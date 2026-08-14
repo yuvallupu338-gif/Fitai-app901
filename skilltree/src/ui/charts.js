@@ -53,10 +53,13 @@ export function xpChart(days, opts = {}) {
 
   const chart = svg('svg.chart', {
     viewBox: `0 0 ${width} ${height}`,
-    preserveAspectRatio: 'none',
+    /* Uniform scaling. With `none` the viewBox was stretched independently on
+     * each axis — at 320px the x-scale was 0.40 against a y-scale of 1.0, and
+     * every axis label was compressed to two-fifths of its width. */
+    preserveAspectRatio: 'xMidYMid meet',
     role: 'img',
     'aria-label': `Daily XP over the last ${days.length} days. Highest day ${num(max)} XP.`,
-    style: 'height:168px',
+    style: 'width:100%;height:auto',
   });
 
   /* gridlines + y labels */
@@ -150,7 +153,7 @@ export function radarChart(areas, opts = {}) {
   const size = opts.size || 300;
   const cx = size / 2;
   const cy = size / 2;
-  const r = size / 2 - 46; /* room for labels outside the web */
+  const r = size / 2 - 54; /* room for labels outside the web */
   const n = areas.length;
 
   const chart = svg('svg.chart', {
@@ -200,15 +203,23 @@ export function radarChart(areas, opts = {}) {
     chart.appendChild(dot);
   });
 
-  /* labels outside the web, with the value attached — so the reader never has
-   * to estimate a magnitude from an area */
+  /*
+   * Labels outside the web, with the value attached — so the reader never has
+   * to estimate a magnitude from an area.
+   *
+   * The radius multiplier is 1.18 rather than 1.28, and the anchor is clamped
+   * away from the edges: at 320px the left-hand label started at x = -15 and
+   * "Programming" rendered as "gramming".
+   */
   areas.forEach((a, i) => {
-    const [x, y] = point(i, 128);
+    const [x, y] = point(i, 118);
     const cos = Math.cos(angle(i));
     const anchor = Math.abs(cos) < 0.3 ? 'middle' : cos > 0 ? 'start' : 'end';
-    const label = svg('text.radar-label', { x, y: y + 4, 'text-anchor': anchor });
+    /* Keep the text box inside the viewBox whatever the anchor. */
+    const clamped = Math.max(4, Math.min(size - 4, x));
+    const label = svg('text.radar-label', { x: clamped, y: y + 4, 'text-anchor': anchor });
     label.appendChild(svg('tspan', {}, a.label));
-    label.appendChild(svg('tspan', { x, dy: '13', class: 'tick' }, String(Math.round(a.value))));
+    label.appendChild(svg('tspan', { x: clamped, dy: '13', class: 'tick' }, String(Math.round(a.value))));
     chart.appendChild(label);
   });
 

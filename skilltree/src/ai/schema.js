@@ -218,7 +218,7 @@ export function validateTree(raw, treeId) {
   const byId = new Map(skills.map((sk) => [sk.id, sk]));
   const state = new Map();
 
-  const walk = (id, stack) => {
+  const walk = (id) => {
     if (state.get(id) === 'done') return;
     state.set(id, 'open');
     const skill = byId.get(id);
@@ -229,12 +229,12 @@ export function validateTree(raw, treeId) {
         continue;
       }
       kept.push(req);
-      walk(req.skillId, stack.concat([id]));
+      walk(req.skillId);
     }
     skill.requires = kept;
     state.set(id, 'done');
   };
-  for (const skill of skills) walk(skill.id, []);
+  for (const skill of skills) walk(skill.id);
 
   if (!skills.some((sk) => !sk.requires.length)) {
     return { ok: false, error: 'every skill depends on another — the tree has no starting point' };

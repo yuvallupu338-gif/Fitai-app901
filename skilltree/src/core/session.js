@@ -13,7 +13,7 @@
  */
 
 import * as store from './store.js';
-import { getIndex, findSkill, findActivity, allTrees } from '../data/catalog.js';
+import { getIndex, findSkill, findActivity, allTrees, registerTree, forgetTree as dropTree } from '../data/catalog.js';
 import { applyAttempt, startSkill, refreshDerived, liveStreak } from '../domain/progress.js';
 import { skillCapacity } from '../domain/xp.js';
 import { award } from '../domain/achievements.js';
@@ -21,24 +21,93 @@ import { computeDepths } from '../domain/graph.js';
 import { recommend, goalPath, reviewQueue } from '../domain/recommend.js';
 import { missionsForToday, completeMissionsFor, nextActivityFor } from '../domain/missions.js';
 import { grade } from '../domain/verify.js';
+import { buildProgramme } from '../domain/goals.js';
+import * as catalog from '../data/catalog.js';
 import { totalXp } from '../domain/xp.js';
 import { globalProgress } from '../domain/levels.js';
 
-/* Depth lookups are needed by two achievement rules and by nothing else, so
- * they are computed lazily and cached rather than being carried around. */
-const depthCache = new Map();
+/*
+ * Depth lookups are needed by two achievement rules and by nothing else, so
+ * they are computed lazily and cached rather than being carried around.
+ *
+ * Keyed by the index object, not by the tree id. Registering a tree builds a
+ * new index, so a generated tree accepted under an id already in the cache —
+ * or a tree restored at boot — would otherwise be answered from depths
+ * computed for the previous graph. An id is not a version; the index is.
+ */
+const depthCache = new WeakMap();
 function depthOf(skillId) {
   const found = findSkill(skillId);
   if (!found) return null;
-  if (!depthCache.has(found.tree.id)) depthCache.set(found.tree.id, computeDepths(found.index));
-  return depthCache.get(found.tree.id).get(skillId) ?? null;
+  if (!depthCache.has(found.index)) depthCache.set(found.index, computeDepths(found.index));
+  return depthCache.get(found.index).get(skillId) ?? null;
 }
 
 function treeOf(skillId) {
   return findSkill(skillId)?.tree?.id || null;
 }
 
-const achievementCtx = { depthOf, treeOf };
+function requirementCount(skillId) {
+  return (findSkill(skillId)?.skill?.requires || []).length;
+}
+
+const achievementCtx = { depthOf, treeOf, requirementCount };
+
+/* ------------------------------------------------------------------ *
+ * The generated catalogue
+ * ------------------------------------------------------------------ */
+
+/*
+ * Trees the learner generated are held in the same in-memory catalogue as the
+ * seeded ones, which means they have to be put back there on every boot. This
+ * runs at import time, before the router picks a screen, so a route straight
+ * into a generated tree resolves on a cold load exactly as it does after
+ * accepting one.
+ *
+ * A stored tree that no longer indexes — written by an older build, or edited
+ * by hand in an export — is dropped rather than allowed to throw during
+ * layout, because a broken tree must not cost the learner the whole app.
+ */
+export function restoreTrees() {
+  const broken = [];
+  for (const tree of store.savedTrees()) {
+    try {
+      registerTree(tree);
+    } catch (err) {
+      console.error(`could not restore tree ${tree.id}`, err);
+      broken.push(tree.id);
+    }
+  }
+  for (const id of broken) store.forgetTree(id);
+  return { restored: store.savedTrees().length, dropped: broken };
+}
+
+restoreTrees();
+
+/**
+ * Register a generated tree and persist it, in that order.
+ *
+ * Registration validates the graph, so a tree that would break the layout is
+ * rejected before anything is written — the alternative is storing a tree that
+ * fails to load on every subsequent boot.
+ */
+export function acceptGeneratedTree(tree) {
+  try {
+    registerTree(tree);
+  } catch (err) {
+    return { ok: false, error: err.message };
+  }
+  const stored = store.saveTree({ ...tree, generated: true });
+  /* Registered but not written: the tree works for this session, and saying so
+   * is better than a silent loss at the next reload. */
+  return { ok: true, persisted: stored };
+}
+
+/** Remove a generated tree from both the catalogue and storage. */
+export function removeGeneratedTree(id) {
+  dropTree(id);
+  return store.forgetTree(id);
+}
 
 /* ------------------------------------------------------------------ *
  * Reading
@@ -139,6 +208,36 @@ export function begin(skillId) {
  * Returns the grading result plus the announcements, so the activity screen
  * can show the feedback and the toasts from one call.
  */
+/*
+ * A stable fingerprint for a submission.
+ *
+ * The attempt id used to be `activity#<attempts.length + 1>`, computed from the
+ * live profile — which strictly increases, so the id was different every time
+ * and the duplicate check downstream could never fire. Three comments claimed
+ * double-submission was handled; it was handled by the UI removing the button,
+ * and `session.submit` is a public API with no such protection.
+ *
+ * Hashing what was actually submitted makes an identical resubmission collide,
+ * which is exactly the case worth collapsing: a double click, a retried call,
+ * two concurrent submits of the same answers. A genuine retry differs — the
+ * learner changed something — and correctly gets its own id.
+ */
+export function fingerprint(activityId, submission) {
+  const payload = JSON.stringify({
+    a: activityId,
+    answers: submission.answers ?? null,
+    source: submission.source ?? null,
+    checked: submission.checked ?? null,
+  });
+
+  let hash = 2166136261;
+  for (let i = 0; i < payload.length; i += 1) {
+    hash ^= payload.charCodeAt(i);
+    hash = Math.imul(hash, 16777619);
+  }
+  return `${activityId}#${(hash >>> 0).toString(36)}`;
+}
+
 export async function submit(activityId, submission) {
   const found = findActivity(activityId);
   if (!found) return { ok: false, reason: 'unknown_activity' };
@@ -156,9 +255,8 @@ export async function submit(activityId, submission) {
       kind: activity.kind,
       score: result.score,
       passed: result.passed,
-      /* The attempt id is derived from what has already happened, not from
-       * the caller, so a double-submitted form collapses to one award. */
-      id: `${activityId}#${(p.skills[skill.id]?.attempts?.length || 0) + 1}`,
+      /* Derived from the submission itself — see fingerprint. */
+      id: fingerprint(activityId, submission),
       durationMs: submission.durationMs || null,
     });
 
@@ -222,6 +320,40 @@ export function goalPathFor(goal) {
   return goalPath(index, goal.targetSkillId, freshProfile());
 }
 
+/**
+ * The learner's programme — the single source of the goal numbers.
+ *
+ * Four screens reported progress toward the same goal and two of them
+ * disagreed: the dashboard and the plan folded every destination across every
+ * tree ("9 / 27"), while the tree and the profile walked the path to one target
+ * in one tree ("2 / 19"). Same goal, same moment, 33% against 11%. Whichever
+ * was right, showing both was not.
+ *
+ * So the programme is computed here, once, and every screen reads it. The tree
+ * still shows only its own share — a graph cannot draw the skills in another
+ * tree — but it takes that share from this, and says so.
+ */
+export function programme(now = Date.now()) {
+  const p = freshProfile(now);
+  if (!p || !p.plan?.goalText) return null;
+  const built = buildProgramme({
+    catalog,
+    state: p,
+    goalText: p.plan.goalText,
+    minutesPerDay: p.plan.minutesPerDay || 20,
+    now,
+  });
+  return built.ok ? built : null;
+}
+
+/** The part of the programme that lives in one tree, for the tree screen. */
+export function programmeInTree(treeId, now = Date.now()) {
+  const built = programme(now);
+  if (!built) return null;
+  const steps = built.steps.filter((s) => s.treeId === treeId);
+  return { steps, done: steps.filter((s) => s.done).length, total: built.totalSteps };
+}
+
 export function reviews(now = Date.now(), limit = 5) {
   const p = freshProfile(now);
   if (!p) return [];
@@ -271,9 +403,37 @@ export function nextActivity(skillId) {
   return nextActivityFor(found.skill, store.get()?.skills?.[skillId]);
 }
 
-export function setGoal(treeId, targetSkillId, text) {
+/**
+ * Set the goal — both halves of it, in one place.
+ *
+ * `plan` is what the learner wrote; `goal` is the destination it resolved to,
+ * and half a dozen screens read the latter. They were being written by two
+ * separate call sites and cleared by neither, so an abandoned goal kept
+ * driving the tree screen and the recommendations. One writer now.
+ */
+export function setGoal({ goalText, minutesPerDay, treeId, targetSkillId }, now = Date.now()) {
   return store.update((p) => ({
     ...p,
-    goal: { treeId, targetSkillId, text: text || '', createdAt: Date.now() },
+    plan: { goalText, createdAt: now, minutesPerDay: minutesPerDay || 20 },
+    goal: targetSkillId
+      ? { treeId, targetSkillId, text: goalText || '', createdAt: now }
+      : null,
   }));
+}
+
+/**
+ * Award anything the current state qualifies for.
+ *
+ * Exposed because seeding paths — onboarding, the demo — build state by
+ * replaying attempts and would otherwise leave the learner on a populated
+ * dashboard beside an achievements screen reading "0 of 16".
+ */
+export function awardPending() {
+  let unlocked = [];
+  store.update((p) => {
+    const res = award(p, achievementCtx);
+    unlocked = res.unlocked;
+    return res.state;
+  });
+  return unlocked;
 }

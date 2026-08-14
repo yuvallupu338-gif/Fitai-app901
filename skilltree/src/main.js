@@ -9,7 +9,7 @@ import { h, clear } from './core/dom.js';
 import { icon } from './ui/icons.js';
 import * as store from './core/store.js';
 import * as session from './core/session.js';
-import { route, notFound, start, go, onNavigate, currentRoute } from './core/router.js';
+import { route, notFound, start, go, onNavigate, currentRoute, resolve } from './core/router.js';
 import { buildShell, syncNav, syncTheme, applyTheme } from './ui/shell.js';
 import { renderDashboard } from './ui/dashboard.js';
 import { renderActivity } from './ui/activity.js';
@@ -60,7 +60,7 @@ function guarded(fn) {
 route('dashboard', guarded((host) => renderDashboard(host)));
 route('plan', guarded((host) => renderPlan(host)));
 route('tree', guarded((host, params, query) => renderTree(host, params, query)));
-route('explore', guarded((host) => renderExplore(host)));
+route('explore', guarded((host, params, query) => renderExplore(host, params, query)));
 route('progress', guarded((host) => renderProgress(host)));
 route('achievements', guarded((host) => renderAchievements(host)));
 route('profile', guarded((host) => renderProfile(host)));
@@ -109,9 +109,19 @@ onNavigate(() => {
   if (currentRoute()?.name !== 'tree') window.scrollTo(0, 0);
 });
 
-/* Repaint the active screen whenever stored state changes, so a change made in
+/*
+ * Repaint the active screen whenever stored state changes, so a change made in
  * a sheet is reflected on the page behind it without every caller remembering
- * to re-render. */
+ * to re-render.
+ *
+ * The guard on focus is the whole subtlety. Re-rendering `main` replaces its
+ * DOM, and if the learner is typing in it — a code editor, a numeric answer —
+ * the element under the caret is destroyed and focus falls to `<body>`. So the
+ * repaint runs only when focus is somewhere a rebuild cannot disturb: in a
+ * sheet (its own subtree, untouched by this), in the nav, or nowhere. When
+ * focus is inside the screen, the screen is being used, and whoever is using
+ * it re-renders on its own terms.
+ */
 let repainting = false;
 store.subscribe(() => {
   if (repainting) return;
@@ -119,6 +129,16 @@ store.subscribe(() => {
   window.requestAnimationFrame(() => {
     repainting = false;
     syncTheme();
+
+    const focus = document.activeElement;
+    const inScreen = focus && focus !== document.body && main.contains(focus);
+    if (inScreen) return;
+
+    const route = currentRoute();
+    /* Onboarding owns its own multi-step state; rebuilding it from the store
+     * would throw the learner back to step one on every keystroke saved. */
+    if (!route || route.name === 'onboarding') return;
+    resolve();
   });
 });
 

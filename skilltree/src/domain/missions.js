@@ -10,9 +10,10 @@
  * Someone on Light gets one real mission, not three trivial ones.
  */
 
-import { recommend, reviewQueue } from './recommend.js';
-import { statusOf, STATUS } from './unlock.js';
+import { reviewQueue } from './recommend.js';
+import { STATUS } from './unlock.js';
 import { dayNumber } from './progress.js';
+import { baseXpFor } from './xp.js';
 
 export const INTENSITY = {
   light: { count: 1, label: 'Light', blurb: 'One thing a day.' },
@@ -71,8 +72,10 @@ export function generateMissions(ctx, now = Date.now()) {
   return missions.slice(0, intensity.count);
 }
 
+/* The engine's own table, not a transcription of it — a mission chip that
+ * promises XP the engine will not pay is a small lie the learner catches. */
 function xpHintFor(kind) {
-  return { learn: 10, quiz: 15, practice: 15, challenge: 25, assessment: 50, project: 100, mastery: 200 }[kind] || 10;
+  return baseXpFor(kind);
 }
 
 /**

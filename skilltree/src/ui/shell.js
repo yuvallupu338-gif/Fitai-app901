@@ -36,7 +36,7 @@ export function applyTheme(theme) {
 }
 
 export function buildShell() {
-  const main = h('main.main', { id: 'main' });
+  const main = h('main.main', { id: 'main', tabindex: '-1' });
 
   const sidebar = h('nav.nav', { 'aria-label': 'Main' },
     h('div.nav-brand', brandMark(26), 'SkillTree'),
@@ -64,18 +64,18 @@ export function buildShell() {
       onclick: () => go('settings'),
     }, icon('settings', { size: 19 }), 'Settings'));
 
-  const app = h('div.app',
-    sidebar,
-    main,
-    /* Skip link, first in tab order, so a keyboard user is not walked through
-     * seven nav items on every navigation. */
-    h('a', {
-      href: '#main',
-      class: 'sr-only',
-      style: { position: 'fixed', top: '8px', left: '8px', zIndex: '100' },
-      onfocus: (e) => { e.target.classList.remove('sr-only'); },
-      onblur: (e) => { e.target.classList.add('sr-only'); },
-    }, 'Skip to content'));
+  /*
+   * Genuinely first in tab order — it was appended last, after the sidebar and
+   * the whole of main, so it was reached only after every other control on the
+   * page and skipped nothing. It also painted transparent white text over the
+   * h1 when focused; `.skip-link` in components.css gives it a real surface.
+   */
+  const skip = h('a.skip-link', {
+    href: '#main',
+    onclick: () => { window.requestAnimationFrame(() => main.focus()); },
+  }, 'Skip to content');
+
+  const app = h('div.app', skip, sidebar, main);
 
   document.body.appendChild(app);
   document.body.appendChild(tabbar);
@@ -88,6 +88,22 @@ export function buildShell() {
 export function syncNav() {
   const route = currentRoute();
   const active = route ? route.name : 'dashboard';
+
+  /*
+   * Hide both navigations during onboarding.
+   *
+   * They were rendered on every step — eight sidebar links and six tabs, all
+   * looking enabled — and were entirely inert *except* for one destructive
+   * effect: every screen is guarded on `onboarded`, so clicking any of them
+   * bounced back to `#/onboarding`, which re-runs with a fresh answers object.
+   * The learner's name and chosen area vanished and they landed on step one
+   * again, with no warning and nothing to explain it. On the first screen a new
+   * user ever sees.
+   *
+   * Controls that cannot work should not be on the screen. The onboarding has
+   * its own back and next.
+   */
+  document.body.classList.toggle('onboarding', active === 'onboarding');
   for (const el of qsa('[data-nav]')) {
     const on = el.dataset.nav === active;
     if (on) el.setAttribute('aria-current', 'page');

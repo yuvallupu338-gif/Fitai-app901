@@ -33,7 +33,11 @@ export const ACHIEVEMENTS = [
     name: 'Door Opened',
     tier: 'bronze',
     description: 'Unlock a skill by meeting its requirements.',
-    test: (s) => Object.keys(s.skills || {}).length >= 2,
+    /* Counting two started skills awarded this for opening two *roots* — two
+     * skills that require nothing — which is the opposite of what the badge
+     * says. It has to be a skill that actually had prerequisites. */
+    test: (s, ctx) => Object.keys(s.skills || {})
+      .some((id) => (ctx?.requirementCount?.(id) ?? 0) > 0),
   },
   {
     id: 'first_mastery',
@@ -112,6 +116,7 @@ export const ACHIEVEMENTS = [
       for (const skill of Object.values(s.skills || {})) {
         const byActivity = new Map();
         for (const a of skill.attempts || []) {
+          if (a.seeded) continue;
           if (!byActivity.has(a.activityId)) byActivity.set(a.activityId, []);
           byActivity.get(a.activityId).push(a);
         }
@@ -159,10 +164,24 @@ export const ACHIEVEMENTS = [
   },
 ];
 
+/*
+ * Every attempt the learner actually made.
+ *
+ * Seeded attempts are excluded. Onboarding replays attempts to open the gates
+ * for someone who already knows the material, and counting those meant a
+ * brand-new account was handed "First Step — complete your first activity"
+ * and two other badges, all reading "Earned just now", before its owner had
+ * done a single thing. A badge for work you did not do is worth nothing, and
+ * it tells the learner immediately that the rest are worth nothing either.
+ *
+ * Rules about *standing* — twenty skills started, a skill at level 5 — still
+ * count seeded progress, because that standing is real. Rules about *doing*
+ * read this.
+ */
 function everyAttempt(state) {
   const out = [];
   for (const skill of Object.values(state.skills || {})) {
-    for (const a of skill.attempts || []) out.push(a);
+    for (const a of skill.attempts || []) if (!a.seeded) out.push(a);
   }
   return out;
 }

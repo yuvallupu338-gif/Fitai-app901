@@ -23,18 +23,29 @@ import { levelFor } from './levels.js';
  * The learner's current standing on one skill, in the shape the gate needs.
  * `progressOf` is `(skillId) => userSkill | undefined`.
  */
-function levelOf(progressOf, skillId) {
+export function levelOf(progressOf, skillId) {
   const p = progressOf(skillId);
   if (!p) return 0;
-  /* Recompute rather than trusting a stored level: the stored one can be stale
-   * if weights or thresholds changed since it was written, and a gate that
-   * disagrees with the skill panel is a bug report. */
-  return levelFor({
+
+  /*
+   * Recompute, then take the higher of that and the recorded peak.
+   *
+   * Recomputing matters because a stored level can be stale — thresholds and
+   * a skill's activity list both change, and a gate that disagrees with the
+   * skill panel is a bug report. Taking the peak matters because a level is
+   * earned and does not fall (see applyAttempt). Doing both, here, in the one
+   * function every reader goes through, is what stops the two rules drifting:
+   * the review found six modules reading the stored field and five recomputing,
+   * and the two answers differing by three mastered skills.
+   */
+  const computed = levelFor({
     xp: p.xp || 0,
     masteryScore: p.masteryScore || 0,
     capacity: p.capacity || 0,
     started: !!p.startedAt,
   });
+
+  return Math.max(computed, p.peakLevel || 0);
 }
 
 /**

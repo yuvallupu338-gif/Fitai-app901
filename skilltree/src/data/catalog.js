@@ -26,7 +26,8 @@ const layoutCache = new Map();
  *
  * Every multiple-choice question in this repo was authored with its correct
  * answer written first — which is the natural way to write them and a fatal
- * way to ship them. All 101 questions had the answer at index 0, so the whole
+ * way to ship them. Every one of the multiple-choice questions had its answer
+ * at index 0, so the whole
  * quiz system could be beaten by always clicking the top option. The smoke
  * test found it by accident: a broken fallback path guessed index 0 for every
  * question and scored 100%.
@@ -87,6 +88,13 @@ function normaliseTree(tree) {
     };
   });
   return touched ? { ...tree, skills } : tree;
+}
+
+/** Drop a tree from the catalogue. Only generated trees are ever removed. */
+export function forgetTree(id) {
+  layoutCache.delete(id);
+  indexCache.delete(id);
+  return trees.delete(id);
 }
 
 export function registerTree(rawTree) {

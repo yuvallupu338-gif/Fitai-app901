@@ -792,7 +792,7 @@ export const BUSINESS_TREE = {
             'Chosen one channel where your buyers actually are',
             'Published at least six things on it',
             'Each is specific and useful rather than generic',
-            'Sustained it for at least eight weeks',
+            'Sustained it for at least six months, or are on week eight of a run you have not broken',
             'Kept doing outreach alongside it',
           ]),
       ],
@@ -804,7 +804,14 @@ export const BUSINESS_TREE = {
       category: 'Growth',
       difficulty: 4,
       estimatedHours: [2, 6],
-      requires: [{ skillId: 'first_client', minLevel: 3 }],
+      /* The lesson says outright that refusal is built from runway, and the
+       * gate scores "enough runway or pipeline that declining was a real
+       * choice" — but money_admin, the only skill that defines runway, was not
+       * a prerequisite. You could pass this without meeting the idea it grades. */
+      requires: [
+        { skillId: 'first_client', minLevel: 3 },
+        { skillId: 'money_admin', minLevel: 2 },
+      ],
       description: 'Recognising the bad ones early, and being able to say no.',
       why: 'One bad client can cost more than two good ones earn — in time, in money, and in wanting to keep doing this.',
       activities: [

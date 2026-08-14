@@ -70,8 +70,14 @@
   /* ---- ink ---- */
   --bone: #E8EAEC;
   --bone-dim: #A8AFB6;
-  /* Measured at 4.6:1 on --surface. Anything dimmer stops being body text. */
-  --bone-dimmer: #7C858D;
+  /*
+   * Measured on every surface it is actually used on, not just one.
+   *
+   * The previous value was chosen against --surface (4.70:1) and used on three
+   * other surfaces where it fell to 3.96:1 — across roughly 220 elements:
+   * every card note, list subtitle, chip and stat label. Now 4.76:1 at worst.
+   */
+  --bone-dimmer: #8A939B;
 
   /* ---- the one accent ---- */
   --lime: #C9F24D;
@@ -90,6 +96,18 @@
    */
   --lime-hover: #B4DE2E;
   --lime-deep: #8FAF2A;
+  /*
+   * The accent when it IS the mark — text, a ring, a bar fill, a chart line.
+   *
+   * Distinct from --lime, which is a *fill* that dark ink sits on. The two
+   * were the same token, and in light mode that put #B4DE2E text on white at
+   * 1.56:1: every level badge, every "on" chip, the whole XP chart and every
+   * progress bar were a pale wash on near-white. The rule was already written
+   * in this file — "--lime-deep is for ink, never for a fill" — and the
+   * stylesheet broke it in nine places, which is what happens when a rule has
+   * no token to enforce it.
+   */
+  --accent-ink: #C9F24D;
 
   /* ---- semantic, used sparingly and never decoratively ---- */
   --warn: #E8B34A;
@@ -173,7 +191,8 @@
 
   --bone: #1A1D20;
   --bone-dim: #565C63;
-  --bone-dimmer: #6E757C;
+  /* Likewise re-measured: 4.59:1 at worst, on --surface-3. */
+  --bone-dimmer: #656C73;
 
   /* Lime is kept for fills, where dark text sits on it; the darker variant is
    * used wherever the accent has to work as text or a thin line. */
@@ -185,6 +204,10 @@
   --lime-hover: #A2C921;
   /* 4.9:1 as text on white — this one is for ink, never for a fill. */
   --lime-deep: #5F7A0F;
+  /* 4.9:1 on card, 4.4:1 on the page ground, 4.2:1 as a bar against its
+   * track. The dark theme can use the bright lime for all of these; light
+   * cannot, and this is the token that lets one rule serve both. */
+  --accent-ink: #5F7A0F;
 
   --warn: #9A6A0C;
   --warn-soft: rgba(154, 106, 12, .12);
@@ -221,11 +244,11 @@
 
   --st-progress-ink: var(--bone);
   --st-progress-face: var(--surface-2);
-  --st-progress-line: var(--lime);
+  --st-progress-line: var(--accent-ink);
 
   --st-complete-ink: var(--bone);
   --st-complete-face: var(--surface-3);
-  --st-complete-line: var(--lime);
+  --st-complete-line: var(--accent-ink);
 
   --st-mastered-ink: var(--lime-ink);
   --st-mastered-face: var(--lime);
@@ -316,7 +339,9 @@ button, input, select, textarea {
  */
 :focus { outline: none; }
 :focus-visible {
-  outline: 2px solid var(--lime);
+  /* --accent-ink, not --lime: in light mode the bright lime ring measured
+   * 1.41:1 against the page and was effectively invisible. */
+  outline: 2px solid var(--accent-ink);
   outline-offset: 2px;
   border-radius: 4px;
 }
@@ -331,6 +356,18 @@ button, input, select, textarea {
   min-height: 100vh;
   min-height: 100dvh;
 }
+
+/*
+ * Onboarding has no navigation.
+ *
+ * Not "disabled navigation" — removed. Every screen behind these links is
+ * guarded on having finished onboarding, so they could only ever bounce back
+ * here and discard the answers on the way. A single column also lets the
+ * onboarding card sit where it belongs, in the middle of the page.
+ */
+body.onboarding .nav,
+body.onboarding .tabbar { display: none; }
+body.onboarding .app { grid-template-columns: 1fr; }
 
 .main {
   min-width: 0; /* without this, a wide child stretches the grid column and
@@ -399,7 +436,7 @@ button, input, select, textarea {
 
 /* The active marker is a bar, not a colour change, so it survives being
  * printed, being viewed in greyscale, and colour vision deficiency. */
-.nav-link[aria-current="page"] .nav-icon { color: var(--lime); }
+.nav-link[aria-current="page"] .nav-icon { color: var(--accent-ink); }
 
 .nav-icon { width: 17px; height: 17px; flex: none; opacity: .9; }
 
@@ -456,7 +493,23 @@ button, input, select, textarea {
     cursor: pointer;
   }
 
-  .tab[aria-current="page"] { color: var(--lime); }
+  /* Weight and a bar as well as colour — the active tab was distinguished by
+   * colour alone, and in light mode that colour measured 1.56:1, making the
+   * active tab *less* legible than the inactive ones. */
+  .tab[aria-current="page"] {
+    color: var(--accent-ink);
+    font-weight: 680;
+  }
+  .tab[aria-current="page"]::before {
+    content: "";
+    position: absolute;
+    top: 0;
+    width: 22px;
+    height: 2px;
+    border-radius: 0 0 2px 2px;
+    background: var(--accent-ink);
+  }
+  .tab { position: relative; }
   .tab svg { width: 19px; height: 19px; }
 }
 
@@ -499,6 +552,25 @@ button, input, select, textarea {
  * exactly like the thing you can ignore. So there are three card weights here
  * — .card, .card.quiet and .card.feature — and screens pick deliberately.
  */
+
+.skip-link {
+  position: fixed;
+  top: var(--s2);
+  left: var(--s2);
+  z-index: 100;
+  padding: 10px var(--s4);
+  border-radius: var(--r-sm);
+  border: 1px solid var(--accent-ink);
+  background: var(--surface);
+  color: var(--bone);
+  font-size: 14px;
+  font-weight: 580;
+  text-decoration: none;
+  /* Off-screen rather than display:none, so it stays focusable. */
+  transform: translateY(-200%);
+  transition: transform var(--fast) var(--ease);
+}
+.skip-link:focus { transform: none; }
 
 /* ------------------------------------------------------------------ *
  * Cards
@@ -637,7 +709,7 @@ button, input, select, textarea {
   display: block;
   height: 100%;
   border-radius: inherit;
-  background: var(--lime);
+  background: var(--accent-ink);
   transition: width var(--slow) var(--ease-out);
 }
 
@@ -670,7 +742,7 @@ button, input, select, textarea {
 .chip.on {
   border-color: var(--lime-line);
   background: var(--lime-soft);
-  color: var(--lime);
+  color: var(--accent-ink);
 }
 .chip.warn { border-color: transparent; background: var(--warn-soft); color: var(--warn); }
 .chip.fail { border-color: transparent; background: var(--fail-soft); color: var(--fail); }
@@ -687,7 +759,7 @@ button, input, select, textarea {
   background: var(--surface-3);
   color: var(--bone-dim);
 }
-.lvl.on { background: var(--lime-soft); color: var(--lime); }
+.lvl.on { background: var(--lime-soft); color: var(--accent-ink); }
 
 /* ------------------------------------------------------------------ *
  * Skill node — the tree's atom
@@ -779,7 +851,7 @@ button, input, select, textarea {
   border-style: solid;
   border-color: var(--st-complete-line);
   background: var(--st-complete-face);
-  color: var(--lime);
+  color: var(--accent-ink);
 }
 .node[data-state="completed"] .node-label { color: var(--bone); }
 
@@ -798,7 +870,7 @@ button, input, select, textarea {
   position: absolute;
   inset: -4px;
   border-radius: 50%;
-  background: conic-gradient(var(--lime) calc(var(--p) * 1%), transparent 0);
+  background: conic-gradient(var(--accent-ink) calc(var(--p) * 1%), transparent 0);
   -webkit-mask: radial-gradient(circle, transparent 0 61%, #000 62%);
   mask: radial-gradient(circle, transparent 0 61%, #000 62%);
 }
@@ -807,7 +879,7 @@ button, input, select, textarea {
  * class toggle repaints the whole tree rather than 300 inline styles. */
 .tree-canvas.focusing .node { opacity: .26; }
 .tree-canvas.focusing .node.lit { opacity: 1; }
-.tree-canvas.focusing .node.lit .node-ring { border-color: var(--lime); }
+.tree-canvas.focusing .node.lit .node-ring { border-color: var(--accent-ink); }
 
 /* Goal-path membership is a persistent mark, not a hover state: a small filled
  * dot under the label, so it survives alongside every other state. */
@@ -817,7 +889,7 @@ button, input, select, textarea {
   width: 4px; height: 4px;
   margin: 4px auto 0;
   border-radius: 50%;
-  background: var(--lime);
+  background: var(--accent-ink);
 }
 
 /* ------------------------------------------------------------------ *
@@ -865,7 +937,7 @@ button, input, select, textarea {
 }
 .tree-edge.met { stroke: var(--lime-line); }
 .tree-canvas.focusing .tree-edge { stroke: var(--line-soft); }
-.tree-canvas.focusing .tree-edge.lit { stroke: var(--lime); stroke-width: 2; }
+.tree-canvas.focusing .tree-edge.lit { stroke: var(--accent-ink); stroke-width: 2; }
 
 .tree-controls {
   position: absolute;
@@ -1047,7 +1119,7 @@ button, input, select, textarea {
 
 .pick:hover { border-color: var(--bone-dimmer); }
 .pick[aria-pressed="true"], .pick.on {
-  border-color: var(--lime);
+  border-color: var(--accent-ink);
   background: var(--lime-soft);
 }
 
@@ -1063,13 +1135,28 @@ button, input, select, textarea {
 }
 .pick[aria-pressed="true"] .pick-mark,
 .pick.on .pick-mark {
-  border-color: var(--lime);
-  background: var(--lime);
+  border-color: var(--accent-ink);
+  background: var(--accent-ink);
   color: var(--lime-ink);
 }
 .pick.box .pick-mark { border-radius: 5px; }
 
-.pick.right { border-color: var(--lime); background: var(--lime-soft); }
+.pick.right { border-color: var(--accent-ink); background: var(--lime-soft); }
+/* The word, not just the colour. */
+.pick-verdict {
+  flex: none;
+  align-self: center;
+  font-size: 11px;
+  font-weight: 620;
+  letter-spacing: .04em;
+  text-transform: uppercase;
+  white-space: nowrap;
+}
+.pick.right .pick-verdict { color: var(--accent-ink); }
+.pick.wrong .pick-verdict { color: var(--fail); }
+/* A graded option is no longer a live control, so its selection dot must stop
+ * reading as "chosen". */
+.pick.wrong .pick-mark { background: transparent; border-color: var(--fail); }
 .pick.wrong { border-color: var(--fail); background: var(--fail-soft); }
 
 .pick-body { flex: 1; min-width: 0; }
@@ -1118,6 +1205,15 @@ button, input, select, textarea {
 .notice.fail { border-color: transparent; background: var(--fail-soft); color: var(--fail); }
 .notice svg { flex: none; width: 16px; height: 16px; margin-top: 2px; }
 
+.notice-toggle {
+  width: 100%;
+  text-align: left;
+  font: inherit;
+  cursor: pointer;
+}
+/* Only interactive where it is actually clamped. */
+@media (min-width: 861px) { .notice-toggle { cursor: default; } }
+
 /* ------------------------------------------------------------------ *
  * Toasts and moments
  * ------------------------------------------------------------------ */
@@ -1157,8 +1253,8 @@ button, input, select, textarea {
 
 .toast.leaving { animation: toast-out var(--mid) var(--ease) forwards; }
 .toast.xp { border-color: var(--lime-line); }
-.toast.xp b { font-family: var(--mono); color: var(--lime); }
-.toast svg { width: 17px; height: 17px; flex: none; color: var(--lime); }
+.toast.xp b { font-family: var(--mono); color: var(--accent-ink); }
+.toast svg { width: 17px; height: 17px; flex: none; color: var(--accent-ink); }
 
 @keyframes toast-in { from { opacity: 0; transform: translateY(8px) } to { opacity: 1; transform: none } }
 @keyframes toast-out { to { opacity: 0; transform: translateY(6px) } }
@@ -1177,7 +1273,7 @@ button, input, select, textarea {
   font-weight: 640;
   letter-spacing: .16em;
   text-transform: uppercase;
-  color: var(--lime);
+  color: var(--accent-ink);
 }
 .moment-jump {
   display: flex;
@@ -1190,7 +1286,7 @@ button, input, select, textarea {
   font-weight: 640;
   letter-spacing: -.04em;
 }
-.moment-jump .to { color: var(--lime); }
+.moment-jump .to { color: var(--accent-ink); }
 .moment-jump .from { color: var(--bone-dimmer); }
 .moment-jump svg { width: 22px; height: 22px; color: var(--bone-dimmer); }
 .moment ul { margin: 0; padding: 0; list-style: none; color: var(--bone-dim); font-size: 14px; }
@@ -1231,7 +1327,7 @@ button, input, select, textarea {
   flex: none;
   background: var(--line);
 }
-.dot.on { background: var(--lime); }
+.dot.on { background: var(--accent-ink); }
 
 /* ------------------------------------------------------------------ *
  * Stat readouts
@@ -1319,7 +1415,7 @@ button, input, select, textarea {
   line-height: 1.5;
 }
 .testrow .mark { flex: none; font-weight: 700; }
-.testrow.pass .mark { color: var(--lime); }
+.testrow.pass .mark { color: var(--accent-ink); }
 .testrow.fail .mark { color: var(--fail); }
 .testrow .detail { color: var(--bone-dimmer); overflow-x: auto; }
 
@@ -1328,16 +1424,20 @@ button, input, select, textarea {
  * ------------------------------------------------------------------ */
 
 .chart { width: 100%; display: block; overflow: visible; }
+/* Never stretch a chart's glyphs. `preserveAspectRatio: none` scaled the XP
+ * chart's x-axis to 0.40 while leaving y at 1.0, so the axis labels rendered as
+ * illegible slivers on a phone. */
+.chart text { vector-effect: non-scaling-stroke; }
 .chart .axis { stroke: var(--line); stroke-width: 1; }
 .chart .gridline { stroke: var(--line-soft); stroke-width: 1; }
 .chart .tick { fill: var(--bone-dimmer); font-size: 10px; font-family: var(--mono); }
 .chart .area { fill: var(--lime-soft); }
-.chart .line { fill: none; stroke: var(--lime); stroke-width: 1.75; stroke-linejoin: round; stroke-linecap: round; }
-.chart .barfill { fill: var(--lime); }
+.chart .line { fill: none; stroke: var(--accent-ink); stroke-width: 1.75; stroke-linejoin: round; stroke-linecap: round; }
+.chart .barfill { fill: var(--accent-ink); }
 .chart .barfill.zero { fill: var(--line); }
 .chart .radar-web { fill: none; stroke: var(--line-soft); stroke-width: 1; }
-.chart .radar-shape { fill: var(--lime-soft); stroke: var(--lime); stroke-width: 1.75; }
-.chart .radar-point { fill: var(--lime); }
+.chart .radar-shape { fill: var(--lime-soft); stroke: var(--accent-ink); stroke-width: 1.75; }
+.chart .radar-point { fill: var(--accent-ink); }
 .chart .radar-label { fill: var(--bone-dim); font-size: 11px; }
 
 /* ------------------------------------------------------------------ *
@@ -1370,9 +1470,17 @@ button, input, select, textarea {
   background: var(--surface-3);
   transition: background var(--mid) var(--ease);
 }
-.steps i.on { background: var(--lime); }
+.steps i.on { background: var(--accent-ink); }
 .steps i.done { background: var(--lime-deep); }
 
+
+/*
+ * An unearned achievement is dimmed by its icon and a chip, not by fading the
+ * whole card. Blanket opacity took the description to 2.2:1 — half the screen,
+ * and the half that is meant to motivate, under half the required ratio.
+ */
+.card.locked .card-note { color: var(--bone-dimmer); }
+.card.locked { border-style: dashed; }
 
 /* ================================================================== *
  * Phone
@@ -1393,6 +1501,14 @@ button, input, select, textarea {
   }
 
   .grid.stats > .card { padding: var(--s3); }
+
+  /* A chip is a real control on the goal path, the plan's pace selector, the
+   * tree switcher and the skill panel's unlocks. 26px tall is not a thumb
+   * target; the app's own rule says 44. Padding rather than font size, so the
+   * label stays the same size. */
+  button.chip { min-height: 40px; padding-left: var(--s3); padding-right: var(--s3); }
+  .btn.small { min-height: 40px; }
+  .sheet-close { width: 44px; height: 44px; }
 
   /* An odd final tile left alone in a two-column row reads as a layout
    * mistake; letting it span reads as the end of the list. Scoped to this
@@ -1687,18 +1803,60 @@ function sheet(content, opts = {}) {
     if (closed) return;
     closed = true;
     document.removeEventListener('keydown', onKey);
+    window.removeEventListener('hashchange', onHashChange);
     backdrop.classList.add('closing');
     const done = () => {
       backdrop.remove();
       document.body.classList.remove('sheet-open');
-      if (previouslyFocused && previouslyFocused.focus) previouslyFocused.focus();
+
+      /*
+       * Run the caller's onClose FIRST, then restore focus.
+       *
+       * The other order looked right and was not: every caller's onClose
+       * re-renders the screen behind the dialog, which destroys the element
+       * that was just focused, and the browser drops focus to <body>. A
+       * keyboard user was returned to the top of the document every time they
+       * closed a skill.
+       *
+       * After the re-render the original node is usually gone, so we re-find
+       * it by what identifies it rather than by reference.
+       */
+      const marker = previouslyFocused && previouslyFocused.dataset
+        ? previouslyFocused.dataset.skill : null;
+
       if (opts.onClose) opts.onClose();
+
+      const target = (previouslyFocused && previouslyFocused.isConnected)
+        ? previouslyFocused
+        : (marker ? document.querySelector(`[data-skill="${CSS.escape(marker)}"]`) : null);
+
+      if (target && target.focus) target.focus();
+      else if (opts.focusFallback) {
+        const fallback = document.querySelector(opts.focusFallback);
+        if (fallback && fallback.focus) fallback.focus();
+      }
     };
     if (reduceMotion) done();
     else window.setTimeout(done, 180);
   }
 
+  /*
+   * A route change closes the sheet.
+   *
+   * Back is the natural way to dismiss a modal, and pressing it left the
+   * backdrop mounted over whatever screen the router then drew: the dashboard
+   * rendered underneath, `body.sheet-open` stayed set, and the backdrop was
+   * the topmost element everywhere on the page — every nav link, tab and card
+   * unclickable, with nothing visible to dismiss. The app was simply stuck.
+   *
+   * This listens to `hashchange` rather than taking the router as a dependency,
+   * because core/dom.js sits below the router and a modal outliving its screen
+   * is a browser-level concern, not a routing decision.
+   */
+  function onHashChange() { close(); }
+
   document.addEventListener('keydown', onKey);
+  window.addEventListener('hashchange', onHashChange);
   document.body.classList.add('sheet-open');
   document.body.appendChild(backdrop);
 
@@ -1951,7 +2109,7 @@ function emptyProfile(name = '', id = null) {
 }
 
 function emptyRoot() {
-  return { version: 1, activeProfileId: null, profiles: {} };
+  return { version: 1, activeProfileId: null, profiles: {}, trees: {} };
 }
 
 /*
@@ -1964,7 +2122,12 @@ function emptyRoot() {
  */
 function normalise(root) {
   if (!root || typeof root !== 'object') return emptyRoot();
-  const out = { version: 1, activeProfileId: root.activeProfileId || null, profiles: {} };
+  const out = {
+    version: 1,
+    activeProfileId: root.activeProfileId || null,
+    profiles: {},
+    trees: (root.trees && typeof root.trees === 'object') ? root.trees : {},
+  };
 
   for (const [id, profile] of Object.entries(root.profiles || {})) {
     const base = emptyProfile(profile.name, id);
@@ -1986,6 +2149,42 @@ function normalise(root) {
 }
 
 let root = normalise(read());
+
+/* ------------------------------------------------------------------ *
+ * Generated trees
+ * ------------------------------------------------------------------ */
+
+/*
+ * A generated tree is content, not progress, so it lives beside the profiles
+ * rather than inside one — two profiles on the same device share a catalogue,
+ * the same way they share the seeded trees.
+ *
+ * It has to be stored at all because the catalogue is an in-memory Map. A tree
+ * accepted from the generator was registered there and nowhere else, so a
+ * reload lost it — while the attempts made against its skills stayed in the
+ * profile, pointing at skill ids nothing could resolve. The learner saw XP and
+ * a streak they could not trace to anything, and the tree they had built their
+ * goal around was simply gone.
+ */
+function savedTrees() {
+  return Object.values(root.trees || {});
+}
+
+function saveTree(tree) {
+  if (!tree || !tree.id) return false;
+  root = { ...root, trees: { ...root.trees, [tree.id]: tree } };
+  return write(root);
+}
+
+function forgetTree(id) {
+  if (!root.trees || !root.trees[id]) return false;
+  const trees = { ...root.trees };
+  delete trees[id];
+  root = { ...root, trees };
+  write(root);
+  emit();
+  return true;
+}
 
 /* ------------------------------------------------------------------ *
  * Subscription
@@ -2101,7 +2300,25 @@ function patchSettings(changes) {
 function exportJson() {
   const profile = currentProfile();
   if (!profile) return '{}';
-  return JSON.stringify({ kind: 'skilltree.profile', version: 1, profile }, null, 2);
+
+  /*
+   * Generated trees ride along, or the backup is a list of skill ids the
+   * receiving device cannot resolve. Only the ones this profile actually
+   * touched — the point is a self-contained backup, not a copy of the whole
+   * device's catalogue. Each saved tree lists its own skills, so this needs no
+   * help from the catalogue module.
+   */
+  const touched = new Set(Object.keys(profile.skills || {}));
+  if (profile.goal?.targetSkillId) touched.add(profile.goal.targetSkillId);
+  const trees = savedTrees().filter((tree) => tree.id === profile.goal?.treeId
+    || (tree.skills || []).some((skill) => touched.has(skill.id)));
+
+  return JSON.stringify({
+    kind: 'skilltree.profile',
+    version: 1,
+    profile,
+    ...(trees.length ? { trees } : {}),
+  }, null, 2);
 }
 
 function importJson(text) {
@@ -2117,13 +2334,39 @@ function importJson(text) {
     return { ok: false, error: 'That does not look like a SkillTree export.' };
   }
 
-  /* Imported under a fresh id so an import can never silently overwrite the
-   * profile the learner is currently using. */
-  const profile = { ...emptyProfile(incoming.name || 'Imported'), ...incoming, id: `p_${Math.random().toString(36).slice(2, 10)}` };
-  root = { ...root, activeProfileId: profile.id, profiles: { ...root.profiles, [profile.id]: profile } };
+  /*
+   * Imported under a fresh id so an import can never silently overwrite the
+   * profile the learner is currently using — and put through `normalise`,
+   * which every profile read from storage already goes through.
+   *
+   * Spreading the incoming object straight over `emptyProfile` let an explicit
+   * `"skills": null` overwrite the default `{}`, and the dashboard then threw
+   * on the next render. A reload recovered it, because load normalises; import
+   * did not.
+   */
+  const id = `p_${Math.random().toString(36).slice(2, 10)}`;
+  const merged = { ...emptyProfile(incoming.name || 'Imported'), ...incoming, id };
+  const normalised = normalise({ version: 1, activeProfileId: id, profiles: { [id]: merged } });
+  const profile = normalised.profiles[id];
+
+  /* Trees the export carried. Stored, but not registered here — the caller
+   * registers them, because registration validates the graph and this module
+   * has no business deciding what to do with a tree that fails. */
+  const trees = { ...root.trees };
+  const carried = [];
+  for (const tree of Array.isArray(parsed.trees) ? parsed.trees : []) {
+    if (tree && tree.id && Array.isArray(tree.skills)) { trees[tree.id] = tree; carried.push(tree); }
+  }
+
+  root = {
+    ...root,
+    activeProfileId: profile.id,
+    profiles: { ...root.profiles, [profile.id]: profile },
+    trees,
+  };
   write(root);
   emit();
-  return { ok: true, profile };
+  return { ok: true, profile, trees: carried };
 }
 
 /** Wipe everything. Used by Settings, and by the smoke test between runs. */
@@ -2137,6 +2380,9 @@ function resetAll() {
   return {
     "persists": persists,
     "emptyProfile": emptyProfile,
+    "savedTrees": savedTrees,
+    "saveTree": saveTree,
+    "forgetTree": forgetTree,
     "subscribe": subscribe,
     "listProfiles": listProfiles,
     "currentProfile": currentProfile,
@@ -2200,6 +2446,18 @@ function indexTree(tree) {
       dependents.get(req.skillId).push(skill.id);
     }
   }
+
+  /*
+   * Reject a cycle here, not at render time.
+   *
+   * The catalogue's comment promised registration caught cycles; it did not —
+   * only duplicate ids and dangling prerequisites were checked, and a cyclic
+   * tree registered cleanly and then blew up somewhere else entirely. Two of
+   * the three graph walks in the app are recursive and died with a stack
+   * overflow rather than a message naming the tree.
+   */
+  const cycle = findCycle(tree);
+  if (cycle) throw new Error(`${tree.id}: circular dependency: ${cycle.join(' -> ')}`);
 
   return { tree, byId, dependents };
 }
@@ -2447,7 +2705,7 @@ __m["skilltree/src/data/tree.web.js"] = (function () {
 /*
  * tree.web.js — the Web Development tree.
  *
- * Thirty-two skills from "what is a browser" to deployment, with the
+ * Thirty-three skills from "what is a browser" to deployment, with the
  * dependency edges the brief asks for: React needs JavaScript at 3, HTML at 3
  * and CSS at 2, not a single parent.
  *
@@ -2756,7 +3014,10 @@ const WEB_TREE = {
           title: 'Check yourself',
           questions: [
             q('flex-direction: column. Which property centres children horizontally?',
-              ['align-items — horizontal is now the cross axis', 'justify-content', 'text-align', 'margin: auto'],
+              /* `margin: auto` was a distractor and is also a correct answer —
+               * auto margins absorb free space on the cross axis. Replaced with
+               * one that is actually wrong. */
+              ['align-items — horizontal is now the cross axis', 'justify-content', 'text-align', 'align-content'],
               0,
               'With a column direction the main axis is vertical, so horizontal alignment is the cross axis, which is align-items.'),
             q('Three children, all flex: 1. What happens?',
@@ -2879,7 +3140,7 @@ const WEB_TREE = {
             'const binds a name to a value and stops you rebinding it. let allows rebinding. var is the old form with confusing scope rules; there is no reason to write it in new code. Default to const, switch to let only when you actually reassign.',
             'const on an object does not freeze the object. const user = {} still allows user.name = "Alex" — what is fixed is which object the name points at, not the contents.',
             'Use === and never ==. The double equals coerces types before comparing, which produces "" == 0 being true, "0" == 0 being true, and null == undefined being true while null === undefined is false. Triple equals compares without coercion and holds no surprises.',
-            'Six values are falsy: false, 0, "", null, undefined and NaN. Everything else is truthy — including "0", "false", empty arrays and empty objects, all of which catch people out.',
+            'The falsy values you will meet are false, 0, "", null, undefined and NaN (0n too, once you use BigInt). Everything else is truthy — including "0", "false", empty arrays and empty objects, all of which catch people out.',
           ],
         },
         {
@@ -2898,7 +3159,7 @@ const WEB_TREE = {
             q('Which of these is truthy?',
               ['"0"', '0', '""', 'NaN'],
               0,
-              'A non-empty string is truthy regardless of what it contains. Only the six falsy values are falsy.'),
+              'A non-empty string is truthy regardless of what it contains — its contents are irrelevant.'),
           ],
         },
         {
@@ -3106,8 +3367,13 @@ const WEB_TREE = {
       category: 'Programming',
       difficulty: 2,
       estimatedHours: [3, 5],
+      /* Every example here is a callback, and delegation is a function held by
+       * a parent. Requiring only js_basics — "variables, types, operators,
+       * control flow" — let a learner reach the whole DOM/Events branch without
+       * ever meeting a function. */
       requires: [
         { skillId: 'js_basics', minLevel: 3 },
+        { skillId: 'js_functions', minLevel: 2 },
         { skillId: 'html_basics', minLevel: 3 },
       ],
       description: 'Selecting, creating and updating elements from JavaScript.',
@@ -3209,7 +3475,7 @@ const WEB_TREE = {
             'JavaScript runs on one thread. Slow work — a network request, a timer — is handed off, and a callback is queued for when it finishes. The event loop runs those callbacks once the current code has finished, which is why code after a fetch runs before the response arrives.',
             'A promise represents a value that is not here yet. It is pending, then either fulfilled with a value or rejected with an error. await pauses the enclosing async function until it settles, letting you write sequential-looking code that is still non-blocking.',
             'An async function always returns a promise, even if you return a plain number. This is why calling one without await gives you a Promise object rather than the value — probably the most common async mistake.',
-            'Handle rejection with try/catch around the await, or .catch() on the chain. An unhandled rejection fails silently in the browser, which turns a network error into a page that just never updates.',
+            'Handle rejection with try/catch around the await, or .catch() on the chain. An unhandled rejection produces no user-visible failure — only a console warning — which turns a network error into a page that just never updates.',
             'For independent requests use Promise.all([a, b]) rather than awaiting each in turn: sequential awaits take the sum of the times, Promise.all takes the longest.',
           ],
         },
@@ -3298,7 +3564,9 @@ const WEB_TREE = {
       category: 'Tools',
       difficulty: 2,
       estimatedHours: [3, 5],
-      requires: [{ skillId: 'js_basics', minLevel: 2 }],
+      /* Version control needs no JavaScript. Gating it behind variables and
+       * `===` delayed the one tool that makes everything else safe to attempt. */
+      requires: [{ skillId: 'internet_basics', minLevel: 1 }],
       description: 'Commits, branches, merges and undoing things safely.',
       why: 'Git is what makes experiments safe. Without it you keep folders called final-v2-real, and you will still lose work.',
       activities: [
@@ -3579,10 +3847,10 @@ const WEB_TREE = {
       category: 'Programming',
       difficulty: 4,
       estimatedHours: [6, 10],
-      requires: [
-        { skillId: 'js_objects', minLevel: 3 },
-        { skillId: 'react_state', minLevel: 2 },
-      ],
+      /* TypeScript is a JavaScript-level skill; nothing in it touches React.
+       * Requiring react_state dragged the entire CSS and React branch in front
+       * of anyone wanting to type their Node or API code. */
+      requires: [{ skillId: 'js_objects', minLevel: 3 }],
       description: 'Static types over JavaScript: interfaces, unions, generics and narrowing.',
       why: 'Types turn a class of runtime bug into a red squiggle, and they document the shape of your data where the data is used.',
       activities: [
@@ -4031,7 +4299,7 @@ __m["skilltree/src/data/tree.math.js"] = (function () {
 /*
  * tree.math.js — the Mathematics tree.
  *
- * Twenty-two skills from arithmetic to calculus. Mathematics grades itself
+ * Twenty-one skills from arithmetic to calculus. Mathematics grades itself
  * better than anything else in this app: the answers are exact, so the numeric
  * grader (domain/verify.js) checks them with no model in the loop and no
  * self-reporting.
@@ -4455,8 +4723,8 @@ const MATH_TREE = {
           title: 'Roots, vertex and discriminant',
           body: [
             'A quadratic graphs as a parabola. Where it crosses the x-axis are the roots, and factorising finds them directly: (x − 2)(x − 3) = 0 is zero exactly when one factor is, giving x = 2 and x = 3.',
-            'The quadratic formula solves any of them: x = (−b ± √(b² − 4ac)) / 2a. The part under the root, b² − 4ac, is the discriminant, and it tells you the shape of the answer before you compute it — positive means two real roots, zero means one repeated root sitting on the axis, negative means the parabola never touches it.',
-            'The vertex sits at x = −b/2a, halfway between the roots by symmetry. It is the maximum if the parabola opens downward, the minimum if upward — which is the first optimisation problem most people meet.',
+            'The quadratic formula solves any of them: x = (−b ± √(b² − 4ac)) / (2a) — the brackets round 2a matter, and the first lesson in this tree is exactly why. The part under the root, b² − 4ac, is the discriminant, and it tells you the shape of the answer before you compute it — positive means two real roots, zero means one repeated root sitting on the axis, negative means the parabola never touches it.',
+            'The vertex sits at x = −b/(2a), halfway between the roots by symmetry. It is the maximum if the parabola opens downward, the minimum if upward — which is the first optimisation problem most people meet.',
           ],
         },
         {
@@ -4467,7 +4735,7 @@ const MATH_TREE = {
             n('x² − 5x + 6 = 0. The larger root?', 3, 'Factorises to (x−2)(x−3), so roots are 2 and 3.'),
             n('Discriminant of x² + 2x + 5?', -16, '4 − 20 = −16. Negative, so no real roots.'),
             n('How many real roots does x² + 2x + 5 have?', 0, 'A negative discriminant means the parabola never crosses the axis.'),
-            n('x-coordinate of the vertex of y = x² − 6x + 5?', 3, '−b/2a = 6/2 = 3.'),
+            n('x-coordinate of the vertex of y = x² − 6x + 5?', 3, '−b/(2a) = 6/2 = 3.'),
             n('Minimum value of y = x² − 6x + 5?', -4, 'At x = 3: 9 − 18 + 5 = −4.'),
           ],
         },
@@ -4906,7 +5174,7 @@ const CALISTHENICS_TREE = {
           [
             'Plank held 45 seconds with hips level — no sag, no pike',
             'Deep squat held 30 seconds, heels down, chest up',
-            'Dead hang from a bar for 20 seconds with shoulders active',
+            'Passive dead hang from a bar for 20 seconds',
             'Can describe what a full range rep looks like for a push-up',
           ]),
       ],
@@ -5175,9 +5443,13 @@ const CALISTHENICS_TREE = {
       category: 'Pull',
       difficulty: 3,
       estimatedHours: [3, 8],
-      requires: [{ skillId: 'pullups', minLevel: 2 }],
+      /* The skill's own copy calls this easier than a pull-up, and its gate
+       * asks for more reps — so gating it behind a level-2 pull-up put the
+       * easier progression after the harder one, and denied it to exactly the
+       * learners who use chin-ups to reach a first pull-up. */
+      requires: [{ skillId: 'australian_pullups', minLevel: 3 }],
       description: 'Underhand grip, more biceps involvement.',
-      why: 'Usually stronger than the pull-up, which makes it useful for building volume.',
+      why: 'Usually easier than the pull-up, which makes it both a stepping stone toward one and a good way to build volume once you have it.',
       activities: [
         check('chinups.gate', 'Chin-up standard',
           'Underhand grip, shoulder width.',
@@ -6366,7 +6638,7 @@ const BUSINESS_TREE = {
             'Chosen one channel where your buyers actually are',
             'Published at least six things on it',
             'Each is specific and useful rather than generic',
-            'Sustained it for at least eight weeks',
+            'Sustained it for at least six months, or are on week eight of a run you have not broken',
             'Kept doing outreach alongside it',
           ]),
       ],
@@ -6378,7 +6650,14 @@ const BUSINESS_TREE = {
       category: 'Growth',
       difficulty: 4,
       estimatedHours: [2, 6],
-      requires: [{ skillId: 'first_client', minLevel: 3 }],
+      /* The lesson says outright that refusal is built from runway, and the
+       * gate scores "enough runway or pipeline that declining was a real
+       * choice" — but money_admin, the only skill that defines runway, was not
+       * a prerequisite. You could pass this without meeting the idea it grades. */
+      requires: [
+        { skillId: 'first_client', minLevel: 3 },
+        { skillId: 'money_admin', minLevel: 2 },
+      ],
       description: 'Recognising the bad ones early, and being able to say no.',
       why: 'One bad client can cost more than two good ones earn — in time, in money, and in wanting to keep doing this.',
       activities: [
@@ -6613,7 +6892,8 @@ const layoutCache = new Map();
  *
  * Every multiple-choice question in this repo was authored with its correct
  * answer written first — which is the natural way to write them and a fatal
- * way to ship them. All 101 questions had the answer at index 0, so the whole
+ * way to ship them. Every one of the multiple-choice questions had its answer
+ * at index 0, so the whole
  * quiz system could be beaten by always clicking the top option. The smoke
  * test found it by accident: a broken fallback path guessed index 0 for every
  * question and scored 100%.
@@ -6674,6 +6954,13 @@ function normaliseTree(tree) {
     };
   });
   return touched ? { ...tree, skills } : tree;
+}
+
+/** Drop a tree from the catalogue. Only generated trees are ever removed. */
+function forgetTree(id) {
+  layoutCache.delete(id);
+  indexCache.delete(id);
+  return trees.delete(id);
 }
 
 function registerTree(rawTree) {
@@ -6789,6 +7076,7 @@ function categories() {
 }
 
   return {
+    "forgetTree": forgetTree,
     "registerTree": registerTree,
     "allTrees": allTrees,
     "getTree": getTree,
@@ -6831,6 +7119,29 @@ const XP_AWARDS = {
 
 function baseXpFor(kind) {
   return XP_AWARDS[kind] ?? 10;
+}
+
+/*
+ * The one vocabulary for activity kinds.
+ *
+ * This label map existed verbatim in three UI modules and, worse, one of those
+ * copies feeds the *stored* XP ledger reason — so a drift between them would
+ * be baked permanently into saved data. `missions.js` additionally kept its own
+ * transcription of the XP table above, which meant a rebalance needed four
+ * edits and missing one made a mission chip promise XP the engine would not pay.
+ */
+const KIND_LABEL = {
+  learn: 'Lesson',
+  quiz: 'Quiz',
+  practice: 'Practice',
+  challenge: 'Challenge',
+  project: 'Project',
+  assessment: 'Assessment',
+  mastery: 'Mastery challenge',
+};
+
+function labelForKind(kind) {
+  return KIND_LABEL[kind] || 'Activity';
 }
 
 /**
@@ -6876,6 +7187,28 @@ function repeatMultiplier(previousPasses) {
 }
 
 /*
+ * The most a single activity may ever contribute to its skill.
+ *
+ * Decay alone was not enough, and the review proved it: the 0.1 tail never
+ * reaches zero and `computeAward` floors every payout at 1, so replaying one
+ * quiz 47 times accumulated more XP than the whole skill is worth and produced
+ * "Mastered — you have proven it under pressure" with the assessment never
+ * opened. That is precisely the fake progress this app exists to refuse.
+ *
+ * A hard ceiling per activity restores the invariant that level thresholds
+ * were built on. Capacity is the sum of every activity's base value, so if no
+ * activity can pay more than 1.6× its own base, reaching capacity — level 5 —
+ * requires actually doing most of the skill. One activity, replayed forever,
+ * asymptotically reaches 1.6× its base and stops.
+ *
+ * 1.6 rather than 1.0 so that a genuine retake after a poor first pass still
+ * improves your standing: full value, then half, then nothing.
+ */
+function activityXpCap(kind, difficulty = 1) {
+  return Math.round(baseXpFor(kind) * difficultyMultiplier(difficulty) * 1.6);
+}
+
+/*
  * Score shapes the award too, otherwise a 55% pass and a 100% pass are worth
  * the same and the incentive to actually understand the material disappears.
  * Floor at 0.5 so a marginal pass still feels like it counted.
@@ -6900,13 +7233,21 @@ function difficultyMultiplier(difficulty) {
  * The single place an XP number is decided. Every caller goes through here so
  * the rules cannot drift between the quiz screen and the assessment screen.
  */
-function computeAward({ kind, score = null, previousPasses = 0, difficulty = 1, passed = true }) {
+function computeAward({
+  kind, score = null, previousPasses = 0, difficulty = 1, passed = true, alreadyEarned = 0,
+}) {
   if (!passed) return 0;
+
   const raw = baseXpFor(kind)
     * repeatMultiplier(previousPasses)
     * scoreMultiplier(score)
     * difficultyMultiplier(difficulty);
-  return Math.max(1, Math.round(raw));
+
+  /* Never pay past this activity's lifetime ceiling — see activityXpCap. */
+  const headroom = activityXpCap(kind, difficulty) - Math.max(0, alreadyEarned);
+  if (headroom <= 0) return 0;
+
+  return Math.max(0, Math.min(Math.round(headroom), Math.max(1, Math.round(raw))));
 }
 
 /* ------------------------------------------------------------------ *
@@ -6991,8 +7332,11 @@ function xpByDay(events, days = 30, now = Date.now()) {
   return {
     "XP_AWARDS": XP_AWARDS,
     "baseXpFor": baseXpFor,
+    "KIND_LABEL": KIND_LABEL,
+    "labelForKind": labelForKind,
     "skillCapacity": skillCapacity,
     "repeatMultiplier": repeatMultiplier,
+    "activityXpCap": activityXpCap,
     "scoreMultiplier": scoreMultiplier,
     "difficultyMultiplier": difficultyMultiplier,
     "computeAward": computeAward,
@@ -7026,6 +7370,14 @@ __m["skilltree/src/domain/mastery.js"] = (function () {
  */
 
 const DAY = 86400000;
+
+/* Kept in step with `dayNumber` in progress.js — both must agree on where a
+ * day starts, or the streak and the consistency score describe different
+ * calendars. */
+function localDay(ms) {
+  const d = new Date(ms);
+  return Math.floor((d.getTime() - d.getTimezoneOffset() * 60000) / DAY);
+}
 
 /*
  * The four components of a mastery score, with the weights from §46. Exported
@@ -7139,7 +7491,10 @@ function consistencyScore(attempts, now = Date.now()) {
   const window = now - 21 * DAY;
   const days = new Set();
   for (const a of list) {
-    if (a.at >= window) days.add(Math.floor(a.at / DAY));
+    /* Local calendar days, matching `dayNumber` in progress.js. Bucketing by
+     * UTC counted one evening's work as two separate days for anyone far
+     * enough from UTC, doubling this component for them. */
+    if (a.at >= window) days.add(localDay(a.at));
   }
   if (!days.size) return 0;
   return Math.min(100, (days.size / 6) * 100);
@@ -7313,15 +7668,6 @@ function skillLevelMeta(level) {
  */
 const LEVEL_FRACTION = [0, 0, 0.25, 0.5, 0.75, 1];
 
-/*
- * Harder skills take longer per level. Kept for callers that reason about
- * difficulty directly; the level thresholds get it via capacity.
- */
-function difficultyFactor(difficulty) {
-  const d = Math.max(1, Math.min(5, Number(difficulty) || 1));
-  return 1 + (d - 1) * 0.2;
-}
-
 function xpForSkillLevel(level, capacity = 0) {
   const n = Math.max(0, Math.min(5, Math.round(Number(level) || 0)));
   return Math.round(LEVEL_FRACTION[n] * Math.max(0, Number(capacity) || 0));
@@ -7414,7 +7760,6 @@ function skillProgress({ xp = 0, masteryScore = 0, capacity = 0, started = false
     "globalProgress": globalProgress,
     "SKILL_LEVELS": SKILL_LEVELS,
     "skillLevelMeta": skillLevelMeta,
-    "difficultyFactor": difficultyFactor,
     "xpForSkillLevel": xpForSkillLevel,
     "masteryForSkillLevel": masteryForSkillLevel,
     "levelFor": levelFor,
@@ -7451,15 +7796,26 @@ const { levelFor } = __m["skilltree/src/domain/levels.js"];
 function levelOf(progressOf, skillId) {
   const p = progressOf(skillId);
   if (!p) return 0;
-  /* Recompute rather than trusting a stored level: the stored one can be stale
-   * if weights or thresholds changed since it was written, and a gate that
-   * disagrees with the skill panel is a bug report. */
-  return levelFor({
+
+  /*
+   * Recompute, then take the higher of that and the recorded peak.
+   *
+   * Recomputing matters because a stored level can be stale — thresholds and
+   * a skill's activity list both change, and a gate that disagrees with the
+   * skill panel is a bug report. Taking the peak matters because a level is
+   * earned and does not fall (see applyAttempt). Doing both, here, in the one
+   * function every reader goes through, is what stops the two rules drifting:
+   * the review found six modules reading the stored field and five recomputing,
+   * and the two answers differing by three mastered skills.
+   */
+  const computed = levelFor({
     xp: p.xp || 0,
     masteryScore: p.masteryScore || 0,
     capacity: p.capacity || 0,
     started: !!p.startedAt,
   });
+
+  return Math.max(computed, p.peakLevel || 0);
 }
 
 /**
@@ -7567,6 +7923,7 @@ function readiness(index, skillId, progressOf) {
 }
 
   return {
+    "levelOf": levelOf,
     "requirementStatus": requirementStatus,
     "isUnlocked": isUnlocked,
     "STATUS": STATUS,
@@ -7600,7 +7957,7 @@ __m["skilltree/src/domain/progress.js"] = (function () {
  * about how progression behaves.
  */
 
-const { computeAward, appendXpEvent, totalXp, skillCapacity } = __m["skilltree/src/domain/xp.js"];
+const { computeAward, appendXpEvent, totalXp, skillCapacity, labelForKind } = __m["skilltree/src/domain/xp.js"];
 const { computeMastery, confidenceFor } = __m["skilltree/src/domain/mastery.js"];
 const { levelFor, levelForXp } = __m["skilltree/src/domain/levels.js"];
 const { statusSnapshot, newlyUnlocked, statusOf, isUnlocked } = __m["skilltree/src/domain/unlock.js"];
@@ -7616,6 +7973,10 @@ function newUserSkill(skillId, difficulty = 1, capacity = 0, now = Date.now()) {
     capacity,
     xp: 0,
     level: 1,
+    /* The high-water mark. See the note on demotion in applyAttempt. */
+    peakLevel: 1,
+    /* XP earned per activity, so the per-activity ceiling can be enforced. */
+    earnedByActivity: {},
     masteryScore: 0,
     confidence: 0,
     attempts: [],
@@ -7715,6 +8076,10 @@ function applyAttempt(state, index, attempt, now = Date.now()) {
     passed,
     at: now,
     durationMs: attempt.durationMs || null,
+    /* Carried so the rest of the app can tell "you did this" from "you told us
+     * you already knew this at setup" — the streak, the achievements and the
+     * "last practised" line all need to know the difference. */
+    ...(attempt.seeded ? { seeded: true } : {}),
   };
 
   const attempts = prev.attempts.concat([record]);
@@ -7723,12 +8088,14 @@ function applyAttempt(state, index, attempt, now = Date.now()) {
    * and then passing still pays full value. */
   const passKey = activityId;
   const previousPasses = prev.passCounts[passKey] || 0;
+  const alreadyEarned = (prev.earnedByActivity || {})[passKey] || 0;
   const award = computeAward({
     kind,
     score,
     previousPasses,
     difficulty: prev.difficulty,
     passed,
+    alreadyEarned,
   });
 
   const xpEvents = award > 0
@@ -7753,12 +8120,30 @@ function applyAttempt(state, index, attempt, now = Date.now()) {
    * activity. A stale denominator would silently mis-state every level. */
   const capacity = skillCapacity(skill.activities, prev.difficulty || skill.difficulty || 1);
 
-  const level = levelFor({
+  const computedLevel = levelFor({
     xp: skillXp,
     masteryScore: mastery.score,
     capacity,
     started: true,
   });
+
+  /*
+   * A level is a high-water mark. It does not fall.
+   *
+   * Mastery is a recency-weighted mean, so a couple of failed retries drag it
+   * down — and because the level was recomputed from it, the level fell too,
+   * which re-closed gates the learner had already opened. The review
+   * reproduced it: pass everything (level 4, next skill unlocked), fail the
+   * quiz twice, and the next skill silently re-locks. No event was emitted, so
+   * nothing even told them.
+   *
+   * That punishes the exact behaviour the whole app encourages — §45's "retry
+   * freely" is meaningless if retrying can cost you access. So the earned
+   * level stands, and the things that *should* move with recent performance
+   * still do: masteryScore falls, confidence falls, and the review queue picks
+   * it up. What you proved once, you keep.
+   */
+  const level = Math.max(prev.peakLevel || prev.level || 0, computedLevel);
 
   const updated = {
     ...prev,
@@ -7766,10 +8151,20 @@ function applyAttempt(state, index, attempt, now = Date.now()) {
     xp: skillXp,
     attempts,
     passCounts: passed ? { ...prev.passCounts, [passKey]: previousPasses + 1 } : prev.passCounts,
+    earnedByActivity: award > 0
+      ? { ...(prev.earnedByActivity || {}), [passKey]: alreadyEarned + award }
+      : (prev.earnedByActivity || {}),
     masteryScore: mastery.score,
     masteryParts: mastery.parts,
     level,
+    peakLevel: level,
+    /* Kept for seeded attempts too — confidence has to decay from *somewhere*,
+     * and declared standing goes stale like anything else. What it must not do
+     * is get rendered as "last practised 12h ago", so `neverPractised` lets the
+     * screens say "set at setup" instead of describing a session that did not
+     * happen. */
     lastPracticedAt: now,
+    neverPractised: attempts.every((a) => a.seeded),
     completedAt: prev.completedAt || (level >= 3 ? now : null),
     masteredAt: prev.masteredAt || (level >= 5 ? now : null),
   };
@@ -7813,16 +8208,25 @@ function applyAttempt(state, index, attempt, now = Date.now()) {
     if (lvl) lvl.unlocked = opened.length;
   }
 
-  next = touchStreak(next, now);
+  /*
+   * A seeded attempt does not touch the streak.
+   *
+   * Onboarding replays attempts to open the gates for someone who already
+   * knows the material — which is right, that standing is real. Spreading them
+   * over the previous fortnight so mastery has something to read then fed
+   * `touchStreak`, and a brand-new account greeted its owner with "STREAK 4
+   * days" and "last practised 12h ago" for sessions that never happened. The
+   * welcome screen promises the opposite in as many words: nothing here
+   * unlocks because you pressed done.
+   *
+   * Standing, yes. History, no.
+   */
+  if (!attempt.seeded) next = touchStreak(next, now);
   return { state: next, events };
 }
 
 function labelFor(kind, skillName) {
-  const verb = {
-    learn: 'Lesson', quiz: 'Quiz', practice: 'Practice', challenge: 'Challenge',
-    project: 'Project', assessment: 'Assessment', mastery: 'Mastery challenge',
-  }[kind] || 'Activity';
-  return `${skillName} ${verb.toLowerCase()}`;
+  return `${skillName} ${labelForKind(kind).toLowerCase()}`;
 }
 
 /*
@@ -7932,7 +8336,11 @@ const ACHIEVEMENTS = [
     name: 'Door Opened',
     tier: 'bronze',
     description: 'Unlock a skill by meeting its requirements.',
-    test: (s) => Object.keys(s.skills || {}).length >= 2,
+    /* Counting two started skills awarded this for opening two *roots* — two
+     * skills that require nothing — which is the opposite of what the badge
+     * says. It has to be a skill that actually had prerequisites. */
+    test: (s, ctx) => Object.keys(s.skills || {})
+      .some((id) => (ctx?.requirementCount?.(id) ?? 0) > 0),
   },
   {
     id: 'first_mastery',
@@ -8011,6 +8419,7 @@ const ACHIEVEMENTS = [
       for (const skill of Object.values(s.skills || {})) {
         const byActivity = new Map();
         for (const a of skill.attempts || []) {
+          if (a.seeded) continue;
           if (!byActivity.has(a.activityId)) byActivity.set(a.activityId, []);
           byActivity.get(a.activityId).push(a);
         }
@@ -8058,10 +8467,24 @@ const ACHIEVEMENTS = [
   },
 ];
 
+/*
+ * Every attempt the learner actually made.
+ *
+ * Seeded attempts are excluded. Onboarding replays attempts to open the gates
+ * for someone who already knows the material, and counting those meant a
+ * brand-new account was handed "First Step — complete your first activity"
+ * and two other badges, all reading "Earned just now", before its owner had
+ * done a single thing. A badge for work you did not do is worth nothing, and
+ * it tells the learner immediately that the rest are worth nothing either.
+ *
+ * Rules about *standing* — twenty skills started, a skill at level 5 — still
+ * count seeded progress, because that standing is real. Rules about *doing*
+ * read this.
+ */
 function everyAttempt(state) {
   const out = [];
   for (const skill of Object.values(state.skills || {})) {
-    for (const a of skill.attempts || []) out.push(a);
+    for (const a of skill.attempts || []) if (!a.seeded) out.push(a);
   }
   return out;
 }
@@ -8310,6 +8733,7 @@ function reviewQueue(state, findSkill, now = Date.now(), limit = 5) {
       confidence: s.confidence || 0,
       masteryScore: s.masteryScore || 0,
       lastPracticedAt: s.lastPracticedAt,
+      neverPractised: !!s.neverPractised,
     }))
     .filter((r) => r.skill && r.urgency >= 25)
     .sort((a, b) => b.urgency - a.urgency)
@@ -8370,9 +8794,10 @@ __m["skilltree/src/domain/missions.js"] = (function () {
  * Someone on Light gets one real mission, not three trivial ones.
  */
 
-const { recommend, reviewQueue } = __m["skilltree/src/domain/recommend.js"];
-const { statusOf, STATUS } = __m["skilltree/src/domain/unlock.js"];
+const { reviewQueue } = __m["skilltree/src/domain/recommend.js"];
+const { STATUS } = __m["skilltree/src/domain/unlock.js"];
 const { dayNumber } = __m["skilltree/src/domain/progress.js"];
+const { baseXpFor } = __m["skilltree/src/domain/xp.js"];
 
 const INTENSITY = {
   light: { count: 1, label: 'Light', blurb: 'One thing a day.' },
@@ -8431,8 +8856,10 @@ function generateMissions(ctx, now = Date.now()) {
   return missions.slice(0, intensity.count);
 }
 
+/* The engine's own table, not a transcription of it — a mission chip that
+ * promises XP the engine will not pay is a small lie the learner catches. */
 function xpHintFor(kind) {
-  return { learn: 10, quiz: 15, practice: 15, challenge: 25, assessment: 50, project: 100, mastery: 200 }[kind] || 10;
+  return baseXpFor(kind);
 }
 
 /**
@@ -8914,6 +9341,17 @@ function parseNumeric(input) {
   let s = String(input).trim().toLowerCase().replace(/\s+/g, '');
   if (!s) return null;
 
+  /*
+   * Normalise the several characters that mean "minus".
+   *
+   * The maths questions are typeset with U+2212 (−), the proper minus sign,
+   * and twenty-eight of them contain it. Only ASCII hyphen parsed, so a
+   * learner who copied the notation out of the question — or whose keyboard
+   * produces a dash — had a correct answer rejected on all seven
+   * negative-answer questions.
+   */
+  s = s.replace(/[\u2212\u2013\u2014\u2015]/g, '-');
+
   s = s.replace(/^\+/, '');
   const negative = s.startsWith('-');
   if (negative) s = s.slice(1);
@@ -8944,13 +9382,38 @@ function parseNumeric(input) {
  * Grade a set of numeric questions. Each carries its own tolerance, because
  * "2/3 to two decimal places" and "exactly 12" want different strictness.
  */
+/*
+ * Does a typed answer match the expected value?
+ *
+ * The subtlety is the per-cent sign. The input hint promises that "0.5, 1/2
+ * and 50% are the same answer", and `parseNumeric` honours it by dividing a
+ * `%` input by 100 — which is right for a question whose answer is stored as
+ * the fraction 0.96, and wrong for one whose answer is stored as the number
+ * 25. Both styles exist in the maths tree, so the same keystrokes were correct
+ * in one question and rejected in the next.
+ *
+ * Rather than reword the questions or break the hint, a `%` input is accepted
+ * against either reading. Both are the learner expressing the same quantity;
+ * only the storage convention differs, and that is not their problem.
+ */
+function numericMatches(raw, expected, tolerance) {
+  const value = parseNumeric(raw);
+  if (value === null) return { ok: false, value };
+  if (Math.abs(value - expected) <= tolerance) return { ok: true, value };
+
+  if (/%\s*$/.test(String(raw))) {
+    const asWritten = value * 100;
+    if (Math.abs(asWritten - expected) <= tolerance) return { ok: true, value: asWritten };
+  }
+  return { ok: false, value };
+}
+
 function gradeNumeric(activity, answers) {
   const questions = activity.questions || [];
   const results = questions.map((question, i) => {
     const raw = answers[i];
-    const value = parseNumeric(raw);
     const tolerance = question.tolerance ?? 1e-6;
-    const correct = value !== null && Math.abs(value - question.answer) <= tolerance;
+    const { ok: correct, value } = numericMatches(raw, question.answer, tolerance);
     return {
       index: i,
       prompt: question.prompt,
@@ -9012,9 +9475,17 @@ async function grade(activity, submission, opts = {}) {
   if (activity.tests) return gradeCode(activity, submission.source || '', opts);
   if (activity.checklist) return gradeChecklist(activity, submission.checked || []);
 
-  /* A `learn` activity has nothing to grade — reading it is the completion.
-   * It still returns a score so the caller has one shape to handle. */
-  return { kind: 'read', score: 100, passed: true, results: [] };
+  /*
+   * A `learn` activity has nothing to grade — reading it is the completion.
+   *
+   * The score is null, not 100. Returning 100 invented a perfect grade for
+   * work that was never assessed, and it leaked: `retentionScore` filters on
+   * `Number.isFinite(score)` rather than on kind, so re-reading a lesson ten
+   * days later counted as a perfect delayed recall. The review measured a
+   * skill going from mastery 19 to 50 — across the level-3 threshold — with no
+   * work done at all.
+   */
+  return { kind: 'read', score: null, passed: true, results: [] };
 }
 
   return {
@@ -9023,9 +9494,518 @@ async function grade(activity, submission, opts = {}) {
     "gradeQuiz": gradeQuiz,
     "gradeCode": gradeCode,
     "parseNumeric": parseNumeric,
+    "numericMatches": numericMatches,
     "gradeNumeric": gradeNumeric,
     "gradeChecklist": gradeChecklist,
     "grade": grade,
+  };
+})();
+
+__m["skilltree/src/domain/goals.js"] = (function () {
+/*
+ * goals.js — "I want to open a web design business" → a programme.
+ *
+ * The app could already draw a path to a *node you picked from a list*. This
+ * turns a goal written in a person's own words into an ordered plan across
+ * every tree, with dates, and it does it without a model.
+ *
+ * That last part is the constraint that shaped the file. An AI-only version
+ * would be three lines and would leave the headline feature of the app broken
+ * for anyone without an API key (§80). So matching is a scored term search
+ * over the catalogue — names, categories, descriptions and the "why" text —
+ * plus a small set of intent rules for the goals people actually type. AI, when
+ * present, only adds skills the catalogue genuinely lacks.
+ *
+ * Pure module: it takes a catalogue and a goal string, and returns a plan. No
+ * storage, no DOM, and the clock arrives as an argument.
+ */
+
+const { statusOf, STATUS } = __m["skilltree/src/domain/unlock.js"];
+const { levelFor } = __m["skilltree/src/domain/levels.js"];
+
+/* Words that carry no signal about *what* someone wants to learn. Without this
+ * "I want to learn to build a business" matches every skill containing "build". */
+const STOP = new Set([
+  'i', 'a', 'an', 'the', 'to', 'and', 'or', 'of', 'for', 'my', 'me', 'my own',
+  'want', 'wants', 'wanting', 'would', 'like', 'love', 'need', 'get', 'getting',
+  'become', 'becoming', 'be', 'being', 'make', 'making', 'do', 'doing', 'able',
+  'learn', 'learning', 'study', 'studying', 'better', 'good', 'great', 'more',
+  'start', 'starting', 'begin', 'how', 'can', 'with', 'in', 'on', 'at', 'as',
+  'is', 'are', 'it', 'that', 'this', 'so', 'up', 'own', 'some', 'thing', 'things',
+  'skills', 'skill', 'work', 'working', 'job', 'career', 'life', 'goal',
+]);
+
+/*
+ * Intent rules.
+ *
+ * A term search alone misses the obvious: "open a web design business" contains
+ * no word matching "Pricing" or "Contracts", yet those are exactly what the
+ * person is missing. These map recognisable goals onto the skills that
+ * actually constitute them.
+ *
+ * Deliberately small and readable. It is a lookup table of common intents, not
+ * an attempt at language understanding — anything it does not recognise still
+ * gets the term search, and the UI is honest about what it matched.
+ */
+const INTENTS = [
+  {
+    id: 'freelance_web',
+    /* Every pattern must match for the rule to fire, so "web design" alone does
+     * not drag in the whole business tree. */
+    all: [/\b(web\w*|site\w*|design\w*|dev|develop\w*|frontend|digital)\b/, /\b(business\w*|freelanc\w*|agenc\w*|client\w*|self.?employ\w*|studio|compan\w*|sell\w*|money|income|paid|earn\w*|charge)\b/],
+    label: 'Freelance web work',
+    trees: ['web', 'business'],
+    /* Order matters — see the anchor weighting in matchSkills. The business
+     * milestone leads; enough front-end to actually deliver a site follows. */
+    anchors: ['working_business', 'css_responsive'],
+  },
+  {
+    id: 'freelance_any',
+    all: [/\b(freelanc\w*|self.?employ\w*|own business|start a business|agenc\w*|client\w*)\b/],
+    label: 'Working for yourself',
+    trees: ['business'],
+    anchors: ['working_business', 'first_client'],
+  },
+  {
+    id: 'frontend',
+    all: [/\b(frontend|front.end|web develop\w*|website\w*|react|css|html|ui develop\w*)\b/],
+    label: 'Front-end development',
+    trees: ['web'],
+    anchors: ['react_routing', 'css_responsive'],
+  },
+  {
+    id: 'fullstack',
+    all: [/\b(full.?stack|backend|back.end|api|apis|server\w*|database\w*)\b/],
+    label: 'Full-stack development',
+    trees: ['web'],
+    anchors: ['fullstack'],
+  },
+  {
+    id: 'calisthenics',
+    /* "get fit" and "get in shape" are the two most obvious ways to ask for
+     * this tree, and neither was recognised — while "lose weight", which the
+     * app genuinely cannot deliver, was. */
+    all: [/\b(muscle.?up\w*|pull.?up\w*|push.?up\w*|handstand\w*|lever|calisthenic\w*|bodyweight|strength|stronger|fit|fitness|fitter|in shape)\b/],
+    label: 'Bodyweight strength',
+    trees: ['calisthenics'],
+    /* Only a general "get stronger" should reach the athlete milestone; a
+     * goal naming one move is served by that move, which the term match
+     * scores far higher. */
+    anchors: ['calisthenics_athlete'],
+  },
+  {
+    id: 'maths',
+    all: [/\b(math\w*|calculus|algebra|statistic\w*|geometr\w*|trigonometr\w*)\b/],
+    label: 'Mathematics',
+    trees: ['math'],
+    anchors: ['calculus_mastery'],
+  },
+];
+
+function tokenise(text) {
+  return String(text || '')
+    .toLowerCase()
+    .replace(/[^a-z0-9\s+#.-]/g, ' ')
+    .split(/\s+/)
+    .map((w) => w.replace(/^[.\-]+|[.\-]+$/g, ''))
+    .filter((w) => w.length > 1 && !STOP.has(w));
+}
+
+/*
+ * Crude but effective stemming, anchored at word boundaries.
+ *
+ * The anchoring is the important part. Matching a bare substring meant a term
+ * hit anywhere inside a longer word: "weight" was found inside "Bodyweight
+ * Basics", so someone typing "lose weight" was handed a plan whose destination
+ * was Bodyweight Basics — one skill, four hours — which reads as the app
+ * promising they will have lost weight by the end of the month. It cannot
+ * promise that, and the honest answer is that this goal is not covered.
+ *
+ * So a term matches a *word*, by shared stem rather than by substring:
+ *
+ *   price    ~ pricing      share "pric" — 80% of the shorter word
+ *   designer ~ design       share "design" — all of it
+ *   weight   ~ bodyweight   share nothing at the front. No match.
+ *   console  ~ consistent   share "cons" — 57%. Not a stem, no match.
+ *
+ * Requiring the shared prefix to be both four characters and most of the
+ * shorter word is what separates a stem from a coincidence. Three-letter terms
+ * only match exactly, because short prefixes are where this does its damage:
+ * "run" would otherwise reach "running a business".
+ */
+function sharedPrefix(a, b) {
+  const n = Math.min(a.length, b.length);
+  let i = 0;
+  while (i < n && a[i] === b[i]) i += 1;
+  return i;
+}
+
+function termHit(term, text) {
+  if (!text) return false;
+  for (const word of String(text).toLowerCase().split(/[^a-z0-9+#]+/)) {
+    if (!word) continue;
+    if (word === term) return true;
+    const shorter = Math.min(word.length, term.length);
+    if (shorter < 4) continue;
+    const shared = sharedPrefix(word, term);
+    if (shared >= 4 && shared / shorter >= 0.7) return true;
+  }
+  return false;
+}
+
+/**
+ * Score every skill in the catalogue against a goal.
+ *
+ * Weighted by where the term was found: a hit in the skill's name means far
+ * more than a hit in a paragraph of its lesson description.
+ */
+function matchSkills(goalText, catalog) {
+  const terms = tokenise(goalText);
+  if (!terms.length) return { matches: [], intents: [], terms };
+
+  const raw = String(goalText || '').toLowerCase();
+  const intents = INTENTS.filter((intent) => intent.all.every((re) => re.test(raw)));
+  const intentTrees = new Set(intents.flatMap((i) => i.trees));
+
+  /*
+   * Anchor weight, by position and by how well-evidenced the intent is.
+   *
+   * An intent whose rules required two independent signals — "web design" AND
+   * "business" — is a confident reading of a broad goal, and its destination
+   * should outrank an incidental name match. Without that, "I want to build
+   * websites for clients" produced a plan aimed at Choosing Clients and Client
+   * Communication, because those skills happen to have "client" in the name,
+   * while the actual destination scored lower.
+   *
+   * A single-signal intent stays modest, so a goal that names one specific
+   * thing — "muscle up" — is still served by that thing rather than by the
+   * tree's furthest milestone.
+   */
+  const anchorWeight = new Map();
+  for (const intent of intents) {
+    const confident = intent.all.length >= 2;
+    const scale = confident ? [20, 11, 6] : [12, 7, 4];
+    intent.anchors.forEach((id, i) => {
+      const weight = scale[i] ?? 3;
+      if ((anchorWeight.get(id) ?? 0) < weight) anchorWeight.set(id, weight);
+    });
+  }
+
+  const matches = [];
+
+  for (const tree of catalog.allTrees()) {
+    for (const skill of tree.skills) {
+      let score = 0;
+      const why = [];
+
+      for (const term of terms) {
+        /* A hit in the name is the learner naming the thing. It has to
+         * outrank everything else, or "I want to do a muscle up" produces a
+         * plan whose destination is a front lever. */
+        if (termHit(term, skill.name)) { score += 14; why.push(term); }
+        else if (termHit(term, skill.category)) score += 4;
+        else if (termHit(term, skill.description)) score += 2;
+        else if (termHit(term, skill.why)) score += 1;
+      }
+
+      /* A recognised intent pulls in its whole tree, which is what makes
+       * "open a web design business" reach Pricing and Contracts — words the
+       * learner never typed but unmistakably needs. */
+      if (intentTrees.has(tree.id)) score += 5;
+
+      /* Anchors are ranked, not a flat set. A flat +14 for every anchor made
+       * each intent produce three or four destinations, and a plan with four
+       * destinations is four plans — it was returning 226-week programmes. */
+      score += anchorWeight.get(skill.id) ?? 0;
+
+      if (score > 0) matches.push({ skill, tree, score, terms: [...new Set(why)] });
+    }
+  }
+
+  matches.sort((a, b) => b.score - a.score || a.skill.name.localeCompare(b.skill.name));
+
+  /*
+   * Is any of this actually evidence?
+   *
+   * Every skill whose description happened to contain one of the words scores
+   * something, and "something" was treated as coverage. "Be able to run a
+   * marathon" scored 2 — a single word found in one paragraph of prose — and
+   * came back as a confident four-skill, seven-week programme ending at Money
+   * Admin, because "run" appears in a sentence about running a business.
+   *
+   * A wrong plan delivered confidently is worse than no plan, because the
+   * learner cannot tell the two apart: both render identically. So coverage
+   * now needs real evidence — the learner named a skill (a hit in its *name*),
+   * or an intent rule recognised the goal. A trickle of description hits is
+   * not a destination, and the honest answer is that this is not covered.
+   */
+  const named = matches.filter((m) => m.terms.length > 0);
+  const confident = intents.length > 0 || named.length > 0;
+
+  return { matches: confident ? matches : [], intents, terms, evidence: named.flatMap((m) => m.terms) };
+}
+
+/*
+ * Pick the destinations.
+ *
+ * A programme needs targets, not a list of forty loosely-related skills. The
+ * highest-scoring skills are taken as destinations, and everything they depend
+ * on comes along automatically — so choosing "A Working Business" quietly
+ * includes pricing, proposals and contracts without them needing to score.
+ *
+ * Skills that are prerequisites of other chosen targets are dropped as
+ * destinations, because a plan whose milestones are "HTML" and "React" reads
+ * as two goals when it is one.
+ */
+function chooseTargets(matches, catalog, limit = 3) {
+  const chosen = [];
+  if (!matches.length) return chosen;
+
+  /*
+   * Only destinations comparable to the strongest one.
+   *
+   * Taking the top N regardless of score was the bug that produced four-year
+   * programmes: "open a web design business" acquired Web Performance and
+   * Accessibility as destinations simply by being fourth and fifth in a long
+   * list. A destination has to be nearly as good a match as the best one, or
+   * it is not what the person asked for.
+   */
+  const floor = matches[0].score * 0.7;
+
+  for (const match of matches) {
+    if (chosen.length >= limit) break;
+    if (match.score < floor) break;
+    const index = catalog.getIndex(match.tree.id);
+    if (!index) continue;
+
+    const alreadyImplied = chosen.some((c) => {
+      if (c.tree.id !== match.tree.id) return false;
+      return catalog.ancestorsOf(index, c.skill.id).has(match.skill.id);
+    });
+    if (alreadyImplied) continue;
+
+    /*
+     * A lower-scoring skill that sits *beyond* an already-chosen destination
+     * is skipped rather than replacing it.
+     *
+     * An earlier version promoted to the furthest milestone in the tree, on
+     * the theory that it subsumed the smaller one. The effect was that "I want
+     * to do a muscle up" produced a plan whose destination was Calisthenics
+     * Athlete — 416 hours including handstands and front levers, neither of
+     * which a muscle-up needs. If someone names a destination, that is the
+     * destination.
+     */
+    const beyondAChosenTarget = chosen.some((c) => c.tree.id === match.tree.id
+      && catalog.ancestorsOf(index, match.skill.id).has(c.skill.id));
+    if (beyondAChosenTarget) continue;
+
+    chosen.push(match);
+  }
+
+  return chosen;
+}
+
+/*
+ * Weekly capacity, in hours.
+ *
+ * The onboarding asks for minutes per day, which is what people can estimate.
+ * Multiplying by seven would produce a plan nobody meets, so this assumes
+ * about five active days a week — matching how people actually behave, and
+ * making the dates the plan produces defensible rather than optimistic.
+ */
+function weeklyHours(minutesPerDay) {
+  const minutes = Math.max(5, Number(minutesPerDay) || 20);
+  return (minutes * 5) / 60;
+}
+
+/**
+ * Build the programme.
+ *
+ * Returns ordered steps with cumulative hours and a projected week for each,
+ * grouped into phases. Skills the learner has already completed are marked
+ * done and contribute no remaining time — so a plan built by someone who
+ * already knows HTML does not tell them to spend six hours on it.
+ *
+ * @param opts { catalog, state, goalText, minutesPerDay, now }
+ */
+function buildProgramme(opts) {
+  const { catalog, state, goalText } = opts;
+  const now = opts.now ?? Date.now();
+  const perWeek = weeklyHours(opts.minutesPerDay);
+
+  const { matches, intents, terms, evidence } = matchSkills(goalText, catalog);
+  if (!matches.length) {
+    return { ok: false, reason: 'no_match', terms, goalText };
+  }
+
+  const targets = chooseTargets(matches, catalog);
+
+  /* Collect every skill needed for every target, in dependency order. */
+  const seen = new Set();
+  const steps = [];
+
+  for (const target of targets) {
+    const index = catalog.getIndex(target.tree.id);
+    const needed = catalog.pathTo(index, target.skill.id);
+
+    for (const skillId of needed) {
+      if (seen.has(skillId)) continue;
+      seen.add(skillId);
+
+      const skill = index.byId.get(skillId);
+      const progress = state.skills[skillId];
+      const status = statusOf(index, skillId, (id) => state.skills[id]);
+
+      const level = progress
+        ? levelFor({
+          xp: progress.xp || 0,
+          masteryScore: progress.masteryScore || 0,
+          capacity: progress.capacity || 0,
+          started: !!progress.startedAt,
+        })
+        : 0;
+
+      /* Estimated hours remaining: the midpoint of the skill's range, reduced
+       * by how far in the learner already is. Completed skills cost nothing. */
+      const range = skill.estimatedHours || [2, 4];
+      const midpoint = (range[0] + range[1]) / 2;
+      const done = level >= 3;
+      const remaining = done ? 0 : midpoint * (1 - Math.min(1, level / 3) * 0.6);
+
+      steps.push({
+        skillId,
+        skill,
+        tree: target.tree,
+        treeId: target.tree.id,
+        status,
+        level,
+        done,
+        hours: Math.round(remaining * 10) / 10,
+        isTarget: skillId === target.skill.id,
+        targetFor: skillId === target.skill.id ? target.skill.name : null,
+      });
+    }
+  }
+
+  /* Cumulative time and a projected week per step. */
+  let cumulative = 0;
+  for (const step of steps) {
+    cumulative += step.hours;
+    step.cumulativeHours = Math.round(cumulative * 10) / 10;
+    step.week = step.done ? 0 : Math.max(1, Math.ceil(cumulative / perWeek));
+  }
+
+  const remainingHours = Math.round(cumulative * 10) / 10;
+  const weeks = Math.max(1, Math.ceil(remainingHours / perWeek));
+
+  return {
+    ok: true,
+    goalText,
+    terms,
+    /* The words that actually matched a skill name, not the words that were
+     * typed. The panel printed the query back — "Matched on: run, marathon" —
+     * which told the learner nothing about *why* they were looking at a
+     * freelancing plan, and so could not be used to spot that the match was
+     * wrong. Deduplicated and in the order they were typed. */
+    evidence: terms.filter((t) => evidence.includes(t)),
+    intents: intents.map((i) => ({ id: i.id, label: i.label })),
+    targets: targets.map((t) => ({ skillId: t.skill.id, name: t.skill.name, treeId: t.tree.id, treeName: t.tree.name })),
+    steps,
+    phases: intoPhases(steps),
+    totalSteps: steps.length,
+    doneSteps: steps.filter((s) => s.done).length,
+    remainingHours,
+    weeks,
+    perWeek: Math.round(perWeek * 10) / 10,
+    finishesAt: now + weeks * 7 * 86400000,
+    trees: [...new Set(steps.map((s) => s.treeId))],
+  };
+}
+
+/*
+ * Group the steps into phases.
+ *
+ * A flat list of thirty skills is a wall. Phases give the plan a shape a
+ * person can hold — and the boundaries are meaningful rather than decorative:
+ * everything already done, then what is open now, then what each remaining
+ * target unlocks.
+ */
+function intoPhases(steps) {
+  const phases = [];
+
+  const done = steps.filter((s) => s.done);
+  if (done.length) {
+    phases.push({
+      key: 'done',
+      title: 'Already yours',
+      blurb: 'Counted, and skipped in the estimate.',
+      steps: done,
+    });
+  }
+
+  const rest = steps.filter((s) => !s.done);
+  if (!rest.length) return phases;
+
+  /* Up to four steps you could start today. More than that is not a next
+   * action, it is another list. */
+  const openNow = rest.filter((s) => s.status !== STATUS.LOCKED).slice(0, 4);
+  if (openNow.length) {
+    phases.push({
+      key: 'now',
+      title: 'Start here',
+      blurb: 'Open to you today.',
+      steps: openNow,
+    });
+  }
+
+  const later = rest.filter((s) => !openNow.includes(s));
+  if (later.length) {
+    /* Split the remainder in two so the far end reads as "later" rather than
+     * as an equally urgent thirty-item list. */
+    const half = Math.ceil(later.length / 2);
+    phases.push({
+      key: 'next',
+      title: 'Then',
+      blurb: 'Opens as the earlier steps land.',
+      steps: later.slice(0, half),
+    });
+    if (later.length > half) {
+      phases.push({
+        key: 'later',
+        title: 'Later',
+        blurb: 'The far end of the plan.',
+        steps: later.slice(half),
+      });
+    }
+  }
+
+  return phases;
+}
+
+/**
+ * This week's work: the next few unfinished, unlocked steps, with the specific
+ * activity to do in each. Keeps the plan actionable rather than admirable.
+ */
+function thisWeek(programme, nextActivityFor, state, limit = 3) {
+  if (!programme?.ok) return [];
+
+  return programme.steps
+    .filter((s) => !s.done && s.status !== STATUS.LOCKED)
+    .slice(0, limit)
+    .map((step) => ({
+      ...step,
+      activity: nextActivityFor(step.skill, state.skills[step.skillId]),
+    }))
+    .filter((s) => s.activity);
+}
+
+  return {
+    "tokenise": tokenise,
+    "matchSkills": matchSkills,
+    "chooseTargets": chooseTargets,
+    "weeklyHours": weeklyHours,
+    "buildProgramme": buildProgramme,
+    "thisWeek": thisWeek,
   };
 })();
 
@@ -9045,7 +10025,7 @@ __m["skilltree/src/core/session.js"] = (function () {
  */
 
 const store = __m["skilltree/src/core/store.js"];
-const { getIndex, findSkill, findActivity, allTrees } = __m["skilltree/src/data/catalog.js"];
+const { getIndex, findSkill, findActivity, allTrees, registerTree, forgetTree as dropTree } = __m["skilltree/src/data/catalog.js"];
 const { applyAttempt, startSkill, refreshDerived, liveStreak } = __m["skilltree/src/domain/progress.js"];
 const { skillCapacity } = __m["skilltree/src/domain/xp.js"];
 const { award } = __m["skilltree/src/domain/achievements.js"];
@@ -9053,24 +10033,93 @@ const { computeDepths } = __m["skilltree/src/domain/graph.js"];
 const { recommend, goalPath, reviewQueue } = __m["skilltree/src/domain/recommend.js"];
 const { missionsForToday, completeMissionsFor, nextActivityFor } = __m["skilltree/src/domain/missions.js"];
 const { grade } = __m["skilltree/src/domain/verify.js"];
+const { buildProgramme } = __m["skilltree/src/domain/goals.js"];
+const catalog = __m["skilltree/src/data/catalog.js"];
 const { totalXp } = __m["skilltree/src/domain/xp.js"];
 const { globalProgress } = __m["skilltree/src/domain/levels.js"];
 
-/* Depth lookups are needed by two achievement rules and by nothing else, so
- * they are computed lazily and cached rather than being carried around. */
-const depthCache = new Map();
+/*
+ * Depth lookups are needed by two achievement rules and by nothing else, so
+ * they are computed lazily and cached rather than being carried around.
+ *
+ * Keyed by the index object, not by the tree id. Registering a tree builds a
+ * new index, so a generated tree accepted under an id already in the cache —
+ * or a tree restored at boot — would otherwise be answered from depths
+ * computed for the previous graph. An id is not a version; the index is.
+ */
+const depthCache = new WeakMap();
 function depthOf(skillId) {
   const found = findSkill(skillId);
   if (!found) return null;
-  if (!depthCache.has(found.tree.id)) depthCache.set(found.tree.id, computeDepths(found.index));
-  return depthCache.get(found.tree.id).get(skillId) ?? null;
+  if (!depthCache.has(found.index)) depthCache.set(found.index, computeDepths(found.index));
+  return depthCache.get(found.index).get(skillId) ?? null;
 }
 
 function treeOf(skillId) {
   return findSkill(skillId)?.tree?.id || null;
 }
 
-const achievementCtx = { depthOf, treeOf };
+function requirementCount(skillId) {
+  return (findSkill(skillId)?.skill?.requires || []).length;
+}
+
+const achievementCtx = { depthOf, treeOf, requirementCount };
+
+/* ------------------------------------------------------------------ *
+ * The generated catalogue
+ * ------------------------------------------------------------------ */
+
+/*
+ * Trees the learner generated are held in the same in-memory catalogue as the
+ * seeded ones, which means they have to be put back there on every boot. This
+ * runs at import time, before the router picks a screen, so a route straight
+ * into a generated tree resolves on a cold load exactly as it does after
+ * accepting one.
+ *
+ * A stored tree that no longer indexes — written by an older build, or edited
+ * by hand in an export — is dropped rather than allowed to throw during
+ * layout, because a broken tree must not cost the learner the whole app.
+ */
+function restoreTrees() {
+  const broken = [];
+  for (const tree of store.savedTrees()) {
+    try {
+      registerTree(tree);
+    } catch (err) {
+      console.error(`could not restore tree ${tree.id}`, err);
+      broken.push(tree.id);
+    }
+  }
+  for (const id of broken) store.forgetTree(id);
+  return { restored: store.savedTrees().length, dropped: broken };
+}
+
+restoreTrees();
+
+/**
+ * Register a generated tree and persist it, in that order.
+ *
+ * Registration validates the graph, so a tree that would break the layout is
+ * rejected before anything is written — the alternative is storing a tree that
+ * fails to load on every subsequent boot.
+ */
+function acceptGeneratedTree(tree) {
+  try {
+    registerTree(tree);
+  } catch (err) {
+    return { ok: false, error: err.message };
+  }
+  const stored = store.saveTree({ ...tree, generated: true });
+  /* Registered but not written: the tree works for this session, and saying so
+   * is better than a silent loss at the next reload. */
+  return { ok: true, persisted: stored };
+}
+
+/** Remove a generated tree from both the catalogue and storage. */
+function removeGeneratedTree(id) {
+  dropTree(id);
+  return store.forgetTree(id);
+}
 
 /* ------------------------------------------------------------------ *
  * Reading
@@ -9171,6 +10220,36 @@ function begin(skillId) {
  * Returns the grading result plus the announcements, so the activity screen
  * can show the feedback and the toasts from one call.
  */
+/*
+ * A stable fingerprint for a submission.
+ *
+ * The attempt id used to be `activity#<attempts.length + 1>`, computed from the
+ * live profile — which strictly increases, so the id was different every time
+ * and the duplicate check downstream could never fire. Three comments claimed
+ * double-submission was handled; it was handled by the UI removing the button,
+ * and `session.submit` is a public API with no such protection.
+ *
+ * Hashing what was actually submitted makes an identical resubmission collide,
+ * which is exactly the case worth collapsing: a double click, a retried call,
+ * two concurrent submits of the same answers. A genuine retry differs — the
+ * learner changed something — and correctly gets its own id.
+ */
+function fingerprint(activityId, submission) {
+  const payload = JSON.stringify({
+    a: activityId,
+    answers: submission.answers ?? null,
+    source: submission.source ?? null,
+    checked: submission.checked ?? null,
+  });
+
+  let hash = 2166136261;
+  for (let i = 0; i < payload.length; i += 1) {
+    hash ^= payload.charCodeAt(i);
+    hash = Math.imul(hash, 16777619);
+  }
+  return `${activityId}#${(hash >>> 0).toString(36)}`;
+}
+
 async function submit(activityId, submission) {
   const found = findActivity(activityId);
   if (!found) return { ok: false, reason: 'unknown_activity' };
@@ -9188,9 +10267,8 @@ async function submit(activityId, submission) {
       kind: activity.kind,
       score: result.score,
       passed: result.passed,
-      /* The attempt id is derived from what has already happened, not from
-       * the caller, so a double-submitted form collapses to one award. */
-      id: `${activityId}#${(p.skills[skill.id]?.attempts?.length || 0) + 1}`,
+      /* Derived from the submission itself — see fingerprint. */
+      id: fingerprint(activityId, submission),
       durationMs: submission.durationMs || null,
     });
 
@@ -9254,6 +10332,40 @@ function goalPathFor(goal) {
   return goalPath(index, goal.targetSkillId, freshProfile());
 }
 
+/**
+ * The learner's programme — the single source of the goal numbers.
+ *
+ * Four screens reported progress toward the same goal and two of them
+ * disagreed: the dashboard and the plan folded every destination across every
+ * tree ("9 / 27"), while the tree and the profile walked the path to one target
+ * in one tree ("2 / 19"). Same goal, same moment, 33% against 11%. Whichever
+ * was right, showing both was not.
+ *
+ * So the programme is computed here, once, and every screen reads it. The tree
+ * still shows only its own share — a graph cannot draw the skills in another
+ * tree — but it takes that share from this, and says so.
+ */
+function programme(now = Date.now()) {
+  const p = freshProfile(now);
+  if (!p || !p.plan?.goalText) return null;
+  const built = buildProgramme({
+    catalog,
+    state: p,
+    goalText: p.plan.goalText,
+    minutesPerDay: p.plan.minutesPerDay || 20,
+    now,
+  });
+  return built.ok ? built : null;
+}
+
+/** The part of the programme that lives in one tree, for the tree screen. */
+function programmeInTree(treeId, now = Date.now()) {
+  const built = programme(now);
+  if (!built) return null;
+  const steps = built.steps.filter((s) => s.treeId === treeId);
+  return { steps, done: steps.filter((s) => s.done).length, total: built.totalSteps };
+}
+
 function reviews(now = Date.now(), limit = 5) {
   const p = freshProfile(now);
   if (!p) return [];
@@ -9303,28 +10415,63 @@ function nextActivity(skillId) {
   return nextActivityFor(found.skill, store.get()?.skills?.[skillId]);
 }
 
-function setGoal(treeId, targetSkillId, text) {
+/**
+ * Set the goal — both halves of it, in one place.
+ *
+ * `plan` is what the learner wrote; `goal` is the destination it resolved to,
+ * and half a dozen screens read the latter. They were being written by two
+ * separate call sites and cleared by neither, so an abandoned goal kept
+ * driving the tree screen and the recommendations. One writer now.
+ */
+function setGoal({ goalText, minutesPerDay, treeId, targetSkillId }, now = Date.now()) {
   return store.update((p) => ({
     ...p,
-    goal: { treeId, targetSkillId, text: text || '', createdAt: Date.now() },
+    plan: { goalText, createdAt: now, minutesPerDay: minutesPerDay || 20 },
+    goal: targetSkillId
+      ? { treeId, targetSkillId, text: goalText || '', createdAt: now }
+      : null,
   }));
 }
 
+/**
+ * Award anything the current state qualifies for.
+ *
+ * Exposed because seeding paths — onboarding, the demo — build state by
+ * replaying attempts and would otherwise leave the learner on a populated
+ * dashboard beside an achievements screen reading "0 of 16".
+ */
+function awardPending() {
+  let unlocked = [];
+  store.update((p) => {
+    const res = award(p, achievementCtx);
+    unlocked = res.unlocked;
+    return res.state;
+  });
+  return unlocked;
+}
+
   return {
+    "restoreTrees": restoreTrees,
+    "acceptGeneratedTree": acceptGeneratedTree,
+    "removeGeneratedTree": removeGeneratedTree,
     "profile": profile,
     "freshProfile": freshProfile,
     "overview": overview,
     "progressOf": progressOf,
     "begin": begin,
+    "fingerprint": fingerprint,
     "submit": submit,
     "recommendations": recommendations,
     "goalPathFor": goalPathFor,
+    "programme": programme,
+    "programmeInTree": programmeInTree,
     "reviews": reviews,
     "missions": missions,
     "currentFocus": currentFocus,
     "recentlyUnlocked": recentlyUnlocked,
     "nextActivity": nextActivity,
     "setGoal": setGoal,
+    "awardPending": awardPending,
   };
 })();
 
@@ -9457,7 +10604,7 @@ function applyTheme(theme) {
 }
 
 function buildShell() {
-  const main = h('main.main', { id: 'main' });
+  const main = h('main.main', { id: 'main', tabindex: '-1' });
 
   const sidebar = h('nav.nav', { 'aria-label': 'Main' },
     h('div.nav-brand', brandMark(26), 'SkillTree'),
@@ -9485,18 +10632,18 @@ function buildShell() {
       onclick: () => go('settings'),
     }, icon('settings', { size: 19 }), 'Settings'));
 
-  const app = h('div.app',
-    sidebar,
-    main,
-    /* Skip link, first in tab order, so a keyboard user is not walked through
-     * seven nav items on every navigation. */
-    h('a', {
-      href: '#main',
-      class: 'sr-only',
-      style: { position: 'fixed', top: '8px', left: '8px', zIndex: '100' },
-      onfocus: (e) => { e.target.classList.remove('sr-only'); },
-      onblur: (e) => { e.target.classList.add('sr-only'); },
-    }, 'Skip to content'));
+  /*
+   * Genuinely first in tab order — it was appended last, after the sidebar and
+   * the whole of main, so it was reached only after every other control on the
+   * page and skipped nothing. It also painted transparent white text over the
+   * h1 when focused; `.skip-link` in components.css gives it a real surface.
+   */
+  const skip = h('a.skip-link', {
+    href: '#main',
+    onclick: () => { window.requestAnimationFrame(() => main.focus()); },
+  }, 'Skip to content');
+
+  const app = h('div.app', skip, sidebar, main);
 
   document.body.appendChild(app);
   document.body.appendChild(tabbar);
@@ -9509,6 +10656,22 @@ function buildShell() {
 function syncNav() {
   const route = currentRoute();
   const active = route ? route.name : 'dashboard';
+
+  /*
+   * Hide both navigations during onboarding.
+   *
+   * They were rendered on every step — eight sidebar links and six tabs, all
+   * looking enabled — and were entirely inert *except* for one destructive
+   * effect: every screen is guarded on `onboarded`, so clicking any of them
+   * bounced back to `#/onboarding`, which re-runs with a fresh answers object.
+   * The learner's name and chosen area vanished and they landed on step one
+   * again, with no warning and nothing to explain it. On the first screen a new
+   * user ever sees.
+   *
+   * Controls that cannot work should not be on the screen. The onboarding has
+   * its own back and next.
+   */
+  document.body.classList.toggle('onboarding', active === 'onboarding');
   for (const el of qsa('[data-nav]')) {
     const on = el.dataset.nav === active;
     if (on) el.setAttribute('aria-current', 'page');
@@ -9560,20 +10723,12 @@ const { icon } = __m["skilltree/src/ui/icons.js"];
 const { findSkill } = __m["skilltree/src/data/catalog.js"];
 const { requirementStatus, statusOf, STATUS } = __m["skilltree/src/domain/unlock.js"];
 const { skillProgress, skillLevelMeta, xpForSkillLevel } = __m["skilltree/src/domain/levels.js"];
-const { skillCapacity } = __m["skilltree/src/domain/xp.js"];
+const { skillCapacity, labelForKind } = __m["skilltree/src/domain/xp.js"];
 const { nextActivityFor } = __m["skilltree/src/domain/missions.js"];
 const session = __m["skilltree/src/core/session.js"];
 const { go } = __m["skilltree/src/core/router.js"];
 
-const KIND_LABEL = {
-  learn: 'Lesson',
-  quiz: 'Quiz',
-  practice: 'Practice',
-  challenge: 'Challenge',
-  project: 'Project',
-  assessment: 'Assessment',
-  mastery: 'Mastery challenge',
-};
+
 
 const KIND_ICON = {
   learn: 'book', quiz: 'check', practice: 'refresh', challenge: 'bolt',
@@ -9660,7 +10815,7 @@ function openSkill(skillId, opts = {}) {
         status === STATUS.LOCKED ? 'Requirements to unlock' : 'Requirements'),
       h('div.list', ...reqs.map((r) => h('div.list-item', { style: { cursor: 'default' } },
         h('span', {
-          style: { color: r.met ? 'var(--lime)' : 'var(--bone-dimmer)', display: 'flex' },
+          style: { color: r.met ? 'var(--accent-ink)' : 'var(--bone-dimmer)', display: 'flex' },
           'aria-hidden': 'true',
         }, icon(r.met ? 'check' : 'lock', { size: 16 })),
         h('div.grow',
@@ -9690,11 +10845,11 @@ function openSkill(skillId, opts = {}) {
           disabled: locked,
           onclick: () => { close(); go(`activity/${activity.id}`); },
         },
-        h('span', { style: { color: done ? 'var(--lime)' : 'var(--bone-dimmer)', display: 'flex' }, 'aria-hidden': 'true' },
+        h('span', { style: { color: done ? 'var(--accent-ink)' : 'var(--bone-dimmer)', display: 'flex' }, 'aria-hidden': 'true' },
           icon(done ? 'check' : KIND_ICON[activity.kind] || 'play', { size: 16 })),
         h('div.grow',
           h('div.title', activity.title),
-          h('div.sub', KIND_LABEL[activity.kind] || 'Activity')),
+          h('div.sub', labelForKind(activity.kind))),
         done ? h('span.chip.on', 'Passed')
           : tried ? h('span.chip.warn', 'Retry')
             : null);
@@ -9761,458 +10916,6 @@ function findIn(skillId) {
   };
 })();
 
-__m["skilltree/src/domain/goals.js"] = (function () {
-/*
- * goals.js — "I want to open a web design business" → a programme.
- *
- * The app could already draw a path to a *node you picked from a list*. This
- * turns a goal written in a person's own words into an ordered plan across
- * every tree, with dates, and it does it without a model.
- *
- * That last part is the constraint that shaped the file. An AI-only version
- * would be three lines and would leave the headline feature of the app broken
- * for anyone without an API key (§80). So matching is a scored term search
- * over the catalogue — names, categories, descriptions and the "why" text —
- * plus a small set of intent rules for the goals people actually type. AI, when
- * present, only adds skills the catalogue genuinely lacks.
- *
- * Pure module: it takes a catalogue and a goal string, and returns a plan. No
- * storage, no DOM, and the clock arrives as an argument.
- */
-
-const { statusOf, STATUS } = __m["skilltree/src/domain/unlock.js"];
-const { levelFor } = __m["skilltree/src/domain/levels.js"];
-
-/* Words that carry no signal about *what* someone wants to learn. Without this
- * "I want to learn to build a business" matches every skill containing "build". */
-const STOP = new Set([
-  'i', 'a', 'an', 'the', 'to', 'and', 'or', 'of', 'for', 'my', 'me', 'my own',
-  'want', 'wants', 'wanting', 'would', 'like', 'love', 'need', 'get', 'getting',
-  'become', 'becoming', 'be', 'being', 'make', 'making', 'do', 'doing', 'able',
-  'learn', 'learning', 'study', 'studying', 'better', 'good', 'great', 'more',
-  'start', 'starting', 'begin', 'how', 'can', 'with', 'in', 'on', 'at', 'as',
-  'is', 'are', 'it', 'that', 'this', 'so', 'up', 'own', 'some', 'thing', 'things',
-  'skills', 'skill', 'work', 'working', 'job', 'career', 'life', 'goal',
-]);
-
-/*
- * Intent rules.
- *
- * A term search alone misses the obvious: "open a web design business" contains
- * no word matching "Pricing" or "Contracts", yet those are exactly what the
- * person is missing. These map recognisable goals onto the skills that
- * actually constitute them.
- *
- * Deliberately small and readable. It is a lookup table of common intents, not
- * an attempt at language understanding — anything it does not recognise still
- * gets the term search, and the UI is honest about what it matched.
- */
-const INTENTS = [
-  {
-    id: 'freelance_web',
-    /* Every pattern must match for the rule to fire, so "web design" alone does
-     * not drag in the whole business tree. */
-    all: [/\b(web\w*|site\w*|design\w*|dev|develop\w*|frontend|digital)\b/, /\b(business\w*|freelanc\w*|agenc\w*|client\w*|self.?employ\w*|studio|compan\w*|sell\w*|money|income|paid|earn\w*|charge)\b/],
-    label: 'Freelance web work',
-    trees: ['web', 'business'],
-    /* Order matters — see the anchor weighting in matchSkills. The business
-     * milestone leads; enough front-end to actually deliver a site follows. */
-    anchors: ['working_business', 'css_responsive'],
-  },
-  {
-    id: 'freelance_any',
-    all: [/\b(freelanc\w*|self.?employ\w*|own business|start a business|agenc\w*|client\w*)\b/],
-    label: 'Working for yourself',
-    trees: ['business'],
-    anchors: ['working_business', 'first_client'],
-  },
-  {
-    id: 'frontend',
-    all: [/\b(frontend|front.end|web develop\w*|website\w*|react|css|html|ui develop\w*)\b/],
-    label: 'Front-end development',
-    trees: ['web'],
-    anchors: ['react_routing', 'css_responsive'],
-  },
-  {
-    id: 'fullstack',
-    all: [/\b(full.?stack|backend|back.end|api|apis|server\w*|database\w*)\b/],
-    label: 'Full-stack development',
-    trees: ['web'],
-    anchors: ['fullstack'],
-  },
-  {
-    id: 'calisthenics',
-    all: [/\b(muscle.?up\w*|pull.?up\w*|push.?up\w*|handstand\w*|lever|calisthenic\w*|bodyweight|stronger|fitness|fitter)\b/],
-    label: 'Bodyweight strength',
-    trees: ['calisthenics'],
-    /* Only a general "get stronger" should reach the athlete milestone; a
-     * goal naming one move is served by that move, which the term match
-     * scores far higher. */
-    anchors: ['calisthenics_athlete'],
-  },
-  {
-    id: 'maths',
-    all: [/\b(math\w*|calculus|algebra|statistic\w*|geometr\w*|trigonometr\w*)\b/],
-    label: 'Mathematics',
-    trees: ['math'],
-    anchors: ['calculus_mastery'],
-  },
-];
-
-function tokenise(text) {
-  return String(text || '')
-    .toLowerCase()
-    .replace(/[^a-z0-9\s+#.-]/g, ' ')
-    .split(/\s+/)
-    .map((w) => w.replace(/^[.\-]+|[.\-]+$/g, ''))
-    .filter((w) => w.length > 1 && !STOP.has(w));
-}
-
-/*
- * Crude but effective stemming: match on a prefix so "designing" hits "design"
- * and "businesses" hits "business". A real stemmer is not worth a dependency
- * here, and the failure mode of prefix matching — an occasional loose match —
- * is much kinder than missing the obvious one.
- */
-function termHit(term, text) {
-  if (!text) return false;
-  const haystack = text.toLowerCase();
-  if (haystack.includes(term)) return true;
-  if (term.length > 4 && haystack.includes(term.slice(0, Math.max(4, term.length - 2)))) return true;
-  return false;
-}
-
-/**
- * Score every skill in the catalogue against a goal.
- *
- * Weighted by where the term was found: a hit in the skill's name means far
- * more than a hit in a paragraph of its lesson description.
- */
-function matchSkills(goalText, catalog) {
-  const terms = tokenise(goalText);
-  if (!terms.length) return { matches: [], intents: [], terms };
-
-  const raw = String(goalText || '').toLowerCase();
-  const intents = INTENTS.filter((intent) => intent.all.every((re) => re.test(raw)));
-  const intentTrees = new Set(intents.flatMap((i) => i.trees));
-
-  /*
-   * Anchor weight, by position and by how well-evidenced the intent is.
-   *
-   * An intent whose rules required two independent signals — "web design" AND
-   * "business" — is a confident reading of a broad goal, and its destination
-   * should outrank an incidental name match. Without that, "I want to build
-   * websites for clients" produced a plan aimed at Choosing Clients and Client
-   * Communication, because those skills happen to have "client" in the name,
-   * while the actual destination scored lower.
-   *
-   * A single-signal intent stays modest, so a goal that names one specific
-   * thing — "muscle up" — is still served by that thing rather than by the
-   * tree's furthest milestone.
-   */
-  const anchorWeight = new Map();
-  for (const intent of intents) {
-    const confident = intent.all.length >= 2;
-    const scale = confident ? [20, 11, 6] : [12, 7, 4];
-    intent.anchors.forEach((id, i) => {
-      const weight = scale[i] ?? 3;
-      if ((anchorWeight.get(id) ?? 0) < weight) anchorWeight.set(id, weight);
-    });
-  }
-
-  const matches = [];
-
-  for (const tree of catalog.allTrees()) {
-    for (const skill of tree.skills) {
-      let score = 0;
-      const why = [];
-
-      for (const term of terms) {
-        /* A hit in the name is the learner naming the thing. It has to
-         * outrank everything else, or "I want to do a muscle up" produces a
-         * plan whose destination is a front lever. */
-        if (termHit(term, skill.name)) { score += 14; why.push(term); }
-        else if (termHit(term, skill.category)) score += 4;
-        else if (termHit(term, skill.description)) score += 2;
-        else if (termHit(term, skill.why)) score += 1;
-      }
-
-      /* A recognised intent pulls in its whole tree, which is what makes
-       * "open a web design business" reach Pricing and Contracts — words the
-       * learner never typed but unmistakably needs. */
-      if (intentTrees.has(tree.id)) score += 5;
-
-      /* Anchors are ranked, not a flat set. A flat +14 for every anchor made
-       * each intent produce three or four destinations, and a plan with four
-       * destinations is four plans — it was returning 226-week programmes. */
-      score += anchorWeight.get(skill.id) ?? 0;
-
-      if (score > 0) matches.push({ skill, tree, score, terms: [...new Set(why)] });
-    }
-  }
-
-  matches.sort((a, b) => b.score - a.score || a.skill.name.localeCompare(b.skill.name));
-  return { matches, intents, terms };
-}
-
-/*
- * Pick the destinations.
- *
- * A programme needs targets, not a list of forty loosely-related skills. The
- * highest-scoring skills are taken as destinations, and everything they depend
- * on comes along automatically — so choosing "A Working Business" quietly
- * includes pricing, proposals and contracts without them needing to score.
- *
- * Skills that are prerequisites of other chosen targets are dropped as
- * destinations, because a plan whose milestones are "HTML" and "React" reads
- * as two goals when it is one.
- */
-function chooseTargets(matches, catalog, limit = 3) {
-  const chosen = [];
-  if (!matches.length) return chosen;
-
-  /*
-   * Only destinations comparable to the strongest one.
-   *
-   * Taking the top N regardless of score was the bug that produced four-year
-   * programmes: "open a web design business" acquired Web Performance and
-   * Accessibility as destinations simply by being fourth and fifth in a long
-   * list. A destination has to be nearly as good a match as the best one, or
-   * it is not what the person asked for.
-   */
-  const floor = matches[0].score * 0.7;
-
-  for (const match of matches) {
-    if (chosen.length >= limit) break;
-    if (match.score < floor) break;
-    const index = catalog.getIndex(match.tree.id);
-    if (!index) continue;
-
-    const alreadyImplied = chosen.some((c) => {
-      if (c.tree.id !== match.tree.id) return false;
-      return catalog.ancestorsOf(index, c.skill.id).has(match.skill.id);
-    });
-    if (alreadyImplied) continue;
-
-    /*
-     * A lower-scoring skill that sits *beyond* an already-chosen destination
-     * is skipped rather than replacing it.
-     *
-     * An earlier version promoted to the furthest milestone in the tree, on
-     * the theory that it subsumed the smaller one. The effect was that "I want
-     * to do a muscle up" produced a plan whose destination was Calisthenics
-     * Athlete — 416 hours including handstands and front levers, neither of
-     * which a muscle-up needs. If someone names a destination, that is the
-     * destination.
-     */
-    const beyondAChosenTarget = chosen.some((c) => c.tree.id === match.tree.id
-      && catalog.ancestorsOf(index, match.skill.id).has(c.skill.id));
-    if (beyondAChosenTarget) continue;
-
-    chosen.push(match);
-  }
-
-  return chosen;
-}
-
-/*
- * Weekly capacity, in hours.
- *
- * The onboarding asks for minutes per day, which is what people can estimate.
- * Multiplying by seven would produce a plan nobody meets, so this assumes
- * about five active days a week — matching how people actually behave, and
- * making the dates the plan produces defensible rather than optimistic.
- */
-function weeklyHours(minutesPerDay) {
-  const minutes = Math.max(5, Number(minutesPerDay) || 20);
-  return (minutes * 5) / 60;
-}
-
-/**
- * Build the programme.
- *
- * Returns ordered steps with cumulative hours and a projected week for each,
- * grouped into phases. Skills the learner has already completed are marked
- * done and contribute no remaining time — so a plan built by someone who
- * already knows HTML does not tell them to spend six hours on it.
- *
- * @param opts { catalog, state, goalText, minutesPerDay, now }
- */
-function buildProgramme(opts) {
-  const { catalog, state, goalText } = opts;
-  const now = opts.now ?? Date.now();
-  const perWeek = weeklyHours(opts.minutesPerDay);
-
-  const { matches, intents, terms } = matchSkills(goalText, catalog);
-  if (!matches.length) {
-    return { ok: false, reason: 'no_match', terms, goalText };
-  }
-
-  const targets = chooseTargets(matches, catalog);
-
-  /* Collect every skill needed for every target, in dependency order. */
-  const seen = new Set();
-  const steps = [];
-
-  for (const target of targets) {
-    const index = catalog.getIndex(target.tree.id);
-    const needed = catalog.pathTo(index, target.skill.id);
-
-    for (const skillId of needed) {
-      if (seen.has(skillId)) continue;
-      seen.add(skillId);
-
-      const skill = index.byId.get(skillId);
-      const progress = state.skills[skillId];
-      const status = statusOf(index, skillId, (id) => state.skills[id]);
-
-      const level = progress
-        ? levelFor({
-          xp: progress.xp || 0,
-          masteryScore: progress.masteryScore || 0,
-          capacity: progress.capacity || 0,
-          started: !!progress.startedAt,
-        })
-        : 0;
-
-      /* Estimated hours remaining: the midpoint of the skill's range, reduced
-       * by how far in the learner already is. Completed skills cost nothing. */
-      const range = skill.estimatedHours || [2, 4];
-      const midpoint = (range[0] + range[1]) / 2;
-      const done = level >= 3;
-      const remaining = done ? 0 : midpoint * (1 - Math.min(1, level / 3) * 0.6);
-
-      steps.push({
-        skillId,
-        skill,
-        tree: target.tree,
-        treeId: target.tree.id,
-        status,
-        level,
-        done,
-        hours: Math.round(remaining * 10) / 10,
-        isTarget: skillId === target.skill.id,
-        targetFor: skillId === target.skill.id ? target.skill.name : null,
-      });
-    }
-  }
-
-  /* Cumulative time and a projected week per step. */
-  let cumulative = 0;
-  for (const step of steps) {
-    cumulative += step.hours;
-    step.cumulativeHours = Math.round(cumulative * 10) / 10;
-    step.week = step.done ? 0 : Math.max(1, Math.ceil(cumulative / perWeek));
-  }
-
-  const remainingHours = Math.round(cumulative * 10) / 10;
-  const weeks = Math.max(1, Math.ceil(remainingHours / perWeek));
-
-  return {
-    ok: true,
-    goalText,
-    terms,
-    intents: intents.map((i) => ({ id: i.id, label: i.label })),
-    targets: targets.map((t) => ({ skillId: t.skill.id, name: t.skill.name, treeId: t.tree.id, treeName: t.tree.name })),
-    steps,
-    phases: intoPhases(steps),
-    totalSteps: steps.length,
-    doneSteps: steps.filter((s) => s.done).length,
-    remainingHours,
-    weeks,
-    perWeek: Math.round(perWeek * 10) / 10,
-    finishesAt: now + weeks * 7 * 86400000,
-    trees: [...new Set(steps.map((s) => s.treeId))],
-  };
-}
-
-/*
- * Group the steps into phases.
- *
- * A flat list of thirty skills is a wall. Phases give the plan a shape a
- * person can hold — and the boundaries are meaningful rather than decorative:
- * everything already done, then what is open now, then what each remaining
- * target unlocks.
- */
-function intoPhases(steps) {
-  const phases = [];
-
-  const done = steps.filter((s) => s.done);
-  if (done.length) {
-    phases.push({
-      key: 'done',
-      title: 'Already yours',
-      blurb: 'Counted, and skipped in the estimate.',
-      steps: done,
-    });
-  }
-
-  const rest = steps.filter((s) => !s.done);
-  if (!rest.length) return phases;
-
-  /* Up to four steps you could start today. More than that is not a next
-   * action, it is another list. */
-  const openNow = rest.filter((s) => s.status !== STATUS.LOCKED).slice(0, 4);
-  if (openNow.length) {
-    phases.push({
-      key: 'now',
-      title: 'Start here',
-      blurb: 'Open to you today.',
-      steps: openNow,
-    });
-  }
-
-  const later = rest.filter((s) => !openNow.includes(s));
-  if (later.length) {
-    /* Split the remainder in two so the far end reads as "later" rather than
-     * as an equally urgent thirty-item list. */
-    const half = Math.ceil(later.length / 2);
-    phases.push({
-      key: 'next',
-      title: 'Then',
-      blurb: 'Opens as the earlier steps land.',
-      steps: later.slice(0, half),
-    });
-    if (later.length > half) {
-      phases.push({
-        key: 'later',
-        title: 'Later',
-        blurb: 'The far end of the plan.',
-        steps: later.slice(half),
-      });
-    }
-  }
-
-  return phases;
-}
-
-/**
- * This week's work: the next few unfinished, unlocked steps, with the specific
- * activity to do in each. Keeps the plan actionable rather than admirable.
- */
-function thisWeek(programme, nextActivityFor, state, limit = 3) {
-  if (!programme?.ok) return [];
-
-  return programme.steps
-    .filter((s) => !s.done && s.status !== STATUS.LOCKED)
-    .slice(0, limit)
-    .map((step) => ({
-      ...step,
-      activity: nextActivityFor(step.skill, state.skills[step.skillId]),
-    }))
-    .filter((s) => s.activity);
-}
-
-  return {
-    "tokenise": tokenise,
-    "matchSkills": matchSkills,
-    "chooseTargets": chooseTargets,
-    "weeklyHours": weeklyHours,
-    "buildProgramme": buildProgramme,
-    "thisWeek": thisWeek,
-  };
-})();
-
 __m["skilltree/src/ui/dashboard.js"] = (function () {
 /*
  * dashboard.js — the home screen (§6), and the intelligence behind it (§67).
@@ -10238,8 +10941,6 @@ const session = __m["skilltree/src/core/session.js"];
 const { go } = __m["skilltree/src/core/router.js"];
 const { openSkill } = __m["skilltree/src/ui/skillpanel.js"];
 const { persists } = __m["skilltree/src/core/store.js"];
-const catalog = __m["skilltree/src/data/catalog.js"];
-const { buildProgramme } = __m["skilltree/src/domain/goals.js"];
 
 function renderDashboard(host) {
   const overview = session.overview();
@@ -10319,7 +11020,9 @@ function renderDashboard(host) {
         },
         h('div.grow',
           h('div.title', f.skill.name),
-          h('div.sub', `${f.tree.name} · last practised ${ago(f.lastPracticedAt)}`)),
+          /* "set at setup" for a skill whose only attempts came from the
+           * onboarding seed — it has standing, but nobody practised it. */
+          h('div.sub', `${f.tree.name} · ${f.neverPractised ? 'set at setup' : `last practised ${ago(f.lastPracticedAt)}`}`)),
         h('div', { style: { width: '84px' } },
           h('div.bar', h('i', { style: { width: `${pct}%` } }))),
         h('span.lvl', `Lv.${f.level}`));
@@ -10328,14 +11031,12 @@ function renderDashboard(host) {
 
   /* ---- the goal, if one is set ---- */
   if (profile.plan?.goalText) {
-    const programme = buildProgramme({
-      catalog,
-      state: profile,
-      goalText: profile.plan.goalText,
-      minutesPerDay: profile.plan.minutesPerDay || 20,
-    });
+    /* One programme, shared with the plan, tree and profile screens — see
+     * session.programme. Four screens computing it independently is how two of
+     * them ended up reporting different progress toward the same goal. */
+    const programme = session.programme();
 
-    if (programme.ok) {
+    if (programme) {
       const pct = programme.totalSteps
         ? Math.round((programme.doneSteps / programme.totalSteps) * 100) : 0;
       page.appendChild(h('button.card', {
@@ -10382,7 +11083,7 @@ function renderDashboard(host) {
       },
       h('div.grow',
         h('div.title', r.skill.name),
-        h('div.sub', `Last practised ${ago(r.lastPracticedAt)}`)),
+        h('div.sub', r.neverPractised ? 'Set at setup, not yet practised' : `Last practised ${ago(r.lastPracticedAt)}`)),
       h('span.chip.warn', `${r.confidence}%`))))));
   }
 
@@ -10515,7 +11216,6 @@ __m["skilltree/src/ui/toast.js"] = (function () {
 
 const { h, sheet, announce, reduceMotion } = __m["skilltree/src/core/dom.js"];
 const { icon } = __m["skilltree/src/ui/icons.js"];
-const { achievementById } = __m["skilltree/src/domain/achievements.js"];
 
 let layer = null;
 
@@ -10636,13 +11336,11 @@ function showUnlocked(names) {
 }
 
 
-
   return {
     "toast": toast,
     "announceEvents": announceEvents,
     "showLevelUp": showLevelUp,
     "showUnlocked": showUnlocked,
-    "achievementById": achievementById,
   };
 })();
 
@@ -11187,12 +11885,10 @@ const session = __m["skilltree/src/core/session.js"];
 const { go } = __m["skilltree/src/core/router.js"];
 const { announceEvents } = __m["skilltree/src/ui/toast.js"];
 const { show } = __m["skilltree/src/domain/verify.js"];
+const { labelForKind } = __m["skilltree/src/domain/xp.js"];
 const { coachFor } = __m["skilltree/src/ai/coach.js"];
 
-const KIND_LABEL = {
-  learn: 'Lesson', quiz: 'Quiz', practice: 'Practice', challenge: 'Challenge',
-  project: 'Project', assessment: 'Assessment', mastery: 'Mastery challenge',
-};
+
 
 function renderActivity(host, activityId) {
   const found = findActivity(activityId);
@@ -11242,7 +11938,7 @@ function renderActivity(host, activityId) {
   shell.appendChild(h('div.row.between', { style: { marginBottom: 'var(--s5)' } },
     h('button.btn.ghost.small', { onclick: () => go(`tree/${found.tree.id}?skill=${skill.id}`) },
       icon('back', { size: 15 }), skill.name),
-    h('span.chip', KIND_LABEL[activity.kind] || 'Activity')));
+    h('span.chip', labelForKind(activity.kind))));
 
   shell.appendChild(h('div', { style: { marginBottom: 'var(--s5)' } },
     h('h1', activity.title),
@@ -11320,9 +12016,13 @@ function renderResult(host, found, outcome, opts = {}) {
 
   panel.appendChild(h('div.row.between', { style: { marginBottom: 'var(--s3)' } },
     h('h2', result.passed ? passHeadline(activity.kind) : 'Not yet'),
-    h('span.stat', { style: { textAlign: 'right' } },
-      h('span.k', 'Score'),
-      h('span.v', `${result.score}`, h('small', '%')))));
+    /* A lesson has no score. Showing "100%" for reading something was a
+     * fabricated grade, and the panel should not print one. */
+    Number.isFinite(result.score)
+      ? h('span.stat', { style: { textAlign: 'right' } },
+        h('span.k', 'Score'),
+        h('span.v', `${result.score}`, h('small', '%')))
+      : null));
 
   const xpEvent = outcome.events.find((e) => e.type === 'xp');
   if (xpEvent) {
@@ -11350,7 +12050,7 @@ function renderResult(host, found, outcome, opts = {}) {
     panel.appendChild(h('div.stack', { style: { marginTop: 'var(--s4)' } },
       ...result.results.map((r, i) => h('div',
         h('div', { style: { fontSize: '13.5px', fontWeight: '560', marginBottom: '4px' } },
-          h('span', { style: { color: r.correct ? 'var(--lime)' : 'var(--fail)', marginRight: '6px' } },
+          h('span', { style: { color: r.correct ? 'var(--accent-ink)' : 'var(--fail)', marginRight: '6px' } },
             r.correct ? '✓' : '✗'),
           `${i + 1}. ${r.prompt}`),
         !r.correct
@@ -11495,13 +12195,27 @@ function renderQuiz(host, found, startedAt) {
   host.appendChild(body);
 }
 
+/*
+ * Mark the graded options.
+ *
+ * Border colour alone was the only signal, and the chosen option kept its
+ * accent-filled dot — so a wrong answer showed an accent dot inside a red
+ * border, and under protanopia the correct row and the wrong row were
+ * indistinguishable. Each marked row now carries a word.
+ */
 function markQuiz(body, questions, answers) {
   const cards = [...body.querySelectorAll('.card')];
   questions.forEach((question, qi) => {
     const picks = [...cards[qi].querySelectorAll('.pick')];
     picks.forEach((pick, oi) => {
-      if (oi === question.answer) pick.classList.add('right');
-      else if (answers[qi] === oi) pick.classList.add('wrong');
+      const chosen = answers[qi] === oi;
+      if (oi === question.answer) {
+        pick.classList.add('right');
+        pick.appendChild(h('span.pick-verdict', chosen ? 'Correct' : 'Answer'));
+      } else if (chosen) {
+        pick.classList.add('wrong');
+        pick.appendChild(h('span.pick-verdict', 'Your answer'));
+      }
     });
   });
 }
@@ -11526,7 +12240,9 @@ function renderNumeric(host, found, startedAt) {
   questions.forEach((question, qi) => {
     const input = h('input.input', {
       type: 'text',
-      inputmode: 'decimal',
+      /* Not `decimal`: on iOS that keypad has no minus key at all, which made
+       * every negative-answer question unanswerable on an iPhone. */
+      inputmode: 'text',
       autocomplete: 'off',
       spellcheck: 'false',
       'aria-label': question.prompt,
@@ -11543,7 +12259,7 @@ function renderNumeric(host, found, startedAt) {
   /* Said once, at the point of entry, because a learner who types 1/2 and is
    * marked wrong will not try it again. */
   body.appendChild(h('div.card-note', { style: { marginBottom: 'var(--s4)' } },
-    'Decimals, fractions and percentages all work — 0.5, 1/2 and 50% are the same answer.'));
+    'Decimals, fractions and percentages all work — 0.5, 1/2 and 50% are all accepted.'));
 
   const actions = h('div', submitBtn);
   submitBtn.addEventListener('click', async () => {
@@ -11636,7 +12352,7 @@ async function askCoach(found, source, host) {
 
   clear(box);
   box.appendChild(h('div.row', { style: { gap: 'var(--s2)', alignItems: 'flex-start' } },
-    h('span', { style: { color: 'var(--lime)', display: 'flex', marginTop: '2px' } }, icon('sparkle', { size: 15 })),
+    h('span', { style: { color: 'var(--accent-ink)', display: 'flex', marginTop: '2px' } }, icon('sparkle', { size: 15 })),
     h('div', { style: { fontSize: '13.5px', lineHeight: '1.6', color: 'var(--bone-dim)' } }, reply.text)));
 
   if (reply.offline) {
@@ -11695,10 +12411,8 @@ function renderChecklist(host, found, startedAt) {
 }
 
 
-
   return {
     "renderActivity": renderActivity,
-    "num": num,
   };
 })();
 
@@ -11919,12 +12633,19 @@ function whatGoal(card, answers, nav) {
 
   const preview = h('div');
 
+  /* The build button is disabled while the field is empty, so it has to follow
+   * the field rather than being evaluated once at render. */
+  let buildBtn = null;
+  function syncBuild() {
+    if (buildBtn) buildBtn.disabled = !answers.goalText.trim();
+  }
+
   const input = h('input.input', {
     type: 'text',
     value: answers.goalText,
     placeholder: 'e.g. open a web design business',
     'aria-label': 'What do you want to be able to do?',
-    oninput: (e) => { answers.goalText = e.target.value; showPreview(); },
+    oninput: (e) => { answers.goalText = e.target.value; syncBuild(); showPreview(); },
     onkeydown: (e) => { if (e.key === 'Enter' && answers.goalText.trim().length > 2) nav.finish(); },
   });
 
@@ -11966,18 +12687,28 @@ function whatGoal(card, answers, nav) {
     suggestions.length
       ? h('div.row.wrap', { style: { gap: 'var(--s2)' } },
         ...suggestions.map((text) => h('button.chip', {
-          onclick: () => { answers.goalText = text; input.value = text; showPreview(); },
+          onclick: () => { answers.goalText = text; input.value = text; syncBuild(); showPreview(); },
         }, text)))
       : null,
-    h('div.row', { style: { gap: 'var(--s2)' } },
+    h('div.row.wrap', { style: { gap: 'var(--s2)' } },
       h('button.btn', { onclick: nav.back }, 'Back'),
-      h('button.btn.primary.wide', {
-        onclick: () => {
-          if (!answers.goalText.trim()) answers.goalText = suggestions[0] || tree.name;
-          nav.finish();
-        },
-      }, 'Build my plan'))));
+      /*
+       * An empty field used to be filled in with the first suggestion, and the
+       * dashboard then presented that goal back as the learner's own words. It
+       * is a small lie with a long tail: every recommendation afterwards is
+       * "based on your goal", and the goal was chosen for them.
+       *
+       * So the button says what it will do, and skipping is a real, labelled
+       * choice rather than a silent substitution.
+       */
+      (buildBtn = h('button.btn.primary.wide', {
+        onclick: () => { if (answers.goalText.trim()) nav.finish(); },
+      }, 'Build my plan')),
+      h('button.btn', {
+        onclick: () => { answers.goalText = ''; nav.finish(); },
+      }, 'Skip for now'))));
 
+  syncBuild();
   window.requestAnimationFrame(() => input.focus());
 }
 
@@ -12046,6 +12777,10 @@ function commit(answers) {
             score: graded.length ? 82 : null,
             passed: true,
             id: `seed:${activity.id}`,
+            /* Marks this as declared standing rather than work done — no
+             * streak, no "first activity" badge, no "last practised 12h ago"
+             * for a session that never happened. See progress.js. */
+            seeded: true,
           }, at);
           next = applied.state;
         }
@@ -12054,6 +12789,15 @@ function commit(answers) {
 
     return next;
   });
+
+  /*
+   * Seeding replays real attempts, so it can earn real achievements — but it
+   * runs `applyAttempt` directly rather than going through `session.submit`,
+   * and so skipped the award step. A learner who chose "comfortable already"
+   * landed on a populated dashboard beside an Achievements screen reading
+   * "0 of 16 earned" until their next graded activity happened to run it.
+   */
+  session.awardPending();
 
   announce('Setup complete');
 }
@@ -12119,6 +12863,21 @@ const EXAMPLES = [
   'Get comfortable with calculus',
 ];
 
+/*
+ * Is the learner currently rewriting their goal?
+ *
+ * "Change" used to call `clearGoal`, which wrote `plan: null, goal: null` the
+ * instant it was clicked. One tap on a small secondary button destroyed the
+ * stated goal with no confirmation and no undo — and the damage spread: the
+ * dashboard's goal card vanished, its primary action changed to a skill from a
+ * tree the learner had never chosen, and "Suggested next" went on saying
+ * "based on your goal and progress" with no goal to base anything on.
+ *
+ * Editing is a screen state, not a stored one. The goal is replaced only when
+ * a new one has been successfully built, so backing out costs nothing.
+ */
+let editing = false;
+
 function renderPlan(host) {
   const profile = session.freshProfile();
   const page = h('div.wrap.stack.loose');
@@ -12134,7 +12893,7 @@ function renderPlan(host) {
   clear(host);
   host.appendChild(page);
 
-  if (profile.plan?.goalText) drawProgramme(body, profile, host);
+  if (profile.plan?.goalText && !editing) drawProgramme(body, profile, host);
   else drawGoalForm(body, profile, host);
 }
 
@@ -12166,14 +12925,23 @@ function drawGoalForm(host, profile, screenHost) {
     setGoal(text, screenHost);
   }
 
+  /* Rewriting an existing goal, rather than setting a first one: say which
+   * goal is still in force, and offer the way back to it. */
+  const current = profile.plan?.goalText;
+
   host.appendChild(h('div.card.feature',
-    h('div.eyebrow', 'Start here'),
+    h('div.eyebrow', current ? 'Change your goal' : 'Start here'),
     h('h2', 'What do you want to be able to do?'),
     h('p', { style: { color: 'var(--bone-dim)', margin: 'var(--s2) 0 var(--s4)' } },
-      'In your own words. Not a skill — the thing you want to be true.'),
+      current
+        ? `Your goal is still "${current}" until you replace it.`
+        : 'In your own words. Not a skill — the thing you want to be true.'),
     h('div.row.wrap', { style: { gap: 'var(--s2)' } },
       input,
-      h('button.btn.primary', { onclick: submit }, 'Build my plan')),
+      h('button.btn.primary', { onclick: submit }, 'Build my plan'),
+      current
+        ? h('button.btn', { onclick: () => { editing = false; renderPlan(screenHost); } }, 'Keep my goal')
+        : null),
     feedback,
     h('div.row.wrap', { style: { gap: 'var(--s2)', marginTop: 'var(--s4)' } },
       h('span.card-note', 'For example:'),
@@ -12201,8 +12969,18 @@ function setGoal(text, screenHost) {
           ? 'The built-in trees do not reach that. You can generate a tree for it, then set it as your goal.'
           : 'The built-in trees cover programming, mathematics, calisthenics and freelance business. You can generate a tree for anything else with an AI key, or try wording it differently.'),
       h('div.row.wrap', { style: { gap: 'var(--s2)' } },
-        h('button.btn.primary', { onclick: () => go('explore') }, 'Generate a tree for it'),
-        h('button.btn', { onclick: () => renderPlan(screenHost) }, 'Try different words'))));
+        /* Carry the goal through. Sending someone to a blank Explore screen
+         * made them retype what they had just typed, on a screen that gives no
+         * sign it was expecting anything. */
+        h('button.btn.primary', {
+          onclick: () => go(`explore?generate=${encodeURIComponent(text)}`),
+        }, 'Generate a tree for it'),
+        h('button.btn', { onclick: () => renderPlan(screenHost) }, 'Try different words'),
+        profile.plan?.goalText
+          ? h('button.btn', {
+            onclick: () => { editing = false; renderPlan(screenHost); },
+          }, `Keep "${profile.plan.goalText}"`)
+          : null)));
     clear(host);
     host.appendChild(notice);
     return;
@@ -12212,17 +12990,14 @@ function setGoal(text, screenHost) {
    * so caching it would go stale the moment anything is completed. The primary
    * target also becomes the tree-screen goal, so the existing goal path lights
    * up without a second concept. */
-  store.update((p) => ({
-    ...p,
-    plan: { goalText: text, createdAt: Date.now(), minutesPerDay: p.plan?.minutesPerDay || minutesFromIntensity(p) },
-    goal: {
-      treeId: programme.targets[0].treeId,
-      targetSkillId: programme.targets[0].skillId,
-      text,
-      createdAt: Date.now(),
-    },
-  }));
+  session.setGoal({
+    goalText: text,
+    minutesPerDay: profile.plan?.minutesPerDay || minutesFromIntensity(profile),
+    treeId: programme.targets[0].treeId,
+    targetSkillId: programme.targets[0].skillId,
+  });
 
+  editing = false;
   renderPlan(screenHost);
 }
 
@@ -12263,7 +13038,9 @@ function drawProgramme(host, profile, screenHost) {
       h('div',
         h('div.eyebrow', 'Goal'),
         h('h2', profile.plan.goalText)),
-      h('button.btn.ghost.small', { onclick: () => clearGoal(screenHost) }, 'Change')),
+      h('button.btn.ghost.small', {
+        onclick: () => { editing = true; renderPlan(screenHost); },
+      }, 'Change')),
 
     h('div.row.wrap', { style: { gap: 'var(--s2)', marginTop: 'var(--s3)' } },
       ...programme.targets.map((t) => h('button.chip.on', {
@@ -12285,7 +13062,7 @@ function drawProgramme(host, profile, screenHost) {
       h('div.list', ...week.map((step) => h('button.list-item', {
         onclick: () => go(`activity/${step.activity.id}`),
       },
-      h('span', { style: { color: 'var(--lime)', display: 'flex' }, 'aria-hidden': 'true' }, icon('play', { size: 15 })),
+      h('span', { style: { color: 'var(--accent-ink)', display: 'flex' }, 'aria-hidden': 'true' }, icon('play', { size: 15 })),
       h('div.grow',
         h('div.title', step.skill.name),
         h('div.sub', step.activity.title)),
@@ -12340,7 +13117,7 @@ function drawProgramme(host, profile, screenHost) {
     icon('info', { size: 16 }),
     h('span', programme.intents.length
       ? `Read as: ${programme.intents.map((i) => i.label).join(', ')}. Spanning ${programme.trees.map((id) => catalog.getTree(id)?.name).filter(Boolean).join(' and ')}.`
-      : `Matched on: ${programme.terms.join(', ')}. Spanning ${programme.trees.map((id) => catalog.getTree(id)?.name).filter(Boolean).join(' and ')}.`)));
+      : `Matched on: ${(programme.evidence.length ? programme.evidence : programme.terms).join(', ')}. Spanning ${programme.trees.map((id) => catalog.getTree(id)?.name).filter(Boolean).join(' and ')}.`)));
 }
 
 function stepRow(step, screenHost) {
@@ -12350,7 +13127,7 @@ function stepRow(step, screenHost) {
     onclick: () => openSkill(step.skillId, { onChange: () => renderPlan(screenHost) }),
   },
   h('span', {
-    style: { color: step.done ? 'var(--lime)' : 'var(--bone-dimmer)', display: 'flex' },
+    style: { color: step.done ? 'var(--accent-ink)' : 'var(--bone-dimmer)', display: 'flex' },
     'aria-hidden': 'true',
   }, icon(step.done ? 'check' : locked ? 'lock' : 'play', { size: 15 })),
 
@@ -12378,8 +13155,21 @@ function horizon(weeks) {
   return `${years} years`;
 }
 
+/*
+ * Clear both halves.
+ *
+ * The goal is stored twice — `plan` holds what the learner wrote, `goal` holds
+ * the destination it resolved to and drives the tree screen, the goal-path
+ * card, the profile bar and the recommendation weighting. Clearing only `plan`
+ * left all of those pointing at a goal the learner had just abandoned, with no
+ * way to reach it.
+ */
+/* Genuinely discard the goal. Reached from "Set a new goal" on the reached and
+ * broken-goal states, where there is nothing worth keeping — never from
+ * "Change", which only opens the editor. */
 function clearGoal(screenHost) {
-  store.update((p) => ({ ...p, plan: null }));
+  store.update((p) => ({ ...p, plan: null, goal: null }));
+  editing = false;
   renderPlan(screenHost);
 }
 
@@ -12409,10 +13199,10 @@ __m["skilltree/src/ui/tree.js"] = (function () {
  * lit nodes — not 300 inline style writes.
  */
 
-const { h, svg, clear, qsa } = __m["skilltree/src/core/dom.js"];
+const { h, svg, clear } = __m["skilltree/src/core/dom.js"];
 const { icon } = __m["skilltree/src/ui/icons.js"];
 const { getIndex, getLayout } = __m["skilltree/src/data/catalog.js"];
-const { statusOf, STATUS, readiness } = __m["skilltree/src/domain/unlock.js"];
+const { statusOf, STATUS } = __m["skilltree/src/domain/unlock.js"];
 const { skillProgress } = __m["skilltree/src/domain/levels.js"];
 const { skillCapacity } = __m["skilltree/src/domain/xp.js"];
 const { ancestorsOf, descendantsOf } = __m["skilltree/src/domain/graph.js"];
@@ -12507,11 +13297,37 @@ function mountTree(host, opts) {
     el.addEventListener('click', () => onSelect(node.id));
     el.addEventListener('pointerenter', () => light(node.id));
     el.addEventListener('pointerleave', () => unlight());
-    el.addEventListener('focus', () => light(node.id));
+    el.addEventListener('focus', () => {
+      light(node.id);
+      /*
+       * Bring the focused node into view, and undo any scroll the browser did
+       * to reach it.
+       *
+       * The canvas is clipped by `overflow: hidden` and positioned by a
+       * transform, so a node can be tabbed to while sitting outside the shell.
+       * The browser then scrolls the shell itself to satisfy the focus — which
+       * it can, because the transformed canvas overflows it — and because the
+       * zoom controls and legend are absolutely positioned *inside* the shell,
+       * they slid into the middle of the graph with no way back. Ten of
+       * twenty-one nodes did this at 375px.
+       */
+      shell.scrollLeft = 0;
+      shell.scrollTop = 0;
+      if (!isOnScreen(node.id)) centreOn(node.id);
+    });
     el.addEventListener('blur', () => unlight());
 
     canvas.appendChild(el);
     nodeEls.set(node.id, el);
+  }
+
+  /** Is this node currently within the visible canvas? */
+  function isOnScreen(skillId) {
+    const el = nodeEls.get(skillId);
+    if (!el) return false;
+    const box = shell.getBoundingClientRect();
+    const r = el.getBoundingClientRect();
+    return r.left >= box.left && r.right <= box.right && r.top >= box.top && r.bottom <= box.bottom;
   }
 
   /* ---- highlighting ---- */
@@ -12969,17 +13785,14 @@ function legendDot(state) {
   });
   if (state === 'locked') dot.style.borderStyle = 'dashed';
   if (state === 'available') dot.style.borderColor = 'var(--bone-dimmer)';
-  if (state === 'in_progress' || state === 'completed') dot.style.borderColor = 'var(--lime)';
-  if (state === 'mastered') { dot.style.background = 'var(--lime)'; dot.style.borderColor = 'var(--lime)'; }
+  if (state === 'in_progress' || state === 'completed') dot.style.borderColor = 'var(--accent-ink)';
+  if (state === 'mastered') { dot.style.background = 'var(--accent-ink)'; dot.style.borderColor = 'var(--accent-ink)'; }
   return dot;
 }
-
-/** Readiness of a locked skill, for the "almost there" ordering elsewhere. */
 
 
   return {
     "mountTree": mountTree,
-    "readiness": readiness,
   };
 })();
 
@@ -13039,10 +13852,13 @@ function xpChart(days, opts = {}) {
 
   const chart = svg('svg.chart', {
     viewBox: `0 0 ${width} ${height}`,
-    preserveAspectRatio: 'none',
+    /* Uniform scaling. With `none` the viewBox was stretched independently on
+     * each axis — at 320px the x-scale was 0.40 against a y-scale of 1.0, and
+     * every axis label was compressed to two-fifths of its width. */
+    preserveAspectRatio: 'xMidYMid meet',
     role: 'img',
     'aria-label': `Daily XP over the last ${days.length} days. Highest day ${num(max)} XP.`,
-    style: 'height:168px',
+    style: 'width:100%;height:auto',
   });
 
   /* gridlines + y labels */
@@ -13136,7 +13952,7 @@ function radarChart(areas, opts = {}) {
   const size = opts.size || 300;
   const cx = size / 2;
   const cy = size / 2;
-  const r = size / 2 - 46; /* room for labels outside the web */
+  const r = size / 2 - 54; /* room for labels outside the web */
   const n = areas.length;
 
   const chart = svg('svg.chart', {
@@ -13186,15 +14002,23 @@ function radarChart(areas, opts = {}) {
     chart.appendChild(dot);
   });
 
-  /* labels outside the web, with the value attached — so the reader never has
-   * to estimate a magnitude from an area */
+  /*
+   * Labels outside the web, with the value attached — so the reader never has
+   * to estimate a magnitude from an area.
+   *
+   * The radius multiplier is 1.18 rather than 1.28, and the anchor is clamped
+   * away from the edges: at 320px the left-hand label started at x = -15 and
+   * "Programming" rendered as "gramming".
+   */
   areas.forEach((a, i) => {
-    const [x, y] = point(i, 128);
+    const [x, y] = point(i, 118);
     const cos = Math.cos(angle(i));
     const anchor = Math.abs(cos) < 0.3 ? 'middle' : cos > 0 ? 'start' : 'end';
-    const label = svg('text.radar-label', { x, y: y + 4, 'text-anchor': anchor });
+    /* Keep the text box inside the viewBox whatever the anchor. */
+    const clamped = Math.max(4, Math.min(size - 4, x));
+    const label = svg('text.radar-label', { x: clamped, y: y + 4, 'text-anchor': anchor });
     label.appendChild(svg('tspan', {}, a.label));
-    label.appendChild(svg('tspan', { x, dy: '13', class: 'tick' }, String(Math.round(a.value))));
+    label.appendChild(svg('tspan', { x: clamped, dy: '13', class: 'tick' }, String(Math.round(a.value))));
     chart.appendChild(label);
   });
 
@@ -13482,7 +14306,7 @@ function validateTree(raw, treeId) {
   const byId = new Map(skills.map((sk) => [sk.id, sk]));
   const state = new Map();
 
-  const walk = (id, stack) => {
+  const walk = (id) => {
     if (state.get(id) === 'done') return;
     state.set(id, 'open');
     const skill = byId.get(id);
@@ -13493,12 +14317,12 @@ function validateTree(raw, treeId) {
         continue;
       }
       kept.push(req);
-      walk(req.skillId, stack.concat([id]));
+      walk(req.skillId);
     }
     skill.requires = kept;
     state.set(id, 'done');
   };
-  for (const skill of skills) walk(skill.id, []);
+  for (const skill of skills) walk(skill.id);
 
   if (!skills.some((sk) => !sk.requires.length)) {
     return { ok: false, error: 'every skill depends on another — the tree has no starting point' };
@@ -13547,7 +14371,6 @@ __m["skilltree/src/ai/generator.js"] = (function () {
 
 const { call, hasAnyKey, AiError } = __m["skilltree/src/ai/provider.js"];
 const { validateTree, extractJson } = __m["skilltree/src/ai/schema.js"];
-const { registerTree } = __m["skilltree/src/data/catalog.js"];
 
 const SYSTEM = `You design skill trees for a learning app. You return structured data only.
 
@@ -13675,20 +14498,14 @@ Make the dependencies reflect what genuinely has to come first.`;
   };
 }
 
-/**
- * Commit a generated tree so it behaves exactly like a seeded one.
+/*
+ * Committing a generated tree lives in session.js, not here.
  *
- * Registration re-indexes, which is the final structural check: anything that
- * slipped past validation throws here, before the tree is ever rendered.
+ * It registers *and* persists, and those two have to happen together: this
+ * module used to register into the in-memory catalogue alone, so an accepted
+ * tree survived exactly until the next reload — while the attempts made
+ * against its skills stayed in the profile with nothing to resolve them to.
  */
-function acceptTree(tree) {
-  try {
-    registerTree(tree);
-    return { ok: true };
-  } catch (err) {
-    return { ok: false, error: err.message };
-  }
-}
 
 /*
  * Activities for a generated tree.
@@ -13727,7 +14544,6 @@ function scaffoldActivities(skill) {
 
   return {
     "generateTree": generateTree,
-    "acceptTree": acceptTree,
     "scaffoldActivities": scaffoldActivities,
   };
 })();
@@ -13742,7 +14558,7 @@ __m["skilltree/src/ui/screens.js"] = (function () {
  * the activity runner — have their own modules.
  */
 
-const { h, clear, num, ago, sheet, announce } = __m["skilltree/src/core/dom.js"];
+const { h, clear, num, ago, sheet, announce, reduceMotion } = __m["skilltree/src/core/dom.js"];
 const { icon, brandMark } = __m["skilltree/src/ui/icons.js"];
 const session = __m["skilltree/src/core/session.js"];
 const store = __m["skilltree/src/core/store.js"];
@@ -13750,14 +14566,15 @@ const { go } = __m["skilltree/src/core/router.js"];
 const { mountTree } = __m["skilltree/src/ui/tree.js"];
 const { openSkill } = __m["skilltree/src/ui/skillpanel.js"];
 const { xpChart, radarChart } = __m["skilltree/src/ui/charts.js"];
-const { allTrees, getTree, getIndex, searchSkills, findSkill, registerTree } = __m["skilltree/src/data/catalog.js"];
+const { allTrees, getTree, getIndex, searchSkills, findSkill } = __m["skilltree/src/data/catalog.js"];
 const { statusOf, STATUS } = __m["skilltree/src/domain/unlock.js"];
 const { xpByDay, totalXp, xpSince } = __m["skilltree/src/domain/xp.js"];
 const { ACHIEVEMENTS } = __m["skilltree/src/domain/achievements.js"];
 const { INTENSITY } = __m["skilltree/src/domain/missions.js"];
 const { PROVIDERS, loadKey, saveKey, keyLooksValid, saveChoice, loadChoice, hasAnyKey } = __m["skilltree/src/ai/provider.js"];
-const { generateTree, acceptTree, scaffoldActivities } = __m["skilltree/src/ai/generator.js"];
+const { generateTree, scaffoldActivities } = __m["skilltree/src/ai/generator.js"];
 const { applyTheme } = __m["skilltree/src/ui/shell.js"];
+const { toast } = __m["skilltree/src/ui/toast.js"];
 
 /* ------------------------------------------------------------------ *
  * Tree
@@ -13792,10 +14609,22 @@ function renderTree(host, params, query) {
   /* A tree-level notice — the calisthenics safety framing (§40) — shown once,
    * at the top, rather than repeated inside every node. */
   if (tree.notice) {
+    /*
+     * A real button, not a click handler on a div. On a phone this is clamped
+     * to two lines, and on the calisthenics tree the hidden remainder is the
+     * injury-safety framing — reachable only by mouse, with no affordance
+     * saying it expanded.
+     */
     const noticeText = h('span.tree-notice', tree.notice);
-    page.appendChild(h('div.notice', {
-      onclick: () => noticeText.classList.toggle('open'),
-    }, icon('info', { size: 16 }), noticeText));
+    const toggle = h('button.notice.notice-toggle', {
+      type: 'button',
+      'aria-expanded': 'false',
+      onclick: () => {
+        const open = noticeText.classList.toggle('open');
+        toggle.setAttribute('aria-expanded', String(open));
+      },
+    }, icon('info', { size: 16 }), noticeText);
+    page.appendChild(toggle);
   }
 
   /* Search across every tree, not just this one. */
@@ -13814,18 +14643,31 @@ function renderTree(host, params, query) {
   const canvasHost = h('div');
   page.appendChild(canvasHost);
 
-  if (state.goal?.treeId === treeId) {
-    const path = session.goalPathFor(state.goal);
-    const done = path.filter((p) => p.status === STATUS.COMPLETED || p.status === STATUS.MASTERED).length;
+  /*
+   * The goal path, taken from the one programme the dashboard and plan use.
+   *
+   * This card previously walked its own single-target path and reported "2 / 19"
+   * while the dashboard reported "9 / 27" for the same goal at the same moment.
+   * A graph can only draw the skills in the tree it is drawing, so the count is
+   * scoped — and now says it is, instead of looking like a second opinion on
+   * the same number.
+   */
+  const inTree = session.programmeInTree(treeId);
+  if (inTree && inTree.steps.length) {
+    const scoped = inTree.steps.length !== inTree.total;
     page.appendChild(h('div.card',
       h('div.card-head',
-        h('span.card-title', 'Your goal path'),
-        h('span.card-note.num', `${done} / ${path.length}`)),
+        h('span.card-title', scoped ? 'Your goal path, in this tree' : 'Your goal path'),
+        h('span.card-note.num', `${inTree.done} / ${inTree.steps.length}`)),
       h('div.row.wrap', { style: { gap: 'var(--s2)' } },
-        ...path.map((step) => h('button.chip', {
-          class: step.status === STATUS.COMPLETED || step.status === STATUS.MASTERED ? 'on' : '',
+        ...inTree.steps.map((step) => h('button.chip', {
+          class: step.done ? 'on' : '',
           onclick: () => openSkill(step.skillId, { onChange: () => renderTree(host, params, query) }),
-        }, step.skill.name)))));
+        }, step.skill.name))),
+      scoped
+        ? h('div.card-note', { style: { marginTop: 'var(--s3)' } },
+          `${inTree.total} skills in the whole plan — the rest are in other trees.`)
+        : null));
   }
 
   clear(host);
@@ -13862,7 +14704,7 @@ function renderSearch(host, query, screenHost) {
     const index = getIndex(tree.id);
     const status = statusOf(index, skill.id, (id) => state.skills[id]);
     return h('button.list-item', {
-      onclick: () => openSkill(skill.id, { onChange: () => screenHost && screenHost.dispatchEvent(new Event('refresh')) }),
+      onclick: () => openSkill(skill.id, { onChange: () => screenHost && renderTree(host, [tree.id], {}) }),
     },
     h('div.grow',
       h('div.title', skill.name),
@@ -13885,16 +14727,19 @@ function statusLabel(status) {
  * Explore
  * ------------------------------------------------------------------ */
 
-function renderExplore(host) {
+function renderExplore(host, params, query = {}) {
   const state = session.freshProfile();
   const page = h('div.wrap.stack.loose');
 
+  const trees = allTrees();
   page.appendChild(h('div.page-head',
     h('div',
       h('h1', 'Explore'),
-      h('p', 'Three trees are built in. You can also describe something you want to learn and have one generated.'))));
+      /* Counted, not written down. The sentence said "three trees are built in"
+       * beside four tree cards, and would have gone on saying it. */
+      h('p', `${trees.length} trees are built in. You can also describe something you want to learn and have one generated.`))));
 
-  page.appendChild(h('div.grid.cols-2', ...allTrees().map((tree) => {
+  page.appendChild(h('div.grid.cols-2', ...trees.map((tree) => {
     const index = getIndex(tree.id);
     const started = tree.skills.filter((s) => state.skills[s.id]).length;
     const mastered = tree.skills.filter((s) => (state.skills[s.id]?.level || 0) >= 5).length;
@@ -13934,6 +14779,15 @@ function renderExplore(host) {
 
   clear(host);
   host.appendChild(page);
+
+  /* Arrived from the goal screen with a goal the built-in trees do not cover.
+   * Carry it in, put it in the field, and scroll to it — rather than handing
+   * back a blank page and expecting it to be retyped. */
+  if (query.generate) {
+    input.value = query.generate;
+    input.scrollIntoView({ behavior: reduceMotion ? 'auto' : 'smooth', block: 'center' });
+    input.focus();
+  }
 }
 
 async function runGeneration(text, host, screenHost) {
@@ -13980,10 +14834,13 @@ async function runGeneration(text, host, screenHost) {
     h('button.btn.primary', {
       onclick: () => {
         for (const skill of result.tree.skills) skill.activities = scaffoldActivities(skill);
-        const accepted = acceptTree(result.tree);
+        const accepted = session.acceptGeneratedTree(result.tree);
         if (!accepted.ok) {
           host.appendChild(h('div.notice.fail', icon('alert', { size: 16 }), h('span', accepted.error)));
           return;
+        }
+        if (!accepted.persisted) {
+          toast('Added for this session — storage is full, so it will not survive a reload.', { duration: 6000 });
         }
         go(`tree/${result.tree.id}`);
       },
@@ -14092,16 +14949,17 @@ function renderAchievements(host) {
       h('p', `${got.length} of ${ACHIEVEMENTS.length} earned.`))));
 
   const card = (a, isEarned) => h('div.card', {
-    class: isEarned ? '' : 'quiet',
-    style: isEarned ? {} : { opacity: '.62' },
+    /* Dashed border and a dimmed icon rather than opacity on the whole card:
+     * fading it took the description text to 2.2:1. */
+    class: isEarned ? '' : 'quiet locked',
   },
   h('div.row', { style: { gap: 'var(--s3)', alignItems: 'flex-start' } },
-    h('span', { style: { color: isEarned ? 'var(--lime)' : 'var(--bone-dimmer)', display: 'flex' } },
+    h('span', { style: { color: isEarned ? 'var(--accent-ink)' : 'var(--bone-dimmer)', display: 'flex' } },
       icon(isEarned ? 'award' : 'lock', { size: 20 })),
     h('div.grow',
       h('div', { style: { fontWeight: '600', fontSize: '14px' } }, a.name),
       h('div.card-note', a.description),
-      isEarned ? h('div.card-note', { style: { marginTop: '4px', color: 'var(--lime)' } }, `Earned ${ago(earned[a.id])}`) : null),
+      isEarned ? h('div.card-note', { style: { marginTop: '4px', color: 'var(--accent-ink)' } }, `Earned ${ago(earned[a.id])}`) : null),
     h('span.chip', a.tier)));
 
   if (got.length) {
@@ -14149,16 +15007,18 @@ function renderProfile(host) {
       h('div.stat.big', h('span.k', 'Streak'), h('span.v', `${overview.streak.current}d`)),
       h('div.stat.big', h('span.k', 'Longest'), h('span.v', `${overview.streak.longest}d`)))));
 
-  if (state.goal) {
-    const path = session.goalPathFor(state.goal);
-    const done = path.filter((p) => p.status === STATUS.COMPLETED || p.status === STATUS.MASTERED).length;
+  /* The same programme the dashboard, plan and tree read — see
+   * session.programme. This card used to compute its own and disagree. */
+  const plan = session.programme();
+  if (plan) {
+    const pct = plan.totalSteps ? (plan.doneSteps / plan.totalSteps) * 100 : 0;
     page.appendChild(h('div.card',
       h('div.card-head',
         h('span.card-title', 'Goal'),
-        h('span.card-note.num', `${done} / ${path.length}`)),
+        h('span.card-note.num', `${plan.doneSteps} / ${plan.totalSteps}`)),
       h('div', { style: { fontSize: '15px', fontWeight: '560', marginBottom: 'var(--s2)' } },
-        state.goal.text || findSkill(state.goal.targetSkillId)?.skill?.name || 'Goal'),
-      h('div.bar.tall', h('i', { style: { width: `${path.length ? (done / path.length) * 100 : 0}%` } }))));
+        state.plan.goalText),
+      h('div.bar.tall', h('i', { style: { width: `${pct}%` } }))));
   }
 
   if (top.length) {
@@ -14205,8 +15065,10 @@ function renderSettings(host) {
     h('div.card-head', h('span.card-title', 'Profile')),
     h('div.stack.tight',
       h('div.field',
-        h('label', { for: 'st-name' }, 'Name'),
-        nameInput),
+        /* Wrapping the control rather than a `for` pointing at an id nothing
+         * had — tapping the label now focuses the field, which on a phone is
+         * the largest hit area a 40px input has. */
+        h('label', 'Name', nameInput)),
       h('div.row.wrap', { style: { gap: 'var(--s2)' } },
         h('button.btn.small', { onclick: saveName }, 'Save'),
         ...store.listProfiles().filter((p) => p.id !== state.id).map((p) => h('button.chip', {
@@ -14300,7 +15162,7 @@ function aiCard(host) {
     refreshStatus();
 
     card.appendChild(h('div.field', { style: { marginTop: 'var(--s3)' } },
-      h('label', provider.name),
+      h('label', provider.name, h('span.sr-only', ' API key')),
       h('div.row', { style: { gap: 'var(--s2)' } },
         input,
         h('button.btn.small', { onclick: saveThisKey }, 'Save')),
@@ -14313,6 +15175,7 @@ function aiCard(host) {
       card.appendChild(h('div.field', { style: { marginTop: 'var(--s3)' } },
         h('label', 'Model'),
         h('select.input', {
+          'aria-label': `${provider.name} model`,
           onchange: (e) => saveChoice(provider.id, e.target.value),
         }, ...provider.models.map((m) => h('option', { value: m, selected: m === choice.model }, m)))));
     }
@@ -14360,6 +15223,10 @@ function importPrompt(host) {
     if (!file) return;
     const result = store.importJson(await file.text());
     if (!result.ok) { announce(result.error); window.alert(result.error); return; }
+    /* An export can carry the generated trees it depends on. They are stored
+     * by the import but not registered, so the catalogue has to be rebuilt
+     * before any screen tries to resolve a skill from one. */
+    if (result.trees?.length) session.restoreTrees();
     go('dashboard');
   });
   document.body.appendChild(input);
@@ -14381,7 +15248,6 @@ function confirmReset(host) {
 }
 
 
-
   return {
     "renderTree": renderTree,
     "renderExplore": renderExplore,
@@ -14389,8 +15255,6 @@ function confirmReset(host) {
     "renderAchievements": renderAchievements,
     "renderProfile": renderProfile,
     "renderSettings": renderSettings,
-    "registerTree": registerTree,
-    "totalXp": totalXp,
   };
 })();
 
@@ -14416,8 +15280,8 @@ __m["skilltree/src/data/demo.js"] = (function () {
  * visible.
  */
 
-const { getIndex } = __m["skilltree/src/data/catalog.js"];
-const { applyAttempt } = __m["skilltree/src/domain/progress.js"];
+const { getIndex, allTrees } = __m["skilltree/src/data/catalog.js"];
+const { applyAttempt, dayNumber } = __m["skilltree/src/domain/progress.js"];
 const { award } = __m["skilltree/src/domain/achievements.js"];
 const { computeDepths } = __m["skilltree/src/domain/graph.js"];
 const { emptyProfile } = __m["skilltree/src/core/store.js"];
@@ -14607,23 +15471,34 @@ function buildDemoProfile(now = Date.now()) {
    */
   state.streak = streakFromAttempts(state, now);
 
+  /*
+   * Evaluate the demo against every registered tree, not a hardcoded list.
+   *
+   * This named three trees while the seed plans covered four, so the demo
+   * profile was judged by different rules than the same state would be judged
+   * by live — `deep_diver` could not see business depth at all.
+   */
   const depths = new Map();
+  const treeIds = () => allTrees().map((t) => t.id);
+
   const depthOf = (skillId) => {
-    for (const treeId of ['web', 'math', 'calisthenics']) {
+    for (const treeId of treeIds()) {
       if (!depths.has(treeId)) depths.set(treeId, computeDepths(getIndex(treeId)));
       const d = depths.get(treeId).get(skillId);
       if (d !== undefined) return d;
     }
     return null;
   };
-  const treeOf = (skillId) => {
-    for (const treeId of ['web', 'math', 'calisthenics']) {
-      if (getIndex(treeId).byId.has(skillId)) return treeId;
+  const treeOf = (skillId) => treeIds().find((treeId) => getIndex(treeId).byId.has(skillId)) || null;
+  const requirementCount = (skillId) => {
+    for (const treeId of treeIds()) {
+      const skill = getIndex(treeId).byId.get(skillId);
+      if (skill) return (skill.requires || []).length;
     }
-    return null;
+    return 0;
   };
 
-  const withBadges = award(state, { depthOf, treeOf }, now);
+  const withBadges = award(state, { depthOf, treeOf, requirementCount }, now);
   return withBadges.state;
 }
 
@@ -14679,10 +15554,10 @@ function runDailyHabit(state, now) {
 function streakFromAttempts(state, now) {
   const days = new Set();
   for (const skill of Object.values(state.skills)) {
-    for (const attempt of skill.attempts || []) {
-      const d = new Date(attempt.at);
-      days.add(Math.floor((d.getTime() - d.getTimezoneOffset() * 60000) / DAY));
-    }
+    /* `dayNumber` rather than a second copy of the arithmetic — the two must
+     * agree on where a day starts or the demo's streak disagrees with the one
+     * the app computes live. */
+    for (const attempt of skill.attempts || []) days.add(dayNumber(attempt.at));
   }
 
   const sorted = [...days].sort((a, b) => a - b);
@@ -14696,7 +15571,7 @@ function streakFromAttempts(state, now) {
     previous = day;
   }
 
-  const today = Math.floor((new Date(now).getTime() - new Date(now).getTimezoneOffset() * 60000) / DAY);
+  const today = dayNumber(now);
   const last = sorted[sorted.length - 1];
   const alive = last === today || last === today - 1;
 
@@ -14720,7 +15595,7 @@ const { h, clear } = __m["skilltree/src/core/dom.js"];
 const { icon } = __m["skilltree/src/ui/icons.js"];
 const store = __m["skilltree/src/core/store.js"];
 const session = __m["skilltree/src/core/session.js"];
-const { route, notFound, start, go, onNavigate, currentRoute } = __m["skilltree/src/core/router.js"];
+const { route, notFound, start, go, onNavigate, currentRoute, resolve } = __m["skilltree/src/core/router.js"];
 const { buildShell, syncNav, syncTheme, applyTheme } = __m["skilltree/src/ui/shell.js"];
 const { renderDashboard } = __m["skilltree/src/ui/dashboard.js"];
 const { renderActivity } = __m["skilltree/src/ui/activity.js"];
@@ -14769,7 +15644,7 @@ function guarded(fn) {
 route('dashboard', guarded((host) => renderDashboard(host)));
 route('plan', guarded((host) => renderPlan(host)));
 route('tree', guarded((host, params, query) => renderTree(host, params, query)));
-route('explore', guarded((host) => renderExplore(host)));
+route('explore', guarded((host, params, query) => renderExplore(host, params, query)));
 route('progress', guarded((host) => renderProgress(host)));
 route('achievements', guarded((host) => renderAchievements(host)));
 route('profile', guarded((host) => renderProfile(host)));
@@ -14818,9 +15693,19 @@ onNavigate(() => {
   if (currentRoute()?.name !== 'tree') window.scrollTo(0, 0);
 });
 
-/* Repaint the active screen whenever stored state changes, so a change made in
+/*
+ * Repaint the active screen whenever stored state changes, so a change made in
  * a sheet is reflected on the page behind it without every caller remembering
- * to re-render. */
+ * to re-render.
+ *
+ * The guard on focus is the whole subtlety. Re-rendering `main` replaces its
+ * DOM, and if the learner is typing in it — a code editor, a numeric answer —
+ * the element under the caret is destroyed and focus falls to `<body>`. So the
+ * repaint runs only when focus is somewhere a rebuild cannot disturb: in a
+ * sheet (its own subtree, untouched by this), in the nav, or nowhere. When
+ * focus is inside the screen, the screen is being used, and whoever is using
+ * it re-renders on its own terms.
+ */
 let repainting = false;
 store.subscribe(() => {
   if (repainting) return;
@@ -14828,6 +15713,16 @@ store.subscribe(() => {
   window.requestAnimationFrame(() => {
     repainting = false;
     syncTheme();
+
+    const focus = document.activeElement;
+    const inScreen = focus && focus !== document.body && main.contains(focus);
+    if (inScreen) return;
+
+    const route = currentRoute();
+    /* Onboarding owns its own multi-step state; rebuilding it from the store
+     * would throw the learner back to step one on every keystroke saved. */
+    if (!route || route.name === 'onboarding') return;
+    resolve();
   });
 });
 

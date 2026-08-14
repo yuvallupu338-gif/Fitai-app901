@@ -19,8 +19,8 @@
  * visible.
  */
 
-import { getIndex } from './catalog.js';
-import { applyAttempt } from '../domain/progress.js';
+import { getIndex, allTrees } from './catalog.js';
+import { applyAttempt, dayNumber } from '../domain/progress.js';
 import { award } from '../domain/achievements.js';
 import { computeDepths } from '../domain/graph.js';
 import { emptyProfile } from '../core/store.js';
@@ -210,23 +210,34 @@ export function buildDemoProfile(now = Date.now()) {
    */
   state.streak = streakFromAttempts(state, now);
 
+  /*
+   * Evaluate the demo against every registered tree, not a hardcoded list.
+   *
+   * This named three trees while the seed plans covered four, so the demo
+   * profile was judged by different rules than the same state would be judged
+   * by live — `deep_diver` could not see business depth at all.
+   */
   const depths = new Map();
+  const treeIds = () => allTrees().map((t) => t.id);
+
   const depthOf = (skillId) => {
-    for (const treeId of ['web', 'math', 'calisthenics']) {
+    for (const treeId of treeIds()) {
       if (!depths.has(treeId)) depths.set(treeId, computeDepths(getIndex(treeId)));
       const d = depths.get(treeId).get(skillId);
       if (d !== undefined) return d;
     }
     return null;
   };
-  const treeOf = (skillId) => {
-    for (const treeId of ['web', 'math', 'calisthenics']) {
-      if (getIndex(treeId).byId.has(skillId)) return treeId;
+  const treeOf = (skillId) => treeIds().find((treeId) => getIndex(treeId).byId.has(skillId)) || null;
+  const requirementCount = (skillId) => {
+    for (const treeId of treeIds()) {
+      const skill = getIndex(treeId).byId.get(skillId);
+      if (skill) return (skill.requires || []).length;
     }
-    return null;
+    return 0;
   };
 
-  const withBadges = award(state, { depthOf, treeOf }, now);
+  const withBadges = award(state, { depthOf, treeOf, requirementCount }, now);
   return withBadges.state;
 }
 
@@ -282,10 +293,10 @@ function runDailyHabit(state, now) {
 function streakFromAttempts(state, now) {
   const days = new Set();
   for (const skill of Object.values(state.skills)) {
-    for (const attempt of skill.attempts || []) {
-      const d = new Date(attempt.at);
-      days.add(Math.floor((d.getTime() - d.getTimezoneOffset() * 60000) / DAY));
-    }
+    /* `dayNumber` rather than a second copy of the arithmetic — the two must
+     * agree on where a day starts or the demo's streak disagrees with the one
+     * the app computes live. */
+    for (const attempt of skill.attempts || []) days.add(dayNumber(attempt.at));
   }
 
   const sorted = [...days].sort((a, b) => a - b);
@@ -299,7 +310,7 @@ function streakFromAttempts(state, now) {
     previous = day;
   }
 
-  const today = Math.floor((new Date(now).getTime() - new Date(now).getTimezoneOffset() * 60000) / DAY);
+  const today = dayNumber(now);
   const last = sorted[sorted.length - 1];
   const alive = last === today || last === today - 1;
 

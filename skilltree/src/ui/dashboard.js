@@ -22,8 +22,6 @@ import * as session from '../core/session.js';
 import { go } from '../core/router.js';
 import { openSkill } from './skillpanel.js';
 import { persists } from '../core/store.js';
-import * as catalog from '../data/catalog.js';
-import { buildProgramme } from '../domain/goals.js';
 
 export function renderDashboard(host) {
   const overview = session.overview();
@@ -103,7 +101,9 @@ export function renderDashboard(host) {
         },
         h('div.grow',
           h('div.title', f.skill.name),
-          h('div.sub', `${f.tree.name} · last practised ${ago(f.lastPracticedAt)}`)),
+          /* "set at setup" for a skill whose only attempts came from the
+           * onboarding seed — it has standing, but nobody practised it. */
+          h('div.sub', `${f.tree.name} · ${f.neverPractised ? 'set at setup' : `last practised ${ago(f.lastPracticedAt)}`}`)),
         h('div', { style: { width: '84px' } },
           h('div.bar', h('i', { style: { width: `${pct}%` } }))),
         h('span.lvl', `Lv.${f.level}`));
@@ -112,14 +112,12 @@ export function renderDashboard(host) {
 
   /* ---- the goal, if one is set ---- */
   if (profile.plan?.goalText) {
-    const programme = buildProgramme({
-      catalog,
-      state: profile,
-      goalText: profile.plan.goalText,
-      minutesPerDay: profile.plan.minutesPerDay || 20,
-    });
+    /* One programme, shared with the plan, tree and profile screens — see
+     * session.programme. Four screens computing it independently is how two of
+     * them ended up reporting different progress toward the same goal. */
+    const programme = session.programme();
 
-    if (programme.ok) {
+    if (programme) {
       const pct = programme.totalSteps
         ? Math.round((programme.doneSteps / programme.totalSteps) * 100) : 0;
       page.appendChild(h('button.card', {
@@ -166,7 +164,7 @@ export function renderDashboard(host) {
       },
       h('div.grow',
         h('div.title', r.skill.name),
-        h('div.sub', `Last practised ${ago(r.lastPracticedAt)}`)),
+        h('div.sub', r.neverPractised ? 'Set at setup, not yet practised' : `Last practised ${ago(r.lastPracticedAt)}`)),
       h('span.chip.warn', `${r.confidence}%`))))));
   }
 

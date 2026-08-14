@@ -214,12 +214,19 @@ function whatGoal(card, answers, nav) {
 
   const preview = h('div');
 
+  /* The build button is disabled while the field is empty, so it has to follow
+   * the field rather than being evaluated once at render. */
+  let buildBtn = null;
+  function syncBuild() {
+    if (buildBtn) buildBtn.disabled = !answers.goalText.trim();
+  }
+
   const input = h('input.input', {
     type: 'text',
     value: answers.goalText,
     placeholder: 'e.g. open a web design business',
     'aria-label': 'What do you want to be able to do?',
-    oninput: (e) => { answers.goalText = e.target.value; showPreview(); },
+    oninput: (e) => { answers.goalText = e.target.value; syncBuild(); showPreview(); },
     onkeydown: (e) => { if (e.key === 'Enter' && answers.goalText.trim().length > 2) nav.finish(); },
   });
 
@@ -261,18 +268,28 @@ function whatGoal(card, answers, nav) {
     suggestions.length
       ? h('div.row.wrap', { style: { gap: 'var(--s2)' } },
         ...suggestions.map((text) => h('button.chip', {
-          onclick: () => { answers.goalText = text; input.value = text; showPreview(); },
+          onclick: () => { answers.goalText = text; input.value = text; syncBuild(); showPreview(); },
         }, text)))
       : null,
-    h('div.row', { style: { gap: 'var(--s2)' } },
+    h('div.row.wrap', { style: { gap: 'var(--s2)' } },
       h('button.btn', { onclick: nav.back }, 'Back'),
-      h('button.btn.primary.wide', {
-        onclick: () => {
-          if (!answers.goalText.trim()) answers.goalText = suggestions[0] || tree.name;
-          nav.finish();
-        },
-      }, 'Build my plan'))));
+      /*
+       * An empty field used to be filled in with the first suggestion, and the
+       * dashboard then presented that goal back as the learner's own words. It
+       * is a small lie with a long tail: every recommendation afterwards is
+       * "based on your goal", and the goal was chosen for them.
+       *
+       * So the button says what it will do, and skipping is a real, labelled
+       * choice rather than a silent substitution.
+       */
+      (buildBtn = h('button.btn.primary.wide', {
+        onclick: () => { if (answers.goalText.trim()) nav.finish(); },
+      }, 'Build my plan')),
+      h('button.btn', {
+        onclick: () => { answers.goalText = ''; nav.finish(); },
+      }, 'Skip for now'))));
 
+  syncBuild();
   window.requestAnimationFrame(() => input.focus());
 }
 
@@ -341,6 +358,10 @@ function commit(answers) {
             score: graded.length ? 82 : null,
             passed: true,
             id: `seed:${activity.id}`,
+            /* Marks this as declared standing rather than work done — no
+             * streak, no "first activity" badge, no "last practised 12h ago"
+             * for a session that never happened. See progress.js. */
+            seeded: true,
           }, at);
           next = applied.state;
         }
@@ -349,6 +370,15 @@ function commit(answers) {
 
     return next;
   });
+
+  /*
+   * Seeding replays real attempts, so it can earn real achievements — but it
+   * runs `applyAttempt` directly rather than going through `session.submit`,
+   * and so skipped the award step. A learner who chose "comfortable already"
+   * landed on a populated dashboard beside an Achievements screen reading
+   * "0 of 16 earned" until their next graded activity happened to run it.
+   */
+  session.awardPending();
 
   announce('Setup complete');
 }

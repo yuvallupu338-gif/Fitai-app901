@@ -172,6 +172,7 @@ export function reviewQueue(state, findSkill, now = Date.now(), limit = 5) {
       confidence: s.confidence || 0,
       masteryScore: s.masteryScore || 0,
       lastPracticedAt: s.lastPracticedAt,
+      neverPractised: !!s.neverPractised,
     }))
     .filter((r) => r.skill && r.urgency >= 25)
     .sort((a, b) => b.urgency - a.urgency)

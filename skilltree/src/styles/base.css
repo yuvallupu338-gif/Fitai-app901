@@ -73,7 +73,9 @@ button, input, select, textarea {
  */
 :focus { outline: none; }
 :focus-visible {
-  outline: 2px solid var(--lime);
+  /* --accent-ink, not --lime: in light mode the bright lime ring measured
+   * 1.41:1 against the page and was effectively invisible. */
+  outline: 2px solid var(--accent-ink);
   outline-offset: 2px;
   border-radius: 4px;
 }
@@ -88,6 +90,18 @@ button, input, select, textarea {
   min-height: 100vh;
   min-height: 100dvh;
 }
+
+/*
+ * Onboarding has no navigation.
+ *
+ * Not "disabled navigation" — removed. Every screen behind these links is
+ * guarded on having finished onboarding, so they could only ever bounce back
+ * here and discard the answers on the way. A single column also lets the
+ * onboarding card sit where it belongs, in the middle of the page.
+ */
+body.onboarding .nav,
+body.onboarding .tabbar { display: none; }
+body.onboarding .app { grid-template-columns: 1fr; }
 
 .main {
   min-width: 0; /* without this, a wide child stretches the grid column and
@@ -156,7 +170,7 @@ button, input, select, textarea {
 
 /* The active marker is a bar, not a colour change, so it survives being
  * printed, being viewed in greyscale, and colour vision deficiency. */
-.nav-link[aria-current="page"] .nav-icon { color: var(--lime); }
+.nav-link[aria-current="page"] .nav-icon { color: var(--accent-ink); }
 
 .nav-icon { width: 17px; height: 17px; flex: none; opacity: .9; }
 
@@ -213,7 +227,23 @@ button, input, select, textarea {
     cursor: pointer;
   }
 
-  .tab[aria-current="page"] { color: var(--lime); }
+  /* Weight and a bar as well as colour — the active tab was distinguished by
+   * colour alone, and in light mode that colour measured 1.56:1, making the
+   * active tab *less* legible than the inactive ones. */
+  .tab[aria-current="page"] {
+    color: var(--accent-ink);
+    font-weight: 680;
+  }
+  .tab[aria-current="page"]::before {
+    content: "";
+    position: absolute;
+    top: 0;
+    width: 22px;
+    height: 2px;
+    border-radius: 0 0 2px 2px;
+    background: var(--accent-ink);
+  }
+  .tab { position: relative; }
   .tab svg { width: 19px; height: 19px; }
 }
 

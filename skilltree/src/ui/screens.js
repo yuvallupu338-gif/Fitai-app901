@@ -7,7 +7,7 @@
  * the activity runner — have their own modules.
  */
 
-import { h, clear, num, ago, sheet, announce } from '../core/dom.js';
+import { h, clear, num, ago, sheet, announce, reduceMotion } from '../core/dom.js';
 import { icon, brandMark } from './icons.js';
 import * as session from '../core/session.js';
 import * as store from '../core/store.js';
@@ -15,14 +15,15 @@ import { go } from '../core/router.js';
 import { mountTree } from './tree.js';
 import { openSkill } from './skillpanel.js';
 import { xpChart, radarChart } from './charts.js';
-import { allTrees, getTree, getIndex, searchSkills, findSkill, registerTree } from '../data/catalog.js';
+import { allTrees, getTree, getIndex, searchSkills, findSkill } from '../data/catalog.js';
 import { statusOf, STATUS } from '../domain/unlock.js';
 import { xpByDay, totalXp, xpSince } from '../domain/xp.js';
 import { ACHIEVEMENTS } from '../domain/achievements.js';
 import { INTENSITY } from '../domain/missions.js';
 import { PROVIDERS, loadKey, saveKey, keyLooksValid, saveChoice, loadChoice, hasAnyKey } from '../ai/provider.js';
-import { generateTree, acceptTree, scaffoldActivities } from '../ai/generator.js';
+import { generateTree, scaffoldActivities } from '../ai/generator.js';
 import { applyTheme } from './shell.js';
+import { toast } from './toast.js';
 
 /* ------------------------------------------------------------------ *
  * Tree
@@ -57,10 +58,22 @@ export function renderTree(host, params, query) {
   /* A tree-level notice — the calisthenics safety framing (§40) — shown once,
    * at the top, rather than repeated inside every node. */
   if (tree.notice) {
+    /*
+     * A real button, not a click handler on a div. On a phone this is clamped
+     * to two lines, and on the calisthenics tree the hidden remainder is the
+     * injury-safety framing — reachable only by mouse, with no affordance
+     * saying it expanded.
+     */
     const noticeText = h('span.tree-notice', tree.notice);
-    page.appendChild(h('div.notice', {
-      onclick: () => noticeText.classList.toggle('open'),
-    }, icon('info', { size: 16 }), noticeText));
+    const toggle = h('button.notice.notice-toggle', {
+      type: 'button',
+      'aria-expanded': 'false',
+      onclick: () => {
+        const open = noticeText.classList.toggle('open');
+        toggle.setAttribute('aria-expanded', String(open));
+      },
+    }, icon('info', { size: 16 }), noticeText);
+    page.appendChild(toggle);
   }
 
   /* Search across every tree, not just this one. */
@@ -79,18 +92,31 @@ export function renderTree(host, params, query) {
   const canvasHost = h('div');
   page.appendChild(canvasHost);
 
-  if (state.goal?.treeId === treeId) {
-    const path = session.goalPathFor(state.goal);
-    const done = path.filter((p) => p.status === STATUS.COMPLETED || p.status === STATUS.MASTERED).length;
+  /*
+   * The goal path, taken from the one programme the dashboard and plan use.
+   *
+   * This card previously walked its own single-target path and reported "2 / 19"
+   * while the dashboard reported "9 / 27" for the same goal at the same moment.
+   * A graph can only draw the skills in the tree it is drawing, so the count is
+   * scoped — and now says it is, instead of looking like a second opinion on
+   * the same number.
+   */
+  const inTree = session.programmeInTree(treeId);
+  if (inTree && inTree.steps.length) {
+    const scoped = inTree.steps.length !== inTree.total;
     page.appendChild(h('div.card',
       h('div.card-head',
-        h('span.card-title', 'Your goal path'),
-        h('span.card-note.num', `${done} / ${path.length}`)),
+        h('span.card-title', scoped ? 'Your goal path, in this tree' : 'Your goal path'),
+        h('span.card-note.num', `${inTree.done} / ${inTree.steps.length}`)),
       h('div.row.wrap', { style: { gap: 'var(--s2)' } },
-        ...path.map((step) => h('button.chip', {
-          class: step.status === STATUS.COMPLETED || step.status === STATUS.MASTERED ? 'on' : '',
+        ...inTree.steps.map((step) => h('button.chip', {
+          class: step.done ? 'on' : '',
           onclick: () => openSkill(step.skillId, { onChange: () => renderTree(host, params, query) }),
-        }, step.skill.name)))));
+        }, step.skill.name))),
+      scoped
+        ? h('div.card-note', { style: { marginTop: 'var(--s3)' } },
+          `${inTree.total} skills in the whole plan — the rest are in other trees.`)
+        : null));
   }
 
   clear(host);
@@ -127,7 +153,7 @@ function renderSearch(host, query, screenHost) {
     const index = getIndex(tree.id);
     const status = statusOf(index, skill.id, (id) => state.skills[id]);
     return h('button.list-item', {
-      onclick: () => openSkill(skill.id, { onChange: () => screenHost && screenHost.dispatchEvent(new Event('refresh')) }),
+      onclick: () => openSkill(skill.id, { onChange: () => screenHost && renderTree(host, [tree.id], {}) }),
     },
     h('div.grow',
       h('div.title', skill.name),
@@ -150,16 +176,19 @@ function statusLabel(status) {
  * Explore
  * ------------------------------------------------------------------ */
 
-export function renderExplore(host) {
+export function renderExplore(host, params, query = {}) {
   const state = session.freshProfile();
   const page = h('div.wrap.stack.loose');
 
+  const trees = allTrees();
   page.appendChild(h('div.page-head',
     h('div',
       h('h1', 'Explore'),
-      h('p', 'Three trees are built in. You can also describe something you want to learn and have one generated.'))));
+      /* Counted, not written down. The sentence said "three trees are built in"
+       * beside four tree cards, and would have gone on saying it. */
+      h('p', `${trees.length} trees are built in. You can also describe something you want to learn and have one generated.`))));
 
-  page.appendChild(h('div.grid.cols-2', ...allTrees().map((tree) => {
+  page.appendChild(h('div.grid.cols-2', ...trees.map((tree) => {
     const index = getIndex(tree.id);
     const started = tree.skills.filter((s) => state.skills[s.id]).length;
     const mastered = tree.skills.filter((s) => (state.skills[s.id]?.level || 0) >= 5).length;
@@ -199,6 +228,15 @@ export function renderExplore(host) {
 
   clear(host);
   host.appendChild(page);
+
+  /* Arrived from the goal screen with a goal the built-in trees do not cover.
+   * Carry it in, put it in the field, and scroll to it — rather than handing
+   * back a blank page and expecting it to be retyped. */
+  if (query.generate) {
+    input.value = query.generate;
+    input.scrollIntoView({ behavior: reduceMotion ? 'auto' : 'smooth', block: 'center' });
+    input.focus();
+  }
 }
 
 async function runGeneration(text, host, screenHost) {
@@ -245,10 +283,13 @@ async function runGeneration(text, host, screenHost) {
     h('button.btn.primary', {
       onclick: () => {
         for (const skill of result.tree.skills) skill.activities = scaffoldActivities(skill);
-        const accepted = acceptTree(result.tree);
+        const accepted = session.acceptGeneratedTree(result.tree);
         if (!accepted.ok) {
           host.appendChild(h('div.notice.fail', icon('alert', { size: 16 }), h('span', accepted.error)));
           return;
+        }
+        if (!accepted.persisted) {
+          toast('Added for this session — storage is full, so it will not survive a reload.', { duration: 6000 });
         }
         go(`tree/${result.tree.id}`);
       },
@@ -357,16 +398,17 @@ export function renderAchievements(host) {
       h('p', `${got.length} of ${ACHIEVEMENTS.length} earned.`))));
 
   const card = (a, isEarned) => h('div.card', {
-    class: isEarned ? '' : 'quiet',
-    style: isEarned ? {} : { opacity: '.62' },
+    /* Dashed border and a dimmed icon rather than opacity on the whole card:
+     * fading it took the description text to 2.2:1. */
+    class: isEarned ? '' : 'quiet locked',
   },
   h('div.row', { style: { gap: 'var(--s3)', alignItems: 'flex-start' } },
-    h('span', { style: { color: isEarned ? 'var(--lime)' : 'var(--bone-dimmer)', display: 'flex' } },
+    h('span', { style: { color: isEarned ? 'var(--accent-ink)' : 'var(--bone-dimmer)', display: 'flex' } },
       icon(isEarned ? 'award' : 'lock', { size: 20 })),
     h('div.grow',
       h('div', { style: { fontWeight: '600', fontSize: '14px' } }, a.name),
       h('div.card-note', a.description),
-      isEarned ? h('div.card-note', { style: { marginTop: '4px', color: 'var(--lime)' } }, `Earned ${ago(earned[a.id])}`) : null),
+      isEarned ? h('div.card-note', { style: { marginTop: '4px', color: 'var(--accent-ink)' } }, `Earned ${ago(earned[a.id])}`) : null),
     h('span.chip', a.tier)));
 
   if (got.length) {
@@ -414,16 +456,18 @@ export function renderProfile(host) {
       h('div.stat.big', h('span.k', 'Streak'), h('span.v', `${overview.streak.current}d`)),
       h('div.stat.big', h('span.k', 'Longest'), h('span.v', `${overview.streak.longest}d`)))));
 
-  if (state.goal) {
-    const path = session.goalPathFor(state.goal);
-    const done = path.filter((p) => p.status === STATUS.COMPLETED || p.status === STATUS.MASTERED).length;
+  /* The same programme the dashboard, plan and tree read — see
+   * session.programme. This card used to compute its own and disagree. */
+  const plan = session.programme();
+  if (plan) {
+    const pct = plan.totalSteps ? (plan.doneSteps / plan.totalSteps) * 100 : 0;
     page.appendChild(h('div.card',
       h('div.card-head',
         h('span.card-title', 'Goal'),
-        h('span.card-note.num', `${done} / ${path.length}`)),
+        h('span.card-note.num', `${plan.doneSteps} / ${plan.totalSteps}`)),
       h('div', { style: { fontSize: '15px', fontWeight: '560', marginBottom: 'var(--s2)' } },
-        state.goal.text || findSkill(state.goal.targetSkillId)?.skill?.name || 'Goal'),
-      h('div.bar.tall', h('i', { style: { width: `${path.length ? (done / path.length) * 100 : 0}%` } }))));
+        state.plan.goalText),
+      h('div.bar.tall', h('i', { style: { width: `${pct}%` } }))));
   }
 
   if (top.length) {
@@ -470,8 +514,10 @@ export function renderSettings(host) {
     h('div.card-head', h('span.card-title', 'Profile')),
     h('div.stack.tight',
       h('div.field',
-        h('label', { for: 'st-name' }, 'Name'),
-        nameInput),
+        /* Wrapping the control rather than a `for` pointing at an id nothing
+         * had — tapping the label now focuses the field, which on a phone is
+         * the largest hit area a 40px input has. */
+        h('label', 'Name', nameInput)),
       h('div.row.wrap', { style: { gap: 'var(--s2)' } },
         h('button.btn.small', { onclick: saveName }, 'Save'),
         ...store.listProfiles().filter((p) => p.id !== state.id).map((p) => h('button.chip', {
@@ -565,7 +611,7 @@ function aiCard(host) {
     refreshStatus();
 
     card.appendChild(h('div.field', { style: { marginTop: 'var(--s3)' } },
-      h('label', provider.name),
+      h('label', provider.name, h('span.sr-only', ' API key')),
       h('div.row', { style: { gap: 'var(--s2)' } },
         input,
         h('button.btn.small', { onclick: saveThisKey }, 'Save')),
@@ -578,6 +624,7 @@ function aiCard(host) {
       card.appendChild(h('div.field', { style: { marginTop: 'var(--s3)' } },
         h('label', 'Model'),
         h('select.input', {
+          'aria-label': `${provider.name} model`,
           onchange: (e) => saveChoice(provider.id, e.target.value),
         }, ...provider.models.map((m) => h('option', { value: m, selected: m === choice.model }, m)))));
     }
@@ -625,6 +672,10 @@ function importPrompt(host) {
     if (!file) return;
     const result = store.importJson(await file.text());
     if (!result.ok) { announce(result.error); window.alert(result.error); return; }
+    /* An export can carry the generated trees it depends on. They are stored
+     * by the import but not registered, so the catalogue has to be rebuilt
+     * before any screen tries to resolve a skill from one. */
+    if (result.trees?.length) session.restoreTrees();
     go('dashboard');
   });
   document.body.appendChild(input);
@@ -645,4 +696,3 @@ function confirmReset(host) {
       }, 'Erase'))), { label: 'Confirm erase' });
 }
 
-export { registerTree, totalXp };

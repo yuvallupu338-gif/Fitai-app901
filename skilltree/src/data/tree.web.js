@@ -1,7 +1,7 @@
 /*
  * tree.web.js — the Web Development tree.
  *
- * Thirty-two skills from "what is a browser" to deployment, with the
+ * Thirty-three skills from "what is a browser" to deployment, with the
  * dependency edges the brief asks for: React needs JavaScript at 3, HTML at 3
  * and CSS at 2, not a single parent.
  *
@@ -310,7 +310,10 @@ export const WEB_TREE = {
           title: 'Check yourself',
           questions: [
             q('flex-direction: column. Which property centres children horizontally?',
-              ['align-items — horizontal is now the cross axis', 'justify-content', 'text-align', 'margin: auto'],
+              /* `margin: auto` was a distractor and is also a correct answer —
+               * auto margins absorb free space on the cross axis. Replaced with
+               * one that is actually wrong. */
+              ['align-items — horizontal is now the cross axis', 'justify-content', 'text-align', 'align-content'],
               0,
               'With a column direction the main axis is vertical, so horizontal alignment is the cross axis, which is align-items.'),
             q('Three children, all flex: 1. What happens?',
@@ -433,7 +436,7 @@ export const WEB_TREE = {
             'const binds a name to a value and stops you rebinding it. let allows rebinding. var is the old form with confusing scope rules; there is no reason to write it in new code. Default to const, switch to let only when you actually reassign.',
             'const on an object does not freeze the object. const user = {} still allows user.name = "Alex" — what is fixed is which object the name points at, not the contents.',
             'Use === and never ==. The double equals coerces types before comparing, which produces "" == 0 being true, "0" == 0 being true, and null == undefined being true while null === undefined is false. Triple equals compares without coercion and holds no surprises.',
-            'Six values are falsy: false, 0, "", null, undefined and NaN. Everything else is truthy — including "0", "false", empty arrays and empty objects, all of which catch people out.',
+            'The falsy values you will meet are false, 0, "", null, undefined and NaN (0n too, once you use BigInt). Everything else is truthy — including "0", "false", empty arrays and empty objects, all of which catch people out.',
           ],
         },
         {
@@ -452,7 +455,7 @@ export const WEB_TREE = {
             q('Which of these is truthy?',
               ['"0"', '0', '""', 'NaN'],
               0,
-              'A non-empty string is truthy regardless of what it contains. Only the six falsy values are falsy.'),
+              'A non-empty string is truthy regardless of what it contains — its contents are irrelevant.'),
           ],
         },
         {
@@ -660,8 +663,13 @@ export const WEB_TREE = {
       category: 'Programming',
       difficulty: 2,
       estimatedHours: [3, 5],
+      /* Every example here is a callback, and delegation is a function held by
+       * a parent. Requiring only js_basics — "variables, types, operators,
+       * control flow" — let a learner reach the whole DOM/Events branch without
+       * ever meeting a function. */
       requires: [
         { skillId: 'js_basics', minLevel: 3 },
+        { skillId: 'js_functions', minLevel: 2 },
         { skillId: 'html_basics', minLevel: 3 },
       ],
       description: 'Selecting, creating and updating elements from JavaScript.',
@@ -763,7 +771,7 @@ export const WEB_TREE = {
             'JavaScript runs on one thread. Slow work — a network request, a timer — is handed off, and a callback is queued for when it finishes. The event loop runs those callbacks once the current code has finished, which is why code after a fetch runs before the response arrives.',
             'A promise represents a value that is not here yet. It is pending, then either fulfilled with a value or rejected with an error. await pauses the enclosing async function until it settles, letting you write sequential-looking code that is still non-blocking.',
             'An async function always returns a promise, even if you return a plain number. This is why calling one without await gives you a Promise object rather than the value — probably the most common async mistake.',
-            'Handle rejection with try/catch around the await, or .catch() on the chain. An unhandled rejection fails silently in the browser, which turns a network error into a page that just never updates.',
+            'Handle rejection with try/catch around the await, or .catch() on the chain. An unhandled rejection produces no user-visible failure — only a console warning — which turns a network error into a page that just never updates.',
             'For independent requests use Promise.all([a, b]) rather than awaiting each in turn: sequential awaits take the sum of the times, Promise.all takes the longest.',
           ],
         },
@@ -852,7 +860,9 @@ export const WEB_TREE = {
       category: 'Tools',
       difficulty: 2,
       estimatedHours: [3, 5],
-      requires: [{ skillId: 'js_basics', minLevel: 2 }],
+      /* Version control needs no JavaScript. Gating it behind variables and
+       * `===` delayed the one tool that makes everything else safe to attempt. */
+      requires: [{ skillId: 'internet_basics', minLevel: 1 }],
       description: 'Commits, branches, merges and undoing things safely.',
       why: 'Git is what makes experiments safe. Without it you keep folders called final-v2-real, and you will still lose work.',
       activities: [
@@ -1133,10 +1143,10 @@ export const WEB_TREE = {
       category: 'Programming',
       difficulty: 4,
       estimatedHours: [6, 10],
-      requires: [
-        { skillId: 'js_objects', minLevel: 3 },
-        { skillId: 'react_state', minLevel: 2 },
-      ],
+      /* TypeScript is a JavaScript-level skill; nothing in it touches React.
+       * Requiring react_state dragged the entire CSS and React branch in front
+       * of anyone wanting to type their Node or API code. */
+      requires: [{ skillId: 'js_objects', minLevel: 3 }],
       description: 'Static types over JavaScript: interfaces, unions, generics and narrowing.',
       why: 'Types turn a class of runtime bug into a red squiggle, and they document the shape of your data where the data is used.',
       activities: [

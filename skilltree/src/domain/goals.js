@@ -78,7 +78,10 @@ const INTENTS = [
   },
   {
     id: 'calisthenics',
-    all: [/\b(muscle.?up\w*|pull.?up\w*|push.?up\w*|handstand\w*|lever|calisthenic\w*|bodyweight|stronger|fitness|fitter)\b/],
+    /* "get fit" and "get in shape" are the two most obvious ways to ask for
+     * this tree, and neither was recognised — while "lose weight", which the
+     * app genuinely cannot deliver, was. */
+    all: [/\b(muscle.?up\w*|pull.?up\w*|push.?up\w*|handstand\w*|lever|calisthenic\w*|bodyweight|strength|stronger|fit|fitness|fitter|in shape)\b/],
     label: 'Bodyweight strength',
     trees: ['calisthenics'],
     /* Only a general "get stronger" should reach the athlete milestone; a
@@ -105,16 +108,44 @@ export function tokenise(text) {
 }
 
 /*
- * Crude but effective stemming: match on a prefix so "designing" hits "design"
- * and "businesses" hits "business". A real stemmer is not worth a dependency
- * here, and the failure mode of prefix matching — an occasional loose match —
- * is much kinder than missing the obvious one.
+ * Crude but effective stemming, anchored at word boundaries.
+ *
+ * The anchoring is the important part. Matching a bare substring meant a term
+ * hit anywhere inside a longer word: "weight" was found inside "Bodyweight
+ * Basics", so someone typing "lose weight" was handed a plan whose destination
+ * was Bodyweight Basics — one skill, four hours — which reads as the app
+ * promising they will have lost weight by the end of the month. It cannot
+ * promise that, and the honest answer is that this goal is not covered.
+ *
+ * So a term matches a *word*, by shared stem rather than by substring:
+ *
+ *   price    ~ pricing      share "pric" — 80% of the shorter word
+ *   designer ~ design       share "design" — all of it
+ *   weight   ~ bodyweight   share nothing at the front. No match.
+ *   console  ~ consistent   share "cons" — 57%. Not a stem, no match.
+ *
+ * Requiring the shared prefix to be both four characters and most of the
+ * shorter word is what separates a stem from a coincidence. Three-letter terms
+ * only match exactly, because short prefixes are where this does its damage:
+ * "run" would otherwise reach "running a business".
  */
+function sharedPrefix(a, b) {
+  const n = Math.min(a.length, b.length);
+  let i = 0;
+  while (i < n && a[i] === b[i]) i += 1;
+  return i;
+}
+
 function termHit(term, text) {
   if (!text) return false;
-  const haystack = text.toLowerCase();
-  if (haystack.includes(term)) return true;
-  if (term.length > 4 && haystack.includes(term.slice(0, Math.max(4, term.length - 2)))) return true;
+  for (const word of String(text).toLowerCase().split(/[^a-z0-9+#]+/)) {
+    if (!word) continue;
+    if (word === term) return true;
+    const shorter = Math.min(word.length, term.length);
+    if (shorter < 4) continue;
+    const shared = sharedPrefix(word, term);
+    if (shared >= 4 && shared / shorter >= 0.7) return true;
+  }
   return false;
 }
 
@@ -188,7 +219,26 @@ export function matchSkills(goalText, catalog) {
   }
 
   matches.sort((a, b) => b.score - a.score || a.skill.name.localeCompare(b.skill.name));
-  return { matches, intents, terms };
+
+  /*
+   * Is any of this actually evidence?
+   *
+   * Every skill whose description happened to contain one of the words scores
+   * something, and "something" was treated as coverage. "Be able to run a
+   * marathon" scored 2 — a single word found in one paragraph of prose — and
+   * came back as a confident four-skill, seven-week programme ending at Money
+   * Admin, because "run" appears in a sentence about running a business.
+   *
+   * A wrong plan delivered confidently is worse than no plan, because the
+   * learner cannot tell the two apart: both render identically. So coverage
+   * now needs real evidence — the learner named a skill (a hit in its *name*),
+   * or an intent rule recognised the goal. A trickle of description hits is
+   * not a destination, and the honest answer is that this is not covered.
+   */
+  const named = matches.filter((m) => m.terms.length > 0);
+  const confident = intents.length > 0 || named.length > 0;
+
+  return { matches: confident ? matches : [], intents, terms, evidence: named.flatMap((m) => m.terms) };
 }
 
 /*
@@ -279,7 +329,7 @@ export function buildProgramme(opts) {
   const now = opts.now ?? Date.now();
   const perWeek = weeklyHours(opts.minutesPerDay);
 
-  const { matches, intents, terms } = matchSkills(goalText, catalog);
+  const { matches, intents, terms, evidence } = matchSkills(goalText, catalog);
   if (!matches.length) {
     return { ok: false, reason: 'no_match', terms, goalText };
   }
@@ -348,6 +398,12 @@ export function buildProgramme(opts) {
     ok: true,
     goalText,
     terms,
+    /* The words that actually matched a skill name, not the words that were
+     * typed. The panel printed the query back — "Matched on: run, marathon" —
+     * which told the learner nothing about *why* they were looking at a
+     * freelancing plan, and so could not be used to spot that the match was
+     * wrong. Deduplicated and in the order they were typed. */
+    evidence: terms.filter((t) => evidence.includes(t)),
     intents: intents.map((i) => ({ id: i.id, label: i.label })),
     targets: targets.map((t) => ({ skillId: t.skill.id, name: t.skill.name, treeId: t.tree.id, treeName: t.tree.name })),
     steps,

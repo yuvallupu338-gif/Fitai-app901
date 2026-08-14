@@ -92,7 +92,7 @@ export const CALISTHENICS_TREE = {
           [
             'Plank held 45 seconds with hips level — no sag, no pike',
             'Deep squat held 30 seconds, heels down, chest up',
-            'Dead hang from a bar for 20 seconds with shoulders active',
+            'Passive dead hang from a bar for 20 seconds',
             'Can describe what a full range rep looks like for a push-up',
           ]),
       ],
@@ -361,9 +361,13 @@ export const CALISTHENICS_TREE = {
       category: 'Pull',
       difficulty: 3,
       estimatedHours: [3, 8],
-      requires: [{ skillId: 'pullups', minLevel: 2 }],
+      /* The skill's own copy calls this easier than a pull-up, and its gate
+       * asks for more reps — so gating it behind a level-2 pull-up put the
+       * easier progression after the harder one, and denied it to exactly the
+       * learners who use chin-ups to reach a first pull-up. */
+      requires: [{ skillId: 'australian_pullups', minLevel: 3 }],
       description: 'Underhand grip, more biceps involvement.',
-      why: 'Usually stronger than the pull-up, which makes it useful for building volume.',
+      why: 'Usually easier than the pull-up, which makes it both a stepping stone toward one and a good way to build volume once you have it.',
       activities: [
         check('chinups.gate', 'Chin-up standard',
           'Underhand grip, shoulder width.',

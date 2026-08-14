@@ -27,6 +27,29 @@ export function baseXpFor(kind) {
   return XP_AWARDS[kind] ?? 10;
 }
 
+/*
+ * The one vocabulary for activity kinds.
+ *
+ * This label map existed verbatim in three UI modules and, worse, one of those
+ * copies feeds the *stored* XP ledger reason — so a drift between them would
+ * be baked permanently into saved data. `missions.js` additionally kept its own
+ * transcription of the XP table above, which meant a rebalance needed four
+ * edits and missing one made a mission chip promise XP the engine would not pay.
+ */
+export const KIND_LABEL = {
+  learn: 'Lesson',
+  quiz: 'Quiz',
+  practice: 'Practice',
+  challenge: 'Challenge',
+  project: 'Project',
+  assessment: 'Assessment',
+  mastery: 'Mastery challenge',
+};
+
+export function labelForKind(kind) {
+  return KIND_LABEL[kind] || 'Activity';
+}
+
 /**
  * How much XP a skill can yield from one clean pass of everything in it.
  *
@@ -70,6 +93,28 @@ export function repeatMultiplier(previousPasses) {
 }
 
 /*
+ * The most a single activity may ever contribute to its skill.
+ *
+ * Decay alone was not enough, and the review proved it: the 0.1 tail never
+ * reaches zero and `computeAward` floors every payout at 1, so replaying one
+ * quiz 47 times accumulated more XP than the whole skill is worth and produced
+ * "Mastered — you have proven it under pressure" with the assessment never
+ * opened. That is precisely the fake progress this app exists to refuse.
+ *
+ * A hard ceiling per activity restores the invariant that level thresholds
+ * were built on. Capacity is the sum of every activity's base value, so if no
+ * activity can pay more than 1.6× its own base, reaching capacity — level 5 —
+ * requires actually doing most of the skill. One activity, replayed forever,
+ * asymptotically reaches 1.6× its base and stops.
+ *
+ * 1.6 rather than 1.0 so that a genuine retake after a poor first pass still
+ * improves your standing: full value, then half, then nothing.
+ */
+export function activityXpCap(kind, difficulty = 1) {
+  return Math.round(baseXpFor(kind) * difficultyMultiplier(difficulty) * 1.6);
+}
+
+/*
  * Score shapes the award too, otherwise a 55% pass and a 100% pass are worth
  * the same and the incentive to actually understand the material disappears.
  * Floor at 0.5 so a marginal pass still feels like it counted.
@@ -94,13 +139,21 @@ export function difficultyMultiplier(difficulty) {
  * The single place an XP number is decided. Every caller goes through here so
  * the rules cannot drift between the quiz screen and the assessment screen.
  */
-export function computeAward({ kind, score = null, previousPasses = 0, difficulty = 1, passed = true }) {
+export function computeAward({
+  kind, score = null, previousPasses = 0, difficulty = 1, passed = true, alreadyEarned = 0,
+}) {
   if (!passed) return 0;
+
   const raw = baseXpFor(kind)
     * repeatMultiplier(previousPasses)
     * scoreMultiplier(score)
     * difficultyMultiplier(difficulty);
-  return Math.max(1, Math.round(raw));
+
+  /* Never pay past this activity's lifetime ceiling — see activityXpCap. */
+  const headroom = activityXpCap(kind, difficulty) - Math.max(0, alreadyEarned);
+  if (headroom <= 0) return 0;
+
+  return Math.max(0, Math.min(Math.round(headroom), Math.max(1, Math.round(raw))));
 }
 
 /* ------------------------------------------------------------------ *

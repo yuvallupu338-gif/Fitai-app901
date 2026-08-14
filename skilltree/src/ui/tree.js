@@ -18,10 +18,10 @@
  * lit nodes — not 300 inline style writes.
  */
 
-import { h, svg, clear, qsa } from '../core/dom.js';
+import { h, svg, clear } from '../core/dom.js';
 import { icon } from './icons.js';
 import { getIndex, getLayout } from '../data/catalog.js';
-import { statusOf, STATUS, readiness } from '../domain/unlock.js';
+import { statusOf, STATUS } from '../domain/unlock.js';
 import { skillProgress } from '../domain/levels.js';
 import { skillCapacity } from '../domain/xp.js';
 import { ancestorsOf, descendantsOf } from '../domain/graph.js';
@@ -116,11 +116,37 @@ export function mountTree(host, opts) {
     el.addEventListener('click', () => onSelect(node.id));
     el.addEventListener('pointerenter', () => light(node.id));
     el.addEventListener('pointerleave', () => unlight());
-    el.addEventListener('focus', () => light(node.id));
+    el.addEventListener('focus', () => {
+      light(node.id);
+      /*
+       * Bring the focused node into view, and undo any scroll the browser did
+       * to reach it.
+       *
+       * The canvas is clipped by `overflow: hidden` and positioned by a
+       * transform, so a node can be tabbed to while sitting outside the shell.
+       * The browser then scrolls the shell itself to satisfy the focus — which
+       * it can, because the transformed canvas overflows it — and because the
+       * zoom controls and legend are absolutely positioned *inside* the shell,
+       * they slid into the middle of the graph with no way back. Ten of
+       * twenty-one nodes did this at 375px.
+       */
+      shell.scrollLeft = 0;
+      shell.scrollTop = 0;
+      if (!isOnScreen(node.id)) centreOn(node.id);
+    });
     el.addEventListener('blur', () => unlight());
 
     canvas.appendChild(el);
     nodeEls.set(node.id, el);
+  }
+
+  /** Is this node currently within the visible canvas? */
+  function isOnScreen(skillId) {
+    const el = nodeEls.get(skillId);
+    if (!el) return false;
+    const box = shell.getBoundingClientRect();
+    const r = el.getBoundingClientRect();
+    return r.left >= box.left && r.right <= box.right && r.top >= box.top && r.bottom <= box.bottom;
   }
 
   /* ---- highlighting ---- */
@@ -578,10 +604,8 @@ function legendDot(state) {
   });
   if (state === 'locked') dot.style.borderStyle = 'dashed';
   if (state === 'available') dot.style.borderColor = 'var(--bone-dimmer)';
-  if (state === 'in_progress' || state === 'completed') dot.style.borderColor = 'var(--lime)';
-  if (state === 'mastered') { dot.style.background = 'var(--lime)'; dot.style.borderColor = 'var(--lime)'; }
+  if (state === 'in_progress' || state === 'completed') dot.style.borderColor = 'var(--accent-ink)';
+  if (state === 'mastered') { dot.style.background = 'var(--accent-ink)'; dot.style.borderColor = 'var(--accent-ink)'; }
   return dot;
 }
 
-/** Readiness of a locked skill, for the "almost there" ordering elsewhere. */
-export { readiness };

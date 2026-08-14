@@ -308,6 +308,66 @@ async function main() {
   const xpReloaded = await page.evaluate(() => window.SkillTree.session.overview().xp);
   check(xpReloaded === xpAfter, `XP did not survive a reload (${xpAfter} -> ${xpReloaded})`);
 
+  /*
+   * A generated tree has to survive the same reload.
+   *
+   * Accepting one used to register it into an in-memory Map and nowhere else,
+   * so the tree vanished on the next load while the attempts made against its
+   * skills stayed in the profile — XP with nothing to trace it to. The tree is
+   * built here rather than generated, because generation needs an API key and
+   * the persistence is the part under test.
+   */
+  const madeUp = {
+    id: 'gen_smoke', name: 'Smoke Tree', tagline: 'Built by the smoke test', generated: true,
+    skills: [
+      { id: 'gen_root', name: 'Root', category: 'Test', difficulty: 1, requires: [],
+        activities: [{ id: 'gen_root.learn', kind: 'learn', title: 'About Root', body: ['A generated placeholder.'] }] },
+      { id: 'gen_leaf', name: 'Leaf', category: 'Test', difficulty: 2, requires: [{ skillId: 'gen_root', minLevel: 1 }],
+        activities: [{ id: 'gen_leaf.learn', kind: 'learn', title: 'About Leaf', body: ['A generated placeholder.'] }] },
+    ],
+  };
+  const accepted = await page.evaluate((tree) => window.SkillTree.session.acceptGeneratedTree(tree), madeUp);
+  check(accepted.ok && accepted.persisted, `a generated tree was not accepted and stored: ${JSON.stringify(accepted)}`);
+
+  /* Do a piece of work in it, so the reload has progress to resolve as well as
+   * a tree to restore — an orphaned attempt is the failure this guards. */
+  const worked = await page.evaluate(async () => {
+    const out = await window.SkillTree.session.submit('gen_root.learn', { acknowledged: true });
+    return { ok: out.ok, xp: window.SkillTree.session.overview().xp };
+  });
+  check(worked.ok, 'an activity in a generated tree would not accept a submission');
+
+  await page.goto(`${base}#/dashboard`);
+  await page.reload();
+  await page.waitForSelector('.card', { timeout: 10000 });
+
+  const survived = await page.evaluate(() => {
+    const trees = window.SkillTree.catalog.allTrees().map((t) => t.id);
+    return {
+      trees,
+      resolves: !!window.SkillTree.catalog.findSkill('gen_leaf'),
+      progressResolves: !!window.SkillTree.catalog.findSkill('gen_root')
+        && !!window.SkillTree.store.get().skills.gen_root,
+    };
+  });
+  check(survived.trees.includes('gen_smoke'),
+    `a generated tree did not survive a reload (catalogue: ${survived.trees.join(', ')})`);
+  check(survived.resolves, 'a generated tree reloaded but its skills no longer resolve');
+  check(survived.progressResolves, 'progress in a generated tree was orphaned by a reload');
+
+  await page.goto(`${base}#/tree/gen_smoke`);
+  await page.waitForSelector('.node', { timeout: 8000 });
+  check(await page.locator('.node').count() === 2,
+    'a restored generated tree did not render its nodes');
+
+  /* And it can be removed again, from both the catalogue and storage. */
+  await page.evaluate(() => window.SkillTree.session.removeGeneratedTree('gen_smoke'));
+  await page.goto(`${base}#/dashboard`);
+  await page.reload();
+  await page.waitForSelector('.card', { timeout: 10000 });
+  check(!(await page.evaluate(() => window.SkillTree.catalog.allTrees().map((t) => t.id))).includes('gen_smoke'),
+    'a removed generated tree came back after a reload');
+
   /* ============================================================== *
    * 4. A locked activity refuses to run
    * ============================================================== */

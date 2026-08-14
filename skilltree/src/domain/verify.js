@@ -401,6 +401,17 @@ export function parseNumeric(input) {
   let s = String(input).trim().toLowerCase().replace(/\s+/g, '');
   if (!s) return null;
 
+  /*
+   * Normalise the several characters that mean "minus".
+   *
+   * The maths questions are typeset with U+2212 (−), the proper minus sign,
+   * and twenty-eight of them contain it. Only ASCII hyphen parsed, so a
+   * learner who copied the notation out of the question — or whose keyboard
+   * produces a dash — had a correct answer rejected on all seven
+   * negative-answer questions.
+   */
+  s = s.replace(/[\u2212\u2013\u2014\u2015]/g, '-');
+
   s = s.replace(/^\+/, '');
   const negative = s.startsWith('-');
   if (negative) s = s.slice(1);
@@ -431,13 +442,38 @@ export function parseNumeric(input) {
  * Grade a set of numeric questions. Each carries its own tolerance, because
  * "2/3 to two decimal places" and "exactly 12" want different strictness.
  */
+/*
+ * Does a typed answer match the expected value?
+ *
+ * The subtlety is the per-cent sign. The input hint promises that "0.5, 1/2
+ * and 50% are the same answer", and `parseNumeric` honours it by dividing a
+ * `%` input by 100 — which is right for a question whose answer is stored as
+ * the fraction 0.96, and wrong for one whose answer is stored as the number
+ * 25. Both styles exist in the maths tree, so the same keystrokes were correct
+ * in one question and rejected in the next.
+ *
+ * Rather than reword the questions or break the hint, a `%` input is accepted
+ * against either reading. Both are the learner expressing the same quantity;
+ * only the storage convention differs, and that is not their problem.
+ */
+export function numericMatches(raw, expected, tolerance) {
+  const value = parseNumeric(raw);
+  if (value === null) return { ok: false, value };
+  if (Math.abs(value - expected) <= tolerance) return { ok: true, value };
+
+  if (/%\s*$/.test(String(raw))) {
+    const asWritten = value * 100;
+    if (Math.abs(asWritten - expected) <= tolerance) return { ok: true, value: asWritten };
+  }
+  return { ok: false, value };
+}
+
 export function gradeNumeric(activity, answers) {
   const questions = activity.questions || [];
   const results = questions.map((question, i) => {
     const raw = answers[i];
-    const value = parseNumeric(raw);
     const tolerance = question.tolerance ?? 1e-6;
-    const correct = value !== null && Math.abs(value - question.answer) <= tolerance;
+    const { ok: correct, value } = numericMatches(raw, question.answer, tolerance);
     return {
       index: i,
       prompt: question.prompt,
@@ -499,7 +535,15 @@ export async function grade(activity, submission, opts = {}) {
   if (activity.tests) return gradeCode(activity, submission.source || '', opts);
   if (activity.checklist) return gradeChecklist(activity, submission.checked || []);
 
-  /* A `learn` activity has nothing to grade — reading it is the completion.
-   * It still returns a score so the caller has one shape to handle. */
-  return { kind: 'read', score: 100, passed: true, results: [] };
+  /*
+   * A `learn` activity has nothing to grade — reading it is the completion.
+   *
+   * The score is null, not 100. Returning 100 invented a perfect grade for
+   * work that was never assessed, and it leaked: `retentionScore` filters on
+   * `Number.isFinite(score)` rather than on kind, so re-reading a lesson ten
+   * days later counted as a perfect delayed recall. The review measured a
+   * skill going from mastery 19 to 50 — across the level-3 threshold — with no
+   * work done at all.
+   */
+  return { kind: 'read', score: null, passed: true, results: [] };
 }

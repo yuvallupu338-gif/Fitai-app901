@@ -1,7 +1,7 @@
 /*
  * tree.math.js — the Mathematics tree.
  *
- * Twenty-two skills from arithmetic to calculus. Mathematics grades itself
+ * Twenty-one skills from arithmetic to calculus. Mathematics grades itself
  * better than anything else in this app: the answers are exact, so the numeric
  * grader (domain/verify.js) checks them with no model in the loop and no
  * self-reporting.
@@ -425,8 +425,8 @@ export const MATH_TREE = {
           title: 'Roots, vertex and discriminant',
           body: [
             'A quadratic graphs as a parabola. Where it crosses the x-axis are the roots, and factorising finds them directly: (x − 2)(x − 3) = 0 is zero exactly when one factor is, giving x = 2 and x = 3.',
-            'The quadratic formula solves any of them: x = (−b ± √(b² − 4ac)) / 2a. The part under the root, b² − 4ac, is the discriminant, and it tells you the shape of the answer before you compute it — positive means two real roots, zero means one repeated root sitting on the axis, negative means the parabola never touches it.',
-            'The vertex sits at x = −b/2a, halfway between the roots by symmetry. It is the maximum if the parabola opens downward, the minimum if upward — which is the first optimisation problem most people meet.',
+            'The quadratic formula solves any of them: x = (−b ± √(b² − 4ac)) / (2a) — the brackets round 2a matter, and the first lesson in this tree is exactly why. The part under the root, b² − 4ac, is the discriminant, and it tells you the shape of the answer before you compute it — positive means two real roots, zero means one repeated root sitting on the axis, negative means the parabola never touches it.',
+            'The vertex sits at x = −b/(2a), halfway between the roots by symmetry. It is the maximum if the parabola opens downward, the minimum if upward — which is the first optimisation problem most people meet.',
           ],
         },
         {
@@ -437,7 +437,7 @@ export const MATH_TREE = {
             n('x² − 5x + 6 = 0. The larger root?', 3, 'Factorises to (x−2)(x−3), so roots are 2 and 3.'),
             n('Discriminant of x² + 2x + 5?', -16, '4 − 20 = −16. Negative, so no real roots.'),
             n('How many real roots does x² + 2x + 5 have?', 0, 'A negative discriminant means the parabola never crosses the axis.'),
-            n('x-coordinate of the vertex of y = x² − 6x + 5?', 3, '−b/2a = 6/2 = 3.'),
+            n('x-coordinate of the vertex of y = x² − 6x + 5?', 3, '−b/(2a) = 6/2 = 3.'),
             n('Minimum value of y = x² − 6x + 5?', -4, 'At x = 3: 9 − 18 + 5 = −4.'),
           ],
         },

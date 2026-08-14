@@ -17,7 +17,6 @@
 
 import { h, sheet, announce, reduceMotion } from '../core/dom.js';
 import { icon } from './icons.js';
-import { achievementById } from '../domain/achievements.js';
 
 let layer = null;
 
@@ -137,4 +136,3 @@ export function showUnlocked(names) {
     : [h('b', `${names.length} skills`), ' unlocked.'], { icon: 'plus', duration: 4200 });
 }
 
-export { achievementById };

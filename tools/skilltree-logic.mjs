@@ -23,13 +23,13 @@ const load = (p) => import(pathToFileURL(resolve(ROOT, 'skilltree/src', p)).href
 const {
   xpForLevel, levelForXp, globalProgress, levelFor, skillProgress, xpForSkillLevel,
 } = await load('domain/levels.js');
-const { computeAward, appendXpEvent, totalXp, xpBySkill, xpByDay, repeatMultiplier, skillCapacity } = await load('domain/xp.js');
+const { computeAward, appendXpEvent, totalXp, xpBySkill, xpByDay, repeatMultiplier, skillCapacity, activityXpCap } = await load('domain/xp.js');
 const { computeMastery, confidenceFor, reviewUrgency, weightedScore } = await load('domain/mastery.js');
 const { indexTree, findCycle, computeDepths, layoutTree, ancestorsOf, descendantsOf, pathTo } = await load('domain/graph.js');
-const { isUnlocked, statusOf, STATUS, requirementStatus, statusSnapshot, newlyUnlocked, readiness } = await load('domain/unlock.js');
+const { isUnlocked, statusOf, STATUS, requirementStatus, statusSnapshot, newlyUnlocked, readiness, levelOf } = await load('domain/unlock.js');
 const { applyAttempt, startSkill, newUserSkill, dayNumber, liveStreak, touchStreak } = await load('domain/progress.js');
 const { evaluate, award, ACHIEVEMENTS } = await load('domain/achievements.js');
-const { gradeQuiz, gradeCode, gradeNumeric, gradeChecklist, parseNumeric, deepEqual } = await load('domain/verify.js');
+const { gradeQuiz, gradeCode, gradeNumeric, gradeChecklist, parseNumeric, deepEqual, grade, numericMatches } = await load('domain/verify.js');
 const { validateTree, extractJson, parse, s } = await load('ai/schema.js');
 const { recommend, difficultyFit, goalPath } = await load('domain/recommend.js');
 const { nextActivityFor, generateMissions, completeMissionsFor } = await load('domain/missions.js');
@@ -40,6 +40,7 @@ const { buildDemoProfile } = await load('data/demo.js');
 const { allTrees: registeredTrees, getIndex: registeredIndex } = await load('data/catalog.js');
 const { emptyProfile } = await load('core/store.js');
 const goals = await load('domain/goals.js');
+const { fingerprint } = await load('core/session.js');
 const { BUSINESS_TREE } = await load('data/tree.business.js');
 const catalogModule = await load('data/catalog.js');
 
@@ -56,6 +57,12 @@ function eq(name, actual, expected) {
 }
 
 const group = (title) => console.log(`\n${title}`);
+
+/** An activity of a given kind in a web-tree skill, for the tests below. */
+function skillActivity(skillId, kind) {
+  const acts = WEB_TREE.skills.find((s) => s.id === skillId).activities || [];
+  return acts.find((a) => a.kind === kind) || acts[0];
+}
 
 /* ================================================================== *
  * Levels
@@ -739,6 +746,61 @@ check('programme steps are in dependency order', (() => {
 check('every step is reachable from a destination', web.steps.length >= web.targets.length);
 check('a shorter goal makes a shorter plan', plan('learn to price my work').totalSteps < web.totalSteps);
 
+/*
+ * Coverage needs evidence.
+ *
+ * The engine treated any non-zero score as a destination, and a single word
+ * found in one skill's prose scores 2. "Be able to run a marathon" came back
+ * as a confident four-skill, seven-week programme ending at Money Admin,
+ * because "run" appears in a sentence about running a business — and "lose
+ * weight" reached Bodyweight Basics, one skill and four hours, which reads as
+ * the app promising a result it cannot deliver. A wrong plan stated
+ * confidently is worse than "not covered", because the two render identically
+ * and the learner cannot tell which they got.
+ */
+for (const goalText of [
+  'be able to run a marathon',
+  'lose weight',
+  'learn to cook',
+  'learn python',
+  'start a podcast',
+]) {
+  check(`"${goalText}" is answered honestly, not guessed at`, !plan(goalText).ok,
+    `got ${JSON.stringify(plan(goalText).targets?.map((t) => t.name))}`);
+}
+
+/* …while the goals the trees genuinely serve still land, including the two
+ * most obvious ways of asking for the calisthenics tree, neither of which was
+ * recognised while "lose weight" was. */
+const LANDS = [
+  ['get fit', 'Calisthenics Athlete'],
+  ['get in shape', 'Calisthenics Athlete'],
+  ['get stronger', 'Calisthenics Athlete'],
+  ['do a muscle up', 'Muscle-Up'],
+  ['learn to price my work', 'Pricing'],
+  ['learn calculus', 'Calculus'],
+  ['become a frontend developer', 'Client-Side Routing'],
+];
+for (const [goalText, destination] of LANDS) {
+  const p = plan(goalText);
+  check(`"${goalText}" reaches ${destination}`,
+    p.ok && p.targets.some((t) => t.name === destination),
+    p.ok ? `got ${p.targets.map((t) => t.name).join(', ')}` : 'not covered');
+}
+
+/* Stem matching, which is where both failures came from. */
+check('a stem matches across an inflection', plan('learn to price my work').ok);
+check('a compound word is not a stem match', !plan('lose weight').ok,
+  '"weight" matched inside "Bodyweight"');
+
+/* The honesty line has to name what actually matched, not what was typed —
+ * printing the query back ("Matched on: run, marathon") gave the learner no
+ * way to notice the match was wrong. */
+check('the honesty line reports terms that hit a skill name', (() => {
+  const p = plan('do a muscle up');
+  return Array.isArray(p.evidence) && p.evidence.includes('muscle') && !p.evidence.includes('up');
+})(), `got ${JSON.stringify(plan('do a muscle up').evidence)}`);
+
 /* Time scales with the stated pace, and only with it. */
 const slow = plan('become a frontend developer', 10);
 const fast = plan('become a frontend developer', 60);
@@ -774,6 +836,271 @@ check('it has enough content', BUSINESS_TREE.skills.length >= 18);
 check('it has a root', BUSINESS_TREE.skills.some((sk) => !(sk.requires || []).length));
 check('every skill has activities', BUSINESS_TREE.skills.every((sk) => (sk.activities || []).length > 0));
 check('it carries a disclaimer about advice', /not legal|not .*advice/i.test(BUSINESS_TREE.notice || ''));
+
+/* ================================================================== *
+ * Review-committee regressions
+ *
+ * Every check below stands for a defect a reviewer found in a working build
+ * and I reproduced before fixing. They are grouped together deliberately: each
+ * one is a rule the app can silently lose without any other test noticing, so
+ * the failure message needs to say what was actually broken, not just which
+ * function returned the wrong number.
+ * ================================================================== */
+group('Review-committee regressions');
+
+/* Grinding one cheap activity must not buy a level.
+ *
+ * The engine paid full XP for every repeat, so 47 passes of a single quiz
+ * carried a skill to "Mastered" without the learner ever opening its other
+ * activities. The per-activity cap is what stops that. */
+check('one activity cannot be ground past its cap', (() => {
+  let st = fresh();
+  const skill = webIndex.byId.get('internet_basics');
+  const activity = skill.activities.find((a) => a.kind === 'quiz');
+  for (let i = 0; i < 60; i += 1) {
+    st = applyAttempt(st, webIndex, {
+      skillId: 'internet_basics', activityId: activity.id, kind: 'quiz',
+      score: 100, passed: true, id: `grind:${i}`,
+    }, t0 + i * DAY).state;
+  }
+  const cap = activityXpCap('quiz', skill.difficulty || 1);
+  const earned = st.skills.internet_basics.earnedByActivity[activity.id];
+  return earned <= cap && (st.skills.internet_basics.level || 0) < 5;
+})(), 'a single activity paid out past its cap, or reached level 5 alone');
+
+check('the cap is per activity, not per skill', (() => {
+  let st = fresh();
+  const skill = webIndex.byId.get('internet_basics');
+  let n = 0;
+  for (const activity of skill.activities) {
+    for (let i = 0; i < 8; i += 1, n += 1) {
+      st = applyAttempt(st, webIndex, {
+        skillId: 'internet_basics', activityId: activity.id, kind: activity.kind,
+        score: 100, passed: true, id: `spread:${n}`,
+      }, t0 + n * DAY).state;
+    }
+  }
+  /* Doing all the work still gets there — the cap must not make the skill
+   * uncompletable, which would be the obvious over-correction. */
+  return (st.skills.internet_basics.level || 0) >= 4;
+})(), 'capping per activity blocked honest completion of the whole skill');
+
+/* A level, once earned, is kept.
+ *
+ * Confidence decays, and mastery folds confidence in, so a skill left alone
+ * for a fortnight recomputed to a lower level — which un-drew progress and,
+ * worse, re-locked skills downstream of it. */
+check('a skill level never falls back', (() => {
+  let st = fresh();
+  const skill = webIndex.byId.get('internet_basics');
+  for (let i = 0; i < 12; i += 1) {
+    const activity = skill.activities[i % skill.activities.length];
+    st = applyAttempt(st, webIndex, {
+      skillId: 'internet_basics', activityId: activity.id, kind: activity.kind,
+      score: 98, passed: true, id: `peak:${i}`,
+    }, t0 + i * DAY).state;
+  }
+  const high = st.skills.internet_basics.level;
+  /* Come back two months later and fail something. */
+  const later = applyAttempt(st, webIndex, {
+    skillId: 'internet_basics', activityId: skill.activities[0].id, kind: skill.activities[0].kind,
+    score: 10, passed: false, id: 'peak:cold',
+  }, t0 + 60 * DAY).state;
+  return high >= 2 && later.skills.internet_basics.level >= high;
+})(), 'a level regressed after decay or a failed attempt');
+
+/*
+ * Every gate and every panel must answer "what level is this skill" the same
+ * way. The review found six modules reading the stored field and five
+ * recomputing it, and after a run of bad attempts the two answers differed by
+ * three mastered skills — so the tree drew a skill as mastered while the gate
+ * behind it had quietly shut.
+ */
+const decayed = (() => {
+  let st = fresh();
+  const skill = webIndex.byId.get('internet_basics');
+  const run = (score, passed, tag, from) => {
+    for (let i = 0; i < 12; i += 1) {
+      const activity = skill.activities[i % skill.activities.length];
+      st = applyAttempt(st, webIndex, {
+        skillId: 'internet_basics', activityId: activity.id, kind: activity.kind,
+        score, passed, id: `${tag}:${i}`,
+      }, t0 + (from + i) * DAY).state;
+    }
+  };
+  run(99, true, 'strong', 0);
+  const peak = st.skills.internet_basics.level;
+  const openWhileStrong = statusSnapshot(webIndex, (id) => st.skills[id]);
+  run(5, false, 'slump', 40);
+  return { st, peak, openWhileStrong };
+})();
+
+check('a run of failures does not take a mastered skill back down',
+  decayed.st.skills.internet_basics.level === decayed.peak && decayed.peak >= 4,
+  `peaked at ${decayed.peak}, now ${decayed.st.skills.internet_basics.level}`);
+
+check('the gate and the panel report the same level',
+  levelOf((id) => decayed.st.skills[id], 'internet_basics') === decayed.st.skills.internet_basics.level,
+  'levelOf disagreed with the stored level, so gates and the tree would drift apart');
+
+check('nothing re-locks when scores slump',
+  newlyUnlocked(webIndex, (id) => decayed.st.skills[id], decayed.openWhileStrong).length >= 0
+  && Object.entries(decayed.openWhileStrong)
+    .filter(([, s]) => s === STATUS.AVAILABLE || s === STATUS.IN_PROGRESS)
+    .every(([id]) => isUnlocked(webIndex, id, (x) => decayed.st.skills[x])),
+  'a skill that was open closed again after a bad week');
+
+/* Reading a lesson is not evidence.
+ *
+ * `learn` activities have nothing to grade, and were recorded as score 100.
+ * Mastery averages scores, so skimming lessons pushed a skill's mastery up
+ * without a single graded answer behind it. */
+check('a lesson contributes no score',
+  (await grade({ kind: 'learn' }, { acknowledged: true })).score === null,
+  'a lesson returned a numeric score');
+
+check('lesson reads do not inflate mastery', (() => {
+  let st = fresh();
+  const skill = webIndex.byId.get('internet_basics');
+  const lesson = skill.activities.find((a) => a.kind === 'learn');
+  const quiz = skill.activities.find((a) => a.kind === 'quiz');
+  if (!lesson || !quiz) return true;
+  st = applyAttempt(st, webIndex, {
+    skillId: 'internet_basics', activityId: quiz.id, kind: 'quiz',
+    score: 50, passed: true, id: 'infl:quiz',
+  }, t0).state;
+  const before = st.skills.internet_basics.masteryScore;
+  const after = applyAttempt(st, webIndex, {
+    skillId: 'internet_basics', activityId: lesson.id, kind: 'learn',
+    score: null, passed: true, id: 'infl:lesson',
+  }, t0 + DAY).state.skills.internet_basics.masteryScore;
+  return after <= before + 1;
+})(), 'reading a lesson raised the mastery score');
+
+/* Answer parsing, as learners actually type it.
+ *
+ * A minus sign copied out of a maths page is U+2212, not the ASCII hyphen, and
+ * an answer pasted from a document can carry an en dash. Both parsed as null,
+ * so a correct negative answer was marked wrong with no explanation. */
+eq('a unicode minus parses', parseNumeric('−7.5'), -7.5);
+eq('an en dash parses as a minus', parseNumeric('–3'), -3);
+eq('a per-cent sign divides by a hundred', parseNumeric('45%'), 0.45);
+
+/*
+ * The per-cent question. The maths tree stores some answers as the fraction
+ * (0.96) and some as the number (25), and "96%" has to be right in both
+ * conventions — the learner is expressing the same quantity either way.
+ */
+check('a percentage matches a fraction-stored answer', numericMatches('96%', 0.96, 1e-6).ok);
+check('the same keystrokes match a number-stored answer', numericMatches('25%', 25, 1e-6).ok);
+check('a wrong percentage is still wrong', !numericMatches('12%', 45, 0.5).ok);
+check('a wrong plain number is still wrong', !numericMatches('12', 45, 0.5).ok);
+
+/* Idempotency has to be real.
+ *
+ * The session layer deduped on an id the UI never sent, so the guard was dead
+ * code: a double-tapped submit paid twice. It now fingerprints the submission
+ * itself. */
+check('an identical resubmission collides', (() => {
+  const id = 'internet_basics.quiz';
+  return fingerprint(id, { answers: [0, 2, 1], durationMs: 4000 })
+    === fingerprint(id, { answers: [0, 2, 1], durationMs: 91000 });
+})(), 'the same answers hashed differently, so a double submit would pay twice');
+
+check('a changed answer gets its own id',
+  fingerprint('internet_basics.quiz', { answers: [0, 2, 1] })
+  !== fingerprint('internet_basics.quiz', { answers: [0, 2, 3] }),
+  'a genuine retry collided with the previous attempt');
+
+check('the same answers to a different activity do not collide',
+  fingerprint('a.quiz', { answers: [1] }) !== fingerprint('b.quiz', { answers: [1] }));
+
+check('every field grade() reads is fingerprinted', (() => {
+  const base = { answers: [1], source: 'x', checked: [true] };
+  return ['answers', 'source', 'checked'].every((field) => {
+    const changed = { ...base, [field]: field === 'answers' ? [2] : (field === 'source' ? 'y' : [false]) };
+    return fingerprint('a', base) !== fingerprint('a', changed);
+  });
+})(), 'a submission field that changes the grade is not part of the fingerprint');
+
+/* Trees with cycles must not reach the catalog. */
+check('registering a cyclic tree throws', (() => {
+  try {
+    indexTree({
+      id: 'cyc', name: 'Cyclic', skills: [
+        { id: 'a', name: 'A', requires: [{ skillId: 'b', minLevel: 1 }], activities: [] },
+        { id: 'b', name: 'B', requires: [{ skillId: 'a', minLevel: 1 }], activities: [] },
+      ],
+    });
+    return false;
+  } catch { return true; }
+})(), 'a cyclic tree was indexed without complaint');
+
+/* The first-unlock badge is about gates, not about starting a lot of skills.
+ *
+ * It counted two started skills, so opening two *roots* — two skills that
+ * require nothing and are open from the first minute — awarded a badge whose
+ * text reads "Unlock a skill by meeting its requirements". */
+const reqCount = { requirementCount: (id) => (webIndex.byId.get(id)?.requires || []).length };
+const roots = [...webIndex.byId.values()].filter((sk) => !(sk.requires || []).length);
+
+check('the web tree has roots to test with', roots.length >= 1);
+
+check('opening only roots does not award Door Opened', (() => {
+  const skills = {};
+  for (const root of roots) skills[root.id] = newUserSkill(t0);
+  return !evaluate({ skills }, reqCount).includes('first_unlock');
+})(), 'Door Opened fired for skills that require nothing');
+
+check('opening a gated skill does award Door Opened',
+  evaluate({ skills: { semantic_html: newUserSkill(t0) } }, reqCount).includes('first_unlock'));
+
+/*
+ * Declared standing is not practice.
+ *
+ * Onboarding replays attempts so an experienced learner is not made to re-sit a
+ * quiz on what a browser is. That standing is real and should count. What it
+ * must not do is manufacture a history: a brand-new account greeted its owner
+ * with "STREAK 4 days", "last practised 12h ago" and three achievements
+ * reading "Earned just now" — one of them "First Step: complete your first
+ * activity" — before they had done anything at all. The welcome screen
+ * promises the opposite in as many words.
+ */
+const seeded = (() => {
+  let st = fresh();
+  const skill = webIndex.byId.get('internet_basics');
+  for (const activity of skill.activities.slice(0, 2)) {
+    st = applyAttempt(st, webIndex, {
+      skillId: 'internet_basics', activityId: activity.id, kind: activity.kind,
+      score: 82, passed: true, id: `seed:${activity.id}`, seeded: true,
+    }, t0).state;
+  }
+  return st;
+})();
+
+eq('a seeded attempt starts no streak', seeded.streak.current, 0);
+eq('a seeded attempt sets no longest streak', seeded.streak.longest, 0);
+check('a seeded attempt still builds real standing',
+  (seeded.skills.internet_basics.level || 0) >= 1 && seeded.skills.internet_basics.xp > 0);
+check('the skill is marked as never practised', seeded.skills.internet_basics.neverPractised === true);
+
+check('seeding earns no "complete your first activity"',
+  !evaluate(seeded, reqCount).includes('first_step'),
+  'a badge for work the learner had not done');
+
+check('seeding earns no "fail then pass"', !evaluate(seeded, reqCount).includes('persistent'));
+
+/* …but one real attempt on top does earn it, and does start a streak. */
+const seededThenReal = applyAttempt(seeded, webIndex, {
+  skillId: 'internet_basics', activityId: skillActivity('internet_basics', 'quiz').id,
+  kind: 'quiz', score: 90, passed: true, id: 'real:1',
+}, t0 + DAY).state;
+
+check('a real attempt after seeding earns First Step',
+  evaluate(seededThenReal, reqCount).includes('first_step'));
+eq('a real attempt after seeding starts the streak', seededThenReal.streak.current, 1);
+check('the skill is no longer marked never practised',
+  seededThenReal.skills.internet_basics.neverPractised === false);
 
 /* ================================================================== *
  * The demo profile

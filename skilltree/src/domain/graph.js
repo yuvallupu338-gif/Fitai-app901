@@ -45,6 +45,18 @@ export function indexTree(tree) {
     }
   }
 
+  /*
+   * Reject a cycle here, not at render time.
+   *
+   * The catalogue's comment promised registration caught cycles; it did not —
+   * only duplicate ids and dangling prerequisites were checked, and a cyclic
+   * tree registered cleanly and then blew up somewhere else entirely. Two of
+   * the three graph walks in the app are recursive and died with a stack
+   * overflow rather than a message naming the tree.
+   */
+  const cycle = findCycle(tree);
+  if (cycle) throw new Error(`${tree.id}: circular dependency: ${cycle.join(' -> ')}`);
+
   return { tree, byId, dependents };
 }
 

@@ -19,6 +19,14 @@
 
 const DAY = 86400000;
 
+/* Kept in step with `dayNumber` in progress.js — both must agree on where a
+ * day starts, or the streak and the consistency score describe different
+ * calendars. */
+function localDay(ms) {
+  const d = new Date(ms);
+  return Math.floor((d.getTime() - d.getTimezoneOffset() * 60000) / DAY);
+}
+
 /*
  * The four components of a mastery score, with the weights from §46. Exported
  * and passed through rather than inlined because the brief explicitly asks for
@@ -131,7 +139,10 @@ export function consistencyScore(attempts, now = Date.now()) {
   const window = now - 21 * DAY;
   const days = new Set();
   for (const a of list) {
-    if (a.at >= window) days.add(Math.floor(a.at / DAY));
+    /* Local calendar days, matching `dayNumber` in progress.js. Bucketing by
+     * UTC counted one evening's work as two separate days for anyone far
+     * enough from UTC, doubling this component for them. */
+    if (a.at >= window) days.add(localDay(a.at));
   }
   if (!days.size) return 0;
   return Math.min(100, (days.size / 6) * 100);

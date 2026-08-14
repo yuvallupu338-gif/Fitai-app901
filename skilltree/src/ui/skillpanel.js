@@ -18,20 +18,12 @@ import { icon } from './icons.js';
 import { findSkill } from '../data/catalog.js';
 import { requirementStatus, statusOf, STATUS } from '../domain/unlock.js';
 import { skillProgress, skillLevelMeta, xpForSkillLevel } from '../domain/levels.js';
-import { skillCapacity } from '../domain/xp.js';
+import { skillCapacity, labelForKind } from '../domain/xp.js';
 import { nextActivityFor } from '../domain/missions.js';
 import * as session from '../core/session.js';
 import { go } from '../core/router.js';
 
-const KIND_LABEL = {
-  learn: 'Lesson',
-  quiz: 'Quiz',
-  practice: 'Practice',
-  challenge: 'Challenge',
-  project: 'Project',
-  assessment: 'Assessment',
-  mastery: 'Mastery challenge',
-};
+
 
 const KIND_ICON = {
   learn: 'book', quiz: 'check', practice: 'refresh', challenge: 'bolt',
@@ -118,7 +110,7 @@ export function openSkill(skillId, opts = {}) {
         status === STATUS.LOCKED ? 'Requirements to unlock' : 'Requirements'),
       h('div.list', ...reqs.map((r) => h('div.list-item', { style: { cursor: 'default' } },
         h('span', {
-          style: { color: r.met ? 'var(--lime)' : 'var(--bone-dimmer)', display: 'flex' },
+          style: { color: r.met ? 'var(--accent-ink)' : 'var(--bone-dimmer)', display: 'flex' },
           'aria-hidden': 'true',
         }, icon(r.met ? 'check' : 'lock', { size: 16 })),
         h('div.grow',
@@ -148,11 +140,11 @@ export function openSkill(skillId, opts = {}) {
           disabled: locked,
           onclick: () => { close(); go(`activity/${activity.id}`); },
         },
-        h('span', { style: { color: done ? 'var(--lime)' : 'var(--bone-dimmer)', display: 'flex' }, 'aria-hidden': 'true' },
+        h('span', { style: { color: done ? 'var(--accent-ink)' : 'var(--bone-dimmer)', display: 'flex' }, 'aria-hidden': 'true' },
           icon(done ? 'check' : KIND_ICON[activity.kind] || 'play', { size: 16 })),
         h('div.grow',
           h('div.title', activity.title),
-          h('div.sub', KIND_LABEL[activity.kind] || 'Activity')),
+          h('div.sub', labelForKind(activity.kind))),
         done ? h('span.chip.on', 'Passed')
           : tried ? h('span.chip.warn', 'Retry')
             : null);

@@ -175,18 +175,60 @@ export function sheet(content, opts = {}) {
     if (closed) return;
     closed = true;
     document.removeEventListener('keydown', onKey);
+    window.removeEventListener('hashchange', onHashChange);
     backdrop.classList.add('closing');
     const done = () => {
       backdrop.remove();
       document.body.classList.remove('sheet-open');
-      if (previouslyFocused && previouslyFocused.focus) previouslyFocused.focus();
+
+      /*
+       * Run the caller's onClose FIRST, then restore focus.
+       *
+       * The other order looked right and was not: every caller's onClose
+       * re-renders the screen behind the dialog, which destroys the element
+       * that was just focused, and the browser drops focus to <body>. A
+       * keyboard user was returned to the top of the document every time they
+       * closed a skill.
+       *
+       * After the re-render the original node is usually gone, so we re-find
+       * it by what identifies it rather than by reference.
+       */
+      const marker = previouslyFocused && previouslyFocused.dataset
+        ? previouslyFocused.dataset.skill : null;
+
       if (opts.onClose) opts.onClose();
+
+      const target = (previouslyFocused && previouslyFocused.isConnected)
+        ? previouslyFocused
+        : (marker ? document.querySelector(`[data-skill="${CSS.escape(marker)}"]`) : null);
+
+      if (target && target.focus) target.focus();
+      else if (opts.focusFallback) {
+        const fallback = document.querySelector(opts.focusFallback);
+        if (fallback && fallback.focus) fallback.focus();
+      }
     };
     if (reduceMotion) done();
     else window.setTimeout(done, 180);
   }
 
+  /*
+   * A route change closes the sheet.
+   *
+   * Back is the natural way to dismiss a modal, and pressing it left the
+   * backdrop mounted over whatever screen the router then drew: the dashboard
+   * rendered underneath, `body.sheet-open` stayed set, and the backdrop was
+   * the topmost element everywhere on the page — every nav link, tab and card
+   * unclickable, with nothing visible to dismiss. The app was simply stuck.
+   *
+   * This listens to `hashchange` rather than taking the router as a dependency,
+   * because core/dom.js sits below the router and a modal outliving its screen
+   * is a browser-level concern, not a routing decision.
+   */
+  function onHashChange() { close(); }
+
   document.addEventListener('keydown', onKey);
+  window.addEventListener('hashchange', onHashChange);
   document.body.classList.add('sheet-open');
   document.body.appendChild(backdrop);
 

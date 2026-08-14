@@ -8,6 +8,25 @@
  * — .card, .card.quiet and .card.feature — and screens pick deliberately.
  */
 
+.skip-link {
+  position: fixed;
+  top: var(--s2);
+  left: var(--s2);
+  z-index: 100;
+  padding: 10px var(--s4);
+  border-radius: var(--r-sm);
+  border: 1px solid var(--accent-ink);
+  background: var(--surface);
+  color: var(--bone);
+  font-size: 14px;
+  font-weight: 580;
+  text-decoration: none;
+  /* Off-screen rather than display:none, so it stays focusable. */
+  transform: translateY(-200%);
+  transition: transform var(--fast) var(--ease);
+}
+.skip-link:focus { transform: none; }
+
 /* ------------------------------------------------------------------ *
  * Cards
  * ------------------------------------------------------------------ */
@@ -145,7 +164,7 @@
   display: block;
   height: 100%;
   border-radius: inherit;
-  background: var(--lime);
+  background: var(--accent-ink);
   transition: width var(--slow) var(--ease-out);
 }
 
@@ -178,7 +197,7 @@
 .chip.on {
   border-color: var(--lime-line);
   background: var(--lime-soft);
-  color: var(--lime);
+  color: var(--accent-ink);
 }
 .chip.warn { border-color: transparent; background: var(--warn-soft); color: var(--warn); }
 .chip.fail { border-color: transparent; background: var(--fail-soft); color: var(--fail); }
@@ -195,7 +214,7 @@
   background: var(--surface-3);
   color: var(--bone-dim);
 }
-.lvl.on { background: var(--lime-soft); color: var(--lime); }
+.lvl.on { background: var(--lime-soft); color: var(--accent-ink); }
 
 /* ------------------------------------------------------------------ *
  * Skill node — the tree's atom
@@ -287,7 +306,7 @@
   border-style: solid;
   border-color: var(--st-complete-line);
   background: var(--st-complete-face);
-  color: var(--lime);
+  color: var(--accent-ink);
 }
 .node[data-state="completed"] .node-label { color: var(--bone); }
 
@@ -306,7 +325,7 @@
   position: absolute;
   inset: -4px;
   border-radius: 50%;
-  background: conic-gradient(var(--lime) calc(var(--p) * 1%), transparent 0);
+  background: conic-gradient(var(--accent-ink) calc(var(--p) * 1%), transparent 0);
   -webkit-mask: radial-gradient(circle, transparent 0 61%, #000 62%);
   mask: radial-gradient(circle, transparent 0 61%, #000 62%);
 }
@@ -315,7 +334,7 @@
  * class toggle repaints the whole tree rather than 300 inline styles. */
 .tree-canvas.focusing .node { opacity: .26; }
 .tree-canvas.focusing .node.lit { opacity: 1; }
-.tree-canvas.focusing .node.lit .node-ring { border-color: var(--lime); }
+.tree-canvas.focusing .node.lit .node-ring { border-color: var(--accent-ink); }
 
 /* Goal-path membership is a persistent mark, not a hover state: a small filled
  * dot under the label, so it survives alongside every other state. */
@@ -325,7 +344,7 @@
   width: 4px; height: 4px;
   margin: 4px auto 0;
   border-radius: 50%;
-  background: var(--lime);
+  background: var(--accent-ink);
 }
 
 /* ------------------------------------------------------------------ *
@@ -373,7 +392,7 @@
 }
 .tree-edge.met { stroke: var(--lime-line); }
 .tree-canvas.focusing .tree-edge { stroke: var(--line-soft); }
-.tree-canvas.focusing .tree-edge.lit { stroke: var(--lime); stroke-width: 2; }
+.tree-canvas.focusing .tree-edge.lit { stroke: var(--accent-ink); stroke-width: 2; }
 
 .tree-controls {
   position: absolute;
@@ -555,7 +574,7 @@
 
 .pick:hover { border-color: var(--bone-dimmer); }
 .pick[aria-pressed="true"], .pick.on {
-  border-color: var(--lime);
+  border-color: var(--accent-ink);
   background: var(--lime-soft);
 }
 
@@ -571,13 +590,28 @@
 }
 .pick[aria-pressed="true"] .pick-mark,
 .pick.on .pick-mark {
-  border-color: var(--lime);
-  background: var(--lime);
+  border-color: var(--accent-ink);
+  background: var(--accent-ink);
   color: var(--lime-ink);
 }
 .pick.box .pick-mark { border-radius: 5px; }
 
-.pick.right { border-color: var(--lime); background: var(--lime-soft); }
+.pick.right { border-color: var(--accent-ink); background: var(--lime-soft); }
+/* The word, not just the colour. */
+.pick-verdict {
+  flex: none;
+  align-self: center;
+  font-size: 11px;
+  font-weight: 620;
+  letter-spacing: .04em;
+  text-transform: uppercase;
+  white-space: nowrap;
+}
+.pick.right .pick-verdict { color: var(--accent-ink); }
+.pick.wrong .pick-verdict { color: var(--fail); }
+/* A graded option is no longer a live control, so its selection dot must stop
+ * reading as "chosen". */
+.pick.wrong .pick-mark { background: transparent; border-color: var(--fail); }
 .pick.wrong { border-color: var(--fail); background: var(--fail-soft); }
 
 .pick-body { flex: 1; min-width: 0; }
@@ -626,6 +660,15 @@
 .notice.fail { border-color: transparent; background: var(--fail-soft); color: var(--fail); }
 .notice svg { flex: none; width: 16px; height: 16px; margin-top: 2px; }
 
+.notice-toggle {
+  width: 100%;
+  text-align: left;
+  font: inherit;
+  cursor: pointer;
+}
+/* Only interactive where it is actually clamped. */
+@media (min-width: 861px) { .notice-toggle { cursor: default; } }
+
 /* ------------------------------------------------------------------ *
  * Toasts and moments
  * ------------------------------------------------------------------ */
@@ -665,8 +708,8 @@
 
 .toast.leaving { animation: toast-out var(--mid) var(--ease) forwards; }
 .toast.xp { border-color: var(--lime-line); }
-.toast.xp b { font-family: var(--mono); color: var(--lime); }
-.toast svg { width: 17px; height: 17px; flex: none; color: var(--lime); }
+.toast.xp b { font-family: var(--mono); color: var(--accent-ink); }
+.toast svg { width: 17px; height: 17px; flex: none; color: var(--accent-ink); }
 
 @keyframes toast-in { from { opacity: 0; transform: translateY(8px) } to { opacity: 1; transform: none } }
 @keyframes toast-out { to { opacity: 0; transform: translateY(6px) } }
@@ -685,7 +728,7 @@
   font-weight: 640;
   letter-spacing: .16em;
   text-transform: uppercase;
-  color: var(--lime);
+  color: var(--accent-ink);
 }
 .moment-jump {
   display: flex;
@@ -698,7 +741,7 @@
   font-weight: 640;
   letter-spacing: -.04em;
 }
-.moment-jump .to { color: var(--lime); }
+.moment-jump .to { color: var(--accent-ink); }
 .moment-jump .from { color: var(--bone-dimmer); }
 .moment-jump svg { width: 22px; height: 22px; color: var(--bone-dimmer); }
 .moment ul { margin: 0; padding: 0; list-style: none; color: var(--bone-dim); font-size: 14px; }
@@ -739,7 +782,7 @@
   flex: none;
   background: var(--line);
 }
-.dot.on { background: var(--lime); }
+.dot.on { background: var(--accent-ink); }
 
 /* ------------------------------------------------------------------ *
  * Stat readouts
@@ -827,7 +870,7 @@
   line-height: 1.5;
 }
 .testrow .mark { flex: none; font-weight: 700; }
-.testrow.pass .mark { color: var(--lime); }
+.testrow.pass .mark { color: var(--accent-ink); }
 .testrow.fail .mark { color: var(--fail); }
 .testrow .detail { color: var(--bone-dimmer); overflow-x: auto; }
 
@@ -836,16 +879,20 @@
  * ------------------------------------------------------------------ */
 
 .chart { width: 100%; display: block; overflow: visible; }
+/* Never stretch a chart's glyphs. `preserveAspectRatio: none` scaled the XP
+ * chart's x-axis to 0.40 while leaving y at 1.0, so the axis labels rendered as
+ * illegible slivers on a phone. */
+.chart text { vector-effect: non-scaling-stroke; }
 .chart .axis { stroke: var(--line); stroke-width: 1; }
 .chart .gridline { stroke: var(--line-soft); stroke-width: 1; }
 .chart .tick { fill: var(--bone-dimmer); font-size: 10px; font-family: var(--mono); }
 .chart .area { fill: var(--lime-soft); }
-.chart .line { fill: none; stroke: var(--lime); stroke-width: 1.75; stroke-linejoin: round; stroke-linecap: round; }
-.chart .barfill { fill: var(--lime); }
+.chart .line { fill: none; stroke: var(--accent-ink); stroke-width: 1.75; stroke-linejoin: round; stroke-linecap: round; }
+.chart .barfill { fill: var(--accent-ink); }
 .chart .barfill.zero { fill: var(--line); }
 .chart .radar-web { fill: none; stroke: var(--line-soft); stroke-width: 1; }
-.chart .radar-shape { fill: var(--lime-soft); stroke: var(--lime); stroke-width: 1.75; }
-.chart .radar-point { fill: var(--lime); }
+.chart .radar-shape { fill: var(--lime-soft); stroke: var(--accent-ink); stroke-width: 1.75; }
+.chart .radar-point { fill: var(--accent-ink); }
 .chart .radar-label { fill: var(--bone-dim); font-size: 11px; }
 
 /* ------------------------------------------------------------------ *
@@ -878,9 +925,17 @@
   background: var(--surface-3);
   transition: background var(--mid) var(--ease);
 }
-.steps i.on { background: var(--lime); }
+.steps i.on { background: var(--accent-ink); }
 .steps i.done { background: var(--lime-deep); }
 
+
+/*
+ * An unearned achievement is dimmed by its icon and a chip, not by fading the
+ * whole card. Blanket opacity took the description to 2.2:1 — half the screen,
+ * and the half that is meant to motivate, under half the required ratio.
+ */
+.card.locked .card-note { color: var(--bone-dimmer); }
+.card.locked { border-style: dashed; }
 
 /* ================================================================== *
  * Phone
@@ -901,6 +956,14 @@
   }
 
   .grid.stats > .card { padding: var(--s3); }
+
+  /* A chip is a real control on the goal path, the plan's pace selector, the
+   * tree switcher and the skill panel's unlocks. 26px tall is not a thumb
+   * target; the app's own rule says 44. Padding rather than font size, so the
+   * label stays the same size. */
+  button.chip { min-height: 40px; padding-left: var(--s3); padding-right: var(--s3); }
+  .btn.small { min-height: 40px; }
+  .sheet-close { width: 44px; height: 44px; }
 
   /* An odd final tile left alone in a two-column row reads as a layout
    * mistake; letting it span reads as the end of the list. Scoped to this

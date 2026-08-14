@@ -15,7 +15,6 @@
 
 import { call, hasAnyKey, AiError } from './provider.js';
 import { validateTree, extractJson } from './schema.js';
-import { registerTree } from '../data/catalog.js';
 
 const SYSTEM = `You design skill trees for a learning app. You return structured data only.
 
@@ -143,20 +142,14 @@ Make the dependencies reflect what genuinely has to come first.`;
   };
 }
 
-/**
- * Commit a generated tree so it behaves exactly like a seeded one.
+/*
+ * Committing a generated tree lives in session.js, not here.
  *
- * Registration re-indexes, which is the final structural check: anything that
- * slipped past validation throws here, before the tree is ever rendered.
+ * It registers *and* persists, and those two have to happen together: this
+ * module used to register into the in-memory catalogue alone, so an accepted
+ * tree survived exactly until the next reload — while the attempts made
+ * against its skills stayed in the profile with nothing to resolve them to.
  */
-export function acceptTree(tree) {
-  try {
-    registerTree(tree);
-    return { ok: true };
-  } catch (err) {
-    return { ok: false, error: err.message };
-  }
-}
 
 /*
  * Activities for a generated tree.

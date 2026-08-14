@@ -20,7 +20,7 @@
  * about how progression behaves.
  */
 
-import { computeAward, appendXpEvent, totalXp, skillCapacity } from './xp.js';
+import { computeAward, appendXpEvent, totalXp, skillCapacity, labelForKind } from './xp.js';
 import { computeMastery, confidenceFor } from './mastery.js';
 import { levelFor, levelForXp } from './levels.js';
 import { statusSnapshot, newlyUnlocked, statusOf, isUnlocked } from './unlock.js';
@@ -36,6 +36,10 @@ export function newUserSkill(skillId, difficulty = 1, capacity = 0, now = Date.n
     capacity,
     xp: 0,
     level: 1,
+    /* The high-water mark. See the note on demotion in applyAttempt. */
+    peakLevel: 1,
+    /* XP earned per activity, so the per-activity ceiling can be enforced. */
+    earnedByActivity: {},
     masteryScore: 0,
     confidence: 0,
     attempts: [],
@@ -135,6 +139,10 @@ export function applyAttempt(state, index, attempt, now = Date.now()) {
     passed,
     at: now,
     durationMs: attempt.durationMs || null,
+    /* Carried so the rest of the app can tell "you did this" from "you told us
+     * you already knew this at setup" — the streak, the achievements and the
+     * "last practised" line all need to know the difference. */
+    ...(attempt.seeded ? { seeded: true } : {}),
   };
 
   const attempts = prev.attempts.concat([record]);
@@ -143,12 +151,14 @@ export function applyAttempt(state, index, attempt, now = Date.now()) {
    * and then passing still pays full value. */
   const passKey = activityId;
   const previousPasses = prev.passCounts[passKey] || 0;
+  const alreadyEarned = (prev.earnedByActivity || {})[passKey] || 0;
   const award = computeAward({
     kind,
     score,
     previousPasses,
     difficulty: prev.difficulty,
     passed,
+    alreadyEarned,
   });
 
   const xpEvents = award > 0
@@ -173,12 +183,30 @@ export function applyAttempt(state, index, attempt, now = Date.now()) {
    * activity. A stale denominator would silently mis-state every level. */
   const capacity = skillCapacity(skill.activities, prev.difficulty || skill.difficulty || 1);
 
-  const level = levelFor({
+  const computedLevel = levelFor({
     xp: skillXp,
     masteryScore: mastery.score,
     capacity,
     started: true,
   });
+
+  /*
+   * A level is a high-water mark. It does not fall.
+   *
+   * Mastery is a recency-weighted mean, so a couple of failed retries drag it
+   * down — and because the level was recomputed from it, the level fell too,
+   * which re-closed gates the learner had already opened. The review
+   * reproduced it: pass everything (level 4, next skill unlocked), fail the
+   * quiz twice, and the next skill silently re-locks. No event was emitted, so
+   * nothing even told them.
+   *
+   * That punishes the exact behaviour the whole app encourages — §45's "retry
+   * freely" is meaningless if retrying can cost you access. So the earned
+   * level stands, and the things that *should* move with recent performance
+   * still do: masteryScore falls, confidence falls, and the review queue picks
+   * it up. What you proved once, you keep.
+   */
+  const level = Math.max(prev.peakLevel || prev.level || 0, computedLevel);
 
   const updated = {
     ...prev,
@@ -186,10 +214,20 @@ export function applyAttempt(state, index, attempt, now = Date.now()) {
     xp: skillXp,
     attempts,
     passCounts: passed ? { ...prev.passCounts, [passKey]: previousPasses + 1 } : prev.passCounts,
+    earnedByActivity: award > 0
+      ? { ...(prev.earnedByActivity || {}), [passKey]: alreadyEarned + award }
+      : (prev.earnedByActivity || {}),
     masteryScore: mastery.score,
     masteryParts: mastery.parts,
     level,
+    peakLevel: level,
+    /* Kept for seeded attempts too — confidence has to decay from *somewhere*,
+     * and declared standing goes stale like anything else. What it must not do
+     * is get rendered as "last practised 12h ago", so `neverPractised` lets the
+     * screens say "set at setup" instead of describing a session that did not
+     * happen. */
     lastPracticedAt: now,
+    neverPractised: attempts.every((a) => a.seeded),
     completedAt: prev.completedAt || (level >= 3 ? now : null),
     masteredAt: prev.masteredAt || (level >= 5 ? now : null),
   };
@@ -233,16 +271,25 @@ export function applyAttempt(state, index, attempt, now = Date.now()) {
     if (lvl) lvl.unlocked = opened.length;
   }
 
-  next = touchStreak(next, now);
+  /*
+   * A seeded attempt does not touch the streak.
+   *
+   * Onboarding replays attempts to open the gates for someone who already
+   * knows the material — which is right, that standing is real. Spreading them
+   * over the previous fortnight so mastery has something to read then fed
+   * `touchStreak`, and a brand-new account greeted its owner with "STREAK 4
+   * days" and "last practised 12h ago" for sessions that never happened. The
+   * welcome screen promises the opposite in as many words: nothing here
+   * unlocks because you pressed done.
+   *
+   * Standing, yes. History, no.
+   */
+  if (!attempt.seeded) next = touchStreak(next, now);
   return { state: next, events };
 }
 
 function labelFor(kind, skillName) {
-  const verb = {
-    learn: 'Lesson', quiz: 'Quiz', practice: 'Practice', challenge: 'Challenge',
-    project: 'Project', assessment: 'Assessment', mastery: 'Mastery challenge',
-  }[kind] || 'Activity';
-  return `${skillName} ${verb.toLowerCase()}`;
+  return `${skillName} ${labelForKind(kind).toLowerCase()}`;
 }
 
 /*
