@@ -81,9 +81,16 @@ export const REASONS = {
  * started, and putting it in a plan at any position is a plan that cannot be
  * executed.
  */
+/* How far ahead undated work is still fair game. Planning tomorrow should
+ * behave much like planning today; planning a Thursday three weeks out should
+ * not drag in the entire backlog, because a plan made that far ahead against
+ * work with no deadline is a plan that will be wrong by the time it matters. */
+const UNDATED_HORIZON_DAYS = 7;
+
 export function eligibleTasks(dayIso, ctx) {
   const graph = ctx.graph || buildGraph(ctx.tasks || [], ctx.dependencies || []);
-  const isToday = dayIso === (ctx.today || todayIso());
+  const today = ctx.today || todayIso();
+  const daysAhead = daysBetween(today, dayIso);
 
   return (ctx.tasks || []).filter((task) => {
     if (task.status === 'done' || task.status === 'cancelled') return false;
@@ -96,11 +103,19 @@ export function eligibleTasks(dayIso, ctx) {
     if (task.scheduledDate && task.scheduledDate !== dayIso) return false;
     if (task.scheduledDate === dayIso) return true;
 
-    /* Unscheduled work is eligible for today and for a day being planned
-     * ahead. Overdue work is eligible regardless — that is what overdue
-     * means. */
+    /* Overdue by the day being planned. That is what overdue means. */
     if (task.dueDate && task.dueDate <= dayIso) return true;
-    if (isToday) return true;
+
+    /*
+     * Undated work within the horizon.
+     *
+     * The rule here used to require a due date for any day that was not today,
+     * which quietly made "תכנן את מחר" return an empty plan for anybody whose
+     * tasks had no deadlines — which is most people, and is the normal way to
+     * use this app. A day inside the horizon takes undated work; beyond it,
+     * only work whose deadline is actually approaching.
+     */
+    if (daysAhead >= 0 && daysAhead <= UNDATED_HORIZON_DAYS) return true;
     return daysBetween(dayIso, task.dueDate || '9999-12-31') <= 14;
   });
 }

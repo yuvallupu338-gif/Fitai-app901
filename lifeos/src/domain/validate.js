@@ -154,6 +154,20 @@ export function oneOf(values, opts) {
     run(value, path, lenient) {
       const fallback = o.default === undefined ? values[0] : o.default;
       if (allowed.has(value)) return { ok: true, value, errors: [] };
+
+      /*
+       * An ABSENT field with a declared default is not an error — that is what
+       * a default is for. Only a field that is present and wrong is.
+       *
+       * This distinction was missing, and the consequence was not subtle: a
+       * form that did not explicitly set energyLevel and recurrence could not
+       * create a task at all, because strict parse rejected both. Every enum
+       * in the schema carries a default, so every create() went through this
+       * path.
+       */
+      const absent = value === undefined || value === null || value === '';
+      if (absent && o.default !== undefined) return { ok: true, value: fallback, errors: [] };
+
       return lenient
         ? { ok: true, value: fallback, errors: [] }
         : { ok: false, value: fallback, errors: [fail(path, CODES.ENUM, { allowed: values })] };

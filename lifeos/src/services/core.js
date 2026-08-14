@@ -121,14 +121,43 @@ export function updateProfile(patch) {
 export function preferences() {
   const raw = db.getPreferences() || {};
   const prefs = PreferencesSchema.coerce(raw);
-  /* Preferences are stored with the weights as five numbers that a person can
-   * drag independently, so they will not sum to 1. Normalising on read means
-   * the engines never have to, and the settings screen can show the sliders
-   * as raw values without doing arithmetic to display them. */
+
+  /*
+   * The daily capacity ceiling lives on the profile, and the planner reads it
+   * as a constraint. Merged here, at the one place preferences are read.
+   *
+   * It is on the profile because §120 puts it there, alongside the timezone
+   * and the planning style — it describes the person rather than the
+   * scheduling policy. But capacity.js needs it, and capacity.js is handed
+   * preferences. Without this line it arrives as undefined, the ceiling is
+   * never applied, and every day is planned against the full working window:
+   * somebody who said they have three hours a day gets a plan with eleven
+   * hours in it, and the feasibility check declares every deadline reachable.
+   *
+   * Merging beats duplicating the field into both schemas. Two copies of a
+   * number a person edits in one screen is two numbers that disagree.
+   */
+  prefs.dailyCapacityMinutes = ProfileSchema.coerce(db.getProfile() || {}).dailyCapacityMinutes;
+
+  /* The weights are stored as five independently-dragged numbers and do not
+   * sum to 1. priority.js normalises them on use, so the settings screen can
+   * show the raw values without doing arithmetic to display them. */
   return prefs;
 }
 
 export function updatePreferences(patch) {
+  /*
+   * dailyCapacityMinutes is read from here and stored on the profile, so a
+   * caller that sets it through this function is routed rather than ignored.
+   *
+   * Without this the field is silently dropped by coerce — the settings screen
+   * appears to save, the number appears to change, and the planner keeps using
+   * the old one. A no-op that looks like a success is the worst shape a bug
+   * can take in a settings screen.
+   */
+  if (Object.prototype.hasOwnProperty.call(patch, 'dailyCapacityMinutes')) {
+    updateProfile({ dailyCapacityMinutes: patch.dailyCapacityMinutes });
+  }
   const next = PreferencesSchema.coerce(Object.assign({}, preferences(), patch));
   db.setPreferences(next);
   return next;

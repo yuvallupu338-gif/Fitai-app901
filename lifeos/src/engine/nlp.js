@@ -114,6 +114,15 @@ const DURATION_PATTERNS = [
     source: '(\\d+)\\s*(?:דקות|דקה|דק[\'׳]?)',
     minutes: (g) => parseInt(g[0], 10),
   },
+  /*
+   * A bare "שעה", last so the numeric forms above claim "3 שעות" first.
+   *
+   * It is safe next to the time patterns for a reason worth stating: the
+   * boundary in findWord requires a non-letter before the match, and "בשעה
+   * 17:00" has ב immediately before it. So the preposition form used to
+   * introduce a clock time can never be read as a sixty-minute duration.
+   */
+  { source: 'שעה', minutes: () => 60 },
 ];
 
 export function parseDuration(text) {

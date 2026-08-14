@@ -89,29 +89,68 @@ function offsetAt(instant, tz) {
  *
  * THE TWO AMBIGUOUS CASES, AND WHAT THIS DOES WITH THEM.
  *
- * A time that does not exist — 02:30 on a spring-forward morning, when the
- * clock goes straight from 02:00 to 03:00 — resolves to the instant the clock
- * jumped to. That is what a person means when they type one.
- *
  * A time that happens twice — 01:30 on an autumn morning, lived through once
  * at UTC+3 and again at UTC+2 — resolves to the SECOND occurrence. Some
  * libraries pick the first; either is defensible and the only real
  * requirement is that the choice is deterministic, because a planner that
  * returns different answers for the same input is worse than one that picks
- * the less conventional hour. It is asserted in the tests so it cannot drift
- * silently.
+ * the less conventional hour. It is asserted in the tests so it cannot drift.
  *
- * Neither case can reach the planner in practice: both happen at 01:00–03:00,
- * and the working window is configurable but defaults to 08:00–22:00. What
- * does reach the planner is the day LENGTH, which dayLengthMinutes() gets
- * right by construction because it subtracts two real instants.
+ * A time that does not exist — 02:30 on a spring-forward morning, when the
+ * clock goes straight from 02:00 to 03:00 — clamps FORWARD to the first
+ * instant that does exist, which is 03:00.
+ *
+ * That clamp is not cosmetic, and the obvious alternative is a real bug. The
+ * two-pass arithmetic on its own maps 02:30 to 03:30 — shifted forward by the
+ * size of the gap — which looks reasonable until you notice it also maps 03:00
+ * to 03:00, an EARLIER instant. Nominal time then runs backwards across the
+ * discontinuity, and every duration computed as
+ *
+ *     instantAt(day, end) - instantAt(day, start)
+ *
+ * across that hour comes out negative. capacity.js computes every free window
+ * that way. Clamping restores monotonicity: the mapping from minute-of-day to
+ * instant is non-decreasing on every day of the year, so a window can be
+ * empty but never inside-out.
+ *
+ * In practice neither case reaches the planner — both happen between 01:00 and
+ * 03:00, and the working window defaults to 08:00–22:00. The day LENGTH does
+ * reach it, and dayLengthMinutes() is right by construction because it
+ * subtracts two real instants rather than assuming 1440.
  */
 export function instantFrom(year, month, day, hour, minute, tz) {
   const zone = tz || APP_TZ;
-  const naive = Date.UTC(year, month - 1, day, hour || 0, minute || 0, 0);
+  const h = hour || 0;
+  const m = minute || 0;
+
+  const naive = Date.UTC(year, month - 1, day, h, m, 0);
   let instant = naive - offsetAt(naive, zone);
   const refined = naive - offsetAt(instant, zone);
   if (refined !== instant) instant = refined;
+
+  /*
+   * Did we land on the time we were asked for?
+   *
+   * Everywhere except a spring-forward gap, yes. Inside one there is no such
+   * instant, and the arithmetic above quietly returns the one an hour later.
+   * Walking forward a minute at a time to the first minute that does exist
+   * costs at most the length of the gap, runs on roughly sixty minutes a year,
+   * and is what keeps the mapping monotonic.
+   */
+  const landed = zonedParts(instant, zone);
+  if (landed.hour === h && landed.minute === m) return instant;
+
+  for (let step = 1; step <= 180; step += 1) {
+    const total = h * 60 + m + step;
+    if (total >= 1440) break;
+    const probe = Date.UTC(year, month - 1, day, Math.floor(total / 60), total % 60, 0);
+    let candidate = probe - offsetAt(probe, zone);
+    const candidateRefined = probe - offsetAt(candidate, zone);
+    if (candidateRefined !== candidate) candidate = candidateRefined;
+    const p = zonedParts(candidate, zone);
+    if (p.hour === Math.floor(total / 60) && p.minute === total % 60) return candidate;
+  }
+
   return instant;
 }
 

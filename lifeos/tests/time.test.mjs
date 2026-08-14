@@ -115,11 +115,38 @@ describe('daylight saving', () => {
     assert.equal(instantAt('2026-10-25', 90), instantAt('2026-10-25', 90));
   });
 
-  test('a nonexistent spring time resolves forward and stays on the same day', () => {
+  test('a nonexistent spring time clamps forward to the first that exists', () => {
     /* 02:30 does not exist on 2026-03-27; the clock goes 02:00 -> 03:00. */
     const instant = instantAt('2026-03-27', 150);
     assert.equal(isoDay(instant), '2026-03-27');
-    assert.equal(minutesOfDay(instant), 180, 'lands on 03:00, the moment the clock jumped to');
+    assert.equal(minutesOfDay(instant), 180, 'clamped to 03:00');
+  });
+
+  test('minute-of-day to instant is monotonic on every day of the year', () => {
+    /* The property the clamp exists to protect. Without it, 03:00 on the
+     * spring-forward morning maps to an EARLIER instant than 02:30, and every
+     * free window computed as end-minus-start across that hour comes out
+     * negative — in capacity.js, on one day a year, silently. */
+    for (const day of ['2026-03-27', '2026-10-25', '2026-08-14', '2026-01-01']) {
+      let previous = -Infinity;
+      for (let m = 0; m <= 1440; m += 15) {
+        const instant = instantAt(day, m);
+        assert.ok(
+          instant >= previous,
+          `${day} ${m}: instant went backwards (${instant} < ${previous})`,
+        );
+        previous = instant;
+      }
+    }
+  });
+
+  test('no window on a transition day is inside-out', () => {
+    for (const day of ['2026-03-27', '2026-10-25']) {
+      for (let start = 0; start < 1440; start += 30) {
+        const span = instantAt(day, start + 30) - instantAt(day, start);
+        assert.ok(span >= 0, `${day} ${start}: negative span`);
+      }
+    }
   });
 
   test('day arithmetic across a transition is still one civil day', () => {

@@ -156,9 +156,16 @@ export function seedDemo(opts) {
       order: 0,
     });
 
-    /* Deliberately behind: the deadline is close, the remaining estimates do
-     * not fit, and health.js will say so on its own. A demo where everything
-     * is green shows none of the machinery that matters. */
+    /*
+     * Deliberately behind, and behind for a reason the rest of the demo tells:
+     * the exam is in three days, there is more revision left than there are
+     * hours to do it in, and that is because the website has been eating the
+     * afternoons. health.js works that out on its own from the estimates and
+     * the calendar — nothing here says "at risk".
+     *
+     * A demo where every project is green demonstrates none of the machinery
+     * that matters, and a demo that fakes a red badge demonstrates less.
+     */
     const pExam = db.insert('projects', {
       title: 'הכנה למבחן במתמטיקה',
       goalId: goalStudy.id,
@@ -166,7 +173,7 @@ export function seedDemo(opts) {
       status: 'active',
       priority: 4,
       startDate: addDays(today, -10),
-      dueDate: addDays(today, 6),
+      dueDate: addDays(today, 3),
       estimatedMinutes: 900,
       order: 1,
     });
@@ -296,14 +303,14 @@ export function seedDemo(opts) {
       energyLevel: 'light',
     });
 
-    /* The exam project — enough remaining work to miss its deadline. */
+    /* The exam project — genuinely more revision than there are hours left. */
     task({
       title: 'לכתוב סיכום לפרק על נגזרות',
       projectId: pExam.id, goalId: goalStudy.id, areaId: area.study.id,
       importance: 5, urgency: 5, goalImpact: 4,
       energyLevel: 'deep',
-      estimatedMinutes: 90,
-      dueDate: addDays(today, 2),
+      estimatedMinutes: 120,
+      dueDate: addDays(today, 1),
       scheduledDate: today,
     });
     task({
@@ -311,23 +318,47 @@ export function seedDemo(opts) {
       projectId: pExam.id, goalId: goalStudy.id, areaId: area.study.id,
       importance: 5, urgency: 4, goalImpact: 5,
       energyLevel: 'deep',
-      estimatedMinutes: 120,
-      dueDate: addDays(today, 4),
+      estimatedMinutes: 150,
+      dueDate: addDays(today, 2),
     });
     task({
       title: 'לעבור על הטעויות מהמבחן',
       projectId: pExam.id, goalId: goalStudy.id, areaId: area.study.id,
       importance: 4, urgency: 4, goalImpact: 4,
-      estimatedMinutes: 60,
-      dueDate: addDays(today, 5),
+      estimatedMinutes: 90,
+      dueDate: addDays(today, 3),
     });
     task({
       title: 'חזרה על אינטגרלים',
       projectId: pExam.id, goalId: goalStudy.id, areaId: area.study.id,
       importance: 4, urgency: 4, goalImpact: 3,
       energyLevel: 'deep',
-      estimatedMinutes: 90,
-      dueDate: addDays(today, 5),
+      estimatedMinutes: 120,
+      dueDate: addDays(today, 3),
+    });
+    task({
+      title: 'חזרה על טורים',
+      projectId: pExam.id, goalId: goalStudy.id, areaId: area.study.id,
+      importance: 4, urgency: 4, goalImpact: 3,
+      energyLevel: 'deep',
+      estimatedMinutes: 120,
+      dueDate: addDays(today, 3),
+    });
+    task({
+      title: 'לפתור מבחן נוסף בתנאי מבחן',
+      projectId: pExam.id, goalId: goalStudy.id, areaId: area.study.id,
+      importance: 5, urgency: 4, goalImpact: 5,
+      energyLevel: 'deep',
+      estimatedMinutes: 150,
+      dueDate: addDays(today, 3),
+    });
+    task({
+      title: 'לסכם את דף הנוסחאות',
+      projectId: pExam.id, goalId: goalStudy.id, areaId: area.study.id,
+      importance: 3, urgency: 4, goalImpact: 2,
+      energyLevel: 'light',
+      estimatedMinutes: 60,
+      dueDate: addDays(today, 3),
     });
 
     /* A task that keeps sliding — this is what §137 detects. */
