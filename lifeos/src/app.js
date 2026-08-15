@@ -15,7 +15,7 @@
  */
 
 import { h, qs, clear, announce } from './core/dom.js';
-import { t } from './core/i18n.js';
+import { t, plural } from './core/i18n.js';
 import * as router from './core/router.js';
 import { on, EV } from './core/bus.js';
 import * as session from './core/session.js';
@@ -23,7 +23,7 @@ import * as store from './core/store.js';
 import * as db from './core/db.js';
 import { invalidate, profile } from './services/core.js';
 import { applyTheme, currentTheme } from './services/account.js';
-import { toastError } from './core/toast.js';
+import { toastError, toastUndo } from './core/toast.js';
 import * as shell from './ui/shell.js';
 
 const root = qs('#app');
@@ -248,6 +248,31 @@ function mountApp() {
   router.start();
 }
 
+/*
+ * The app's own planning, switched on once.
+ *
+ * autoplan listens for a completed task and refills the project it emptied.
+ * It is handed a notifier rather than importing the toast module itself, so
+ * the service stays testable without a DOM — and so the only thing that can
+ * put something on screen is still the interface layer.
+ */
+async function installAutoPlan() {
+  const autoplan = await import('./services/autoplan.js');
+  autoplan.install((result) => {
+    toastUndo(
+      t('projects.refilled', {
+        project: result.project.title,
+        tasks: plural('count.tasks', result.taskCount),
+      }),
+      () => {
+        autoplan.undo(result.undo);
+        if (currentScreen) show(currentScreen, currentParams);
+      },
+    );
+    if (currentScreen) show(currentScreen, currentParams);
+  });
+}
+
 export function boot() {
   store.probeStorage();
   applyTheme(currentTheme());
@@ -265,6 +290,7 @@ export function boot() {
    * device default was only ever a guess made before that was knowable. */
   applyTheme(p.preferredTheme || currentTheme());
   mountApp();
+  installAutoPlan();
 }
 
 /* A write that could not reach disk is the one failure a person must be told

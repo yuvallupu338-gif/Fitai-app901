@@ -20,6 +20,7 @@
  */
 
 import * as db from '../core/db.js';
+import { emit, EV } from '../core/bus.js';
 import { snapshot } from './core.js';
 import { TaskSchema, normaliseTask, pickEditable, TASK_EDITABLE } from '../domain/schema.js';
 import { errorMap } from '../domain/validate.js';
@@ -177,6 +178,12 @@ export function setComplete(id, done, opts) {
       goalId: task.goalId || null,
       minutes: task.estimatedMinutes || 0,
     }, o.actor || 'USER');
+
+    /* Announced rather than acted on. autoplan.js listens for this to notice a
+     * project that has just run out of work; publishing keeps the dependency
+     * one-way, since autoplan needs this module and this module must not need
+     * autoplan. */
+    emit(EV.TASK_COMPLETED, { taskId: id, projectId: task.projectId || null });
 
     /*
      * A recurring task rolls forward rather than staying done.

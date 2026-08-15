@@ -637,6 +637,101 @@ await step('everything survives a reload', async () => {
   return `${state.tasks} tasks and ${state.sessions} sessions persisted`;
 });
 
+/* -- the app planning for itself ----------------------------------- */
+
+console.log('\nthe app writes the tasks');
+
+await step('creating a goal creates the work under it, with no approval step', async () => {
+  const before = await page.evaluate(() => {
+    const key = Object.keys(localStorage).find((k) => k.startsWith('lifeos.v1.data.'));
+    const blob = JSON.parse(localStorage.getItem(key));
+    return { tasks: blob.collections.tasks.length, projects: blob.collections.projects.length };
+  });
+
+  await page.goto(`${BASE}#/goals`, { waitUntil: 'domcontentloaded' });
+  await page.waitForTimeout(800);
+
+  const newGoal = page.getByRole('button', { name: /מטרה חדשה/ }).first();
+  if (!(await newGoal.count())) throw new Error('no way to create a goal');
+  await newGoal.click();
+  await page.waitForTimeout(600);
+
+  await page.locator('.modal input[type="text"]:visible, .modal input:not([type]):visible')
+    .first().fill('להשיק אתר תיק עבודות');
+
+  /* Walk the five steps, answering whatever each one asks for. The wizard
+   * deliberately disables "next" until the current question is answered. */
+  for (let i = 0; i < 8; i += 1) {
+    await page.waitForTimeout(350);
+    const finish = page.locator('.modal').getByRole('button', { name: /^(?:סיום|יצירה)$/ }).first();
+    if (await finish.count()) { await finish.click(); break; }
+    const next = page.locator('.modal').getByRole('button', { name: /^הבא$/ }).first();
+    if (!(await next.count())) break;
+
+    if (await next.isDisabled().catch(() => false)) {
+      const date = page.locator('.modal input[type="date"]:visible').first();
+      if (await date.count()) await date.fill('2026-12-01');
+      else {
+        const choice = page.locator('.modal [role="switch"], .modal [role="radio"], .modal .chip-select').first();
+        if (await choice.count()) await choice.click().catch(() => {});
+        else {
+          const text = page.locator('.modal textarea:visible, .modal input:visible').first();
+          if (await text.count()) await text.fill('כדי שיהיה מה להראות');
+        }
+      }
+      await page.waitForTimeout(300);
+      if (await next.isDisabled().catch(() => false)) throw new Error(`stuck on wizard step ${i}`);
+    }
+    await next.click();
+  }
+
+  await page.waitForTimeout(2500);
+
+  const after = await page.evaluate(() => {
+    const key = Object.keys(localStorage).find((k) => k.startsWith('lifeos.v1.data.'));
+    const blob = JSON.parse(localStorage.getItem(key));
+    return {
+      tasks: blob.collections.tasks.length,
+      projects: blob.collections.projects.length,
+      milestones: blob.collections.milestones.length,
+      actors: Array.from(new Set(blob.collections.activity
+        .filter((e) => e.type === 'TASK_CREATED').map((e) => e.actor))),
+    };
+  });
+
+  if (after.projects <= before.projects) throw new Error('no project was created for the goal');
+  const made = after.tasks - before.tasks;
+  if (made < 3) throw new Error(`only ${made} tasks created — a goal must not land empty`);
+  /* And they are attributable, so "where did these come from" has an answer. */
+  if (!after.actors.some((a) => a === 'AI' || a === 'SYSTEM')) {
+    throw new Error('auto-created tasks are indistinguishable from typed ones');
+  }
+  return `${made} tasks and ${after.milestones} milestones, written not proposed`;
+});
+
+await step('and it can be undone from the toast', async () => {
+  const undoButton = page.locator('.toast-action').first();
+  if (!(await undoButton.count())) throw new Error('no undo offered for work the app created');
+
+  const before = await page.evaluate(() => {
+    const key = Object.keys(localStorage).find((k) => k.startsWith('lifeos.v1.data.'));
+    return JSON.parse(localStorage.getItem(key)).collections.tasks.length;
+  });
+
+  await undoButton.click();
+  await page.waitForTimeout(1200);
+
+  const after = await page.evaluate(() => {
+    const key = Object.keys(localStorage).find((k) => k.startsWith('lifeos.v1.data.'));
+    const blob = JSON.parse(localStorage.getItem(key));
+    return { tasks: blob.collections.tasks.length, goals: blob.collections.goals.length };
+  });
+
+  if (after.tasks >= before) throw new Error('undo removed nothing');
+  if (!after.goals) throw new Error('undo took the goal with it');
+  return `${before - after.tasks} removed, the goal kept`;
+});
+
 /* -- keyboard ------------------------------------------------------ */
 
 console.log('\nkeyboard');

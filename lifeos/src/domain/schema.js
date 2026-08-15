@@ -109,6 +109,10 @@ export const PreferencesSchema = v.object({
     deadlinePressure: v.num({ min: 0, max: 1, default: 0.15 }),
     unlockPotential: v.num({ min: 0, max: 1, default: 0.10 }),
   }),
+  /* Whether the app writes the work under a goal itself, or proposes it and
+   * waits. On by default — see autoplan.js for why the default was inverted —
+   * and off restores the preview from §13. */
+  autoPlan: v.bool({ default: true }),
   aiEnabled: v.bool({ default: true }),
   memoryEnabled: v.bool({ default: true }),
   aiCanReadNotes: v.bool({ default: false }),

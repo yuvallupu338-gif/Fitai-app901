@@ -654,6 +654,15 @@ function assistantSection() {
   const toggle = (key) => (value) => { updatePreferences({ [key]: value }); };
 
   return section(t('settings.aiTitle'), [
+    /* First, because it is the setting that changes what the app does on its
+     * own rather than what it says. Turning it off restores the proposal-with
+     * -checkboxes flow. */
+    switchRow({
+      label: t('settings.autoPlan'),
+      note: t('settings.autoPlanNote'),
+      checked: prefs.autoPlan !== false,
+      onChange: toggle('autoPlan'),
+    }),
     switchRow({
       label: t('settings.aiEnabled'),
       note: t('settings.aiEnabledNote'),

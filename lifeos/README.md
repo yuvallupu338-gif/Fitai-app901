@@ -205,6 +205,41 @@ Three guards sit between a model and the data:
 Providers: Anthropic, OpenAI, Google Gemini. Keys are stored per vendor at
 device scope, sent to exactly one host, and never included in an export.
 
+### The app writes the tasks itself
+
+§13 asked for a preview: propose the projects, milestones and first steps, and
+let a person tick what they want. That is the cautious design, and it has a
+cost that only shows up in use — a new goal drops you into a review screen with
+fourteen checkboxes before you have done any thinking about the goal itself.
+The common outcome is "select all", which is a confirmation dialog wearing a
+plan's clothes.
+
+So the default is inverted. **Creating a goal creates the work under it**, and
+**finishing the last task in a project produces the next ones.** The app takes
+the first move.
+
+Three things make writing directly safe, and all three are load-bearing:
+
+- **It is undoable, exactly.** Every auto-creation returns a token naming the
+  records it made, and undo removes precisely those — not "the last N tasks",
+  which would take somebody's own work with it if they typed one in between.
+  Anything since started, completed, scheduled or edited is left alone; by the
+  time somebody presses undo they may already have begun one of the tasks.
+- **It is visible.** Records are stamped with actor `AI` or `SYSTEM` and appear
+  in the activity log, so *where did these six tasks come from* has an answer
+  on a screen.
+- **It can be turned off.** `autoPlan` in settings restores the preview. An app
+  that writes to your database without asking needs an off switch, and one that
+  hides it is worse than one that always asks.
+
+It never touches a task a person wrote, never deletes, never reschedules, caps
+a refill at four tasks — a refill of twenty is a wall, not a next step — and
+stops asking a project whose plan is exhausted, so a finished project does not
+cost a generation pass on every tick.
+
+All of this works with no API key: the local template library is what produces
+the plan, and a model only produces a better one.
+
 ### Hebrew
 
 Not a translation layer. One catalogue, `src/locales/he.js`, and every string in

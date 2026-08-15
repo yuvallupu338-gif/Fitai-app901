@@ -53,4 +53,12 @@ export const EV = {
   FOCUS_TICK: 'focus:tick',
   FOCUS_ENDED: 'focus:ended',
   STORAGE_FAILED: 'storage:failed',
+
+  /* Fired by the task service when a task is completed, so autoplan can notice
+   * that a project has run out of work. It exists as an event rather than a
+   * direct call because tasks.js would otherwise have to import autoplan.js,
+   * which imports tasks.js — and a cycle between two service modules is a
+   * problem that only shows up as an undefined function at run time. */
+  TASK_COMPLETED: 'task:completed',
+  GOAL_CREATED: 'goal:created',
 };

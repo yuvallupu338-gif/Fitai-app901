@@ -16,16 +16,21 @@
  *
  * The moment after "יצירה" is the only moment when somebody is still holding
  * the whole goal in their head, and it is the cheapest moment to turn it into
- * projects and first steps. So the breakdown is offered immediately, from the
- * same code the goal screen's button uses — as a proposal with checkboxes,
- * never as something already written (§110).
+ * projects and first steps. So the breakdown happens immediately, from the
+ * same code the goal screen's button uses.
+ *
+ * By default it is *written*, not proposed — see autoplan.js for why the
+ * preview from §13 was inverted, and for the three things that make writing
+ * directly safe. With `autoPlan` off, this file's original behaviour returns:
+ * a proposal with checkboxes, applied only on approval. Both paths are here,
+ * and they share applyBreakdown for the parts that overlap.
  */
 
 import {
   h, replace, qs, dialog, field, chipGroup, switchRow,
 } from '../core/dom.js';
-import { t } from '../core/i18n.js';
-import { toast, toastError } from '../core/toast.js';
+import { t, plural } from '../core/i18n.js';
+import { toast, toastError, toastUndo } from '../core/toast.js';
 import { formatDuration } from '../core/time.js';
 import { GOAL_TYPES } from '../domain/schema.js';
 import { snapshot } from '../services/core.js';
@@ -34,6 +39,7 @@ import {
   goals as goalsService, projects as projectsService, milestones as milestonesService,
 } from '../services/structure.js';
 import * as ai from '../ai/provider.js';
+import * as autoplan from '../services/autoplan.js';
 import { openPreview } from './preview.js';
 
 const STEP_COUNT = 5;
@@ -127,6 +133,30 @@ function applyBreakdown(goal, proposed, selection, origin, refresh) {
  */
 export async function openGoalBreakdown(goal, onRerender) {
   const refresh = onRerender || (() => {});
+
+  /*
+   * When the app is allowed to plan for itself, it does — no preview, no
+   * checkboxes. The way back is a toast with an undo, which is the same
+   * pattern the replanner uses and for the same reason: an action that is one
+   * click AND reversible gets used, while one that needs approval first gets
+   * abandoned halfway through the approving.
+   */
+  if (autoplan.enabled()) {
+    const result = await autoplan.planGoal(goal.id);
+    if (!result.ok) {
+      toast(t('goals.autoCreatedEmpty'));
+      return null;
+    }
+    toastUndo(
+      t('goals.autoCreated', {
+        project: result.projectTitle,
+        tasks: plural('count.tasks', result.taskCount),
+      }),
+      () => { autoplan.undo(result.undo); refresh(); },
+    );
+    refresh();
+    return null;
+  }
 
   let plan = null;
   try {
