@@ -43,15 +43,26 @@ failure would look like a bug in the app.
 Point Pages at the branch root; `index.html` is the entry. `dist/fitai.html` is
 served alongside it as a single-file copy that also works offline.
 
-### Also in this repo: `backrooms/`
+### Also in this repo: `backrooms/` and `makeup/`
 
-`backrooms/` is a separate, self-contained app that shares nothing with FitAI
-but the server: a realistic first-person Backrooms build covering levels 0–99,
+Two separate, self-contained apps that share nothing with FitAI but the server.
+Neither touches the questionnaire, the plan, or any of FitAI's storage, and both
+follow the same rules as everything else here: no libraries, no media files, no
+build step.
+
+`backrooms/` is a realistic first-person Backrooms build covering levels 0–99,
 with a WebGL2 renderer, procedural materials, an endless world generated as you
-walk it, and synthesised audio — no libraries and no media files, same as
-everything else here. It is served at `/backrooms/` and does not touch the
-questionnaire, the plan, or any of FitAI's storage. See
+walk it, and synthesised audio. Served at `/backrooms/`. See
 [`backrooms/README.md`](backrooms/README.md).
+
+`makeup/` is **BELLA**, a 3D makeup counter. Customers arrive at the till one
+after another — each with a procedurally generated face, makeup they already
+walked in wearing, and a request — and you make them up with the products on the
+counter, then mark on the till's card what they liked best: which product, and
+which kind. Read one right and she tips, and comes back. The faces, the shop and
+the sound are all generated; makeup is painted into a live texture and scored in
+CIE L\*a\*b\* against what she asked for. Served at `/makeup/`. See
+[`makeup/README.md`](makeup/README.md).
 
 ## What it does
 

@@ -1,0 +1,275 @@
+<!DOCTYPE html>
+<html lang="he" dir="rtl">
+<head>
+<meta charset="utf-8">
+<meta name="viewport" content="width=device-width, initial-scale=1, viewport-fit=cover, user-scalable=no">
+<meta name="theme-color" content="#14090f">
+<meta name="description" content="משחק תלת־ממד: את/ה מאחורי דוכן האיפור. לקוחות מגיעות עם איפור קיים ובקשה, ואתם מאפרים אותן — ומסמנים בקופה מה הן הכי אהבו.">
+<!-- Added to the home screen on iOS these give a real fullscreen shell, which
+     is the only way to lose Safari's bars on an iPhone: it has no Fullscreen
+     API. On Android they make the PWA-style launch behave the same way. -->
+<meta name="apple-mobile-web-app-capable" content="yes">
+<meta name="mobile-web-app-capable" content="yes">
+<meta name="apple-mobile-web-app-status-bar-style" content="black-translucent">
+<meta name="apple-mobile-web-app-title" content="BELLA">
+<title>BELLA · דוכן האיפור</title>
+<link rel="stylesheet" href="src/styles/game.css">
+<link rel="icon" href="data:image/svg+xml,<svg xmlns='http://www.w3.org/2000/svg' viewBox='0 0 32 32'><rect width='32' height='32' rx='7' fill='%2314090f'/><rect x='12' y='13' width='8' height='15' rx='1.5' fill='%23e8c58c'/><path d='M13 13V7.5c0-1.2 1.3-2.5 3-2.5s3 1.3 3 2.5V13z' fill='%23ff6f9c'/></svg>">
+</head>
+<body>
+
+<canvas id="view"></canvas>
+
+<div id="ui">
+
+  <!-- ============================================================ HUD -->
+  <div id="hud" hidden>
+
+    <div id="hud-top">
+      <div class="chip" id="hud-day">יום 1</div>
+      <div class="chip" id="hud-queue">לקוחה 1/4</div>
+      <div class="chip money" id="hud-money">₪0</div>
+      <div class="chip" id="hud-rep">★★★</div>
+    </div>
+
+    <!-- The request card. It stays on screen for the whole customer, because
+         the entire game is "does what is on the face match this list". -->
+    <aside id="request">
+      <header>
+        <h3 id="req-name">—</h3>
+        <span id="req-sub"></span>
+      </header>
+      <div id="req-look"></div>
+      <p id="req-brief"></p>
+      <p id="req-arrival" class="arrival"></p>
+      <ul id="req-list"></ul>
+      <div id="req-avoid"></div>
+      <div id="req-timer"><i></i></div>
+      <button id="req-collapse" type="button" title="כיווץ">‹</button>
+    </aside>
+
+    <div id="speech" hidden><span></span></div>
+
+    <div id="tools">
+      <button class="tool" data-view="face" title="כל הפנים">פנים</button>
+      <button class="tool" data-view="eyes" title="התקרבות לעיניים">עיניים</button>
+      <button class="tool" data-view="lips" title="התקרבות לשפתיים">שפתיים</button>
+      <button class="tool" id="btn-wipe" title="הסרה">מסיר</button>
+    </div>
+
+    <!-- The tray. Category, then line, then shade — the same three steps as
+         picking something off a counter. -->
+    <div id="tray">
+      <div id="tray-cats" role="tablist"></div>
+      <div id="tray-body">
+        <div id="tray-products"></div>
+        <div id="tray-shades"></div>
+      </div>
+      <div id="tray-info">
+        <b id="tray-name">בחרי מוצר</b>
+        <span id="tray-blurb"></span>
+        <span id="tray-cov"></span>
+      </div>
+    </div>
+
+    <button id="btn-done" class="btn primary">סיימתי · לקופה</button>
+  </div>
+
+  <!-- ========================================================== title -->
+  <section id="screen-title" class="screen">
+    <div class="menu">
+      <div class="eyebrow">דוכן האיפור</div>
+      <h1 class="title">BELLA</h1>
+      <p class="sub">
+        לקוחות מגיעות לדוכן עם איפור קיים ועם בקשה. את/ה מאפר/ת אותן במוצרים
+        שעל הדלפק — ואז מסמן/ת בקופה <b>מה הן הכי אהבו</b>: איזה מוצר, ואיזה
+        סוג. מי שקוראים אותה נכון, חוזרת.
+      </p>
+      <div class="buttons">
+        <button id="btn-continue" class="btn primary" hidden>המשך משמרת</button>
+        <button id="btn-new" class="btn primary">משמרת חדשה</button>
+        <button id="btn-help" class="btn">איך משחקים</button>
+        <button id="btn-settings" class="btn">הגדרות</button>
+      </div>
+      <div class="hint">
+        גרירה על הפנים = מריחה · גרירה מחוץ לפנים = סיבוב · גלגלת = זום
+      </div>
+    </div>
+  </section>
+
+  <!-- ============================================================ help -->
+  <section id="screen-help" class="screen" hidden>
+    <div class="panel">
+      <header class="panel-head">
+        <h2>איך משחקים</h2>
+        <button class="btn small close-help">חזרה</button>
+      </header>
+      <div class="help">
+        <ol>
+          <li><b>קוראים את הכרטיס.</b> מימין כתוב מי הלקוחה, מה היא ביקשה, ומה
+            היא <i>לא</i> רוצה. אם היא הגיעה מאופרת — כתוב גם את זה.</li>
+          <li><b>בוחרים מוצר וגוון.</b> למטה: קטגוריה, אחריה קו המוצר, ואחריו
+            הגוונים. מוצר עם גוון עור נמדד לפי כמה הוא <b>מתאים לה</b> — לא לפי
+            כמה הוא יפה בבקבוק.</li>
+          <li><b>מורחים.</b> גוררים על הפנים. מברשת איטית מניחה יותר. כל מוצר
+            נדבק לאזור שלו, אבל לא לגמרי — מה שגולש נספר כלכלוך.</li>
+          <li><b>מסתכלים עליה.</b> כשמשהו מוצא חן בעיניה היא מחייכת ולפעמים
+            אומרת. זה הרמז היחיד להעדפה הנסתרת שלה.</li>
+          <li><b>קופה.</b> מחייבים על המוצרים, ומסמנים בכרטיס: מה הכי אהבה
+            ואיזה סוג היא מעדיפה. סימון נכון = טיפ, ולקוחה שחוזרת.</li>
+        </ol>
+        <p class="tip">
+          טיפ: המסיר חינם. אם היא הגיעה עם בסיס בגוון לא נכון, כדאי להוריד
+          אותו לפני שמתחילים — אחרת שני הגוונים נראים יחד.
+        </p>
+      </div>
+    </div>
+  </section>
+
+  <!-- ======================================================== settings -->
+  <section id="screen-settings" class="screen" hidden>
+    <div class="panel narrow">
+      <header class="panel-head">
+        <h2>הגדרות</h2>
+        <button class="btn small close-settings">חזרה</button>
+      </header>
+      <div class="settings">
+        <label class="row">
+          <span>רזולוציית רינדור</span>
+          <input id="set-scale" type="range" min="0.5" max="1" step="0.05">
+          <output id="out-scale"></output>
+        </label>
+        <label class="row">
+          <span>דיוק שכבת הצבע</span>
+          <select id="set-paint">
+            <option value="512">רגיל</option>
+            <option value="1024">גבוה</option>
+          </select>
+        </label>
+        <label class="row">
+          <span>עזרה במריחה</span>
+          <input id="set-assist" type="range" min="0" max="1" step="0.05">
+          <output id="out-assist"></output>
+        </label>
+        <label class="row check"><input id="set-bloom" type="checkbox"><span>זוהר (Bloom)</span></label>
+        <label class="row check"><input id="set-sound" type="checkbox"><span>סאונד</span></label>
+        <label class="row check"><input id="set-hints" type="checkbox"><span>רמזים על הפנים</span></label>
+        <div class="row buttons">
+          <button id="btn-reset" class="btn small danger">איפוס התקדמות</button>
+        </div>
+      </div>
+    </div>
+  </section>
+
+  <!-- ============================================================= day -->
+  <section id="screen-day" class="screen" hidden>
+    <div class="menu small">
+      <div class="eyebrow" id="day-eyebrow">משמרת</div>
+      <h2 id="day-title">יום 1</h2>
+      <p class="sub" id="day-note"></p>
+      <div class="buttons">
+        <button id="btn-open" class="btn primary">פתיחת הדוכן</button>
+      </div>
+    </div>
+  </section>
+
+  <!-- ======================================================== register -->
+  <section id="screen-register" class="screen" hidden>
+    <div class="till">
+      <div class="receipt">
+        <div class="receipt-head">
+          <b>BELLA</b>
+          <span id="rc-customer"></span>
+        </div>
+        <ul id="rc-lines"></ul>
+        <div class="receipt-row"><span>מוצרים</span><b id="rc-products">₪0</b></div>
+        <div class="receipt-row"><span>שירות</span><b id="rc-service">₪0</b></div>
+        <div class="receipt-row total"><span>סה"כ</span><b id="rc-total">₪0</b></div>
+      </div>
+
+      <!-- The card. This is the part the game is named after: after the makeup
+           is done, the cashier writes down what the customer preferred. -->
+      <div class="card">
+        <h3>כרטיס העדפות</h3>
+        <p class="card-sub">מה שסימנת נשמר עליה. סימון נכון = טיפ, וגם היא תחזור.</p>
+
+        <div class="q">
+          <label>איזה מוצר הכי אהבה?</label>
+          <div id="mark-items" class="options"></div>
+        </div>
+
+        <div class="q">
+          <label>איזה סוג היא מעדיפה?</label>
+          <div id="mark-finish" class="options"></div>
+        </div>
+
+        <button id="btn-charge" class="btn primary wide">לחיוב ותשלום</button>
+      </div>
+    </div>
+  </section>
+
+  <!-- ========================================================== result -->
+  <section id="screen-result" class="screen" hidden>
+    <div class="panel">
+      <header class="panel-head">
+        <h2 id="res-title">התוצאה</h2>
+        <div class="stars" id="res-stars"></div>
+      </header>
+      <div class="result">
+        <div class="result-main">
+          <div class="score" id="res-score">0</div>
+          <p class="quote" id="res-quote"></p>
+          <ul id="res-parts"></ul>
+          <div id="res-extra"></div>
+        </div>
+        <div class="result-side">
+          <div class="pay">
+            <div class="row"><span>מוצרים</span><b id="res-products">₪0</b></div>
+            <div class="row"><span>שירות</span><b id="res-service">₪0</b></div>
+            <div class="row tip"><span>טיפ</span><b id="res-tip">₪0</b></div>
+            <div class="row total"><span>נכנס לקופה</span><b id="res-take">₪0</b></div>
+          </div>
+          <div id="res-mark"></div>
+        </div>
+      </div>
+      <footer class="panel-foot">
+        <button id="btn-next" class="btn primary">הלקוחה הבאה</button>
+      </footer>
+    </div>
+  </section>
+
+  <!-- ========================================================= end day -->
+  <section id="screen-endday" class="screen" hidden>
+    <div class="menu small">
+      <div class="eyebrow">סוף משמרת</div>
+      <h2 id="end-title">יום 1</h2>
+      <ul class="tally" id="end-tally"></ul>
+      <p class="sub" id="end-note"></p>
+      <div class="buttons">
+        <button id="btn-nextday" class="btn primary">היום הבא</button>
+        <button id="btn-endday-menu" class="btn">תפריט ראשי</button>
+      </div>
+    </div>
+  </section>
+
+  <div id="loading" hidden>
+    <div class="loader">
+      <div class="eyebrow" id="load-eyebrow">רגע</div>
+      <h3 id="load-title">מכינים את הדוכן…</h3>
+      <div id="load-bar"><i></i></div>
+    </div>
+  </div>
+
+  <div id="toast" hidden></div>
+  <div id="fatal" hidden></div>
+</div>
+
+<noscript>
+  <p style="padding:40px;color:#ff8fb8;font:16px/1.6 system-ui">
+    המשחק דורש JavaScript ו-WebGL2.
+  </p>
+</noscript>
+
+<script type="module" src="src/main.js"></script>
+</body>
+</html>
