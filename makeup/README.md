@@ -140,6 +140,64 @@ this pixel? Twenty landmarks answer it —
 What is lost is what a photograph cannot do: she does not smile, and she does
 not close her eyes for an eyeshadow. What she liked still arrives as a line.
 
+## Modelled heads
+
+A head somebody else made, on the counter:
+
+```bash
+node tools/makeup-head.mjs add head.glb      # opens a page; click twenty points
+node tools/makeup-head.mjs list
+node tools/makeup-head.mjs remove <id>
+```
+
+The page reads .glb, .gltf and .obj, shows the model, and lets you turn it round
+and click the same twenty landmarks the photographs use — the click fires a ray
+at the mesh, so a mark lands on the surface rather than near it. When all twenty
+are down it runs the real fit and shows the real zone masks painted onto the
+model, so what you approve is what the game will do.
+
+The interesting part is what it does with the UVs: it throws them away.
+
+Face space is not an arbitrary atlas, it is a warped spherical parameterisation
+with a closed-form forward direction — so it has a backward one, and any head
+can be given face-space coordinates whether or not it arrived with a UV layout
+at all. Twenty marks give a rotation, a scale and an origin, which puts a model
+in centimetres and Z-up exactly where the generated head lives. The sphere runs
+backwards for a first (s, t). Then two monotone curves through the marks move
+each feature onto its own coordinate, because the sphere that was inverted is
+the shape *before* a nose and a chin were displaced out of it — without that
+step a mark comes back nearly two percent of a head out, which is enough to run
+a lipstick along the line under the lip.
+
+What it cannot do is unwrap geometry that is not star-shaped about the middle of
+a head. Ears fold; so does the pocket under the nose, which is concave and faces
+partly upwards. That is a property of projecting a sphere rather than a bug, so
+the folded area is counted and reported instead of hidden: on the front of a
+carefully marked face it is four thousandths of a percent, all of it in that
+dimple, and a head where a whole band folds is a head whose marks are wrong.
+
+What gets written to `src/data/heads/` is not the file you imported — it is the
+result: positions already in head space, texture coordinates already in face
+space, packed as sixteen-bit arrays. Sixteen bits is fourteen microns on a face
+and a fortieth of a texel of the paint layer. The reading, the fitting and the
+unwrapping happen once, in the tool; the game decodes three arrays and computes
+normals.
+
+Two things the tool refuses. **Draco-compressed glTF**, which is what
+Sketchfab's own glTF export usually is — decoding it needs a decompressor larger
+than this whole game, so download the uncompressed glTF or the OBJ. And **a
+model with no licence line**: nearly every head worth importing is Creative
+Commons Attribution, which is free to use *on the condition that the credit is
+shown*, so the credit is required, it is stored with the model, and the game
+puts it on screen while she is being served. A model whose licence does not
+permit use in a game does not go in that directory whatever its download button
+says.
+
+With photographs and heads both present, a customer's face is drawn from her own
+seed out of everything the counter has, with generated faces still in the pool —
+a shop where every customer is one of the same three faces is worse than one
+where some of them are new.
+
 ## On a phone
 
 One finger paints, two orbit and pinch. The request card collapses to a tab so
@@ -155,8 +213,8 @@ NODE_PATH=/opt/node22/lib/node_modules node tools/makeup-smoke.mjs --shots
 node tools/build-single.js makeup/index.html dist/makeup.html
 ```
 
-`makeup-audit.mjs` runs about thirteen hundred assertions over the parts that
-are arithmetic: that every closed mesh is wound outwards, that the face warps are
+`makeup-audit.mjs` runs about thirteen hundred and thirty assertions over the
+parts that are arithmetic: that every closed mesh is wound outwards, that the face warps are
 monotone (a warp that folds turns a band of the head inside out), that the mouth
 is below the eyes and the lips do not overlap the eyelids, that a ray fired at
 an eye hits the eyeball before it hits the face, that the nose is a nose's width
@@ -208,6 +266,22 @@ and nobody's picture belongs in a test suite. Both halves run on any working
 copy: the test ignores whatever photographs are committed and registers its own,
 so adding a face does not quietly retire half the suite.
 
+The two importers are tested against the only mesh whose face-space coordinates
+are known in advance: the one the game generates. The audit builds a head far
+from the average, notes every vertex's (s, t), throws the parameterisation away,
+moves the whole thing somewhere arbitrary — rotated, scaled by thirty-seven,
+translated — and hands the importer nothing but triangles and twenty marks.
+Every anchor has to come back on its own coordinate exactly, and the lips, eyes,
+cheeks, nose and forehead within 0.025 of where they started. The smoke test
+then plays a customer whose head went through all of it, and drags the same red
+lipstick across a mouth that never had a UV layout.
+
+That last one has already earned its place. An imported head was handed to the
+renderer without the separate UV array the brush's ray-cast reads, so every
+stroke threw inside the pointer handler — and the coverage numbers kept moving,
+because the arrival makeup was already on the face. It looked exactly like
+paint landing.
+
 The portrait fit has its own assertions, and they exist because its worst
 failure is silent. A map that is slightly wrong puts the lip mask *most* of the
 way onto the lips, looks entirely fine, and scores every lipstick as half
@@ -226,9 +300,10 @@ src/
   core/     gl, math (with the ray-cast the brush runs on), rng, colour science
   model/    face space, the head, the body and hair, the shop's props
   portrait/ fitting a photograph into face space, and its masks and normals
+  model/import/  reading OBJ and glTF, and unwrapping a head into face space
   render/   shaders, the frame, and every texture in the game
   data/     the product catalogue, the looks customers ask for, the people,
-            and avatars/ — the photographs, if there are any
+            avatars/ — the photographs, and heads/ — the modelled ones
   game/     paint, customers, scoring, the shift, audio, input
   ui/       the DOM half, and the save file
   styles/   game.css

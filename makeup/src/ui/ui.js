@@ -305,6 +305,20 @@ export class UI {
 
   setCoverage(text) { $('tray-cov').textContent = text || ''; }
 
+  /*
+   * Whose work the face is, when it is not the game's own.
+   *
+   * On screen rather than in a credits list, because the licences these models
+   * come under require the attribution to travel with the thing, and a credit
+   * nobody sees is not one.
+   */
+  setCredit(text) {
+    const el = $('credit');
+    if (!el) return;
+    el.textContent = text || '';
+    el.hidden = !text;
+  }
+
   /* ---------------------------------------------------------------- *
    * Register
    * ---------------------------------------------------------------- */

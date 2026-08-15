@@ -728,3 +728,24 @@ html[dir="rtl"] #request.collapsed { transform: translateX(calc(-100% + 42px)); 
   #tray-products .prod { width: 100px; font-size: 12px; }
   #tray-shades .sw { width: 32px; height: 32px; }
 }
+
+/* The model credit. Small, out of the way, and never over the face: it has to
+   be readable, not prominent. Pinned to the right above the tray, which is the
+   one strip of the HUD nothing else occupies — the done button has the left
+   corner and the view buttons stop well above it. */
+#credit {
+  position: absolute;
+  right: 12px;
+  bottom: calc(var(--tray-h, 200px) + 8px);
+  max-width: 42vw;
+  font-size: 11px;
+  line-height: 1.4;
+  color: #c09aa8;
+  text-shadow: 0 1px 3px #000c;
+  pointer-events: none;
+  direction: ltr;
+  text-align: right;
+  white-space: nowrap;
+  overflow: hidden;
+  text-overflow: ellipsis;
+}

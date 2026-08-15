@@ -746,6 +746,27 @@ html[dir="rtl"] #request.collapsed { transform: translateX(calc(-100% + 42px)); 
   #tray-shades .sw { width: 32px; height: 32px; }
 }
 
+/* The model credit. Small, out of the way, and never over the face: it has to
+   be readable, not prominent. Pinned to the right above the tray, which is the
+   one strip of the HUD nothing else occupies — the done button has the left
+   corner and the view buttons stop well above it. */
+#credit {
+  position: absolute;
+  right: 12px;
+  bottom: calc(var(--tray-h, 200px) + 8px);
+  max-width: 42vw;
+  font-size: 11px;
+  line-height: 1.4;
+  color: #c09aa8;
+  text-shadow: 0 1px 3px #000c;
+  pointer-events: none;
+  direction: ltr;
+  text-align: right;
+  white-space: nowrap;
+  overflow: hidden;
+  text-overflow: ellipsis;
+}
+
 </style>
 </head>
 <body>
@@ -781,6 +802,10 @@ html[dir="rtl"] #request.collapsed { transform: translateX(calc(-100% + 42px)); 
     </aside>
 
     <div id="speech" hidden><span></span></div>
+
+    <!-- The model's author and licence, when the face is somebody else's work.
+         Required by the licences these come under, so it lives on screen. -->
+    <div id="credit" hidden></div>
 
     <div id="tools">
       <button class="tool" data-view="face" title="כל הפנים">פנים</button>
@@ -6670,6 +6695,379 @@ function maskCoverage(masks) {
   };
 })();
 
+__m["makeup/src/data/heads/index.js"] = (function () {
+/*
+ * heads/index.js — the modelled heads the counter can serve.
+ *
+ * A list, like avatars/index.js next door, and written the same way:
+ *
+ *   node tools/makeup-head.mjs add <model.glb|model.obj>
+ *
+ * opens a page, you turn the head round and click twenty points on it, and it
+ * writes a module here plus the two lines that bring it in.
+ *
+ * A head module exports one object, and it does not contain the file you
+ * imported. It contains the *result* of importing it: positions already in head
+ * space, texture coordinates already in face space, packed as base64 typed
+ * arrays. The fitting and the unwrap happen once, in the tool. What the game
+ * does at boot is decode three arrays and compute normals.
+ *
+ *   id             stable, and the seed a customer is generated from
+ *   name           what she is called at the counter
+ *   credit         the model's author and licence — see below
+ *   provides       which of the game's own parts the model already has, out of
+ *                  'ears', 'hair', 'neck'; the game skips building those
+ *   vertexCount    what the packed arrays hold
+ *   triangleCount
+ *   eyeL/eyeR      pupil centres in head space, from the marks
+ *   eyeRadius      scaled from the marked eye width
+ *   focus          where the camera looks for face, eyes and lips
+ *   fit            how well the marks fitted — residual, folds, seam splits
+ *   pos/uv/idx     the geometry
+ *
+ * On licences, because this is the one directory in the repository that holds
+ * somebody else's work: almost every model worth importing is Creative Commons
+ * Attribution, which is free to use and *requires* the credit to be shown.
+ * `credit` is displayed in the game, so filling it in is not paperwork — it is
+ * the condition on which the model may be here at all. A model whose licence
+ * does not permit use in a game does not go in this directory, whatever its
+ * download button says.
+ */
+
+const HEADS = [];
+
+  return {
+    "HEADS": HEADS,
+  };
+})();
+
+__m["makeup/src/model/import/heads.js"] = (function () {
+/*
+ * heads.js — a downloaded head, packed for the game and unpacked at boot.
+ *
+ * The expensive half of importing — parsing a file format, fitting twenty
+ * marks, inverting a sphere for forty thousand vertices — happens once, in the
+ * marking tool, and never again. What ships is the result: positions already in
+ * head space, texture coordinates already in face space, and the indices
+ * between them. Loading one is three typed-array views and a normal pass.
+ *
+ * Packed rather than written out as numbers, because the numbers are the whole
+ * file. A forty-thousand-vertex head is about nine hundred kilobytes of binary
+ * and four megabytes of JSON, and the game is a single HTML file somebody keeps
+ * on a phone.
+ *
+ * The quantisation is chosen to be invisible rather than "good enough":
+ * positions are sixteen bits over a four-unit range, which is fourteen microns
+ * on a face, and texture coordinates are sixteen bits over two and a half,
+ * which is a fortieth of a texel of the paint layer.
+ */
+
+const { HEADS as BUILT_IN } = __m["makeup/src/data/heads/index.js"];
+const { F } = __m["makeup/src/model/face.js"];
+
+/* Face space's own answer to "where is an eye", which the lashes and the lid
+ * meshes are built around and which does not change with the model. */
+const LEFT_EYE_S = F.eyeS;
+
+const POS_RANGE = 2.0;      /* head half-heights; a head fits inside 1.4 */
+const UV_MIN = -0.5;        /* the seam carries s past 1, and the fit past 0 */
+const UV_RANGE = 2.5;
+
+/* ------------------------------------------------------------------ *
+ * Base64, for arrays too large to spread
+ * ------------------------------------------------------------------ */
+
+function toBase64(bytes) {
+  let s = '';
+  /* In chunks: `String.fromCharCode(...bytes)` on a megabyte overflows the
+   * argument list and throws, which is a fun one to debug at four in the
+   * morning because it only happens on the big models. */
+  for (let i = 0; i < bytes.length; i += 0x8000) {
+    s += String.fromCharCode.apply(null, bytes.subarray(i, i + 0x8000));
+  }
+  return btoa(s);
+}
+
+function fromBase64(text) {
+  const raw = atob(text);
+  const out = new Uint8Array(raw.length);
+  for (let i = 0; i < raw.length; i++) out[i] = raw.charCodeAt(i);
+  return out;
+}
+
+/* ------------------------------------------------------------------ *
+ * Packing
+ * ------------------------------------------------------------------ */
+
+/*
+ * An unwrapped head, as the three arrays a module will carry.
+ *
+ * Everything else the game needs about the head — where its eyes are, what to
+ * frame a close-up on — is computed here too, from the marks rather than from
+ * the generated shape function, because there is no shape function any more.
+ */
+function packHead(unwrapped, meta = {}) {
+  const { mesh, marked, pose } = unwrapped;
+  const count = mesh.positions.length / 3;
+  const V = mesh.vertices;
+
+  const pos = new Int16Array(count * 3);
+  const uv = new Uint16Array(count * 2);
+  for (let i = 0; i < count; i++) {
+    for (let k = 0; k < 3; k++) {
+      pos[i * 3 + k] = Math.round(clampTo(mesh.positions[i * 3 + k] / POS_RANGE, -1, 1) * 32767);
+    }
+    uv[i * 2] = Math.round(clampTo((V[i * 9 + 6] - UV_MIN) / UV_RANGE, 0, 1) * 65535);
+    uv[i * 2 + 1] = Math.round(clampTo((V[i * 9 + 7] - UV_MIN) / UV_RANGE, 0, 1) * 65535);
+  }
+
+  /*
+   * The eyes, from the marks and from the surface they were clicked on.
+   *
+   * A generated head hangs its eyeballs off its own shape function; an imported
+   * one has no shape function, so the pupil somebody clicked is the best
+   * statement of where the eye is that exists — and the mesh around that click
+   * is the best statement of which way the socket faces. The lids hinge on that
+   * normal, so getting it from the geometry rather than assuming straight ahead
+   * is what stops them cutting across the eye on a head that is not perfectly
+   * frontal.
+   */
+  const eye = (side) => {
+    const on = pose.toHead(meta.landmarks[side < 0 ? 'eyeL' : 'eyeR']);
+    const outer = pose.toHead(meta.landmarks[side < 0 ? 'eyeOuterL' : 'eyeOuterR']);
+    const half = Math.hypot(on[0] - outer[0], on[1] - outer[1], on[2] - outer[2]);
+
+    /* Average the normals within half an eye-width of the click, which is wide
+     * enough that a single badly-shaded vertex cannot decide it and narrow
+     * enough to still be the socket rather than the cheek. */
+    let nx = 0, ny = 0, nz = 0;
+    const r2 = (half * 0.5) ** 2;
+    for (let i = 0; i < count; i++) {
+      const dx = mesh.positions[i * 3] - on[0];
+      const dy = mesh.positions[i * 3 + 1] - on[1];
+      const dz = mesh.positions[i * 3 + 2] - on[2];
+      if (dx * dx + dy * dy + dz * dz > r2) continue;
+      nx += V[i * 9 + 3]; ny += V[i * 9 + 4]; nz += V[i * 9 + 5];
+    }
+    const l = Math.hypot(nx, ny, nz);
+    const normal = l > 1e-6 ? [nx / l, ny / l, nz / l] : [side * 0.18, 0, 0.98];
+    return { on, half, normal };
+  };
+  const eL = eye(-1), eR = eye(1);
+  /* A human eyeball is about 24mm across — 0.10 in head units — and the
+   * generated head uses 0.092 for an average eye whose outer corner is
+   * `REFERENCE_HALF` from its pupil. Scaling by the marked half-width is what
+   * keeps a model with large stylised eyes from getting two marbles in it. */
+  const REFERENCE_HALF = 0.128;
+  const radius = 0.092 * clampTo(((eL.half + eR.half) / 2) / REFERENCE_HALF, 0.6, 1.7);
+  /* Sunk a hair below the surface, the same fraction of the radius the
+   * generated head uses: enough that the sliver of sclera sits flush with the
+   * lid edge, not so much that the eye disappears into a dark hole. */
+  const sink = (e) => [
+    e.on[0] - e.normal[0] * radius * 0.02,
+    e.on[1] - e.normal[1] * radius * 0.02,
+    e.on[2] - e.normal[2] * radius * 0.02,
+  ];
+
+  const mouth = pose.toHead(meta.landmarks.mouthL);
+  const mouthR = pose.toHead(meta.landmarks.mouthR);
+
+  return {
+    id: meta.id,
+    name: meta.name,
+    credit: meta.credit || '',
+    provides: meta.provides || [],
+    landmarks: meta.landmarks,
+    vertexCount: count,
+    triangleCount: mesh.triangles,
+    eyeRadius: radius,
+    eyeL: { centre: sink(eL), normal: eL.normal, r: radius, s: 0.5 - LEFT_EYE_S },
+    eyeR: { centre: sink(eR), normal: eR.normal, r: radius, s: 0.5 + LEFT_EYE_S },
+    focus: {
+      face: [0, -0.25, 0],
+      eyes: [0, (eL.on[1] + eR.on[1]) / 2, 0.30],
+      lips: [
+        (mouth[0] + mouthR[0]) / 2,
+        (mouth[1] + mouthR[1]) / 2,
+        (mouth[2] + mouthR[2]) / 2,
+      ],
+    },
+    fit: {
+      residual: unwrapped.stats.residual,
+      flipped: unwrapped.stats.flipped,
+      seamSplit: unwrapped.stats.seamSplit,
+    },
+    pos: toBase64(new Uint8Array(pos.buffer)),
+    uv: toBase64(new Uint8Array(uv.buffer)),
+    idx: toBase64(new Uint8Array(new Uint32Array(mesh.indices).buffer)),
+  };
+}
+
+function clampTo(v, lo, hi) { return v < lo ? lo : v > hi ? hi : v; }
+
+/* ------------------------------------------------------------------ *
+ * Unpacking
+ * ------------------------------------------------------------------ */
+
+/*
+ * Back into the shape `buildHead` returns, so nothing downstream can tell the
+ * difference between a head the game generated and one somebody downloaded.
+ *
+ * Normals are recomputed rather than stored. They are the one attribute that
+ * costs as much to carry as to derive — three more channels per vertex against
+ * one pass over the triangles at boot — and deriving them here means a head
+ * cannot arrive with normals that disagree with its own geometry.
+ */
+function buildImportedHead(record) {
+  const pos16 = new Int16Array(fromBase64(record.pos).buffer);
+  const uv16 = new Uint16Array(fromBase64(record.uv).buffer);
+  const indices = new Uint32Array(fromBase64(record.idx).buffer);
+  const count = record.vertexCount;
+  if (pos16.length !== count * 3 || uv16.length !== count * 2) {
+    throw new Error(`head "${record.id}": packed arrays do not match its vertex count`);
+  }
+
+  const positions = new Float32Array(count * 3);
+  for (let i = 0; i < positions.length; i++) positions[i] = (pos16[i] / 32767) * POS_RANGE;
+
+  const n = new Float32Array(count * 3);
+  for (let f = 0; f < indices.length; f += 3) {
+    const a = indices[f] * 3, b = indices[f + 1] * 3, c = indices[f + 2] * 3;
+    const e1x = positions[b] - positions[a];
+    const e1y = positions[b + 1] - positions[a + 1];
+    const e1z = positions[b + 2] - positions[a + 2];
+    const e2x = positions[c] - positions[a];
+    const e2y = positions[c + 1] - positions[a + 1];
+    const e2z = positions[c + 2] - positions[a + 2];
+    const nx = e1y * e2z - e1z * e2y;
+    const ny = e1z * e2x - e1x * e2z;
+    const nz = e1x * e2y - e1y * e2x;
+    n[a] += nx; n[a + 1] += ny; n[a + 2] += nz;
+    n[b] += nx; n[b + 1] += ny; n[b + 2] += nz;
+    n[c] += nx; n[c + 1] += ny; n[c + 2] += nz;
+  }
+
+  /*
+   * Weld across the seam, the same way the generated head does.
+   *
+   * The unwrap duplicates the vertices along the back of the skull so the
+   * texture does not stretch across the face, and those twins share a position.
+   * Left unwelded they shade as a crease that catches the ring light and reads
+   * as a scar; and a vertex all of whose triangles moved to its twin has no
+   * normal at all, which is a black seam rather than a bright one.
+   */
+  const weld = new Map();
+  for (let i = 0; i < count; i++) {
+    const o = i * 3;
+    const key = `${pos16[o]},${pos16[o + 1]},${pos16[o + 2]}`;
+    const list = weld.get(key);
+    if (list) list.push(o); else weld.set(key, [o]);
+  }
+  for (const list of weld.values()) {
+    if (list.length < 2) continue;
+    let nx = 0, ny = 0, nz = 0;
+    for (const o of list) { nx += n[o]; ny += n[o + 1]; nz += n[o + 2]; }
+    for (const o of list) { n[o] = nx; n[o + 1] = ny; n[o + 2] = nz; }
+  }
+
+  const vertices = new Float32Array(count * 9);
+  /*
+   * The separate UV array is not a duplicate for convenience: it is what the
+   * brush's ray-cast reads. `rayMesh` interpolates the hit's texture
+   * coordinates off `mesh.uvs`, and a mesh without one is a head the pointer
+   * throws on the moment it touches it — with the stroke silently abandoned and
+   * the coverage numbers still moving, because the arrival makeup is already
+   * there. The bounding box next to it is the ray's early-out.
+   */
+  const uvs = new Float32Array(count * 2);
+  const min = [Infinity, Infinity, Infinity];
+  const max = [-Infinity, -Infinity, -Infinity];
+  for (let i = 0; i < count; i++) {
+    const o = i * 9;
+    const x = positions[i * 3], y = positions[i * 3 + 1], z = positions[i * 3 + 2];
+    vertices[o] = x; vertices[o + 1] = y; vertices[o + 2] = z;
+    const l = Math.hypot(n[i * 3], n[i * 3 + 1], n[i * 3 + 2]) || 1;
+    vertices[o + 3] = n[i * 3] / l;
+    vertices[o + 4] = n[i * 3 + 1] / l;
+    vertices[o + 5] = n[i * 3 + 2] / l;
+    const s = (uv16[i * 2] / 65535) * UV_RANGE + UV_MIN;
+    const t = (uv16[i * 2 + 1] / 65535) * UV_RANGE + UV_MIN;
+    vertices[o + 6] = s;
+    vertices[o + 7] = t;
+    vertices[o + 8] = 1;
+    uvs[i * 2] = s;
+    uvs[i * 2 + 1] = t;
+    if (x < min[0]) min[0] = x; if (x > max[0]) max[0] = x;
+    if (y < min[1]) min[1] = y; if (y > max[1]) max[1] = y;
+    if (z < min[2]) min[2] = z; if (z > max[2]) max[2] = z;
+  }
+
+  return {
+    mesh: { vertices, indices, positions, uvs, min, max, triangles: indices.length / 3 },
+    /* No shape function, so no expressions. Zeroes rather than nothing, so the
+     * one vertex shader still draws it. */
+    morph: new Float32Array(count * 12),
+  };
+}
+
+/* ------------------------------------------------------------------ *
+ * The registry
+ * ------------------------------------------------------------------ */
+
+const runtime = [];
+let headsOn = true;
+
+function setHeadsEnabled(on) { headsOn = !!on; }
+
+function listHeads() {
+  return [...(headsOn ? BUILT_IN : []), ...runtime];
+}
+
+function hasHeads() { return listHeads().length > 0; }
+
+function registerHead(record) {
+  const at = runtime.findIndex((h) => h.id === record.id);
+  if (at >= 0) runtime[at] = record; else runtime.push(record);
+  cache.clear();
+  return record;
+}
+
+/* The same head for the same customer, every time — a shift is replayable from
+ * its seed and a face that changed between two runs of it would be the most
+ * confusing bug available. */
+function pickHead(rng) {
+  const all = listHeads();
+  return all.length ? rng.pick(all) : null;
+}
+
+/* Unpacked once per session. A head is a megabyte of arrays and a returning
+ * customer should not pay for it twice. */
+const cache = new Map();
+
+function loadHead(record) {
+  let hit = cache.get(record.id);
+  if (!hit) {
+    hit = buildImportedHead(record);
+    cache.set(record.id, hit);
+  }
+  return hit;
+}
+
+function forgetHeads() { cache.clear(); }
+
+  return {
+    "packHead": packHead,
+    "buildImportedHead": buildImportedHead,
+    "setHeadsEnabled": setHeadsEnabled,
+    "listHeads": listHeads,
+    "hasHeads": hasHeads,
+    "registerHead": registerHead,
+    "pickHead": pickHead,
+    "loadHead": loadHead,
+    "forgetHeads": forgetHeads,
+  };
+})();
+
 __m["makeup/src/data/products.js"] = (function () {
 /*
  * products.js — the shop's catalogue.
@@ -8502,6 +8900,7 @@ const { clamp } = __m["makeup/src/core/math.js"];
 const { faceParams, buildHead, buildEyeball, buildLid, buildLashes, eyeAnchor, surfaceFrame, } = __m["makeup/src/model/head.js"];
 const { F } = __m["makeup/src/model/face.js"];
 const { buildNeck, buildGarment, buildEars, buildHands, buildHair, HAIR_STYLE_NAMES, } = __m["makeup/src/model/body.js"];
+const { loadHead } = __m["makeup/src/model/import/heads.js"];
 const { skinTexture, irisTexture, hairTexture, fabricTexture } = __m["makeup/src/render/textures.js"];
 const { PRODUCTS, product, productShade, byCategory, zoneOf } = __m["makeup/src/data/products.js"];
 const { LOOKS, look } = __m["makeup/src/data/looks.js"];
@@ -8785,29 +9184,47 @@ function buildCustomerAssets(c, opts = {}) {
   const rng = makeRng(c.seed + 991);
   const skinSize = opts.skinSize || 512;
   const P = c.face;
-  const { mesh: head, morph } = buildHead(P);
 
-  const eyeL = eyeAnchor(P, -1);
-  const eyeR = eyeAnchor(P, 1);
+  /*
+   * A downloaded head, if this customer has been given one, and the generated
+   * one otherwise.
+   *
+   * The import brings its own geometry, its own eye positions and its own
+   * framing — everything that on a generated head comes out of the shape
+   * function, because an import has no shape function. What it does not bring
+   * is the body: the neck, the hands and the clothes are still the game's, and
+   * `provides` says which of those the model already has so they are not built
+   * twice into the same space.
+   */
+  const imported = opts.head || null;
+  const has = (part) => imported && imported.provides.includes(part);
+  const built = imported ? loadHead(imported) : buildHead(P);
+  const head = built.mesh, morph = built.morph;
+
+  const eyeL = imported ? imported.eyeL : eyeAnchor(P, -1);
+  const eyeR = imported ? imported.eyeR : eyeAnchor(P, 1);
 
   /* Where the camera looks when the player asks for a close-up. Taken off the
    * built surface rather than from constants, so a long face and a round one
    * both frame correctly. */
-  const focus = {
+  const focus = imported ? imported.focus : {
     face: [0, -0.25, 0],
     eyes: [0, (eyeL.centre[1] + eyeR.centre[1]) / 2, 0.30],
     lips: surfaceFrame(P, 0.5, F.mouthT).p,
   };
 
+  const empty = { vertices: new Float32Array(0), indices: new Uint32Array(0), positions: new Float32Array(0), triangles: 0 };
+
   return {
     focus,
     head,
     morph,
-    neck: buildNeck(P),
+    imported,
+    neck: has('neck') ? empty : buildNeck(P),
     garment: buildGarment(P, c.garmentStyle),
-    ears: buildEars(P),
+    ears: has('ears') ? empty : buildEars(P),
     hands: buildHands(P),
-    hair: buildHair(P, c.hairStyle, rng),
+    hair: has('hair') ? empty : buildHair(P, c.hairStyle, rng),
     eye: buildEyeball(eyeL.r),
     lidL: buildLid(eyeL.r, -1),
     lidR: buildLid(eyeR.r, 1),
@@ -9587,6 +10004,20 @@ class UI {
 
   setCoverage(text) { $('tray-cov').textContent = text || ''; }
 
+  /*
+   * Whose work the face is, when it is not the game's own.
+   *
+   * On screen rather than in a credits list, because the licences these models
+   * come under require the attribution to travel with the thing, and a credit
+   * nobody sees is not one.
+   */
+  setCredit(text) {
+    const el = $('credit');
+    if (!el) return;
+    el.textContent = text || '';
+    el.hidden = !text;
+  }
+
   /* ---------------------------------------------------------------- *
    * Register
    * ---------------------------------------------------------------- */
@@ -9879,7 +10310,8 @@ __m["makeup/src/main.js"] = (function () {
 
 const { Renderer } = __m["makeup/src/render/renderer.js"];
 const { buildMasks, F } = __m["makeup/src/model/face.js"];
-const { pickAvatar, prepareAvatar, registerAvatar, hasAvatars, setPhotosEnabled, } = __m["makeup/src/portrait/avatars.js"];
+const { listAvatars, prepareAvatar, registerAvatar, setPhotosEnabled, } = __m["makeup/src/portrait/avatars.js"];
+const { listHeads, registerHead, setHeadsEnabled } = __m["makeup/src/model/import/heads.js"];
 const { buildShop, buildTray, SHOP } = __m["makeup/src/model/props.js"];
 const { PaintLayer } = __m["makeup/src/game/paint.js"];
 const { Input } = __m["makeup/src/game/input.js"];
@@ -10139,15 +10571,14 @@ async function nextCustomer() {
   customer = shift.next();
 
   /*
-   * A photograph if there is one, the modelled head if there is not.
-   *
-   * The choice is made per customer and from her own seed, so a counter with
-   * three photographs on it serves those three faces in a fixed order and a
-   * counter with none behaves exactly as it did before any of this existed.
-   * Everything after this point — the arrival, the brush, the coverage, the
-   * till — is the same code down both paths.
+   * Her face. Everything after this point — the arrival, the brush, the
+   * coverage, the till — is the same code whichever of the three she got,
+   * which is the whole reason a photograph and a downloaded head were worth
+   * adding at all.
    */
-  const prepared = await preparePortrait(customer);
+  const face = pickFace(customer);
+  const prepared = face.kind === 'photo' ? await preparePortrait(face.record) : null;
+  let credit = '';
 
   if (prepared) {
     renderer.releaseCustomer();
@@ -10155,13 +10586,23 @@ async function nextCustomer() {
     retoneCustomer(customer, prepared.tone);
     if (prepared.avatar.name) customer.name = prepared.avatar.name;
     customer.avatarId = prepared.avatar.id;
+    credit = prepared.avatar.credit || '';
     paint.setMasks(prepared.masks, prepared.frame.brushScale);
     paint.assist = settings.assist;
     applyArrival(paint, customer);
     renderer.setPortrait(prepared, paint);
   } else {
     renderer.releasePortrait();
-    assets = buildCustomerAssets(customer, { skinSize: settings.face || 1024 });
+    /* A photograph that would not load falls back to a modelled head rather
+     * than to nothing; the head it falls back to is the generated one, because
+     * an import that also fails would leave the counter empty. */
+    const head = face.kind === 'head' && !prepared ? face.record : null;
+    if (head) {
+      customer.name = head.name || customer.name;
+      customer.headId = head.id;
+      credit = head.credit || '';
+    }
+    assets = buildCustomerAssets(customer, { skinSize: settings.face || 1024, head });
     paint.setMasks(masks, 1);
     paint.assist = settings.assist;
     applyArrival(paint, customer);
@@ -10175,6 +10616,11 @@ async function nextCustomer() {
     c.lidL = assets.lidL;
     c.lidR = assets.lidR;
   }
+
+  /* Attribution, shown rather than filed away: nearly every model worth
+   * importing is Creative Commons Attribution, and showing the credit is the
+   * condition on which it may be in the game at all. */
+  ui.setCredit(credit);
 
   state.reacted = new Set();
   state.timeLeft = customer.patience;
@@ -10205,6 +10651,36 @@ function nextFrame() {
 }
 
 /*
+ * What this customer's face is made of: a photograph, a downloaded head, or the
+ * one the game generates.
+ *
+ * Drawn from her own seed out of everything the counter has, so a shop with two
+ * photographs and a modelled head serves all three in a fixed order and a shop
+ * with none behaves exactly as it did before any of this existed. The generated
+ * head is in the pool rather than being only a fallback — a counter where every
+ * customer is one of the same three faces is a worse counter than one where
+ * some of them are new.
+ */
+/* Pinned by the smoke test, which needs to play a photographed customer and a
+ * downloaded one on purpose rather than waiting for the dice. */
+let faceOverride = null;
+
+function pickFace(c) {
+  const pool = [
+    ...listAvatars().map((record) => ({ kind: 'photo', record })),
+    ...listHeads().map((record) => ({ kind: 'head', record })),
+  ];
+  if (!pool.length) return { kind: 'generated' };
+  /* One generated face for every two imported ones, so a small collection does
+   * not become the whole shop. */
+  for (let i = 0; i < Math.max(1, Math.round(pool.length / 2)); i++) {
+    pool.push({ kind: 'generated' });
+  }
+  const wanted = faceOverride ? pool.filter((f) => f.kind === faceOverride) : pool;
+  return makeRng(c.seed + 91).pick(wanted.length ? wanted : pool);
+}
+
+/*
  * A photograph for this customer, or null.
  *
  * A broken avatar must not take the shift down with it. Anything that can go
@@ -10212,10 +10688,7 @@ function nextFrame() {
  * different photograph — is a data problem in one file, and the right answer to
  * it is the modelled head and a line in the console, not a dead counter.
  */
-async function preparePortrait(c) {
-  if (!hasAvatars()) return null;
-  const avatar = pickAvatar(makeRng(c.seed + 91));
-  if (!avatar) return null;
+async function preparePortrait(avatar) {
   try {
     /*
      * The crop is baked larger than the skin texture a modelled head gets. It
@@ -10429,8 +10902,12 @@ window.bella = {
    * picture living in the test suite.
    */
   addAvatar(avatar) { return registerAvatar(avatar); },
+  addHead(record) { return registerHead(record); },
   setPhotos(on) { setPhotosEnabled(on); },
+  setHeads(on) { setHeadsEnabled(on); },
+  forceFace(kind) { faceOverride = kind || null; },
   get portrait() { return renderer.portrait; },
+  get assets() { return assets; },
 };
 
 boot();

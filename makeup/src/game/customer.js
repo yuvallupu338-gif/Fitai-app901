@@ -25,6 +25,7 @@ import { F } from '../model/face.js';
 import {
   buildNeck, buildGarment, buildEars, buildHands, buildHair, HAIR_STYLE_NAMES,
 } from '../model/body.js';
+import { loadHead } from '../model/import/heads.js';
 import { skinTexture, irisTexture, hairTexture, fabricTexture } from '../render/textures.js';
 import { PRODUCTS, product, productShade, byCategory, zoneOf } from '../data/products.js';
 import { LOOKS, look } from '../data/looks.js';
@@ -311,29 +312,47 @@ export function buildCustomerAssets(c, opts = {}) {
   const rng = makeRng(c.seed + 991);
   const skinSize = opts.skinSize || 512;
   const P = c.face;
-  const { mesh: head, morph } = buildHead(P);
 
-  const eyeL = eyeAnchor(P, -1);
-  const eyeR = eyeAnchor(P, 1);
+  /*
+   * A downloaded head, if this customer has been given one, and the generated
+   * one otherwise.
+   *
+   * The import brings its own geometry, its own eye positions and its own
+   * framing — everything that on a generated head comes out of the shape
+   * function, because an import has no shape function. What it does not bring
+   * is the body: the neck, the hands and the clothes are still the game's, and
+   * `provides` says which of those the model already has so they are not built
+   * twice into the same space.
+   */
+  const imported = opts.head || null;
+  const has = (part) => imported && imported.provides.includes(part);
+  const built = imported ? loadHead(imported) : buildHead(P);
+  const head = built.mesh, morph = built.morph;
+
+  const eyeL = imported ? imported.eyeL : eyeAnchor(P, -1);
+  const eyeR = imported ? imported.eyeR : eyeAnchor(P, 1);
 
   /* Where the camera looks when the player asks for a close-up. Taken off the
    * built surface rather than from constants, so a long face and a round one
    * both frame correctly. */
-  const focus = {
+  const focus = imported ? imported.focus : {
     face: [0, -0.25, 0],
     eyes: [0, (eyeL.centre[1] + eyeR.centre[1]) / 2, 0.30],
     lips: surfaceFrame(P, 0.5, F.mouthT).p,
   };
 
+  const empty = { vertices: new Float32Array(0), indices: new Uint32Array(0), positions: new Float32Array(0), triangles: 0 };
+
   return {
     focus,
     head,
     morph,
-    neck: buildNeck(P),
+    imported,
+    neck: has('neck') ? empty : buildNeck(P),
     garment: buildGarment(P, c.garmentStyle),
-    ears: buildEars(P),
+    ears: has('ears') ? empty : buildEars(P),
     hands: buildHands(P),
-    hair: buildHair(P, c.hairStyle, rng),
+    hair: has('hair') ? empty : buildHair(P, c.hairStyle, rng),
     eye: buildEyeball(eyeL.r),
     lidL: buildLid(eyeL.r, -1),
     lidR: buildLid(eyeR.r, 1),

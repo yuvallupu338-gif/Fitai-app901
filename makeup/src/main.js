@@ -15,8 +15,9 @@
 import { Renderer } from './render/renderer.js';
 import { buildMasks, F } from './model/face.js';
 import {
-  pickAvatar, prepareAvatar, registerAvatar, hasAvatars, setPhotosEnabled,
+  listAvatars, prepareAvatar, registerAvatar, setPhotosEnabled,
 } from './portrait/avatars.js';
+import { listHeads, registerHead, setHeadsEnabled } from './model/import/heads.js';
 import { buildShop, buildTray, SHOP } from './model/props.js';
 import { PaintLayer } from './game/paint.js';
 import { Input } from './game/input.js';
@@ -280,15 +281,14 @@ async function nextCustomer() {
   customer = shift.next();
 
   /*
-   * A photograph if there is one, the modelled head if there is not.
-   *
-   * The choice is made per customer and from her own seed, so a counter with
-   * three photographs on it serves those three faces in a fixed order and a
-   * counter with none behaves exactly as it did before any of this existed.
-   * Everything after this point — the arrival, the brush, the coverage, the
-   * till — is the same code down both paths.
+   * Her face. Everything after this point — the arrival, the brush, the
+   * coverage, the till — is the same code whichever of the three she got,
+   * which is the whole reason a photograph and a downloaded head were worth
+   * adding at all.
    */
-  const prepared = await preparePortrait(customer);
+  const face = pickFace(customer);
+  const prepared = face.kind === 'photo' ? await preparePortrait(face.record) : null;
+  let credit = '';
 
   if (prepared) {
     renderer.releaseCustomer();
@@ -296,13 +296,23 @@ async function nextCustomer() {
     retoneCustomer(customer, prepared.tone);
     if (prepared.avatar.name) customer.name = prepared.avatar.name;
     customer.avatarId = prepared.avatar.id;
+    credit = prepared.avatar.credit || '';
     paint.setMasks(prepared.masks, prepared.frame.brushScale);
     paint.assist = settings.assist;
     applyArrival(paint, customer);
     renderer.setPortrait(prepared, paint);
   } else {
     renderer.releasePortrait();
-    assets = buildCustomerAssets(customer, { skinSize: settings.face || 1024 });
+    /* A photograph that would not load falls back to a modelled head rather
+     * than to nothing; the head it falls back to is the generated one, because
+     * an import that also fails would leave the counter empty. */
+    const head = face.kind === 'head' && !prepared ? face.record : null;
+    if (head) {
+      customer.name = head.name || customer.name;
+      customer.headId = head.id;
+      credit = head.credit || '';
+    }
+    assets = buildCustomerAssets(customer, { skinSize: settings.face || 1024, head });
     paint.setMasks(masks, 1);
     paint.assist = settings.assist;
     applyArrival(paint, customer);
@@ -316,6 +326,11 @@ async function nextCustomer() {
     c.lidL = assets.lidL;
     c.lidR = assets.lidR;
   }
+
+  /* Attribution, shown rather than filed away: nearly every model worth
+   * importing is Creative Commons Attribution, and showing the credit is the
+   * condition on which it may be in the game at all. */
+  ui.setCredit(credit);
 
   state.reacted = new Set();
   state.timeLeft = customer.patience;
@@ -346,6 +361,36 @@ function nextFrame() {
 }
 
 /*
+ * What this customer's face is made of: a photograph, a downloaded head, or the
+ * one the game generates.
+ *
+ * Drawn from her own seed out of everything the counter has, so a shop with two
+ * photographs and a modelled head serves all three in a fixed order and a shop
+ * with none behaves exactly as it did before any of this existed. The generated
+ * head is in the pool rather than being only a fallback — a counter where every
+ * customer is one of the same three faces is a worse counter than one where
+ * some of them are new.
+ */
+/* Pinned by the smoke test, which needs to play a photographed customer and a
+ * downloaded one on purpose rather than waiting for the dice. */
+let faceOverride = null;
+
+function pickFace(c) {
+  const pool = [
+    ...listAvatars().map((record) => ({ kind: 'photo', record })),
+    ...listHeads().map((record) => ({ kind: 'head', record })),
+  ];
+  if (!pool.length) return { kind: 'generated' };
+  /* One generated face for every two imported ones, so a small collection does
+   * not become the whole shop. */
+  for (let i = 0; i < Math.max(1, Math.round(pool.length / 2)); i++) {
+    pool.push({ kind: 'generated' });
+  }
+  const wanted = faceOverride ? pool.filter((f) => f.kind === faceOverride) : pool;
+  return makeRng(c.seed + 91).pick(wanted.length ? wanted : pool);
+}
+
+/*
  * A photograph for this customer, or null.
  *
  * A broken avatar must not take the shift down with it. Anything that can go
@@ -353,10 +398,7 @@ function nextFrame() {
  * different photograph — is a data problem in one file, and the right answer to
  * it is the modelled head and a line in the console, not a dead counter.
  */
-async function preparePortrait(c) {
-  if (!hasAvatars()) return null;
-  const avatar = pickAvatar(makeRng(c.seed + 91));
-  if (!avatar) return null;
+async function preparePortrait(avatar) {
   try {
     /*
      * The crop is baked larger than the skin texture a modelled head gets. It
@@ -570,8 +612,12 @@ window.bella = {
    * picture living in the test suite.
    */
   addAvatar(avatar) { return registerAvatar(avatar); },
+  addHead(record) { return registerHead(record); },
   setPhotos(on) { setPhotosEnabled(on); },
+  setHeads(on) { setHeadsEnabled(on); },
+  forceFace(kind) { faceOverride = kind || null; },
   get portrait() { return renderer.portrait; },
+  get assets() { return assets; },
 };
 
 boot();

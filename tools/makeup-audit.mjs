@@ -825,6 +825,76 @@ async function main() {
       nose: 1, noseBridge: 1, lip: 1, eyeSize: 1, eyeDeep: 1,
     }).mesh;
     const avg = boxOf(average.positions);
+    /* ---- packed and unpacked ---- *
+     *
+     * What ships is not the file that was imported, it is the unwrap: sixteen
+     * bits per position and per texture coordinate. The quantisation is meant
+     * to be invisible rather than merely small, so it is measured against the
+     * thing it has to be invisible *to* — a texel of the paint layer, which at
+     * 1024 across is one thousandth of a texture coordinate.
+     */
+    {
+      const headsMod = await load('model/import/heads.js');
+      const record = headsMod.packHead(out, {
+        id: 'audit-head', name: 'בדיקה', credit: 'audit', provides: ['ears'],
+        landmarks: marks,
+      });
+      check(record.vertexCount === out.stats.vertices && record.triangleCount === out.stats.triangles,
+        `a packed head keeps its size (${record.vertexCount} vertices)`);
+      const bytes = record.pos.length + record.uv.length + record.idx.length;
+      check(bytes < out.stats.vertices * 60,
+        `and is small enough to carry (${Math.round(bytes / 1024)} KB of base64)`);
+
+      const rebuilt = headsMod.buildImportedHead(record);
+      check(rebuilt.mesh.triangles === out.stats.triangles, 'unpacking gives back every triangle');
+      /* The brush's ray-cast reads its hit's texture coordinates off `uvs` and
+       * its early-out off the bounding box. A mesh without them is a head the
+       * pointer throws on the instant it touches it — and the coverage numbers
+       * keep moving anyway, because the arrival makeup is already on the face,
+       * so it looks like the paint is landing. */
+      check(rebuilt.mesh.uvs && rebuilt.mesh.uvs.length === record.vertexCount * 2,
+        'and a UV array for the ray-cast the brush runs on');
+      check(!!rebuilt.mesh.min && !!rebuilt.mesh.max, 'and a bounding box for it to reject against');
+      check(rebuilt.mesh.uvs[12] === rebuilt.mesh.vertices[6 * 9 + 6],
+        'which holds the same coordinates the vertex buffer does');
+      let worstPos = 0, worstUV = 0, unitAgain = true;
+      for (let i = 0; i < record.vertexCount; i++) {
+        for (let k = 0; k < 3; k++) {
+          worstPos = Math.max(worstPos,
+            Math.abs(rebuilt.mesh.positions[i * 3 + k] - out.mesh.positions[i * 3 + k]));
+        }
+        worstUV = Math.max(worstUV,
+          Math.abs(rebuilt.mesh.vertices[i * 9 + 6] - out.mesh.vertices[i * 9 + 6]),
+          Math.abs(rebuilt.mesh.vertices[i * 9 + 7] - out.mesh.vertices[i * 9 + 7]));
+        const l = Math.hypot(rebuilt.mesh.vertices[i * 9 + 3],
+          rebuilt.mesh.vertices[i * 9 + 4], rebuilt.mesh.vertices[i * 9 + 5]);
+        if (Math.abs(l - 1) > 1e-3) unitAgain = false;
+      }
+      check(worstPos < 1e-4,
+        `positions survive the round trip (worst ${(worstPos * 115).toFixed(3)} mm on a face)`);
+      check(worstUV < 1 / 1024,
+        `and texture coordinates to inside a texel (worst ${worstUV.toExponential(1)})`);
+      check(unitAgain, 'and the normals it recomputes are unit vectors');
+
+      /* The eyes have to end up in the sockets, or the customer has two marbles
+       * on her cheeks and there is no shape function left to ask. */
+      const eyeGap = Math.hypot(record.eyeR.centre[0] - record.eyeL.centre[0],
+        record.eyeR.centre[1] - record.eyeL.centre[1],
+        record.eyeR.centre[2] - record.eyeL.centre[2]);
+      const refL = head.eyeAnchor(P, -1), refR = head.eyeAnchor(P, 1);
+      const refGap = Math.hypot(refR.centre[0] - refL.centre[0],
+        refR.centre[1] - refL.centre[1], refR.centre[2] - refL.centre[2]);
+      near(eyeGap, refGap, refGap * 0.12, 'the eyes come out the right distance apart');
+      check(record.eyeL.centre[0] < 0 && record.eyeR.centre[0] > 0,
+        'and on the correct sides of the face');
+      check(record.eyeL.normal[2] > 0.5 && record.eyeR.normal[2] > 0.5,
+        'with their sockets facing out of the head, not into it');
+      check(record.eyeRadius > 0.05 && record.eyeRadius < 0.16,
+        `and an eyeball the size of an eyeball (${record.eyeRadius.toFixed(3)})`);
+      check(record.focus.lips[1] < record.focus.eyes[1],
+        'the close-up on the lips is below the one on the eyes');
+    }
+
     near(got[0] / got[1], was[0] / was[1], 0.03,
       'an imported head keeps its proportions — a long face stays a long face');
     near(got[1], avg[1], avg[1] * 0.12,
