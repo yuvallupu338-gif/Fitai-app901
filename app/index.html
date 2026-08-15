@@ -1,0 +1,138 @@
+<!DOCTYPE html>
+<html lang="he" dir="rtl" translate="no" class="notranslate">
+<head>
+<meta charset="UTF-8">
+<meta http-equiv="Content-Security-Policy" content="default-src 'self'; script-src 'self' 'unsafe-inline'; style-src 'self' 'unsafe-inline'; img-src 'self' data: blob:; media-src 'self' data: blob:; font-src 'self' data:; connect-src 'self' data: blob:; worker-src 'self' blob:; manifest-src 'self' blob:; object-src 'none'; base-uri 'none'; form-action 'none'">
+<meta name="viewport" content="width=device-width, initial-scale=1.0, maximum-scale=5.0, user-scalable=yes">
+<meta name="google" content="notranslate">
+<meta name="theme-color" content="#0B0C0E">
+<meta name="apple-mobile-web-app-capable" content="yes">
+<meta name="mobile-web-app-capable" content="yes">
+<meta name="apple-mobile-web-app-status-bar-style" content="black-translucent">
+<meta name="apple-mobile-web-app-title" content="FitAI">
+<title>FitAI — מאמן כושר ותזונה אישי</title>
+
+<!-- The design language, in cascade order: the faces, the tokens they are
+     named in, the page, the components, the screens, and last the motion. -->
+<link rel="stylesheet" href="styles/fonts.css">
+<link rel="stylesheet" href="styles/tokens.css">
+<link rel="stylesheet" href="styles/base.css">
+<link rel="stylesheet" href="styles/components.css">
+<link rel="stylesheet" href="styles/screens.css">
+<link rel="stylesheet" href="styles/motion.css">
+</head>
+<body>
+
+<div id="splash"><div class="lg">✦</div><div class="t">FitAI</div><div class="ring"></div><div class="s">טוען את האפליקציה…</div></div>
+
+<div class="topbar app">
+  <button class="profbtn" id="profBtn" aria-label="תפריט פרופיל"><span class="av" id="profAv">י</span><span id="profName">פרופיל</span> <span style="color:var(--muted2)">▾</span></button>
+  <div class="brand"><span class="logobox"></span><b>Fit<i>AI</i></b></div>
+</div>
+<div class="profmenu" id="profMenu"></div>
+
+<div class="app" id="screen"></div>
+
+<div class="floats">
+  <button class="fab" id="helpFab" title="עזרה" aria-label="עזרה">?</button>
+  <button class="fab goal" id="goalFab" title="היום שלי" aria-label="היום שלי">🎯</button>
+</div>
+
+<nav class="nav" id="nav" role="tablist" aria-label="ניווט ראשי">
+  <button data-tab="home" class="act" role="tab" aria-selected="true" aria-label="בית"><span class="i" aria-hidden="true">🏠</span><span class="t">בית</span></button>
+  <button data-tab="skills" role="tab" aria-selected="false" aria-label="כישורים"><span class="i" aria-hidden="true">🌳</span><span class="t">כישורים</span></button>
+  <button data-tab="nutrition" role="tab" aria-selected="false" aria-label="תזונה"><span class="i" aria-hidden="true">🥩</span><span class="t">תזונה</span></button>
+  <button data-tab="stretches" role="tab" aria-selected="false" aria-label="מתיחות"><span class="i" aria-hidden="true">🧘</span><span class="t">מתיחות</span></button>
+  <button data-tab="notif" role="tab" aria-selected="false" aria-label="התראות"><span class="i" aria-hidden="true">🔔</span><span class="t">התראות</span></button>
+  <button data-tab="settings" role="tab" aria-selected="false" aria-label="הגדרות"><span class="i" aria-hidden="true">⚙️</span><span class="t">הגדרות</span></button>
+</nav>
+
+<div class="overlay" id="overlay"><div class="sheet" id="sheet"></div></div>
+<div class="overlay modalC" id="modal" role="dialog" aria-modal="true" aria-label="אימון מודרך"><div class="sheet" id="modalSheet"></div></div>
+<div id="woAnnounce" aria-live="assertive" aria-atomic="true" style="position:absolute;width:1px;height:1px;overflow:hidden;clip:rect(0 0 0 0);white-space:nowrap"></div>
+<div id="obwrap" style="display:none"></div>
+<div class="toast" id="toast" role="status" aria-live="polite" aria-atomic="true"></div>
+
+<!-- ===================================================================
+     The application, in load order.
+
+     These are classic scripts, not modules: they share one global scope and
+     run one after another, which is exactly what the single 24 MB file they
+     came out of did. The order below IS the order of that file, so it is
+     load-bearing — a data file has to be in memory before the code that reads
+     it at load time runs. Assets sit next to the code that consumes them.
+     =================================================================== -->
+
+<!-- state, the skill tree -->
+<script src="src/store.js"></script>
+<script src="src/skills.js"></script>
+
+<!-- the menu: thumbnails, photographs, recipes -->
+<script src="assets/food-thumbs.js"></script>
+<script src="assets/meal-photos.js"></script>
+<script src="src/data/meals.js"></script>
+
+<!-- stretches -->
+<script src="assets/stretch-frames.js"></script>
+<script src="src/data/stretches.js"></script>
+
+<!-- the rules and the numbers -->
+<script src="src/coaching.js"></script>
+<script src="src/targets.js"></script>
+
+<!-- the shell every screen draws into -->
+<script src="src/ui.js"></script>
+<script src="src/share.js"></script>
+
+<!-- language -->
+<script src="i18n/strings-ui.js"></script>
+<script src="src/ex-demo.js"></script>
+<script src="i18n/strings-ui2.js"></script>
+<script src="i18n/strings-content.js"></script>
+<script src="src/i18n.js"></script>
+
+<!-- the screens -->
+<script src="src/render.js"></script>
+<script src="src/screens/home.js"></script>
+<script src="assets/food-photos.js"></script>
+<script src="src/data/foods.js"></script>
+<script src="src/food-log.js"></script>
+<script src="src/screens/skills.js"></script>
+<script src="src/screens/nutrition.js"></script>
+<script src="src/screens/stretches.js"></script>
+<script src="src/screens/notifications.js"></script>
+<script src="src/screens/settings.js"></script>
+<script src="src/profiles.js"></script>
+<script src="src/daily.js"></script>
+
+<!-- what the interface does when you press it -->
+<script src="src/bindings.js"></script>
+<script src="src/actions.js"></script>
+<script src="src/backup.js"></script>
+
+<!-- the plan: movements, split, sessions -->
+<script src="assets/exercise-frames.js"></script>
+<script src="src/plan/goal.js"></script>
+<script src="src/plan/track.js"></script>
+<script src="src/plan/kit.js"></script>
+<script src="src/plan/muscles.js"></script>
+<script src="src/plan/moves.js"></script>
+<script src="src/plan/split.js"></script>
+<script src="src/plan/session.js"></script>
+<script src="src/exercise-demos.js"></script>
+<script src="src/plan/week.js"></script>
+<script src="src/demo-media.js"></script>
+<script src="src/coach-figure.js"></script>
+
+<!-- the guided session -->
+<script src="src/workout-prescribe.js"></script>
+<script src="src/workout-session.js"></script>
+
+<!-- reminders, install, first run, start -->
+<script src="src/notifications.js"></script>
+<script src="assets/logo.js"></script>
+<script src="src/pwa.js"></script>
+<script src="src/onboarding.js"></script>
+<script src="src/boot.js"></script>
+</body>
+</html>

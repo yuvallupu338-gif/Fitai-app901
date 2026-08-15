@@ -43,6 +43,16 @@ failure would look like a bug in the app.
 Point Pages at the branch root; `index.html` is the entry. `dist/fitai.html` is
 served alongside it as a single-file copy that also works offline.
 
+### Also in this repo: `app/`
+
+`app/` is the other FitAI — the large single-file build with profiles, the skill
+tree, the food log and the guided session — unpacked from one 24 MB
+`index.html` into 58 files, and re-dressed in the design language from the
+*Mobile Sport App Design* handoff bundle: near-black ground, one lime accent,
+Archivo over Rubik, pills instead of rounded rectangles. It is served at
+`/app/` and keeps its own storage, so it does not touch anything above. See
+[`app/README.md`](app/README.md).
+
 ### Also in this repo: `backrooms/`
 
 `backrooms/` is a separate, self-contained app that shares nothing with FitAI

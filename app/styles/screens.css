@@ -1,0 +1,182 @@
+/* screens.css — the parts that belong to one screen: the skill tree, the muscle
+ * figure, the menu, the stretches, the reminders, the demo stage and the
+ * guided session.
+ */
+
+/* ---------- skill tree ---------- */
+.lvl {
+  margin: 14px 0; border: 1px solid var(--line); border-radius: var(--radius);
+  overflow: hidden; background: var(--card);
+}
+.lvl.locked { opacity: .5 }
+.lvlh { display: flex; align-items: center; gap: 12px; padding: 15px 16px; background: var(--card2); cursor: pointer }
+.lvlh .num {
+  width: 36px; height: 36px; border-radius: var(--pill); background: var(--accent);
+  color: var(--ink); display: grid; place-items: center;
+  font-family: var(--mono); font-weight: 700; font-size: 14px; flex-shrink: 0;
+}
+.lvl.locked .lvlh .num { background: var(--line2); color: var(--muted2) }
+.lvlh .t { flex: 1; min-width: 0 }
+.lvlh .t b { font-size: 15px; font-weight: 700 }
+.lvlh .prog {
+  font-family: var(--mono); font-size: 10.5px; font-weight: 500;
+  letter-spacing: .08em; color: var(--muted2);
+}
+.exs { padding: 8px 10px; display: none }
+.lvl.open .exs { display: block }
+.ex { display: flex; align-items: center; gap: 12px; padding: 12px; border-radius: var(--r-sm); border: 1px solid transparent }
+.ex:hover { background: var(--card2); border-color: var(--line) }
+.ex .ic { width: 32px; height: 32px; border-radius: var(--pill); display: grid; place-items: center; font-size: 14px; flex-shrink: 0; background: var(--bg2) }
+.ex.done .ic { background: var(--accent-wash2); color: var(--accent) }
+html.light .ex.done .ic { color: var(--teal2) }
+.ex.locked { opacity: .42 }
+.ex .nm { flex: 1; min-width: 0 }
+.ex .nm b { font-size: 14px; display: block; font-weight: 700 }
+.ex .nm span { font-size: 12px; color: var(--muted2) }
+.ex .st { font-size: 16px }
+/* A skill-tree row opens the exercise, so it says so and it moves. */
+.ex[data-ex] { cursor: pointer; transition: all .15s }
+.ex[data-ex]:active { transform: scale(.99); border-color: var(--line2) }
+
+/* Category badges carry no colour of their own — the word is the label. */
+.catbadge {
+  font-family: var(--mono); font-size: 10px; font-weight: 600; letter-spacing: .08em;
+  padding: 3px 8px; border-radius: var(--pill); margin-inline-end: 5px;
+  background: var(--card2); color: var(--muted2); border: 1px solid var(--line2);
+}
+.cat-chest, .cat-back, .cat-legs, .cat-core, .cat-sh,
+.cat-arm, .cat-shoulders, .cat-arms, .cat-cardio {
+  background: var(--card2); color: var(--muted2); border: 1px solid var(--line2);
+}
+
+/* ---------- the worked-muscle figure ----------
+   The one place that is allowed to shout, so it keeps a colour nothing else
+   in the palette uses — and it holds still, because a static mark is easier to
+   read than a moving one. */
+.coach .mus > * { fill: #FF4D3D; stroke: rgba(255, 255, 255, .3); stroke-width: .8 }
+.coach .mus.pri { opacity: .82 }
+.coach .mus.sec { opacity: .34 }
+.coach .mus.sec > * { fill: #FF9166; stroke: none }
+.musdot { flex: none; width: 11px; height: 11px; border-radius: 50%; margin-top: 4px; background: #FF4D3D }
+.musdot.sec { background: #FF9166; opacity: .5 }
+.demorow { display: flex; gap: 12px; align-items: center; justify-content: center; flex-wrap: wrap }
+.musmap { display: grid; place-items: center; gap: 2px }
+.musmap .coach { width: 100px; height: 124px }
+.musrow { display: flex; gap: 16px; align-items: center; flex-wrap: wrap; margin: 12px 0 10px }
+.musleg { flex: 1; min-width: min(170px, 100%); display: grid; gap: 8px }
+.musleg-row {
+  display: flex; gap: 8px; align-items: flex-start;
+  font-size: 13px; line-height: 1.45; color: var(--muted); min-width: 0;
+}
+.musleg-row b { color: var(--txt) }
+.musleg-row > span { min-width: 0; overflow-wrap: anywhere }
+.machanim { width: 88px; height: 110px; overflow: hidden; display: flex; align-items: flex-start; justify-content: center }
+.machanim .coach { width: 88px; height: 110px }
+.machanim.big { width: 150px; height: 186px; margin: 0 auto; overflow: hidden }
+.machanim.big .coach { width: 150px; height: 186px }
+
+/* ---------- the menu ---------- */
+.meal {
+  border: 1px solid var(--line); border-radius: var(--radius); overflow: hidden;
+  margin: 12px 0; background: var(--card);
+}
+.meal .img {
+  height: 160px; background-size: cover; background-position: center; position: relative;
+  display: flex; align-items: flex-end; background-color: var(--card2);
+}
+.meal .img .tag {
+  margin: 12px; background: rgba(11, 12, 14, .68); backdrop-filter: blur(6px);
+  padding: 6px 12px; border-radius: var(--pill);
+  font-family: var(--mono); font-size: 10px; font-weight: 600; letter-spacing: .12em;
+  text-transform: uppercase; color: #F4F5F6;
+}
+.meal .body { padding: 15px 16px }
+.meal .nm { font-family: var(--display); font-size: 17px; font-weight: 700; letter-spacing: -.02em; line-height: 1.25 }
+.meal .macros { display: flex; gap: 8px; margin-top: 10px; flex-wrap: wrap }
+.macro {
+  font-family: var(--mono); font-size: 10.5px; font-weight: 500; letter-spacing: .06em;
+  padding: 5px 10px; border-radius: var(--pill);
+  background: var(--card2); border: 1px solid var(--line); color: var(--muted);
+}
+.meal .meta {
+  display: flex; gap: 14px; flex-wrap: wrap;
+  font-family: var(--mono); font-size: 11px; color: var(--muted2); margin-top: 10px;
+}
+.recipe { display: none; margin-top: 14px; border-top: 1px solid var(--line); padding-top: 14px }
+.recipe.open { display: block }
+.recipe h4 {
+  font-family: var(--mono); font-size: 10px; font-weight: 600; letter-spacing: .16em;
+  text-transform: uppercase; color: var(--accent); margin: 10px 0 7px;
+}
+html.light .recipe h4 { color: var(--teal2) }
+.recipe ul, .recipe ol { margin: 0; padding-inline-start: 20px; font-size: 13.5px; color: var(--muted) }
+.recipe li { margin: 5px 0 }
+
+/* ---------- stretches and reminders ---------- */
+.group { margin: 16px 0 }
+.group .gt {
+  font-family: var(--mono); font-size: 10px; font-weight: 600; letter-spacing: .16em;
+  text-transform: uppercase; color: var(--accent); margin-bottom: 10px;
+  display: flex; align-items: center; gap: 7px;
+}
+html.light .group .gt { color: var(--teal2) }
+.stretch { background: var(--card2); border: 1px solid var(--line); border-radius: 18px; padding: 14px; margin: 9px 0 }
+.stretch .sh { display: flex; justify-content: space-between; align-items: center; gap: 10px }
+.stretch .sh b { font-size: 14px; font-weight: 700 }
+.stretch .dur { font-family: var(--mono); font-size: 11px; color: var(--accent); font-weight: 600; letter-spacing: .06em; flex: none }
+html.light .stretch .dur { color: var(--teal2) }
+.stretch p { margin: 7px 0 0; font-size: 13px; color: var(--muted) }
+.notif {
+  display: flex; gap: 14px; align-items: flex-start;
+  background: var(--card2); border: 1px solid var(--line);
+  border-radius: 18px; padding: 15px; margin: 10px 0;
+}
+.notif .tm { font-family: var(--mono); font-size: 13px; font-weight: 600; color: var(--accent); min-width: 50px }
+html.light .notif .tm { color: var(--teal2) }
+.notif .nt b { font-size: 14px; display: block; font-weight: 700 }
+.notif .nt span { font-size: 13px; color: var(--muted) }
+
+/* ---------- the vector coach ---------- */
+.coachstage {
+  display: flex; flex-direction: column; align-items: center;
+  background: radial-gradient(150px 95px at 50% 26%, rgba(217, 255, 61, .12), transparent 70%), var(--card2);
+  border: 1px solid var(--line); border-radius: var(--radius);
+  padding: 8px 0 10px; margin: 8px 0 14px; overflow: hidden;
+}
+.coach { width: 165px; height: 205px; display: block }
+.coach .part { transform-box: view-box }
+.coach .shadow { transform-box: view-box; transform-origin: 100px 242px; animation: coShadow 1.8s ease-in-out infinite }
+/* 'writing the plan on a clipboard' — the build screen */
+.npsvg { width: 176px; height: auto; display: block; margin: 2px auto 0; filter: drop-shadow(0 8px 14px rgba(0, 0, 0, .35)) }
+
+/* ---------- the exercise demo stage ---------- */
+.exdemo {
+  position: relative; width: 86%; max-width: 300px; aspect-ratio: 4/3;
+  margin: 2px auto 0; border-radius: 18px; overflow: hidden;
+  border: 1px solid var(--line2); background: var(--bg);
+  box-shadow: 0 10px 28px rgba(0, 0, 0, .45);
+}
+.exdemo img { position: absolute; inset: 0; width: 100%; height: 100%; object-fit: contain; object-position: center; background: var(--bg) }
+.exdemo .exfb {
+  position: absolute; inset: 0; display: flex; flex-direction: column;
+  align-items: center; justify-content: center; gap: 8px;
+  background: linear-gradient(135deg, var(--card2), var(--bg)); color: var(--muted2);
+}
+.exdemo .exfb .e { font-size: 46px; filter: drop-shadow(0 4px 10px rgba(0, 0, 0, .4)) }
+.exdemo .exfb .n { font-size: 13px; font-weight: 700; color: var(--muted); padding: 0 14px; text-align: center }
+.exdemo .exlabel {
+  position: absolute; bottom: 10px; right: 10px;
+  background: rgba(11, 12, 14, .7); backdrop-filter: blur(6px); color: #F4F5F6;
+  font-family: var(--mono); font-size: 10px; font-weight: 600; letter-spacing: .12em;
+  text-transform: uppercase; padding: 5px 11px; border-radius: var(--pill);
+  display: flex; align-items: center; gap: 6px;
+}
+.exdemo .exlabel::before { content: ''; width: 7px; height: 7px; border-radius: 50%; background: var(--accent); animation: exLive 1.2s ease-in-out infinite }
+
+/* ---------- the build phase ---------- */
+.buildbars { display: flex; gap: 6px; justify-content: center; height: 42px; align-items: flex-end; margin: 12px 0 }
+.buildbars i { width: 14px; background: var(--accent); border-radius: 5px; animation: bb 1s ease-in-out infinite }
+.buildbars i:nth-child(2) { animation-delay: .12s }
+.buildbars i:nth-child(3) { animation-delay: .24s }
+.buildbars i:nth-child(4) { animation-delay: .36s }
+.buildbars i:nth-child(5) { animation-delay: .48s }
