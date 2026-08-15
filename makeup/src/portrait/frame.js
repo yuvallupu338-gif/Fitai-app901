@@ -46,77 +46,17 @@
  *             layer live here; this is the space the player's pointer lands in.
  */
 
-import { F, monotoneMap } from '../model/face.js';
 import { clamp, smoothstep } from '../core/math.js';
+import { F } from '../model/face.js';
+import {
+  LANDMARKS, LANDMARK_KEYS, PHOTO_EDGE_S, VERTICAL_ANCHORS, horizontalAnchors,
+  fitMonotone, invertMonotone, orderProblems,
+} from '../model/landmarks.js';
 
-/* ------------------------------------------------------------------ *
- * What has to be marked
- * ------------------------------------------------------------------ */
-
-/*
- * The landmark set. Twenty points, which is about the most that can be asked
- * of somebody before they stop bothering, and enough that every band of the
- * face has a pair on both sides of it.
- *
- * L and R are the *picture's* left and right, not the subject's — the mirror
- * question has caused more wrong-way-round faces than any other kind of bug,
- * and the picture's left is the one you can see while clicking. It also lines
- * up with face space, where s < 0.5 is the side of the face that appears on the
- * viewer's left.
- */
-export const LANDMARKS = [
-  { key: 'hairline', he: 'קו השיער במרכז המצח', hint: 'איפה השיער מתחיל, בדיוק באמצע' },
-  { key: 'browL', he: 'שיא הגבה — צד שמאל בתמונה', hint: 'הנקודה הגבוהה של הקשת' },
-  { key: 'browR', he: 'שיא הגבה — צד ימין בתמונה', hint: 'הנקודה הגבוהה של הקשת' },
-  { key: 'eyeTop', he: 'קצה העפעף העליון', hint: 'על קו הריסים העליון, במרכז העין' },
-  { key: 'eyeL', he: 'אישון — עין שמאלית בתמונה', hint: 'מרכז האישון' },
-  { key: 'eyeR', he: 'אישון — עין ימנית בתמונה', hint: 'מרכז האישון' },
-  { key: 'eyeBottom', he: 'קצה העפעף התחתון', hint: 'על קו הריסים התחתון, באותה עין' },
-  { key: 'eyeOuterL', he: 'זווית חיצונית — עין שמאלית', hint: 'הפינה הרחוקה מהאף' },
-  { key: 'eyeOuterR', he: 'זווית חיצונית — עין ימנית', hint: 'הפינה הרחוקה מהאף' },
-  { key: 'noseTip', he: 'קצה האף', hint: 'הנקודה הבולטת ביותר' },
-  { key: 'noseWingL', he: 'כנף האף — צד שמאל', hint: 'הקצה הרחב של הנחיר' },
-  { key: 'noseWingR', he: 'כנף האף — צד ימין', hint: 'הקצה הרחב של הנחיר' },
-  { key: 'noseBase', he: 'בסיס האף', hint: 'מתחת לאף, במרכז' },
-  { key: 'lipTop', he: 'שיא השפה העליונה', hint: 'אחת הפסגות של קשת קופידון' },
-  { key: 'mouthL', he: 'זווית הפה — צד שמאל', hint: 'הפינה שבה השפתיים נפגשות' },
-  { key: 'mouthR', he: 'זווית הפה — צד ימין', hint: 'הפינה שבה השפתיים נפגשות' },
-  { key: 'lipBottom', he: 'קצה השפה התחתונה', hint: 'הגבול התחתון של השפה, במרכז' },
-  { key: 'chin', he: 'קצה הסנטר', hint: 'הנקודה התחתונה של הפנים' },
-  { key: 'faceL', he: 'קו הפנים — צד שמאל', hint: 'הצללית בגובה עצם הלחי' },
-  { key: 'faceR', he: 'קו הפנים — צד ימין', hint: 'הצללית בגובה עצם הלחי' },
-];
-
-export const LANDMARK_KEYS = LANDMARKS.map((l) => l.key);
-
-/* ------------------------------------------------------------------ *
- * Where each landmark lands in face space
- * ------------------------------------------------------------------ */
-
-/*
- * The silhouette. Face space runs the skin zone out to |s - 0.5| = 0.46 and
- * feathers it from 0.253 outwards, because on a head that band is curving away
- * from the light. A photograph is flat and its cheek is fully visible to the
- * edge, so mapping the marked silhouette to 0.46 would leave the outer third of
- * every cheek with half-strength foundation and no way to fix it.
- *
- * 0.36 puts the silhouette inside the feather instead: full coverage across the
- * central 70% of the face, tapering to about half at the jaw — which is where a
- * base is meant to fade anyway — and the outline below is what actually stops
- * it going onto the background.
- */
-export const FACE_EDGE_S = 0.360;
-
-/*
- * The three vertical targets that are not landmarks in F but are derived from
- * the fields drawn around them, so a marked lip is the lip the mask paints:
- * `lipMask` reaches 0.040 above the mouth line at the bow and 0.055 below it,
- * and `browMask` arches a full 0.020 above browT at its peak — which is the
- * point the landmark asks for, so that is the number here.
- */
-const BROW_PEAK_T = F.browT - 0.020;
-const LIP_TOP_T = F.mouthT - 0.040;
-const LIP_BOTTOM_T = F.mouthT + 0.055;
+/* Re-exported so the marking page and the audit can ask the photographic side
+ * for its own vocabulary without knowing that it shares one with the mesh. */
+export { LANDMARKS, LANDMARK_KEYS };
+export const FACE_EDGE_S = PHOTO_EDGE_S;
 
 /*
  * How much of the crop window the face fills, across and down.
@@ -169,74 +109,10 @@ export function validateAvatar(avatar) {
   if (lm.eyeOuterL[0] >= lm.eyeL[0]) bad.push('eyeOuterL must be outside eyeL');
   if (lm.eyeOuterR[0] <= lm.eyeR[0]) bad.push('eyeOuterR must be outside eyeR');
 
-  /* Vertical order, top of the head down. Marked out of order it still maps —
-   * the pooling below will silently merge the offenders — but a mouth above a
-   * nose means the wrong point was clicked, and quietly averaging it away hides
-   * that from whoever marked it. */
-  const order = [
-    ['hairline', lm.hairline[1]],
-    ['brow', (lm.browL[1] + lm.browR[1]) / 2],
-    ['eye', (lm.eyeL[1] + lm.eyeR[1]) / 2],
-    ['noseBase', lm.noseBase[1]],
-    ['mouth', (lm.mouthL[1] + lm.mouthR[1]) / 2],
-    ['chin', lm.chin[1]],
-  ];
-  for (let i = 1; i < order.length; i++) {
-    if (order[i][1] <= order[i - 1][1]) {
-      bad.push(`${order[i][0]} is not below ${order[i - 1][0]}`);
-    }
-  }
-  if (lm.eyeTop[1] >= lm.eyeBottom[1]) bad.push('eyeTop is not above eyeBottom');
-  if (lm.lipTop[1] >= lm.lipBottom[1]) bad.push('lipTop is not above lipBottom');
+  /* And the order a face has its features in, which is shared with the mesh
+   * side: y runs down a picture, so "below" is a larger number here. */
+  bad.push(...orderProblems((key) => lm[key][1]));
   return bad;
-}
-
-/* ------------------------------------------------------------------ *
- * Monotone pooling
- * ------------------------------------------------------------------ */
-
-/*
- * Sort the pairs and force them into strictly increasing order, merging any
- * that disagree into their average.
- *
- * They do disagree, and not only through bad clicking. Face space puts the
- * inner corner of the eye marginally further from the centre line than the wing
- * of the nose; a real face has it marginally nearer. Differences of that size
- * are not worth reconciling in the landmark table — nothing on screen moves by
- * a millimetre either way — but they are enough to make a curve non-monotone,
- * and a non-monotone curve folds. Pooling adjacent violators is the standard
- * answer: it is the closest monotone sequence in the least-squares sense, and
- * it degrades a conflict into a slightly softer fit instead of a crease.
- */
-export function poolMonotone(pairs) {
-  const sorted = pairs.slice().sort((a, b) => a[0] - b[0]);
-  const out = [];
-  for (const [x, y] of sorted) {
-    let cur = { x, y, n: 1 };
-    while (out.length) {
-      const prev = out[out.length - 1];
-      if (prev.x < cur.x - 1e-9 && prev.y < cur.y - 1e-9) break;
-      out.pop();
-      const n = prev.n + cur.n;
-      cur = { x: (prev.x * prev.n + cur.x * cur.n) / n, y: (prev.y * prev.n + cur.y * cur.n) / n, n };
-    }
-    out.push(cur);
-  }
-  if (out.length < 2) {
-    throw new Error('landmark curve collapsed to a point — the marks are unusable');
-  }
-  return [out.map((o) => o.x), out.map((o) => o.y)];
-}
-
-/* A monotone increasing function inverted by bisection. Forty iterations take
- * a double to the last bit it has, and the map is only ever inverted for UI
- * placement, never per pixel. */
-function invertMonotone(fn, target, lo, hi) {
-  for (let i = 0; i < 40; i++) {
-    const mid = (lo + hi) / 2;
-    if (fn(mid) < target) lo = mid; else hi = mid;
-  }
-  return (lo + hi) / 2;
 }
 
 function median3(a, b, c) {
@@ -307,33 +183,18 @@ export function makeFrame(avatar) {
    * would push the whole face a few millimetres to one side and put every
    * blusher slightly off the cheekbone it belongs on.
    */
-  const halfMap = (side) => {
-    const k = (name) => (side < 0 ? R[name + 'L'] : R[name + 'R']);
-    const eye = side < 0 ? R.eyeL : R.eyeR;
-    return monotoneMap(...poolMonotone([
-      [0, 0],
-      [Math.abs(k('noseWing')[0] - cx), F.noseHalfS],
-      [Math.abs(k('mouth')[0] - cx), F.lipHalfS],
-      [Math.abs(eye[0] - cx), F.eyeS],
-      [Math.abs(k('eyeOuter')[0] - cx), F.eyeS + F.eyeHalfS],
-      [Math.abs(k('face')[0] - cx), FACE_EDGE_S],
-    ]));
-  };
+  const halfMap = (side) => fitMonotone([
+    [0, 0],
+    ...horizontalAnchors(FACE_EDGE_S).map((a) => {
+      const mark = R[a.key + (side < 0 ? 'L' : 'R')];
+      return [Math.abs(mark[0] - cx), a.s];
+    }),
+  ]);
   const mapL = halfMap(-1);
   const mapR = halfMap(1);
 
-  const mapY = monotoneMap(...poolMonotone([
-    [R.hairline[1], F.hairline],
-    [(R.browL[1] + R.browR[1]) / 2, BROW_PEAK_T],
-    [R.eyeTop[1], F.lidTopT],
-    [(R.eyeL[1] + R.eyeR[1]) / 2, F.eyeT],
-    [R.eyeBottom[1], F.lidBotT],
-    [R.noseTip[1], F.noseTipT],
-    [R.noseBase[1], F.noseBaseT],
-    [R.lipTop[1], LIP_TOP_T],
-    [(R.mouthL[1] + R.mouthR[1]) / 2, F.mouthT],
-    [R.lipBottom[1], LIP_BOTTOM_T],
-    [R.chin[1], F.chinT],
+  const mapY = fitMonotone(VERTICAL_ANCHORS.map((a) => [
+    a.keys.reduce((n, k) => n + R[k][1], 0) / a.keys.length, a.t,
   ]));
 
   /* ---------------------------------------------------------------- *

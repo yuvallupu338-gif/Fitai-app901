@@ -67,6 +67,7 @@ async function main() {
   const math = await load('core/math.js');
   const rng = await load('core/rng.js');
   const face = await load('model/face.js');
+  const landmarkMod = await load('model/landmarks.js');
   const head = await load('model/head.js');
   const products = await load('data/products.js');
   const looks = await load('data/looks.js');
@@ -284,7 +285,7 @@ async function main() {
     /* Pooling. Two landmarks that disagree about their order must come out of
      * it merged rather than crossed — a crossed pair is a fold, and a fold puts
      * one part of the face in two places. */
-    const [px, py] = frameMod.poolMonotone([[0, 0], [3, 0.3], [2, 0.5], [5, 0.6]]);
+    const [px, py] = landmarkMod.poolMonotone([[0, 0], [3, 0.3], [2, 0.5], [5, 0.6]]);
     check(px.every((v, i) => i === 0 || v > px[i - 1]), 'pooled control points are strictly increasing in x');
     check(py.every((v, i) => i === 0 || v > py[i - 1]), 'and strictly increasing in y');
     check(px.length === 3, 'the conflicting pair was merged, not dropped or crossed');
@@ -481,6 +482,354 @@ async function main() {
     check(unit, 'every baked normal is a unit vector');
     check(faceCount > 0 && forward === faceCount,
       'and every normal on the face points at the camera, not into her head');
+  }
+
+  /* ==================================================== imported heads == */
+
+  /*
+   * A head somebody else modelled, put into face space.
+   *
+   * The only mesh whose face-space coordinates are known in advance is the one
+   * this game generates, so that is what these use: build a head, note the
+   * (s, t) of every vertex, throw the parameterisation away, move the whole
+   * thing somewhere arbitrary — rotated, scaled by thirty-seven, translated —
+   * and hand the importer nothing but triangles and twenty marks. What comes
+   * back has to be the coordinates it started from.
+   *
+   * The head is deliberately an extreme one, far from the average the importer
+   * fits against: a fit that only works on faces shaped like the reference is a
+   * fit that will not survive first contact with a download.
+   */
+  {
+    const objMod = await load('model/import/obj.js');
+    const unwrapMod = await load('model/import/unwrap.js');
+    const { F } = face;
+    const { MESH_EDGE_S, BROW_PEAK_T, LIP_TOP_T, LIP_BOTTOM_T,
+      VERTICAL_ANCHORS, horizontalAnchors } = landmarkMod;
+
+    const P = {
+      width: 1.13, length: 1.10, depth: 0.92, jaw: 1.42, chin: 1.70, cheek: 1.75,
+      brow: 1.62, nose: 1.52, noseBridge: 1.55, lip: 1.82, eyeSize: 1.18, eyeDeep: 1.45,
+    };
+    const built = head.buildHead(P);
+    const src = built.mesh;
+
+    /* The twenty marks, placed at the face-space coordinates they stand for. */
+    const MARK_ST = {
+      hairline: [0.5, F.hairline],
+      browL: [0.5 - F.browS, BROW_PEAK_T], browR: [0.5 + F.browS, BROW_PEAK_T],
+      eyeTop: [0.5 - F.eyeS, F.lidTopT],
+      eyeL: [0.5 - F.eyeS, F.eyeT], eyeR: [0.5 + F.eyeS, F.eyeT],
+      eyeBottom: [0.5 - F.eyeS, F.lidBotT],
+      eyeOuterL: [0.5 - (F.eyeS + F.eyeHalfS), F.eyeT],
+      eyeOuterR: [0.5 + (F.eyeS + F.eyeHalfS), F.eyeT],
+      noseTip: [0.5, F.noseTipT],
+      noseWingL: [0.5 - F.noseHalfS, F.noseBaseT], noseWingR: [0.5 + F.noseHalfS, F.noseBaseT],
+      noseBase: [0.5, F.noseBaseT],
+      lipTop: [0.5, LIP_TOP_T],
+      mouthL: [0.5 - F.lipHalfS, F.mouthT], mouthR: [0.5 + F.lipHalfS, F.mouthT],
+      lipBottom: [0.5, LIP_BOTTOM_T],
+      chin: [0.5, F.chinT],
+      faceL: [0.5 - MESH_EDGE_S, 0.5], faceR: [0.5 + MESH_EDGE_S, 0.5],
+    };
+
+    /* Somewhere arbitrary: yawed, pitched, scaled to centimetres, moved off the
+     * origin — the state a model arrives in from any tool that is not this one. */
+    const AY = 0.44, AX = -0.21, K = 37.2, TR = [120, -8, 55];
+    const place = (p) => {
+      const x1 = p[0] * Math.cos(AY) + p[2] * Math.sin(AY);
+      const z1 = -p[0] * Math.sin(AY) + p[2] * Math.cos(AY);
+      const y2 = p[1] * Math.cos(AX) - z1 * Math.sin(AX);
+      const z2 = p[1] * Math.sin(AX) + z1 * Math.cos(AX);
+      return [x1 * K + TR[0], y2 * K + TR[1], z2 * K + TR[2]];
+    };
+
+    const marks = {};
+    for (const [k, st] of Object.entries(MARK_ST)) {
+      marks[k] = place(head.evalSurface(P, st[0], st[1], head.NEUTRAL_EXPR, []));
+    }
+    const moved = new Float32Array(src.positions.length);
+    for (let i = 0; i < src.positions.length; i += 3) {
+      const q = place([src.positions[i], src.positions[i + 1], src.positions[i + 2]]);
+      moved[i] = q[0]; moved[i + 1] = q[1]; moved[i + 2] = q[2];
+    }
+
+    /* ---- the file format ---- */
+    const obj = objMod.parseOBJ(objMod.writeOBJ(moved, src.indices));
+    check(obj.stats.triangles === src.triangles,
+      `an OBJ round-trip keeps every triangle (${obj.stats.triangles})`);
+    check(obj.stats.vertices > 0 && obj.stats.vertices <= src.positions.length / 3,
+      `and no more vertices than it started with (${obj.stats.vertices})`);
+    let objBox = [Infinity, -Infinity];
+    for (let i = 0; i < obj.positions.length; i += 3) {
+      objBox[0] = Math.min(objBox[0], obj.positions[i]);
+      objBox[1] = Math.max(objBox[1], obj.positions[i]);
+    }
+    near(objBox[0], Math.min(...Array.from({ length: moved.length / 3 }, (_, i) => moved[i * 3])),
+      0.01, 'and the geometry comes back where it went in');
+
+    /* Negative indices count back from the end of the file, n-gons are fanned,
+     * and a file with no vt/vn is still a mesh. All three appear in exports
+     * from real tools and all three are silent corruption if mishandled. */
+    const quirky = objMod.parseOBJ([
+      'v 0 0 0', 'v 1 0 0', 'v 1 1 0', 'v 0 1 0',
+      'f -4 -3 -2 -1',
+    ].join('\n'));
+    check(quirky.stats.triangles === 2, 'a negatively-indexed quad becomes two triangles');
+    check(quirky.stats.ngons === 1, 'and is reported as the n-gon it was');
+    check(quirky.normals === null && quirky.uvs === null,
+      'a file with no normals or UVs does not pretend to have them');
+    let rejected = false;
+    try { objMod.parseOBJ('v 0 0 0\nf 1 2 3'); } catch { rejected = true; }
+    check(rejected, 'a face pointing at a vertex that does not exist is rejected');
+
+    /* ---- glTF ---- *
+     *
+     * Built here rather than read from a fixture file, so that each thing the
+     * format does that a naive reader gets wrong is present on purpose: an
+     * interleaved buffer with a stride, a node with a rotation on it, and an
+     * index accessor of a different component type from the positions.
+     */
+    {
+      const gltfMod = await load('model/import/gltf.js');
+      /* Four vertices of a unit square in the XY plane, position and normal
+       * interleaved — 24 bytes per vertex, which is the stride a reader that
+       * assumes packed data will get wrong. */
+      const f = new Float32Array([
+        0, 0, 0, 0, 0, 1,
+        1, 0, 0, 0, 0, 1,
+        1, 1, 0, 0, 0, 1,
+        0, 1, 0, 0, 0, 1,
+      ]);
+      const ind = new Uint16Array([0, 1, 2, 0, 2, 3]);
+      const blob = new Uint8Array(f.byteLength + ind.byteLength);
+      blob.set(new Uint8Array(f.buffer), 0);
+      blob.set(new Uint8Array(ind.buffer), f.byteLength);
+      const doc = (nodes) => ({
+        asset: { version: '2.0' },
+        buffers: [{ byteLength: blob.length, uri: 'data:application/octet-stream;base64,' + Buffer.from(blob).toString('base64') }],
+        bufferViews: [
+          { buffer: 0, byteOffset: 0, byteLength: f.byteLength, byteStride: 24 },
+          { buffer: 0, byteOffset: f.byteLength, byteLength: ind.byteLength },
+        ],
+        accessors: [
+          { bufferView: 0, byteOffset: 0, componentType: 5126, count: 4, type: 'VEC3' },
+          { bufferView: 0, byteOffset: 12, componentType: 5126, count: 4, type: 'VEC3' },
+          { bufferView: 1, componentType: 5123, count: 6, type: 'SCALAR' },
+        ],
+        meshes: [{ primitives: [{ attributes: { POSITION: 0, NORMAL: 1 }, indices: 2 }] }],
+        nodes,
+        scenes: [{ nodes: [0] }],
+      });
+
+      const flat = gltfMod.parseGLTF(doc([{ mesh: 0 }]));
+      check(flat.stats.triangles === 2 && flat.stats.vertices === 4,
+        'a glTF primitive reads back as the triangles it holds');
+      check(Math.abs(flat.positions[3] - 1) < 1e-6 && Math.abs(flat.positions[4]) < 1e-6,
+        'and an interleaved buffer is read at its stride, not packed');
+      check(flat.normals !== null && Math.abs(flat.normals[2] - 1) < 1e-6,
+        'and its normals come from the second half of each stride');
+
+      /* A quarter turn about X, which is the transform a Z-up model arrives
+       * with. Ignoring it lays the head on its side. */
+      const q = Math.SQRT1_2;
+      const turned = gltfMod.parseGLTF(doc([{ children: [1] }, { mesh: 0, rotation: [q, 0, 0, q] }]));
+      near(turned.positions[3 * 2 + 1], 0, 1e-5, 'a node rotation is applied to the geometry under it');
+      near(turned.positions[3 * 2 + 2], 1, 1e-5, 'so a Z-up model does not arrive lying down');
+      near(turned.positions[3 * 3 + 2], 1, 1e-5, 'through a parent node as well as its own');
+
+      /* The one failure a user will actually hit. Sketchfab's glTF export is
+       * usually Draco-compressed, and the useful thing to do about it is say so
+       * by name rather than hand back an empty mesh. */
+      let dracoMsg = '';
+      try {
+        gltfMod.parseGLTF({ ...doc([{ mesh: 0 }]), extensionsRequired: ['KHR_draco_mesh_compression'] });
+      } catch (err) { dracoMsg = err.message; }
+      check(/draco/i.test(dracoMsg) && /uncompressed|OBJ/i.test(dracoMsg),
+        'a Draco-compressed file is refused with an error that says what to do instead');
+
+      /* And GLB, which is the same document in a container. */
+      const jsonText = new TextEncoder().encode(JSON.stringify(doc([{ mesh: 0 }])));
+      const pad = (4 - (jsonText.length % 4)) % 4;
+      const glb = new Uint8Array(12 + 8 + jsonText.length + pad);
+      const dv = new DataView(glb.buffer);
+      dv.setUint32(0, 0x46546c67, true);
+      dv.setUint32(4, 2, true);
+      dv.setUint32(8, glb.length, true);
+      dv.setUint32(12, jsonText.length + pad, true);
+      dv.setUint32(16, 0x4e4f534a, true);
+      glb.set(jsonText, 20);
+      for (let i = 0; i < pad; i++) glb[20 + jsonText.length + i] = 0x20;
+      const fromGlb = gltfMod.parseMesh(glb.buffer);
+      check(fromGlb.stats.triangles === 2, 'a GLB container holds the same document');
+    }
+
+    /* ---- the pose ---- */
+    const pose = unwrapMod.fitPose(marks);
+    const det = pose.right[0] * (pose.up[1] * pose.forward[2] - pose.up[2] * pose.forward[1])
+      - pose.right[1] * (pose.up[0] * pose.forward[2] - pose.up[2] * pose.forward[0])
+      + pose.right[2] * (pose.up[0] * pose.forward[1] - pose.up[1] * pose.forward[0]);
+    check(det > 0.99,
+      `the fitted frame is right-handed (det ${det.toFixed(4)}) — a left-handed one mirrors the head`);
+    near(pose.scale * K, 1, 0.08, 'the fit undoes the export scale');
+    check(pose.residual < 0.06,
+      `and lands the marks on the reference head (residual ${pose.residual.toFixed(4)} half-heights)`);
+
+    let swapRejected = false;
+    try {
+      unwrapMod.fitPose({ ...marks, eyeL: marks.eyeR, eyeR: marks.eyeL });
+    } catch { swapRejected = true; }
+    check(swapRejected, 'marks with the eyes the wrong way round are rejected, not mirrored');
+
+    /* ---- the unwrap ---- */
+    const out = unwrapMod.unwrapHead({ positions: moved, indices: src.indices }, marks);
+    check(out.stats.orderProblems.length === 0, 'the marks come out in the order a face has features');
+
+    /*
+     * Every anchor the fit targets has to land exactly on it. This is the check
+     * the whole landmark correction exists for: without it the marks come back
+     * where the sphere put them, which on this head is nearly two percent out —
+     * enough to paint a lipstick along the line under the lip.
+     */
+    let worstV = 0;
+    for (const a of VERTICAL_ANCHORS) {
+      const got = a.keys.reduce((n, k) => n + out.marked[k][1], 0) / a.keys.length;
+      worstV = Math.max(worstV, Math.abs(got - a.t));
+    }
+    let worstH = 0, worstRaw = 0;
+    for (const a of horizontalAnchors(MESH_EDGE_S)) {
+      for (const side of ['L', 'R']) {
+        worstH = Math.max(worstH, Math.abs(Math.abs(out.marked[a.key + side][0] - 0.5) - a.s));
+      }
+    }
+    for (const k of Object.keys(MARK_ST)) {
+      worstRaw = Math.max(worstRaw,
+        Math.hypot(out.raw[k][0] - MARK_ST[k][0], out.raw[k][1] - MARK_ST[k][1]));
+    }
+    check(worstV < 1e-9, `every vertical mark lands on its own coordinate (worst ${worstV.toExponential(1)})`);
+    check(worstH < 1e-9, `and every horizontal one (worst ${worstH.toExponential(1)})`);
+    check(worstRaw > 0.008,
+      `and the sphere alone would not have (${worstRaw.toFixed(4)} out) — the correction is doing work`);
+
+    /*
+     * And the vertices between the marks, against the coordinates they were
+     * generated from. Measured feature by feature, because that is where the
+     * masks are: an error out by the ear moves nothing, an error on the mouth
+     * moves the lipstick.
+     */
+    const n = src.positions.length / 3;
+    const bandError = (inside) => {
+      const e = [];
+      for (let i = 0; i < n; i++) {
+        const s0 = src.vertices[i * 9 + 6], t0 = src.vertices[i * 9 + 7];
+        if (!inside(s0, t0)) continue;
+        e.push(Math.hypot(out.mesh.vertices[i * 9 + 6] - s0, out.mesh.vertices[i * 9 + 7] - t0));
+      }
+      e.sort((a, b) => a - b);
+      return { n: e.length, median: e[e.length >> 1], max: e[e.length - 1] };
+    };
+    const BANDS = [
+      ['the lips', (s, t) => Math.abs(s - 0.5) < F.lipHalfS && Math.abs(t - F.mouthT) < 0.06],
+      ['the eyes', (s, t) => Math.abs(Math.abs(s - 0.5) - F.eyeS) < 0.09 && Math.abs(t - F.eyeT) < 0.05],
+      ['the cheeks', (s, t) => Math.abs(Math.abs(s - 0.5) - 0.22) < 0.09 && Math.abs(t - 0.52) < 0.07],
+      ['the nose', (s, t) => Math.abs(s - 0.5) < 0.12 && t > 0.40 && t < 0.54],
+      ['the forehead', (s, t) => Math.abs(s - 0.5) < 0.25 && t > 0.18 && t < 0.30],
+    ];
+    for (const [name, inside] of BANDS) {
+      const e = bandError(inside);
+      check(e.n > 500, `${name} has enough vertices to judge (${e.n})`);
+      check(e.max < 0.025,
+        `${name} come back where they started (worst ${e.max.toFixed(4)} in face space)`);
+    }
+
+    /* ---- folds and seams ---- */
+    check(out.stats.flipped / out.stats.triangles < 0.02,
+      `almost nothing folded (${out.stats.flipped} of ${out.stats.triangles})`);
+    check(out.stats.degenerate === 0, 'and no triangle came out with no area at all');
+    check(out.stats.seamSplit > 0,
+      `the seam up the back was split (${out.stats.seamSplit} vertices duplicated)`);
+
+    /*
+     * A fold on the front of the face puts a product in two places, so what
+     * matters there is how much *area* folded rather than how many triangles
+     * did. A handful always do: the pocket under the nose is concave and faces
+     * partly upwards, and no projection from inside a head can unwrap that
+     * without a crease. Measured, it is four thousandths of a percent of the
+     * face — far under a texel of any mask — and the threshold here is set two
+     * orders above it so that a real fold, which would be a whole band, fails.
+     */
+    const V = out.mesh.vertices, I = out.mesh.indices;
+    let frontArea = 0, foldedArea = 0, frontTris = 0, wideTris = 0;
+    for (let f = 0; f < I.length; f += 3) {
+      const a = I[f], b = I[f + 1], c = I[f + 2];
+      const sa = V[a * 9 + 6], ta = V[a * 9 + 7];
+      const sb = V[b * 9 + 6], tb = V[b * 9 + 7];
+      const sc = V[c * 9 + 6], tc = V[c * 9 + 7];
+      const midT = (ta + tb + tc) / 3;
+      /* The two poles are excluded from the seam check and from nothing else:
+       * every longitude meets at a point there, so a triangle spanning half the
+       * texture is what the parameterisation *is* at the crown, not a tear. */
+      if (Math.max(sa, sb, sc) - Math.min(sa, sb, sc) > 0.5
+        && midT > 0.06 && midT < 0.94) wideTris++;
+      const mid = (sa + sb + sc) / 3;
+      if (Math.abs(mid - 0.5) > 0.30 || midT < 0.20 || midT > 0.78) continue;
+      frontTris++;
+      const area = (sb - sa) * (tc - ta) - (sc - sa) * (tb - ta);
+      frontArea += Math.abs(area);
+      if (area > 0) foldedArea += Math.abs(area);
+    }
+    check(frontTris > 5000, `the front of the face is most of the mesh (${frontTris} triangles)`);
+    check(foldedArea / frontArea < 0.001,
+      `and effectively none of it folded (${(foldedArea / frontArea).toExponential(1)} of its area)`);
+    check(wideTris === 0, 'and no triangle away from the poles stretches across the texture');
+
+    /* ---- the shape it hands back ---- */
+    check(out.mesh.vertices.length === out.stats.vertices * 9,
+      'the vertex buffer is in the layout the renderer binds');
+    check(out.morph.length === out.stats.vertices * 12,
+      'and there is a morph buffer, even though a downloaded head cannot smile');
+    check(Array.from(out.morph).every((v) => v === 0), 'which is all zeroes, so it adds nothing');
+    let unit = true, aoOk = true;
+    for (let i = 0; i < out.stats.vertices; i++) {
+      const o = i * 9;
+      const l = Math.hypot(V[o + 3], V[o + 4], V[o + 5]);
+      if (Math.abs(l - 1) > 1e-3) unit = false;
+      if (!(V[o + 8] >= 0.2 && V[o + 8] <= 1.001)) aoOk = false;
+    }
+    check(unit, 'every normal it computed is a unit vector');
+    check(aoOk, 'and every vertex carries usable occlusion');
+    check(Array.from(out.mesh.indices).every((i) => i < out.stats.vertices),
+      'no index points past the end of the buffer');
+
+    /*
+     * Size and proportion, which are two different questions.
+     *
+     * The fit scales an import to the size of the *average* head, on purpose:
+     * a model that arrives twice as tall as the counter is not a stylistic
+     * choice the game can honour, and the camera, the eyes and the lids are all
+     * placed in those units. What it must not do is squash: a long face has to
+     * stay a long face, so the aspect is checked far more tightly than the size.
+     */
+    const boxOf = (p) => {
+      const b = [Infinity, -Infinity, Infinity, -Infinity];
+      for (let i = 0; i < p.length; i += 3) {
+        b[0] = Math.min(b[0], p[i]); b[1] = Math.max(b[1], p[i]);
+        b[2] = Math.min(b[2], p[i + 1]); b[3] = Math.max(b[3], p[i + 1]);
+      }
+      return [b[1] - b[0], b[3] - b[2]];
+    };
+    const got = boxOf(out.mesh.positions);
+    const was = boxOf(src.positions);
+    const average = head.buildHead({
+      width: 1, length: 1, depth: 1, jaw: 1, chin: 1, cheek: 1, brow: 1,
+      nose: 1, noseBridge: 1, lip: 1, eyeSize: 1, eyeDeep: 1,
+    }).mesh;
+    const avg = boxOf(average.positions);
+    near(got[0] / got[1], was[0] / was[1], 0.03,
+      'an imported head keeps its proportions — a long face stays a long face');
+    near(got[1], avg[1], avg[1] * 0.12,
+      'and comes back about the size the game builds a head, so the camera still frames it');
+    check(got[1] > 1.5 && got[1] < 2.6, `which is a head, in head units (${got[1].toFixed(2)})`);
   }
 
   /* ============================================== aimed model matrices == */

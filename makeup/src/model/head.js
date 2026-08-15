@@ -28,6 +28,16 @@ const TAU = Math.PI * 2;
 const BASE_W = 0.74;
 const BASE_D = 0.86;
 
+/*
+ * The same three numbers as the semi-axes of the ellipsoid everything is
+ * displaced from, for the one caller that has to run the parameterisation
+ * *backwards*: an imported head arrives as a bag of triangles with no idea what
+ * face space is, and turning a position back into an (s, t) means dividing out
+ * exactly these. A second copy of them in the importer would be a second
+ * definition of what shape a head is.
+ */
+export const HEAD_AXES = { w: BASE_W, h: 1, d: BASE_D };
+
 function gauss(x, c, r) {
   const d = (x - c) / r;
   return Math.exp(-d * d);
@@ -186,7 +196,7 @@ export function surfaceFrame(P, s, t, E = NEUTRAL_EXPR) {
 /* Baked ambient occlusion. The eye socket, the crease beside the nose and the
  * underside of the jaw are dark on every real face and free here — the fields
  * that carve them are already computed. */
-function headAO(P, s, t) {
+export function headAO(P, s, t) {
   const socket = pair(s, t, F.eyeS, F.eyeT - 0.006, 0.110, 0.060, 0.85);
   const nostril = pair(s, t, F.nostrilS, F.noseBaseT + 0.004, 0.055, 0.026, 0.85);
   const mouthLine = gauss(t, F.mouthT, 0.010) * Math.pow(Math.max(0, 1 - ((s - 0.5) / F.lipHalfS) ** 2), 0.4);
