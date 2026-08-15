@@ -11,7 +11,9 @@
     "test": "vitest run",
     "test:watch": "vitest",
     "typecheck": "tsc --noEmit",
-    "smoke": "node tools/smoke.mjs"
+    "smoke": "node tools/smoke.mjs",
+    "build:single": "node tools/build-single.mjs",
+    "verify:single": "node tools/verify-single.mjs"
   },
   "dependencies": {
     "three": "^0.169.0"
