@@ -13,14 +13,17 @@
  */
 
 import { Renderer } from './render/renderer.js';
-import { buildMasks } from './model/face.js';
+import { buildMasks, F } from './model/face.js';
+import {
+  pickAvatar, prepareAvatar, registerAvatar, hasAvatars, setPhotosEnabled,
+} from './portrait/avatars.js';
 import { buildShop, buildTray, SHOP } from './model/props.js';
 import { PaintLayer } from './game/paint.js';
 import { Input } from './game/input.js';
 import { Audio } from './game/audio.js';
 import { Shift } from './game/shift.js';
 import {
-  buildCustomerAssets, applyArrival, reactionTo, fillZone,
+  buildCustomerAssets, applyArrival, reactionTo, fillZone, retoneCustomer,
 } from './game/customer.js';
 import { scoreCustomer, scoreMarking, till } from './game/scoring.js';
 import { UI } from './ui/ui.js';
@@ -153,7 +156,8 @@ function onPaintStart(hit) {
   audio.start();
   audio.resume();
   paint.splat(hit.s, hit.t, selected, 0.6);
-  state.gaze = hit.world;
+  /* A photograph has no eyes to follow the brush with. */
+  if (hit.world) state.gaze = hit.world;
 }
 
 function onPaintMove(hit, from, speed) {
@@ -163,7 +167,7 @@ function onPaintMove(hit, from, speed) {
    * discovers they can blend by moving. */
   const pressure = clamp(1.15 - speed * 0.55, 0.25, 1.15);
   paint.stroke(from.s, from.t, hit.s, hit.t, selected, pressure);
-  state.gaze = hit.world;
+  if (hit.world) state.gaze = hit.world;
   audio.brush(clamp(speed * 0.5, 0.05, 1), selected.product.finish === 'gloss' ? 0.15 : 0.6);
   updateProgress();
 }
@@ -177,13 +181,17 @@ function onPaintEnd() {
   updateTill();
 }
 
+/* A drag off the face turns a head; on a photograph there is no head to turn,
+ * so the same drag moves the picture under the brush instead. */
 function onOrbit(dx, dy) {
+  if (renderer.portrait) { renderer.portraitPan(dx, dy); return; }
   const cam = renderer.camera;
   cam.yaw = clamp(cam.yaw - dx * 0.005, -0.9, 0.9);
   cam.pitch = clamp(cam.pitch + dy * 0.004, -0.5, 0.6);
 }
 
 function onZoom(d) {
+  if (renderer.portrait) { renderer.portraitZoom(d); return; }
   const cam = renderer.camera;
   cam.dist = clamp(cam.dist * (1 + d), 0.16, 1.6);
 }
@@ -270,20 +278,44 @@ async function nextCustomer() {
   await nextFrame();
 
   customer = shift.next();
-  assets = buildCustomerAssets(customer, { skinSize: settings.face || 1024 });
 
-  paint.clear();
-  paint.assist = settings.assist;
-  applyArrival(paint, customer);
+  /*
+   * A photograph if there is one, the modelled head if there is not.
+   *
+   * The choice is made per customer and from her own seed, so a counter with
+   * three photographs on it serves those three faces in a fixed order and a
+   * counter with none behaves exactly as it did before any of this existed.
+   * Everything after this point — the arrival, the brush, the coverage, the
+   * till — is the same code down both paths.
+   */
+  const prepared = await preparePortrait(customer);
 
-  const c = renderer.setCustomer({
-    ...assets,
-    paintTex: paint.colourTex,
-    fxTex: paint.fxTex,
-  });
-  c.head = assets.head;
-  c.lidL = assets.lidL;
-  c.lidR = assets.lidR;
+  if (prepared) {
+    renderer.releaseCustomer();
+    assets = null;
+    retoneCustomer(customer, prepared.tone);
+    if (prepared.avatar.name) customer.name = prepared.avatar.name;
+    customer.avatarId = prepared.avatar.id;
+    paint.setMasks(prepared.masks, prepared.frame.brushScale);
+    paint.assist = settings.assist;
+    applyArrival(paint, customer);
+    renderer.setPortrait(prepared, paint);
+  } else {
+    renderer.releasePortrait();
+    assets = buildCustomerAssets(customer, { skinSize: settings.face || 1024 });
+    paint.setMasks(masks, 1);
+    paint.assist = settings.assist;
+    applyArrival(paint, customer);
+
+    const c = renderer.setCustomer({
+      ...assets,
+      paintTex: paint.colourTex,
+      fxTex: paint.fxTex,
+    });
+    c.head = assets.head;
+    c.lidL = assets.lidL;
+    c.lidR = assets.lidR;
+  }
 
   state.reacted = new Set();
   state.timeLeft = customer.patience;
@@ -311,6 +343,35 @@ async function nextCustomer() {
 
 function nextFrame() {
   return new Promise((r) => requestAnimationFrame(() => r()));
+}
+
+/*
+ * A photograph for this customer, or null.
+ *
+ * A broken avatar must not take the shift down with it. Anything that can go
+ * wrong here — a picture that will not decode, marks that were saved from a
+ * different photograph — is a data problem in one file, and the right answer to
+ * it is the modelled head and a line in the console, not a dead counter.
+ */
+async function preparePortrait(c) {
+  if (!hasAvatars()) return null;
+  const avatar = pickAvatar(makeRng(c.seed + 91));
+  if (!avatar) return null;
+  try {
+    /*
+     * The crop is baked larger than the skin texture a modelled head gets. It
+     * is the one image the player looks straight at, the makeup views zoom two
+     * and three times into it, and unlike a generated texture there is no more
+     * detail to be had later — whatever is thrown away here is thrown away for
+     * good. The paint layer and the masks stay where they were: those are
+     * fields, and a field does not get better by being sampled more finely.
+     */
+    const crop = clamp(Math.round((settings.face || 1024) * 1.5), 512, 2048);
+    return await prepareAvatar(avatar, crop, 512);
+  } catch (err) {
+    console.warn('avatar unusable, falling back to the modelled head:', err);
+    return null;
+  }
 }
 
 function outOfTime() {
@@ -356,6 +417,14 @@ function charge() {
 }
 
 function setView(name) {
+  /* The same three views on a photograph, framed in face space so the numbers
+   * mean the same thing they do on the head. */
+  if (renderer.portrait) {
+    if (name === 'eyes') renderer.portraitFocus(0.5, F.eyeT - 0.01, 2.2);
+    else if (name === 'lips') renderer.portraitFocus(0.5, F.mouthT, 2.4);
+    else renderer.portraitFocus(0.5, (F.hairline + F.chinT) / 2, 1.0);
+    return;
+  }
   const cam = renderer.camera;
   const scale = SHOP.headScale;
   const f = assets && assets.focus ? assets.focus : null;
@@ -397,6 +466,7 @@ const handlers = {
   },
   toMenu() {
     renderer.releaseCustomer();
+    renderer.releasePortrait();
     ui.setContinue(!!loadSave());
     ui.show('title');
     state.phase = 'title';
@@ -493,6 +563,15 @@ window.bella = {
   },
   mark(itemKey, finish) { ui.markItem = itemKey; ui.markFinish = finish; },
   stats: () => paint.stats(),
+  /*
+   * Add a photograph at run time. Used by the marking tool to look at a face
+   * before committing it, and by the smoke test, which draws one on a canvas so
+   * the whole path from pixels to lipstick is covered without a real person's
+   * picture living in the test suite.
+   */
+  addAvatar(avatar) { return registerAvatar(avatar); },
+  setPhotos(on) { setPhotosEnabled(on); },
+  get portrait() { return renderer.portrait; },
 };
 
 boot();

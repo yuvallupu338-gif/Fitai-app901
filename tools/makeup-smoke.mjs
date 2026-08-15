@@ -97,6 +97,142 @@ async function waitFrames(page, n = 4) {
 
 const redness = (rgb) => rgb[0] - (rgb[1] + rgb[2]) / 2;
 
+/*
+ * A face for the photographic path to serve, drawn in the page.
+ *
+ * Not a photograph of anybody: a picture whose landmarks are known exactly,
+ * because it is drawn from them. That is the property a real photograph cannot
+ * have and the reason this exists — every number the marking tool would have to
+ * be clicked to produce is here as a constant, so a failure downstream is a
+ * failure in the fit, the masks or the compositor and never in the marking.
+ *
+ * Runs inside the browser; Playwright ships the source across, so it closes
+ * over nothing.
+ */
+function makeFixtureAvatar() {
+  const W = 800, H = 1000, cx = 400;
+  const P = {
+    hairline: [cx, 290],
+    browL: [cx - 72, 435], browR: [cx + 72, 435],
+    eyeTop: [cx - 72, 462],
+    eyeL: [cx - 72, 480], eyeR: [cx + 72, 480],
+    eyeBottom: [cx - 72, 500],
+    eyeOuterL: [cx - 103, 482], eyeOuterR: [cx + 103, 482],
+    noseTip: [cx, 565],
+    noseWingL: [cx - 41, 585], noseWingR: [cx + 41, 585],
+    noseBase: [cx, 597],
+    lipTop: [cx - 18, 640],
+    mouthL: [cx - 60, 665], mouthR: [cx + 60, 665],
+    lipBottom: [cx, 695],
+    chin: [cx, 750],
+    faceL: [cx - 170, 500], faceR: [cx + 170, 500],
+  };
+
+  const cv = document.createElement('canvas');
+  cv.width = W; cv.height = H;
+  const g = cv.getContext('2d');
+
+  const bg = g.createLinearGradient(0, 0, 0, H);
+  bg.addColorStop(0, '#3b3038');
+  bg.addColorStop(1, '#211a20');
+  g.fillStyle = bg;
+  g.fillRect(0, 0, W, H);
+
+  /* Hair behind, so the silhouette has something to end against. */
+  g.fillStyle = '#2a1c18';
+  g.beginPath(); g.ellipse(cx, 430, 220, 262, 0, 0, 7); g.fill();
+  g.fillRect(cx - 220, 430, 440, 470);
+
+  g.fillStyle = '#c98d6d';
+  g.fillRect(cx - 72, 690, 144, 210);
+
+  const skin = g.createRadialGradient(cx - 40, 430, 40, cx, 520, 310);
+  skin.addColorStop(0, '#f1ba96');
+  skin.addColorStop(1, '#cd8e6e');
+  g.fillStyle = skin;
+  g.beginPath();
+  g.moveTo(cx - 170, 500);
+  g.bezierCurveTo(cx - 172, 330, cx - 120, 262, cx, 262);
+  g.bezierCurveTo(cx + 120, 262, cx + 172, 330, cx + 170, 500);
+  g.bezierCurveTo(cx + 166, 642, cx + 90, 752, cx, 752);
+  g.bezierCurveTo(cx - 90, 752, cx - 166, 642, cx - 170, 500);
+  g.closePath(); g.fill();
+
+  /* The fringe, cut at the marked hairline. */
+  g.fillStyle = '#2a1c18';
+  g.beginPath();
+  g.moveTo(cx - 202, 480);
+  g.bezierCurveTo(cx - 206, 300, cx - 130, 198, cx, 198);
+  g.bezierCurveTo(cx + 130, 198, cx + 206, 300, cx + 202, 480);
+  g.lineTo(cx + 178, 470);
+  g.bezierCurveTo(cx + 150, 320, cx + 90, 292, cx, 290);
+  g.bezierCurveTo(cx - 90, 292, cx - 150, 320, cx - 178, 470);
+  g.closePath(); g.fill();
+
+  g.lineCap = 'round';
+  g.strokeStyle = '#4a3123'; g.lineWidth = 11;
+  for (const s of [-1, 1]) {
+    g.beginPath();
+    g.moveTo(cx + s * 30, 452);
+    g.quadraticCurveTo(cx + s * 74, 429, cx + s * 112, 453);
+    g.stroke();
+  }
+
+  for (const s of [-1, 1]) {
+    const ex = cx + s * 72;
+    g.fillStyle = '#f6efe9';
+    g.beginPath(); g.ellipse(ex, 481, 32, 15, 0, 0, 7); g.fill();
+    g.fillStyle = '#5a3f22';
+    g.beginPath(); g.arc(ex, 481, 13, 0, 7); g.fill();
+    g.fillStyle = '#1a120c';
+    g.beginPath(); g.arc(ex, 481, 5.5, 0, 7); g.fill();
+    g.fillStyle = '#ffffff';
+    g.beginPath(); g.arc(ex - 4, 476, 2.5, 0, 7); g.fill();
+    g.strokeStyle = '#33241a'; g.lineWidth = 3.5;
+    g.beginPath();
+    g.moveTo(ex - 33, 482); g.quadraticCurveTo(ex, 461, ex + 33, 482);
+    g.stroke();
+  }
+
+  g.strokeStyle = 'rgba(150,95,70,0.45)'; g.lineWidth = 7;
+  g.beginPath();
+  g.moveTo(cx - 12, 500); g.quadraticCurveTo(cx - 23, 555, cx - 5, 572);
+  g.stroke();
+  g.fillStyle = 'rgba(90,55,40,0.6)';
+  for (const s of [-1, 1]) {
+    g.beginPath(); g.ellipse(cx + s * 20, 586, 9, 5, 0, 0, 7); g.fill();
+  }
+
+  g.fillStyle = '#b96a63';
+  g.beginPath();
+  g.moveTo(cx - 60, 665);
+  g.bezierCurveTo(cx - 34, 635, cx - 12, 646, cx, 641);
+  g.bezierCurveTo(cx + 12, 646, cx + 34, 635, cx + 60, 665);
+  g.bezierCurveTo(cx + 30, 701, cx - 30, 701, cx - 60, 665);
+  g.closePath(); g.fill();
+  g.strokeStyle = 'rgba(90,45,45,0.55)'; g.lineWidth = 2;
+  g.beginPath();
+  g.moveTo(cx - 60, 665); g.quadraticCurveTo(cx, 672, cx + 60, 665);
+  g.stroke();
+
+  /* Grain, so the frame has the sort of high-frequency detail a photograph has
+   * and the stddev check means something. */
+  for (let i = 0; i < 5000; i++) {
+    g.fillStyle = `rgba(255,255,255,${Math.random() * 0.06})`;
+    g.fillRect(Math.random() * W, Math.random() * H, 1.6, 1.6);
+  }
+
+  const landmarks = {};
+  for (const [k, p] of Object.entries(P)) landmarks[k] = [p[0] / W, p[1] / H];
+  window.bella.addAvatar({
+    id: 'smoke-fixture',
+    name: 'דגם בדיקה',
+    width: W, height: H,
+    image: cv.toDataURL('image/jpeg', 0.9),
+    landmarks,
+  });
+}
+
 async function main() {
   if (SHOTS) mkdirSync(SHOT_DIR, { recursive: true });
   const { server, port } = await serve();
@@ -118,6 +254,14 @@ async function main() {
     await page.goto(`http://127.0.0.1:${port}/makeup/`, { waitUntil: 'load' });
     await page.waitForFunction(() => !!window.bella, null, { timeout: 30000 });
     check(await page.evaluate(() => window.bella.state) === 'title', 'the game boots to the title');
+
+    /*
+     * Ignore whatever photographs this working copy has in it. Both paths are
+     * driven below — the modelled head first and then a drawn face registered
+     * at run time — and leaving the committed list on would mean the first half
+     * of this test quietly stopped running the moment somebody added a face.
+     */
+    await page.evaluate(() => window.bella.setPhotos(false));
     check(await page.evaluate(() => !document.getElementById('fatal').hidden) === false,
       'no fatal error on boot');
 
@@ -131,8 +275,17 @@ async function main() {
     check(st.blackFraction < 0.55, `and is not mostly black (${(st.blackFraction * 100).toFixed(0)}%)`);
     await shot('01-title');
 
-    /* Start a shift and get a customer into the chair. */
-    await page.click('#btn-new');
+    /*
+     * Start a shift and get a customer into the chair.
+     *
+     * Through the seam rather than the button, and with the seed written down.
+     * A new shift normally seeds itself from the clock, which means the queue,
+     * the looks and what each customer walked in wearing are different on every
+     * run — and then a check like "the score is above zero" is a check on the
+     * dice. With the seed fixed, the same four customers ask for the same four
+     * things every time, and a score that changes is a change in the game.
+     */
+    await page.evaluate(() => window.bella.startShift({ saveSeed: 20260815 }));
     await page.waitForFunction(() => window.bella.state === 'day', null, { timeout: 20000 });
     await page.click('#btn-open');
     await page.waitForFunction(() => window.bella.state === 'work', null, { timeout: 120000 });
@@ -289,6 +442,96 @@ async function main() {
     check(!st.lost, 'the context survives a customer change');
     check(st.centre[0] > 24, 'and the second customer is on screen');
     await shot('08-second');
+
+    /* ---------------------------------------------------------------- *
+     * The photographic customer
+     *
+     * A face drawn on a canvas rather than a photograph of a person, for two
+     * reasons: nobody's picture belongs in a test suite, and this one's
+     * landmarks are known exactly because they are the numbers it was drawn
+     * from. Everything downstream of the marks — the fit, the masks, the crop,
+     * the compositor, the pick — is the same code a real photograph goes
+     * through, so it is that path this exercises.
+     * ---------------------------------------------------------------- */
+    await page.evaluate(makeFixtureAvatar);
+    await page.evaluate(() => window.bella.nextCustomer());
+    await page.waitForFunction(() => window.bella.state === 'work', null, { timeout: 120000 });
+    await waitFrames(page, 8);
+
+    const portrait = await page.evaluate(() => {
+      const p = window.bella.portrait;
+      if (!p) return null;
+      return {
+        id: p.prepared.avatar.id,
+        tone: window.bella.customer.tone,
+        brushScale: p.prepared.frame.brushScale,
+        skinLum: p.skinLum,
+      };
+    });
+    check(!!portrait, 'a photograph is served once the counter has one');
+    check(portrait && portrait.tone.measured === true,
+      `her shade is measured off the picture, not drawn from the table (${portrait && portrait.tone.hex})`);
+    check(portrait && portrait.brushScale > 0.3 && portrait.brushScale < 1.6,
+      `the brushes were rescaled to the crop (${portrait && portrait.brushScale.toFixed(2)})`);
+
+    st = await frameStats(page);
+    check(!st.lost, 'the context survives the switch to a photograph');
+    check(st.centre[0] > 24 && st.centre[1] > 16,
+      `the photograph is on screen (${st.centre.map((n) => n.toFixed(0)).join(',')})`);
+    check(st.stddev > 8, `and has a face's worth of detail in it (stddev ${st.stddev.toFixed(1)})`);
+    await shot('09-portrait');
+
+    /* The same assertion the modelled head gets, and the one that covers the
+     * whole chain: pick, crop map, masks, brush, upload, compositor. */
+    await page.evaluate(() => window.bella.setView('lips'));
+    await waitFrames(page, 5);
+    const beforePhoto = await frameStats(page);
+
+    const photoMouth = await page.evaluate(() => {
+      window.bella.select('lip-matte', 'lm-red');
+      const r = window.bella.renderer;
+      const w = r.portraitWindow();
+      /* F.mouthT — the line between the lips, in face space. */
+      const [p, q] = r.portrait.prepared.frame.faceToCrop(0.5, 0.580);
+      const rect = document.getElementById('view').getBoundingClientRect();
+      return {
+        x: rect.left + ((p - w.centre[0]) / w.scale[0] + 0.5) * rect.width,
+        y: rect.top + ((q - w.centre[1]) / w.scale[1] + 0.5) * rect.height,
+        w: rect.width,
+      };
+    });
+    check(photoMouth.x > 0 && photoMouth.x < 1180, 'the mouth of the photograph is on screen');
+
+    await page.mouse.move(photoMouth.x - photoMouth.w * 0.04, photoMouth.y);
+    await page.mouse.down();
+    for (let i = 0; i <= 10; i++) {
+      await page.mouse.move(
+        photoMouth.x - photoMouth.w * 0.04 + (i / 10) * photoMouth.w * 0.08,
+        photoMouth.y + Math.sin(i) * 2, { steps: 2 });
+    }
+    await page.mouse.up();
+    await waitFrames(page, 5);
+
+    const photoLip = await page.evaluate(() => window.bella.stats().lip.coverage);
+    check(photoLip > 0.02,
+      `dragging over the photographed mouth put lipstick on it (coverage ${photoLip.toFixed(3)})`);
+    const afterPhoto = await frameStats(page);
+    check(redness(afterPhoto.core) > redness(beforePhoto.core) + 3,
+      `and the photograph got redder (${redness(beforePhoto.core).toFixed(1)} -> ${redness(afterPhoto.core).toFixed(1)})`);
+    await shot('10-portrait-lips');
+
+    /* Off the face is not paintable: a stroke on the background must move the
+     * picture rather than paint the wall behind her. Zoomed back out first —
+     * with the view on the mouth the corner of the screen is her cheek, which
+     * is a fine thing to paint. */
+    await page.evaluate(() => window.bella.setView('face'));
+    await waitFrames(page, 3);
+    const offFace = await page.evaluate(() => {
+      const r = window.bella.renderer;
+      const rect = document.getElementById('view').getBoundingClientRect();
+      return !r.pickPortrait(rect.left + 4, rect.top + 4);
+    });
+    check(offFace, 'the corner of the frame is not part of her face');
 
     check(errors.length === 0, `no console errors (${errors.slice(0, 3).join(' | ')})`);
   } catch (err) {

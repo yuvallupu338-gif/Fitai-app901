@@ -52,6 +52,9 @@ export class Input {
    */
   pick(clientX, clientY) {
     const r = this.renderer;
+    /* A photograph is already on the screen: the pick is the inverse of the
+     * window the compositor is showing, and there is nothing to intersect. */
+    if (r.portrait) return r.pickPortrait(clientX, clientY);
     const c = r.customer;
     if (!c || !c.headMatrix) return null;
 

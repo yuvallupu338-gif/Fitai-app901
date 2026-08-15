@@ -235,6 +235,254 @@ async function main() {
     check(below > above * 1.05, 'the lower lip is fuller than the upper one');
   }
 
+  /* ========================================================= portrait == */
+
+  /*
+   * The photographic path, checked against a face whose landmarks are numbers
+   * rather than clicks — the same fixture the smoke test draws, so a failure
+   * here and a failure there are the same failure.
+   *
+   * What these are guarding is a specific class of bug that is invisible on
+   * screen: a map that is very slightly wrong puts the lip mask most of the way
+   * onto the lips, looks fine, and quietly scores every lipstick as half
+   * missed. The only defence is to assert the landmark it was built from comes
+   * back out where it went in.
+   */
+  {
+    const frameMod = await load('portrait/frame.js');
+    const portraitMasks = await load('portrait/masks.js');
+    const { F } = face;
+
+    const W = 800, H = 1000, cx = 400;
+    const FIXTURE = {
+      hairline: [cx, 290],
+      browL: [cx - 72, 435], browR: [cx + 72, 435],
+      eyeTop: [cx - 72, 462],
+      eyeL: [cx - 72, 480], eyeR: [cx + 72, 480],
+      eyeBottom: [cx - 72, 500],
+      eyeOuterL: [cx - 103, 482], eyeOuterR: [cx + 103, 482],
+      noseTip: [cx, 565],
+      noseWingL: [cx - 41, 585], noseWingR: [cx + 41, 585],
+      noseBase: [cx, 597],
+      lipTop: [cx - 18, 640],
+      mouthL: [cx - 60, 665], mouthR: [cx + 60, 665],
+      lipBottom: [cx, 695],
+      chin: [cx, 750],
+      faceL: [cx - 170, 500], faceR: [cx + 170, 500],
+    };
+    const marks = (pts) => {
+      const out = {};
+      for (const [k, p] of Object.entries(pts)) out[k] = [p[0] / W, p[1] / H];
+      return out;
+    };
+    const avatar = { id: 'audit', width: W, height: H, landmarks: marks(FIXTURE) };
+
+    check(frameMod.LANDMARK_KEYS.length === Object.keys(FIXTURE).length,
+      `the fixture marks every landmark the frame asks for (${frameMod.LANDMARK_KEYS.length})`);
+    check(frameMod.validateAvatar(avatar).length === 0, 'and the set validates');
+
+    /* Pooling. Two landmarks that disagree about their order must come out of
+     * it merged rather than crossed — a crossed pair is a fold, and a fold puts
+     * one part of the face in two places. */
+    const [px, py] = frameMod.poolMonotone([[0, 0], [3, 0.3], [2, 0.5], [5, 0.6]]);
+    check(px.every((v, i) => i === 0 || v > px[i - 1]), 'pooled control points are strictly increasing in x');
+    check(py.every((v, i) => i === 0 || v > py[i - 1]), 'and strictly increasing in y');
+    check(px.length === 3, 'the conflicting pair was merged, not dropped or crossed');
+
+    const frame = frameMod.makeFrame(avatar);
+    const at = (p) => frame.cropToFace(...frame.imageToCrop(p[0] / W, p[1] / H));
+
+    /* Every landmark back where it came from. The tolerances are what a click
+     * a couple of pixels out would produce; anything looser would pass on a map
+     * that is visibly wrong. */
+    near(at(FIXTURE.mouthL)[1], F.mouthT, 0.006, 'the marked mouth lands on the mouth line');
+    near(at(FIXTURE.eyeL)[1], F.eyeT, 0.006, 'the marked pupil lands on the eye line');
+    near(at(FIXTURE.chin)[1], F.chinT, 0.006, 'the marked chin lands on the chin');
+    near(at(FIXTURE.hairline)[1], F.hairline, 0.006, 'the marked hairline lands on the hairline');
+    near(at(FIXTURE.noseTip)[1], F.noseTipT, 0.006, 'the marked nose tip lands on the nose');
+    near(at(FIXTURE.eyeL)[0], 0.5 - F.eyeS, 0.006, 'the left pupil lands on the left eye');
+    near(at(FIXTURE.eyeR)[0], 0.5 + F.eyeS, 0.006, 'the right pupil lands on the right eye');
+    near(at(FIXTURE.mouthL)[0], 0.5 - F.lipHalfS, 0.006, 'the left mouth corner lands on the corner');
+    near(at(FIXTURE.noseWingR)[0], 0.5 + F.noseHalfS, 0.006, 'the nose wings land on the nose');
+    near(at([cx, 500])[0], 0.5, 1e-9, 'the centre line of the picture is the centre line of the face');
+    near(at(FIXTURE.noseBase)[1], F.noseBaseT, 0.006, 'the marked base of the nose lands on it');
+
+    /*
+     * The marks that fix a *size* rather than a position — how full her lips
+     * are, how open her eyes are, how high her brows arch. These are checked
+     * against the masks themselves rather than against a landmark constant,
+     * because the constant is what the frame aims at and asserting a number
+     * against itself proves nothing. If the map stopped honouring them, the
+     * lipstick would still land on the mouth and would still stop short of a
+     * full lip on everybody with a fuller one than average.
+     */
+    const band = (fn, s, lo, hi) => {
+      let first = null, last = null;
+      for (let i = 0; i <= 2000; i++) {
+        const t = lo + (hi - lo) * (i / 2000);
+        if (fn(s, t) > 0.5) { if (first === null) first = t; last = t; }
+      }
+      return first === null ? null : [first, last];
+    };
+    let lipTopT = 1, lipBotT = 0, browPeakT = 1;
+    for (let i = 0; i <= 240; i++) {
+      const k = i / 240;
+      const lip = band(face.ZONES.lip, 0.5 - F.lipHalfS + 2 * F.lipHalfS * k, 0.45, 0.75);
+      if (lip) { lipTopT = Math.min(lipTopT, lip[0]); lipBotT = Math.max(lipBotT, lip[1]); }
+      const brow = band(face.ZONES.brow, 0.5 + F.browS - F.browHalfS + 2 * F.browHalfS * k, 0.24, 0.40);
+      if (brow) browPeakT = Math.min(browPeakT, (brow[0] + brow[1]) / 2);
+    }
+    near(at(FIXTURE.lipTop)[1], lipTopT, 0.006, 'the marked top of the lip is the top of the lip mask');
+    near(at(FIXTURE.lipBottom)[1], lipBotT, 0.006, 'and the marked bottom is the bottom of it');
+    near(at(FIXTURE.browR)[1], browPeakT, 0.008, 'the marked peak of the brow is the peak of the brow mask');
+
+    const eyeBand = band(face.eyeOpening, 0.5 - F.eyeS, 0.30, 0.50);
+    near(at(FIXTURE.eyeTop)[1], eyeBand[0], 0.006, 'the marked upper lid is the top of the eye opening');
+    near(at(FIXTURE.eyeBottom)[1], eyeBand[1], 0.006, 'and the marked lower lid the bottom of it');
+
+    /* No folds, in either axis, anywhere in the crop. */
+    let sMono = true, tMono = true;
+    for (let i = 1; i <= 400; i++) {
+      const a = frame.cropToFace(i / 400, 0.5), b = frame.cropToFace((i - 1) / 400, 0.5);
+      if (a[0] <= b[0]) sMono = false;
+      const c = frame.cropToFace(0.5, i / 400), d = frame.cropToFace(0.5, (i - 1) / 400);
+      if (c[1] <= d[1]) tMono = false;
+    }
+    check(sMono, 'the fitted map never folds across the face');
+    check(tMono, 'nor down it');
+
+    /* And it inverts, which is what puts a hint on the lips. */
+    for (const [s, t] of [[0.5, F.mouthT], [0.5 - F.eyeS, F.eyeT], [0.5, F.chinT]]) {
+      const back = frame.cropToFace(...frame.faceToCrop(s, t));
+      near(back[0], s, 1e-4, `face->crop->face returns s=${s}`);
+      near(back[1], t, 1e-4, `face->crop->face returns t=${t}`);
+    }
+
+    /* A tilted photograph is the same face. Rotating every mark 11 degrees
+     * about the middle of the picture must not move a single zone — if it does,
+     * the levelling is wrong and every photograph taken at an angle has its
+     * makeup applied at an angle too. */
+    const rot = (deg) => {
+      const a = deg * Math.PI / 180, c = Math.cos(a), s = Math.sin(a);
+      const out = {};
+      for (const [k, p] of Object.entries(FIXTURE)) {
+        const dx = p[0] - W / 2, dy = p[1] - H / 2;
+        out[k] = [W / 2 + dx * c - dy * s, H / 2 + dx * s + dy * c];
+      }
+      return out;
+    };
+    const tiltedPts = rot(11);
+    const tilted = frameMod.makeFrame({ id: 'tilt', width: W, height: H, landmarks: marks(tiltedPts) });
+    const tiltAt = (p) => tilted.cropToFace(...tilted.imageToCrop(p[0] / W, p[1] / H));
+    near(tiltAt(tiltedPts.mouthL)[1], F.mouthT, 0.006, 'a tilted photograph still finds its mouth');
+    near(tiltAt(tiltedPts.eyeR)[0], 0.5 + F.eyeS, 0.006, 'and still knows which eye is which');
+    near(tilted.brushScale, frame.brushScale, 0.02, 'and is the same size as it was level');
+
+    /* The outline: on the face, off the background, and cut at the hairline so
+     * foundation does not go into the hair. */
+    const midCrop = frame.imageToCrop(cx / W, 520 / H);
+    check(frame.outline(...midCrop) > 0.99, 'the middle of the face is inside the outline');
+    check(frame.outline(0.02, 0.02) === 0, 'the corner of the crop is not');
+    /* Just above the marked hairline, which is inside the shape of a head and
+     * has to be excluded by the hairline cut rather than by running out of
+     * face — the point of the check is the cut. */
+    check(frame.outline(...frame.imageToCrop(cx / W, 268 / H)) === 0, 'nor is the hair above the hairline');
+    check(frame.outline(...frame.imageToCrop(cx / W, 900 / H)) === 0, 'nor is the neck below the chin');
+    check(frame.brushScale > 0.3 && frame.brushScale < 1.6,
+      `the brush scale is sane (${frame.brushScale.toFixed(3)})`);
+
+    /* The crop transform has to agree with the crop map, because one of them
+     * draws the photograph and the other one decides where the lipstick goes. */
+    const m = frame.cropTransform(1024);
+    const applyM = (u, v) => [m.a * u * W + m.c * v * H + m.e, m.b * u * W + m.d * v * H + m.f];
+    const c00 = applyM(...frame.cropToImage(0, 0));
+    const c11 = applyM(...frame.cropToImage(1, 1));
+    near(c00[0], 0, 0.01, 'the crop transform puts the crop origin at the canvas origin');
+    near(c00[1], 0, 0.01, 'in both axes');
+    near(c11[0], 1024, 0.02, 'and the far corner at the far corner');
+    near(c11[1], 1024, 0.02, 'in both axes');
+
+    /* The masks. Same structure the modelled head produces, same consumers. */
+    const pm = portraitMasks.buildPortraitMasks(frame, 192);
+    check(face.ZONE_NAMES.every((z) => pm.zones[z] instanceof Uint8Array),
+      'a photographed face produces the same mask structure as a modelled one');
+    const share = (z) => {
+      const buf = pm.zones[z];
+      let n = 0;
+      for (let i = 0; i < buf.length; i++) n += buf[i];
+      return n / 255 / (pm.size * pm.size);
+    };
+    for (const zone of face.ZONE_NAMES) {
+      check(share(zone) > 0.0004, `photographed zone "${zone}" has area to paint (${share(zone).toFixed(4)})`);
+    }
+    check(share('skin') > share('lip') * 6, 'her face is much larger than her lips');
+
+    /* Where the zones ended up on the picture, which is the assertion that a
+     * mask built through a broken map fails. */
+    const centroid = (z) => {
+      const buf = pm.zones[z];
+      let sx = 0, sy = 0, w = 0;
+      for (let y = 0; y < pm.size; y++) {
+        for (let x = 0; x < pm.size; x++) {
+          const a = buf[y * pm.size + x] / 255;
+          if (a <= 0) continue;
+          sx += (x + 0.5) / pm.size * a; sy += (y + 0.5) / pm.size * a; w += a;
+        }
+      }
+      return [sx / w, sy / w];
+    };
+    const wantLip = frame.imageToCrop(cx / W, 668 / H);
+    const lipAt = centroid('lip');
+    near(lipAt[0], wantLip[0], 0.012, 'the lip mask is centred on the photographed mouth');
+    near(lipAt[1], wantLip[1], 0.012, 'in both axes');
+    const lidAt = centroid('lid');
+    near(lidAt[0], frame.imageToCrop(cx / W, 470 / H)[0], 0.012, 'the lids are centred on the face');
+    check(lidAt[1] < lipAt[1] - 0.05, 'and well above the mouth');
+
+    /* Nothing may be paintable off the face. */
+    let outside = 0;
+    for (let y = 0; y < pm.size; y++) {
+      for (let x = 0; x < pm.size; x++) {
+        const on = frame.outline((x + 0.5) / pm.size, (y + 0.5) / pm.size);
+        if (on <= 0 && pm.zones.skin[y * pm.size + x] > 0) outside++;
+      }
+    }
+    check(outside === 0, 'no part of the paintable area falls outside her face');
+
+    /* Rejections. Each of these is a marking mistake somebody will make, and
+     * each produces a face that looks fine until the first stroke. */
+    const broken = (mutate) => {
+      const pts = JSON.parse(JSON.stringify(marks(FIXTURE)));
+      mutate(pts);
+      return frameMod.validateAvatar({ id: 'x', width: W, height: H, landmarks: pts }).length > 0;
+    };
+    check(broken((p) => { delete p.chin; }), 'a missing landmark is rejected');
+    check(broken((p) => { const t = p.eyeL; p.eyeL = p.eyeR; p.eyeR = t; }),
+      'eyes marked the wrong way round are rejected');
+    check(broken((p) => { p.mouthL = [0.1, 0.1]; p.mouthR = [0.12, 0.1]; }),
+      'a mouth above the nose is rejected');
+    check(broken((p) => { p.eyeTop = [0.4, 0.9]; }), 'an upper lid below the lower one is rejected');
+    check(broken((p) => { p.eyeOuterL = [0.6, 0.48]; }),
+      'an outer eye corner marked on the wrong side is rejected');
+
+    /* The normals, which are what gloss is lit against. */
+    const shape = portraitMasks.buildPortraitNormals(frame, 64);
+    let unit = true, forward = 0, faceCount = 0;
+    for (let i = 0; i < shape.size * shape.size; i++) {
+      const n = [
+        shape.data[i * 4] / 255 * 2 - 1,
+        shape.data[i * 4 + 1] / 255 * 2 - 1,
+        shape.data[i * 4 + 2] / 255 * 2 - 1,
+      ];
+      const len = Math.hypot(n[0], n[1], n[2]);
+      if (Math.abs(len - 1) > 0.02) unit = false;
+      if (shape.data[i * 4 + 3] > 128) { faceCount++; if (n[2] > 0.2) forward++; }
+    }
+    check(unit, 'every baked normal is a unit vector');
+    check(faceCount > 0 && forward === faceCount,
+      'and every normal on the face points at the camera, not into her head');
+  }
+
   /* ============================================== aimed model matrices == */
 
   /*

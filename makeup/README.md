@@ -20,8 +20,9 @@ open http://localhost:8080/makeup/
 ```
 
 **Controls** — drag on the customer to apply the selected product, drag anywhere
-else to orbit, wheel or pinch to zoom. On a phone: one finger paints, two
-fingers orbit and pinch.
+else to orbit the head (or, on a photographed customer, to move the picture),
+wheel or pinch to zoom. On a phone: one finger paints, two fingers orbit and
+pinch.
 
 ## The loop
 
@@ -86,6 +87,59 @@ audio files in the repository.
   fast you are dragging, the till is two tones and a thump, and the room is a
   hum with some air in it. `src/game/audio.js`.
 
+## Photographs
+
+The counter serves a modelled head by default. Give it a photograph and it
+serves that instead — full screen, upright, with the makeup composited onto the
+picture the way a try-on app does it:
+
+```bash
+node tools/makeup-avatar.mjs add photo.jpg     # opens a page; click twenty points
+node tools/makeup-avatar.mjs list
+node tools/makeup-avatar.mjs remove <id>
+```
+
+The page it opens serves the repository, so it imports the game's own frame and
+mask code: the preview it draws is not an approximation of what the game will
+do, it *is* what the game will do. Save, and it writes
+`src/data/avatars/<id>.js` — the picture scaled down, re-encoded (which drops
+the EXIF, including where it was taken) and embedded as a data URL, so a
+single-file build is still a single file. Anything in that directory is
+readable by anyone who can read the repository and stays in the history after
+it is deleted, so: only pictures you own.
+
+Nothing else in the game changes, and that is the whole design. Every zone,
+every brush, every coverage figure and every scoring rule is written in face
+space, so a photograph only has to answer one question: which part of a face is
+this pixel? Twenty landmarks answer it —
+
+- **The fit.** Rotate the picture so the eyes are level, then two monotone
+  curves, one across and one down, through the landmarks. Monotone by
+  construction, because a map that folds puts one part of a face in two places
+  and the lipstick appears in both. Where a mark and the model disagree — face
+  space has the inner corner of the eye a hair further out than the wing of the
+  nose, and a real face has it the other way — the conflicting pair is pooled
+  into its average rather than allowed to cross. `src/portrait/frame.js`.
+- **The outline.** A separable fit cannot express a jaw closing towards the
+  chin, so it does not try: a face-shaped field, derived from the same marks,
+  cuts every zone at the silhouette and at the hairline. That is what stops
+  foundation going onto the background and into the hair.
+- **Her colour.** Measured off her own cheek at load — away from the mouth, the
+  lids, the brows and anywhere makeup is likely to already be — and the whole
+  shade-matching mechanic then judges against the face in the picture rather
+  than against a colour someone typed into a table. `src/portrait/avatars.js`.
+- **The compositing.** A product does not replace what is under it, it takes the
+  light that was already there: the colour is multiplied by how bright the pixel
+  is relative to the rest of her skin, so the shadow under the lip stays a
+  shadow and the round of it still catches the light. Gloss and shimmer are lit
+  here rather than taken from the photograph, against a normal field
+  reconstructed from face space — a highlight that travels when the product
+  changes is worth more than one that is exactly right and never moves.
+  `src/render/shaders.js`, `src/portrait/masks.js`.
+
+What is lost is what a photograph cannot do: she does not smile, and she does
+not close her eyes for an eyeshadow. What she liked still arrives as a line.
+
 ## On a phone
 
 One finger paints, two orbit and pinch. The request card collapses to a tab so
@@ -101,8 +155,8 @@ NODE_PATH=/opt/node22/lib/node_modules node tools/makeup-smoke.mjs --shots
 node tools/build-single.js makeup/index.html dist/makeup.html
 ```
 
-`makeup-audit.mjs` runs about twelve hundred assertions over the parts that are
-arithmetic: that every closed mesh is wound outwards, that the face warps are
+`makeup-audit.mjs` runs about thirteen hundred assertions over the parts that
+are arithmetic: that every closed mesh is wound outwards, that the face warps are
 monotone (a warp that folds turns a band of the head inside out), that the mouth
 is below the eyes and the lips do not overlap the eyelids, that a ray fired at
 an eye hits the eyeball before it hits the face, that the nose is a nose's width
@@ -147,7 +201,22 @@ things a headless assertion notices. The one that carries the most weight
 photographs the face, drags a red lipstick across the mouth with the actual
 mouse, photographs it again, and asserts the frame got redder — which covers the
 ray-cast from pointer to face space, the brush, the dirty-rectangle upload, the
-texture binding and the shader compositing in a single assertion.
+texture binding and the shader compositing in a single assertion. It then does
+the same thing again on a photographic customer — a face drawn on a canvas
+rather than a photograph of a person, because its landmarks are known exactly
+and nobody's picture belongs in a test suite. Both halves run on any working
+copy: the test ignores whatever photographs are committed and registers its own,
+so adding a face does not quietly retire half the suite.
+
+The portrait fit has its own assertions, and they exist because its worst
+failure is silent. A map that is slightly wrong puts the lip mask *most* of the
+way onto the lips, looks entirely fine, and scores every lipstick as half
+missed. So each landmark is asserted to come back out of the map where it went
+in, the marks that fix a size rather than a position — how full the lips are,
+how open the eyes — are checked against the masks themselves rather than against
+the constants they aim at, and the whole set is refitted from landmarks rotated
+eleven degrees to prove that a picture taken at an angle does not get its makeup
+applied at an angle.
 
 ## Layout
 
@@ -156,8 +225,10 @@ index.html
 src/
   core/     gl, math (with the ray-cast the brush runs on), rng, colour science
   model/    face space, the head, the body and hair, the shop's props
+  portrait/ fitting a photograph into face space, and its masks and normals
   render/   shaders, the frame, and every texture in the game
-  data/     the product catalogue, the looks customers ask for, the people
+  data/     the product catalogue, the looks customers ask for, the people,
+            and avatars/ — the photographs, if there are any
   game/     paint, customers, scoring, the shift, audio, input
   ui/       the DOM half, and the save file
   styles/   game.css

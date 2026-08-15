@@ -69,12 +69,37 @@ export class PaintLayer {
     this._stats = null;
     this._statsDirty = true;
     this.assist = 0.7;
+    /*
+     * How large a brush is here compared with the layout `BRUSH` was tuned
+     * against. One on the 3D head, where the texture *is* face space. On a
+     * photograph it is whatever the crop came out as — a tighter crop means the
+     * mouth occupies more of the texture and the lipstick has to grow with it,
+     * or the same brush that covered a lip on the head covers two thirds of one
+     * here and every product feels wrong in a way nobody can name.
+     */
+    this.brushScale = 1;
     this.strokeCount = 0;
     /* Set while a customer's arrival makeup is being laid down, so what she
      * walked in wearing is never billed to her or offered as something the
      * player chose. */
     this.recordingArrival = false;
     this.bounds = zoneBounds(masks);
+  }
+
+  /*
+   * Swap the face under the paint.
+   *
+   * The 3D head has one set of masks for every customer — the layout is fixed,
+   * which is the point of it — but a photograph's zones are wherever that
+   * particular face's landmarks put them, so they change with the customer.
+   * Everything else about the layer is unchanged by this, which is exactly the
+   * property the photographic mode was built around.
+   */
+  setMasks(masks, brushScale = 1) {
+    this.masks = masks;
+    this.brushScale = brushScale;
+    this.bounds = zoneBounds(masks);
+    this.clear();
   }
 
   clear() {
@@ -105,7 +130,7 @@ export class PaintLayer {
     const size = this.size;
     const p = item.product;
     const zone = zoneOf(p);
-    const radius = (BRUSH[p.cat] || 0.05) * size;
+    const radius = (BRUSH[p.cat] || 0.05) * this.brushScale * size;
     const cx = s * size, cy = t * size;
     const x0 = Math.max(0, Math.floor(cx - radius));
     const x1 = Math.min(size, Math.ceil(cx + radius) + 1);
@@ -236,7 +261,7 @@ export class PaintLayer {
    * a dotted line. The step is a third of the brush radius — closer produces
    * visible banding from repeated blending, further leaves scallops. */
   stroke(fromS, fromT, toS, toT, item, pressure) {
-    const radius = (BRUSH[item.product.cat] || 0.05);
+    const radius = (BRUSH[item.product.cat] || 0.05) * this.brushScale;
     const dist = Math.hypot(toS - fromS, toT - fromT);
     const steps = Math.max(1, Math.ceil(dist / (radius * 0.34)));
     let total = 0;

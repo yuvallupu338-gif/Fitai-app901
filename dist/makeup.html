@@ -824,7 +824,7 @@ html[dir="rtl"] #request.collapsed { transform: translateX(calc(-100% + 42px)); 
         <button id="btn-settings" class="btn">הגדרות</button>
       </div>
       <div class="hint">
-        גרירה על הפנים = מריחה · גרירה מחוץ לפנים = סיבוב · גלגלת = זום
+        גרירה על הפנים = מריחה · גרירה מחוץ לפנים = סיבוב או הזזה · גלגלת = זום
       </div>
     </div>
   </section>
@@ -2049,6 +2049,114 @@ void main() {
   gl_Position = vec4(p * 2.0 - 1.0, 0.0, 1.0);
 }`;
 
+/* ------------------------------------------------------------------ *
+ * Portrait
+ * ------------------------------------------------------------------ */
+
+/*
+ * Makeup on a photograph.
+ *
+ * The one idea in this shader is that a product does not replace what is under
+ * it, it takes the light that was already there. A lipstick laid on flat as a
+ * colour reads as a sticker — the lip loses its crease, its wet edge and the
+ * shadow at the corner all at once, and the eye notices instantly even when it
+ * cannot say what is wrong. So the product colour is multiplied by how bright
+ * this pixel is *relative to the rest of her skin*: in the shadow under the lip
+ * the ratio is a half and the lipstick goes dark there too; on the round of the
+ * lower lip it is one and a half and the lipstick catches the light.
+ *
+ * `uSkinLum` is what makes that possible, and it is measured off her own cheek
+ * when the avatar is prepared rather than assumed — the same ratio against a
+ * fixed grey would make every dark-skinned face's makeup fluoresce and every
+ * pale one's turn to mud.
+ *
+ * On top of that sits the only thing the photograph genuinely cannot provide: a
+ * specular. A photograph's own highlights are baked into its pixels and cannot
+ * move, so gloss and shimmer are lit here, against a normal field reconstructed
+ * from face space. It is an approximation of a face rather than this face — but
+ * a highlight that travels when the product changes is worth far more than one
+ * that is exactly right and never moves.
+ */
+const PORTRAIT_FS = `#version 300 es
+precision highp float;
+in vec2 vUV;
+out vec4 outColor;
+
+uniform sampler2D uPhoto;   /* the crop, upright and square, sRGB */
+uniform sampler2D uPaint;   /* rgb product colour, a coverage, sRGB */
+uniform sampler2D uFx;      /* r finish, g shimmer, b powder */
+uniform sampler2D uShape;   /* rgb normal, a on-face */
+
+uniform vec2 uScale;        /* how much of the crop one screen covers */
+uniform vec2 uCentre;       /* which point of the crop is in the middle */
+uniform vec3 uKey;          /* direction to the key light */
+uniform float uSkinLum;
+uniform float uTime;
+uniform float uSparkle;
+uniform float uDim;
+
+float hash21(vec2 p) {
+  p = fract(p * vec2(123.34, 456.21));
+  p += dot(p, p + 45.32);
+  return fract(p.x * p.y);
+}
+
+void main() {
+  /* The fullscreen triangle's v runs up the screen and every image in this
+   * pass has row zero at the top, so the flip happens once, here, rather than
+   * in four texture fetches and again in the pick that has to agree with them. */
+  vec2 uv = vec2(vUV.x, 1.0 - vUV.y);
+  vec2 p = uCentre + (uv - 0.5) * uScale;
+  vec2 q = clamp(p, 0.0, 1.0);
+  float inside = 1.0 - smoothstep(0.0, 0.004, distance(p, q));
+
+  vec3 photo = texture(uPhoto, q).rgb;
+  vec4 pnt = texture(uPaint, q);
+  vec3 fx = texture(uFx, q).rgb;
+  vec4 sh = texture(uShape, q);
+  vec3 N = normalize(sh.xyz * 2.0 - 1.0);
+
+  float lum = dot(photo, vec3(0.2126, 0.7152, 0.0722));
+  float ratio = clamp(lum / max(uSkinLum, 1e-4), 0.26, 2.4);
+  /* Slightly less than proportional. A product in shadow is darker than the
+   * skin around it but not as much darker as the skin is, because some of the
+   * light it is missing comes back off the pigment itself. */
+  vec3 makeup = pnt.rgb * pow(ratio, 0.86);
+
+  float cov = pnt.a * sh.a;
+  vec3 col = mix(photo, makeup, cov);
+
+  /* Specular. The view direction is straight on — the crop is a face looking at
+   * the camera, and pretending otherwise buys nothing. */
+  vec3 V = vec3(0.0, 0.0, 1.0);
+  vec3 H = normalize(uKey + V);
+  float gloss = fx.r * (1.0 - fx.b * 0.75);
+  float spec = pow(max(dot(N, H), 0.0), mix(14.0, 260.0, gloss));
+  float lit = 0.35 + 0.65 * max(dot(N, uKey), 0.0);
+  col += spec * cov * lit * (0.05 + 0.95 * gloss) * (0.55 + 0.45 * ratio) * 1.7;
+
+  /* Shimmer, as particles rather than a sheen: a shimmer eyeshadow is flat
+   * powder with flecks in it, and a smooth glow where the flecks should be is
+   * the thing that makes cheap CG makeup look like plastic. The flecks twinkle
+   * slowly, which is what a head moving a centimetre would do to them. */
+  if (fx.g > 0.001) {
+    vec2 cell = floor(q * uSparkle);
+    float h = hash21(cell);
+    float tw = 0.5 + 0.5 * sin(uTime * 2.2 + h * 47.0);
+    float fleck = smoothstep(0.955, 0.995, h) * tw;
+    col += fleck * fx.g * cov * lit * 2.4 * (0.4 + 0.6 * pnt.rgb);
+  }
+
+  /* Powder takes shine off, including shine the photograph already had. */
+  col -= max(0.0, lum - uSkinLum) * fx.b * cov * 0.55;
+
+  vec3 back = mix(vec3(0.045, 0.026, 0.040), vec3(0.010, 0.006, 0.010),
+                  smoothstep(0.15, 0.95, length(uv - vec2(0.5, 0.42))));
+  col = mix(back, col, inside);
+
+  outColor = vec4(max(col, 0.0) * uDim, 1.0);
+}`;
+
 const BRIGHT_FS = `#version 300 es
 precision highp float;
 in vec2 vUV;
@@ -2094,6 +2202,7 @@ uniform float uBloomAmount;
 uniform float uVignette;
 uniform float uGrain;
 uniform float uTime;
+uniform float uFilmic;
 uniform vec2 uResolution;
 
 /* ACES, fitted. Everything in this shop is either a warm fluorescent or a very
@@ -2107,7 +2216,13 @@ void main() {
   vec3 c = texture(uSrc, vUV).rgb;
   c += texture(uBloom, vUV).rgb * uBloomAmount;
   c *= uExposure;
-  c = aces(c);
+  /* How much of the film curve to apply. The shop wants all of it — its lights
+   * are far brighter than white and something has to bring them back. A
+   * photograph wants very little: it was graded by whoever took it, and running
+   * a second tone curve over an image that has already been through one lifts
+   * the mid-tones and flattens exactly the contrast in a face that makes it
+   * look like a face. */
+  c = mix(c, aces(c), uFilmic);
 
   vec2 d = vUV - 0.5;
   c *= 1.0 - uVignette * dot(d, d) * 1.6;
@@ -2124,6 +2239,7 @@ void main() {
     "SCENE_VS": SCENE_VS,
     "SCENE_FS": SCENE_FS,
     "FULLSCREEN_VS": FULLSCREEN_VS,
+    "PORTRAIT_FS": PORTRAIT_FS,
     "BRIGHT_FS": BRIGHT_FS,
     "BLUR_FS": BLUR_FS,
     "POST_FS": POST_FS,
@@ -2505,13 +2621,19 @@ const V_CONTROL_T = [0.00, 0.16, 0.33, 0.50, 0.72, 0.90, 1.00];
 const V_CONTROL_V = [0.00, 0.28, 0.4333, 0.5667, 0.70, 0.78, 1.00];
 
 /*
- * Fritsch-Carlson monotone cubic. A plain Catmull-Rom through these points
- * overshoots between the last two and the map stops being monotone, which
- * folds the mesh under the chin — every triangle in a band inside out, and a
- * black ring where the neck should be. Monotonicity here is a correctness
- * property, not a smoothness preference.
+ * A monotone cubic through control points, Fritsch-Carlson.
+ *
+ * Monotonicity here is a correctness property, not a smoothness preference. A
+ * plain Catmull-Rom through these points overshoots between the last two and
+ * the map stops being monotone, which folds the mesh under the chin — every
+ * triangle in a band inside out, and a black ring where the neck should be.
+ *
+ * Exported because the portrait side needs exactly the same thing: fitting a
+ * photograph into face space is a monotone map through a handful of landmarks,
+ * and two implementations of "a curve that never goes backwards" is one more
+ * than anybody should maintain.
  */
-function pchipSlopes(xs, ys) {
+function monotoneMap(xs, ys) {
   const n = xs.length;
   const h = [], d = [];
   for (let i = 0; i < n - 1; i++) {
@@ -2527,23 +2649,30 @@ function pchipSlopes(xs, ys) {
     const w2 = h[i] + 2 * h[i - 1];
     m[i] = (w1 + w2) / (w1 / d[i - 1] + w2 / d[i]);
   }
-  return m;
+
+  return (x) => {
+    /* Outside the control points the curve continues on the end slope rather
+     * than clamping: a landmark map has to keep going past the chin and past
+     * the ear, and a flat extension there puts every zone in the wrong place
+     * at the edges of the face. */
+    if (x <= xs[0]) return ys[0] + (x - xs[0]) * m[0];
+    if (x >= xs[n - 1]) return ys[n - 1] + (x - xs[n - 1]) * m[n - 1];
+    let i = 0;
+    while (i < n - 2 && x > xs[i + 1]) i++;
+    const hh = xs[i + 1] - xs[i];
+    const u = (x - xs[i]) / hh;
+    const u2 = u * u, u3 = u2 * u;
+    return (2 * u3 - 3 * u2 + 1) * ys[i]
+      + (u3 - 2 * u2 + u) * hh * m[i]
+      + (-2 * u3 + 3 * u2) * ys[i + 1]
+      + (u3 - u2) * hh * m[i + 1];
+  };
 }
 
-const V_SLOPES = pchipSlopes(V_CONTROL_T, V_CONTROL_V);
+const V_MAP = monotoneMap(V_CONTROL_T, V_CONTROL_V);
 
 function faceV(t) {
-  const xs = V_CONTROL_T, ys = V_CONTROL_V;
-  const tc = clamp(t, 0, 1);
-  let i = 0;
-  while (i < xs.length - 2 && tc > xs[i + 1]) i++;
-  const h = xs[i + 1] - xs[i];
-  const x = (tc - xs[i]) / h;
-  const x2 = x * x, x3 = x2 * x;
-  return (2 * x3 - 3 * x2 + 1) * ys[i]
-    + (x3 - 2 * x2 + x) * h * V_SLOPES[i]
-    + (-2 * x3 + 3 * x2) * ys[i + 1]
-    + (x3 - x2) * h * V_SLOPES[i + 1];
+  return V_MAP(clamp(t, 0, 1));
 }
 
 /* ------------------------------------------------------------------ *
@@ -2778,6 +2907,7 @@ function maskTotal(masks, name) {
 
   return {
     "faceU": faceU,
+    "monotoneMap": monotoneMap,
     "faceV": faceV,
     "F": F,
     "ellipse": ellipse,
@@ -4494,10 +4624,11 @@ __m["makeup/src/render/renderer.js"] = (function () {
 
 const { createContext, createProgram, createTexture2D, createTarget, destroyTarget, createFullscreenVAO, createMeshVAO, destroyMesh, } = __m["makeup/src/core/gl.js"];
 const { mat4, identity, multiply, perspective, lookAt, compose, normalMatrix, invert, clamp, damp, smoothstep, aimedBasis, } = __m["makeup/src/core/math.js"];
-const { SCENE_VS, SCENE_FS, FULLSCREEN_VS, BRIGHT_FS, BLUR_FS, POST_FS } = __m["makeup/src/render/shaders.js"];
+const { SCENE_VS, SCENE_FS, FULLSCREEN_VS, BRIGHT_FS, BLUR_FS, POST_FS, PORTRAIT_FS, } = __m["makeup/src/render/shaders.js"];
 const { marbleTexture, lacquerTexture, metalTexture, wallTexture, floorTexture, packageTexture, bodySkinTexture, signTexture, tillScreenTexture, flatTexture, } = __m["makeup/src/render/textures.js"];
 const { SHOP } = __m["makeup/src/model/props.js"];
 const { LID } = __m["makeup/src/model/head.js"];
+const { sampleMask } = __m["makeup/src/model/face.js"];
 const { srgbToLinear } = __m["makeup/src/core/color.js"];
 
 const MODE = {
@@ -4578,6 +4709,8 @@ class Renderer {
     this.shopMeshes = [];
     this.trayMeshes = [];
     this.customer = null;
+    this.portrait = null;
+    this.portraitCam = { zoom: 1, cx: 0.5, cy: 0.5 };
     this.time = 0;
     this.viewProj = mat4();
     this.invViewProj = mat4();
@@ -4600,6 +4733,7 @@ class Renderer {
     this.progBright = createProgram(gl, FULLSCREEN_VS, BRIGHT_FS, 'bright');
     this.progBlur = createProgram(gl, FULLSCREEN_VS, BLUR_FS, 'blur');
     this.progPost = createProgram(gl, FULLSCREEN_VS, POST_FS, 'post');
+    this.progPortrait = createProgram(gl, FULLSCREEN_VS, PORTRAIT_FS, 'portrait');
     this.fsVAO = createFullscreenVAO(gl);
 
     const N = this.quality.texture;
@@ -4733,6 +4867,139 @@ class Renderer {
   }
 
   /* ---------------------------------------------------------------- *
+   * The photographic customer
+   *
+   * A prepared avatar arrives as three square images that are already in
+   * register with each other and with the paint layer — the crop, the normals
+   * and the masks all came out of the same frame — so setting one up is three
+   * uploads and no geometry at all.
+   * ---------------------------------------------------------------- */
+
+  setPortrait(prepared, paint) {
+    const gl = this.gl;
+    this.releasePortrait();
+    const n = prepared.normals;
+    this.portrait = {
+      prepared,
+      photo: createTexture2D(gl, this.caps, prepared.size, prepared.size,
+        prepared.pixels, { srgb: true, clamp: true }),
+      shape: createTexture2D(gl, this.caps, n.size, n.size, n.data, { clamp: true }),
+      paintTex: paint.colourTex,
+      fxTex: paint.fxTex,
+      /* Her skin, as one number the shader can divide by. Measured, because a
+       * fixed grey would make the makeup on a dark face glow and the makeup on
+       * a pale one look like a stain. */
+      skinLum: 0.2126 * srgbToLinear(prepared.skin[0])
+        + 0.7152 * srgbToLinear(prepared.skin[1])
+        + 0.0722 * srgbToLinear(prepared.skin[2]),
+    };
+    this.portraitCam = { zoom: 1, cx: 0.5, cy: 0.5 };
+    return this.portrait;
+  }
+
+  releasePortrait() {
+    if (!this.portrait) return;
+    const gl = this.gl;
+    gl.deleteTexture(this.portrait.photo.tex);
+    gl.deleteTexture(this.portrait.shape.tex);
+    this.portrait = null;
+  }
+
+  /*
+   * Which part of the crop the screen is showing. The crop is square and the
+   * screen is not, so one axis always spills; the wider one wins, which keeps
+   * the face filling the frame on a phone held upright and on a laptop alike.
+   */
+  portraitWindow() {
+    const a = this.width / this.height;
+    const z = Math.max(0.2, this.portraitCam.zoom);
+    const sx = (a > 1 ? 1 : a) / z;
+    const sy = (a > 1 ? 1 / a : 1) / z;
+    /* Panning stops where the crop does. Letting it run past the edge shows the
+     * backdrop with the face off to one side, which looks like a bug. */
+    const lim = (c, s) => (s >= 1 ? 0.5 : clamp(c, s / 2, 1 - s / 2));
+    return { scale: [sx, sy], centre: [lim(this.portraitCam.cx, sx), lim(this.portraitCam.cy, sy)] };
+  }
+
+  portraitPan(dx, dy) {
+    const w = this.portraitWindow();
+    this.portraitCam.cx = w.centre[0] - (dx / this.canvas.clientWidth) * w.scale[0];
+    this.portraitCam.cy = w.centre[1] - (dy / this.canvas.clientHeight) * w.scale[1];
+  }
+
+  portraitZoom(d) {
+    this.portraitCam.zoom = clamp(this.portraitCam.zoom * (1 - d), 0.85, 5.5);
+  }
+
+  /* Frame a face-space point at a given zoom — how the eyes and lips buttons
+   * work without the game layer knowing what a crop is. */
+  portraitFocus(s, t, zoom) {
+    if (!this.portrait) return;
+    const [p, q] = this.portrait.prepared.frame.faceToCrop(s, t);
+    this.portraitCam.cx = p;
+    this.portraitCam.cy = q;
+    this.portraitCam.zoom = zoom;
+  }
+
+  /*
+   * Screen position to face position. The photographic answer to `Input.pick`,
+   * and much the shorter of the two: there is no ray, because the surface is
+   * the screen. Off the face returns null, exactly as a missed ray does, so a
+   * drag that starts on the background pans instead of painting.
+   */
+  pickPortrait(clientX, clientY) {
+    if (!this.portrait) return null;
+    const rect = this.canvas.getBoundingClientRect();
+    const w = this.portraitWindow();
+    const s = w.centre[0] + ((clientX - rect.left) / rect.width - 0.5) * w.scale[0];
+    const t = w.centre[1] + ((clientY - rect.top) / rect.height - 0.5) * w.scale[1];
+    if (s < 0 || s > 1 || t < 0 || t > 1) return null;
+    if (sampleMask(this.portrait.prepared.masks, 'skin', s, t) <= 0.02) return null;
+    return { s, t, dist: 0, world: null };
+  }
+
+  _drawPortrait(state) {
+    const gl = this.gl;
+    const po = this.portrait;
+    gl.bindFramebuffer(gl.FRAMEBUFFER, this.sceneTarget.fb);
+    gl.viewport(0, 0, this.width, this.height);
+    gl.disable(gl.DEPTH_TEST);
+    gl.disable(gl.BLEND);
+    gl.bindVertexArray(this.fsVAO);
+
+    const p = this.progPortrait;
+    p.use();
+    const units = [
+      [0, po.photo.tex, 'uPhoto'],
+      [1, po.paintTex.tex, 'uPaint'],
+      [2, po.fxTex.tex, 'uFx'],
+      [3, po.shape.tex, 'uShape'],
+    ];
+    for (const [unit, tex, name] of units) {
+      gl.activeTexture(gl.TEXTURE0 + unit);
+      gl.bindTexture(gl.TEXTURE_2D, tex);
+      gl.uniform1i(p.u[name], unit);
+    }
+
+    const w = this.portraitWindow();
+    gl.uniform2fv(p.u.uScale, w.scale);
+    gl.uniform2fv(p.u.uCentre, w.centre);
+    /* Up and to the player's left, which is where the ring light on a counter
+     * is and the direction every beauty photograph is lit from. */
+    gl.uniform3fv(p.u.uKey, [-0.34, 0.46, 0.82]);
+    gl.uniform1f(p.u.uSkinLum, po.skinLum);
+    gl.uniform1f(p.u.uTime, this.time);
+    /* Flecks about a third of a millimetre across on a face this size. Tied to
+     * the crop rather than the screen so they sit still while you zoom. */
+    gl.uniform1f(p.u.uSparkle, 620);
+    gl.uniform1f(p.u.uDim, state.dim === undefined ? 1 : state.dim);
+    gl.drawArrays(gl.TRIANGLES, 0, 3);
+
+    gl.bindVertexArray(null);
+    gl.enable(gl.DEPTH_TEST);
+  }
+
+  /* ---------------------------------------------------------------- *
    * Drawing
    * ---------------------------------------------------------------- */
 
@@ -4773,6 +5040,17 @@ class Renderer {
     const gl = this.gl;
     this.time += dt;
     const c = this.customer;
+
+    /* The photographic path shares the post chain and nothing else: no camera,
+     * no lights, no depth buffer, one triangle. */
+    if (this.portrait) {
+      this._drawPortrait(state);
+      this._post(state);
+      this.frames++;
+      if (this._capture) this._grab();
+      gl.bindFramebuffer(gl.FRAMEBUFFER, null);
+      return;
+    }
 
     /* ---- camera ---- */
     const cam = this.camera;
@@ -5055,8 +5333,13 @@ class Renderer {
     gl.uniform1i(po.u.uBloom, 1);
     gl.uniform1f(po.u.uExposure, state.exposure || 1.0);
     gl.uniform1f(po.u.uBloomAmount, this.quality.bloom ? 0.55 : 0);
-    gl.uniform1f(po.u.uVignette, 0.42);
-    gl.uniform1f(po.u.uGrain, 0.020);
+    /* A photograph came out of a camera that had already made these decisions.
+     * Most of the film curve and half the vignette are removed rather than
+     * applied twice — what is left is enough to bloom a highlighter and to keep
+     * the corners from competing with the face. */
+    gl.uniform1f(po.u.uFilmic, this.portrait ? 0.28 : 1.0);
+    gl.uniform1f(po.u.uVignette, this.portrait ? 0.24 : 0.42);
+    gl.uniform1f(po.u.uGrain, this.portrait ? 0.010 : 0.020);
     gl.uniform1f(po.u.uTime, this.time);
     gl.uniform2f(po.u.uResolution, this.width, this.height);
     gl.drawArrays(gl.TRIANGLES, 0, 3);
@@ -5133,6 +5416,1140 @@ class Renderer {
     "MODE": MODE,
     "MATERIALS": MATERIALS,
     "LIGHTS": LIGHTS,
+  };
+})();
+
+__m["makeup/src/data/avatars/index.js"] = (function () {
+/*
+ * avatars/index.js — the photographs the counter has faces for.
+ *
+ * This file is a list and nothing else. Each entry is written by
+ *
+ *   node tools/makeup-avatar.mjs add <photo.jpg>
+ *
+ * which drops a module next to this one and adds the two lines that bring it
+ * in: an import at the top, and its name in the array. Adding a face by hand is
+ * the same two lines — there is no registration step and no manifest to keep in
+ * step with the directory.
+ *
+ * An avatar module exports one object:
+ *
+ *   id          stable, and the seed the customer is generated from, so the
+ *               same photograph is the same person every time
+ *   name        what she is called at the counter, in Hebrew
+ *   width       the photograph's pixel size, used to make the tilt a rotation
+ *   height      rather than a shear
+ *   image       a data: URL — the photograph itself, so a single-file build is
+ *               still a single file
+ *   landmarks   the twenty marks of `portrait/frame.js`, in 0..1 image space
+ *   outline     optional, a traced face outline; without it the shape is
+ *               implied from the marks
+ *   credit      optional, where the picture came from
+ *
+ * A word about what goes in here, because it is the one part of this repository
+ * that is a picture of a person: anything committed to this directory is
+ * readable by anybody who can read the repository, and it stays in the history
+ * after it is deleted. Only photographs you own or have permission for.
+ */
+
+const PHOTOS = [];
+
+  return {
+    "PHOTOS": PHOTOS,
+  };
+})();
+
+__m["makeup/src/portrait/frame.js"] = (function () {
+/*
+ * frame.js — fitting a photograph into face space.
+ *
+ * The 3D counter and a photograph have nothing in common except the one thing
+ * that matters: both are a face, and everything this game knows about faces is
+ * written in the (s, t) coordinates of `model/face.js`. Where a lipstick may
+ * go, how much of the lid is covered, what counts as mess — all of it is a
+ * formula in (s, t). So a photograph does not need its own masks, its own
+ * brushes or its own scoring. It needs a map.
+ *
+ * That map is built from landmarks a human clicked once: the pupils, the
+ * corners of the mouth, the tip of the nose, the chin. Each landmark is a
+ * *pair* — a place in the picture and the place in face space it stands for —
+ * and a monotone curve through those pairs is the map. Feed it the middle of
+ * the photographed mouth and it returns F.mouthT, which is what the lip mask
+ * is drawn around; feed it a pixel on the cheek and it returns the (s, t) the
+ * blusher mask is a function of.
+ *
+ * Three properties are worth stating because the rest of the file exists to
+ * keep them:
+ *
+ *   Monotone. The map may stretch and squash but must never fold. A fold puts
+ *   two different parts of the face at the same (s, t) and the lipstick appears
+ *   in two places. Fritsch-Carlson gives monotone by construction, and the
+ *   landmark pairs are pooled into monotone order before they reach it.
+ *
+ *   Separable. One curve for x, one for y, after rotating the picture so the
+ *   eyes are level. A full 2D warp would fit better and needs forty landmarks
+ *   and a triangulation; two curves need twenty clicks and cannot fold. The
+ *   error it leaves — the face narrows towards the chin faster than a single x
+ *   curve can express — is absorbed by the outline, below, which is what stops
+ *   foundation at the jaw.
+ *
+ *   Reversible. `faceToCrop` exists so the game can put a hint on the lips
+ *   without knowing anything about photographs.
+ *
+ * Coordinates, and there are four of them, so they are named:
+ *
+ *   image     u, v — 0..1 across and down the photograph as stored.
+ *   pixel     the same thing multiplied by the photograph's size, which is the
+ *             only space in which "rotate" and "distance" mean anything.
+ *   rotated   pixel space turned so the eye line is horizontal, and the space
+ *             the crop is axis-aligned to — a picture taken at a tilt is shown
+ *             upright.
+ *   crop      0..1 across the square window on the face. Masks and the paint
+ *             layer live here; this is the space the player's pointer lands in.
+ */
+
+const { F, monotoneMap } = __m["makeup/src/model/face.js"];
+const { clamp, smoothstep } = __m["makeup/src/core/math.js"];
+
+/* ------------------------------------------------------------------ *
+ * What has to be marked
+ * ------------------------------------------------------------------ */
+
+/*
+ * The landmark set. Twenty points, which is about the most that can be asked
+ * of somebody before they stop bothering, and enough that every band of the
+ * face has a pair on both sides of it.
+ *
+ * L and R are the *picture's* left and right, not the subject's — the mirror
+ * question has caused more wrong-way-round faces than any other kind of bug,
+ * and the picture's left is the one you can see while clicking. It also lines
+ * up with face space, where s < 0.5 is the side of the face that appears on the
+ * viewer's left.
+ */
+const LANDMARKS = [
+  { key: 'hairline', he: 'קו השיער במרכז המצח', hint: 'איפה השיער מתחיל, בדיוק באמצע' },
+  { key: 'browL', he: 'שיא הגבה — צד שמאל בתמונה', hint: 'הנקודה הגבוהה של הקשת' },
+  { key: 'browR', he: 'שיא הגבה — צד ימין בתמונה', hint: 'הנקודה הגבוהה של הקשת' },
+  { key: 'eyeTop', he: 'קצה העפעף העליון', hint: 'על קו הריסים העליון, במרכז העין' },
+  { key: 'eyeL', he: 'אישון — עין שמאלית בתמונה', hint: 'מרכז האישון' },
+  { key: 'eyeR', he: 'אישון — עין ימנית בתמונה', hint: 'מרכז האישון' },
+  { key: 'eyeBottom', he: 'קצה העפעף התחתון', hint: 'על קו הריסים התחתון, באותה עין' },
+  { key: 'eyeOuterL', he: 'זווית חיצונית — עין שמאלית', hint: 'הפינה הרחוקה מהאף' },
+  { key: 'eyeOuterR', he: 'זווית חיצונית — עין ימנית', hint: 'הפינה הרחוקה מהאף' },
+  { key: 'noseTip', he: 'קצה האף', hint: 'הנקודה הבולטת ביותר' },
+  { key: 'noseWingL', he: 'כנף האף — צד שמאל', hint: 'הקצה הרחב של הנחיר' },
+  { key: 'noseWingR', he: 'כנף האף — צד ימין', hint: 'הקצה הרחב של הנחיר' },
+  { key: 'noseBase', he: 'בסיס האף', hint: 'מתחת לאף, במרכז' },
+  { key: 'lipTop', he: 'שיא השפה העליונה', hint: 'אחת הפסגות של קשת קופידון' },
+  { key: 'mouthL', he: 'זווית הפה — צד שמאל', hint: 'הפינה שבה השפתיים נפגשות' },
+  { key: 'mouthR', he: 'זווית הפה — צד ימין', hint: 'הפינה שבה השפתיים נפגשות' },
+  { key: 'lipBottom', he: 'קצה השפה התחתונה', hint: 'הגבול התחתון של השפה, במרכז' },
+  { key: 'chin', he: 'קצה הסנטר', hint: 'הנקודה התחתונה של הפנים' },
+  { key: 'faceL', he: 'קו הפנים — צד שמאל', hint: 'הצללית בגובה עצם הלחי' },
+  { key: 'faceR', he: 'קו הפנים — צד ימין', hint: 'הצללית בגובה עצם הלחי' },
+];
+
+const LANDMARK_KEYS = LANDMARKS.map((l) => l.key);
+
+/* ------------------------------------------------------------------ *
+ * Where each landmark lands in face space
+ * ------------------------------------------------------------------ */
+
+/*
+ * The silhouette. Face space runs the skin zone out to |s - 0.5| = 0.46 and
+ * feathers it from 0.253 outwards, because on a head that band is curving away
+ * from the light. A photograph is flat and its cheek is fully visible to the
+ * edge, so mapping the marked silhouette to 0.46 would leave the outer third of
+ * every cheek with half-strength foundation and no way to fix it.
+ *
+ * 0.36 puts the silhouette inside the feather instead: full coverage across the
+ * central 70% of the face, tapering to about half at the jaw — which is where a
+ * base is meant to fade anyway — and the outline below is what actually stops
+ * it going onto the background.
+ */
+const FACE_EDGE_S = 0.360;
+
+/*
+ * The three vertical targets that are not landmarks in F but are derived from
+ * the fields drawn around them, so a marked lip is the lip the mask paints:
+ * `lipMask` reaches 0.040 above the mouth line at the bow and 0.055 below it,
+ * and `browMask` arches a full 0.020 above browT at its peak — which is the
+ * point the landmark asks for, so that is the number here.
+ */
+const BROW_PEAK_T = F.browT - 0.020;
+const LIP_TOP_T = F.mouthT - 0.040;
+const LIP_BOTTOM_T = F.mouthT + 0.055;
+
+/*
+ * How much of the crop window the face fills, across and down.
+ *
+ * The crop is square and screens are not, and the vertical number is set by the
+ * worst case rather than the nicest: on a 16:9 laptop a square image shows only
+ * 56% of its own height, so a face any taller than that in the crop arrives
+ * with its chin off the bottom of the screen. A face is about a third taller
+ * than it is wide, so the height is nearly always the binding constraint and
+ * the horizontal number rarely does anything — it is there for the unusually
+ * wide face, which would otherwise touch both edges.
+ *
+ * What the margin costs is resolution: the face ends up across about 40% of the
+ * paint texture rather than the 72% it gets on the modelled head. `brushScale`
+ * hands that back to the brushes so that a lipstick still covers a lip.
+ */
+const FACE_FRACTION_X = 0.68;
+const FACE_FRACTION_Y = 0.56;
+
+/* ------------------------------------------------------------------ *
+ * Landmarks in, problems out
+ * ------------------------------------------------------------------ */
+
+/*
+ * Every avatar goes through this before it is allowed near the renderer. A
+ * missing landmark is a crash three modules later inside a texture upload; a
+ * mirrored one is a face whose lipstick goes on its forehead and no error at
+ * all. Both are cheap to catch here and expensive to debug anywhere else.
+ */
+function validateAvatar(avatar) {
+  const bad = [];
+  if (!avatar || typeof avatar !== 'object') return ['avatar is not an object'];
+  if (!(avatar.width > 0) || !(avatar.height > 0)) bad.push('width/height missing');
+  const lm = avatar.landmarks || {};
+  for (const key of LANDMARK_KEYS) {
+    const p = lm[key];
+    if (!Array.isArray(p) || p.length !== 2 || !Number.isFinite(p[0]) || !Number.isFinite(p[1])) {
+      bad.push(`landmark ${key} missing or malformed`);
+    } else if (p[0] < -0.05 || p[0] > 1.05 || p[1] < -0.05 || p[1] > 1.05) {
+      bad.push(`landmark ${key} outside the picture`);
+    }
+  }
+  if (bad.length) return bad;
+
+  /* Orientation. Anything below this is a picture marked back to front, and it
+   * produces a face that looks fine until the first stroke. */
+  if (lm.eyeR[0] <= lm.eyeL[0]) bad.push('eyeR must be to the right of eyeL in the picture');
+  if (lm.mouthR[0] <= lm.mouthL[0]) bad.push('mouthR must be to the right of mouthL');
+  if (lm.faceR[0] <= lm.faceL[0]) bad.push('faceR must be to the right of faceL');
+  if (lm.eyeOuterL[0] >= lm.eyeL[0]) bad.push('eyeOuterL must be outside eyeL');
+  if (lm.eyeOuterR[0] <= lm.eyeR[0]) bad.push('eyeOuterR must be outside eyeR');
+
+  /* Vertical order, top of the head down. Marked out of order it still maps —
+   * the pooling below will silently merge the offenders — but a mouth above a
+   * nose means the wrong point was clicked, and quietly averaging it away hides
+   * that from whoever marked it. */
+  const order = [
+    ['hairline', lm.hairline[1]],
+    ['brow', (lm.browL[1] + lm.browR[1]) / 2],
+    ['eye', (lm.eyeL[1] + lm.eyeR[1]) / 2],
+    ['noseBase', lm.noseBase[1]],
+    ['mouth', (lm.mouthL[1] + lm.mouthR[1]) / 2],
+    ['chin', lm.chin[1]],
+  ];
+  for (let i = 1; i < order.length; i++) {
+    if (order[i][1] <= order[i - 1][1]) {
+      bad.push(`${order[i][0]} is not below ${order[i - 1][0]}`);
+    }
+  }
+  if (lm.eyeTop[1] >= lm.eyeBottom[1]) bad.push('eyeTop is not above eyeBottom');
+  if (lm.lipTop[1] >= lm.lipBottom[1]) bad.push('lipTop is not above lipBottom');
+  return bad;
+}
+
+/* ------------------------------------------------------------------ *
+ * Monotone pooling
+ * ------------------------------------------------------------------ */
+
+/*
+ * Sort the pairs and force them into strictly increasing order, merging any
+ * that disagree into their average.
+ *
+ * They do disagree, and not only through bad clicking. Face space puts the
+ * inner corner of the eye marginally further from the centre line than the wing
+ * of the nose; a real face has it marginally nearer. Differences of that size
+ * are not worth reconciling in the landmark table — nothing on screen moves by
+ * a millimetre either way — but they are enough to make a curve non-monotone,
+ * and a non-monotone curve folds. Pooling adjacent violators is the standard
+ * answer: it is the closest monotone sequence in the least-squares sense, and
+ * it degrades a conflict into a slightly softer fit instead of a crease.
+ */
+function poolMonotone(pairs) {
+  const sorted = pairs.slice().sort((a, b) => a[0] - b[0]);
+  const out = [];
+  for (const [x, y] of sorted) {
+    let cur = { x, y, n: 1 };
+    while (out.length) {
+      const prev = out[out.length - 1];
+      if (prev.x < cur.x - 1e-9 && prev.y < cur.y - 1e-9) break;
+      out.pop();
+      const n = prev.n + cur.n;
+      cur = { x: (prev.x * prev.n + cur.x * cur.n) / n, y: (prev.y * prev.n + cur.y * cur.n) / n, n };
+    }
+    out.push(cur);
+  }
+  if (out.length < 2) {
+    throw new Error('landmark curve collapsed to a point — the marks are unusable');
+  }
+  return [out.map((o) => o.x), out.map((o) => o.y)];
+}
+
+/* A monotone increasing function inverted by bisection. Forty iterations take
+ * a double to the last bit it has, and the map is only ever inverted for UI
+ * placement, never per pixel. */
+function invertMonotone(fn, target, lo, hi) {
+  for (let i = 0; i < 40; i++) {
+    const mid = (lo + hi) / 2;
+    if (fn(mid) < target) lo = mid; else hi = mid;
+  }
+  return (lo + hi) / 2;
+}
+
+function median3(a, b, c) {
+  return Math.max(Math.min(a, b), Math.min(Math.max(a, b), c));
+}
+
+/* ------------------------------------------------------------------ *
+ * The frame
+ * ------------------------------------------------------------------ */
+
+/*
+ * Build every map an avatar needs, once. Nothing in here runs per frame or per
+ * stroke: the masks are rasterised through it at load and the pointer path uses
+ * two multiplications and two curve evaluations.
+ */
+function makeFrame(avatar) {
+  const problems = validateAvatar(avatar);
+  if (problems.length) {
+    throw new Error(`avatar "${avatar && avatar.id}" is not usable:\n  ` + problems.join('\n  '));
+  }
+
+  const W = avatar.width, H = avatar.height;
+  const lm = avatar.landmarks;
+
+  /* Into pixels, because the rotation that follows is only a rotation if both
+   * axes are the same unit — on a 3:4 photograph a "rotation" applied to
+   * normalised uv is a shear, and the eye line comes out crooked in the
+   * direction nobody thinks to check. */
+  const P = {};
+  for (const key of LANDMARK_KEYS) P[key] = [lm[key][0] * W, lm[key][1] * H];
+
+  const eyeMid = [(P.eyeL[0] + P.eyeR[0]) / 2, (P.eyeL[1] + P.eyeR[1]) / 2];
+  const tilt = Math.atan2(P.eyeR[1] - P.eyeL[1], P.eyeR[0] - P.eyeL[0]);
+  const ct = Math.cos(tilt), st = Math.sin(tilt);
+
+  /* Pixel -> rotated, about the midpoint between the pupils. */
+  const rotX = (x, y) => (x - eyeMid[0]) * ct + (y - eyeMid[1]) * st + eyeMid[0];
+  const rotY = (x, y) => -(x - eyeMid[0]) * st + (y - eyeMid[1]) * ct + eyeMid[1];
+  /* And back. */
+  const unrotX = (x, y) => (x - eyeMid[0]) * ct - (y - eyeMid[1]) * st + eyeMid[0];
+  const unrotY = (x, y) => (x - eyeMid[0]) * st + (y - eyeMid[1]) * ct + eyeMid[1];
+
+  const R = {};
+  for (const key of LANDMARK_KEYS) R[key] = [rotX(...P[key]), rotY(...P[key])];
+
+  /*
+   * The centre line. Five estimates, weighted by how reliably each one sits on
+   * it: the pupils are the steadiest pair on a face, the chin wanders with the
+   * jaw and with any turn of the head.
+   */
+  const centreOf = [
+    [(R.eyeL[0] + R.eyeR[0]) / 2, 0.30],
+    [(R.mouthL[0] + R.mouthR[0]) / 2, 0.22],
+    [(R.noseWingL[0] + R.noseWingR[0]) / 2, 0.18],
+    [(R.faceL[0] + R.faceR[0]) / 2, 0.15],
+    [R.noseTip[0], 0.10],
+    [R.chin[0], 0.05],
+  ];
+  let cx = 0, wsum = 0;
+  for (const [v, w] of centreOf) { cx += v * w; wsum += w; }
+  cx /= wsum;
+
+  /*
+   * Two half-maps, one per side, sharing the centre line. Independent sides
+   * are not symmetry-breaking for its own sake: a portrait is never perfectly
+   * square to the camera, and the small yaw that survives shows up as one cheek
+   * being wider in the picture than the other. Two maps absorb it. One map
+   * would push the whole face a few millimetres to one side and put every
+   * blusher slightly off the cheekbone it belongs on.
+   */
+  const halfMap = (side) => {
+    const k = (name) => (side < 0 ? R[name + 'L'] : R[name + 'R']);
+    const eye = side < 0 ? R.eyeL : R.eyeR;
+    return monotoneMap(...poolMonotone([
+      [0, 0],
+      [Math.abs(k('noseWing')[0] - cx), F.noseHalfS],
+      [Math.abs(k('mouth')[0] - cx), F.lipHalfS],
+      [Math.abs(eye[0] - cx), F.eyeS],
+      [Math.abs(k('eyeOuter')[0] - cx), F.eyeS + F.eyeHalfS],
+      [Math.abs(k('face')[0] - cx), FACE_EDGE_S],
+    ]));
+  };
+  const mapL = halfMap(-1);
+  const mapR = halfMap(1);
+
+  const mapY = monotoneMap(...poolMonotone([
+    [R.hairline[1], F.hairline],
+    [(R.browL[1] + R.browR[1]) / 2, BROW_PEAK_T],
+    [R.eyeTop[1], F.lidTopT],
+    [(R.eyeL[1] + R.eyeR[1]) / 2, F.eyeT],
+    [R.eyeBottom[1], F.lidBotT],
+    [R.noseTip[1], F.noseTipT],
+    [R.noseBase[1], F.noseBaseT],
+    [R.lipTop[1], LIP_TOP_T],
+    [(R.mouthL[1] + R.mouthR[1]) / 2, F.mouthT],
+    [R.lipBottom[1], LIP_BOTTOM_T],
+    [R.chin[1], F.chinT],
+  ]));
+
+  /* ---------------------------------------------------------------- *
+   * The crop
+   * ---------------------------------------------------------------- */
+
+  const faceWidth = R.faceR[0] - R.faceL[0];
+  const faceHeight = R.chin[1] - R.hairline[1];
+  /* Square, and large enough for whichever of the two is the binding
+   * constraint — a long face crops on its height, a wide one on its width. */
+  const cropSize = Math.max(faceWidth / FACE_FRACTION_X, faceHeight / FACE_FRACTION_Y);
+  const cropCy = (R.hairline[1] + R.chin[1]) / 2;
+  const cropX0 = cx - cropSize / 2;
+  const cropY0 = cropCy - cropSize / 2;
+
+  /* ---------------------------------------------------------------- *
+   * The outline
+   * ---------------------------------------------------------------- */
+
+  const cheekY = (R.faceL[1] + R.faceR[1]) / 2;
+  const outRx = faceWidth / 2 * 1.03;
+  const feather = Math.max(1e-6, outRx * 0.055);
+
+  /*
+   * The shape of a face, as a width that varies with height. Below the
+   * cheekbones it closes towards the chin; above them it stays nearly full
+   * across the temples and rounds off at the hairline, where it is cut — hair
+   * is not skin and foundation does not go on it.
+   *
+   * This is a field rather than a traced polygon because it is derived from
+   * marks that already exist. An avatar that wants the real jaw, a fringe, or a
+   * hand against the cheek can supply `outline` and get exactly that instead.
+   */
+  const impliedOutline = (x, y) => {
+    let half;
+    if (y >= cheekY) {
+      const u = (y - cheekY) / Math.max(1e-6, R.chin[1] - cheekY);
+      half = outRx * Math.pow(Math.max(0, 1 - u * u), 0.45);
+    } else {
+      const span = Math.max(1e-6, (cheekY - R.hairline[1]) / 0.82);
+      const v = (cheekY - y) / span;
+      half = outRx * Math.pow(Math.max(0, 1 - v * v), 0.30);
+    }
+    if (half <= 0) return 0;
+    const across = 1 - smoothstep(half - feather, half, Math.abs(x - cx));
+    const above = smoothstep(R.hairline[1] - feather * 1.2, R.hairline[1] + feather * 0.4, y);
+    return across * above;
+  };
+
+  /* A traced outline, if there is one. Point-in-polygon for the side of it and
+   * distance to the nearest edge for the feather, so a hand-drawn jaw gets the
+   * same soft edge as the implied one rather than a staircase. */
+  let polygon = null;
+  if (Array.isArray(avatar.outline) && avatar.outline.length >= 3) {
+    polygon = avatar.outline.map(([u, v]) => {
+      const px = u * W, py = v * H;
+      return [rotX(px, py), rotY(px, py)];
+    });
+  }
+
+  const polyOutline = (x, y) => {
+    let inside = false, best = Infinity;
+    for (let i = 0, j = polygon.length - 1; i < polygon.length; j = i++) {
+      const [xi, yi] = polygon[i], [xj, yj] = polygon[j];
+      if ((yi > y) !== (yj > y) && x < ((xj - xi) * (y - yi)) / (yj - yi) + xi) inside = !inside;
+      const dx = xj - xi, dy = yj - yi;
+      const len2 = dx * dx + dy * dy;
+      const h = len2 > 0 ? clamp(((x - xi) * dx + (y - yi) * dy) / len2, 0, 1) : 0;
+      best = Math.min(best, Math.hypot(x - (xi + dx * h), y - (yi + dy * h)));
+    }
+    if (!inside) return 0;
+    return smoothstep(0, feather, best);
+  };
+
+  const outlineRot = polygon ? polyOutline : impliedOutline;
+
+  /* ---------------------------------------------------------------- *
+   * Scale
+   * ---------------------------------------------------------------- */
+
+  /*
+   * How much bigger a feature is in the crop than in face space. The brush
+   * radii in `paint.js` are fractions of the texture — a lipstick is 0.030 of
+   * it — and they were tuned against the face-space layout, so without this a
+   * lipstick on a photograph is a third too wide or too narrow depending on how
+   * the picture was framed.
+   *
+   * Three features, and the median of them, because the warp is not linear:
+   * measured on the mouth alone the answer is a few percent off what the eyes
+   * say, and the median lands between them without letting one bad mark decide.
+   */
+  const brushScale = median3(
+    (R.mouthR[0] - R.mouthL[0]) / cropSize / (2 * F.lipHalfS),
+    (R.eyeR[0] - R.eyeL[0]) / cropSize / (2 * F.eyeS),
+    faceWidth / cropSize / (2 * FACE_EDGE_S));
+
+  /* ---------------------------------------------------------------- *
+   * The public map
+   * ---------------------------------------------------------------- */
+
+  const rotToFace = (x, y) => {
+    const d = x - cx;
+    const s = d < 0 ? 0.5 - mapL(-d) : 0.5 + mapR(d);
+    return [s, mapY(y)];
+  };
+
+  const cropToRot = (p, q) => [cropX0 + p * cropSize, cropY0 + q * cropSize];
+
+  const frame = {
+    avatar,
+    width: W,
+    height: H,
+    tilt,
+    brushScale,
+    /*
+     * The crop as a canvas transform: the six numbers that draw the photograph
+     * into a square of `size` pixels, rotated upright and cut to the face.
+     *
+     * Baking the crop once, rather than sampling the photograph through a
+     * rotation in the shader, is what lets everything downstream be a
+     * one-to-one lookup: photo texel, mask texel and paint texel are the same
+     * texel. It also means the tilt is paid for once at load instead of per
+     * fragment per frame, and that a picture taken at an angle is displayed
+     * straight without the compositor knowing there was an angle.
+     */
+    cropTransform(size) {
+      const k = size / cropSize;
+      return {
+        a: k * ct, b: -k * st,
+        c: k * st, d: k * ct,
+        e: k * (eyeMid[0] * (1 - ct) - eyeMid[1] * st - cropX0),
+        f: k * (eyeMid[0] * st + eyeMid[1] * (1 - ct) - cropY0),
+      };
+    },
+
+    /* crop uv -> face space. The one every mask is built through. */
+    cropToFace(p, q) {
+      const [x, y] = cropToRot(p, q);
+      return rotToFace(x, y);
+    },
+
+    /* face space -> crop uv, by inverting the same curves. Used to put a hint
+     * where the lips are without the UI knowing what a photograph is. */
+    faceToCrop(s, t) {
+      const d = Math.abs(s - 0.5);
+      const map = s < 0.5 ? mapL : mapR;
+      const reach = invertMonotone(map, d, 0, cropSize * 2);
+      const x = s < 0.5 ? cx - reach : cx + reach;
+      const y = invertMonotone(mapY, t, cropY0 - cropSize, cropY0 + cropSize * 2);
+      return [(x - cropX0) / cropSize, (y - cropY0) / cropSize];
+    },
+
+    /* image uv -> crop uv, for anything that starts from the photograph. */
+    imageToCrop(u, v) {
+      const x = rotX(u * W, v * H), y = rotY(u * W, v * H);
+      return [(x - cropX0) / cropSize, (y - cropY0) / cropSize];
+    },
+
+    /* crop uv -> image uv, which is what the renderer samples the photo with
+     * and what the marking tool draws its overlay through. */
+    cropToImage(p, q) {
+      const [x, y] = cropToRot(p, q);
+      return [unrotX(x, y) / W, unrotY(x, y) / H];
+    },
+
+    /* 1 on the face, 0 off it, feathered across the edge. */
+    outline(p, q) {
+      const [x, y] = cropToRot(p, q);
+      return outlineRot(x, y);
+    },
+
+    /* Where the landmarks ended up, in crop uv — the marking tool draws these
+     * back over the photograph so a bad click is visible as a dot in the wrong
+     * place rather than as a strange-looking mask. */
+    marks() {
+      const out = {};
+      for (const key of LANDMARK_KEYS) {
+        out[key] = [(R[key][0] - cropX0) / cropSize, (R[key][1] - cropY0) / cropSize];
+      }
+      return out;
+    },
+  };
+
+  return frame;
+}
+
+  return {
+    "LANDMARKS": LANDMARKS,
+    "LANDMARK_KEYS": LANDMARK_KEYS,
+    "FACE_EDGE_S": FACE_EDGE_S,
+    "validateAvatar": validateAvatar,
+    "poolMonotone": poolMonotone,
+    "makeFrame": makeFrame,
+  };
+})();
+
+__m["makeup/src/portrait/masks.js"] = (function () {
+/*
+ * masks.js — the zones of a photographed face.
+ *
+ * `model/face.js` already says what a cheek is, in face space. `frame.js`
+ * already says which part of a photograph a face-space coordinate is. So this
+ * module is one loop: walk the crop, ask the frame where each pixel is on a
+ * face, ask the zone how much of itself is there, multiply by whether the pixel
+ * is on the face at all.
+ *
+ * The output is deliberately the exact structure `buildMasks` returns —
+ * `{ size, zones }` of Uint8Array — because `PaintLayer`, `sampleMask`,
+ * `maskTotal`, the coverage stats and the scoring all consume that and nothing
+ * else. Getting the shape right here is what makes the photographic mode a new
+ * *surface* rather than a second game.
+ *
+ * The loop is written pixel-outermost, zone-innermost, which is the opposite of
+ * the 3D one. There the map is two cheap warps; here it is two curve
+ * evaluations and a rotation, and doing them once per pixel instead of once per
+ * pixel per zone is the difference between a fifth of a second and two.
+ */
+
+const { ZONES, ZONE_NAMES } = __m["makeup/src/model/face.js"];
+const { clamp } = __m["makeup/src/core/math.js"];
+
+/*
+ * The eyes and the mouth of a photograph are already open, and the paint layer
+ * has no idea. Foundation brushed across a photographed eye covers the iris;
+ * lipstick brushed past the lip line lands on the teeth. In the 3D head the
+ * geometry prevents both — there is no skin there to paint on. Here the only
+ * defence is the mask, so `skin` is cut by the same eye opening the model uses
+ * and every zone is cut by the outline.
+ */
+function buildPortraitMasks(frame, size = 512) {
+  const zones = {};
+  const fns = ZONE_NAMES.map((name) => ZONES[name]);
+  for (const name of ZONE_NAMES) zones[name] = new Uint8Array(size * size);
+  const bufs = ZONE_NAMES.map((name) => zones[name]);
+
+  for (let y = 0; y < size; y++) {
+    const q = (y + 0.5) / size;
+    for (let x = 0; x < size; x++) {
+      const p = (x + 0.5) / size;
+      const on = frame.outline(p, q);
+      const i = y * size + x;
+      if (on <= 0) continue;
+      const [s, t] = frame.cropToFace(p, q);
+      for (let z = 0; z < fns.length; z++) {
+        const cov = fns[z](s, t) * on;
+        if (cov > 0) bufs[z][i] = Math.round(clamp(cov, 0, 1) * 255);
+      }
+    }
+  }
+
+  return { size, zones, portrait: true };
+}
+
+/*
+ * The normal field, baked once.
+ *
+ * A photograph has no geometry, and gloss without geometry is a flat wash that
+ * reads as a sticker. What it does have is a face at a known place, and a face
+ * is close enough to an ellipsoid that its normals can be reconstructed from
+ * face space alone: longitude across, latitude down, both already in the warps.
+ *
+ * That gives the large-scale shape — light travels across the lip and around
+ * the cheek — and the shader adds the small-scale detail from the photograph's
+ * own luminance, where the real pores and the real crease of the lip are. The
+ * two together are what makes a gloss sit *on* a mouth instead of over it.
+ *
+ * Stored as an RGB8 texture in the usual [0,1] encoding, with alpha carrying
+ * the outline so the shader can fade the whole effect out at the jaw in the
+ * same fetch.
+ */
+function buildPortraitNormals(frame, size = 256) {
+  const data = new Uint8Array(size * size * 4);
+
+  for (let y = 0; y < size; y++) {
+    const q = (y + 0.5) / size;
+    for (let x = 0; x < size; x++) {
+      const p = (x + 0.5) / size;
+      const i = (y * size + x) * 4;
+
+      const [s, t] = frame.cropToFace(p, q);
+      /* Face space is the unwrap of a head, so its own coordinates are the
+       * angles: s across is longitude, t down is latitude. The constants are
+       * how much of a sphere a face is — a little over a third of the way round
+       * and a little under half of the way down. */
+      const lon = (s - 0.5) * Math.PI * 1.15;
+      const lat = (t - 0.5) * Math.PI * 0.80;
+      const cl = Math.cos(lat);
+      let nx = Math.sin(lon) * cl;
+      let ny = -Math.sin(lat);
+      let nz = Math.cos(lon) * cl;
+
+      /* The nose. It is the one feature an ellipsoid cannot express and the one
+       * a highlighter is aimed down, so it is added explicitly: a ridge along
+       * the centre line that tips the normal outwards on each side of it. */
+      const ridge = Math.exp(-(((s - 0.5) / 0.085) ** 2))
+        * Math.exp(-(((t - 0.470) / 0.075) ** 2));
+      nx += Math.sign(s - 0.5) * ridge * 0.55;
+
+      const len = Math.hypot(nx, ny, nz) || 1;
+      data[i] = Math.round((nx / len * 0.5 + 0.5) * 255);
+      data[i + 1] = Math.round((ny / len * 0.5 + 0.5) * 255);
+      data[i + 2] = Math.round((nz / len * 0.5 + 0.5) * 255);
+      data[i + 3] = Math.round(clamp(frame.outline(p, q), 0, 1) * 255);
+    }
+  }
+  return { size, data };
+}
+
+  return {
+    "buildPortraitMasks": buildPortraitMasks,
+    "buildPortraitNormals": buildPortraitNormals,
+  };
+})();
+
+__m["makeup/src/data/people.js"] = (function () {
+/*
+ * people.js — who walks up to the counter.
+ *
+ * Names, colouring, personalities and everything they say.
+ *
+ * Hebrew is grammatically gendered, so every line that addresses the player or
+ * describes the customer exists twice and is picked by the customer's own
+ * gender. Writing one set and hoping is the shortcut that makes half the
+ * customers sound like a badly translated menu, and it is very visible in a
+ * game where the dialogue is most of the character.
+ */
+
+/*
+ * Skin tones. Six depths across three undertones, spanning the range the
+ * foundation ramp has to serve — and the audit measures exactly that: every one
+ * of these has to have a shade within a barely-visible distance of it, or the
+ * shade-matching mechanic is unwinnable for whoever walks in wearing it.
+ *
+ * `tone` is the undertone the match is judged against, and it is the mistake a
+ * counter actually makes: a cool customer in a warm base goes orange, a warm
+ * customer in a cool base goes grey. The three are only about ten degrees of
+ * hue apart — skin lives in a narrow band — which is why the game asks the
+ * player to look rather than to read a label.
+ */
+const SKIN_TONES = [
+  { hex: '#f9d5c8', he: 'פורצלן ורדרד', tone: 'cool' },
+  { hex: '#f6d7c4', he: 'פורצלן ניטרלי', tone: 'neutral' },
+  { hex: '#f1d9c2', he: 'פורצלן זהוב', tone: 'warm' },
+  { hex: '#e7b6a3', he: 'שנהב ורדרד', tone: 'cool' },
+  { hex: '#e2b99f', he: 'שנהב ניטרלי', tone: 'neutral' },
+  { hex: '#dcbb9b', he: 'שנהב זהוב', tone: 'warm' },
+  { hex: '#d19982', he: 'חול ורדרד', tone: 'cool' },
+  { hex: '#cc9c7d', he: 'חול ניטרלי', tone: 'neutral' },
+  { hex: '#c59f78', he: 'חול זהוב', tone: 'warm' },
+  { hex: '#b67b63', he: 'דבש ורדרד', tone: 'cool' },
+  { hex: '#b07e5d', he: 'דבש ניטרלי', tone: 'neutral' },
+  { hex: '#a98158', he: 'דבש זהוב', tone: 'warm' },
+  { hex: '#935d47', he: 'ערמון ורדרד', tone: 'cool' },
+  { hex: '#8e6041', he: 'ערמון ניטרלי', tone: 'neutral' },
+  { hex: '#87643d', he: 'ערמון זהוב', tone: 'warm' },
+  { hex: '#6e4331', he: 'אבוני ורדרד', tone: 'cool' },
+  { hex: '#6a452c', he: 'אבוני ניטרלי', tone: 'neutral' },
+  { hex: '#654828', he: 'אבוני זהוב', tone: 'warm' },
+];
+
+const HAIR_COLORS = [
+  { hex: '#1b1614', he: 'שחור' },
+  { hex: '#2e2119', he: 'חום כהה' },
+  { hex: '#4a3222', he: 'ערמוני' },
+  { hex: '#6b4a2c', he: 'חום בהיר' },
+  { hex: '#8f6b3a', he: 'דבש' },
+  { hex: '#b89257', he: 'בלונד' },
+  { hex: '#d8bd8a', he: 'בלונד פלטינה' },
+  { hex: '#8a3a2a', he: 'ג׳ינג׳י' },
+  { hex: '#6d4b6b', he: 'סגלגל' },
+  { hex: '#9aa0a8', he: 'אפור כסוף' },
+];
+
+const EYE_COLORS = [
+  { hex: '#4a3018', he: 'חום' },
+  { hex: '#2c1c10', he: 'חום כהה' },
+  { hex: '#6b6035', he: 'דבש' },
+  { hex: '#4d6b52', he: 'ירוק' },
+  { hex: '#3f6480', he: 'כחול' },
+  { hex: '#6a7a80', he: 'אפור' },
+];
+
+const GARMENT_COLORS = [
+  '#2b2f3a', '#5c3a4a', '#1f3d3a', '#6b5230', '#3c3c46',
+  '#7a4a52', '#26404f', '#4b4032', '#5a5560', '#833f4a',
+];
+
+const NAMES = [
+  { he: 'נועה', g: 'f' }, { he: 'שירה', g: 'f' }, { he: 'תמר', g: 'f' },
+  { he: 'יעל', g: 'f' }, { he: 'מיכל', g: 'f' }, { he: 'רות', g: 'f' },
+  { he: 'אביגיל', g: 'f' }, { he: 'ליאן', g: 'f' }, { he: 'הדס', g: 'f' },
+  { he: 'סיון', g: 'f' }, { he: 'אורטל', g: 'f' }, { he: 'דנה', g: 'f' },
+  { he: 'מרים', g: 'f' }, { he: 'רוני', g: 'f' }, { he: 'שקד', g: 'f' },
+  { he: 'ג׳ומאנה', g: 'f' }, { he: 'לינוי', g: 'f' }, { he: 'אסתר', g: 'f' },
+  { he: 'נטלי', g: 'f' }, { he: 'איילת', g: 'f' }, { he: 'ורד', g: 'f' },
+  { he: 'עידו', g: 'm' }, { he: 'איתי', g: 'm' }, { he: 'יונתן', g: 'm' },
+  { he: 'עומר', g: 'm' }, { he: 'אליאס', g: 'm' }, { he: 'רן', g: 'm' },
+];
+
+/*
+ * Personalities. `patience` is how long they will sit before they start
+ * getting restless, `tip` scales what they leave, `picky` scales how hard the
+ * scoring judges a near miss, and `talk` is how often they say something
+ * unprompted.
+ */
+const PERSONAS = {
+  easy: {
+    id: 'easy', he: 'זורמת', patience: 1.35, tip: 1.0, picky: 0.75, talk: 0.5,
+    tell: 'מרוצה כמעט מהכל — אבל עדיין יש לה העדפה.',
+  },
+  exact: {
+    id: 'exact', he: 'יודעת בדיוק', patience: 0.85, tip: 1.25, picky: 1.35, talk: 0.9,
+    tell: 'תגיד לך בדיוק מה לא בסדר. תקשיב.',
+  },
+  shy: {
+    id: 'shy', he: 'ביישנית', patience: 1.1, tip: 0.9, picky: 1.0, talk: 0.25,
+    tell: 'כמעט לא מדברת. הפנים שלה כן.',
+  },
+  rush: {
+    id: 'rush', he: 'ממהרת', patience: 0.6, tip: 1.15, picky: 0.9, talk: 0.7,
+    tell: 'מסתכלת בשעון. תסיים מהר.',
+  },
+  regular: {
+    id: 'regular', he: 'לקוחה קבועה', patience: 1.5, tip: 1.35, picky: 1.1, talk: 0.8,
+    tell: 'הייתה כאן. זוכרת מה אהבה בפעם שעברה.',
+  },
+};
+
+const PERSONA_NAMES = Object.keys(PERSONAS);
+
+/* ------------------------------------------------------------------ *
+ * Dialogue
+ * ------------------------------------------------------------------ */
+
+const L = (f, m) => ({ f, m });
+
+const LINES = {
+  greet: [
+    L('היי, יש לך רגע? אני צריכה משהו.', 'היי, יש לך רגע? אני צריך משהו.'),
+    L('שלום. קיבלתי המלצה עלייך.', 'שלום. קיבלתי המלצה עליך.'),
+    L('אני יושבת? מעולה.', 'אני יושב? מעולה.'),
+    L('בוקר טוב. בואי נתחיל.', 'בוקר טוב. בוא נתחיל.'),
+    L('אני סומכת עלייך, אבל יש לי דעה.', 'אני סומך עליך, אבל יש לי דעה.'),
+  ],
+  love: [
+    L('אוי, זה. את זה אני אוהבת.', 'אוי, זה. את זה אני אוהב.'),
+    L('רגע — מה זה היה? זה מושלם.', 'רגע — מה זה היה? זה מושלם.'),
+    L('בדיוק ככה. בדיוק.', 'בדיוק ככה. בדיוק.'),
+    L('אני קונה את זה. איך קוראים לו?', 'אני קונה את זה. איך קוראים לו?'),
+    L('זה הגוון. אל תיגעי בזה יותר.', 'זה הגוון. אל תיגע בזה יותר.'),
+  ],
+  hate: [
+    L('אמ… זה לא. זה ממש לא.', 'אמ… זה לא. זה ממש לא.'),
+    L('אפשר להוריד את זה?', 'אפשר להוריד את זה?'),
+    L('ביקשתי משהו אחר לגמרי.', 'ביקשתי משהו אחר לגמרי.'),
+    L('זה מייבש לי את הפנים רק מלהסתכל.', 'זה מייבש לי את הפנים רק מלהסתכל.'),
+    L('לא. תנסי שוב.', 'לא. תנסה שוב.'),
+  ],
+  wrongShade: [
+    L('הגוון הזה בולע אותי.', 'הגוון הזה בולע אותי.'),
+    L('זה כתום עליי. תמיד כתום עליי.', 'זה כתום עליי. תמיד כתום עליי.'),
+    L('זה בהיר מדי — רואים לי קו בלסת.', 'זה בהיר מדי — רואים לי קו בלסת.'),
+    L('זה כהה. אני לא כזאת כהה.', 'זה כהה. אני לא כזה כהה.'),
+  ],
+  impatient: [
+    L('סליחה, כמה זמן זה עוד ייקח?', 'סליחה, כמה זמן זה עוד ייקח?'),
+    L('אני צריכה לצאת בקרוב…', 'אני צריך לצאת בקרוב…'),
+    L('אנחנו מתקדמות?', 'אנחנו מתקדמים?'),
+  ],
+  happyEnd: [
+    L('וואו. אני נראית מעולה.', 'וואו. אני נראה מעולה.'),
+    L('זה בדיוק מה שביקשתי. תודה.', 'זה בדיוק מה שביקשתי. תודה.'),
+    L('אני חוזרת אלייך. בטוח.', 'אני חוזר אליך. בטוח.'),
+  ],
+  okEnd: [
+    L('טוב. זה בסדר.', 'טוב. זה בסדר.'),
+    L('אני אסתדר עם זה.', 'אני אסתדר עם זה.'),
+    L('תודה. אני אתרגל.', 'תודה. אני אתרגל.'),
+  ],
+  badEnd: [
+    L('זה… לא מה שדמיינתי.', 'זה… לא מה שדמיינתי.'),
+    L('אני אשטוף את זה בבית.', 'אני אשטוף את זה בבית.'),
+    L('לא נורא. תודה בכל זאת.', 'לא נורא. תודה בכל זאת.'),
+  ],
+  markRight: [
+    L('כן! זה בדיוק מה שאהבתי. איך ידעת?', 'כן! זה בדיוק מה שאהבתי. איך ידעת?'),
+    L('רשמת נכון. אני אבוא לקחת עוד.', 'רשמת נכון. אני אבוא לקחת עוד.'),
+  ],
+  markWrong: [
+    L('דווקא לא. אהבתי משהו אחר.', 'דווקא לא. אהבתי משהו אחר.'),
+    L('לא ממש. אבל תודה שניסית.', 'לא ממש. אבל תודה שניסית.'),
+  ],
+  returning: [
+    L('חזרתי! אני רוצה בדיוק מה שעשית לי בפעם שעברה.',
+      'חזרתי! אני רוצה בדיוק מה שעשית לי בפעם שעברה.'),
+    L('שוב אני. את זוכרת מה אהבתי?', 'שוב אני. אתה זוכר מה אהבתי?'),
+  ],
+};
+
+/* Pick the right grammatical form. Everything that speaks goes through here. */
+function say(line, gender) {
+  return gender === 'm' ? line.m : line.f;
+}
+
+  return {
+    "SKIN_TONES": SKIN_TONES,
+    "HAIR_COLORS": HAIR_COLORS,
+    "EYE_COLORS": EYE_COLORS,
+    "GARMENT_COLORS": GARMENT_COLORS,
+    "NAMES": NAMES,
+    "PERSONAS": PERSONAS,
+    "PERSONA_NAMES": PERSONA_NAMES,
+    "LINES": LINES,
+    "say": say,
+  };
+})();
+
+__m["makeup/src/portrait/avatars.js"] = (function () {
+/*
+ * avatars.js — turning a photograph into something the counter can serve.
+ *
+ * Everything expensive about a photographic customer happens here, once, when
+ * she is first prepared: decode the picture, rotate and cut it to a square
+ * around the face, rasterise the zones through the frame, bake the normals, and
+ * read her actual skin colour back out of her own cheek.
+ *
+ * That last one is the point of doing it at load rather than at build. The
+ * whole shade-matching mechanic asks "is this foundation right for *her*", and
+ * with a photograph the honest answer is not a colour somebody typed into a
+ * table — it is the colour of the face in the picture, measured off the pixels,
+ * away from the mouth and the eyes and anywhere makeup is likely to already be.
+ */
+
+const { PHOTOS } = __m["makeup/src/data/avatars/index.js"];
+const { makeFrame, validateAvatar } = __m["makeup/src/portrait/frame.js"];
+const { buildPortraitMasks, buildPortraitNormals } = __m["makeup/src/portrait/masks.js"];
+const { SKIN_TONES } = __m["makeup/src/data/people.js"];
+const { srgbToLinear, linearToSrgb, rgbToHex, hexToRgb, deltaE } = __m["makeup/src/core/color.js"];
+const { ZONE_NAMES } = __m["makeup/src/model/face.js"];
+
+/* Photographs added at runtime — by the marking tool's preview, and by the
+ * smoke test, which builds one on a canvas so the whole path from pixels to
+ * lipstick is covered without a face being committed to the repository. */
+const runtime = [];
+
+/*
+ * Whether the committed photographs count.
+ *
+ * Off, the counter behaves exactly as it does in a checkout with no faces in
+ * it, and only avatars added at run time are served. That is what lets the
+ * smoke test drive both paths on any working copy: it turns the committed list
+ * off, plays a modelled customer, then registers its own drawn face and plays a
+ * photographed one. Without it, adding a photograph to the repository would
+ * silently retire half the test suite.
+ */
+let photosOn = true;
+
+function setPhotosEnabled(on) {
+  photosOn = !!on;
+  cache.clear();
+}
+
+function listAvatars() {
+  return [...(photosOn ? PHOTOS : []), ...runtime];
+}
+
+function hasAvatars() {
+  return PHOTOS.length + runtime.length > 0;
+}
+
+function registerAvatar(avatar) {
+  const problems = validateAvatar(avatar);
+  if (problems.length) throw new Error('avatar rejected:\n  ' + problems.join('\n  '));
+  const at = runtime.findIndex((a) => a.id === avatar.id);
+  if (at >= 0) runtime[at] = avatar; else runtime.push(avatar);
+  cache.clear();
+  return avatar;
+}
+
+/* The same photograph for the same customer, every time. A shift is replayable
+ * from its seed and a face that moved between two runs of the same seed would
+ * break that in the most confusing way available. */
+function pickAvatar(rng) {
+  const all = listAvatars();
+  if (!all.length) return null;
+  return rng.pick(all);
+}
+
+function avatarById(id) {
+  return listAvatars().find((a) => a.id === id) || null;
+}
+
+/* ------------------------------------------------------------------ *
+ * Preparation
+ * ------------------------------------------------------------------ */
+
+const cache = new Map();
+
+function decode(src) {
+  return new Promise((resolve, reject) => {
+    const img = new Image();
+    img.onload = () => resolve(img);
+    img.onerror = () => reject(new Error('the avatar image could not be decoded'));
+    img.decoding = 'async';
+    img.src = src;
+  });
+}
+
+/*
+ * Draw the photograph into a square, upright, cut to the face.
+ *
+ * The transform comes from the frame, so the canvas that comes out is in crop
+ * space by construction: pixel (x, y) here, texel (x, y) of the mask, and texel
+ * (x, y) of the paint layer are the same place on the same face. Every lookup
+ * downstream — in the shader, in the coverage stats, in the scoring — is then a
+ * plain fetch with no mapping at all, which is worth far more than the
+ * milliseconds this costs.
+ */
+function bakeCrop(img, frame, size) {
+  const canvas = document.createElement('canvas');
+  canvas.width = size;
+  canvas.height = size;
+  const ctx = canvas.getContext('2d', { willReadFrequently: true });
+  /* Off the edge of a photograph there is nothing to draw. Black would ring the
+   * face; the game's own background lets the crop end without an edge. */
+  ctx.fillStyle = '#14090f';
+  ctx.fillRect(0, 0, size, size);
+  ctx.imageSmoothingQuality = 'high';
+  const m = frame.cropTransform(size);
+  ctx.setTransform(m.a, m.b, m.c, m.d, m.e, m.f);
+  ctx.drawImage(img, 0, 0);
+  ctx.setTransform(1, 0, 0, 1, 0, 0);
+  return new Uint8Array(ctx.getImageData(0, 0, size, size).data.buffer);
+}
+
+/*
+ * Her colour, measured.
+ *
+ * Sampled from the parts of the face that are skin and are least likely to
+ * already have something on them: not the lips, not the lids or lashes, not the
+ * brows, not the cheeks where blusher goes and not under the eyes where
+ * concealer does. What is left is forehead, temples, the sides of the face and
+ * the chin — which is, not by coincidence, where a counter would check a shade.
+ *
+ * Averaged in linear light. Averaging sRGB bytes biases every mean towards the
+ * dark end, and on a face that is the difference between one shade and the next.
+ */
+const AVOID = ['lip', 'brow', 'lid', 'lash', 'cheek', 'underEye'];
+
+function sampleSkin(pixels, masks) {
+  const n = masks.size;
+  const skin = masks.zones.skin;
+  const avoid = AVOID.map((z) => masks.zones[z]).filter(Boolean);
+  let r = 0, g = 0, b = 0, wsum = 0;
+
+  for (let i = 0; i < n * n; i++) {
+    let w = skin[i] / 255;
+    if (w < 0.5) continue;
+    for (const a of avoid) w *= 1 - a[i] / 255;
+    if (w < 0.25) continue;
+    const p = i * 4;
+    r += srgbToLinear(pixels[p] / 255) * w;
+    g += srgbToLinear(pixels[p + 1] / 255) * w;
+    b += srgbToLinear(pixels[p + 2] / 255) * w;
+    wsum += w;
+  }
+  if (wsum <= 0) return null;
+  return [
+    linearToSrgb(r / wsum),
+    linearToSrgb(g / wsum),
+    linearToSrgb(b / wsum),
+  ];
+}
+
+/*
+ * The measured colour, dressed as a catalogue tone.
+ *
+ * `tone` — cool, neutral or warm — is what the shade-matching penalty is judged
+ * against, and there is no way to read an undertone off a single average with
+ * any confidence, so it is borrowed from the nearest entry in the table the
+ * foundation ramp was built to cover. The hex stays measured: the match is
+ * against her, the label is the nearest word for her.
+ */
+function toneFromSkin(rgb) {
+  let best = SKIN_TONES[0], bestD = Infinity;
+  for (const cand of SKIN_TONES) {
+    const d = deltaE(rgb, hexToRgb(cand.hex));
+    if (d < bestD) { bestD = d; best = cand; }
+  }
+  return { hex: rgbToHex(rgb), he: best.he, tone: best.tone, measured: true };
+}
+
+/*
+ * Everything above, cached. Preparing a face is a decode, a draw and about two
+ * million zone evaluations; a customer who walks back in should not pay for it
+ * twice, and neither should the second shift of the same day.
+ */
+async function prepareAvatar(avatar, size = 1024, maskSize = 512) {
+  const key = `${avatar.id}:${size}:${maskSize}`;
+  const hit = cache.get(key);
+  if (hit) return hit;
+
+  const img = await decode(avatar.image);
+  const av = (avatar.width > 0 && avatar.height > 0)
+    ? avatar
+    : { ...avatar, width: img.naturalWidth || img.width, height: img.naturalHeight || img.height };
+
+  const frame = makeFrame(av);
+  const pixels = bakeCrop(img, frame, size);
+  const masks = buildPortraitMasks(frame, maskSize);
+  const normals = buildPortraitNormals(frame, 256);
+
+  const skin = sampleSkin(pixels, masks);
+  if (!skin) throw new Error(`avatar "${av.id}": the marks leave no skin to sample`);
+
+  const prepared = {
+    avatar: av, frame, masks, normals, pixels, size,
+    tone: toneFromSkin(skin),
+    skin,
+  };
+  cache.set(key, prepared);
+  return prepared;
+}
+
+function forgetAvatars() {
+  cache.clear();
+}
+
+/* Exported for the audit, which checks that a prepared face has a usable amount
+ * of every zone on it — a mask that came out empty is a product that silently
+ * cannot be applied, and nothing else in the game would say so. */
+function maskCoverage(masks) {
+  const out = {};
+  for (const name of ZONE_NAMES) {
+    const buf = masks.zones[name];
+    let sum = 0;
+    for (let i = 0; i < buf.length; i++) sum += buf[i];
+    out[name] = sum / 255 / (masks.size * masks.size);
+  }
+  return out;
+}
+
+  return {
+    "setPhotosEnabled": setPhotosEnabled,
+    "listAvatars": listAvatars,
+    "hasAvatars": hasAvatars,
+    "registerAvatar": registerAvatar,
+    "pickAvatar": pickAvatar,
+    "avatarById": avatarById,
+    "sampleSkin": sampleSkin,
+    "toneFromSkin": toneFromSkin,
+    "prepareAvatar": prepareAvatar,
+    "forgetAvatars": forgetAvatars,
+    "maskCoverage": maskCoverage,
   };
 })();
 
@@ -5635,12 +7052,37 @@ class PaintLayer {
     this._stats = null;
     this._statsDirty = true;
     this.assist = 0.7;
+    /*
+     * How large a brush is here compared with the layout `BRUSH` was tuned
+     * against. One on the 3D head, where the texture *is* face space. On a
+     * photograph it is whatever the crop came out as — a tighter crop means the
+     * mouth occupies more of the texture and the lipstick has to grow with it,
+     * or the same brush that covered a lip on the head covers two thirds of one
+     * here and every product feels wrong in a way nobody can name.
+     */
+    this.brushScale = 1;
     this.strokeCount = 0;
     /* Set while a customer's arrival makeup is being laid down, so what she
      * walked in wearing is never billed to her or offered as something the
      * player chose. */
     this.recordingArrival = false;
     this.bounds = zoneBounds(masks);
+  }
+
+  /*
+   * Swap the face under the paint.
+   *
+   * The 3D head has one set of masks for every customer — the layout is fixed,
+   * which is the point of it — but a photograph's zones are wherever that
+   * particular face's landmarks put them, so they change with the customer.
+   * Everything else about the layer is unchanged by this, which is exactly the
+   * property the photographic mode was built around.
+   */
+  setMasks(masks, brushScale = 1) {
+    this.masks = masks;
+    this.brushScale = brushScale;
+    this.bounds = zoneBounds(masks);
+    this.clear();
   }
 
   clear() {
@@ -5671,7 +7113,7 @@ class PaintLayer {
     const size = this.size;
     const p = item.product;
     const zone = zoneOf(p);
-    const radius = (BRUSH[p.cat] || 0.05) * size;
+    const radius = (BRUSH[p.cat] || 0.05) * this.brushScale * size;
     const cx = s * size, cy = t * size;
     const x0 = Math.max(0, Math.floor(cx - radius));
     const x1 = Math.min(size, Math.ceil(cx + radius) + 1);
@@ -5802,7 +7244,7 @@ class PaintLayer {
    * a dotted line. The step is a third of the brush radius — closer produces
    * visible banding from repeated blending, further leaves scallops. */
   stroke(fromS, fromT, toS, toT, item, pressure) {
-    const radius = (BRUSH[item.product.cat] || 0.05);
+    const radius = (BRUSH[item.product.cat] || 0.05) * this.brushScale;
     const dist = Math.hypot(toS - fromS, toT - fromT);
     const steps = Math.max(1, Math.ceil(dist / (radius * 0.34)));
     let total = 0;
@@ -5990,6 +7432,9 @@ class Input {
    */
   pick(clientX, clientY) {
     const r = this.renderer;
+    /* A photograph is already on the screen: the pick is the inverse of the
+     * window the compositor is showing, and there is nothing to intersect. */
+    if (r.portrait) return r.pickPortrait(clientX, clientY);
     const c = r.customer;
     if (!c || !c.headMatrix) return null;
 
@@ -6917,209 +8362,6 @@ function requestedCategories() {
   };
 })();
 
-__m["makeup/src/data/people.js"] = (function () {
-/*
- * people.js — who walks up to the counter.
- *
- * Names, colouring, personalities and everything they say.
- *
- * Hebrew is grammatically gendered, so every line that addresses the player or
- * describes the customer exists twice and is picked by the customer's own
- * gender. Writing one set and hoping is the shortcut that makes half the
- * customers sound like a badly translated menu, and it is very visible in a
- * game where the dialogue is most of the character.
- */
-
-/*
- * Skin tones. Six depths across three undertones, spanning the range the
- * foundation ramp has to serve — and the audit measures exactly that: every one
- * of these has to have a shade within a barely-visible distance of it, or the
- * shade-matching mechanic is unwinnable for whoever walks in wearing it.
- *
- * `tone` is the undertone the match is judged against, and it is the mistake a
- * counter actually makes: a cool customer in a warm base goes orange, a warm
- * customer in a cool base goes grey. The three are only about ten degrees of
- * hue apart — skin lives in a narrow band — which is why the game asks the
- * player to look rather than to read a label.
- */
-const SKIN_TONES = [
-  { hex: '#f9d5c8', he: 'פורצלן ורדרד', tone: 'cool' },
-  { hex: '#f6d7c4', he: 'פורצלן ניטרלי', tone: 'neutral' },
-  { hex: '#f1d9c2', he: 'פורצלן זהוב', tone: 'warm' },
-  { hex: '#e7b6a3', he: 'שנהב ורדרד', tone: 'cool' },
-  { hex: '#e2b99f', he: 'שנהב ניטרלי', tone: 'neutral' },
-  { hex: '#dcbb9b', he: 'שנהב זהוב', tone: 'warm' },
-  { hex: '#d19982', he: 'חול ורדרד', tone: 'cool' },
-  { hex: '#cc9c7d', he: 'חול ניטרלי', tone: 'neutral' },
-  { hex: '#c59f78', he: 'חול זהוב', tone: 'warm' },
-  { hex: '#b67b63', he: 'דבש ורדרד', tone: 'cool' },
-  { hex: '#b07e5d', he: 'דבש ניטרלי', tone: 'neutral' },
-  { hex: '#a98158', he: 'דבש זהוב', tone: 'warm' },
-  { hex: '#935d47', he: 'ערמון ורדרד', tone: 'cool' },
-  { hex: '#8e6041', he: 'ערמון ניטרלי', tone: 'neutral' },
-  { hex: '#87643d', he: 'ערמון זהוב', tone: 'warm' },
-  { hex: '#6e4331', he: 'אבוני ורדרד', tone: 'cool' },
-  { hex: '#6a452c', he: 'אבוני ניטרלי', tone: 'neutral' },
-  { hex: '#654828', he: 'אבוני זהוב', tone: 'warm' },
-];
-
-const HAIR_COLORS = [
-  { hex: '#1b1614', he: 'שחור' },
-  { hex: '#2e2119', he: 'חום כהה' },
-  { hex: '#4a3222', he: 'ערמוני' },
-  { hex: '#6b4a2c', he: 'חום בהיר' },
-  { hex: '#8f6b3a', he: 'דבש' },
-  { hex: '#b89257', he: 'בלונד' },
-  { hex: '#d8bd8a', he: 'בלונד פלטינה' },
-  { hex: '#8a3a2a', he: 'ג׳ינג׳י' },
-  { hex: '#6d4b6b', he: 'סגלגל' },
-  { hex: '#9aa0a8', he: 'אפור כסוף' },
-];
-
-const EYE_COLORS = [
-  { hex: '#4a3018', he: 'חום' },
-  { hex: '#2c1c10', he: 'חום כהה' },
-  { hex: '#6b6035', he: 'דבש' },
-  { hex: '#4d6b52', he: 'ירוק' },
-  { hex: '#3f6480', he: 'כחול' },
-  { hex: '#6a7a80', he: 'אפור' },
-];
-
-const GARMENT_COLORS = [
-  '#2b2f3a', '#5c3a4a', '#1f3d3a', '#6b5230', '#3c3c46',
-  '#7a4a52', '#26404f', '#4b4032', '#5a5560', '#833f4a',
-];
-
-const NAMES = [
-  { he: 'נועה', g: 'f' }, { he: 'שירה', g: 'f' }, { he: 'תמר', g: 'f' },
-  { he: 'יעל', g: 'f' }, { he: 'מיכל', g: 'f' }, { he: 'רות', g: 'f' },
-  { he: 'אביגיל', g: 'f' }, { he: 'ליאן', g: 'f' }, { he: 'הדס', g: 'f' },
-  { he: 'סיון', g: 'f' }, { he: 'אורטל', g: 'f' }, { he: 'דנה', g: 'f' },
-  { he: 'מרים', g: 'f' }, { he: 'רוני', g: 'f' }, { he: 'שקד', g: 'f' },
-  { he: 'ג׳ומאנה', g: 'f' }, { he: 'לינוי', g: 'f' }, { he: 'אסתר', g: 'f' },
-  { he: 'נטלי', g: 'f' }, { he: 'איילת', g: 'f' }, { he: 'ורד', g: 'f' },
-  { he: 'עידו', g: 'm' }, { he: 'איתי', g: 'm' }, { he: 'יונתן', g: 'm' },
-  { he: 'עומר', g: 'm' }, { he: 'אליאס', g: 'm' }, { he: 'רן', g: 'm' },
-];
-
-/*
- * Personalities. `patience` is how long they will sit before they start
- * getting restless, `tip` scales what they leave, `picky` scales how hard the
- * scoring judges a near miss, and `talk` is how often they say something
- * unprompted.
- */
-const PERSONAS = {
-  easy: {
-    id: 'easy', he: 'זורמת', patience: 1.35, tip: 1.0, picky: 0.75, talk: 0.5,
-    tell: 'מרוצה כמעט מהכל — אבל עדיין יש לה העדפה.',
-  },
-  exact: {
-    id: 'exact', he: 'יודעת בדיוק', patience: 0.85, tip: 1.25, picky: 1.35, talk: 0.9,
-    tell: 'תגיד לך בדיוק מה לא בסדר. תקשיב.',
-  },
-  shy: {
-    id: 'shy', he: 'ביישנית', patience: 1.1, tip: 0.9, picky: 1.0, talk: 0.25,
-    tell: 'כמעט לא מדברת. הפנים שלה כן.',
-  },
-  rush: {
-    id: 'rush', he: 'ממהרת', patience: 0.6, tip: 1.15, picky: 0.9, talk: 0.7,
-    tell: 'מסתכלת בשעון. תסיים מהר.',
-  },
-  regular: {
-    id: 'regular', he: 'לקוחה קבועה', patience: 1.5, tip: 1.35, picky: 1.1, talk: 0.8,
-    tell: 'הייתה כאן. זוכרת מה אהבה בפעם שעברה.',
-  },
-};
-
-const PERSONA_NAMES = Object.keys(PERSONAS);
-
-/* ------------------------------------------------------------------ *
- * Dialogue
- * ------------------------------------------------------------------ */
-
-const L = (f, m) => ({ f, m });
-
-const LINES = {
-  greet: [
-    L('היי, יש לך רגע? אני צריכה משהו.', 'היי, יש לך רגע? אני צריך משהו.'),
-    L('שלום. קיבלתי המלצה עלייך.', 'שלום. קיבלתי המלצה עליך.'),
-    L('אני יושבת? מעולה.', 'אני יושב? מעולה.'),
-    L('בוקר טוב. בואי נתחיל.', 'בוקר טוב. בוא נתחיל.'),
-    L('אני סומכת עלייך, אבל יש לי דעה.', 'אני סומך עליך, אבל יש לי דעה.'),
-  ],
-  love: [
-    L('אוי, זה. את זה אני אוהבת.', 'אוי, זה. את זה אני אוהב.'),
-    L('רגע — מה זה היה? זה מושלם.', 'רגע — מה זה היה? זה מושלם.'),
-    L('בדיוק ככה. בדיוק.', 'בדיוק ככה. בדיוק.'),
-    L('אני קונה את זה. איך קוראים לו?', 'אני קונה את זה. איך קוראים לו?'),
-    L('זה הגוון. אל תיגעי בזה יותר.', 'זה הגוון. אל תיגע בזה יותר.'),
-  ],
-  hate: [
-    L('אמ… זה לא. זה ממש לא.', 'אמ… זה לא. זה ממש לא.'),
-    L('אפשר להוריד את זה?', 'אפשר להוריד את זה?'),
-    L('ביקשתי משהו אחר לגמרי.', 'ביקשתי משהו אחר לגמרי.'),
-    L('זה מייבש לי את הפנים רק מלהסתכל.', 'זה מייבש לי את הפנים רק מלהסתכל.'),
-    L('לא. תנסי שוב.', 'לא. תנסה שוב.'),
-  ],
-  wrongShade: [
-    L('הגוון הזה בולע אותי.', 'הגוון הזה בולע אותי.'),
-    L('זה כתום עליי. תמיד כתום עליי.', 'זה כתום עליי. תמיד כתום עליי.'),
-    L('זה בהיר מדי — רואים לי קו בלסת.', 'זה בהיר מדי — רואים לי קו בלסת.'),
-    L('זה כהה. אני לא כזאת כהה.', 'זה כהה. אני לא כזה כהה.'),
-  ],
-  impatient: [
-    L('סליחה, כמה זמן זה עוד ייקח?', 'סליחה, כמה זמן זה עוד ייקח?'),
-    L('אני צריכה לצאת בקרוב…', 'אני צריך לצאת בקרוב…'),
-    L('אנחנו מתקדמות?', 'אנחנו מתקדמים?'),
-  ],
-  happyEnd: [
-    L('וואו. אני נראית מעולה.', 'וואו. אני נראה מעולה.'),
-    L('זה בדיוק מה שביקשתי. תודה.', 'זה בדיוק מה שביקשתי. תודה.'),
-    L('אני חוזרת אלייך. בטוח.', 'אני חוזר אליך. בטוח.'),
-  ],
-  okEnd: [
-    L('טוב. זה בסדר.', 'טוב. זה בסדר.'),
-    L('אני אסתדר עם זה.', 'אני אסתדר עם זה.'),
-    L('תודה. אני אתרגל.', 'תודה. אני אתרגל.'),
-  ],
-  badEnd: [
-    L('זה… לא מה שדמיינתי.', 'זה… לא מה שדמיינתי.'),
-    L('אני אשטוף את זה בבית.', 'אני אשטוף את זה בבית.'),
-    L('לא נורא. תודה בכל זאת.', 'לא נורא. תודה בכל זאת.'),
-  ],
-  markRight: [
-    L('כן! זה בדיוק מה שאהבתי. איך ידעת?', 'כן! זה בדיוק מה שאהבתי. איך ידעת?'),
-    L('רשמת נכון. אני אבוא לקחת עוד.', 'רשמת נכון. אני אבוא לקחת עוד.'),
-  ],
-  markWrong: [
-    L('דווקא לא. אהבתי משהו אחר.', 'דווקא לא. אהבתי משהו אחר.'),
-    L('לא ממש. אבל תודה שניסית.', 'לא ממש. אבל תודה שניסית.'),
-  ],
-  returning: [
-    L('חזרתי! אני רוצה בדיוק מה שעשית לי בפעם שעברה.',
-      'חזרתי! אני רוצה בדיוק מה שעשית לי בפעם שעברה.'),
-    L('שוב אני. את זוכרת מה אהבתי?', 'שוב אני. אתה זוכר מה אהבתי?'),
-  ],
-};
-
-/* Pick the right grammatical form. Everything that speaks goes through here. */
-function say(line, gender) {
-  return gender === 'm' ? line.m : line.f;
-}
-
-  return {
-    "SKIN_TONES": SKIN_TONES,
-    "HAIR_COLORS": HAIR_COLORS,
-    "EYE_COLORS": EYE_COLORS,
-    "GARMENT_COLORS": GARMENT_COLORS,
-    "NAMES": NAMES,
-    "PERSONAS": PERSONAS,
-    "PERSONA_NAMES": PERSONA_NAMES,
-    "LINES": LINES,
-    "say": say,
-  };
-})();
-
 __m["makeup/src/game/customer.js"] = (function () {
 /*
  * customer.js — who is sitting at the counter, and what they arrived wearing.
@@ -7307,6 +8549,28 @@ function chooseArrival(rng, c) {
     say2('הגיעה מאופרת לגמרי — עשו לה משהו אחר, והיא רוצה משהו אחר.');
   }
   return items;
+}
+
+/*
+ * Give a customer the colouring of a photograph instead of the one she was
+ * generated with.
+ *
+ * Called after generation rather than before it, which is a deliberate trade.
+ * Doing it properly — feeding the measured tone in at the top so the arrival
+ * makeup is chosen against it — would mean decoding an image before a customer
+ * exists, and the customer is generated synchronously from a seed on purpose:
+ * that is what makes a shift replayable. What is lost by retoning afterwards is
+ * only which *particular* wrong shade she walked in wearing, and an arrival
+ * foundation is deliberately wrong either way. Everything the player is scored
+ * on — the match, the affinity, the till — reads `c.skin` at the time it is
+ * asked, so all of it judges against her real face.
+ */
+function retoneCustomer(c, tone) {
+  c.tone = tone;
+  c.skin = hexToRgb(tone.hex);
+  const lab = rgbToLab(c.skin);
+  c.sss = labToRgb([clamp(lab[0] * 0.55, 6, 55), lab[1] + 26, lab[2] + 10]);
+  return c;
 }
 
 /* The shade in a line that is closest to a skin tone, measured perceptually.
@@ -7507,6 +8771,7 @@ const BRUSH_STEP = {
 
   return {
     "generateCustomer": generateCustomer,
+    "retoneCustomer": retoneCustomer,
     "closestShade": closestShade,
     "affinity": affinity,
     "favourite": favourite,
@@ -8496,13 +9761,14 @@ __m["makeup/src/main.js"] = (function () {
  */
 
 const { Renderer } = __m["makeup/src/render/renderer.js"];
-const { buildMasks } = __m["makeup/src/model/face.js"];
+const { buildMasks, F } = __m["makeup/src/model/face.js"];
+const { pickAvatar, prepareAvatar, registerAvatar, hasAvatars, setPhotosEnabled, } = __m["makeup/src/portrait/avatars.js"];
 const { buildShop, buildTray, SHOP } = __m["makeup/src/model/props.js"];
 const { PaintLayer } = __m["makeup/src/game/paint.js"];
 const { Input } = __m["makeup/src/game/input.js"];
 const { Audio } = __m["makeup/src/game/audio.js"];
 const { Shift } = __m["makeup/src/game/shift.js"];
-const { buildCustomerAssets, applyArrival, reactionTo, fillZone, } = __m["makeup/src/game/customer.js"];
+const { buildCustomerAssets, applyArrival, reactionTo, fillZone, retoneCustomer, } = __m["makeup/src/game/customer.js"];
 const { scoreCustomer, scoreMarking, till } = __m["makeup/src/game/scoring.js"];
 const { UI } = __m["makeup/src/ui/ui.js"];
 const { loadSave, saveGame, clearSave, loadSettings, saveSettings, guessQuality, } = __m["makeup/src/ui/store.js"];
@@ -8632,7 +9898,8 @@ function onPaintStart(hit) {
   audio.start();
   audio.resume();
   paint.splat(hit.s, hit.t, selected, 0.6);
-  state.gaze = hit.world;
+  /* A photograph has no eyes to follow the brush with. */
+  if (hit.world) state.gaze = hit.world;
 }
 
 function onPaintMove(hit, from, speed) {
@@ -8642,7 +9909,7 @@ function onPaintMove(hit, from, speed) {
    * discovers they can blend by moving. */
   const pressure = clamp(1.15 - speed * 0.55, 0.25, 1.15);
   paint.stroke(from.s, from.t, hit.s, hit.t, selected, pressure);
-  state.gaze = hit.world;
+  if (hit.world) state.gaze = hit.world;
   audio.brush(clamp(speed * 0.5, 0.05, 1), selected.product.finish === 'gloss' ? 0.15 : 0.6);
   updateProgress();
 }
@@ -8656,13 +9923,17 @@ function onPaintEnd() {
   updateTill();
 }
 
+/* A drag off the face turns a head; on a photograph there is no head to turn,
+ * so the same drag moves the picture under the brush instead. */
 function onOrbit(dx, dy) {
+  if (renderer.portrait) { renderer.portraitPan(dx, dy); return; }
   const cam = renderer.camera;
   cam.yaw = clamp(cam.yaw - dx * 0.005, -0.9, 0.9);
   cam.pitch = clamp(cam.pitch + dy * 0.004, -0.5, 0.6);
 }
 
 function onZoom(d) {
+  if (renderer.portrait) { renderer.portraitZoom(d); return; }
   const cam = renderer.camera;
   cam.dist = clamp(cam.dist * (1 + d), 0.16, 1.6);
 }
@@ -8749,20 +10020,44 @@ async function nextCustomer() {
   await nextFrame();
 
   customer = shift.next();
-  assets = buildCustomerAssets(customer, { skinSize: settings.face || 1024 });
 
-  paint.clear();
-  paint.assist = settings.assist;
-  applyArrival(paint, customer);
+  /*
+   * A photograph if there is one, the modelled head if there is not.
+   *
+   * The choice is made per customer and from her own seed, so a counter with
+   * three photographs on it serves those three faces in a fixed order and a
+   * counter with none behaves exactly as it did before any of this existed.
+   * Everything after this point — the arrival, the brush, the coverage, the
+   * till — is the same code down both paths.
+   */
+  const prepared = await preparePortrait(customer);
 
-  const c = renderer.setCustomer({
-    ...assets,
-    paintTex: paint.colourTex,
-    fxTex: paint.fxTex,
-  });
-  c.head = assets.head;
-  c.lidL = assets.lidL;
-  c.lidR = assets.lidR;
+  if (prepared) {
+    renderer.releaseCustomer();
+    assets = null;
+    retoneCustomer(customer, prepared.tone);
+    if (prepared.avatar.name) customer.name = prepared.avatar.name;
+    customer.avatarId = prepared.avatar.id;
+    paint.setMasks(prepared.masks, prepared.frame.brushScale);
+    paint.assist = settings.assist;
+    applyArrival(paint, customer);
+    renderer.setPortrait(prepared, paint);
+  } else {
+    renderer.releasePortrait();
+    assets = buildCustomerAssets(customer, { skinSize: settings.face || 1024 });
+    paint.setMasks(masks, 1);
+    paint.assist = settings.assist;
+    applyArrival(paint, customer);
+
+    const c = renderer.setCustomer({
+      ...assets,
+      paintTex: paint.colourTex,
+      fxTex: paint.fxTex,
+    });
+    c.head = assets.head;
+    c.lidL = assets.lidL;
+    c.lidR = assets.lidR;
+  }
 
   state.reacted = new Set();
   state.timeLeft = customer.patience;
@@ -8790,6 +10085,35 @@ async function nextCustomer() {
 
 function nextFrame() {
   return new Promise((r) => requestAnimationFrame(() => r()));
+}
+
+/*
+ * A photograph for this customer, or null.
+ *
+ * A broken avatar must not take the shift down with it. Anything that can go
+ * wrong here — a picture that will not decode, marks that were saved from a
+ * different photograph — is a data problem in one file, and the right answer to
+ * it is the modelled head and a line in the console, not a dead counter.
+ */
+async function preparePortrait(c) {
+  if (!hasAvatars()) return null;
+  const avatar = pickAvatar(makeRng(c.seed + 91));
+  if (!avatar) return null;
+  try {
+    /*
+     * The crop is baked larger than the skin texture a modelled head gets. It
+     * is the one image the player looks straight at, the makeup views zoom two
+     * and three times into it, and unlike a generated texture there is no more
+     * detail to be had later — whatever is thrown away here is thrown away for
+     * good. The paint layer and the masks stay where they were: those are
+     * fields, and a field does not get better by being sampled more finely.
+     */
+    const crop = clamp(Math.round((settings.face || 1024) * 1.5), 512, 2048);
+    return await prepareAvatar(avatar, crop, 512);
+  } catch (err) {
+    console.warn('avatar unusable, falling back to the modelled head:', err);
+    return null;
+  }
 }
 
 function outOfTime() {
@@ -8835,6 +10159,14 @@ function charge() {
 }
 
 function setView(name) {
+  /* The same three views on a photograph, framed in face space so the numbers
+   * mean the same thing they do on the head. */
+  if (renderer.portrait) {
+    if (name === 'eyes') renderer.portraitFocus(0.5, F.eyeT - 0.01, 2.2);
+    else if (name === 'lips') renderer.portraitFocus(0.5, F.mouthT, 2.4);
+    else renderer.portraitFocus(0.5, (F.hairline + F.chinT) / 2, 1.0);
+    return;
+  }
   const cam = renderer.camera;
   const scale = SHOP.headScale;
   const f = assets && assets.focus ? assets.focus : null;
@@ -8876,6 +10208,7 @@ const handlers = {
   },
   toMenu() {
     renderer.releaseCustomer();
+    renderer.releasePortrait();
     ui.setContinue(!!loadSave());
     ui.show('title');
     state.phase = 'title';
@@ -8972,6 +10305,15 @@ window.bella = {
   },
   mark(itemKey, finish) { ui.markItem = itemKey; ui.markFinish = finish; },
   stats: () => paint.stats(),
+  /*
+   * Add a photograph at run time. Used by the marking tool to look at a face
+   * before committing it, and by the smoke test, which draws one on a canvas so
+   * the whole path from pixels to lipstick is covered without a real person's
+   * picture living in the test suite.
+   */
+  addAvatar(avatar) { return registerAvatar(avatar); },
+  setPhotos(on) { setPhotosEnabled(on); },
+  get portrait() { return renderer.portrait; },
 };
 
 boot();

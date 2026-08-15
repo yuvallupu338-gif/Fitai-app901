@@ -330,6 +330,114 @@ void main() {
   gl_Position = vec4(p * 2.0 - 1.0, 0.0, 1.0);
 }`;
 
+/* ------------------------------------------------------------------ *
+ * Portrait
+ * ------------------------------------------------------------------ */
+
+/*
+ * Makeup on a photograph.
+ *
+ * The one idea in this shader is that a product does not replace what is under
+ * it, it takes the light that was already there. A lipstick laid on flat as a
+ * colour reads as a sticker — the lip loses its crease, its wet edge and the
+ * shadow at the corner all at once, and the eye notices instantly even when it
+ * cannot say what is wrong. So the product colour is multiplied by how bright
+ * this pixel is *relative to the rest of her skin*: in the shadow under the lip
+ * the ratio is a half and the lipstick goes dark there too; on the round of the
+ * lower lip it is one and a half and the lipstick catches the light.
+ *
+ * `uSkinLum` is what makes that possible, and it is measured off her own cheek
+ * when the avatar is prepared rather than assumed — the same ratio against a
+ * fixed grey would make every dark-skinned face's makeup fluoresce and every
+ * pale one's turn to mud.
+ *
+ * On top of that sits the only thing the photograph genuinely cannot provide: a
+ * specular. A photograph's own highlights are baked into its pixels and cannot
+ * move, so gloss and shimmer are lit here, against a normal field reconstructed
+ * from face space. It is an approximation of a face rather than this face — but
+ * a highlight that travels when the product changes is worth far more than one
+ * that is exactly right and never moves.
+ */
+export const PORTRAIT_FS = `#version 300 es
+precision highp float;
+in vec2 vUV;
+out vec4 outColor;
+
+uniform sampler2D uPhoto;   /* the crop, upright and square, sRGB */
+uniform sampler2D uPaint;   /* rgb product colour, a coverage, sRGB */
+uniform sampler2D uFx;      /* r finish, g shimmer, b powder */
+uniform sampler2D uShape;   /* rgb normal, a on-face */
+
+uniform vec2 uScale;        /* how much of the crop one screen covers */
+uniform vec2 uCentre;       /* which point of the crop is in the middle */
+uniform vec3 uKey;          /* direction to the key light */
+uniform float uSkinLum;
+uniform float uTime;
+uniform float uSparkle;
+uniform float uDim;
+
+float hash21(vec2 p) {
+  p = fract(p * vec2(123.34, 456.21));
+  p += dot(p, p + 45.32);
+  return fract(p.x * p.y);
+}
+
+void main() {
+  /* The fullscreen triangle's v runs up the screen and every image in this
+   * pass has row zero at the top, so the flip happens once, here, rather than
+   * in four texture fetches and again in the pick that has to agree with them. */
+  vec2 uv = vec2(vUV.x, 1.0 - vUV.y);
+  vec2 p = uCentre + (uv - 0.5) * uScale;
+  vec2 q = clamp(p, 0.0, 1.0);
+  float inside = 1.0 - smoothstep(0.0, 0.004, distance(p, q));
+
+  vec3 photo = texture(uPhoto, q).rgb;
+  vec4 pnt = texture(uPaint, q);
+  vec3 fx = texture(uFx, q).rgb;
+  vec4 sh = texture(uShape, q);
+  vec3 N = normalize(sh.xyz * 2.0 - 1.0);
+
+  float lum = dot(photo, vec3(0.2126, 0.7152, 0.0722));
+  float ratio = clamp(lum / max(uSkinLum, 1e-4), 0.26, 2.4);
+  /* Slightly less than proportional. A product in shadow is darker than the
+   * skin around it but not as much darker as the skin is, because some of the
+   * light it is missing comes back off the pigment itself. */
+  vec3 makeup = pnt.rgb * pow(ratio, 0.86);
+
+  float cov = pnt.a * sh.a;
+  vec3 col = mix(photo, makeup, cov);
+
+  /* Specular. The view direction is straight on — the crop is a face looking at
+   * the camera, and pretending otherwise buys nothing. */
+  vec3 V = vec3(0.0, 0.0, 1.0);
+  vec3 H = normalize(uKey + V);
+  float gloss = fx.r * (1.0 - fx.b * 0.75);
+  float spec = pow(max(dot(N, H), 0.0), mix(14.0, 260.0, gloss));
+  float lit = 0.35 + 0.65 * max(dot(N, uKey), 0.0);
+  col += spec * cov * lit * (0.05 + 0.95 * gloss) * (0.55 + 0.45 * ratio) * 1.7;
+
+  /* Shimmer, as particles rather than a sheen: a shimmer eyeshadow is flat
+   * powder with flecks in it, and a smooth glow where the flecks should be is
+   * the thing that makes cheap CG makeup look like plastic. The flecks twinkle
+   * slowly, which is what a head moving a centimetre would do to them. */
+  if (fx.g > 0.001) {
+    vec2 cell = floor(q * uSparkle);
+    float h = hash21(cell);
+    float tw = 0.5 + 0.5 * sin(uTime * 2.2 + h * 47.0);
+    float fleck = smoothstep(0.955, 0.995, h) * tw;
+    col += fleck * fx.g * cov * lit * 2.4 * (0.4 + 0.6 * pnt.rgb);
+  }
+
+  /* Powder takes shine off, including shine the photograph already had. */
+  col -= max(0.0, lum - uSkinLum) * fx.b * cov * 0.55;
+
+  vec3 back = mix(vec3(0.045, 0.026, 0.040), vec3(0.010, 0.006, 0.010),
+                  smoothstep(0.15, 0.95, length(uv - vec2(0.5, 0.42))));
+  col = mix(back, col, inside);
+
+  outColor = vec4(max(col, 0.0) * uDim, 1.0);
+}`;
+
 export const BRIGHT_FS = `#version 300 es
 precision highp float;
 in vec2 vUV;
@@ -375,6 +483,7 @@ uniform float uBloomAmount;
 uniform float uVignette;
 uniform float uGrain;
 uniform float uTime;
+uniform float uFilmic;
 uniform vec2 uResolution;
 
 /* ACES, fitted. Everything in this shop is either a warm fluorescent or a very
@@ -388,7 +497,13 @@ void main() {
   vec3 c = texture(uSrc, vUV).rgb;
   c += texture(uBloom, vUV).rgb * uBloomAmount;
   c *= uExposure;
-  c = aces(c);
+  /* How much of the film curve to apply. The shop wants all of it — its lights
+   * are far brighter than white and something has to bring them back. A
+   * photograph wants very little: it was graded by whoever took it, and running
+   * a second tone curve over an image that has already been through one lifts
+   * the mid-tones and flattens exactly the contrast in a face that makes it
+   * look like a face. */
+  c = mix(c, aces(c), uFilmic);
 
   vec2 d = vUV - 0.5;
   c *= 1.0 - uVignette * dot(d, d) * 1.6;

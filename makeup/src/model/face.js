@@ -59,13 +59,19 @@ const V_CONTROL_T = [0.00, 0.16, 0.33, 0.50, 0.72, 0.90, 1.00];
 const V_CONTROL_V = [0.00, 0.28, 0.4333, 0.5667, 0.70, 0.78, 1.00];
 
 /*
- * Fritsch-Carlson monotone cubic. A plain Catmull-Rom through these points
- * overshoots between the last two and the map stops being monotone, which
- * folds the mesh under the chin — every triangle in a band inside out, and a
- * black ring where the neck should be. Monotonicity here is a correctness
- * property, not a smoothness preference.
+ * A monotone cubic through control points, Fritsch-Carlson.
+ *
+ * Monotonicity here is a correctness property, not a smoothness preference. A
+ * plain Catmull-Rom through these points overshoots between the last two and
+ * the map stops being monotone, which folds the mesh under the chin — every
+ * triangle in a band inside out, and a black ring where the neck should be.
+ *
+ * Exported because the portrait side needs exactly the same thing: fitting a
+ * photograph into face space is a monotone map through a handful of landmarks,
+ * and two implementations of "a curve that never goes backwards" is one more
+ * than anybody should maintain.
  */
-function pchipSlopes(xs, ys) {
+export function monotoneMap(xs, ys) {
   const n = xs.length;
   const h = [], d = [];
   for (let i = 0; i < n - 1; i++) {
@@ -81,23 +87,30 @@ function pchipSlopes(xs, ys) {
     const w2 = h[i] + 2 * h[i - 1];
     m[i] = (w1 + w2) / (w1 / d[i - 1] + w2 / d[i]);
   }
-  return m;
+
+  return (x) => {
+    /* Outside the control points the curve continues on the end slope rather
+     * than clamping: a landmark map has to keep going past the chin and past
+     * the ear, and a flat extension there puts every zone in the wrong place
+     * at the edges of the face. */
+    if (x <= xs[0]) return ys[0] + (x - xs[0]) * m[0];
+    if (x >= xs[n - 1]) return ys[n - 1] + (x - xs[n - 1]) * m[n - 1];
+    let i = 0;
+    while (i < n - 2 && x > xs[i + 1]) i++;
+    const hh = xs[i + 1] - xs[i];
+    const u = (x - xs[i]) / hh;
+    const u2 = u * u, u3 = u2 * u;
+    return (2 * u3 - 3 * u2 + 1) * ys[i]
+      + (u3 - 2 * u2 + u) * hh * m[i]
+      + (-2 * u3 + 3 * u2) * ys[i + 1]
+      + (u3 - u2) * hh * m[i + 1];
+  };
 }
 
-const V_SLOPES = pchipSlopes(V_CONTROL_T, V_CONTROL_V);
+const V_MAP = monotoneMap(V_CONTROL_T, V_CONTROL_V);
 
 export function faceV(t) {
-  const xs = V_CONTROL_T, ys = V_CONTROL_V;
-  const tc = clamp(t, 0, 1);
-  let i = 0;
-  while (i < xs.length - 2 && tc > xs[i + 1]) i++;
-  const h = xs[i + 1] - xs[i];
-  const x = (tc - xs[i]) / h;
-  const x2 = x * x, x3 = x2 * x;
-  return (2 * x3 - 3 * x2 + 1) * ys[i]
-    + (x3 - 2 * x2 + x) * h * V_SLOPES[i]
-    + (-2 * x3 + 3 * x2) * ys[i + 1]
-    + (x3 - x2) * h * V_SLOPES[i + 1];
+  return V_MAP(clamp(t, 0, 1));
 }
 
 /* ------------------------------------------------------------------ *

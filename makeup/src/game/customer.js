@@ -194,6 +194,28 @@ function chooseArrival(rng, c) {
   return items;
 }
 
+/*
+ * Give a customer the colouring of a photograph instead of the one she was
+ * generated with.
+ *
+ * Called after generation rather than before it, which is a deliberate trade.
+ * Doing it properly — feeding the measured tone in at the top so the arrival
+ * makeup is chosen against it — would mean decoding an image before a customer
+ * exists, and the customer is generated synchronously from a seed on purpose:
+ * that is what makes a shift replayable. What is lost by retoning afterwards is
+ * only which *particular* wrong shade she walked in wearing, and an arrival
+ * foundation is deliberately wrong either way. Everything the player is scored
+ * on — the match, the affinity, the till — reads `c.skin` at the time it is
+ * asked, so all of it judges against her real face.
+ */
+export function retoneCustomer(c, tone) {
+  c.tone = tone;
+  c.skin = hexToRgb(tone.hex);
+  const lab = rgbToLab(c.skin);
+  c.sss = labToRgb([clamp(lab[0] * 0.55, 6, 55), lab[1] + 26, lab[2] + 10]);
+  return c;
+}
+
 /* The shade in a line that is closest to a skin tone, measured perceptually.
  * This is the answer the player is trying to find by eye. */
 export function closestShade(shades, skin) {

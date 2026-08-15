@@ -21,13 +21,16 @@ import {
   mat4, identity, multiply, perspective, lookAt, compose, normalMatrix,
   invert, clamp, damp, smoothstep, aimedBasis,
 } from '../core/math.js';
-import { SCENE_VS, SCENE_FS, FULLSCREEN_VS, BRIGHT_FS, BLUR_FS, POST_FS } from './shaders.js';
+import {
+  SCENE_VS, SCENE_FS, FULLSCREEN_VS, BRIGHT_FS, BLUR_FS, POST_FS, PORTRAIT_FS,
+} from './shaders.js';
 import {
   marbleTexture, lacquerTexture, metalTexture, wallTexture, floorTexture,
   packageTexture, bodySkinTexture, signTexture, tillScreenTexture, flatTexture,
 } from './textures.js';
 import { SHOP } from '../model/props.js';
 import { LID } from '../model/head.js';
+import { sampleMask } from '../model/face.js';
 import { srgbToLinear } from '../core/color.js';
 
 const MODE = {
@@ -108,6 +111,8 @@ export class Renderer {
     this.shopMeshes = [];
     this.trayMeshes = [];
     this.customer = null;
+    this.portrait = null;
+    this.portraitCam = { zoom: 1, cx: 0.5, cy: 0.5 };
     this.time = 0;
     this.viewProj = mat4();
     this.invViewProj = mat4();
@@ -130,6 +135,7 @@ export class Renderer {
     this.progBright = createProgram(gl, FULLSCREEN_VS, BRIGHT_FS, 'bright');
     this.progBlur = createProgram(gl, FULLSCREEN_VS, BLUR_FS, 'blur');
     this.progPost = createProgram(gl, FULLSCREEN_VS, POST_FS, 'post');
+    this.progPortrait = createProgram(gl, FULLSCREEN_VS, PORTRAIT_FS, 'portrait');
     this.fsVAO = createFullscreenVAO(gl);
 
     const N = this.quality.texture;
@@ -263,6 +269,139 @@ export class Renderer {
   }
 
   /* ---------------------------------------------------------------- *
+   * The photographic customer
+   *
+   * A prepared avatar arrives as three square images that are already in
+   * register with each other and with the paint layer — the crop, the normals
+   * and the masks all came out of the same frame — so setting one up is three
+   * uploads and no geometry at all.
+   * ---------------------------------------------------------------- */
+
+  setPortrait(prepared, paint) {
+    const gl = this.gl;
+    this.releasePortrait();
+    const n = prepared.normals;
+    this.portrait = {
+      prepared,
+      photo: createTexture2D(gl, this.caps, prepared.size, prepared.size,
+        prepared.pixels, { srgb: true, clamp: true }),
+      shape: createTexture2D(gl, this.caps, n.size, n.size, n.data, { clamp: true }),
+      paintTex: paint.colourTex,
+      fxTex: paint.fxTex,
+      /* Her skin, as one number the shader can divide by. Measured, because a
+       * fixed grey would make the makeup on a dark face glow and the makeup on
+       * a pale one look like a stain. */
+      skinLum: 0.2126 * srgbToLinear(prepared.skin[0])
+        + 0.7152 * srgbToLinear(prepared.skin[1])
+        + 0.0722 * srgbToLinear(prepared.skin[2]),
+    };
+    this.portraitCam = { zoom: 1, cx: 0.5, cy: 0.5 };
+    return this.portrait;
+  }
+
+  releasePortrait() {
+    if (!this.portrait) return;
+    const gl = this.gl;
+    gl.deleteTexture(this.portrait.photo.tex);
+    gl.deleteTexture(this.portrait.shape.tex);
+    this.portrait = null;
+  }
+
+  /*
+   * Which part of the crop the screen is showing. The crop is square and the
+   * screen is not, so one axis always spills; the wider one wins, which keeps
+   * the face filling the frame on a phone held upright and on a laptop alike.
+   */
+  portraitWindow() {
+    const a = this.width / this.height;
+    const z = Math.max(0.2, this.portraitCam.zoom);
+    const sx = (a > 1 ? 1 : a) / z;
+    const sy = (a > 1 ? 1 / a : 1) / z;
+    /* Panning stops where the crop does. Letting it run past the edge shows the
+     * backdrop with the face off to one side, which looks like a bug. */
+    const lim = (c, s) => (s >= 1 ? 0.5 : clamp(c, s / 2, 1 - s / 2));
+    return { scale: [sx, sy], centre: [lim(this.portraitCam.cx, sx), lim(this.portraitCam.cy, sy)] };
+  }
+
+  portraitPan(dx, dy) {
+    const w = this.portraitWindow();
+    this.portraitCam.cx = w.centre[0] - (dx / this.canvas.clientWidth) * w.scale[0];
+    this.portraitCam.cy = w.centre[1] - (dy / this.canvas.clientHeight) * w.scale[1];
+  }
+
+  portraitZoom(d) {
+    this.portraitCam.zoom = clamp(this.portraitCam.zoom * (1 - d), 0.85, 5.5);
+  }
+
+  /* Frame a face-space point at a given zoom — how the eyes and lips buttons
+   * work without the game layer knowing what a crop is. */
+  portraitFocus(s, t, zoom) {
+    if (!this.portrait) return;
+    const [p, q] = this.portrait.prepared.frame.faceToCrop(s, t);
+    this.portraitCam.cx = p;
+    this.portraitCam.cy = q;
+    this.portraitCam.zoom = zoom;
+  }
+
+  /*
+   * Screen position to face position. The photographic answer to `Input.pick`,
+   * and much the shorter of the two: there is no ray, because the surface is
+   * the screen. Off the face returns null, exactly as a missed ray does, so a
+   * drag that starts on the background pans instead of painting.
+   */
+  pickPortrait(clientX, clientY) {
+    if (!this.portrait) return null;
+    const rect = this.canvas.getBoundingClientRect();
+    const w = this.portraitWindow();
+    const s = w.centre[0] + ((clientX - rect.left) / rect.width - 0.5) * w.scale[0];
+    const t = w.centre[1] + ((clientY - rect.top) / rect.height - 0.5) * w.scale[1];
+    if (s < 0 || s > 1 || t < 0 || t > 1) return null;
+    if (sampleMask(this.portrait.prepared.masks, 'skin', s, t) <= 0.02) return null;
+    return { s, t, dist: 0, world: null };
+  }
+
+  _drawPortrait(state) {
+    const gl = this.gl;
+    const po = this.portrait;
+    gl.bindFramebuffer(gl.FRAMEBUFFER, this.sceneTarget.fb);
+    gl.viewport(0, 0, this.width, this.height);
+    gl.disable(gl.DEPTH_TEST);
+    gl.disable(gl.BLEND);
+    gl.bindVertexArray(this.fsVAO);
+
+    const p = this.progPortrait;
+    p.use();
+    const units = [
+      [0, po.photo.tex, 'uPhoto'],
+      [1, po.paintTex.tex, 'uPaint'],
+      [2, po.fxTex.tex, 'uFx'],
+      [3, po.shape.tex, 'uShape'],
+    ];
+    for (const [unit, tex, name] of units) {
+      gl.activeTexture(gl.TEXTURE0 + unit);
+      gl.bindTexture(gl.TEXTURE_2D, tex);
+      gl.uniform1i(p.u[name], unit);
+    }
+
+    const w = this.portraitWindow();
+    gl.uniform2fv(p.u.uScale, w.scale);
+    gl.uniform2fv(p.u.uCentre, w.centre);
+    /* Up and to the player's left, which is where the ring light on a counter
+     * is and the direction every beauty photograph is lit from. */
+    gl.uniform3fv(p.u.uKey, [-0.34, 0.46, 0.82]);
+    gl.uniform1f(p.u.uSkinLum, po.skinLum);
+    gl.uniform1f(p.u.uTime, this.time);
+    /* Flecks about a third of a millimetre across on a face this size. Tied to
+     * the crop rather than the screen so they sit still while you zoom. */
+    gl.uniform1f(p.u.uSparkle, 620);
+    gl.uniform1f(p.u.uDim, state.dim === undefined ? 1 : state.dim);
+    gl.drawArrays(gl.TRIANGLES, 0, 3);
+
+    gl.bindVertexArray(null);
+    gl.enable(gl.DEPTH_TEST);
+  }
+
+  /* ---------------------------------------------------------------- *
    * Drawing
    * ---------------------------------------------------------------- */
 
@@ -303,6 +442,17 @@ export class Renderer {
     const gl = this.gl;
     this.time += dt;
     const c = this.customer;
+
+    /* The photographic path shares the post chain and nothing else: no camera,
+     * no lights, no depth buffer, one triangle. */
+    if (this.portrait) {
+      this._drawPortrait(state);
+      this._post(state);
+      this.frames++;
+      if (this._capture) this._grab();
+      gl.bindFramebuffer(gl.FRAMEBUFFER, null);
+      return;
+    }
 
     /* ---- camera ---- */
     const cam = this.camera;
@@ -585,8 +735,13 @@ export class Renderer {
     gl.uniform1i(po.u.uBloom, 1);
     gl.uniform1f(po.u.uExposure, state.exposure || 1.0);
     gl.uniform1f(po.u.uBloomAmount, this.quality.bloom ? 0.55 : 0);
-    gl.uniform1f(po.u.uVignette, 0.42);
-    gl.uniform1f(po.u.uGrain, 0.020);
+    /* A photograph came out of a camera that had already made these decisions.
+     * Most of the film curve and half the vignette are removed rather than
+     * applied twice — what is left is enough to bloom a highlighter and to keep
+     * the corners from competing with the face. */
+    gl.uniform1f(po.u.uFilmic, this.portrait ? 0.28 : 1.0);
+    gl.uniform1f(po.u.uVignette, this.portrait ? 0.24 : 0.42);
+    gl.uniform1f(po.u.uGrain, this.portrait ? 0.010 : 0.020);
     gl.uniform1f(po.u.uTime, this.time);
     gl.uniform2f(po.u.uResolution, this.width, this.height);
     gl.drawArrays(gl.TRIANGLES, 0, 3);
