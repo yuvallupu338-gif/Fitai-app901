@@ -1,0 +1,57 @@
+<!DOCTYPE html>
+<html lang="he" dir="rtl">
+<head>
+<meta charset="utf-8">
+<meta name="viewport" content="width=device-width, initial-scale=1, viewport-fit=cover">
+<meta name="color-scheme" content="light dark">
+<meta name="theme-color" content="#F6F7F5" media="(prefers-color-scheme: light)">
+<meta name="theme-color" content="#10161A" media="(prefers-color-scheme: dark)">
+<meta name="description" content="מערכת הפעלה אישית לחיים — מטרות, פרויקטים, משימות, לוח שנה ומיקוד, במקום אחד שמחליט מה לעשות עכשיו.">
+<title>LifeOS</title>
+
+<link rel="stylesheet" href="src/styles/fonts.css">
+<link rel="stylesheet" href="src/styles/tokens.css">
+<link rel="stylesheet" href="src/styles/base.css">
+<link rel="stylesheet" href="src/styles/components.css">
+<link rel="stylesheet" href="src/styles/layout.css">
+
+<link rel="icon" href="data:image/svg+xml,<svg xmlns='http://www.w3.org/2000/svg' viewBox='0 0 32 32'><rect width='32' height='32' rx='7' fill='%23157F63'/><path d='M16 6l9 5-9 5-9-5z' fill='none' stroke='%23fff' stroke-width='2' stroke-linejoin='round'/><path d='M7 16l9 5 9-5' fill='none' stroke='%23fff' stroke-width='2' stroke-linecap='round' stroke-linejoin='round'/></svg>">
+
+<script>
+/*
+ * The theme, applied before the first paint.
+ *
+ * Everything else in this app is a module, which is deferred by definition and
+ * therefore runs after the document has been painted once. For every other
+ * setting that is fine. For the theme it is a white rectangle flashing in
+ * somebody's face at 23:00 before the dark palette loads, and no amount of CSS
+ * fixes it because the choice lives in storage.
+ *
+ * Nine lines, inline, before the stylesheets have even finished. It reads one
+ * key and sets one attribute; 'system' deliberately sets nothing, so the media
+ * queries in tokens.css keep control.
+ */
+(function () {
+  try {
+    var device = JSON.parse(localStorage.getItem('lifeos.v1.device') || '{}');
+    if (device.theme === 'dark' || device.theme === 'light') {
+      document.documentElement.setAttribute('data-theme', device.theme);
+    }
+  } catch (e) { /* first visit, or storage refused — the media query decides */ }
+})();
+</script>
+</head>
+<body>
+
+<div id="app">
+  <noscript>
+    <div style="max-width:520px;margin:80px auto;padding:0 24px;line-height:1.7">
+      <h1 style="font-size:26px;margin-bottom:12px">LifeOS</h1>
+      <p>האפליקציה רצה בדפדפן ודורשת JavaScript. הפעל אותו ורענן את הדף.</p>
+    </div>
+  </noscript>
+</div>
+
+<script type="module" src="src/app.js"></script>
+</body>
+</html>

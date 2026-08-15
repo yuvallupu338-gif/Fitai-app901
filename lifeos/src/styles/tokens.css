@@ -1,0 +1,268 @@
+/*
+ * tokens.css — the whole visual vocabulary of LifeOS, in one place.
+ *
+ * THREE THEME STATES, NOT TWO.
+ *
+ * A person who never opens the theme setting is on "system": nothing is
+ * stamped on <html>, and only prefers-color-scheme separates light from dark.
+ * A person who picks one gets data-theme="light" or "dark", which must win in
+ * BOTH directions — picking light on a dark OS has to work, and that is the
+ * case a single `@media (prefers-color-scheme: dark)` block silently breaks.
+ *
+ * So: the complete light palette is defined on bare :root. Dark redefines only
+ * the tokens that change, twice — once under the media query guarded with
+ * :not([data-theme="light"]), once under [data-theme="dark"]. No colour gets
+ * its only definition inside a media query.
+ *
+ * ON THE PALETTE.
+ *
+ * Green is the primary, and it is load-bearing rather than decorative: this is
+ * an app whose central question is "am I on track", and green/amber/clay is the
+ * answer to that question in three words. Purple gradients, glow, and a violet
+ * "AI" accent are deliberately absent — the AI here is a feature, not a mood.
+ *
+ * Dark is a blue-black slate, never #000: pure black against a light-emitting
+ * panel gives a halo around Hebrew text, whose strokes are more uniform than
+ * Latin and so smear more visibly. Light is its own design, warmed slightly off
+ * white, not the dark palette inverted.
+ */
+
+:root {
+  /* ---------------------------------------------------------------- *
+   * Light — the complete palette. Everything below is defined here.
+   * ---------------------------------------------------------------- */
+
+  /* surfaces, back to front */
+  --bg: #F6F7F5;
+  --surface: #FFFFFF;
+  --surface-2: #F1F3F1;
+  --surface-3: #E7EAE7;
+  --surface-sunk: #EDEFEC;
+
+  /* hairlines */
+  --line: #DCE0DC;
+  --line-soft: #E9ECE9;
+  --line-strong: #C6CCC6;
+
+  /* ink, most to least prominent */
+  --ink: #16211C;
+  --ink-2: #4C5B54;
+  --ink-3: #6E7D75;
+  --ink-inverse: #FFFFFF;
+
+  /* primary */
+  --accent: #157F63;
+  --accent-hover: #106B53;
+  --accent-ink: #FFFFFF;
+  --accent-wash: rgba(21, 127, 99, .09);
+  --accent-line: rgba(21, 127, 99, .28);
+  --accent-quiet: #0F5F4A;
+
+  /* status — on track / needs attention / at risk / neutral note */
+  --ok: #157F63;
+  --ok-wash: rgba(21, 127, 99, .10);
+  --warn: #A8690A;
+  --warn-wash: rgba(168, 105, 10, .11);
+  --risk: #B03A34;
+  --risk-wash: rgba(176, 58, 52, .10);
+  --info: #2B5F93;
+  --info-wash: rgba(43, 95, 147, .10);
+
+  /* life areas — eight hues that stay distinguishable side by side and keep
+     their order in both themes, so an area never changes colour on theme flip */
+  --area-1: #157F63;
+  --area-2: #2B5F93;
+  --area-3: #8A5A1F;
+  --area-4: #7A3F6D;
+  --area-5: #3B6B41;
+  --area-6: #A8483F;
+  --area-7: #1F6E77;
+  --area-8: #5B5F8C;
+
+  /* overlays and shadow */
+  --scrim: rgba(22, 33, 28, .42);
+  --shadow-sm: 0 1px 2px rgba(22, 33, 28, .06), 0 1px 1px rgba(22, 33, 28, .04);
+  --shadow: 0 2px 8px rgba(22, 33, 28, .07), 0 1px 2px rgba(22, 33, 28, .05);
+  --shadow-lg: 0 12px 32px rgba(22, 33, 28, .13), 0 2px 8px rgba(22, 33, 28, .07);
+  --shadow-pop: 0 18px 48px rgba(22, 33, 28, .18);
+
+  /* a calendar's "now" line and its grid */
+  --grid-line: #E4E7E4;
+  --grid-line-hour: #D3D8D3;
+  --now: #B03A34;
+
+  /* ---------------------------------------------------------------- *
+   * Type
+   * ---------------------------------------------------------------- */
+  --display: 'Rubik', system-ui, sans-serif;
+  --body: 'Heebo', system-ui, sans-serif;
+  --mono: 'IBM Plex Mono', ui-monospace, monospace;
+
+  --t-xs: 11.5px;
+  --t-sm: 13px;
+  --t-base: 14.5px;
+  --t-md: 16px;
+  --t-lg: 19px;
+  --t-xl: 24px;
+  --t-2xl: 30px;
+
+  /* ---------------------------------------------------------------- *
+   * Geometry
+   * ---------------------------------------------------------------- */
+  --r-xs: 6px;
+  --r-sm: 9px;
+  --r: 13px;
+  --r-lg: 18px;
+  --r-pill: 999px;
+
+  --sp-1: 4px;
+  --sp-2: 8px;
+  --sp-3: 12px;
+  --sp-4: 16px;
+  --sp-5: 22px;
+  --sp-6: 30px;
+  --sp-7: 42px;
+
+  --sidebar-w: 244px;
+  --content-max: 940px;
+  --bottom-nav-h: 58px;
+
+  /* ---------------------------------------------------------------- *
+   * Motion
+   * ---------------------------------------------------------------- */
+  --ease: cubic-bezier(.2, .8, .3, 1);
+  --ease-out: cubic-bezier(.16, 1, .3, 1);
+  --fast: .14s;
+  --mid: .24s;
+  --slow: .38s;
+
+  /* ---------------------------------------------------------------- *
+   * Layers
+   * ---------------------------------------------------------------- */
+  --z-nav: 40;
+  --z-sticky: 50;
+  --z-sheet: 60;
+  --z-modal: 70;
+  --z-toast: 80;
+  --z-palette: 90;
+
+  color-scheme: light;
+}
+
+/* ------------------------------------------------------------------ *
+ * Dark — only the tokens that change.
+ *
+ * Written twice on purpose. The media query serves the "system" default and
+ * must not fire when the reader has explicitly chosen light; the attribute
+ * rule serves an explicit choice of dark on a light OS.
+ * ------------------------------------------------------------------ */
+
+@media (prefers-color-scheme: dark) {
+  :root:not([data-theme='light']) {
+    --bg: #10161A;
+    --surface: #161E24;
+    --surface-2: #1C262D;
+    --surface-3: #243039;
+    --surface-sunk: #0C1216;
+
+    --line: #2A3740;
+    --line-soft: #212C34;
+    --line-strong: #3A4A55;
+
+    --ink: #E6EDEA;
+    --ink-2: #A3B4AE;
+    --ink-3: #7C8D88;
+    --ink-inverse: #10161A;
+
+    --accent: #45BE9B;
+    --accent-hover: #5DD0AE;
+    --accent-ink: #06231B;
+    --accent-wash: rgba(69, 190, 155, .13);
+    --accent-line: rgba(69, 190, 155, .32);
+    --accent-quiet: #7FD9BF;
+
+    --ok: #45BE9B;
+    --ok-wash: rgba(69, 190, 155, .13);
+    --warn: #E0A040;
+    --warn-wash: rgba(224, 160, 64, .14);
+    --risk: #F0796F;
+    --risk-wash: rgba(240, 121, 111, .13);
+    --info: #6FA8DC;
+    --info-wash: rgba(111, 168, 220, .13);
+
+    --area-1: #45BE9B;
+    --area-2: #6FA8DC;
+    --area-3: #D9A45C;
+    --area-4: #C48CB8;
+    --area-5: #7BC183;
+    --area-6: #EF8A7F;
+    --area-7: #5CBFC9;
+    --area-8: #9BA0D8;
+
+    --scrim: rgba(4, 8, 10, .62);
+    --shadow-sm: 0 1px 2px rgba(0, 0, 0, .34);
+    --shadow: 0 2px 10px rgba(0, 0, 0, .38);
+    --shadow-lg: 0 14px 36px rgba(0, 0, 0, .5);
+    --shadow-pop: 0 20px 52px rgba(0, 0, 0, .6);
+
+    --grid-line: #232F38;
+    --grid-line-hour: #2E3D48;
+    --now: #F0796F;
+
+    color-scheme: dark;
+  }
+}
+
+:root[data-theme='dark'] {
+  --bg: #10161A;
+  --surface: #161E24;
+  --surface-2: #1C262D;
+  --surface-3: #243039;
+  --surface-sunk: #0C1216;
+
+  --line: #2A3740;
+  --line-soft: #212C34;
+  --line-strong: #3A4A55;
+
+  --ink: #E6EDEA;
+  --ink-2: #A3B4AE;
+  --ink-3: #7C8D88;
+  --ink-inverse: #10161A;
+
+  --accent: #45BE9B;
+  --accent-hover: #5DD0AE;
+  --accent-ink: #06231B;
+  --accent-wash: rgba(69, 190, 155, .13);
+  --accent-line: rgba(69, 190, 155, .32);
+  --accent-quiet: #7FD9BF;
+
+  --ok: #45BE9B;
+  --ok-wash: rgba(69, 190, 155, .13);
+  --warn: #E0A040;
+  --warn-wash: rgba(224, 160, 64, .14);
+  --risk: #F0796F;
+  --risk-wash: rgba(240, 121, 111, .13);
+  --info: #6FA8DC;
+  --info-wash: rgba(111, 168, 220, .13);
+
+  --area-1: #45BE9B;
+  --area-2: #6FA8DC;
+  --area-3: #D9A45C;
+  --area-4: #C48CB8;
+  --area-5: #7BC183;
+  --area-6: #EF8A7F;
+  --area-7: #5CBFC9;
+  --area-8: #9BA0D8;
+
+  --scrim: rgba(4, 8, 10, .62);
+  --shadow-sm: 0 1px 2px rgba(0, 0, 0, .34);
+  --shadow: 0 2px 10px rgba(0, 0, 0, .38);
+  --shadow-lg: 0 14px 36px rgba(0, 0, 0, .5);
+  --shadow-pop: 0 20px 52px rgba(0, 0, 0, .6);
+
+  --grid-line: #232F38;
+  --grid-line-hour: #2E3D48;
+  --now: #F0796F;
+
+  color-scheme: dark;
+}
