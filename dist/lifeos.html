@@ -496,12 +496,28 @@ h5 { font-family: var(--body); font-size: var(--t-base); font-weight: 600; }
 
 p { line-height: 1.65; }
 
+/*
+ * Links are navigation here, not citations.
+ *
+ * Almost every anchor in this app is a nav item, a chip, or a card — things
+ * that are obviously clickable from their own shape. Underlining them all put
+ * a line under every item in the sidebar, under every project chip on every
+ * task row, and under the bottom bar's labels, which read as a page full of
+ * mistakes rather than a page full of links.
+ *
+ * Underline on hover keeps the affordance for anything that is genuinely a
+ * link in running text, where shape alone does not say so.
+ */
 a {
   color: var(--accent);
+  text-decoration: none;
   text-decoration-color: var(--accent-line);
   text-underline-offset: 3px;
 }
-a:hover { color: var(--accent-hover); }
+a:hover { color: var(--accent-hover); text-decoration: underline; }
+
+/* Inside a paragraph a link has no shape of its own, so it keeps the line. */
+p a, .why a, .empty-note a, .switch-note a, .field-hint a { text-decoration: underline; }
 
 small { font-size: var(--t-sm); }
 
@@ -517,13 +533,24 @@ b, strong { font-weight: 600; }
   unicode-bidi: isolate;
 }
 
-/* A small all-caps label. Latin small-caps do not exist in Hebrew, so this is
-   letterspaced mono rather than text-transform, which would do nothing. */
+/*
+ * The small label above a section heading.
+ *
+ * It was set in the mono face, which was wrong twice over. IBM Plex Mono has
+ * no Hebrew coverage — only the Latin subset is embedded — so every Hebrew
+ * eyebrow silently fell back to a system font mid-interface, which is exactly
+ * the kind of drift that makes a page look assembled rather than designed. And
+ * Hebrew does not take letterspacing: with no ascenders or capitals to
+ * separate, generous tracking reads as broken words rather than as emphasis.
+ *
+ * So: the body face, a heavier weight to do the work the tracking was doing,
+ * and just enough letter-spacing to register.
+ */
 .eyebrow {
-  font-family: var(--mono);
+  font-family: var(--body);
   font-size: var(--t-xs);
-  font-weight: 500;
-  letter-spacing: .1em;
+  font-weight: 600;
+  letter-spacing: .02em;
   color: var(--ink-3);
 }
 
@@ -1750,7 +1777,9 @@ img, svg, canvas { max-width: 100%; }
   text-align: center;
   gap: var(--sp-5);
 }
-.focus-label { font-size: var(--t-sm); color: var(--ink-3); letter-spacing: .06em; }
+/* No tracking. Hebrew has no capitals or ascenders to separate, so generous
+   letter-spacing reads as a broken word rather than as emphasis. */
+.focus-label { font-size: var(--t-sm); color: var(--ink-3); font-weight: 500; }
 .focus-task { font-family: var(--display); font-size: clamp(21px, 5vw, 31px); font-weight: 500; max-width: 22ch; line-height: 1.3; }
 .focus-clock {
   font-family: var(--mono);
@@ -1886,7 +1915,9 @@ img, svg, canvas { max-width: 100%; }
   border: 2px solid var(--bg);
 }
 .tl-item-accent::before { background: var(--accent); }
-.tl-time { font-family: var(--mono); font-size: var(--t-xs); color: var(--ink-3); }
+/* Not mono: this holds "לפני שעה" and "אתמול" as often as it holds a clock
+   time, and the mono face carries no Hebrew. */
+.tl-time { font-size: var(--t-xs); color: var(--ink-3); }
 
 /* ------------------------------------------------------------------ *
  * Habit grid

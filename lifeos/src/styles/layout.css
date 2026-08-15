@@ -435,7 +435,9 @@
   text-align: center;
   gap: var(--sp-5);
 }
-.focus-label { font-size: var(--t-sm); color: var(--ink-3); letter-spacing: .06em; }
+/* No tracking. Hebrew has no capitals or ascenders to separate, so generous
+   letter-spacing reads as a broken word rather than as emphasis. */
+.focus-label { font-size: var(--t-sm); color: var(--ink-3); font-weight: 500; }
 .focus-task { font-family: var(--display); font-size: clamp(21px, 5vw, 31px); font-weight: 500; max-width: 22ch; line-height: 1.3; }
 .focus-clock {
   font-family: var(--mono);
@@ -571,7 +573,9 @@
   border: 2px solid var(--bg);
 }
 .tl-item-accent::before { background: var(--accent); }
-.tl-time { font-family: var(--mono); font-size: var(--t-xs); color: var(--ink-3); }
+/* Not mono: this holds "לפני שעה" and "אתמול" as often as it holds a clock
+   time, and the mono face carries no Hebrew. */
+.tl-time { font-size: var(--t-xs); color: var(--ink-3); }
 
 /* ------------------------------------------------------------------ *
  * Habit grid
