@@ -83,6 +83,11 @@ export function reasonText(reason, ctx) {
     case REASONS.LOW_ENERGY:
       return 'היא לא דורשת ריכוז מיוחד.';
 
+    case REASONS.TOP_RANKED:
+      return reason.minutes
+        ? `היא הגבוהה ביותר בדירוג מבין מה שנכנס ליום, ואמורה לקחת ${formatDuration(reason.minutes)}.`
+        : 'היא הגבוהה ביותר בדירוג מבין מה שנכנס ליום.';
+
     default:
       return c.strict ? null : null;
   }

@@ -112,10 +112,30 @@ function transform(k, mod) {
   // imports -> registry destructuring
   for (const d of mod.deps) {
     const target = key(resolve(dirname(mod.abs), d.spec));
+    /*
+     * `import { a as b }` is an import alias; `const { a: b }` is the
+     * destructuring that means the same thing. Emitting the import spelling
+     * verbatim produces `const { a as b } = …`, which is a syntax error — and
+     * one that surfaces only when the bundled file is opened, as "Unexpected
+     * identifier 'as'" with no file or line.
+     */
+    const names = (d.named || '')
+      .replace(/\s+/g, ' ')
+      .split(',')
+      .map((piece) => piece.trim())
+      .filter(Boolean)
+      .map((piece) => {
+        const alias = /^([\w$]+)\s+as\s+([\w$]+)$/.exec(piece);
+        return alias ? `${alias[1]}: ${alias[2]}` : piece;
+      })
+      .join(', ');
+
     const line = d.ns
       ? `const ${d.ns} = __m[${JSON.stringify(target)}];`
-      : `const { ${d.named.replace(/\s+/g, ' ').trim()} } = __m[${JSON.stringify(target)}];`;
-    out = out.replace(d.raw, line);
+      : `const { ${names} } = __m[${JSON.stringify(target)}];`;
+    /* split/join rather than replace, for the same reason as the HTML inserts
+     * below: a replacement string would interpret any $ pattern in it. */
+    out = out.split(d.raw).join(line);
   }
 
   /* Dynamic imports become a resolved promise over the registry entry, so the
@@ -150,7 +170,12 @@ function transform(k, mod) {
     return '';
   });
 
-  if (/^[ \t]*export\b/m.test(out)) {
+  /* An export STATEMENT, not merely a line beginning with the word. The
+   * plainer `/^[ \t]*export\b/` also matched an object property named
+   * `export:` — which LifeOS's string catalogue has, because ייצוא is a thing
+   * the interface says — and refused to build a file that was perfectly
+   * valid. */
+  if (/^[ \t]*export[ \t]+(?:default|const|let|var|function|class|async)\b|^[ \t]*export[ \t]*[{*]/m.test(out)) {
     throw new Error(`${k}: leftover export statement the bundler did not understand`);
   }
 
@@ -177,12 +202,27 @@ const css = CSS_FILES.map((f) => readFileSync(f, 'utf8')).join('\n\n');
 /* The same source the entry point and stylesheets were discovered in — reading
  * index.html again here is how the first version of this emitted FitAI's shell
  * wrapped around the Backrooms bundle. */
+/*
+ * The inserts use replacer FUNCTIONS, not replacement strings, and that is
+ * load-bearing rather than stylistic.
+ *
+ * In a replacement string, `$&`, `` $` ``, `$'` and `$1` are substitution
+ * patterns. Source code contains those sequences by accident: router.js has
+ * the template literal `` `^${source}$` ``, whose `$` sits immediately before
+ * a backtick and therefore reads as `` $` `` — "insert everything before the
+ * match". Building LifeOS spliced the entire document head back into the
+ * middle of the bundle, producing a file with a stray </script> in it that
+ * died with "Unexpected end of input" and no indication of why.
+ *
+ * A function replacer has no such patterns. FitAI and backrooms were only ever
+ * safe by luck.
+ */
 let html = htmlSrc;
 html = html
   .replace(/\n?[ \t]*<link rel="stylesheet"[^>]*>/g, '')
   .replace(/[ \t]*<script type="module"[^>]*><\/script>/, '')
-  .replace('</head>', `<style>\n${css}\n</style>\n</head>`)
-  .replace('</body>', `<script>\n${bundle}\n</script>\n</body>`);
+  .replace('</head>', () => `<style>\n${css}\n</style>\n</head>`)
+  .replace('</body>', () => `<script>\n${bundle}\n</script>\n</body>`);
 
 mkdirSync(dirname(resolve(ROOT, HTML_OUT)), { recursive: true });
 writeFileSync(resolve(ROOT, HTML_OUT), html);

@@ -67,6 +67,11 @@ export const REASONS = {
   LOW_ENERGY: 'lowEnergy',
   IN_PROGRESS: 'inProgress',
   PROJECT_AT_RISK: 'projectAtRisk',
+  /* The fallback, for a task with no deadline, no dependents and no notable
+   * parent. It is still a fact — it is what the deterministic score says —
+   * and it is far better than the alternative, which was an empty explanation
+   * block and a recommendation that appeared to come from nowhere. */
+  TOP_RANKED: 'topRanked',
 };
 
 /* ------------------------------------------------------------------ *
@@ -265,6 +270,11 @@ export function reasonsFor(task, ctx) {
     if (milestone && !milestone.completedAt) out.push({ code: REASONS.NEXT_MILESTONE, title: milestone.title });
   }
 
+  /* Never return nothing. A recommendation with no stated reason is the exact
+   * thing §69 rules out, and it is what an ordinary task with no deadline and
+   * no dependents produced. */
+  if (!out.length) out.push({ code: REASONS.TOP_RANKED, minutes: task.estimatedMinutes });
+
   return out;
 }
 
@@ -333,14 +343,63 @@ export function buildDailyPlan(ctx) {
     today: ctx.today || todayIso(),
   };
 
-  /* The main focus is the top-ranked task that was actually placed. Ranking a
-   * task first and then not scheduling it — because nothing it fits in was
-   * free — and still calling it the day's focus is how a plan loses somebody's
-   * trust in one screen. */
+  /*
+   * The main focus is the top-ranked task that has a place in the day.
+   *
+   * "Has a place" means one of two things, and conflating them was a bug worth
+   * describing. A task the fitting pass just placed, obviously. But ALSO a task
+   * that is already on the day — scheduled, or sitting in a block somebody
+   * dragged there earlier. Those never appear in `placements`, because the
+   * fitting pass has nothing left to do for them.
+   *
+   * Requiring a new placement meant the Today screen went blank the moment the
+   * plan had already been applied, or the day was over capacity — since a full
+   * day leaves no budget, produces no new placements, and therefore had no
+   * focus. That is precisely the day on which somebody most needs to be told
+   * what the one thing is.
+   *
+   * The overload is still reported. It is reported alongside an answer rather
+   * than instead of one.
+   */
+  const alreadyOnDay = new Set((ctx.tasks || [])
+    .filter((t) => t.scheduledDate === day && t.status !== 'done' && t.status !== 'cancelled')
+    .map((t) => t.id));
+  for (const b of ctx.blocks || []) {
+    if (b.date === day && b.taskId) alreadyOnDay.add(b.taskId);
+  }
+
   const placedIds = new Set(placements.map((p) => p.taskId));
+  for (const id of alreadyOnDay) placedIds.add(id);
+
   const mainFocusTask = ranked.find((t) => placedIds.has(t.id) && t.estimatedMinutes >= 20)
     || ranked.find((t) => placedIds.has(t.id))
     || null;
+
+  /* Where it happens — a new placement if the planner made one, otherwise the
+   * block or the schedule it already had. */
+  function placementFor(taskId) {
+    const fresh = placements.find((p) => p.taskId === taskId);
+    if (fresh) return fresh;
+    const block = (ctx.blocks || []).find((b) => b.date === day && b.taskId === taskId);
+    if (block) {
+      return {
+        taskId, date: day, startMinutes: block.startMinutes, endMinutes: block.endMinutes,
+        minutes: block.endMinutes - block.startMinutes, existing: true,
+      };
+    }
+    const task = ranked.find((t) => t.id === taskId);
+    if (task && task.scheduledStart !== null && task.scheduledStart !== undefined) {
+      return {
+        taskId,
+        date: day,
+        startMinutes: task.scheduledStart,
+        endMinutes: task.scheduledEnd,
+        minutes: (task.scheduledEnd || 0) - task.scheduledStart,
+        existing: true,
+      };
+    }
+    return null;
+  }
 
   const mustDo = pickMustDo(ranked, day, placedIds);
   const mustDoIds = new Set(mustDo.map((t) => t.id));
@@ -363,13 +422,13 @@ export function buildDailyPlan(ctx) {
     mainFocus: mainFocusTask
       ? {
         task: mainFocusTask,
-        placement: placements.find((p) => p.taskId === mainFocusTask.id) || null,
+        placement: placementFor(mainFocusTask.id),
         reasons: reasonsFor(mainFocusTask, reasonCtx),
       }
       : null,
     mustDo: mustDo.map((task) => ({
       task,
-      placement: placements.find((p) => p.taskId === task.id) || null,
+      placement: placementFor(task.id),
       reasons: reasonsFor(task, reasonCtx),
     })),
     ifTime,

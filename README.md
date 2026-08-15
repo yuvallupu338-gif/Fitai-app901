@@ -41,17 +41,35 @@ Jekyll would not eat anything, but a file that did would vanish silently and the
 failure would look like a bug in the app.
 
 Point Pages at the branch root; `index.html` is the entry. `dist/fitai.html` is
-served alongside it as a single-file copy that also works offline.
+served alongside it as a single-file copy that also works offline, as are
+`dist/backrooms.html` and `dist/lifeos.html`.
 
-### Also in this repo: `backrooms/`
+### Also in this repo: `backrooms/` and `lifeos/`
 
-`backrooms/` is a separate, self-contained app that shares nothing with FitAI
-but the server: a realistic first-person Backrooms build covering levels 0–99,
+Two separate, self-contained apps that share nothing with FitAI but the server.
+Neither touches the questionnaire, the plan, or any of FitAI's storage.
+
+`backrooms/` is a realistic first-person Backrooms build covering levels 0–99,
 with a WebGL2 renderer, procedural materials, an endless world generated as you
 walk it, and synthesised audio — no libraries and no media files, same as
-everything else here. It is served at `/backrooms/` and does not touch the
-questionnaire, the plan, or any of FitAI's storage. See
+everything else here. Served at `/backrooms/`. See
 [`backrooms/README.md`](backrooms/README.md).
+
+`lifeos/` is a personal operating system in Hebrew: goals, projects,
+milestones, tasks with dependencies, a calendar with time blocking, habits,
+focus sessions and reviews — joined by a deterministic planner that answers
+*מה כדאי לי לעשות עכשיו?* with one task, a duration, and a reason built from
+facts in the database. RTL-first, 24-hour, week starting Sunday, correct across
+both of Israel's daylight-saving transitions. The AI layer is a real provider
+abstraction over Anthropic, OpenAI and Gemini — and everything it does has a
+local implementation, so with no API key nothing is missing. Served at
+`/lifeos/`. See [`lifeos/README.md`](lifeos/README.md).
+
+```bash
+cd lifeos && node --test "tests/*.test.mjs"   # 259 unit tests
+node tools/lifeos-audit.mjs                   # Hebrew, RTL, i18n keys
+node tools/lifeos-e2e.mjs                     # 71 checks in real Chromium
+```
 
 ## What it does
 

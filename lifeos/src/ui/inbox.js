@@ -102,10 +102,9 @@ function captureBox() {
 
 function fileToProject(task, projectId) {
   const result = tasksService.fileToProject(task.id, projectId);
-  if (!result.ok) { toastError(t('errors.generic')); return false; }
+  if (!result.ok) { toastError(t('errors.generic')); return; }
   toast(t('tasks.updated'), { tone: 'ok' });
   rerender();
-  return true;
 }
 
 function openProjectPicker(task) {
@@ -116,9 +115,9 @@ function openProjectPicker(task) {
     body: h('div.stack-tight', list.map((p) => h('button.btn.btn-secondary.btn-block', {
       type: 'button',
       style: { justifyContent: 'start' },
-      onclick: () => {
-        if (fileToProject(task, p.id)) d.close();
-      },
+      /* Closed before the write, because the rerender replaces the element the
+       * overlay would otherwise hand focus back to. */
+      onclick: () => { d.close(); fileToProject(task, p.id); },
     }, icon('project', { size: 15 }), p.title))),
   });
   return d;
@@ -252,7 +251,6 @@ function inboxRow(task, snap, aiUsable, last) {
 
   const row = taskRow(tasksService.decorate(task, snap), {
     actions: false,
-    showEstimate: true,
     onToggle(x, next) {
       tasksService.setComplete(x.id, next);
       if (next) {
@@ -273,9 +271,9 @@ function inboxRow(task, snap, aiUsable, last) {
     onclick: (e) => fileMenu(e.currentTarget, task),
   }, icon('more')));
 
-  /* The suggestion has to sit under its own row, which means a wrapper — and a
-   * wrapper moves the separator, because .trow draws its own only while it is
-   * the last child of the card. */
+  /* The suggestion belongs under its own row, which means a wrapper — and a
+   * wrapped .trow is never the card's last child, so it would keep drawing the
+   * separator the last row is supposed to drop. The wrapper takes it over. */
   row.style.borderBlockEnd = 'none';
   const item = h('div', {
     style: last ? null : { borderBlockEnd: '1px solid var(--line-soft)' },

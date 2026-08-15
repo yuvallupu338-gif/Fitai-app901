@@ -211,6 +211,7 @@ export const HE = {
     postponed: { one: 'נדחתה פעם אחת', two: 'נדחתה פעמיים', many: 'נדחתה {n} פעמים' },
     daysStreak: { one: 'יום ברצף', two: 'יומיים ברצף', many: '{n} ימים ברצף' },
     movedToTomorrow: { one: 'משימה אחת הועברה למחר', two: 'שתי משימות הועברו למחר', many: '{n} משימות הועברו למחר' },
+    timesPerWeek: { one: 'פעם בשבוע', two: 'פעמיים בשבוע', many: '{n} פעמים בשבוע' },
   },
 
   /* ---------------------------------------------------------------- *
@@ -239,6 +240,7 @@ export const HE = {
     errBadCredentials: 'האימייל או הסיסמה לא נכונים.',
     errEmailTaken: 'כבר יש חשבון עם האימייל הזה במכשיר.',
     errEmailInvalid: 'כתובת האימייל לא נראית תקינה.',
+    working: 'רגע…',
     errNameRequired: 'צריך שם כדי להתחיל.',
     errPasswordShort: 'הסיסמה צריכה להיות באורך 8 תווים לפחות.',
     localNoticeTitle: 'הכול נשמר על המכשיר הזה',
@@ -345,6 +347,7 @@ export const HE = {
     whatNowNothingNote: 'אין משימה שנכנסת לזמן שיש לך עכשיו. אפשר להוסיף אחת, או לקצר משימה קיימת.',
     whatNowNoTime: 'לפי ההגדרות שלך, עכשיו לא זמן עבודה.',
     whatNowAnyway: 'בכל זאת, מה יש?',
+    whatNowShortfall: 'המשימה הקרובה ארוכה ב{time} מהזמן שנשאר.',
 
     replan: 'תכנון מחדש',
     replanDay: 'תכנן מחדש את היום',
@@ -405,6 +408,8 @@ export const HE = {
     parsedProject: 'פרויקט',
     parsedNothing: 'לא זוהו פרטים — זה יישמר כמשימה רגילה.',
     keepAsIs: 'להשאיר כמו שזה',
+    classify: 'לסווג',
+    suggestNone: 'לא נמצא פרויקט שמתאים.',
   },
 
   /* ---------------------------------------------------------------- *
@@ -454,6 +459,17 @@ export const HE = {
     noEstimate: 'בלי הערכה',
     estimateCustom: 'מותאם',
     estimateCustomLabel: 'כמה דקות?',
+    statusField: 'סטטוס',
+    recurrence: 'חזרתיות',
+    recurrenceOnDay: 'באילו ימים',
+    tagsHint: 'מופרדות בפסיק.',
+    areaFromProject: 'התחום נקבע לפי הפרויקט',
+    priorityGoalFactor: 'מקדם המטרה',
+    splitNeedTwo: 'צריך לפחות שני צעדים.',
+    splitDone: 'המשימה פוצלה',
+    dropConfirmTitle: 'לוותר על המשימה?',
+    dropConfirmNote: 'היא תסומן כבוטלה ותישאר בהיסטוריה.',
+    dropped: 'המשימה בוטלה',
 
     status: {
       inbox: 'תיבת קליטה',
@@ -635,6 +651,10 @@ export const HE = {
 
     emptyTitle: 'עוד אין מטרות',
     emptyNote: 'מטרה היא תוצאה שחשובה לך. ממנה נגזרים הפרויקטים והמשימות.',
+    titleField: 'מה המטרה',
+    statusField: 'סטטוס',
+    backToList: 'חזרה למטרות',
+    inactiveTitle: 'לא פעילות',
   },
 
   /* ---------------------------------------------------------------- *
@@ -709,6 +729,16 @@ export const HE = {
     noTasksTitle: 'אין עדיין משימות בפרויקט',
     noTasksNote: 'הוסף את הצעד הראשון, או בקש הצעה לפירוק.',
     breakdown: 'להציע פירוק',
+    backToList: 'חזרה לפרויקטים',
+    editMilestone: 'עריכת אבן דרך',
+    estimateHint: 'סכום ההערכות של המשימות. אפשר גם לכתוב הערכה כוללת.',
+    feasibleAddTimeNote: 'צריך להוסיף בערך {time} בכל יום שנשאר.',
+    cutScopeTitle: 'מה לצמצם?',
+    cutScopeLead: 'סמן משימות שיבוטלו, עד שהפער ייסגר.',
+    cutScopeNotEnough: 'גם ביטול כל מה שסומן לא סוגר את הפער.',
+    cutScopeApplied: 'הפרויקט צומצם',
+    breakdownLead: 'הצעה למשימות שחסרות. שום דבר לא נוצר עד שתאשר.',
+    breakdownEmpty: 'אין מה להציע — כל מה שבתבנית כבר קיים בפרויקט.',
   },
 
   /* ---------------------------------------------------------------- *
@@ -738,6 +768,7 @@ export const HE = {
     },
     emptyTitle: 'אין עדיין תחומים',
     emptyNote: 'תחומים עוזרים לראות לאן הולך הזמן.',
+    colorOption: 'צבע {n}',
   },
 
   /* ---------------------------------------------------------------- *
@@ -795,6 +826,9 @@ export const HE = {
     emptyNote: 'אפשר לגרור משימה לכאן, או להוסיף אירוע.',
     weekStart: 'תחילת השבוע',
     restDays: 'ימי מנוחה',
+    event: 'אירוע',
+    unscheduledTitle: 'לא מתוזמן',
+    scheduleHint: 'אפשר גם לקבוע תאריך ושעה מהתפריט של המשימה.',
   },
 
   /* ---------------------------------------------------------------- *
@@ -879,6 +913,10 @@ export const HE = {
     emptyNote: 'שגרה היא רצף פעולות קבוע — כמו סגירת יום.',
     presetEvening: 'שגרת ערב',
     presetEveningSteps: ['לסדר את תיבת הקליטה', 'לעבור על מה שלא הושלם', 'לתכנן את מחר'],
+    presetAdd: 'להוסיף שגרת ערב',
+    preferredTime: 'מתי בדרך כלל',
+    stepUp: 'להעלות שלב',
+    stepDown: 'להוריד שלב',
   },
 
   /* ---------------------------------------------------------------- *
@@ -928,6 +966,15 @@ export const HE = {
     emptyNote: 'הוסף משימה ואפשר יהיה להתחיל.',
     exitConfirm: 'לצאת ממצב מיקוד? הזמן שעבר יישמר.',
     keepGoing: 'להמשיך',
+    backToSession: 'חזרה לסשן',
+    recent: 'סשנים אחרונים',
+    abandonConfirm: 'לצאת בלי לשמור?',
+    abandonNote: 'הזמן שעבר לא יירשם.',
+    alreadyRunning: 'כבר רץ סשן מיקוד',
+    alreadyRunningNote: 'אפשר לסיים אותו ואז להתחיל חדש.',
+    staleTitle: 'נשאר סשן פתוח',
+    staleNote: 'סשן מיקוד נשאר רץ, כנראה מלשונית שנסגרה. אפשר לסגור אותו לפי הזמן שתוכנן.',
+    staleClose: 'לסגור את הסשן',
   },
 
   /* ---------------------------------------------------------------- *
@@ -960,6 +1007,13 @@ export const HE = {
     emptyNote: 'מקום לרעיונות, סיכומים ומחשבות — בלי להפוך לזה מערכת ניהול ידע.',
     aiVisible: 'העוזר יכול לקרוא את ההערה הזאת',
     aiHidden: 'העוזר לא קורא את ההערה הזאת',
+    editNote: 'עריכת הערה',
+    pinned: 'מוצמד',
+    pinNote: 'להצמיד למעלה',
+    pin: 'להצמיד',
+    unpin: 'לבטל הצמדה',
+    needContent: 'צריך כותרת או תוכן.',
+    emptyFiltered: 'אין הערות שמתאימות לסינון הזה.',
   },
 
   someday: {
@@ -968,6 +1022,7 @@ export const HE = {
     add: 'הוספה למתישהו',
     activate: 'להפעיל',
     activated: 'הועבר לפעיל',
+    moved: 'הועבר למתישהו',
     emptyTitle: 'אין כאן כלום',
     emptyNote: 'מקום לדברים שאתה רוצה לעשות — רק לא עכשיו.',
   },
@@ -1006,6 +1061,14 @@ export const HE = {
     estimateAccurate: 'ההערכות שלך די מדויקות.',
     estimateNotEnough: 'עוד אין מספיק סשנים כדי להשוות הערכות לביצוע.',
     basedOn: 'מבוסס על {n}',
+    share: 'חלק',
+    focusBestWindow: 'סשנים שמתחילים {part} מסתיימים אצלך טוב יותר.',
+    partIn: {
+      morning: 'בבוקר',
+      afternoon: 'אחר הצהריים',
+      evening: 'בערב',
+      night: 'בלילה',
+    },
   },
 
   review: {
@@ -1034,6 +1097,7 @@ export const HE = {
     emptyTitle: 'אין עדיין מספיק נתונים',
     emptyNote: 'אחרי כמה ימי עבודה יהיה כאן סיכום אמיתי.',
     nothingThisWeek: 'לא נרשמה השבוע פעילות.',
+    nothingThisMonth: 'לא נרשמה החודש פעילות.',
   },
 
   /* ---------------------------------------------------------------- *
@@ -1050,6 +1114,7 @@ export const HE = {
     replanApplied: 'התוכנית עודכנה',
     replanUndo: 'ביטול',
     replanReverted: 'התוכנית הוחזרה',
+    replanKept: 'נשארת במקום בגלל תאריך היעד',
     fixedUnchanged: 'אירוע קבוע — ללא שינוי',
     previewTitle: 'מה ישתנה',
     previewSelectAll: 'לסמן הכול',
@@ -1131,6 +1196,10 @@ export const HE = {
     errAuth: 'המפתח נדחה. בדוק אותו בהגדרות.',
     errRate: 'יותר מדי בקשות. נסה עוד רגע.',
     errBadOutput: 'התשובה חזרה בפורמט שלא הצלחנו לקרוא. אפשר לנסות שוב.',
+    keyFrom: 'אפשר להוציא מפתח ב־{host}',
+    modelCustom: 'מודל אחר',
+    browserWarn: 'הספק הזה לא מאפשר קריאות ישירות מהדפדפן, והבקשה כנראה תיחסם. '
+      + 'זה יעבוד רק אם אתה מפנה דרך שרת משלך.',
     errUnknownIds: 'המודל הפנה לפריטים שלא קיימים, אז ההצעה נפסלה.',
     errTimeout: 'הבקשה לקחה יותר מדי זמן.',
     errGeneric: 'משהו השתבש בבקשה לעוזר.',
@@ -1183,6 +1252,11 @@ export const HE = {
     basedOn: 'מבוסס על {n}',
     add: 'הוספה ידנית',
     addPlaceholder: 'משהו שכדאי שהמערכת תדע',
+    content: 'מה לזכור',
+    editNote: 'עריכה הופכת את הזיכרון לדבר שאמרת, ולא לדבר שנצפה.',
+    learnNow: 'ללמוד עכשיו',
+    learnDone: 'נלמדו {added}, עודכנו {updated}',
+    learnNothing: 'אין מספיק נתונים כדי ללמוד משהו חדש.',
     edit: 'עריכה',
     deleteOne: 'מחיקה',
     deleted: 'הזיכרון נמחק',
@@ -1208,7 +1282,9 @@ export const HE = {
     profile: 'פרופיל',
     displayName: 'שם',
     timezone: 'אזור זמן',
+    timezoneNote: 'כל התכנון נעשה לפי השעון בישראל, גם אם המחשב מוגדר אחרת.',
     locale: 'שפה',
+    localeValue: 'עברית',
 
     appearance: 'תצוגה',
     theme: 'ערכת נושא',
@@ -1228,6 +1304,8 @@ export const HE = {
     restDays: 'ימים בלי תכנון',
     bufferPct: 'אחוז זמן נשימה',
     bufferHint: 'כמה מהיום נשאר פנוי בכוונה. 10–20% זה סביר.',
+    minBlock: 'חלון מינימלי',
+    minBlockHint: 'פער קצר מזה לא ייחשב זמן פנוי. שבע דקות בין שני שיעורים הן לא זמן להתחיל בו משהו.',
     weekStartsOn: 'השבוע מתחיל ביום',
 
     weights: 'משקלי העדיפות',
@@ -1401,5 +1479,9 @@ export const HE = {
     discardNote: 'השינויים שלא נשמרו יאבדו.',
     discardStay: 'להישאר',
     discardLeave: 'לצאת',
+    deleteMilestoneTitle: 'למחוק את אבן הדרך?',
+    deleteMilestoneNote: 'המשימות שמשויכות אליה יישארו.',
+    signOutTitle: 'לצאת מהחשבון?',
+    signOutNote: 'המידע נשאר במכשיר. אפשר להיכנס שוב בכל רגע.',
   },
 };

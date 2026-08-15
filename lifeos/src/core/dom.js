@@ -188,12 +188,22 @@ export function overlay(content, opts) {
   document.body.appendChild(scrim);
   document.body.style.overflow = 'hidden';
 
-  /* Focus the first control, or the box itself when there is none — an
-   * announcement-only dialog still has to move focus in, or the reader stays
-   * behind on the page underneath. */
+  /*
+   * Focus the first thing somebody would actually want to type in.
+   *
+   * The obvious version — the first focusable element — is wrong here, and
+   * wrong in a way that is invisible to whoever writes the dialog and
+   * infuriating to whoever uses one. The head's close button comes first in
+   * DOM order, so every dialog with a text field opened with focus on the X:
+   * type a character and nothing happens, press Enter and the dialog shuts.
+   *
+   * So: a field first, any control second, and the box itself last — an
+   * announcement-only dialog still has to move focus in, or a screen reader
+   * stays behind on the page underneath.
+   */
   const target = o.initialFocus
     ? qs(o.initialFocus, box)
-    : qs('input,textarea,select,button', box);
+    : qs('input:not([type=hidden]),textarea,select', box) || qs('button', box);
   if (target) target.focus();
   else { box.setAttribute('tabindex', '-1'); box.focus(); }
 

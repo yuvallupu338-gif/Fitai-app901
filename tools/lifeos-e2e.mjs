@@ -25,13 +25,18 @@
 
 import { createServer } from 'node:http';
 import { readFile } from 'node:fs/promises';
+import { readdirSync } from 'node:fs';
 import { resolve, dirname, extname, join, normalize } from 'node:path';
 import { fileURLToPath } from 'node:url';
 
 const ROOT = resolve(dirname(fileURLToPath(import.meta.url)), '..');
 const HEADED = process.argv.includes('--headed');
 
-const { chromium } = await import('/opt/node22/lib/node_modules/playwright/index.js');
+/* Playwright is installed globally rather than as a project dependency — this
+ * repository has none — so it is loaded by absolute path. It is CommonJS, so
+ * the browsers hang off the default export rather than being named. */
+const playwright = await import('/opt/node22/lib/node_modules/playwright/index.js');
+const { chromium } = playwright.default || playwright;
 
 /* ------------------------------------------------------------------ *
  * A static server, and one that refuses to escape the repository
@@ -102,7 +107,29 @@ async function step(name, fn) {
  * legitimately appears in a Hebrew interface.
  * ------------------------------------------------------------------ */
 
-const ALLOWED_LATIN = /^(?:LifeOS|JSON|CSV|API|AI|OK|Ctrl|Cmd|Alt|Shift|Esc|Enter|Tab|K|N|C|G|F|Anthropic|OpenAI|Google|Gemini|Claude|GPT|JavaScript|React|Blender|sk-ant|AIza|you@example\.com|he-IL|Asia\/Jerusalem)$/;
+/*
+ * Latin that legitimately appears in a Hebrew interface.
+ *
+ * Key names are the interesting category: "Ctrl K" is not English prose, it is
+ * the label physically printed on the keyboard, and translating it would make
+ * the hint useless. Same for vendor names, model identifiers and the shape of
+ * an API key.
+ */
+const ALLOWED_LATIN = [
+  /^(?:LifeOS|JSON|CSV|API|AI|OK)$/,
+  /^(?:Ctrl|Cmd|Alt|Shift|Esc|Enter|Tab|Space)(?:\s*\+?\s*[A-Za-z0-9]{1,5})?$/,
+  /^(?:Anthropic|OpenAI|Google|Gemini|Claude|GPT|DeepSeek)/,
+  /^(?:JavaScript|React|Python|Blender|Figma|Notion|GitHub)$/,
+  /^(?:sk-|AIza|claude-|gpt-|gemini-)/,
+  /^[\w.+-]+@[\w.-]+$/,
+  /^(?:he-IL|en-US|Asia\/Jerusalem|UTC)$/,
+  /^v?\d+(?:\.\d+)*$/,
+];
+
+function latinAllowed(text) {
+  const value = text.trim();
+  return ALLOWED_LATIN.some((re) => re.test(value));
+}
 
 async function englishInView(page) {
   return page.evaluate(() => {
@@ -138,7 +165,7 @@ async function englishInView(page) {
 }
 
 async function assertHebrew(page, where) {
-  const found = (await englishInView(page)).filter((s) => !ALLOWED_LATIN.test(s.trim()));
+  const found = (await englishInView(page)).filter((s) => !latinAllowed(s));
   if (found.length) {
     throw new Error(`English on ${where}: ${JSON.stringify(Array.from(new Set(found)).slice(0, 6))}`);
   }
@@ -149,11 +176,31 @@ async function assertHebrew(page, where) {
  * Run
  * ------------------------------------------------------------------ */
 
-const browser = await chromium.launch({
-  headless: !HEADED,
-  executablePath: '/opt/pw-browsers/chromium/chrome-linux/chrome',
-  args: ['--no-sandbox', '--disable-dev-shm-usage'],
-});
+/*
+ * Let Playwright resolve the browser from PLAYWRIGHT_BROWSERS_PATH first; fall
+ * back to whatever chromium build is actually on disk. The pinned path in the
+ * environment notes is a launcher file rather than a directory, so hard-coding
+ * `<that>/chrome-linux/chrome` does not exist.
+ */
+async function launch() {
+  const args = ['--no-sandbox', '--disable-dev-shm-usage'];
+  try {
+    return await chromium.launch({ headless: !HEADED, args });
+  } catch (e) {
+    const base = process.env.PLAYWRIGHT_BROWSERS_PATH || '/opt/pw-browsers';
+    const candidates = readdirSync(base)
+      .filter((d) => d.startsWith('chromium-'))
+      .map((d) => join(base, d, 'chrome-linux', 'chrome'));
+    for (const candidate of candidates) {
+      try {
+        return await chromium.launch({ headless: !HEADED, executablePath: candidate, args });
+      } catch (inner) { /* try the next build */ }
+    }
+    throw e;
+  }
+}
+
+const browser = await launch();
 
 const context = await browser.newContext({
   viewport: { width: 1280, height: 900 },
@@ -373,20 +420,94 @@ await step('a task can be captured in natural Hebrew', async () => {
   return 'title, date, time and duration all extracted';
 });
 
-await step('Today answers with one thing to do', async () => {
+/*
+ * Onboarding preselects Friday and Saturday as rest days, which is the right
+ * Israeli default and makes the rest of this walk depend on which day it runs.
+ * On a Saturday the planner correctly plans nothing.
+ *
+ * So: assert that behaviour explicitly, then clear the rest days so everything
+ * after this is deterministic. A test whose result depends on the day of the
+ * week is a test that gets ignored on Mondays.
+ */
+await step('a rest day is planned as a rest day, and says so', async () => {
   await page.goto(`${BASE}#/today`, { waitUntil: 'domcontentloaded' });
   await page.waitForTimeout(900);
+  const state = await page.evaluate(async () => {
+    const core = await import('./src/services/core.js');
+    const planning = await import('./src/services/planning.js');
+    const snap = core.snapshot();
+    const dow = new Date(`${snap.today}T00:00:00Z`).getUTCDay();
+    const plan = planning.today();
+    return { dow, isRestDay: plan.capacity.isRestDay, restDays: snap.preferences.restDays, focus: !!plan.mainFocus };
+  });
+
+  if (state.isRestDay) {
+    const text = await page.locator('#app').innerText();
+    if (state.focus) throw new Error('work was planned onto a rest day');
+    if (!/יום מנוחה|לא לתכנן|אין היום חלון/.test(text)) {
+      throw new Error('a rest day showed no focus and did not say why');
+    }
+    return `today is a rest day and the screen explains it`;
+  }
+  return `not a rest day (restDays=${JSON.stringify(state.restDays)})`;
+});
+
+await step('rest days cleared for the rest of the walk', async () => {
+  await page.evaluate(async () => {
+    const core = await import('./src/services/core.js');
+    core.updatePreferences({ restDays: [] });
+    core.invalidate();
+  });
+  await page.goto(`${BASE}#/tasks`, { waitUntil: 'domcontentloaded' });
+  await page.goto(`${BASE}#/today`, { waitUntil: 'domcontentloaded' });
+  await page.waitForTimeout(900);
+  return 'deterministic from here';
+});
+
+await step('Today answers with one thing to do', async () => {
   const text = await page.locator('#app').innerText();
   if (!/המיקוד המרכזי/.test(text)) throw new Error('no main focus section');
-  return text.split('\n').slice(0, 4).join(' / ').slice(0, 90);
+  const hero = await page.locator('.card-hero').count();
+  if (!hero) {
+    const diag = await page.evaluate(async () => {
+      const planning = await import('./src/services/planning.js');
+      const plan = planning.today();
+      return {
+        eligible: plan.facts.eligibleCount,
+        placed: plan.placements.length,
+        usable: plan.capacity.usableMinutes,
+        windows: plan.windows.length,
+      };
+    });
+    throw new Error(`no focus named on a working day: ${JSON.stringify(diag)}`);
+  }
+  const title = await page.locator('.card-hero h2').first().innerText();
+  return title.slice(0, 60);
 });
 
 await step('the recommendation explains itself with a fact', async () => {
+  const hero = await page.locator('.card-hero').count();
   const text = await page.locator('#app').innerText();
-  if (!/למה דווקא זה\?|למה\?/.test(text)) throw new Error('no explanation offered');
+  if (!/למה דווקא זה\?|למה\?/.test(text)) {
+    /* Report the state rather than just the absence — the interesting case is
+     * a day with no main focus at all, which is a planner question, not a
+     * rendering one. */
+    const diag = await page.evaluate(async () => {
+      const planning = await import('./src/services/planning.js');
+      const plan = planning.today();
+      return {
+        mainFocus: plan.mainFocus ? plan.mainFocus.task.title : null,
+        eligible: plan.facts.eligibleCount,
+        placed: plan.placements.length,
+        usable: plan.capacity.usableMinutes,
+        windows: plan.windows.length,
+      };
+    }).catch((e) => ({ error: String(e).slice(0, 80) }));
+    throw new Error(`no explanation offered (hero=${hero}, plan=${JSON.stringify(diag)})`);
+  }
   /* The explanation must contain a number, a date word or a name — never a
    * bare assertion of importance. */
-  if (!/\d|היום|מחר|חוסמת|פרויקט|יעד/.test(text)) throw new Error('the explanation cites nothing');
+  if (!/\d|היום|מחר|חוסמת|פרויקט|יעד|דירוג/.test(text)) throw new Error('the explanation cites nothing');
   return 'explanation present and grounded';
 });
 
@@ -409,10 +530,29 @@ await step('a focus session runs and is saved', async () => {
     return JSON.parse(localStorage.getItem(key)).collections.focusSessions.length;
   });
 
-  const start = page.getByRole('button', { name: /להתחיל מיקוד|מיקוד/ }).first();
-  if (!(await start.count())) throw new Error('no way to start a focus session from Today');
+  await page.goto(`${BASE}#/today`, { waitUntil: 'domcontentloaded' });
+  await page.waitForTimeout(900);
+
+  /* Prefer the button on the main-focus card; fall back to the focus screen's
+   * own picker, which is the other route a person has. */
+  let start = page.locator('.card-hero').getByRole('button', { name: /מיקוד|מתחילים/ }).first();
+  if (!(await start.count())) {
+    await page.goto(`${BASE}#/focus`, { waitUntil: 'domcontentloaded' });
+    await page.waitForTimeout(800);
+    start = page.getByRole('button', { name: /להתחיל מיקוד/ }).first();
+  }
+  if (!(await start.count())) throw new Error('no way to start a focus session');
   await start.click();
-  await page.waitForTimeout(1200);
+  await page.waitForTimeout(1000);
+
+  /* The picker may open first; choose whatever it offers and start. */
+  if (!(await page.locator('.focus-screen').count())) {
+    const pick = page.locator('.modal [role="radio"], .modal .chip-select, .modal button').first();
+    if (await pick.count()) await pick.click().catch(() => {});
+    const go = page.locator('.modal').getByRole('button', { name: /התחלה|מתחילים|להתחיל/ }).first();
+    if (await go.count()) await go.click().catch(() => {});
+    await page.waitForTimeout(1200);
+  }
 
   const running = await page.locator('.focus-screen').count();
   if (!running) throw new Error('the focus surface did not open');
@@ -469,15 +609,32 @@ await step('progress reflects the work, from the log', async () => {
 });
 
 await step('everything survives a reload', async () => {
-  await page.goto(`${BASE}#/tasks`, { waitUntil: 'networkidle' });
-  await page.waitForTimeout(900);
-  const text = await page.locator('#app').innerText();
-  if (!/ללמוד מתמטיקה/.test(text) && !/מתמטיקה/.test(text)) {
-    throw new Error('the captured task is gone after a reload');
-  }
-  const stillSignedIn = await page.locator('.shell, .sidebar, .bottom-nav').count();
-  if (!stillSignedIn) throw new Error('the session did not survive');
-  return 'data and session both persisted';
+  /* §189. Checked against storage rather than against what happens to be on
+   * screen: the tasks screen has filters, and a task the walk just completed
+   * can legitimately be hidden by one. What must survive is the record and
+   * the session. */
+  await page.goto(`${BASE}#/tasks`, { waitUntil: 'domcontentloaded' });
+  await page.reload({ waitUntil: 'networkidle' });
+  await page.waitForTimeout(1200);
+
+  const state = await page.evaluate(() => {
+    const key = Object.keys(localStorage).find((k) => k.startsWith('lifeos.v1.data.'));
+    if (!key) return null;
+    const blob = JSON.parse(localStorage.getItem(key));
+    return {
+      captured: blob.collections.tasks.some((t) => t.title === 'ללמוד מתמטיקה'),
+      tasks: blob.collections.tasks.length,
+      sessions: blob.collections.focusSessions.length,
+      signedIn: !!localStorage.getItem('lifeos.v1.session'),
+    };
+  });
+  if (!state) throw new Error('the account data is gone');
+  if (!state.captured) throw new Error('the captured task is gone after a reload');
+  if (!state.signedIn) throw new Error('the session did not survive');
+
+  const shell = await page.locator('.shell').count();
+  if (!shell) throw new Error('the app did not come back signed in');
+  return `${state.tasks} tasks and ${state.sessions} sessions persisted`;
 });
 
 /* -- keyboard ------------------------------------------------------ */
@@ -573,10 +730,21 @@ for (const width of WIDTHS) {
     await page.goto(`${BASE}#/today`, { waitUntil: 'domcontentloaded' });
     await page.waitForTimeout(500);
     const nav = await page.evaluate(() => {
-      const rail = document.querySelector('.sidebar');
-      const bottom = document.querySelector('.bottom-nav');
-      const visible = (el) => !!el && el.offsetParent !== null;
-      return { rail: visible(rail), bottom: visible(bottom) };
+      /*
+       * NOT offsetParent. It is null for any position:fixed element, which is
+       * exactly how both navigations are laid out — so the obvious visibility
+       * check reports that neither is on screen, at every width, always.
+       */
+      const visible = (el) => {
+        if (!el) return false;
+        const style = getComputedStyle(el);
+        if (style.display === 'none' || style.visibility === 'hidden') return false;
+        return el.getBoundingClientRect().width > 0;
+      };
+      return {
+        rail: visible(document.querySelector('.sidebar')),
+        bottom: visible(document.querySelector('.bottom-nav')),
+      };
     });
     if (width <= 900 && !nav.bottom) throw new Error('no bottom bar on a narrow screen');
     if (width > 900 && !nav.rail) throw new Error('no rail on a wide screen');
@@ -596,8 +764,9 @@ await step('the sidebar sits on the right', async () => {
   await page.waitForTimeout(600);
   const geometry = await page.evaluate(() => {
     const rail = document.querySelector('.sidebar');
-    if (!rail || rail.offsetParent === null) return null;
+    if (!rail || getComputedStyle(rail).display === 'none') return null;
     const r = rail.getBoundingClientRect();
+    if (r.width === 0) return null;
     return { left: r.left, right: r.right, width: window.innerWidth };
   });
   if (!geometry) throw new Error('no sidebar');
@@ -680,8 +849,12 @@ await step('the interface is reachable by keyboard', async () => {
 });
 
 await step('a skip link is the first stop', async () => {
+  /* A full reload, not a hash change: navigating between routes does not
+   * reset the document's focus, so Tab would continue from wherever the
+   * previous check left it rather than from the top of the page. */
   await page.goto(`${BASE}#/today`, { waitUntil: 'domcontentloaded' });
-  await page.waitForTimeout(500);
+  await page.reload({ waitUntil: 'networkidle' });
+  await page.waitForTimeout(800);
   await page.keyboard.press('Tab');
   const first = await page.evaluate(() => {
     const el = document.activeElement;

@@ -160,7 +160,9 @@ const ALLOWED_LATIN = [
   /^(?:https?:)?\/\//,                // urls
   /^[.#][\w-]/,                       // selectors
   /^[\w-]+(?:\.[\w-]+)+$/,            // dotted keys, file names
-  /^var\(--/,                         // css custom properties
+  /var\(--/,                          // any css value referencing a token
+  /^[\d.]+(?:px|rem|em|%|svh|vh|vw)\s/, // css shorthand: "1px solid …"
+  /^(?:solid|dashed|dotted|none|auto|hidden|scroll|grid|flex|block|inline)\b/,
   /^\d+px$|^\d+%$|^\d+svh$/,
   /^[A-Za-z-]+\/[A-Za-z0-9.+-]+$/,    // mime types
   /^(?:LifeOS|JSON|CSV|API|AI|PBKDF2|UTC|RTL|LTR|ID|URL)$/,
@@ -302,6 +304,27 @@ for (const file of jsFiles) {
 /* ------------------------------------------------------------------ *
  * 5. Structural checks
  * ------------------------------------------------------------------ */
+
+/*
+ * Every relative import resolves to a file that exists.
+ *
+ * A browser reports a missing module as a console error at the moment the
+ * route is visited, which for a lazily-loaded screen means the failure is
+ * discovered by whoever clicks it. This is the same information, at build time.
+ */
+for (const file of jsFiles) {
+  const src = readFileSync(file, 'utf8');
+  const specs = src.matchAll(/(?:from|import)\s*\(?\s*['"](\.[^'"]+)['"]/g);
+  for (const match of specs) {
+    const target = resolve(dirname(file), match[1]);
+    try {
+      statSync(target);
+    } catch (e) {
+      const line = src.slice(0, match.index).split('\n').length;
+      fail(file, line, `import does not resolve: ${match[1]}`);
+    }
+  }
+}
 
 const indexHtml = readFileSync(resolve(APP, 'index.html'), 'utf8');
 if (!/<html[^>]*\blang="he"/.test(indexHtml)) fail(resolve(APP, 'index.html'), 0, 'the document is not lang="he"');
