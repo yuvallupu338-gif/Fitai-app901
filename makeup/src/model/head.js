@@ -298,7 +298,7 @@ export function eyeAnchor(P, side) {
    * did — two empty sockets on an otherwise finished face.
    */
   const r = 0.092 * P.eyeSize;
-  const inset = r * 0.10;
+  const inset = r * 0.02;
   return {
     r,
     s,
@@ -358,13 +358,30 @@ export function buildEyeball(r) {
  * colour on the crease when it opens. One paint texture for the whole face is
  * worth the small oddity of a mesh borrowing another mesh's coordinates.
  */
+/*
+ * The lids, as angles.
+ *
+ * `theta` is how far a lid cap reaches from its own axis; `open` is how far it
+ * is swung back when the eye is open. The difference between them is what is
+ * left uncovered, and it is the whole difference between an eye and a slit:
+ * swing the upper lid back by less than its own reach and the rim ends up below
+ * the eye's forward axis, which puts it across the pupil. Both lids did exactly
+ * that in the first version and every customer looked half asleep.
+ */
+export const LID = {
+  upperTheta: 1.16,
+  lowerTheta: 0.92,
+  upperOpen: 1.36,
+  lowerOpen: 1.34,
+};
+
 export function buildLid(r, side, lower = false) {
   const b = new MeshBuilder();
   const R = r * 1.045;
   const RINGS = 10, SEG = 28;
   /* The upper lid has to reach past the middle of the eye when it closes; the
    * lower one only ever covers the bottom sliver. */
-  const maxTheta = lower ? 0.92 : 1.16;
+  const maxTheta = lower ? LID.lowerTheta : LID.upperTheta;
   const rows = [];
   const cs = 0.5 + side * F.eyeS;
   const lidCentreT = lower

@@ -19,7 +19,7 @@ import {
 } from '../core/gl.js';
 import {
   mat4, identity, multiply, perspective, lookAt, compose, normalMatrix,
-  invert, clamp, damp, smoothstep,
+  invert, clamp, damp, smoothstep, aimedBasis,
 } from '../core/math.js';
 import { SCENE_VS, SCENE_FS, FULLSCREEN_VS, BRIGHT_FS, BLUR_FS, POST_FS } from './shaders.js';
 import {
@@ -27,6 +27,7 @@ import {
   packageTexture, bodySkinTexture, signTexture, tillScreenTexture, flatTexture,
 } from './textures.js';
 import { SHOP } from '../model/props.js';
+import { LID } from '../model/head.js';
 import { srgbToLinear } from '../core/color.js';
 
 const MODE = {
@@ -298,19 +299,6 @@ export class Renderer {
     gl.drawElements(gl.TRIANGLES, vao.count, gl.UNSIGNED_INT, 0);
   }
 
-  /*
-   * A rotation built from three axes plus a translation. The eyes and lids are
-   * both "point this local frame along that direction", which is not something
-   * euler angles express without a gimbal argument.
-   */
-  static basis(out, rx, ry, rz, ux, uy, uz, fx, fy, fz, px, py, pz, scale) {
-    out[0] = rx * scale; out[1] = ry * scale; out[2] = rz * scale; out[3] = 0;
-    out[4] = ux * scale; out[5] = uy * scale; out[6] = uz * scale; out[7] = 0;
-    out[8] = fx * scale; out[9] = fy * scale; out[10] = fz * scale; out[11] = 0;
-    out[12] = px; out[13] = py; out[14] = pz; out[15] = 1;
-    return out;
-  }
-
   render(state, dt) {
     const gl = this.gl;
     this.time += dt;
@@ -467,36 +455,30 @@ export class Renderer {
       let fx = gaze[0] - ex, fy = gaze[1] - ey, fz = gaze[2] - ez;
       const fl = Math.hypot(fx, fy, fz) || 1;
       fx /= fl; fy /= fl; fz /= fl;
-      /* Eyes do not swivel more than about 35 degrees before the head turns
-       * with them; past that a gaze reads as a lizard. */
-      const nx = M[0] * anchor.normal[0] + M[4] * anchor.normal[1] + M[8] * anchor.normal[2];
-      const ny = M[1] * anchor.normal[0] + M[5] * anchor.normal[1] + M[9] * anchor.normal[2];
-      const nz = M[2] * anchor.normal[0] + M[6] * anchor.normal[1] + M[10] * anchor.normal[2];
-      const nl = Math.hypot(nx, ny, nz) || 1;
-      const dot = (fx * nx + fy * ny + fz * nz) / nl;
+      /*
+       * Eyes do not swivel more than about 35 degrees before the head turns
+       * with them, so past that the gaze is pulled back towards rest.
+       *
+       * Rest is the head's own forward direction, not the socket's outward
+       * normal. The sockets face slightly apart — that is what sockets do — so
+       * falling back to them sends the two eyes in different directions, and a
+       * customer looking at something out of range comes out wall-eyed.
+       */
+      const rx = M[8] / scale, ry = M[9] / scale, rz = M[10] / scale;
+      const rl = Math.hypot(rx, ry, rz) || 1;
+      const dot = (fx * rx + fy * ry + fz * rz) / rl;
       const limit = Math.cos(0.62);
       if (dot < limit) {
-        const k = smoothstep(limit - 0.35, limit, dot);
-        fx = fx * k + (nx / nl) * (1 - k);
-        fy = fy * k + (ny / nl) * (1 - k);
-        fz = fz * k + (nz / nl) * (1 - k);
+        const k = smoothstep(limit - 0.45, limit, dot);
+        fx = fx * k + (rx / rl) * (1 - k);
+        fy = fy * k + (ry / rl) * (1 - k);
+        fz = fz * k + (rz / rl) * (1 - k);
         const l2 = Math.hypot(fx, fy, fz) || 1;
         fx /= l2; fy /= l2; fz /= l2;
       }
 
-      /* Basis with the eye's forward on the gaze, and right taken as the
-       * horizontal perpendicular — world up crossed with forward, written out
-       * because two of its three terms are zero. */
-      let rx = -fz, ry = 0, rz = fx;
-      let rl = Math.hypot(rx, ry, rz);
-      if (rl < 1e-5) { rx = 1; rz = 0; rl = 1; }
-      rx /= rl; rz /= rl;
-      const ux = ry * fz - rz * fy;
-      const uy = rz * fx - rx * fz;
-      const uz = rx * fy - ry * fx;
-
       const eyeM = mat4();
-      Renderer.basis(eyeM, rx, ry, rz, ux, uy, uz, fx, fy, fz, ex, ey, ez, scale);
+      aimedBasis(eyeM, fx, fy, fz, ex, ey, ez, scale);
       this._draw(c.vao.eye, eyeM, eyeMat);
 
       /* The lid shares the eye's origin but hinges on the socket's own axis,
@@ -508,12 +490,13 @@ export class Renderer {
       const bz = M[2] * anchor.normal[0] + M[6] * anchor.normal[1] + M[10] * anchor.normal[2];
       const bl = Math.hypot(bx, by, bz) || 1;
       const nfx = bx / bl, nfy = by / bl, nfz = bz / bl;
-      let arx = -nfz, ary = 0, arz = nfx;
+      /* The hinge axis: horizontal, across the socket. */
+      let arx = nfz, ary = 0, arz = -nfx;
       const arl = Math.hypot(arx, ary, arz) || 1;
       arx /= arl; arz /= arl;
-      const aux = ary * nfz - arz * nfy;
-      const auy = arz * nfx - arx * nfz;
-      const auz = arx * nfy - ary * nfx;
+      const aux = nfy * arz - nfz * ary;
+      const auy = nfz * arx - nfx * arz;
+      const auz = nfx * ary - nfy * arx;
       /*
        * Swing the lid about that axis. Open is rotated up out of the way, but
        * not far enough to clear the eyeball — a real upper lid covers the top
@@ -521,13 +504,12 @@ export class Renderer {
        */
       const hinge = (angle, out) => {
         const ca = Math.cos(angle), sa = Math.sin(angle);
-        const f2x = nfx * ca + aux * sa, f2y = nfy * ca + auy * sa, f2z = nfz * ca + auz * sa;
-        const u2x = -nfx * sa + aux * ca, u2y = -nfy * sa + auy * ca, u2z = -nfz * sa + auz * ca;
-        return Renderer.basis(out, arx, ary, arz, u2x, u2y, u2z, f2x, f2y, f2z,
+        return aimedBasis(out,
+          nfx * ca + aux * sa, nfy * ca + auy * sa, nfz * ca + auz * sa,
           ex, ey, ez, scale);
       };
 
-      hinge((1 - a.lid) * 1.00, lidM);
+      hinge((1 - a.lid) * LID.upperOpen, lidM);
       this._draw(side < 0 ? c.vao.lidL : c.vao.lidR, lidM, lidMat);
       if (side < 0) c.lidMatrixL = lidM; else c.lidMatrixR = lidM;
 
@@ -535,7 +517,7 @@ export class Renderer {
        * is what a blink actually looks like, and the rest of the time it is the
        * thing that turns a sphere into an eye. */
       const lowM = mat4();
-      hinge(-(1.00 - a.lid * 0.28), lowM);
+      hinge(-(LID.lowerOpen - a.lid * 0.42), lowM);
       this._draw(side < 0 ? c.vao.lowL : c.vao.lowR, lowM, lidMat);
     }
 

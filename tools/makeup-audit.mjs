@@ -235,6 +235,42 @@ async function main() {
     check(below > above * 1.05, 'the lower lip is fuller than the upper one');
   }
 
+  /* ============================================== aimed model matrices == */
+
+  /*
+   * Every model matrix built from a direction has to be right-handed.
+   *
+   * This is the winding bug's twin, and it is even better hidden. A
+   * left-handed frame puts the object in the right place, pointing the right
+   * way, at the right size — and mirrors it, which swaps the front and back of
+   * every triangle in it. Under back-face culling the object then draws its own
+   * far side. For an eyeball sitting in a socket that means it draws the half
+   * inside the skull, so the eye simply is not there, and every measurement of
+   * where it should be says it is fine.
+   */
+  {
+    const m = math.mat4();
+    const dirs = [
+      [0, 0, 1], [0, 0, -1], [1, 0, 0], [-1, 0, 0],
+      [0.3, 0.2, 0.9], [-0.5, -0.4, 0.76], [0.1, 0.99, 0.05],
+    ];
+    for (const [x, y, z] of dirs) {
+      math.aimedBasis(m, x, y, z, 1, 2, 3, 0.115);
+      const det = math.basisDeterminant(m);
+      check(det > 0, `aiming at (${x}, ${y}, ${z}) gives a right-handed frame (det ${det.toExponential(2)})`);
+      /* And it really does point that way, at that place, at that size. */
+      const l = Math.hypot(x, y, z);
+      near(m[8] / 0.115, x / l, 1e-6, 'the forward axis is the direction asked for');
+      near(m[12], 1, 1e-9, 'and the translation is where it was put');
+      near(Math.hypot(m[0], m[1], m[2]), 0.115, 1e-6, 'and the scale is uniform');
+    }
+    /* Straight up, where the horizontal cross product collapses, must still
+     * produce a usable frame rather than NaNs across the whole draw. */
+    math.aimedBasis(m, 0, 1, 0, 0, 0, 0, 1);
+    check(m.every(Number.isFinite) && math.basisDeterminant(m) > 0,
+      'aiming straight up does not degenerate');
+  }
+
   /* ========================================================== winding == */
 
   /*
@@ -463,8 +499,26 @@ async function main() {
       const capSin = Math.sqrt(Math.max(0, 1 - (centreDepth / anchor.r) ** 2));
       const capMm = capSin * anchor.r * 2 * 115;
       check(capMm > 14, `and shows a disc you can see (${capMm.toFixed(1)}mm across)`);
-      check(capSin > textures.IRIS_RADIUS * 1.25,
+      /* A ring of white, not a hairline of it: at 1.25x the iris still reads as
+       * a hole in the face from playing distance. */
+      check(capSin > textures.IRIS_RADIUS * 1.8,
         `with sclera showing around the iris (cap ${capSin.toFixed(2)} vs iris ${textures.IRIS_RADIUS})`);
+
+      /*
+       * And the lids have to be out of the way of it. A lid swung back by less
+       * than its own reach leaves its rim below the eye's forward axis — across
+       * the pupil — and the customer looks half asleep at every camera angle.
+       */
+      const upperClear = head.LID.upperOpen - head.LID.upperTheta;
+      const lowerClear = head.LID.lowerOpen - head.LID.lowerTheta;
+      check(upperClear > 0.12,
+        `the open upper lid clears the pupil (${(upperClear * 57.3).toFixed(0)} degrees above centre)`);
+      check(lowerClear > 0.12,
+        `the open lower lid clears the pupil (${(lowerClear * 57.3).toFixed(0)} degrees below centre)`);
+      /* But not so far back that the eye has no lids on it at all. */
+      const capAngle = Math.asin(Math.min(1, capSin));
+      check(upperClear < capAngle && lowerClear < capAngle,
+        'and both still overlap the visible eye rather than sitting off it');
     }
 
     /* Two different faces are actually different. */

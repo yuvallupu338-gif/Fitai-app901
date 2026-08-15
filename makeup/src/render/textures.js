@@ -165,7 +165,7 @@ export function skinTexture(size, customer) {
      * dark rather than skin-coloured means a sliver showing at a steep angle
      * reads as shadow instead of as a hole in the face. */
     const open = eyeOpening(s, t);
-    if (open > 0.01) col = col.map((c) => c * (1 - open * 0.55));
+    if (open > 0.01) col = col.map((c) => c * (1 - open * 0.42));
 
     out[0] = col[0]; out[1] = col[1]; out[2] = col[2]; out[3] = height;
   });
@@ -185,7 +185,7 @@ export function skinTexture(size, customer) {
  * face rather than as an eye, and that is a geometry problem the texture
  * cannot fix.
  */
-export const IRIS_RADIUS = 0.42;
+export const IRIS_RADIUS = 0.34;
 
 export function irisTexture(size, customer) {
   const rng = makeRng(customer.seed + 3391);
@@ -204,25 +204,33 @@ export function irisTexture(size, customer) {
     col = [col[0], col[1] * (1 - veins * 0.10), col[2] * (1 - veins * 0.13)];
 
     const irisR = IRIS_RADIUS;
-    if (r < irisR + 0.05) {
+    if (r < irisR + 0.04) {
       /* Radial fibres, a darker limbal ring at the edge, and a pupil that is
        * a hole rather than a dark circle. */
       const fibre = 0.5 + 0.5 * Math.sin(a * 46 + valueNoise(r * 14, a * 6, seed) * 7);
-      const depth = smoothstep(0.05, irisR, r);
+      const depth = smoothstep(0.04, irisR, r);
       let ic = [
         lerp(dark[0], iris[0], 0.35 + fibre * 0.55 * depth),
         lerp(dark[1], iris[1], 0.35 + fibre * 0.55 * depth),
         lerp(dark[2], iris[2], 0.35 + fibre * 0.55 * depth),
       ];
-      const limbal = smoothstep(irisR - 0.09, irisR, r);
+      const limbal = smoothstep(irisR - 0.07, irisR, r);
       ic = ic.map((c) => c * (1 - limbal * 0.55));
-      const pupil = 1 - smoothstep(0.15, 0.175, r);
+      const pupil = 1 - smoothstep(0.115, 0.140, r);
       ic = ic.map((c) => c * (1 - pupil * 0.94));
       const edge = 1 - smoothstep(irisR, irisR + 0.02, r);
       col = [lerp(col[0], ic[0], edge), lerp(col[1], ic[1], edge), lerp(col[2], ic[2], edge)];
     }
-    out[0] = col[0]; out[1] = col[1]; out[2] = col[2];
-    out[3] = 0.5 - (r < 0.42 ? 0.12 : 0);
+    /*
+     * The sclera falls into shadow towards the edges of the eyeball. Without
+     * this the exposed part of the sphere ends in a hard white rim against the
+     * skin — the eye reads as a ball stuck on a face rather than as an opening
+     * in one, because the lids can only cover the top and the bottom and the
+     * corners have nothing closing them.
+     */
+    const rim = 1 - smoothstep(0.52, 0.95, r) * 0.78;
+    out[0] = col[0] * rim; out[1] = col[1] * rim; out[2] = col[2] * rim;
+    out[3] = 0.5 - (r < irisR ? 0.12 : 0);
   });
 }
 

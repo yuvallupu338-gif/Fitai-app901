@@ -64,6 +64,11 @@ audio files in the repository.
   lipstick changes the shine and not the colour, why wiping a face clean is
   instant, and why the scoring can read exactly the buffer the player is looking
   at. `src/game/paint.js`, `src/render/shaders.js`.
+- **Lashes.** Mascara is the one product whose result is geometry rather than
+  colour on skin, so the lashes are a real fan of tapered fins on the lid rim
+  that thicken and darken as the lash line fills in. A product you can buy and
+  apply and see no change from is a product that should not be in the
+  catalogue.
 - **Colour.** Shade matching is measured in CIE L\*a\*b\*, and the complaint the
   customer makes is the one a person makes: too light, too dark, too warm, too
   cool. The foundation range is generated from a small model of what skin looks
@@ -119,6 +124,15 @@ of a closed mesh is positive exactly when it faces outwards — named it in a
 second, and named four other primitives with the same fault at the same time,
 including the box whose top and bottom faces meant the shop had never had a
 visible floor.
+
+Its twin, found the same way and even better hidden, was that the model
+matrices aiming the eyeballs and the lids were left-handed. A left-handed frame
+puts an object in the right place, pointing the right way, at the right size —
+and mirrors it, which swaps the front and back of every triangle in it. So the
+eyeballs drew the half of themselves that was inside the skull, and every
+measurement of where the eye *should* be came back correct. `aimedBasis` in
+`core/math.js` is now the only way to build one, and the audit checks the sign
+of its determinant.
 
 The others: a foundation range with a hole in the middle that no medium skin
 tone could be matched from; a `warmth` term with its sign inverted, so the game

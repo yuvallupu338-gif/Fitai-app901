@@ -151,14 +151,21 @@ function chooseArrival(rng, c) {
   const say2 = (t) => { c.arrivalNote = t; };
 
   const wrongShade = () => {
-    /* A base two or three steps off her own depth, or the wrong undertone —
-     * which is the specific mistake that makes someone look grey in photos and
-     * the thing they come to a counter to have fixed. */
+    /*
+     * A base a few steps off her own depth, or one undertone row across — the
+     * two mistakes a counter actually makes, and the ones people come in to
+     * have fixed.
+     *
+     * One or the other, not both. The shade list runs eight depths per
+     * undertone, so an offset large enough to change the row also changes the
+     * depth, and a customer who arrives wearing something six steps and a row
+     * away does not look like somebody was sold the wrong shade — she looks
+     * painted.
+     */
     const line = rng.chance(0.5) ? 'found-matte' : 'found-dewy';
     const shades = product(line).shades;
-    const best = closestShade(shades, c.skin);
-    const idx = shades.indexOf(best);
-    const off = idx + rng.pick([-4, -3, 3, 4, 6, -6]);
+    const idx = shades.indexOf(closestShade(shades, c.skin));
+    const off = idx + rng.pick([-3, -2, 2, 3, 8, -8]);
     return { id: line, shadeId: shades[clamp(off, 0, shades.length - 1)].id };
   };
 
@@ -178,7 +185,7 @@ function chooseArrival(rng, c) {
     const f = wrongShade();
     const lip = rng.pick(byCategory('lipstick'));
     const shadow = rng.pick(byCategory('eyeshadow'));
-    items.push({ id: f.id, shadeId: f.shadeId, coverage: rng.range(0.7, 0.95) });
+    items.push({ id: f.id, shadeId: f.shadeId, coverage: rng.range(0.55, 0.8) });
     items.push({ id: shadow.id, shadeId: rng.pick(shadow.shades).id, coverage: rng.range(0.5, 0.9) });
     items.push({ id: 'liner', shadeId: 'ln-black', coverage: rng.range(0.4, 0.8) });
     items.push({ id: lip.id, shadeId: rng.pick(lip.shades).id, coverage: rng.range(0.6, 0.95) });
@@ -322,7 +329,7 @@ export function buildCustomerAssets(c, opts = {}) {
     skinRgb: c.skin,
     sssRgb: c.sss,
     lashRgb: [0.09, 0.08, 0.10],
-    lashOpacity: 0.45,
+    lashOpacity: 0.55,
     anim: {
       t: 0, yaw: 0, pitch: 0, morph: [0, 0],
       blink: 0, blinkTimer: 1.5, lid: 0,

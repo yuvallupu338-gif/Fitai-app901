@@ -1502,6 +1502,51 @@ function lookAt(out, ex, ey, ez, tx, ty, tz) {
   return out;
 }
 
+/*
+ * A model matrix that points a mesh's +Z along `f`, with its +Y as close to
+ * world up as that allows, at `p`, scaled uniformly.
+ *
+ * The reason this is a shared function with a test rather than three lines at
+ * each call site: the frame has to be right-handed. Build it the other way
+ * round — right = forward x up instead of up x forward — and every axis still
+ * looks correct, the object still sits in the right place pointing the right
+ * way, and the matrix has a negative determinant, which mirrors the mesh and
+ * reverses which side of every triangle is the front. With back-face culling
+ * on, the object then draws its own far side, which for an eyeball parked in a
+ * socket means it draws the half that is inside the head and vanishes. Both
+ * eyes and all four lids were built that way, and the symptom was two dark
+ * holes in a face that was otherwise finished.
+ */
+function aimedBasis(out, fx, fy, fz, px, py, pz, scale) {
+  const fl = Math.hypot(fx, fy, fz) || 1;
+  fx /= fl; fy /= fl; fz /= fl;
+
+  /* right = up x forward. Written out because two of world up's terms are 0. */
+  let rx = fz, ry = 0, rz = -fx;
+  let rl = Math.hypot(rx, ry, rz);
+  if (rl < 1e-6) { rx = 1; ry = 0; rz = 0; rl = 1; }
+  rx /= rl; ry /= rl; rz /= rl;
+
+  /* up = forward x right, which closes a right-handed frame. */
+  const ux = fy * rz - fz * ry;
+  const uy = fz * rx - fx * rz;
+  const uz = fx * ry - fy * rx;
+
+  out[0] = rx * scale; out[1] = ry * scale; out[2] = rz * scale; out[3] = 0;
+  out[4] = ux * scale; out[5] = uy * scale; out[6] = uz * scale; out[7] = 0;
+  out[8] = fx * scale; out[9] = fy * scale; out[10] = fz * scale; out[11] = 0;
+  out[12] = px; out[13] = py; out[14] = pz; out[15] = 1;
+  return out;
+}
+
+/* The determinant of a model matrix's rotation part. Negative means the mesh
+ * is mirrored, and every triangle in it has swapped which side is the front. */
+function basisDeterminant(m) {
+  return m[0] * (m[5] * m[10] - m[6] * m[9])
+    - m[4] * (m[1] * m[10] - m[2] * m[9])
+    + m[8] * (m[1] * m[6] - m[2] * m[5]);
+}
+
 function transformPoint(out, m, x, y, z) {
   const w = m[3] * x + m[7] * y + m[11] * z + m[15] || 1;
   out[0] = (m[0] * x + m[4] * y + m[8] * z + m[12]) / w;
@@ -1661,6 +1706,8 @@ function rayToObject(out, ray, invModel) {
     "normalMatrix": normalMatrix,
     "invert": invert,
     "lookAt": lookAt,
+    "aimedBasis": aimedBasis,
+    "basisDeterminant": basisDeterminant,
     "transformPoint": transformPoint,
     "rayFromScreen": rayFromScreen,
     "rayAABB": rayAABB,
@@ -1835,6 +1882,14 @@ void main() {
   vec2 uv = vUV * uUVScale;
   vec4 tex = texture(uTex, uv);
 
+  /* The makeup layers are sampled at the top of main, not inside the branch
+   * that uses them: a texture lookup takes its mip level from the screen-space
+   * derivatives of its coordinate, and reaching a sampler through control flow
+   * is a good way to lose them. Two fetches on draws that ignore them is a
+   * rounding error. */
+  vec4 paint = texture(uPaint, vUV);
+  vec4 fxTex = texture(uFx, vUV);
+
   vec3 albedo = tex.rgb * uTint;
   float rough = uRough;
   float metal = uMetal;
@@ -1863,19 +1918,17 @@ void main() {
 
   if (uMode == MODE_SKIN) {
     /* ---- the makeup ---- */
-    vec4 paint = texture(uPaint, vUV);
-    vec4 fx = texture(uFx, vUV);
     albedo = mix(tex.rgb, paint.rgb, paint.a);
 
     /* Finish. Bare skin is around 0.42; a matte product flattens it, a gloss
      * takes it to almost wet, and powder pushes it the other way. */
-    float productRough = mix(0.72, 0.10, fx.r);
+    float productRough = mix(0.72, 0.10, fxTex.r);
     rough = mix(0.42, productRough, paint.a);
-    rough = clamp(rough + fx.b * 0.30, 0.06, 0.95);
+    rough = clamp(rough + fxTex.b * 0.30, 0.06, 0.95);
 
     /* Product sits on skin, so the pores under it flatten as it builds. */
     bump = uBump * (1.0 - 0.75 * paint.a);
-    shimmer = fx.g;
+    shimmer = fxTex.g;
     sss = uSSS;
   } else if (uMode == MODE_BODY) {
     sss = uSSS;
@@ -2907,7 +2960,7 @@ function skinTexture(size, customer) {
      * dark rather than skin-coloured means a sliver showing at a steep angle
      * reads as shadow instead of as a hole in the face. */
     const open = eyeOpening(s, t);
-    if (open > 0.01) col = col.map((c) => c * (1 - open * 0.8));
+    if (open > 0.01) col = col.map((c) => c * (1 - open * 0.42));
 
     out[0] = col[0]; out[1] = col[1]; out[2] = col[2]; out[3] = height;
   });
@@ -2919,6 +2972,16 @@ function skinTexture(size, customer) {
  * everything around it, and the far side of the sphere lands in the corners
  * where it is never seen.
  */
+/*
+ * How much of the eyeball the iris covers, as a fraction of its radius seen
+ * head on. A real iris is about half the eyeball's diameter. It is exported
+ * because the audit needs it: if the eyeball does not protrude far enough for
+ * some sclera to show around the iris, the eye reads as a black hole in the
+ * face rather than as an eye, and that is a geometry problem the texture
+ * cannot fix.
+ */
+const IRIS_RADIUS = 0.34;
+
 function irisTexture(size, customer) {
   const rng = makeRng(customer.seed + 3391);
   const seed = (rng() * 1e6) | 0;
@@ -2935,26 +2998,34 @@ function irisTexture(size, customer) {
     const veins = smoothstep(0.55, 1.0, fbm(u * 30, v * 30, 3, seed + 5)) * smoothstep(0.35, 0.75, r);
     col = [col[0], col[1] * (1 - veins * 0.10), col[2] * (1 - veins * 0.13)];
 
-    const irisR = 0.42;
-    if (r < irisR + 0.05) {
+    const irisR = IRIS_RADIUS;
+    if (r < irisR + 0.04) {
       /* Radial fibres, a darker limbal ring at the edge, and a pupil that is
        * a hole rather than a dark circle. */
       const fibre = 0.5 + 0.5 * Math.sin(a * 46 + valueNoise(r * 14, a * 6, seed) * 7);
-      const depth = smoothstep(0.05, irisR, r);
+      const depth = smoothstep(0.04, irisR, r);
       let ic = [
         lerp(dark[0], iris[0], 0.35 + fibre * 0.55 * depth),
         lerp(dark[1], iris[1], 0.35 + fibre * 0.55 * depth),
         lerp(dark[2], iris[2], 0.35 + fibre * 0.55 * depth),
       ];
-      const limbal = smoothstep(irisR - 0.09, irisR, r);
+      const limbal = smoothstep(irisR - 0.07, irisR, r);
       ic = ic.map((c) => c * (1 - limbal * 0.55));
-      const pupil = 1 - smoothstep(0.15, 0.175, r);
+      const pupil = 1 - smoothstep(0.115, 0.140, r);
       ic = ic.map((c) => c * (1 - pupil * 0.94));
       const edge = 1 - smoothstep(irisR, irisR + 0.02, r);
       col = [lerp(col[0], ic[0], edge), lerp(col[1], ic[1], edge), lerp(col[2], ic[2], edge)];
     }
-    out[0] = col[0]; out[1] = col[1]; out[2] = col[2];
-    out[3] = 0.5 - (r < 0.42 ? 0.12 : 0);
+    /*
+     * The sclera falls into shadow towards the edges of the eyeball. Without
+     * this the exposed part of the sphere ends in a hard white rim against the
+     * skin — the eye reads as a ball stuck on a face rather than as an opening
+     * in one, because the lids can only cover the top and the bottom and the
+     * corners have nothing closing them.
+     */
+    const rim = 1 - smoothstep(0.52, 0.95, r) * 0.78;
+    out[0] = col[0] * rim; out[1] = col[1] * rim; out[2] = col[2] * rim;
+    out[3] = 0.5 - (r < irisR ? 0.12 : 0);
   });
 }
 
@@ -3176,6 +3247,7 @@ function flatTexture() {
 
   return {
     "skinTexture": skinTexture,
+    "IRIS_RADIUS": IRIS_RADIUS,
     "irisTexture": irisTexture,
     "bodySkinTexture": bodySkinTexture,
     "hairTexture": hairTexture,
@@ -3196,6 +3268,17 @@ function flatTexture() {
 __m["makeup/src/model/mesh.js"] = (function () {
 /*
  * mesh.js — the geometry builder everything in this game is made of.
+ *
+ * WINDING: every closed surface here is wound so that its triangles are
+ * counter-clockwise seen from *outside*. Back-face culling is on, so a
+ * primitive wound the other way does not look wrong — it looks like a solid
+ * object with no features on it, because what you are seeing is the inside of
+ * its far wall with the near wall culled away. That failure is genuinely hard
+ * to recognise on a head: the silhouette is still a head, the eyes are separate
+ * meshes and still sit in front of it, and the texture still maps onto
+ * something. `tools/makeup-audit.mjs` measures the signed volume of every
+ * closed mesh and fails when one comes out negative, which is the check that
+ * finally named it.
  *
  * There are no model files here, and no loader. A lipstick tube is a lathe, the
  * counter is a rounded box, the customer is a deformed sphere, and all of it is
@@ -3368,11 +3451,18 @@ class MeshBuilder {
  * size out of the same texture.
  */
 function box(b, cx, cy, cz, hx, hy, hz, uvScale = 1, ao = 1) {
+  /*
+   * Normal, then the two in-plane axes. The pair must satisfy t x b = n, or
+   * that face comes out wound backwards while claiming to face outwards — which
+   * is exactly what the top and bottom faces did here until the audit measured
+   * it. A box with two inverted faces still looks like a box from most angles;
+   * what it does not have is a floor you can see when you are standing on it.
+   */
   const faces = [
     [[1, 0, 0], [0, 0, -1], [0, 1, 0]],
     [[-1, 0, 0], [0, 0, 1], [0, 1, 0]],
-    [[0, 1, 0], [1, 0, 0], [0, 0, 1]],
-    [[0, -1, 0], [1, 0, 0], [0, 0, -1]],
+    [[0, 1, 0], [0, 0, 1], [1, 0, 0]],
+    [[0, -1, 0], [1, 0, 0], [0, 0, 1]],
     [[0, 0, 1], [1, 0, 0], [0, 1, 0]],
     [[0, 0, -1], [-1, 0, 0], [0, 1, 0]],
   ];
@@ -3432,7 +3522,7 @@ function lathe(b, profile, segments, cx, cy, cz, opts = {}) {
 
   for (let i = 0; i < rows.length - 1; i++) {
     for (let s = 0; s < segments; s++) {
-      b.quad(rows[i][s], rows[i][s + 1], rows[i + 1][s + 1], rows[i + 1][s]);
+      b.quad(rows[i][s], rows[i + 1][s], rows[i + 1][s + 1], rows[i][s + 1]);
     }
   }
 
@@ -3449,8 +3539,8 @@ function lathe(b, profile, segments, cx, cy, cz, opts = {}) {
         opts.ao === undefined ? 1 : opts.ao));
     }
     for (let s = 0; s < segments; s++) {
-      if (dir > 0) b.tri(c, ring[s], ring[s + 1]);
-      else b.tri(c, ring[s + 1], ring[s]);
+      if (dir > 0) b.tri(c, ring[s + 1], ring[s]);
+      else b.tri(c, ring[s], ring[s + 1]);
     }
   };
   if (closeTop) cap(rows[rows.length - 1], profile[profile.length - 1][1], 1);
@@ -3482,7 +3572,7 @@ function sphere(b, cx, cy, cz, r, sub = [24, 16], opts = {}) {
   }
   for (let j = 0; j < sv; j++) {
     for (let i = 0; i < su; i++) {
-      b.quad(rows[j][i], rows[j][i + 1], rows[j + 1][i + 1], rows[j + 1][i]);
+      b.quad(rows[j][i], rows[j + 1][i], rows[j + 1][i + 1], rows[j][i + 1]);
     }
   }
 }
@@ -3533,7 +3623,7 @@ function roundedSlab(b, cx, cy, cz, hx, hy, hz, r, uvScale = 1, ao = 1) {
   }
   for (let i = 0; i < ring.length; i++) {
     const j = (i + 1) % ring.length;
-    b.quad(bot[i], bot[j], top[j], top[i]);
+    b.quad(bot[i], top[i], top[j], bot[j]);
   }
 
   const capTop = b.vert(cx, cy + hy, cz, 0, 1, 0, 0, 0, ao);
@@ -3545,8 +3635,8 @@ function roundedSlab(b, cx, cy, cz, hx, hy, hz, r, uvScale = 1, ao = 1) {
   }
   for (let i = 0; i < ring.length; i++) {
     const j = (i + 1) % ring.length;
-    b.tri(capTop, tv[i], tv[j]);
-    b.tri(capBot, bv[j], bv[i]);
+    b.tri(capTop, tv[j], tv[i]);
+    b.tri(capBot, bv[i], bv[j]);
   }
 }
 
@@ -3893,6 +3983,499 @@ function buildTray(products) {
   };
 })();
 
+__m["makeup/src/model/head.js"] = (function () {
+/*
+ * head.js — the customer's head, built from face space.
+ *
+ * The shape is a pile of displacements applied to an ellipsoid: a socket here,
+ * a bridge there, two lobes for the lips. None of it is sculpted by hand and
+ * none of it is loaded from a file, which means a customer's face is a dozen
+ * numbers and two customers are never the same person.
+ *
+ * `evalSurface` is the single definition of that shape. The mesh calls it for
+ * every vertex; the eyeballs, the lids and the lashes call it to find where to
+ * sit; the morph targets call it twice and subtract. Nothing recomputes the
+ * face a second way, because the moment two definitions exist, an eyeball ends
+ * up floating a millimetre outside a socket and it takes an afternoon to find
+ * out why.
+ *
+ * Units are head half-heights: 1.0 is the distance from the middle of the head
+ * to the crown, about 115mm. The model matrix scales that into the metres the
+ * rest of the shop is built in.
+ */
+
+const { MeshBuilder } = __m["makeup/src/model/mesh.js"];
+const { faceU, faceV, F, ellipse, pair, lipMask } = __m["makeup/src/model/face.js"];
+const { clamp, smoothstep } = __m["makeup/src/core/math.js"];
+
+const TAU = Math.PI * 2;
+
+/* Base proportions, before a customer's own numbers scale them. */
+const BASE_W = 0.74;
+const BASE_D = 0.86;
+
+function gauss(x, c, r) {
+  const d = (x - c) / r;
+  return Math.exp(-d * d);
+}
+function gauss2(s, cs, rs, t, ct, rt) {
+  return gauss(s, cs, rs) * gauss(t, ct, rt);
+}
+function band(t, a, b, soft = 0.05) {
+  return smoothstep(a - soft, a + soft, t) * (1 - smoothstep(b - soft, b + soft, t));
+}
+
+/*
+ * A face, as numbers. Every one of them is a multiplier on a displacement, so
+ * 1.0 is the average face and the generator only has to decide how far from
+ * average to go.
+ */
+function faceParams(rng) {
+  const g = (sd, lo, hi) => clamp(rng.gauss(1, sd), lo, hi);
+  return {
+    width: g(0.06, 0.86, 1.14),
+    length: g(0.05, 0.88, 1.12),
+    depth: g(0.04, 0.90, 1.10),
+    jaw: g(0.18, 0.55, 1.45),        /* how much the lower face tapers */
+    chin: g(0.30, 0.35, 1.75),
+    cheek: g(0.30, 0.30, 1.80),
+    brow: g(0.28, 0.40, 1.70),
+    nose: g(0.22, 0.55, 1.55),
+    noseBridge: g(0.25, 0.45, 1.60),
+    lip: g(0.30, 0.45, 1.85),
+    eyeSize: g(0.09, 0.82, 1.20),
+    eyeDeep: g(0.22, 0.55, 1.50),
+  };
+}
+
+const NEUTRAL_EXPR = { smile: 0, concern: 0, squint: 0 };
+
+/*
+ * The shape function. `E` carries the expression, which is applied here rather
+ * than in a separate pass so a smile bends the same surface everything else is
+ * defined against.
+ */
+function evalSurface(P, s, t, E = NEUTRAL_EXPR, out = [0, 0, 0]) {
+  const u = faceU(s), v = faceV(t);
+  const phi = (u - 0.5) * TAU;
+  const lam = v * Math.PI;
+  const sl = Math.sin(lam), cl = Math.cos(lam);
+
+  const W = BASE_W * P.width, H = P.length, D = BASE_D * P.depth;
+  let x = sl * Math.sin(phi) * W;
+  let y = cl * H;
+  let z = sl * Math.cos(phi) * D;
+
+  /* The lower face narrows into a jaw. Without this the head is an egg and
+   * every customer looks like the same egg. */
+  const jaw = smoothstep(0.48, 0.94, t);
+  x *= 1 - jaw * 0.42 * P.jaw;
+  z *= 1 - jaw * 0.14;
+  /* The crown is narrower than the widest part of the skull, which is at ear
+   * height — the difference is small and its absence is very visible. */
+  x *= 1 - smoothstep(0.20, 0.0, t) * 0.12;
+
+  /* Ellipsoid normal, good enough to displace along: the displacements are
+   * small compared with the radius, so using the undeformed normal costs
+   * nothing and avoids a second evaluation to get the deformed one. */
+  let nx = x / (W * W), ny = y / (P.length * P.length), nz = z / (D * D);
+  const nl = Math.hypot(nx, ny, nz) || 1;
+  nx /= nl; ny /= nl; nz /= nl;
+
+  /* How much of the front of the face we are on. Frontal features — the nose,
+   * the lips — push along +Z; past the corner of the eye that would drag the
+   * side of the head forward, so it fades out. */
+  const fr = Math.max(0, Math.cos(phi)) ** 0.6;
+
+  /* ---- displacement along the surface normal ---- */
+  const socket = 0.052 * P.eyeDeep * pair(s, t, F.eyeS, F.eyeT - 0.008, 0.125, 0.066, 0.85);
+  const temple = 0.020 * pair(s, t, 0.335, 0.285, 0.080, 0.080, 0.9);
+  const cheek = 0.028 * P.cheek * pair(s, t, F.cheekS + 0.012, 0.520, 0.130, 0.072, 0.85);
+  const foreheadFlat = 0.013 * ellipse(s, t, 0.5, 0.235, 0.30, 0.080, 0.9);
+  const hollow = 0.015 * pair(s, t, 0.258, 0.618, 0.090, 0.055, 0.9);
+  let dN = cheek - socket - temple - foreheadFlat - hollow;
+
+  /* ---- displacement along +Z ---- */
+  const browRidge = 0.034 * P.brow * pair(s, t, 0.135, F.browT + 0.014, 0.140, 0.032, 0.9);
+
+  const noseRidge = 0.056 * P.noseBridge * gauss(s, 0.5, 0.090) * band(t, 0.320, 0.500, 0.060);
+  const noseTip = 0.104 * P.nose * gauss2(s, 0.5, 0.085, t, F.noseTipT, 0.028);
+  const noseWing = 0.048 * P.nose * pair(s, t, F.noseHalfS, F.noseBaseT - 0.006, 0.070, 0.021, 0.8);
+  const noseUnder = -0.020 * ellipse(s, t, 0.5, F.noseBaseT + 0.016, 0.115, 0.016, 0.9);
+
+  const philtrum = -0.006 * gauss2(s, 0.5, 0.055, t, 0.552, 0.020);
+
+  const lm = lipMask(s, t);
+  const lipX = clamp((s - 0.5) / F.lipHalfS, -1, 1);
+  const lipCore = Math.pow(Math.max(0, 1 - lipX * lipX), 0.42);
+  const lips = 0.044 * P.lip * Math.pow(lm, 0.65)
+    - 0.019 * gauss(t, F.mouthT, 0.0075) * lipCore;
+
+  const sulcus = -0.013 * ellipse(s, t, 0.5, 0.655, 0.078, 0.022, 0.9);
+  const chin = 0.036 * P.chin * ellipse(s, t, 0.5, F.chinT, 0.088, 0.052, 0.85);
+
+  let dZ = browRidge + noseRidge + noseTip + noseWing + noseUnder
+    + philtrum + lips + sulcus + chin;
+
+  /* ---- expression ---- */
+  let dY = 0, dX = 0;
+  if (E.smile) {
+    /* A smile is mostly two corners going up and out, and the cheek mass that
+     * rides up with them. The lips themselves barely move. */
+    const corners = pair(s, t, F.lipHalfS * 0.90, F.mouthT + 0.004, 0.075, 0.048, 0.85);
+    dY += E.smile * 0.024 * corners;
+    dX += E.smile * 0.016 * corners * Math.sign(s - 0.5);
+    dN += E.smile * 0.014 * pair(s, t, F.cheekS, 0.540, 0.120, 0.065, 0.85);
+    dZ -= E.smile * 0.010 * lm;
+    /* and the lower lid rises, which is the difference between a smile and a
+     * mouth that happens to be curved */
+    dY += E.smile * 0.008 * pair(s, t, F.eyeS, F.lidBotT + 0.006, 0.070, 0.016, 0.8);
+  }
+  if (E.concern) {
+    const inner = pair(s, t, 0.075, F.browT - 0.004, 0.070, 0.028, 0.85);
+    dY += E.concern * 0.014 * inner;
+    dZ += E.concern * 0.010 * inner;
+    const corners = pair(s, t, F.lipHalfS * 0.88, F.mouthT + 0.006, 0.070, 0.042, 0.85);
+    dY -= E.concern * 0.018 * corners;
+    dZ -= E.concern * 0.008 * lm;
+  }
+  if (E.squint) {
+    dY += E.squint * 0.012 * pair(s, t, F.eyeS, F.lidBotT + 0.010, 0.075, 0.022, 0.8);
+    dY -= E.squint * 0.008 * pair(s, t, F.eyeS, F.creaseT + 0.010, 0.075, 0.026, 0.8);
+  }
+
+  out[0] = x + nx * dN + dX;
+  out[1] = y + ny * dN + dY;
+  out[2] = z + nz * dN + dZ * fr;
+  return out;
+}
+
+/*
+ * Position and outward normal at an (s, t), by finite difference. Used to hang
+ * the eyeballs, lids and lashes off the same surface the mesh is made of.
+ */
+function surfaceFrame(P, s, t, E = NEUTRAL_EXPR) {
+  const h = 0.0025;
+  const p = evalSurface(P, s, t, E, []);
+  const ps = evalSurface(P, s + h, t, E, []);
+  const pt = evalSurface(P, s, t + h, E, []);
+  const ax = ps[0] - p[0], ay = ps[1] - p[1], az = ps[2] - p[2];
+  const bx = pt[0] - p[0], by = pt[1] - p[1], bz = pt[2] - p[2];
+  /* (ds x dt) points inwards with this parameterisation, so negate. */
+  let nx = -(ay * bz - az * by);
+  let ny = -(az * bx - ax * bz);
+  let nz = -(ax * by - ay * bx);
+  const l = Math.hypot(nx, ny, nz) || 1;
+  return { p, n: [nx / l, ny / l, nz / l] };
+}
+
+/* Baked ambient occlusion. The eye socket, the crease beside the nose and the
+ * underside of the jaw are dark on every real face and free here — the fields
+ * that carve them are already computed. */
+function headAO(P, s, t) {
+  const socket = pair(s, t, F.eyeS, F.eyeT - 0.006, 0.110, 0.060, 0.85);
+  const nostril = pair(s, t, F.nostrilS, F.noseBaseT + 0.004, 0.055, 0.026, 0.85);
+  const mouthLine = gauss(t, F.mouthT, 0.010) * Math.pow(Math.max(0, 1 - ((s - 0.5) / F.lipHalfS) ** 2), 0.4);
+  const underJaw = smoothstep(0.80, 0.98, t);
+  const underBrow = pair(s, t, F.eyeS, F.creaseT - 0.004, 0.110, 0.030, 0.9);
+  const sideNose = pair(s, t, 0.105, 0.470, 0.055, 0.070, 0.9);
+  return clamp(1
+    - 0.42 * socket - 0.30 * underBrow - 0.30 * nostril
+    - 0.35 * mouthLine - 0.55 * underJaw - 0.16 * sideNose, 0.22, 1);
+}
+
+/* The mesh is uniform in texture space, so this is also where the triangles
+ * end up: about a third of them land between the brow and the chin. */
+const HEAD_GRID = { s: 160, t: 208 };
+
+/*
+ * The head mesh, plus two morph targets.
+ *
+ * The grid is uniform in texture space, so the triangles land where the detail
+ * is: about a third of them are between the brow and the chin, and the back of
+ * the skull — which nobody paints and the hair covers — gets the rest.
+ */
+function buildHead(P) {
+  const b = new MeshBuilder();
+  const { s: NS, t: NT } = HEAD_GRID;
+  const rows = [];
+  const p = [0, 0, 0];
+
+  for (let j = 0; j <= NT; j++) {
+    const t = j / NT;
+    const row = [];
+    for (let i = 0; i <= NS; i++) {
+      const s = i / NS;
+      evalSurface(P, s, t, NEUTRAL_EXPR, p);
+      /* Normals are computed from the triangles afterwards: the shape is a sum
+       * of a dozen fields and differentiating it analytically would be a
+       * second definition to keep in step with the first. */
+      row.push(b.vert(p[0], p[1], p[2], 0, 1, 0, s, t, headAO(P, s, t)));
+    }
+    rows.push(row);
+  }
+
+  for (let j = 0; j < NT; j++) {
+    for (let i = 0; i < NS; i++) {
+      /* The poles collapse to a point; emitting the degenerate triangles there
+       * would give computeNormals zero-area faces to average in. */
+      const a = rows[j][i], bb = rows[j][i + 1];
+      const c = rows[j + 1][i + 1], d = rows[j + 1][i];
+      if (j === 0) b.tri(a, d, c);
+      else if (j === NT - 1) b.tri(a, d, bb);
+      else b.quad(a, d, c, bb);
+    }
+  }
+
+  b.computeNormals();
+  b.weldNormals();
+  const mesh = b.build();
+
+  /* Morph targets, as deltas from the neutral position. Storing deltas rather
+   * than absolute positions means the vertex shader adds instead of mixing,
+   * and two expressions can be half-on at once without fighting. */
+  const morph = new Float32Array(mesh.positions.length * 4);
+  const targets = [{ ...NEUTRAL_EXPR, smile: 1 }, { ...NEUTRAL_EXPR, concern: 1 }];
+  for (let k = 0; k < 2; k++) {
+    const nb = new MeshBuilder();
+    for (let j = 0; j <= NT; j++) {
+      for (let i = 0; i <= NS; i++) {
+        evalSurface(P, i / NS, j / NT, targets[k], p);
+        nb.vert(p[0], p[1], p[2], 0, 1, 0, 0, 0, 1);
+      }
+    }
+    nb.idx = mesh.indices;
+    nb.computeNormals();
+    for (let vi = 0; vi < mesh.positions.length / 3; vi++) {
+      const o = vi * 12 + k * 6;
+      morph[o] = nb.pos[vi * 3] - mesh.positions[vi * 3];
+      morph[o + 1] = nb.pos[vi * 3 + 1] - mesh.positions[vi * 3 + 1];
+      morph[o + 2] = nb.pos[vi * 3 + 2] - mesh.positions[vi * 3 + 2];
+      morph[o + 3] = nb.nrm[vi * 3] - mesh.vertices[vi * 9 + 3];
+      morph[o + 4] = nb.nrm[vi * 3 + 1] - mesh.vertices[vi * 9 + 4];
+      morph[o + 5] = nb.nrm[vi * 3 + 2] - mesh.vertices[vi * 9 + 5];
+    }
+  }
+
+  return { mesh, morph };
+}
+
+/* ------------------------------------------------------------------ *
+ * Eyes
+ * ------------------------------------------------------------------ */
+
+/*
+ * Where an eyeball goes. It is pushed back along the surface normal from the
+ * middle of the socket so that the visible sliver of sclera sits flush with the
+ * lid edge — the depth is a fraction of the radius rather than a constant,
+ * because a customer with a bigger eye needs a deeper socket to hold it.
+ */
+function eyeAnchor(P, side) {
+  const s = 0.5 + side * F.eyeS;
+  const { p, n } = surfaceFrame(P, s, F.eyeT);
+  /*
+   * A human eyeball is about 24mm across, which is 0.10 here — but almost all
+   * of it is behind the lids, and modelling it at full size on the front of the
+   * head puts two spheres on a face.
+   *
+   * The inset is what decides how much of it shows, and it has to be read
+   * against the socket's own depth: sink the eye further back than the socket
+   * is deep and it disappears into a dark hole, which is what the first version
+   * did — two empty sockets on an otherwise finished face.
+   */
+  const r = 0.092 * P.eyeSize;
+  const inset = r * 0.02;
+  return {
+    r,
+    s,
+    centre: [p[0] - n[0] * inset, p[1] - n[1] * inset, p[2] - n[2] * inset],
+    normal: n,
+  };
+}
+
+function buildEyeball(r) {
+  const b = new MeshBuilder();
+  /* The iris is a texture, not geometry, but the cornea in front of it is a
+   * real bulge — it is what makes the highlight sit proud of the eye instead
+   * of painted flat on it, and it is 12 lines. */
+  const NS = 32, NT = 24;
+  const rows = [];
+  for (let j = 0; j <= NT; j++) {
+    const lat = (j / NT) * Math.PI;
+    const row = [];
+    for (let i = 0; i <= NS; i++) {
+      const lon = (i / NS) * TAU;
+      const nx = Math.sin(lat) * Math.sin(lon);
+      const ny = Math.cos(lat);
+      const nz = Math.sin(lat) * Math.cos(lon);
+      /* Cornea: a small raised cap centred on +Z, which is where the eye looks. */
+      const bulge = 1 + 0.055 * smoothstep(0.80, 1.0, nz);
+      /*
+       * Planar UVs, not the sphere's own. The iris is a disc in the middle of
+       * its texture, and a longitude/latitude unwrap would smear it round the
+       * equator and leave the front of the eye sampling the sclera. Projecting
+       * straight down +Z puts the disc exactly where the eye looks; the back
+       * half folds onto the same texels and is never seen.
+       */
+      row.push(b.vert(nx * r * bulge, ny * r * bulge, nz * r * bulge,
+        nx, ny, nz, 0.5 + nx * 0.5, 0.5 - ny * 0.5, 1));
+    }
+    rows.push(row);
+  }
+  for (let j = 0; j < NT; j++) {
+    for (let i = 0; i < NS; i++) {
+      b.quad(rows[j][i], rows[j + 1][i], rows[j + 1][i + 1], rows[j][i + 1]);
+    }
+  }
+  b.computeNormals();
+  return b.build();
+}
+
+/*
+ * The lid.
+ *
+ * A cap of a sphere a little larger than the eyeball, hinged on the eye's own
+ * left-right axis. Closed, it covers the opening; open, it rotates up and tucks
+ * under the brow.
+ *
+ * Its UVs are not its own. They are mapped into the head's texture space over
+ * the lid zone, so a stroke of eyeshadow lands in the same texture whether it
+ * hits the lid or the skin around it, and the colour on a closed lid is the
+ * colour on the crease when it opens. One paint texture for the whole face is
+ * worth the small oddity of a mesh borrowing another mesh's coordinates.
+ */
+/*
+ * The lids, as angles.
+ *
+ * `theta` is how far a lid cap reaches from its own axis; `open` is how far it
+ * is swung back when the eye is open. The difference between them is what is
+ * left uncovered, and it is the whole difference between an eye and a slit:
+ * swing the upper lid back by less than its own reach and the rim ends up below
+ * the eye's forward axis, which puts it across the pupil. Both lids did exactly
+ * that in the first version and every customer looked half asleep.
+ */
+const LID = {
+  upperTheta: 1.16,
+  lowerTheta: 0.92,
+  upperOpen: 1.36,
+  lowerOpen: 1.34,
+};
+
+function buildLid(r, side, lower = false) {
+  const b = new MeshBuilder();
+  const R = r * 1.045;
+  const RINGS = 10, SEG = 28;
+  /* The upper lid has to reach past the middle of the eye when it closes; the
+   * lower one only ever covers the bottom sliver. */
+  const maxTheta = lower ? LID.lowerTheta : LID.upperTheta;
+  const rows = [];
+  const cs = 0.5 + side * F.eyeS;
+  const lidCentreT = lower
+    ? F.underEyeT - 0.008
+    : (F.creaseT + F.lidBotT) / 2 + 0.004;
+  const lidSpanT = lower ? 0.030 : 0.044;
+
+  for (let j = 0; j <= RINGS; j++) {
+    const theta = (j / RINGS) * maxTheta;
+    const st = Math.sin(theta), ct = Math.cos(theta);
+    const row = [];
+    for (let i = 0; i <= SEG; i++) {
+      const psi = (i / SEG) * TAU;
+      const px = st * Math.cos(psi);
+      const py = st * Math.sin(psi);
+      /* Slight flattening towards the outer corner keeps the lid from reading
+       * as a contact lens sitting on the face. */
+      const flat = 1 - 0.10 * Math.max(0, px * side);
+      const nx = px * flat, ny = py, nz = ct;
+      const nl = Math.hypot(nx, ny, nz);
+      row.push(b.vert(nx * R, ny * R, nz * R, nx / nl, ny / nl, nz / nl,
+        cs + px * 0.052 * (side > 0 ? 1 : -1),
+        lidCentreT - py * lidSpanT,
+        1 - 0.25 * (1 - j / RINGS)));
+    }
+    rows.push(row);
+  }
+  for (let j = 0; j < RINGS; j++) {
+    for (let i = 0; i < SEG; i++) {
+      b.quad(rows[j][i], rows[j + 1][i], rows[j + 1][i + 1], rows[j][i + 1]);
+    }
+  }
+  b.computeNormals();
+  return b.build();
+}
+
+/*
+ * Lashes: a fan of tapered fins along the lower rim of the lid, swept forward
+ * and up. They are geometry rather than a texture because mascara is a product
+ * the player buys, and "the lashes got longer" has to be visible from the
+ * distance the game is played at.
+ *
+ * Built at full length and scaled down by a uniform, so applying mascara does
+ * not rebuild a mesh mid-stroke.
+ */
+function buildLashes(r, side) {
+  const b = new MeshBuilder();
+  const R = r * 1.05;
+  const theta = 1.16;
+  const N = 26;
+  /* Only the lower arc of the cap carries lashes — the top of the lid is under
+   * the brow. Azimuth from -160 to -20 degrees, measured with +Y up. */
+  for (let i = 0; i < N; i++) {
+    const f = i / (N - 1);
+    const psi = (-2.79 + f * 2.44);
+    const st = Math.sin(theta), ct = Math.cos(theta);
+    const bx = st * Math.cos(psi) * R;
+    const by = st * Math.sin(psi) * R;
+    const bz = ct * R;
+
+    /* Direction the lash grows: away from the eye centre, curled up and out. */
+    const l = Math.hypot(bx, by, bz);
+    const outx = bx / l, outy = by / l, outz = bz / l;
+    const len = r * (0.34 + 0.20 * Math.sin(f * Math.PI));
+    const tipx = bx + outx * len * 0.35 + Math.sign(bx || 1) * len * 0.10;
+    const tipy = by + outy * len * 0.30 + len * 0.62;
+    const tipz = bz + outz * len * 0.55 + len * 0.30;
+
+    const w = r * 0.030 * (0.6 + 0.4 * Math.sin(f * Math.PI));
+    const a = b.vert(bx - w, by, bz, 0, 0, 1, f, 1, 1);
+    const c = b.vert(bx + w, by, bz, 0, 0, 1, f, 1, 1);
+    const d = b.vert(tipx, tipy, tipz, 0, 0, 1, f, 0, 1);
+    b.tri(a, c, d);
+    /* Doubled the other way round so a lash is visible from behind when the
+     * head turns; two triangles is cheaper than disabling face culling for the
+     * whole draw. */
+    b.tri(a, d, c);
+  }
+  void side;
+  b.computeNormals();
+  return b.build();
+}
+
+/*
+ * Brow hairs are painted into the skin texture rather than modelled — a brow is
+ * read as a shape and a density, never as individual hairs at this distance,
+ * and the pencil product needs to darken and extend it, which a texture does
+ * and a mesh does not.
+ *
+ * This is here as a note rather than a function because it is the kind of
+ * decision that gets re-litigated by whoever adds the next feature.
+ */
+
+  return {
+    "faceParams": faceParams,
+    "NEUTRAL_EXPR": NEUTRAL_EXPR,
+    "evalSurface": evalSurface,
+    "surfaceFrame": surfaceFrame,
+    "HEAD_GRID": HEAD_GRID,
+    "buildHead": buildHead,
+    "eyeAnchor": eyeAnchor,
+    "buildEyeball": buildEyeball,
+    "LID": LID,
+    "buildLid": buildLid,
+    "buildLashes": buildLashes,
+  };
+})();
+
 __m["makeup/src/render/renderer.js"] = (function () {
 /*
  * renderer.js — the frame.
@@ -3910,10 +4493,11 @@ __m["makeup/src/render/renderer.js"] = (function () {
  */
 
 const { createContext, createProgram, createTexture2D, createTarget, destroyTarget, createFullscreenVAO, createMeshVAO, destroyMesh, } = __m["makeup/src/core/gl.js"];
-const { mat4, identity, multiply, perspective, lookAt, compose, normalMatrix, invert, clamp, damp, smoothstep, } = __m["makeup/src/core/math.js"];
+const { mat4, identity, multiply, perspective, lookAt, compose, normalMatrix, invert, clamp, damp, smoothstep, aimedBasis, } = __m["makeup/src/core/math.js"];
 const { SCENE_VS, SCENE_FS, FULLSCREEN_VS, BRIGHT_FS, BLUR_FS, POST_FS } = __m["makeup/src/render/shaders.js"];
 const { marbleTexture, lacquerTexture, metalTexture, wallTexture, floorTexture, packageTexture, bodySkinTexture, signTexture, tillScreenTexture, flatTexture, } = __m["makeup/src/render/textures.js"];
 const { SHOP } = __m["makeup/src/model/props.js"];
+const { LID } = __m["makeup/src/model/head.js"];
 const { srgbToLinear } = __m["makeup/src/core/color.js"];
 
 const MODE = {
@@ -4055,13 +4639,22 @@ class Renderer {
 
   resize(width, height) {
     const gl = this.gl;
-    const scale = this.quality.scale;
+    /*
+     * Render at device pixels, not CSS pixels. On any modern phone or laptop
+     * those differ by two or three times, and drawing at CSS resolution is the
+     * difference between a face with an eyelash on it and a face with a smudge.
+     * Capped at 2: past that the cost is real and nobody can see it.
+     */
+    const dpr = Math.min(2, (typeof window !== 'undefined' && window.devicePixelRatio) || 1);
+    const scale = this.quality.scale * dpr;
     const w = Math.max(2, Math.round(width * scale));
     const h = Math.max(2, Math.round(height * scale));
     if (this.width === w && this.height === h) return;
     this.width = w; this.height = h;
     this.canvas.width = w;
     this.canvas.height = h;
+    this.canvas.style.width = `${width}px`;
+    this.canvas.style.height = `${height}px`;
 
     destroyTarget(gl, this.sceneTarget);
     destroyTarget(gl, this.blurA);
@@ -4174,19 +4767,6 @@ class Renderer {
     gl.uniformMatrix3fv(p.u.uNormalMat, false, this._nrm);
     gl.bindVertexArray(vao.vao);
     gl.drawElements(gl.TRIANGLES, vao.count, gl.UNSIGNED_INT, 0);
-  }
-
-  /*
-   * A rotation built from three axes plus a translation. The eyes and lids are
-   * both "point this local frame along that direction", which is not something
-   * euler angles express without a gimbal argument.
-   */
-  static basis(out, rx, ry, rz, ux, uy, uz, fx, fy, fz, px, py, pz, scale) {
-    out[0] = rx * scale; out[1] = ry * scale; out[2] = rz * scale; out[3] = 0;
-    out[4] = ux * scale; out[5] = uy * scale; out[6] = uz * scale; out[7] = 0;
-    out[8] = fx * scale; out[9] = fy * scale; out[10] = fz * scale; out[11] = 0;
-    out[12] = px; out[13] = py; out[14] = pz; out[15] = 1;
-    return out;
   }
 
   render(state, dt) {
@@ -4345,36 +4925,30 @@ class Renderer {
       let fx = gaze[0] - ex, fy = gaze[1] - ey, fz = gaze[2] - ez;
       const fl = Math.hypot(fx, fy, fz) || 1;
       fx /= fl; fy /= fl; fz /= fl;
-      /* Eyes do not swivel more than about 35 degrees before the head turns
-       * with them; past that a gaze reads as a lizard. */
-      const nx = M[0] * anchor.normal[0] + M[4] * anchor.normal[1] + M[8] * anchor.normal[2];
-      const ny = M[1] * anchor.normal[0] + M[5] * anchor.normal[1] + M[9] * anchor.normal[2];
-      const nz = M[2] * anchor.normal[0] + M[6] * anchor.normal[1] + M[10] * anchor.normal[2];
-      const nl = Math.hypot(nx, ny, nz) || 1;
-      const dot = (fx * nx + fy * ny + fz * nz) / nl;
+      /*
+       * Eyes do not swivel more than about 35 degrees before the head turns
+       * with them, so past that the gaze is pulled back towards rest.
+       *
+       * Rest is the head's own forward direction, not the socket's outward
+       * normal. The sockets face slightly apart — that is what sockets do — so
+       * falling back to them sends the two eyes in different directions, and a
+       * customer looking at something out of range comes out wall-eyed.
+       */
+      const rx = M[8] / scale, ry = M[9] / scale, rz = M[10] / scale;
+      const rl = Math.hypot(rx, ry, rz) || 1;
+      const dot = (fx * rx + fy * ry + fz * rz) / rl;
       const limit = Math.cos(0.62);
       if (dot < limit) {
-        const k = smoothstep(limit - 0.35, limit, dot);
-        fx = fx * k + (nx / nl) * (1 - k);
-        fy = fy * k + (ny / nl) * (1 - k);
-        fz = fz * k + (nz / nl) * (1 - k);
+        const k = smoothstep(limit - 0.45, limit, dot);
+        fx = fx * k + (rx / rl) * (1 - k);
+        fy = fy * k + (ry / rl) * (1 - k);
+        fz = fz * k + (rz / rl) * (1 - k);
         const l2 = Math.hypot(fx, fy, fz) || 1;
         fx /= l2; fy /= l2; fz /= l2;
       }
 
-      /* Basis with the eye's forward on the gaze, and right taken as the
-       * horizontal perpendicular — world up crossed with forward, written out
-       * because two of its three terms are zero. */
-      let rx = -fz, ry = 0, rz = fx;
-      let rl = Math.hypot(rx, ry, rz);
-      if (rl < 1e-5) { rx = 1; rz = 0; rl = 1; }
-      rx /= rl; rz /= rl;
-      const ux = ry * fz - rz * fy;
-      const uy = rz * fx - rx * fz;
-      const uz = rx * fy - ry * fx;
-
       const eyeM = mat4();
-      Renderer.basis(eyeM, rx, ry, rz, ux, uy, uz, fx, fy, fz, ex, ey, ez, scale);
+      aimedBasis(eyeM, fx, fy, fz, ex, ey, ez, scale);
       this._draw(c.vao.eye, eyeM, eyeMat);
 
       /* The lid shares the eye's origin but hinges on the socket's own axis,
@@ -4386,12 +4960,13 @@ class Renderer {
       const bz = M[2] * anchor.normal[0] + M[6] * anchor.normal[1] + M[10] * anchor.normal[2];
       const bl = Math.hypot(bx, by, bz) || 1;
       const nfx = bx / bl, nfy = by / bl, nfz = bz / bl;
-      let arx = -nfz, ary = 0, arz = nfx;
+      /* The hinge axis: horizontal, across the socket. */
+      let arx = nfz, ary = 0, arz = -nfx;
       const arl = Math.hypot(arx, ary, arz) || 1;
       arx /= arl; arz /= arl;
-      const aux = ary * nfz - arz * nfy;
-      const auy = arz * nfx - arx * nfz;
-      const auz = arx * nfy - ary * nfx;
+      const aux = nfy * arz - nfz * ary;
+      const auy = nfz * arx - nfx * arz;
+      const auz = nfx * ary - nfy * arx;
       /*
        * Swing the lid about that axis. Open is rotated up out of the way, but
        * not far enough to clear the eyeball — a real upper lid covers the top
@@ -4399,13 +4974,12 @@ class Renderer {
        */
       const hinge = (angle, out) => {
         const ca = Math.cos(angle), sa = Math.sin(angle);
-        const f2x = nfx * ca + aux * sa, f2y = nfy * ca + auy * sa, f2z = nfz * ca + auz * sa;
-        const u2x = -nfx * sa + aux * ca, u2y = -nfy * sa + auy * ca, u2z = -nfz * sa + auz * ca;
-        return Renderer.basis(out, arx, ary, arz, u2x, u2y, u2z, f2x, f2y, f2z,
+        return aimedBasis(out,
+          nfx * ca + aux * sa, nfy * ca + auy * sa, nfz * ca + auz * sa,
           ex, ey, ez, scale);
       };
 
-      hinge((1 - a.lid) * 1.00, lidM);
+      hinge((1 - a.lid) * LID.upperOpen, lidM);
       this._draw(side < 0 ? c.vao.lidL : c.vao.lidR, lidM, lidMat);
       if (side < 0) c.lidMatrixL = lidM; else c.lidMatrixR = lidM;
 
@@ -4413,7 +4987,7 @@ class Renderer {
        * is what a blink actually looks like, and the rest of the time it is the
        * thing that turns a sphere into an eye. */
       const lowM = mat4();
-      hinge(-(1.00 - a.lid * 0.28), lowM);
+      hinge(-(LID.lowerOpen - a.lid * 0.42), lowM);
       this._draw(side < 0 ? c.vao.lowL : c.vao.lowR, lowM, lidMat);
     }
 
@@ -5746,472 +6320,6 @@ class Audio {
   };
 })();
 
-__m["makeup/src/model/head.js"] = (function () {
-/*
- * head.js — the customer's head, built from face space.
- *
- * The shape is a pile of displacements applied to an ellipsoid: a socket here,
- * a bridge there, two lobes for the lips. None of it is sculpted by hand and
- * none of it is loaded from a file, which means a customer's face is a dozen
- * numbers and two customers are never the same person.
- *
- * `evalSurface` is the single definition of that shape. The mesh calls it for
- * every vertex; the eyeballs, the lids and the lashes call it to find where to
- * sit; the morph targets call it twice and subtract. Nothing recomputes the
- * face a second way, because the moment two definitions exist, an eyeball ends
- * up floating a millimetre outside a socket and it takes an afternoon to find
- * out why.
- *
- * Units are head half-heights: 1.0 is the distance from the middle of the head
- * to the crown, about 115mm. The model matrix scales that into the metres the
- * rest of the shop is built in.
- */
-
-const { MeshBuilder } = __m["makeup/src/model/mesh.js"];
-const { faceU, faceV, F, ellipse, pair, lipMask } = __m["makeup/src/model/face.js"];
-const { clamp, smoothstep } = __m["makeup/src/core/math.js"];
-
-const TAU = Math.PI * 2;
-
-/* Base proportions, before a customer's own numbers scale them. */
-const BASE_W = 0.74;
-const BASE_D = 0.86;
-
-function gauss(x, c, r) {
-  const d = (x - c) / r;
-  return Math.exp(-d * d);
-}
-function gauss2(s, cs, rs, t, ct, rt) {
-  return gauss(s, cs, rs) * gauss(t, ct, rt);
-}
-function band(t, a, b, soft = 0.05) {
-  return smoothstep(a - soft, a + soft, t) * (1 - smoothstep(b - soft, b + soft, t));
-}
-
-/*
- * A face, as numbers. Every one of them is a multiplier on a displacement, so
- * 1.0 is the average face and the generator only has to decide how far from
- * average to go.
- */
-function faceParams(rng) {
-  const g = (sd, lo, hi) => clamp(rng.gauss(1, sd), lo, hi);
-  return {
-    width: g(0.06, 0.86, 1.14),
-    length: g(0.05, 0.88, 1.12),
-    depth: g(0.04, 0.90, 1.10),
-    jaw: g(0.18, 0.55, 1.45),        /* how much the lower face tapers */
-    chin: g(0.30, 0.35, 1.75),
-    cheek: g(0.30, 0.30, 1.80),
-    brow: g(0.28, 0.40, 1.70),
-    nose: g(0.22, 0.55, 1.55),
-    noseBridge: g(0.25, 0.45, 1.60),
-    lip: g(0.30, 0.45, 1.85),
-    eyeSize: g(0.09, 0.82, 1.20),
-    eyeDeep: g(0.22, 0.55, 1.50),
-  };
-}
-
-const NEUTRAL_EXPR = { smile: 0, concern: 0, squint: 0 };
-
-/*
- * The shape function. `E` carries the expression, which is applied here rather
- * than in a separate pass so a smile bends the same surface everything else is
- * defined against.
- */
-function evalSurface(P, s, t, E = NEUTRAL_EXPR, out = [0, 0, 0]) {
-  const u = faceU(s), v = faceV(t);
-  const phi = (u - 0.5) * TAU;
-  const lam = v * Math.PI;
-  const sl = Math.sin(lam), cl = Math.cos(lam);
-
-  const W = BASE_W * P.width, H = P.length, D = BASE_D * P.depth;
-  let x = sl * Math.sin(phi) * W;
-  let y = cl * H;
-  let z = sl * Math.cos(phi) * D;
-
-  /* The lower face narrows into a jaw. Without this the head is an egg and
-   * every customer looks like the same egg. */
-  const jaw = smoothstep(0.48, 0.94, t);
-  x *= 1 - jaw * 0.42 * P.jaw;
-  z *= 1 - jaw * 0.14;
-  /* The crown is narrower than the widest part of the skull, which is at ear
-   * height — the difference is small and its absence is very visible. */
-  x *= 1 - smoothstep(0.20, 0.0, t) * 0.12;
-
-  /* Ellipsoid normal, good enough to displace along: the displacements are
-   * small compared with the radius, so using the undeformed normal costs
-   * nothing and avoids a second evaluation to get the deformed one. */
-  let nx = x / (W * W), ny = y / (P.length * P.length), nz = z / (D * D);
-  const nl = Math.hypot(nx, ny, nz) || 1;
-  nx /= nl; ny /= nl; nz /= nl;
-
-  /* How much of the front of the face we are on. Frontal features — the nose,
-   * the lips — push along +Z; past the corner of the eye that would drag the
-   * side of the head forward, so it fades out. */
-  const fr = Math.max(0, Math.cos(phi)) ** 0.6;
-
-  /* ---- displacement along the surface normal ---- */
-  const socket = 0.070 * P.eyeDeep * pair(s, t, F.eyeS, F.eyeT - 0.008, 0.118, 0.064, 0.85);
-  const temple = 0.020 * pair(s, t, 0.335, 0.285, 0.080, 0.080, 0.9);
-  const cheek = 0.028 * P.cheek * pair(s, t, F.cheekS + 0.012, 0.520, 0.130, 0.072, 0.85);
-  const foreheadFlat = 0.013 * ellipse(s, t, 0.5, 0.235, 0.30, 0.080, 0.9);
-  const hollow = 0.015 * pair(s, t, 0.258, 0.618, 0.090, 0.055, 0.9);
-  let dN = cheek - socket - temple - foreheadFlat - hollow;
-
-  /* ---- displacement along +Z ---- */
-  const browRidge = 0.034 * P.brow * pair(s, t, 0.135, F.browT + 0.014, 0.140, 0.032, 0.9);
-
-  const noseRidge = 0.056 * P.noseBridge * gauss(s, 0.5, 0.090) * band(t, 0.320, 0.500, 0.060);
-  const noseTip = 0.104 * P.nose * gauss2(s, 0.5, 0.085, t, F.noseTipT, 0.028);
-  const noseWing = 0.048 * P.nose * pair(s, t, F.noseHalfS, F.noseBaseT - 0.006, 0.070, 0.021, 0.8);
-  const noseUnder = -0.020 * ellipse(s, t, 0.5, F.noseBaseT + 0.016, 0.115, 0.016, 0.9);
-
-  const philtrum = -0.009 * gauss2(s, 0.5, 0.055, t, 0.552, 0.020);
-
-  const lm = lipMask(s, t);
-  const lipX = clamp((s - 0.5) / F.lipHalfS, -1, 1);
-  const lipCore = Math.pow(Math.max(0, 1 - lipX * lipX), 0.42);
-  const lips = 0.058 * P.lip * Math.pow(lm, 0.65)
-    - 0.024 * gauss(t, F.mouthT, 0.0075) * lipCore;
-
-  const sulcus = -0.013 * ellipse(s, t, 0.5, 0.655, 0.078, 0.022, 0.9);
-  const chin = 0.036 * P.chin * ellipse(s, t, 0.5, F.chinT, 0.088, 0.052, 0.85);
-
-  let dZ = browRidge + noseRidge + noseTip + noseWing + noseUnder
-    + philtrum + lips + sulcus + chin;
-
-  /* ---- expression ---- */
-  let dY = 0, dX = 0;
-  if (E.smile) {
-    /* A smile is mostly two corners going up and out, and the cheek mass that
-     * rides up with them. The lips themselves barely move. */
-    const corners = pair(s, t, F.lipHalfS * 0.90, F.mouthT + 0.004, 0.075, 0.048, 0.85);
-    dY += E.smile * 0.024 * corners;
-    dX += E.smile * 0.016 * corners * Math.sign(s - 0.5);
-    dN += E.smile * 0.014 * pair(s, t, F.cheekS, 0.540, 0.120, 0.065, 0.85);
-    dZ -= E.smile * 0.010 * lm;
-    /* and the lower lid rises, which is the difference between a smile and a
-     * mouth that happens to be curved */
-    dY += E.smile * 0.008 * pair(s, t, F.eyeS, F.lidBotT + 0.006, 0.070, 0.016, 0.8);
-  }
-  if (E.concern) {
-    const inner = pair(s, t, 0.075, F.browT - 0.004, 0.070, 0.028, 0.85);
-    dY += E.concern * 0.014 * inner;
-    dZ += E.concern * 0.010 * inner;
-    const corners = pair(s, t, F.lipHalfS * 0.88, F.mouthT + 0.006, 0.070, 0.042, 0.85);
-    dY -= E.concern * 0.018 * corners;
-    dZ -= E.concern * 0.008 * lm;
-  }
-  if (E.squint) {
-    dY += E.squint * 0.012 * pair(s, t, F.eyeS, F.lidBotT + 0.010, 0.075, 0.022, 0.8);
-    dY -= E.squint * 0.008 * pair(s, t, F.eyeS, F.creaseT + 0.010, 0.075, 0.026, 0.8);
-  }
-
-  out[0] = x + nx * dN + dX;
-  out[1] = y + ny * dN + dY;
-  out[2] = z + nz * dN + dZ * fr;
-  return out;
-}
-
-/*
- * Position and outward normal at an (s, t), by finite difference. Used to hang
- * the eyeballs, lids and lashes off the same surface the mesh is made of.
- */
-function surfaceFrame(P, s, t, E = NEUTRAL_EXPR) {
-  const h = 0.0025;
-  const p = evalSurface(P, s, t, E, []);
-  const ps = evalSurface(P, s + h, t, E, []);
-  const pt = evalSurface(P, s, t + h, E, []);
-  const ax = ps[0] - p[0], ay = ps[1] - p[1], az = ps[2] - p[2];
-  const bx = pt[0] - p[0], by = pt[1] - p[1], bz = pt[2] - p[2];
-  /* (ds x dt) points inwards with this parameterisation, so negate. */
-  let nx = -(ay * bz - az * by);
-  let ny = -(az * bx - ax * bz);
-  let nz = -(ax * by - ay * bx);
-  const l = Math.hypot(nx, ny, nz) || 1;
-  return { p, n: [nx / l, ny / l, nz / l] };
-}
-
-/* Baked ambient occlusion. The eye socket, the crease beside the nose and the
- * underside of the jaw are dark on every real face and free here — the fields
- * that carve them are already computed. */
-function headAO(P, s, t) {
-  const socket = pair(s, t, F.eyeS, F.eyeT - 0.006, 0.110, 0.060, 0.85);
-  const nostril = pair(s, t, F.nostrilS, F.noseBaseT + 0.004, 0.055, 0.026, 0.85);
-  const mouthLine = gauss(t, F.mouthT, 0.010) * Math.pow(Math.max(0, 1 - ((s - 0.5) / F.lipHalfS) ** 2), 0.4);
-  const underJaw = smoothstep(0.80, 0.98, t);
-  const underBrow = pair(s, t, F.eyeS, F.creaseT - 0.004, 0.110, 0.030, 0.9);
-  const sideNose = pair(s, t, 0.105, 0.470, 0.055, 0.070, 0.9);
-  return clamp(1
-    - 0.42 * socket - 0.30 * underBrow - 0.30 * nostril
-    - 0.35 * mouthLine - 0.55 * underJaw - 0.16 * sideNose, 0.22, 1);
-}
-
-const HEAD_GRID = { s: 128, t: 168 };
-
-/*
- * The head mesh, plus two morph targets.
- *
- * The grid is uniform in texture space, so the triangles land where the detail
- * is: about a third of them are between the brow and the chin, and the back of
- * the skull — which nobody paints and the hair covers — gets the rest.
- */
-function buildHead(P) {
-  const b = new MeshBuilder();
-  const { s: NS, t: NT } = HEAD_GRID;
-  const rows = [];
-  const p = [0, 0, 0];
-
-  for (let j = 0; j <= NT; j++) {
-    const t = j / NT;
-    const row = [];
-    for (let i = 0; i <= NS; i++) {
-      const s = i / NS;
-      evalSurface(P, s, t, NEUTRAL_EXPR, p);
-      /* Normals are computed from the triangles afterwards: the shape is a sum
-       * of a dozen fields and differentiating it analytically would be a
-       * second definition to keep in step with the first. */
-      row.push(b.vert(p[0], p[1], p[2], 0, 1, 0, s, t, headAO(P, s, t)));
-    }
-    rows.push(row);
-  }
-
-  for (let j = 0; j < NT; j++) {
-    for (let i = 0; i < NS; i++) {
-      /* The poles collapse to a point; emitting the degenerate triangles there
-       * would give computeNormals zero-area faces to average in. */
-      const a = rows[j][i], bb = rows[j][i + 1];
-      const c = rows[j + 1][i + 1], d = rows[j + 1][i];
-      if (j === 0) b.tri(a, c, d);
-      else if (j === NT - 1) b.tri(a, bb, d);
-      else b.quad(a, bb, c, d);
-    }
-  }
-
-  b.computeNormals();
-  b.weldNormals();
-  const mesh = b.build();
-
-  /* Morph targets, as deltas from the neutral position. Storing deltas rather
-   * than absolute positions means the vertex shader adds instead of mixing,
-   * and two expressions can be half-on at once without fighting. */
-  const morph = new Float32Array(mesh.positions.length * 4);
-  const targets = [{ ...NEUTRAL_EXPR, smile: 1 }, { ...NEUTRAL_EXPR, concern: 1 }];
-  for (let k = 0; k < 2; k++) {
-    const nb = new MeshBuilder();
-    for (let j = 0; j <= NT; j++) {
-      for (let i = 0; i <= NS; i++) {
-        evalSurface(P, i / NS, j / NT, targets[k], p);
-        nb.vert(p[0], p[1], p[2], 0, 1, 0, 0, 0, 1);
-      }
-    }
-    nb.idx = mesh.indices;
-    nb.computeNormals();
-    for (let vi = 0; vi < mesh.positions.length / 3; vi++) {
-      const o = vi * 12 + k * 6;
-      morph[o] = nb.pos[vi * 3] - mesh.positions[vi * 3];
-      morph[o + 1] = nb.pos[vi * 3 + 1] - mesh.positions[vi * 3 + 1];
-      morph[o + 2] = nb.pos[vi * 3 + 2] - mesh.positions[vi * 3 + 2];
-      morph[o + 3] = nb.nrm[vi * 3] - mesh.vertices[vi * 9 + 3];
-      morph[o + 4] = nb.nrm[vi * 3 + 1] - mesh.vertices[vi * 9 + 4];
-      morph[o + 5] = nb.nrm[vi * 3 + 2] - mesh.vertices[vi * 9 + 5];
-    }
-  }
-
-  return { mesh, morph };
-}
-
-/* ------------------------------------------------------------------ *
- * Eyes
- * ------------------------------------------------------------------ */
-
-/*
- * Where an eyeball goes. It is pushed back along the surface normal from the
- * middle of the socket so that the visible sliver of sclera sits flush with the
- * lid edge — the depth is a fraction of the radius rather than a constant,
- * because a customer with a bigger eye needs a deeper socket to hold it.
- */
-function eyeAnchor(P, side) {
-  const s = 0.5 + side * F.eyeS;
-  const { p, n } = surfaceFrame(P, s, F.eyeT);
-  /* A human eyeball is about 12mm across, which is 0.10 here — but almost all
-   * of it is behind the lids, and modelling it at full size on a face this
-   * stylised puts two spheres on the front of the head. */
-  const r = 0.090 * P.eyeSize;
-  const inset = r * 0.80;
-  return {
-    r,
-    s,
-    centre: [p[0] - n[0] * inset, p[1] - n[1] * inset, p[2] - n[2] * inset],
-    normal: n,
-  };
-}
-
-function buildEyeball(r) {
-  const b = new MeshBuilder();
-  /* The iris is a texture, not geometry, but the cornea in front of it is a
-   * real bulge — it is what makes the highlight sit proud of the eye instead
-   * of painted flat on it, and it is 12 lines. */
-  const NS = 32, NT = 24;
-  const rows = [];
-  for (let j = 0; j <= NT; j++) {
-    const lat = (j / NT) * Math.PI;
-    const row = [];
-    for (let i = 0; i <= NS; i++) {
-      const lon = (i / NS) * TAU;
-      const nx = Math.sin(lat) * Math.sin(lon);
-      const ny = Math.cos(lat);
-      const nz = Math.sin(lat) * Math.cos(lon);
-      /* Cornea: a small raised cap centred on +Z, which is where the eye looks. */
-      const bulge = 1 + 0.055 * smoothstep(0.80, 1.0, nz);
-      /*
-       * Planar UVs, not the sphere's own. The iris is a disc in the middle of
-       * its texture, and a longitude/latitude unwrap would smear it round the
-       * equator and leave the front of the eye sampling the sclera. Projecting
-       * straight down +Z puts the disc exactly where the eye looks; the back
-       * half folds onto the same texels and is never seen.
-       */
-      row.push(b.vert(nx * r * bulge, ny * r * bulge, nz * r * bulge,
-        nx, ny, nz, 0.5 + nx * 0.5, 0.5 - ny * 0.5, 1));
-    }
-    rows.push(row);
-  }
-  for (let j = 0; j < NT; j++) {
-    for (let i = 0; i < NS; i++) {
-      b.quad(rows[j][i], rows[j][i + 1], rows[j + 1][i + 1], rows[j + 1][i]);
-    }
-  }
-  b.computeNormals();
-  return b.build();
-}
-
-/*
- * The lid.
- *
- * A cap of a sphere a little larger than the eyeball, hinged on the eye's own
- * left-right axis. Closed, it covers the opening; open, it rotates up and tucks
- * under the brow.
- *
- * Its UVs are not its own. They are mapped into the head's texture space over
- * the lid zone, so a stroke of eyeshadow lands in the same texture whether it
- * hits the lid or the skin around it, and the colour on a closed lid is the
- * colour on the crease when it opens. One paint texture for the whole face is
- * worth the small oddity of a mesh borrowing another mesh's coordinates.
- */
-function buildLid(r, side, lower = false) {
-  const b = new MeshBuilder();
-  const R = r * 1.045;
-  const RINGS = 10, SEG = 28;
-  /* The upper lid has to reach past the middle of the eye when it closes; the
-   * lower one only ever covers the bottom sliver. */
-  const maxTheta = lower ? 0.92 : 1.16;
-  const rows = [];
-  const cs = 0.5 + side * F.eyeS;
-  const lidCentreT = lower
-    ? F.underEyeT - 0.008
-    : (F.creaseT + F.lidBotT) / 2 + 0.004;
-  const lidSpanT = lower ? 0.030 : 0.044;
-
-  for (let j = 0; j <= RINGS; j++) {
-    const theta = (j / RINGS) * maxTheta;
-    const st = Math.sin(theta), ct = Math.cos(theta);
-    const row = [];
-    for (let i = 0; i <= SEG; i++) {
-      const psi = (i / SEG) * TAU;
-      const px = st * Math.cos(psi);
-      const py = st * Math.sin(psi);
-      /* Slight flattening towards the outer corner keeps the lid from reading
-       * as a contact lens sitting on the face. */
-      const flat = 1 - 0.10 * Math.max(0, px * side);
-      const nx = px * flat, ny = py, nz = ct;
-      const nl = Math.hypot(nx, ny, nz);
-      row.push(b.vert(nx * R, ny * R, nz * R, nx / nl, ny / nl, nz / nl,
-        cs + px * 0.052 * (side > 0 ? 1 : -1),
-        lidCentreT - py * lidSpanT,
-        1 - 0.25 * (1 - j / RINGS)));
-    }
-    rows.push(row);
-  }
-  for (let j = 0; j < RINGS; j++) {
-    for (let i = 0; i < SEG; i++) {
-      b.quad(rows[j][i], rows[j + 1][i], rows[j + 1][i + 1], rows[j][i + 1]);
-    }
-  }
-  b.computeNormals();
-  return b.build();
-}
-
-/*
- * Lashes: a fan of tapered fins along the lower rim of the lid, swept forward
- * and up. They are geometry rather than a texture because mascara is a product
- * the player buys, and "the lashes got longer" has to be visible from the
- * distance the game is played at.
- *
- * Built at full length and scaled down by a uniform, so applying mascara does
- * not rebuild a mesh mid-stroke.
- */
-function buildLashes(r, side) {
-  const b = new MeshBuilder();
-  const R = r * 1.05;
-  const theta = 1.16;
-  const N = 26;
-  /* Only the lower arc of the cap carries lashes — the top of the lid is under
-   * the brow. Azimuth from -160 to -20 degrees, measured with +Y up. */
-  for (let i = 0; i < N; i++) {
-    const f = i / (N - 1);
-    const psi = (-2.79 + f * 2.44);
-    const st = Math.sin(theta), ct = Math.cos(theta);
-    const bx = st * Math.cos(psi) * R;
-    const by = st * Math.sin(psi) * R;
-    const bz = ct * R;
-
-    /* Direction the lash grows: away from the eye centre, curled up and out. */
-    const l = Math.hypot(bx, by, bz);
-    const outx = bx / l, outy = by / l, outz = bz / l;
-    const len = r * (0.34 + 0.20 * Math.sin(f * Math.PI));
-    const tipx = bx + outx * len * 0.35 + Math.sign(bx || 1) * len * 0.10;
-    const tipy = by + outy * len * 0.30 + len * 0.62;
-    const tipz = bz + outz * len * 0.55 + len * 0.30;
-
-    const w = r * 0.030 * (0.6 + 0.4 * Math.sin(f * Math.PI));
-    const a = b.vert(bx - w, by, bz, 0, 0, 1, f, 1, 1);
-    const c = b.vert(bx + w, by, bz, 0, 0, 1, f, 1, 1);
-    const d = b.vert(tipx, tipy, tipz, 0, 0, 1, f, 0, 1);
-    b.tri(a, c, d);
-    /* Doubled the other way round so a lash is visible from behind when the
-     * head turns; two triangles is cheaper than disabling face culling for the
-     * whole draw. */
-    b.tri(a, d, c);
-  }
-  void side;
-  b.computeNormals();
-  return b.build();
-}
-
-/*
- * Brow hairs are painted into the skin texture rather than modelled — a brow is
- * read as a shape and a density, never as individual hairs at this distance,
- * and the pencil product needs to darken and extend it, which a texture does
- * and a mesh does not.
- *
- * This is here as a note rather than a function because it is the kind of
- * decision that gets re-litigated by whoever adds the next feature.
- */
-
-  return {
-    "faceParams": faceParams,
-    "NEUTRAL_EXPR": NEUTRAL_EXPR,
-    "evalSurface": evalSurface,
-    "surfaceFrame": surfaceFrame,
-    "HEAD_GRID": HEAD_GRID,
-    "buildHead": buildHead,
-    "eyeAnchor": eyeAnchor,
-    "buildEyeball": buildEyeball,
-    "buildLid": buildLid,
-    "buildLashes": buildLashes,
-  };
-})();
-
 __m["makeup/src/model/body.js"] = (function () {
 /*
  * body.js — everything of the customer that is not the head: neck, shoulders,
@@ -6437,7 +6545,7 @@ function buildHair(P, styleName, rng) {
   }
   for (let k = 0; k < NK; k++) {
     for (let i = 0; i < NS; i++) {
-      b.quad(capRows[k][i], capRows[k][i + 1], capRows[k + 1][i + 1], capRows[k + 1][i]);
+      b.quad(capRows[k][i], capRows[k + 1][i], capRows[k + 1][i + 1], capRows[k][i + 1]);
     }
   }
 
@@ -6472,7 +6580,7 @@ function buildHair(P, styleName, rng) {
     }
     for (let j = 0; j < fallRows.length - 1; j++) {
       for (let i = 0; i < NS; i++) {
-        b.quad(fallRows[j][i], fallRows[j][i + 1], fallRows[j + 1][i + 1], fallRows[j + 1][i]);
+        b.quad(fallRows[j][i], fallRows[j + 1][i], fallRows[j + 1][i + 1], fallRows[j][i + 1]);
       }
     }
   }
@@ -7158,14 +7266,21 @@ function chooseArrival(rng, c) {
   const say2 = (t) => { c.arrivalNote = t; };
 
   const wrongShade = () => {
-    /* A base two or three steps off her own depth, or the wrong undertone —
-     * which is the specific mistake that makes someone look grey in photos and
-     * the thing they come to a counter to have fixed. */
+    /*
+     * A base a few steps off her own depth, or one undertone row across — the
+     * two mistakes a counter actually makes, and the ones people come in to
+     * have fixed.
+     *
+     * One or the other, not both. The shade list runs eight depths per
+     * undertone, so an offset large enough to change the row also changes the
+     * depth, and a customer who arrives wearing something six steps and a row
+     * away does not look like somebody was sold the wrong shade — she looks
+     * painted.
+     */
     const line = rng.chance(0.5) ? 'found-matte' : 'found-dewy';
     const shades = product(line).shades;
-    const best = closestShade(shades, c.skin);
-    const idx = shades.indexOf(best);
-    const off = idx + rng.pick([-4, -3, 3, 4, 6, -6]);
+    const idx = shades.indexOf(closestShade(shades, c.skin));
+    const off = idx + rng.pick([-3, -2, 2, 3, 8, -8]);
     return { id: line, shadeId: shades[clamp(off, 0, shades.length - 1)].id };
   };
 
@@ -7185,7 +7300,7 @@ function chooseArrival(rng, c) {
     const f = wrongShade();
     const lip = rng.pick(byCategory('lipstick'));
     const shadow = rng.pick(byCategory('eyeshadow'));
-    items.push({ id: f.id, shadeId: f.shadeId, coverage: rng.range(0.7, 0.95) });
+    items.push({ id: f.id, shadeId: f.shadeId, coverage: rng.range(0.55, 0.8) });
     items.push({ id: shadow.id, shadeId: rng.pick(shadow.shades).id, coverage: rng.range(0.5, 0.9) });
     items.push({ id: 'liner', shadeId: 'ln-black', coverage: rng.range(0.4, 0.8) });
     items.push({ id: lip.id, shadeId: rng.pick(lip.shades).id, coverage: rng.range(0.6, 0.95) });
@@ -7329,7 +7444,7 @@ function buildCustomerAssets(c, opts = {}) {
     skinRgb: c.skin,
     sssRgb: c.sss,
     lashRgb: [0.09, 0.08, 0.10],
-    lashOpacity: 0.45,
+    lashOpacity: 0.55,
     anim: {
       t: 0, yaw: 0, pitch: 0, morph: [0, 0],
       blink: 0, blinkTimer: 1.5, lid: 0,
@@ -8309,7 +8424,12 @@ function clearSave() {
 
 const DEFAULT_SETTINGS = {
   scale: 1,
+  /* The shop's surfaces. Separate from `face` on purpose: a wall four metres
+   * away and a cheekbone forty centimetres away do not want the same budget,
+   * and generating the room at face resolution is seconds of boot for detail
+   * nobody can see. */
   texture: 512,
+  face: 1024,
   paint: 1024,
   bloom: true,
   sound: true,
@@ -8317,8 +8437,15 @@ const DEFAULT_SETTINGS = {
   hints: true,
 };
 
-function loadSettings() {
-  return { ...DEFAULT_SETTINGS, ...read(SETTINGS_KEY, {}) };
+/*
+ * Defaults, then whatever the device guess says, then anything the player has
+ * actually changed. The order matters: reading the stored settings on top of
+ * the bare defaults and *then* applying the guess means the guess never
+ * applies, because the defaults are a complete object and shadow it — which is
+ * how the phone path quietly stopped working the first time round.
+ */
+function loadSettings(guess = {}) {
+  return { ...DEFAULT_SETTINGS, ...guess, ...read(SETTINGS_KEY, {}) };
 }
 
 function saveSettings(s) { return write(SETTINGS_KEY, s); }
@@ -8337,9 +8464,9 @@ function guessQuality() {
     && Math.min(window.innerWidth || 1280, window.innerHeight || 720) < 520;
 
   if (mobile || cores <= 4 || small) {
-    return { scale: 0.72, texture: 256, paint: 512, bloom: !small };
+    return { scale: 0.72, texture: 256, face: 512, paint: 512, bloom: !small };
   }
-  return { scale: 1, texture: 512, paint: 1024, bloom: true };
+  return { scale: 1, texture: 512, face: 1024, paint: 1024, bloom: true };
 }
 
   return {
@@ -8402,7 +8529,7 @@ const state = {
 };
 
 let renderer, paint, input, ui, audio, shift, masks;
-let settings = loadSettings();
+let settings = loadSettings(guessQuality());
 let customer = null;
 let assets = null;
 let lastResult = null;
@@ -8419,8 +8546,6 @@ function boot() {
   audio = new Audio();
 
   renderer = new Renderer(canvas);
-  const q = { ...guessQuality(), ...settings };
-  settings = { ...settings, ...q };
   renderer.quality = { scale: settings.scale, texture: settings.texture, bloom: settings.bloom };
 
   if (!renderer.init()) {
@@ -8570,6 +8695,19 @@ function updateProgress() {
   if (zone && stats[zone]) {
     ui.setCoverage(`כיסוי ${Math.round(stats[zone].coverage * 100)}%`);
   } else ui.setCoverage('');
+
+  /*
+   * Mascara is the one product whose result is geometry rather than colour on
+   * the skin, so the lashes read what landed on the lash line and thicken and
+   * darken to match. Without this the player buys a mascara, applies it, and
+   * nothing on the customer changes — which is the whole reason it is in the
+   * catalogue.
+   */
+  const c = renderer.customer;
+  if (c && stats.lash) {
+    c.lashOpacity = clamp(0.55 + stats.lash.coverage * 0.42, 0, 0.97);
+    if (stats.lash.rgb) c.lashRgb = stats.lash.rgb;
+  }
 }
 
 function updateTill() {
@@ -8611,7 +8749,7 @@ async function nextCustomer() {
   await nextFrame();
 
   customer = shift.next();
-  assets = buildCustomerAssets(customer, { skinSize: settings.texture >= 512 ? 512 : 256 });
+  assets = buildCustomerAssets(customer, { skinSize: settings.face || 1024 });
 
   paint.clear();
   paint.assist = settings.assist;

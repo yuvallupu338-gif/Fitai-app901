@@ -42,7 +42,12 @@ export function clearSave() {
 
 export const DEFAULT_SETTINGS = {
   scale: 1,
-  texture: 1024,
+  /* The shop's surfaces. Separate from `face` on purpose: a wall four metres
+   * away and a cheekbone forty centimetres away do not want the same budget,
+   * and generating the room at face resolution is seconds of boot for detail
+   * nobody can see. */
+  texture: 512,
+  face: 1024,
   paint: 1024,
   bloom: true,
   sound: true,
@@ -50,8 +55,15 @@ export const DEFAULT_SETTINGS = {
   hints: true,
 };
 
-export function loadSettings() {
-  return { ...DEFAULT_SETTINGS, ...read(SETTINGS_KEY, {}) };
+/*
+ * Defaults, then whatever the device guess says, then anything the player has
+ * actually changed. The order matters: reading the stored settings on top of
+ * the bare defaults and *then* applying the guess means the guess never
+ * applies, because the defaults are a complete object and shadow it — which is
+ * how the phone path quietly stopped working the first time round.
+ */
+export function loadSettings(guess = {}) {
+  return { ...DEFAULT_SETTINGS, ...guess, ...read(SETTINGS_KEY, {}) };
 }
 
 export function saveSettings(s) { return write(SETTINGS_KEY, s); }
@@ -70,7 +82,7 @@ export function guessQuality() {
     && Math.min(window.innerWidth || 1280, window.innerHeight || 720) < 520;
 
   if (mobile || cores <= 4 || small) {
-    return { scale: 0.72, texture: 512, paint: 512, bloom: !small };
+    return { scale: 0.72, texture: 256, face: 512, paint: 512, bloom: !small };
   }
-  return { scale: 1, texture: 1024, paint: 1024, bloom: true };
+  return { scale: 1, texture: 512, face: 1024, paint: 1024, bloom: true };
 }

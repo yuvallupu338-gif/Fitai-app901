@@ -184,6 +184,51 @@ export function lookAt(out, ex, ey, ez, tx, ty, tz) {
   return out;
 }
 
+/*
+ * A model matrix that points a mesh's +Z along `f`, with its +Y as close to
+ * world up as that allows, at `p`, scaled uniformly.
+ *
+ * The reason this is a shared function with a test rather than three lines at
+ * each call site: the frame has to be right-handed. Build it the other way
+ * round — right = forward x up instead of up x forward — and every axis still
+ * looks correct, the object still sits in the right place pointing the right
+ * way, and the matrix has a negative determinant, which mirrors the mesh and
+ * reverses which side of every triangle is the front. With back-face culling
+ * on, the object then draws its own far side, which for an eyeball parked in a
+ * socket means it draws the half that is inside the head and vanishes. Both
+ * eyes and all four lids were built that way, and the symptom was two dark
+ * holes in a face that was otherwise finished.
+ */
+export function aimedBasis(out, fx, fy, fz, px, py, pz, scale) {
+  const fl = Math.hypot(fx, fy, fz) || 1;
+  fx /= fl; fy /= fl; fz /= fl;
+
+  /* right = up x forward. Written out because two of world up's terms are 0. */
+  let rx = fz, ry = 0, rz = -fx;
+  let rl = Math.hypot(rx, ry, rz);
+  if (rl < 1e-6) { rx = 1; ry = 0; rz = 0; rl = 1; }
+  rx /= rl; ry /= rl; rz /= rl;
+
+  /* up = forward x right, which closes a right-handed frame. */
+  const ux = fy * rz - fz * ry;
+  const uy = fz * rx - fx * rz;
+  const uz = fx * ry - fy * rx;
+
+  out[0] = rx * scale; out[1] = ry * scale; out[2] = rz * scale; out[3] = 0;
+  out[4] = ux * scale; out[5] = uy * scale; out[6] = uz * scale; out[7] = 0;
+  out[8] = fx * scale; out[9] = fy * scale; out[10] = fz * scale; out[11] = 0;
+  out[12] = px; out[13] = py; out[14] = pz; out[15] = 1;
+  return out;
+}
+
+/* The determinant of a model matrix's rotation part. Negative means the mesh
+ * is mirrored, and every triangle in it has swapped which side is the front. */
+export function basisDeterminant(m) {
+  return m[0] * (m[5] * m[10] - m[6] * m[9])
+    - m[4] * (m[1] * m[10] - m[2] * m[9])
+    + m[8] * (m[1] * m[6] - m[2] * m[5]);
+}
+
 export function transformPoint(out, m, x, y, z) {
   const w = m[3] * x + m[7] * y + m[11] * z + m[15] || 1;
   out[0] = (m[0] * x + m[4] * y + m[8] * z + m[12]) / w;

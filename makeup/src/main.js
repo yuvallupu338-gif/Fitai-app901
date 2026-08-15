@@ -50,7 +50,7 @@ const state = {
 };
 
 let renderer, paint, input, ui, audio, shift, masks;
-let settings = loadSettings();
+let settings = loadSettings(guessQuality());
 let customer = null;
 let assets = null;
 let lastResult = null;
@@ -67,8 +67,6 @@ function boot() {
   audio = new Audio();
 
   renderer = new Renderer(canvas);
-  const q = { ...guessQuality(), ...settings };
-  settings = { ...settings, ...q };
   renderer.quality = { scale: settings.scale, texture: settings.texture, bloom: settings.bloom };
 
   if (!renderer.init()) {
@@ -218,6 +216,19 @@ function updateProgress() {
   if (zone && stats[zone]) {
     ui.setCoverage(`כיסוי ${Math.round(stats[zone].coverage * 100)}%`);
   } else ui.setCoverage('');
+
+  /*
+   * Mascara is the one product whose result is geometry rather than colour on
+   * the skin, so the lashes read what landed on the lash line and thicken and
+   * darken to match. Without this the player buys a mascara, applies it, and
+   * nothing on the customer changes — which is the whole reason it is in the
+   * catalogue.
+   */
+  const c = renderer.customer;
+  if (c && stats.lash) {
+    c.lashOpacity = clamp(0.55 + stats.lash.coverage * 0.42, 0, 0.97);
+    if (stats.lash.rgb) c.lashRgb = stats.lash.rgb;
+  }
 }
 
 function updateTill() {
@@ -259,7 +270,7 @@ async function nextCustomer() {
   await nextFrame();
 
   customer = shift.next();
-  assets = buildCustomerAssets(customer, { skinSize: settings.texture >= 1024 ? 1024 : 512 });
+  assets = buildCustomerAssets(customer, { skinSize: settings.face || 1024 });
 
   paint.clear();
   paint.assist = settings.assist;
