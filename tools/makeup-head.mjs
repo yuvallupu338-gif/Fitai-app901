@@ -26,7 +26,10 @@
  *   A model with no licence line. Nearly every head worth importing is
  *   Creative Commons Attribution: free to use, and free on the condition that
  *   the credit is shown. The game shows it on screen, so it is not paperwork —
- *   it is the term on which the model may be in the repository at all.
+ *   it is the term on which the model may be in the repository at all. Write
+ *   the whole condition into it: the author, the licence *with its URL*, and
+ *   that the work was changed — importing a head re-unwraps and cuts it, which
+ *   is a modification, and CC BY asks for that to be said.
  */
 
 import { createServer } from 'node:http';
@@ -269,7 +272,9 @@ function markupPage(suggestedId, ext) {
     <label class="muted">שם בעברית</label>
     <input type="text" id="name" value="">
     <label class="muted">קרדיט ורישיון — חובה</label>
-    <input type="text" id="credit" placeholder="Head by Someone (CC-BY 4.0), sketchfab.com/...">
+    <input type="text" id="credit" placeholder="Head by Someone · CC BY 4.0 (creativecommons.org/licenses/by/4.0) · modified">
+    <p class="muted">CC BY דורש שלושה דברים: היוצר, הרישיון עם הקישור, ושהיצירה שונתה.
+      ייבוא הוא שינוי — הוא פורש מחדש וחותך את המש.</p>
     <p class="muted">מה המשחק לא יבנה על הראש הזה — או כי כבר יש לו, או כי אסור שיהיה לו:</p>
     <div class="row">
       <label class="chk"><input type="checkbox" id="p-ears" checked> אוזניים</label>

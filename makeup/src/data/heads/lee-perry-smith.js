@@ -1,7 +1,7 @@
 /*
  * lee-perry-smith — לי
  *
- * Head scan by Lee Perry-Smith, Infinite-Realities · © I-R Entertainment Ltd. · CC BY 3.0
+ * "Infinite" 3D Head Scan by Lee Perry-Smith · © I-R Entertainment Ltd. · CC BY 3.0 (creativecommons.org/licenses/by/3.0) · modified: re-unwrapped, cut and culled
  *
  * Imported with `node tools/makeup-head.mjs add`. This is the result of the
  * import, not the file that was imported: positions are in head space and
@@ -18,7 +18,7 @@ export const HEAD_lee_perry_smith = {
   "id": "lee-perry-smith",
   "name": "לי",
   "gender": "m",
-  "credit": "Head scan by Lee Perry-Smith, Infinite-Realities · © I-R Entertainment Ltd. · CC BY 3.0",
+  "credit": "\"Infinite\" 3D Head Scan by Lee Perry-Smith · © I-R Entertainment Ltd. · CC BY 3.0 (creativecommons.org/licenses/by/3.0) · modified: re-unwrapped, cut and culled",
   "skip": [
     "ears",
     "hair",

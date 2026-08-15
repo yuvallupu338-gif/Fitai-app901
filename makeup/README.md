@@ -143,10 +143,34 @@ not close her eyes for an eyeshadow. What she liked still arrives as a line.
 
 ## Modelled heads
 
-The counter serves one: a photogrammetry scan of Lee Perry-Smith's head, by
-Infinite-Realities, © I-R Entertainment Ltd., under CC BY 3.0 — which is why
-the credit is on screen while he is being served. It arrived as a 17,684-triangle
-glTF with the artist's UVs on it and no idea what face space is.
+The counter serves one, and it is the only thing in this repository somebody
+else made:
+
+> **"Infinite" 3D Head Scan** by [Lee Perry-Smith](http://www.ir-ltd.net/),
+> © I-R Entertainment Ltd., licensed under
+> [CC BY 3.0 Unported](https://creativecommons.org/licenses/by/3.0/).
+> Obtained via the [three.js](https://github.com/mrdoob/three.js) example assets
+> and [Morgan McGuire's Computer Graphics Archive](https://casual-effects.com/data).
+> **Modified**: re-unwrapped into this game's texture space, cut below the neck,
+> and its hidden interior surfaces removed.
+
+CC BY requires the author, the licence and a note that the work was changed, so
+all three are in the credit line the game puts on screen while he is being
+served — that is not politeness, it is the condition on which the model may be
+here. It arrived as a 17,684-triangle glTF with the artist's UVs on it and no
+idea what face space is.
+
+Finding it was most of the work. The obvious sources mostly do not qualify:
+Sketchfab's download endpoint needs an account token, and a great many of its
+models — including good-looking ones — are under licences like *Editorial*,
+which does not cover use in a game whatever the download button says. Of the
+freely and directly downloadable heads with a licence that does, almost all are
+either museum scans of sculpture (blank carved eyes, and in several cases
+memorials, which is not what a makeup-counter customer should be) or CC0 base
+meshes locked inside a `.blend` that needs Blender to export. A real
+photogrammetric scan of a living face, at 17k triangles, under CC BY, with a
+direct download and the licence stated in the source archive's own metadata, is
+a narrow intersection.
 
 Adding another:
 
