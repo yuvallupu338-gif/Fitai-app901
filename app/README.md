@@ -2,16 +2,17 @@
 
 <div dir="rtl">
 
-האפליקציה שהייתה קובץ אחד של 24MB — עכשיו מפוצלת ל‑58 קבצים ולבושה בשפת
+האפליקציה שהייתה קובץ אחד של 24MB — עכשיו מפוצלת ל‑62 קבצים ולבושה בשפת
 העיצוב שהגיעה בקובץ ה‑ZIP: רקע כמעט שחור, אקסנט ליים אחד, Archivo ל‑latin
-ו‑Rubik לעברית, וכפתורי גלולה.
+ו‑Rubik לעברית, כפתורי גלולה, והלוגו החדש בכל מקום.
 
 </div>
 
 This started as a single `index.html`: 24 MB, 5,086 lines, one `<style>` block,
 one `<script>` block and about 23 MB of base64 sitting on 38 of those lines.
-It is now 58 files — one HTML shell, 7 stylesheets, 50 scripts — and it wears
-the design language from the *Mobile Sport App Design* handoff bundle.
+It is now 62 files — one HTML shell, 7 stylesheets, 49 scripts and 5 pieces of
+brand artwork — and it wears the design language from the *Mobile Sport App
+Design* handoff bundle.
 
 Nothing about what the app *does* changed.
 
@@ -22,8 +23,10 @@ app/
   src/                    41 files of application code, in
   src/, src/data/, src/plan/, src/screens/
   i18n/                   3 files of English and Spanish strings
-  assets/                 6 files, 23 MB — photographs, animations, the logo
-  tools/                  regenerate the fonts, check the load order, drive the app
+  assets/                 5 scripts, 23 MB — photographs and animations
+                          5 images — the brand marks, cut from one source
+  tools/                  rebuild the fonts and the logo, check the load order,
+                          drive the app in a browser
 ```
 
 ---
@@ -92,7 +95,7 @@ file declares:
 
 ```bash
 node app/tools/check-load-order.mjs
-# ✓ 50 files: nothing runs at load time that a later file declares
+# ✓ 49 files: nothing runs at load time that a later file declares
 ```
 
 Run it after moving anything between files, or after reordering `index.html`.
@@ -173,6 +176,35 @@ the label on its own.
   on top — and hands the text job to `#4F6B00`, which clears AA on both white
   and the card.
 
+### The brand
+
+The logo is one 640×640 lock-up — the F mark with the figure inside it, the
+FITAI wordmark, a tagline — and it arrives already lime on near-black, so it
+needed no adjusting to sit in this palette.
+
+`tools/build-logo.mjs` cuts it into the shapes the app actually uses. It finds
+the three bands of artwork by scanning for rows brighter than the corner pixel
+rather than trusting hard-coded coordinates, so redrawing the logo and
+re-running it re-crops correctly:
+
+| | | where |
+|---|---|---|
+| `logo-mark.png` | 256², the mark alone | top bar, all four onboarding screens, the tab icon, the apple-touch icon, and stamped on the progress card |
+| `logo-icon-512.png` | 512² | the PWA icon |
+| `logo-maskable.png` | 512², inside the safe zone | Android's maskable icon, which crops to a circle and would otherwise clip the F |
+| `logo-full.webp` | 560×464, the whole lock-up | the splash screen |
+
+At 34px in the top bar the wordmark and tagline are mud, which is why the mark
+is cut out and squared on its own; the splash has room for the lock-up whole.
+
+They are **files, not base64 inside a script** — which is a change from how the
+single file carried them. The script holding the logo loaded after 23 MB of
+exercise animations, so the brand was the last thing to appear. As files, the
+stylesheet paints the top bar mark and the markup paints the splash on the
+first frame, before a single line of application code has run. The one thing
+that still needs them by name is the installed app's manifest, which is built
+from a `blob:` URL and therefore takes absolute paths (`src/pwa.js`).
+
 ### The stylesheets
 
 Cascade order, and `index.html` links them in it:
@@ -197,6 +229,7 @@ cannot be re-fetched byte for byte.
 ```bash
 node app/tools/check-load-order.mjs   # the guard described above
 node app/tools/fetch-fonts.mjs        # rebuild styles/fonts.css from Google Fonts
+node app/tools/build-logo.mjs         # re-cut the brand marks from assets/logo-source.png
 node app/tools/smoke.mjs              # drive the whole app in Chromium
 node app/tools/recolor.mjs .          # the design pass's colour map (already applied)
 ```

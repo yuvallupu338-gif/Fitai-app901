@@ -12,6 +12,13 @@
 <meta name="apple-mobile-web-app-title" content="FitAI">
 <title>FitAI — מאמן כושר ותזונה אישי</title>
 
+<!-- The brand marks are files, not base64 inside a script, so the tab icon and
+     the top bar are painted on the first frame rather than after 23 MB of
+     exercise animations have arrived. src/pwa.js points the installed app at
+     the larger cuts of the same artwork. -->
+<link rel="icon" type="image/png" href="assets/logo-mark.png">
+<link rel="apple-touch-icon" href="assets/logo-mark.png">
+
 <!-- The design language, in cascade order: the faces, the tokens they are
      named in, the page, the components, the screens, and last the motion. -->
 <link rel="stylesheet" href="styles/fonts.css">
@@ -23,7 +30,8 @@
 </head>
 <body>
 
-<div id="splash"><div class="lg">✦</div><div class="t">FitAI</div><div class="ring"></div><div class="s">טוען את האפליקציה…</div></div>
+<!-- The lock-up already says FitAI, so the splash does not say it twice. -->
+<div id="splash"><img class="lg" src="assets/logo-full.webp" width="560" height="464" alt="FitAI"><div class="ring"></div><div class="s">טוען את האפליקציה…</div></div>
 
 <div class="topbar app">
   <button class="profbtn" id="profBtn" aria-label="תפריט פרופיל"><span class="av" id="profAv">י</span><span id="profName">פרופיל</span> <span style="color:var(--muted2)">▾</span></button>
@@ -130,7 +138,6 @@
 
 <!-- reminders, install, first run, start -->
 <script src="src/notifications.js"></script>
-<script src="assets/logo.js"></script>
 <script src="src/pwa.js"></script>
 <script src="src/onboarding.js"></script>
 <script src="src/boot.js"></script>

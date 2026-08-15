@@ -47,10 +47,11 @@ served alongside it as a single-file copy that also works offline.
 
 `app/` is the other FitAI — the large single-file build with profiles, the skill
 tree, the food log and the guided session — unpacked from one 24 MB
-`index.html` into 58 files, and re-dressed in the design language from the
+`index.html` into 62 files, and re-dressed in the design language from the
 *Mobile Sport App Design* handoff bundle: near-black ground, one lime accent,
-Archivo over Rubik, pills instead of rounded rectangles. It is served at
-`/app/` and keeps its own storage, so it does not touch anything above. See
+Archivo over Rubik, pills instead of rounded rectangles, and the FitAI mark
+everywhere from the tab icon to the progress card. It is served at `/app/` and
+keeps its own storage, so it does not touch anything above. See
 [`app/README.md`](app/README.md).
 
 ### Also in this repo: `backrooms/`

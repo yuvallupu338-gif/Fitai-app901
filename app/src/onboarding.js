@@ -97,7 +97,6 @@ function obCalculating(){
     '<div class="obcalc-bar"><i id="obCalcFill"></i></div>'+
     '<div style="margin-top:20px;text-align:start">'+steps.map(function(st,i){return '<div class="obcalc-step" id="obcs'+i+'"><span class="obcalc-ic">'+st[0]+'</span><span class="obcalc-tx">'+st[1]+'</span><span class="obcalc-chk" id="obck'+i+'"></span></div>';}).join('')+'</div>'+
     '</div></div>';
-  try{var lb=w.querySelector('.logobox');if(lb&&typeof LOGO_MARK!=='undefined')lb.style.backgroundImage='url('+LOGO_MARK+')';}catch(e){}
   try{translateEl(w);}catch(e){}
   var total=steps.length,per=1350,done=0,fill=document.getElementById('obCalcFill');
   var iv=setInterval(function(){
@@ -127,7 +126,6 @@ function obPayoff(){
       '<li>מעקב משקל, רצף ימים, XP ודרגות</li></ul></div>'+
     '<button class="btn grad" style="margin-top:16px;width:100%" onclick="obGo()">בוא נתחיל 💪</button>'+
     '</div></div>';
-  try{var lb=w.querySelector('.logobox');if(lb&&typeof LOGO_MARK!=='undefined')lb.style.backgroundImage='url('+LOGO_MARK+')';}catch(e){}
   try{translateEl(w);}catch(e){}
 }
 function obGo(){var w=document.getElementById('obwrap');if(w){w.innerHTML='';w.style.display='none';}render();toast('ברוך הבא ל-FitAI! 🎯');}

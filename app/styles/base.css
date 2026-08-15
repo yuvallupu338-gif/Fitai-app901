@@ -82,10 +82,12 @@ html.light .brand b i { color: var(--teal2) }
   width: 34px; height: 34px; border-radius: 12px; background: var(--grad);
   display: grid; place-items: center; font-size: 18px; color: var(--ink);
 }
+/* Every place the app shows its mark — the top bar, the four onboarding
+   screens — is a .logobox, so the artwork is set once, here. */
 .logobox {
   width: 34px; height: 34px; border-radius: 12px;
-  background-color: var(--card2); background-position: center;
-  background-size: cover; background-repeat: no-repeat;
+  background-color: #0B0C0E; background-image: url(../assets/logo-mark.png);
+  background-position: center; background-size: cover; background-repeat: no-repeat;
   display: inline-block; vertical-align: middle; flex: none;
   border: 1px solid var(--line);
 }
@@ -106,8 +108,10 @@ html.light .brand b i { color: var(--teal2) }
   gap: 18px; transition: opacity .45s ease;
 }
 #splash.hide { opacity: 0; pointer-events: none }
-#splash .lg { font-size: 54px; line-height: 1; color: var(--accent); animation: faiPulse 1.6s ease-in-out infinite }
-#splash .t { font-family: var(--display); font-weight: 800; font-size: 26px; letter-spacing: -.03em; color: var(--txt) }
+#splash .lg {
+  width: 240px; max-width: 66vw; height: auto; border-radius: 22px;
+  display: block; animation: faiPulse 1.8s ease-in-out infinite;
+}
 #splash .ring {
   width: 44px; height: 44px; border-radius: 50%;
   border: 2px solid rgba(255, 255, 255, .08); border-top-color: var(--accent);

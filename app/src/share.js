@@ -42,6 +42,9 @@ function shareCard(){
       toast('כרטיס ההתקדמות הורד 📸');
     },'image/png');
   }
+  // The mark, stamped on the card. Same-origin, so it does not taint the
+  // canvas and toBlob below still works. LOGO_MARK comes from src/pwa.js —
+  // fine, because nothing here runs until the user asks to share.
   var img=new Image();
   img.onload=function(){try{g.drawImage(img,440,150,200,200);}catch(e){}paint();};
   img.onerror=function(){paint();};
