@@ -6,7 +6,7 @@
  *
  *   node tools/verify-single.mjs [path/to/floor-zero.html]
  */
-import { existsSync } from 'node:fs';
+import { existsSync, mkdirSync } from 'node:fs';
 import { fileURLToPath, pathToFileURL } from 'node:url';
 import path from 'node:path';
 
@@ -84,7 +84,11 @@ check(
   await page.evaluate(() => !!localStorage.getItem('floor-zero.save.v1')),
 );
 
-await page.screenshot({ path: path.join(path.dirname(file), 'floor-zero-single.png') });
+// Keep the debug frame inside the project's own build directory: the file
+// under test may live in a tracked one.
+const shot = path.join(root, 'dist', 'verify-single.png');
+mkdirSync(path.dirname(shot), { recursive: true });
+await page.screenshot({ path: shot });
 
 const real = errors.filter((text) => !/favicon|AudioContext|autoplay|Deprecat/i.test(text));
 check('no console errors', real.length === 0, real.slice(0, 3).join(' | '));
