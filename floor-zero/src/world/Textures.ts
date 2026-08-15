@@ -73,6 +73,91 @@ function blob(
 }
 
 /* ------------------------------------------------------------------ */
+/* Derived maps                                                        */
+/* ------------------------------------------------------------------ */
+
+/** Luminance of a canvas texture, as a 0..1 array the derivers share. */
+function luminanceOf(texture: THREE.Texture): { data: Float32Array; width: number; height: number } {
+  const source = texture.image as HTMLCanvasElement;
+  const width = source.width;
+  const height = source.height;
+  const ctx = source.getContext('2d', { willReadFrequently: true });
+  if (!ctx) throw new Error('cannot read a texture that is not canvas backed');
+  const pixels = ctx.getImageData(0, 0, width, height).data;
+  const data = new Float32Array(width * height);
+  for (let i = 0; i < data.length; i++) {
+    data[i] = (pixels[i * 4] * 0.299 + pixels[i * 4 + 1] * 0.587 + pixels[i * 4 + 2] * 0.114) / 255;
+  }
+  return { data, width, height };
+}
+
+/**
+ * Sobel height-to-normal. The diffuse textures already encode where a surface
+ * is worn, cracked or grouted, so treating their luminance as a height field
+ * gives every wall and floor real relief under the moving corridor lights —
+ * which is most of the difference between "boxes with pictures on them" and a
+ * place.
+ */
+export function normalFromTexture(texture: THREE.Texture, strength = 2.2): THREE.CanvasTexture {
+  const { data, width, height } = luminanceOf(texture);
+  const { canvas, ctx } = surface(width, height);
+  const out = ctx.createImageData(width, height);
+  const at = (x: number, y: number): number =>
+    data[((y + height) % height) * width + ((x + width) % width)];
+
+  for (let y = 0; y < height; y++) {
+    for (let x = 0; x < width; x++) {
+      const dx =
+        at(x - 1, y - 1) + 2 * at(x - 1, y) + at(x - 1, y + 1) -
+        (at(x + 1, y - 1) + 2 * at(x + 1, y) + at(x + 1, y + 1));
+      const dy =
+        at(x - 1, y - 1) + 2 * at(x, y - 1) + at(x + 1, y - 1) -
+        (at(x - 1, y + 1) + 2 * at(x, y + 1) + at(x + 1, y + 1));
+
+      const nx = dx * strength;
+      const ny = dy * strength;
+      const length = Math.hypot(nx, ny, 1);
+      const index = (y * width + x) * 4;
+      out.data[index] = ((nx / length) * 0.5 + 0.5) * 255;
+      out.data[index + 1] = ((ny / length) * 0.5 + 0.5) * 255;
+      out.data[index + 2] = ((1 / length) * 0.5 + 0.5) * 255;
+      out.data[index + 3] = 255;
+    }
+  }
+
+  ctx.putImageData(out, 0, 0);
+  const result = toTexture(canvas, 1, 1);
+  result.colorSpace = THREE.NoColorSpace;
+  return result;
+}
+
+/**
+ * Darker, dirtier parts of a surface scatter more. Mapping luminance onto a
+ * roughness range gives polished terrazzo its sheen while leaving the grout and
+ * the damp patches matte.
+ */
+export function roughnessFromTexture(
+  texture: THREE.Texture,
+  darkRoughness = 0.95,
+  lightRoughness = 0.55,
+): THREE.CanvasTexture {
+  const { data, width, height } = luminanceOf(texture);
+  const { canvas, ctx } = surface(width, height);
+  const out = ctx.createImageData(width, height);
+  for (let i = 0; i < data.length; i++) {
+    const value = (darkRoughness + (lightRoughness - darkRoughness) * data[i]) * 255;
+    out.data[i * 4] = value;
+    out.data[i * 4 + 1] = value;
+    out.data[i * 4 + 2] = value;
+    out.data[i * 4 + 3] = 255;
+  }
+  ctx.putImageData(out, 0, 0);
+  const result = toTexture(canvas, 1, 1);
+  result.colorSpace = THREE.NoColorSpace;
+  return result;
+}
+
+/* ------------------------------------------------------------------ */
 
 export function wallTexture(seed = 7): THREE.CanvasTexture {
   const size = 512;

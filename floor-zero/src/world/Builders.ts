@@ -80,6 +80,11 @@ export class Builder {
     this.group.name = 'level';
   }
 
+  /** Multiplier emissive props apply so they bloom. */
+  get emissiveBoost(): number {
+    return this.materials.emissiveBoost;
+  }
+
   private resolve(material: MaterialKey | THREE.Material): THREE.Material {
     return typeof material === 'string' ? this.materials.get(material) : material;
   }

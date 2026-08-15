@@ -31,7 +31,7 @@ const POOL_SIZE: Record<QualityLevel, number> = { low: 3, medium: 5, high: 7 };
  * are authored as relative values around 1.0, so they are scaled by this before
  * reaching the renderer.
  */
-const CANDELA_PER_UNIT = 8.5;
+const CANDELA_PER_UNIT = 3.4;
 
 /**
  * Fluorescent lighting with a fixed budget of real lights. Fixtures are
@@ -45,12 +45,13 @@ export class LightingManager {
   private fixtures: Fixture[] = [];
   private quality: QualityLevel = 'medium';
   private globalDim = 1;
+  private emissiveBoost = 1;
   private blackoutTimer = 0;
   private sortScratch: Array<{ fixture: Fixture; distance: number }> = [];
 
   constructor(private readonly scene: THREE.Scene) {
-    this.ambient = new THREE.AmbientLight(0x2e343c, 0.62);
-    this.hemisphere = new THREE.HemisphereLight(0x39404a, 0x14161a, 0.35);
+    this.ambient = new THREE.AmbientLight(0x2a3038, 0.20);
+    this.hemisphere = new THREE.HemisphereLight(0x39404a, 0x14161a, 0.12);
     scene.add(this.ambient);
     scene.add(this.hemisphere);
     this.setQuality('medium');
@@ -74,18 +75,28 @@ export class LightingManager {
     }
   }
 
+  /** Emissive tubes are driven past white so the bloom pass has something to find. */
+  setEmissiveBoost(boost: number): void {
+    this.emissiveBoost = Math.max(1, boost);
+  }
+
   setShadows(enabled: boolean): void {
-    // Only the first two pooled lights ever cast shadows — more than that is
-    // not affordable and adds nothing in a corridor.
+    // Only the closest few lights cast: a point-light shadow is six faces, so
+    // each one is expensive, and past three the corridor gains nothing.
+    const casters = this.quality === 'high' ? 3 : this.quality === 'medium' ? 2 : 0;
+    const resolution = this.quality === 'high' ? 1024 : 512;
     this.pool.forEach((light, index) => {
-      const wants = enabled && index < 2 && this.quality !== 'low';
-      if (light.castShadow !== wants) {
-        light.castShadow = wants;
-        light.shadow.mapSize.set(512, 512);
-        light.shadow.bias = -0.004;
-        light.shadow.camera.near = 0.2;
-        light.shadow.camera.far = 12;
-      }
+      const wants = enabled && index < casters;
+      if (light.castShadow === wants) return;
+      light.castShadow = wants;
+      light.shadow.mapSize.set(resolution, resolution);
+      // Thin trim (architraves, skirting) sits millimetres off the wall, so the
+      // normal bias has to clear it or the casing bands with shadow acne.
+      light.shadow.bias = -0.0012;
+      light.shadow.normalBias = 0.09;
+      light.shadow.camera.near = 0.04;
+      light.shadow.camera.far = 14;
+      light.shadow.needsUpdate = true;
     });
   }
 
@@ -215,7 +226,7 @@ export class LightingManager {
       if (fixture.emissive) {
         const material = fixture.emissive.material as THREE.MeshBasicMaterial;
         const level = 0.06 + fixture.current * 0.94;
-        material.color.copy(fixture.baseColor).multiplyScalar(level);
+        material.color.copy(fixture.baseColor).multiplyScalar(level * this.emissiveBoost);
       }
     }
 

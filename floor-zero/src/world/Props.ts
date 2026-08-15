@@ -123,6 +123,28 @@ export function createSwingDoor(builder: Builder, doors: DoorSystem, options: Sw
   if (options.axis === 'z') handle.rotation.y = Math.PI / 2;
   pivot.add(handle);
 
+  // Architrave: a plain painted casing around the opening. Cheap, but it is
+  // the difference between a hole in a wall and a door.
+  const casing = 0.07;
+  const casingDepth = (options.thickness ?? 0.06) + 0.16;
+  // The casing straddles each edge of the opening rather than butting against
+  // it: coplanar faces with the wall would z-fight at grazing angles.
+  const head = options.axis === 'x'
+    ? { center: [start + width / 2, height, options.at] as [number, number, number],
+        size: [width + casing * 2, casing, casingDepth] as [number, number, number] }
+    : { center: [options.at, height, start + width / 2] as [number, number, number],
+        size: [casingDepth, casing, width + casing * 2] as [number, number, number] };
+  builder.decor({ material: 'skirting', center: head.center, size: head.size });
+  for (const side of [-1, 1] as const) {
+    const along = start + width / 2 + side * (width / 2);
+    const jamb = options.axis === 'x'
+      ? { center: [along, height / 2, options.at] as [number, number, number],
+          size: [casing, height + casing, casingDepth] as [number, number, number] }
+      : { center: [options.at, height / 2, along] as [number, number, number],
+          size: [casingDepth, height + casing, casing] as [number, number, number] };
+    builder.decor({ material: 'skirting', center: jamb.center, size: jamb.size });
+  }
+
   const colliderId = `${options.id}_col`;
   const centerAlong = start + width / 2;
   builder.addCollider({

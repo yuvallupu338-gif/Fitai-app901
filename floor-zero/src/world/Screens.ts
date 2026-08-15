@@ -212,6 +212,8 @@ export function buildMonitor(
     width: number;
     height: number;
     depth?: number;
+    /** Overdrive so the screen feeds the bloom pass. */
+    boost?: number;
   },
 ): { group: THREE.Group; feedSurface: ScreenSurface; screenMesh: THREE.Mesh } {
   const { position, rotationY, width, height } = options;
@@ -234,6 +236,7 @@ export function buildMonitor(
   const screenGeometry = new THREE.PlaneGeometry(width, height);
   trackGeometry(screenGeometry);
   const screenMaterial = ownMaterial(new THREE.MeshBasicMaterial({ map: surface.texture }));
+  screenMaterial.color.setScalar(Math.max(1, (options.boost ?? 1) * 0.55));
   const screenMesh = new THREE.Mesh(screenGeometry, screenMaterial);
   screenMesh.position.z = 0.006;
   group.add(screenMesh);

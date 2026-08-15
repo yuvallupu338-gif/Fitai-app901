@@ -156,6 +156,9 @@ export function buildElevatorCar(builder: Builder, doors: DoorSystem, frame: Fra
     name: 'lift_display',
   });
   displayMesh.renderOrder = 1;
+  (displayMesh.material as THREE.MeshBasicMaterial).color.setScalar(
+    Math.max(1, builder.emissiveBoost * 0.6),
+  );
 
   // Mirror on the back wall.
   const [mx, mz] = frame.point(-CAR_DEPTH + 0.02, 0);

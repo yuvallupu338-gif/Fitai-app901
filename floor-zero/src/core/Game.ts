@@ -3,6 +3,8 @@ import { AudioManager } from '../audio/AudioManager';
 import { TensionSystem } from '../audio/TensionAudioSystem';
 import { AnomalyDirector } from '../anomalies/AnomalyDirector';
 import { PostFX } from '../fx/PostFX';
+import { buildEnvironment } from '../fx/Environment';
+import { DustField } from '../fx/Dust';
 import { InputManager } from '../input/InputManager';
 import { TouchControls } from '../input/TouchControls';
 import { InteractionSystem } from '../interactions/InteractionSystem';
@@ -52,6 +54,8 @@ export class Game implements GameContext {
   time = 0;
 
   private loop: GameLoop;
+  private environment: THREE.Texture;
+  private dust: DustField;
   private checkpointSnapshot: RunState | null = null;
   private travelling = false;
   private chaseArmed = false;
@@ -74,8 +78,11 @@ export class Game implements GameContext {
     this.renderer.setPixelRatio(this.devicePixelRatio());
     this.renderer.setSize(container.clientWidth || window.innerWidth, container.clientHeight || window.innerHeight);
     this.renderer.shadowMap.enabled = this.settings.shadows;
-    this.renderer.shadowMap.type = THREE.PCFShadowMap;
+    this.renderer.shadowMap.type =
+      this.settings.quality === 'high' ? THREE.PCFSoftShadowMap : THREE.PCFShadowMap;
     this.renderer.outputColorSpace = THREE.SRGBColorSpace;
+    // Tone mapping lives in the post chain when it is on; PostFX.setQuality
+    // switches the renderer's own mapping to match.
     this.renderer.toneMapping = THREE.ACESFilmicToneMapping;
     this.renderer.toneMappingExposure = 1.15;
     this.renderer.domElement.className = 'viewport';
@@ -86,12 +93,15 @@ export class Game implements GameContext {
 
     this.camera = new THREE.PerspectiveCamera(this.settings.fov, 16 / 9, 0.06, 90);
 
-    this.world = new LevelManager(this.scene);
+    this.world = new LevelManager(this.scene, this.settings.quality);
     this.player = new PlayerController(this.camera, this.scene);
     this.mimic = new MimicDirector(this.scene);
     this.tension = new TensionSystem(this.audio, this.bus);
     this.anomalies = new AnomalyDirector(this.bus, this.state.run.seed);
     this.postfx = new PostFX(this.renderer);
+    this.environment = buildEnvironment(this.renderer);
+    this.world.setEnvironment(this.environment);
+    this.dust = new DustField(this.scene);
 
     this.input = new InputManager(this.renderer.domElement);
     this.touch = new TouchControls(container);
@@ -211,13 +221,37 @@ export class Game implements GameContext {
     this.ui.applySettings(settings);
     this.touch.setSensitivity(settings.touchSensitivity);
     this.renderer.shadowMap.enabled = settings.shadows && settings.quality !== 'low';
+    this.renderer.shadowMap.type =
+      settings.quality === 'high' ? THREE.PCFSoftShadowMap : THREE.PCFShadowMap;
     this.renderer.setPixelRatio(this.devicePixelRatio());
-    this.world.setQuality(settings.quality, settings.shadows);
+    const needsRebuild = this.world.setQuality(settings.quality, settings.shadows);
     this.postfx.setQuality(settings.quality);
+    if (needsRebuild) this.reloadForQuality();
     this.postfx.setStrength(settings.screenEffects);
+    this.dust.setEnabled(settings.quality !== 'low' && !settings.reduceMotion);
     this.camera.fov = settings.fov;
     this.camera.updateProjectionMatrix();
     if (persist) this.save.saveSettings(settings);
+  }
+
+  /**
+   * The material library was swapped out under the level, so the geometry has
+   * to be rebuilt against the new one. The player keeps their position.
+   */
+  private reloadForQuality(): void {
+    const params = this.world.reloadParams;
+    if (!params) return;
+    const position = this.player.position.clone();
+    const yaw = this.player.yaw;
+    const pitch = this.player.pitch;
+    this.loadLevel(params.id, params.variant);
+    this.player.teleport(position.x, position.z, yaw);
+    this.player.view.pitch = pitch;
+    if (this.world.current?.elevator) {
+      this.world.elevator.snapDoors(this.state.phase !== 'playing' || this.world.levelId === 'floor0');
+      this.world.elevator.powered = this.state.flag('lobby_power') || this.state.flag('floor_power');
+      this.world.elevator.setDisplay('0');
+    }
   }
 
   private resetSave(): void {
@@ -839,6 +873,7 @@ export class Game implements GameContext {
       this.updateMenuScene(delta);
     }
 
+    this.dust.update(delta, this.camera, this.world.lighting, 0.55 + this.tension.normalized * 0.5);
     this.audio.updateListener(this.camera);
     this.audio.update(delta);
     this.ui.update(delta, this);
@@ -873,12 +908,14 @@ export class Game implements GameContext {
     const level = this.tension.normalized;
     const brightness = this.world.lighting.brightnessAt(this.camera.position);
     this.postfx.setTargets({
-      grain: 0.035 + level * 0.075 + (1 - brightness) * 0.02,
-      vignette: 0.62 + level * 0.3,
+      grain: 0.026 + level * 0.05 + (1 - brightness) * 0.012,
+      vignette: 0.72 + level * 0.28,
       aberration: 0.0009 + level * 0.0035,
       warp: this.settings.reduceMotion ? 0.012 : 0.016 + level * 0.05,
-      exposure: 1.02 - level * 0.08 + (brightness < 0.15 ? 0.06 : 0),
-      contrast: 1.01 + level * 0.09,
+      exposure: 0.95 - level * 0.1 + (brightness < 0.15 ? 0.07 : 0),
+      contrast: 1.05 + level * 0.1,
+      bloom: 0.85 + level * 0.35,
+      ao: 0.85,
     });
     this.postfx.update(delta, this.time);
   }
@@ -984,6 +1021,7 @@ export class Game implements GameContext {
     this.loop.stop();
     this.sequencer.stopAll();
     this.audio.dispose();
+    this.dust.dispose();
     this.mimic.dispose();
     this.world.dispose();
     this.postfx.dispose();

@@ -19,14 +19,26 @@ import type { SecurityFeed } from './Screens';
 export class LevelManager {
   readonly lighting: LightingManager;
   readonly elevator = new ElevatorController();
-  readonly materials: MaterialLibrary;
+  materials: MaterialLibrary;
   private build: LevelBuild | null = null;
   private emptyNav = new NavGraph();
   private currentRoom = '';
+  private quality: QualityLevel = 'medium';
+  private lastLoad: { id: LevelId; variant: number; chapter: number } | null = null;
+  private environment: THREE.Texture | null = null;
 
-  constructor(private readonly scene: THREE.Scene) {
-    this.materials = new MaterialLibrary();
+  constructor(private readonly scene: THREE.Scene, quality: QualityLevel = 'medium') {
+    this.quality = quality;
+    this.materials = new MaterialLibrary(quality);
     this.lighting = new LightingManager(scene);
+    this.lighting.setQuality(quality);
+    this.lighting.setEmissiveBoost(this.materials.emissiveBoost);
+  }
+
+  /** The pre-filtered probe used for ambient specular on every PBR surface. */
+  setEnvironment(environment: THREE.Texture | null): void {
+    this.environment = environment;
+    this.scene.environment = environment;
   }
 
   get current(): LevelBuild | null {
@@ -53,9 +65,36 @@ export class LevelManager {
     return this.build?.variant ?? 0;
   }
 
-  setQuality(quality: QualityLevel, shadows: boolean): void {
+  /**
+   * Returns true when the caller must reload the level: the material library is
+   * rebuilt when the tier crosses the physical/cheap boundary, and the existing
+   * meshes still point at the old materials.
+   */
+  setQuality(quality: QualityLevel, shadows: boolean): boolean {
+    const previous = this.quality;
+    this.quality = quality;
     this.lighting.setQuality(quality);
     this.lighting.setShadows(shadows);
+    this.lighting.setEmissiveBoost(this.materials.emissiveBoost);
+
+    const wasPhysical = previous !== 'low';
+    const isPhysical = quality !== 'low';
+    const detailChanged = wasPhysical && isPhysical && previous !== quality;
+    if (wasPhysical === isPhysical && !detailChanged) return false;
+
+    const rebuilt = new MaterialLibrary(quality);
+    const stale = this.materials;
+    this.unload();
+    this.materials = rebuilt;
+    stale.dispose();
+    this.scene.environment = this.environment;
+    this.lighting.setEmissiveBoost(this.materials.emissiveBoost);
+    return true;
+  }
+
+  /** Parameters of the level currently loaded, for rebuilding it in place. */
+  get reloadParams(): { id: LevelId; variant: number; chapter: number } | null {
+    return this.lastLoad;
   }
 
   /** Tears down the current level, builds the new one and wires it up. */
@@ -73,6 +112,7 @@ export class LevelManager {
           });
 
     this.build = next;
+    this.lastLoad = { id, variant: options.variant, chapter: options.chapter };
     this.scene.add(next.builder.group);
 
     this.lighting.clearFixtures();

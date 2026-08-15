@@ -25,24 +25,33 @@ const chromePath = [process.env.FZ_CHROME, '/opt/pw-browsers/chromium-1194/chrom
 
 mkdirSync(out, { recursive: true });
 
-const server = spawn('npx', ['vite', 'preview', '--port', String(PORT), '--strictPort', '--host', '127.0.0.1'], {
+const BASE = `http://127.0.0.1:${PORT}/`;
+const alreadyServing = await fetch(BASE, { signal: AbortSignal.timeout(1500) })
+  .then((response) => response.ok)
+  .catch(() => false);
+
+const server = alreadyServing
+  ? null
+  : spawn('npx', ['vite', 'preview', '--port', String(PORT), '--strictPort', '--host', '127.0.0.1'], {
   cwd: root,
   stdio: ['ignore', 'pipe', 'pipe'],
 });
-for (const signal of ['SIGINT', 'SIGTERM', 'exit']) {
-  process.on(signal, () => server.kill('SIGTERM'));
+if (server) {
+  for (const signal of ['SIGINT', 'SIGTERM', 'exit']) {
+    process.on(signal, () => server.kill('SIGTERM'));
+  }
+  await new Promise((resolve, reject) => {
+    const timer = setTimeout(() => reject(new Error('server did not start')), 25000);
+    const onData = (buffer) => {
+      if (buffer.toString().includes('Local:')) {
+        clearTimeout(timer);
+        resolve();
+      }
+    };
+    server.stdout.on('data', onData);
+    server.stderr.on('data', onData);
+  });
 }
-await new Promise((resolve, reject) => {
-  const timer = setTimeout(() => reject(new Error('server did not start')), 25000);
-  const onData = (buffer) => {
-    if (buffer.toString().includes('Local:')) {
-      clearTimeout(timer);
-      resolve();
-    }
-  };
-  server.stdout.on('data', onData);
-  server.stderr.on('data', onData);
-});
 
 const browser = await chromium.launch({
   ...(chromePath ? { executablePath: chromePath } : {}),
@@ -51,7 +60,7 @@ const browser = await chromium.launch({
 const page = await browser.newPage({ viewport: { width: 960, height: 540 } });
 page.on('pageerror', (error) => console.log('[pageerror]', String(error).slice(0, 400)));
 
-await page.goto(`http://127.0.0.1:${PORT}/`, { waitUntil: 'load' });
+await page.goto(BASE, { waitUntil: 'load' });
 await page.waitForFunction(() => window.__floorZero?.state.phase === 'menu', null, { timeout: 60000 });
 
 // Unlock chapter select the way finishing the game would, then use it.
@@ -61,12 +70,15 @@ await page.evaluate(() => {
   g.state.meta.highestChapterReached = 5;
   g.save.saveMeta(g.state.meta);
   g.ui.menu.setMeta(g.state.meta, g.save.hasRun);
-  g.applySettings({ ...g.settings, quality: 'medium', shadows: false, screenEffects: 0.8 }, false);
+  g.applySettings({ ...g.settings, quality: 'high', shadows: true, screenEffects: 0.85 }, false);
 });
 await page.click('text=בחירת פרק');
 await page.waitForTimeout(400);
 await page.click('text=פרק 5');
 await page.waitForFunction(() => window.__floorZero.state.phase === 'playing', null, { timeout: 60000 });
+// This is a photo tool: keep the chapter-5 chase (and its blackout) from
+// arming while the camera is teleported around.
+await page.evaluate(() => window.__floorZero.state.setFlag('entered_control'));
 await page.waitForTimeout(3000);
 
 const shots = [
@@ -107,5 +119,5 @@ for (const shot of shots) {
 }
 
 await browser.close();
-server.kill('SIGTERM');
+server?.kill('SIGTERM');
 process.exit(0);

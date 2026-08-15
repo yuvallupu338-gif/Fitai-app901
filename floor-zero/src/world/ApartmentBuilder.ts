@@ -372,7 +372,13 @@ export function buildApartment03(fc: FloorBuildContext): void {
     (object) => fc.builder.addObject(object),
     (geometry) => fc.builder.trackGeometry(geometry),
     (material) => fc.builder.own(material),
-    { position: [11.28, 1.15, -7.4], rotationY: Math.PI / 2, width: 0.62, height: 0.46 },
+    {
+      position: [11.28, 1.15, -7.4],
+      rotationY: Math.PI / 2,
+      width: 0.62,
+      height: 0.46,
+      boost: fc.builder.emissiveBoost,
+    },
   );
   const tvFeed = new SecurityFeed(tv.feedSurface, 'corridor', 10);
   fc.feeds.push(tvFeed);
@@ -768,6 +774,7 @@ export function buildControlRoom(fc: FloorBuildContext): void {
           width: 0.44,
           height: 0.34,
           depth: 0.24,
+          boost: fc.builder.emissiveBoost,
         },
       );
       const feed = new SecurityFeed(monitor.feedSurface, kinds[index % kinds.length], 8);
