@@ -321,11 +321,14 @@ export function buildCustomerAssets(c, opts = {}) {
    * framing — everything that on a generated head comes out of the shape
    * function, because an import has no shape function. What it does not bring
    * is the body: the neck, the hands and the clothes are still the game's, and
-   * `provides` says which of those the model already has so they are not built
-   * twice into the same space.
+   * `skip` says which of those must not be built on it — either because the
+   * model already has them, or because it should not have them. A scan of a
+   * bald man gets no procedural hair: the hair is grown from the *generated*
+   * face's proportions, which are not this head's, so it hangs beside the face
+   * like a pair of curtains.
    */
   const imported = opts.head || null;
-  const has = (part) => imported && imported.provides.includes(part);
+  const has = (part) => imported && (imported.skip || []).includes(part);
   const built = imported ? loadHead(imported) : buildHead(P);
   const head = built.mesh, morph = built.morph;
 
@@ -353,11 +356,19 @@ export function buildCustomerAssets(c, opts = {}) {
     ears: has('ears') ? empty : buildEars(P),
     hands: buildHands(P),
     hair: has('hair') ? empty : buildHair(P, c.hairStyle, rng),
-    eye: buildEyeball(eyeL.r),
-    lidL: buildLid(eyeL.r, -1),
-    lidR: buildLid(eyeR.r, 1),
-    lowL: buildLid(eyeL.r, -1, true),
-    lowR: buildLid(eyeR.r, 1, true),
+    /*
+     * A scan usually comes with its eyes already in it, and closed — which for
+     * a makeup counter is not a loss but the pose eyeshadow is applied in. The
+     * game's own eyeballs and lid shells would sit on top of them as a second
+     * pair, so `skip: ['eyes']` drops both. The lashes stay: they are the
+     * only thing a mascara changes, and they hang off the lid rim rather than
+     * on the lid, so they land on a closed eye exactly as well as an open one.
+     */
+    eye: has('eyes') ? empty : buildEyeball(eyeL.r),
+    lidL: has('eyes') ? empty : buildLid(eyeL.r, -1),
+    lidR: has('eyes') ? empty : buildLid(eyeR.r, 1),
+    lowL: has('eyes') ? empty : buildLid(eyeL.r, -1, true),
+    lowR: has('eyes') ? empty : buildLid(eyeR.r, 1, true),
     lashL: buildLashes(eyeL.r, -1),
     lashR: buildLashes(eyeR.r, 1),
     eyeL,

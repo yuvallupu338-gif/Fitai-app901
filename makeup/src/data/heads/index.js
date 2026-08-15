@@ -1,3 +1,5 @@
+import { HEAD_lee_perry_smith } from './lee-perry-smith.js';
+
 /*
  * heads/index.js — the modelled heads the counter can serve.
  *
@@ -17,8 +19,12 @@
  *   id             stable, and the seed a customer is generated from
  *   name           what she is called at the counter
  *   credit         the model's author and licence — see below
- *   provides       which of the game's own parts the model already has, out of
- *                  'ears', 'hair', 'neck'; the game skips building those
+ *   gender         the dialogue is gendered, and a scan is a particular person
+ *   skip           which of the game's own parts must not be built on this head,
+ *                  out of 'ears', 'hair', 'neck', 'eyes' — either because the
+ *                  model already has them, or because it must not have them: a
+ *                  bald scan gets no procedural hair, because the hair is grown
+ *                  from the generated face's proportions and not from this one's
  *   vertexCount    what the packed arrays hold
  *   triangleCount
  *   eyeL/eyeR      pupil centres in head space, from the marks
@@ -36,4 +42,6 @@
  * download button says.
  */
 
-export const HEADS = [];
+export const HEADS = [
+  HEAD_lee_perry_smith,
+];

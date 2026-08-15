@@ -133,8 +133,9 @@ async function save(record) {
 export const ${ident(id)} = ${JSON.stringify({
     id,
     name: record.name || id,
+    gender: record.gender === 'm' ? 'm' : 'f',
     credit: record.credit,
-    provides: record.provides || [],
+    skip: record.skip || [],
     landmarks: record.landmarks,
     vertexCount: record.vertexCount,
     triangleCount: record.triangleCount,
@@ -269,11 +270,18 @@ function markupPage(suggestedId, ext) {
     <input type="text" id="name" value="">
     <label class="muted">קרדיט ורישיון — חובה</label>
     <input type="text" id="credit" placeholder="Head by Someone (CC-BY 4.0), sketchfab.com/...">
-    <p class="muted">מה כבר קיים במודל (המשחק לא יבנה את זה מעליו):</p>
+    <p class="muted">מה המשחק לא יבנה על הראש הזה — או כי כבר יש לו, או כי אסור שיהיה לו:</p>
     <div class="row">
       <label class="chk"><input type="checkbox" id="p-ears" checked> אוזניים</label>
       <label class="chk"><input type="checkbox" id="p-hair"> שיער</label>
       <label class="chk"><input type="checkbox" id="p-neck"> צוואר</label>
+      <label class="chk"><input type="checkbox" id="p-eyes"> עיניים</label>
+    </div>
+    <div class="row">
+      <label class="chk"><input type="checkbox" id="cut" checked> לחתוך מתחת לצוואר</label>
+      <label class="chk">מין:
+        <select id="gender"><option value="f">נקבה</option><option value="m">זכר</option></select>
+      </label>
     </div>
     <div class="row"><button id="save" disabled>שמירה</button></div>
     <div id="msg">טוען את המודל…</div>
@@ -300,7 +308,7 @@ const statsEl = document.getElementById('stats');
 const saveBtn = document.getElementById('save');
 
 let source = null, marks = {}, current = 0, unwrapped = null;
-const cam = { yaw: 0, pitch: 0, dist: 3, target: [0, 0, 0], radius: 1 };
+const cam = { yaw: 0, pitch: 0, dist: 3, target: [0, 0, 0], centre: [0, 0, 0], radius: 1 };
 
 /* ---------------------------------------------------------------- *
  * A very small renderer. Two programs: the model, and the model with
@@ -466,7 +474,10 @@ function check() {
     return;
   }
   try {
-    unwrapped = unwrapHead(source, marks);
+    /* Almost every downloadable head is a bust, and the shoulders are both
+     * useless here and where the unwrap does its worst work. */
+    unwrapped = unwrapHead(source, marks,
+      document.getElementById('cut').checked ? { cutBelowY: -1.05 } : {});
   } catch (err) {
     unwrapped = null; saveBtn.disabled = true;
     msg.textContent = err.message;
@@ -485,12 +496,19 @@ function check() {
   frameOn(p);
   const s = unwrapped.stats;
   statsEl.textContent =
-    \`התאמה: \${s.residual.toFixed(4)} (טוב מתחת ל-0.05)
-קיפולים: \${s.flipped} מתוך \${s.triangles}
-תפר: \${s.seamSplit} קודקודים שוכפלו\`;
+    \`חפיפה: \${(s.overlap * 100).toFixed(2)}% מהפנים הצבועות (טוב מתחת ל-3%)
+התאמה: \${s.residual.toFixed(4)} (טוב מתחת ל-0.10)
+משולשים: \${s.triangles} — הוסתרו \${s.culled}, נחתכו \${s.cutTriangles}\`;
   const problems = [];
-  if (s.residual > 0.09) problems.push('ההתאמה רחוקה — כנראה נקודה על הפיצ׳ר הלא נכון');
-  if (s.flipped / s.triangles > 0.05) problems.push('חלק גדול מהמש מתקפל');
+  /*
+   * The gate is the overlap, not the fold count. A fold is where the surface
+   * turns away from the middle of the head — a lip seam, a nostril rim — and a
+   * dense scan has thousands of them while being perfect. What ruins a face is
+   * two different parts of it claiming the same texel, because paint applied
+   * once then appears twice.
+   */
+  if (s.overlap > 0.05) problems.push('חלקים מהפנים נופלים אחד על השני — כנראה נקודה על הפיצ׳ר הלא נכון');
+  if (s.residual > 0.14) problems.push('ההתאמה רחוקה — כדאי לבדוק את הנקודות');
   if (s.orderProblems.length) problems.push(s.orderProblems[0]);
   msg.textContent = problems.length
     ? problems.join(' · ')
@@ -506,7 +524,8 @@ function frameOn(positions) {
       hi[k] = Math.max(hi[k], positions[i + k]);
     }
   }
-  cam.target = [(lo[0] + hi[0]) / 2, (lo[1] + hi[1]) / 2, (lo[2] + hi[2]) / 2];
+  cam.centre = [(lo[0] + hi[0]) / 2, (lo[1] + hi[1]) / 2, (lo[2] + hi[2]) / 2];
+  cam.target = cam.centre.slice();
   cam.radius = Math.max(hi[0] - lo[0], hi[1] - lo[1], hi[2] - lo[2]) / 2 || 1;
   cam.dist = cam.radius * 3.2;
 }
@@ -547,6 +566,7 @@ cv.addEventListener('wheel', (e) => {
   cam.dist = Math.max(cam.radius * 0.15, Math.min(cam.radius * 12, cam.dist * (1 + Math.sign(e.deltaY) * 0.1)));
 }, { passive: false });
 
+document.getElementById('cut').onchange = () => check();
 document.getElementById('v-front').onclick = () => { cam.yaw = 0; cam.pitch = 0; };
 document.getElementById('v-left').onclick = () => { cam.yaw = -1.2; cam.pitch = 0; };
 document.getElementById('v-right').onclick = () => { cam.yaw = 1.2; cam.pitch = 0; };
@@ -569,20 +589,58 @@ window.__tool = {
   place(key, p) { marks[key] = p; drawList(); check(); },
   get stats() { return unwrapped && unwrapped.stats; },
   get triangles() { return source && source.stats.triangles; },
+  get marks() { return marks; },
   message: () => msg.textContent,
+  /* Point the camera, for a driver that has no hands. */
+  view(yaw, pitch, dist, targetY) {
+    cam.yaw = yaw; cam.pitch = pitch;
+    if (dist) cam.dist = cam.radius * dist;
+    if (targetY !== undefined) cam.target[1] = cam.centre[1] + cam.radius * targetY;
+  },
+  get frame() { return { radius: cam.radius, centre: cam.centre.slice(), target: cam.target.slice() }; },
+  /* Screen position to a point on the model — the same ray the click fires, so
+   * a mark placed through here is a mark placed by clicking there. */
+  pickAt(clientX, clientY) {
+    const r = cv.getBoundingClientRect();
+    rayFromScreen(ray, ivp,
+      ((clientX - r.left) / r.width) * 2 - 1,
+      1 - ((clientY - r.top) / r.height) * 2);
+    return rayMesh(ray, source, hit) ? [hit.x, hit.y, hit.z] : null;
+  },
+  /* And back, so a driver can check where a mark it placed appears. */
+  project(p) {
+    const w = vp[3] * p[0] + vp[7] * p[1] + vp[11] * p[2] + vp[15];
+    const x = (vp[0] * p[0] + vp[4] * p[1] + vp[8] * p[2] + vp[12]) / w;
+    const y = (vp[1] * p[0] + vp[5] * p[1] + vp[9] * p[2] + vp[13]) / w;
+    const r = cv.getBoundingClientRect();
+    return [r.left + (x * 0.5 + 0.5) * r.width, r.top + (0.5 - y * 0.5) * r.height];
+  },
+  /* Draw the marks over the model, so a screenshot shows where they landed.
+   * Once the unwrap has run the model on screen is the head-space one, so the
+   * marks have to be carried through the pose to land on it — projecting the
+   * model's own coordinates onto it puts every mark in the sky. */
+  overlay() {
+    const out = {};
+    const toHead = unwrapped ? unwrapped.pose.toHead : null;
+    for (const [k, p] of Object.entries(marks)) {
+      out[k] = window.__tool.project(toHead ? toHead(p) : p);
+    }
+    return out;
+  },
 };
 
 saveBtn.onclick = async () => {
   saveBtn.disabled = true;
   msg.textContent = 'אורז…';
-  const provides = ['ears', 'hair', 'neck'].filter((p) => document.getElementById('p-' + p).checked);
+  const skip = ['ears', 'hair', 'neck', 'eyes'].filter((p) => document.getElementById('p-' + p).checked);
   let record;
   try {
     record = packHead(unwrapped, {
       id: document.getElementById('id').value.trim(),
       name: document.getElementById('name').value.trim(),
       credit: document.getElementById('credit').value.trim(),
-      provides,
+      gender: document.getElementById('gender').value,
+      skip,
       landmarks: marks,
     });
   } catch (err) { msg.textContent = err.message; saveBtn.disabled = false; return; }

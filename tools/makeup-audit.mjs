@@ -825,6 +825,93 @@ async function main() {
       nose: 1, noseBridge: 1, lip: 1, eyeSize: 1, eyeDeep: 1,
     }).mesh;
     const avg = boxOf(average.positions);
+    /* ---- the hidden layers ---- *
+     *
+     * The step that makes a real downloaded head work, and the one whose
+     * absence is invisible until somebody paints. A scan is not a single sheet:
+     * the front of the neck sits behind the chin, the eyelids sit in front of
+     * the socket, a nostril has a far wall. All of them get an (s, t) and all
+     * of them land on top of the skin the player is aiming at.
+     *
+     * The test builds exactly that — a head with a second, smaller copy of
+     * itself hidden inside — and asserts that the overlap measure sees it and
+     * the cull removes it. It also asserts the cull leaves a clean head alone,
+     * which is the failure that would quietly delete a cheek.
+     */
+    {
+      const clean = unwrapMod.unwrapHead({ positions: moved, indices: src.indices }, marks);
+      check(clean.stats.overlap < 0.001,
+        `a single-sheet head has nothing lying on top of itself (${(clean.stats.overlap * 100).toFixed(3)}%)`);
+      check(clean.stats.culled === 0,
+        `and the cull takes nothing off it (${clean.stats.culled} triangles)`);
+
+      /* The same head with a copy of itself at 80% of the radius inside it —
+       * a stand-in for a neck behind a chin, and geometrically the same
+       * problem. */
+      const n = moved.length / 3;
+      const doubled = new Float32Array(moved.length * 2);
+      doubled.set(moved, 0);
+      const centre = [0, 0, 0];
+      for (let i = 0; i < n; i++) for (let k = 0; k < 3; k++) centre[k] += moved[i * 3 + k] / n;
+      for (let i = 0; i < n; i++) {
+        for (let k = 0; k < 3; k++) {
+          doubled[(n + i) * 3 + k] = centre[k] + (moved[i * 3 + k] - centre[k]) * 0.8;
+        }
+      }
+      const both = new Uint32Array(src.indices.length * 2);
+      both.set(src.indices, 0);
+      for (let i = 0; i < src.indices.length; i++) both[src.indices.length + i] = src.indices[i] + n;
+
+      const layered = unwrapMod.unwrapHead({ positions: doubled, indices: both }, marks, { cull: false });
+      check(layered.stats.overlap > 0.5,
+        `a head with a second layer inside it is measured as covered twice (${(layered.stats.overlap * 100).toFixed(0)}%)`);
+
+      const fixed = unwrapMod.unwrapHead({ positions: doubled, indices: both }, marks);
+      check(fixed.stats.overlap < 0.02,
+        `and the cull removes the layer (${(fixed.stats.overlap * 100).toFixed(2)}%)`);
+      check(fixed.stats.culled > src.triangles * 0.7,
+        `by dropping about half the triangles (${fixed.stats.culled} of ${both.length / 3})`);
+      /* And what it kept is the outer one, not the inner one. */
+      let maxR = 0;
+      for (let i = 0; i < fixed.mesh.positions.length; i += 3) {
+        maxR = Math.max(maxR, Math.hypot(fixed.mesh.positions[i],
+          fixed.mesh.positions[i + 1], fixed.mesh.positions[i + 2]));
+      }
+      let cleanR = 0;
+      for (let i = 0; i < clean.mesh.positions.length; i += 3) {
+        cleanR = Math.max(cleanR, Math.hypot(clean.mesh.positions[i],
+          clean.mesh.positions[i + 1], clean.mesh.positions[i + 2]));
+      }
+      near(maxR, cleanR, 0.02, 'and the shell it kept is the outer one');
+
+      /*
+       * And the other half of the rule, which depth alone cannot express: a
+       * surface facing back towards the middle of the head. The inside of a
+       * lip and the far wall of a nostril are exactly that, and they can sit
+       * *outside* the skin in front of them, so the depth test keeps them. The
+       * stand-in is the same head at 102% with its winding reversed.
+       */
+      const inward = new Float32Array(moved.length * 2);
+      inward.set(moved, 0);
+      for (let i = 0; i < n; i++) {
+        for (let k = 0; k < 3; k++) {
+          inward[(n + i) * 3 + k] = centre[k] + (moved[i * 3 + k] - centre[k]) * 1.02;
+        }
+      }
+      const flippedIdx = new Uint32Array(src.indices.length * 2);
+      flippedIdx.set(src.indices, 0);
+      for (let f = 0; f < src.indices.length; f += 3) {
+        flippedIdx[src.indices.length + f] = src.indices[f] + n;
+        flippedIdx[src.indices.length + f + 1] = src.indices[f + 2] + n;
+        flippedIdx[src.indices.length + f + 2] = src.indices[f + 1] + n;
+      }
+      const facing = unwrapMod.unwrapHead({ positions: inward, indices: flippedIdx }, marks);
+      check(facing.stats.culled >= src.triangles * 0.9,
+        `a shell facing back into the head is dropped whether or not it is in front (${facing.stats.culled})`);
+      check(facing.stats.overlap < 0.02,
+        `leaving one sheet behind (${(facing.stats.overlap * 100).toFixed(2)}%)`);
+    }
+
     /* ---- packed and unpacked ---- *
      *
      * What ships is not the file that was imported, it is the unwrap: sixteen
@@ -836,7 +923,7 @@ async function main() {
     {
       const headsMod = await load('model/import/heads.js');
       const record = headsMod.packHead(out, {
-        id: 'audit-head', name: 'בדיקה', credit: 'audit', provides: ['ears'],
+        id: 'audit-head', name: 'בדיקה', credit: 'audit', skip: ['ears'],
         landmarks: marks,
       });
       check(record.vertexCount === out.stats.vertices && record.triangleCount === out.stats.triangles,

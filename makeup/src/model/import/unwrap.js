@@ -36,7 +36,7 @@
  * folds is a head whose marks are wrong, and the number is how you tell.
  */
 
-import { faceU, faceV, F } from '../face.js';
+import { faceU, faceV, F, buildMasks } from '../face.js';
 import { evalSurface, headAO, HEAD_AXES, NEUTRAL_EXPR } from '../head.js';
 import {
   LANDMARK_KEYS, MESH_EDGE_S, VERTICAL_ANCHORS, horizontalAnchors,
@@ -238,6 +238,230 @@ export function fitPose(landmarks) {
 }
 
 /* ------------------------------------------------------------------ *
+ * Keeping only the surface you can see
+ * ------------------------------------------------------------------ */
+
+/*
+ * Throw away everything hiding behind something else.
+ *
+ * This is the step that makes a real downloaded head work at all, and it took a
+ * picture to find. A spherical unwrap gives every point on the surface an
+ * (s, t) — including the points that are *behind* other points along the same
+ * ray out of the middle of the head. On the generated head that never happens,
+ * because the generated head is a single sheet built from the parameterisation
+ * itself. On a scan it happens constantly:
+ *
+ *   the front of the neck and the underside of the jaw sit directly behind the
+ *   chin and the lower lip, so the whole bottom third of the face is claimed
+ *   three times over;
+ *   the two closed eyelids and the socket behind them are three layers at the
+ *   same longitude and latitude;
+ *   the inside of a nostril, the far wall of an ear, the inner surfaces of the
+ *   lips — all of them queue up behind the skin the player is trying to paint.
+ *
+ * Left in, a texel painted once appears in two places, and the second place is
+ * usually somewhere absurd like the underside of the jaw. Measured on a real
+ * scan it was forty-one percent of the paintable face.
+ *
+ * The fix is a depth buffer in face space. Every triangle is rasterised keeping
+ * the *largest* radius at each texel — the outermost shell as seen from inside
+ * the head — and then any triangle sitting clearly behind that shell is
+ * dropped. What survives is a single sheet, which is what a texture wants.
+ *
+ * The margin is deliberately generous. Where a surface is nearly parallel to
+ * the ray the radius test is noisy, and a strict threshold punches holes in the
+ * cheek at the silhouette; a loose one leaves a little of the neck behind the
+ * jaw, which nothing paints.
+ */
+function cullHidden(positions, indices, rawST, margin = 0.10, size = 256) {
+  const tri = indices.length / 3;
+  const radius = new Float32Array(positions.length / 3);
+  for (let i = 0; i < radius.length; i++) {
+    radius[i] = Math.hypot(
+      positions[i * 3] / HEAD_AXES.w,
+      positions[i * 3 + 1] / HEAD_AXES.h,
+      positions[i * 3 + 2] / HEAD_AXES.d);
+  }
+
+  /*
+   * Two tests, because one of them alone gets it wrong in a way that shows.
+   *
+   * The first is which way the surface faces. A triangle whose outward normal
+   * points back towards the middle of the head is a surface you are looking at
+   * from behind: the inside of a lip, the far wall of an ear, the roof of a
+   * nostril. Nothing paints those and nothing should see them.
+   *
+   * The second is depth, and it is the one that removes the neck from behind
+   * the chin. It has to be rasterised properly rather than by bounding box: a
+   * brow ridge and the crease beside it share texels, and a bounding-box depth
+   * pass floods the ridge's radius across the crease and then deletes the
+   * crease — which on a real face is a hole through the eyebrow.
+   */
+  const nrm = new Float32Array(tri * 3);
+  const facing = new Float32Array(tri);
+  for (let f = 0, k = 0; f < indices.length; f += 3, k++) {
+    const a = indices[f] * 3, b = indices[f + 1] * 3, c = indices[f + 2] * 3;
+    const e1 = [positions[b] - positions[a], positions[b + 1] - positions[a + 1], positions[b + 2] - positions[a + 2]];
+    const e2 = [positions[c] - positions[a], positions[c + 1] - positions[a + 1], positions[c + 2] - positions[a + 2]];
+    const n = cross(e1, e2);
+    const l = Math.hypot(n[0], n[1], n[2]) || 1;
+    nrm[k * 3] = n[0] / l; nrm[k * 3 + 1] = n[1] / l; nrm[k * 3 + 2] = n[2] / l;
+    const cx = (positions[a] + positions[b] + positions[c]) / 3;
+    const cy = (positions[a + 1] + positions[b + 1] + positions[c + 1]) / 3;
+    const cz = (positions[a + 2] + positions[b + 2] + positions[c + 2]) / 3;
+    const rl = Math.hypot(cx, cy, cz) || 1;
+    facing[k] = (n[0] / l) * (cx / rl) + (n[1] / l) * (cy / rl) + (n[2] / l) * (cz / rl);
+  }
+  /* Whichever way the file was wound, most of a head faces outwards. */
+  let outward = 0;
+  for (let k = 0; k < tri; k++) if (facing[k] > 0) outward++;
+  const sign = outward >= tri / 2 ? 1 : -1;
+
+  const depth = new Float32Array(size * size);
+  const raster = (f, fn) => {
+    const a = indices[f], b = indices[f + 1], c = indices[f + 2];
+    const ax = rawST[a * 2], ay = rawST[a * 2 + 1];
+    const bx = rawST[b * 2], by = rawST[b * 2 + 1];
+    const cx = rawST[c * 2], cy = rawST[c * 2 + 1];
+    /* A triangle straddling the seam wraps the long way round; it is behind the
+     * ear and not worth culling against. */
+    if (Math.max(ax, bx, cx) - Math.min(ax, bx, cx) > 0.5) return;
+    const x0 = Math.max(0, Math.floor(Math.min(ax, bx, cx) * size));
+    const x1 = Math.min(size - 1, Math.ceil(Math.max(ax, bx, cx) * size));
+    const y0 = Math.max(0, Math.floor(Math.min(ay, by, cy) * size));
+    const y1 = Math.min(size - 1, Math.ceil(Math.max(ay, by, cy) * size));
+    if (x1 < x0 || y1 < y0) return;
+    const Ax = ax * size, Ay = ay * size, Bx = bx * size, By = by * size, Cx = cx * size, Cy = cy * size;
+    const det = (By - Cy) * (Ax - Cx) + (Cx - Bx) * (Ay - Cy);
+    let hit = false;
+    if (Math.abs(det) > 1e-9) {
+      for (let y = y0; y <= y1; y++) {
+        for (let x = x0; x <= x1; x++) {
+          const px = x + 0.5, py = y + 0.5;
+          const l1 = ((By - Cy) * (px - Cx) + (Cx - Bx) * (py - Cy)) / det;
+          const l2 = ((Cy - Ay) * (px - Cx) + (Ax - Cx) * (py - Cy)) / det;
+          if (l1 < 0 || l2 < 0 || l1 + l2 > 1) continue;
+          hit = true;
+          fn(y * size + x);
+        }
+      }
+    }
+    /* A triangle smaller than a texel covers no centre; give it the one its own
+     * middle falls in, so a dense mesh still writes a depth. */
+    if (!hit) {
+      const x = Math.min(size - 1, Math.max(0, Math.floor((ax + bx + cx) / 3 * size)));
+      const y = Math.min(size - 1, Math.max(0, Math.floor((ay + by + cy) / 3 * size)));
+      fn(y * size + x);
+    }
+  };
+
+  /* Pass one: the outermost shell, from the front-facing triangles only —
+   * letting a back-facing one set the depth would let the inside of a mouth
+   * decide that the lip in front of it is hidden. */
+  for (let f = 0, k = 0; f < indices.length; f += 3, k++) {
+    if (facing[k] * sign <= 0) continue;
+    const r = Math.max(radius[indices[f]], radius[indices[f + 1]], radius[indices[f + 2]]);
+    raster(f, (i) => { if (r > depth[i]) depth[i] = r; });
+  }
+
+  /* Pass two: drop the back-facing, and whatever is clearly behind the shell.
+   * A triangle is judged on its furthest corner, so a crease that only dips a
+   * little below its ridge keeps the benefit of the doubt. */
+  const keep = [];
+  let dropped = 0;
+  for (let f = 0, k = 0; f < indices.length; f += 3, k++) {
+    if (facing[k] * sign < -0.15) { dropped++; continue; }
+    const sa = rawST[indices[f] * 2], sb = rawST[indices[f + 1] * 2], sc = rawST[indices[f + 2] * 2];
+    /* A triangle straddling the seam has a centroid halfway round the head from
+     * where it actually is — on the front of the face, where the nose sets the
+     * depth — so testing it there deletes the back of the skull. It is behind
+     * the ear and nothing is hiding it; keep it. */
+    if (Math.max(sa, sb, sc) - Math.min(sa, sb, sc) > 0.5) {
+      keep.push(indices[f], indices[f + 1], indices[f + 2]);
+      continue;
+    }
+    const s = (sa + sb + sc) / 3;
+    const t = (rawST[indices[f] * 2 + 1] + rawST[indices[f + 1] * 2 + 1] + rawST[indices[f + 2] * 2 + 1]) / 3;
+    const x = Math.min(size - 1, Math.max(0, Math.floor(s * size)));
+    const y = Math.min(size - 1, Math.max(0, Math.floor(t * size)));
+    const r = Math.max(radius[indices[f]], radius[indices[f + 1]], radius[indices[f + 2]]);
+    if (r < depth[y * size + x] - margin) { dropped++; continue; }
+    keep.push(indices[f], indices[f + 1], indices[f + 2]);
+  }
+
+  return { keep: new Uint32Array(keep), dropped, triangles: tri };
+}
+
+/* ------------------------------------------------------------------ *
+ * How much of the face lands on itself twice
+ * ------------------------------------------------------------------ */
+
+/*
+ * The number that actually says whether an unwrap is usable.
+ *
+ * Counting folded triangles does not, and counting their area is worse. Where a
+ * surface turns away from the middle of the head — the seam between the lips,
+ * the inside of a nostril, an ear canal — the projection stretches a tiny
+ * triangle across a large patch of texture and then folds it back, so a scan
+ * with a dense mesh in those crevices reports a third of its area folded while
+ * being, visibly, perfect. Two entirely acceptable heads can differ tenfold on
+ * that measure for no reason a player would ever see.
+ *
+ * What a player *can* see is a texel that two different parts of the face both
+ * claim: paint it once and it appears in two places. So this rasterises the
+ * unwrapped triangles into a counter and reports the share of the paintable
+ * face that more than one triangle covers. On the model this was built against
+ * that is a fraction of a percent — the lip seam and the nostril rims, each one
+ * texel wide — and a head whose marks are wrong runs to double figures.
+ */
+let overlapMask = null;
+
+function measureOverlap(su, tv, idx, size = 256) {
+  const count = new Uint8Array(size * size);
+  /* The mask is the same every time and costs a tenth of a second to build; an
+   * import runs this several times while somebody is adjusting a mark. */
+  if (!overlapMask || overlapMask.size !== size) overlapMask = buildMasks(size);
+  const skin = overlapMask.zones.skin;
+
+  for (let f = 0; f < idx.length; f += 3) {
+    const a = idx[f], b = idx[f + 1], c = idx[f + 2];
+    const x0 = Math.max(0, Math.floor(Math.min(su[a], su[b], su[c]) * size));
+    const x1 = Math.min(size - 1, Math.ceil(Math.max(su[a], su[b], su[c]) * size));
+    const y0 = Math.max(0, Math.floor(Math.min(tv[a], tv[b], tv[c]) * size));
+    const y1 = Math.min(size - 1, Math.ceil(Math.max(tv[a], tv[b], tv[c]) * size));
+    if (x1 < x0 || y1 < y0) continue;
+    /* Skip the ones that cover most of the texture: those are the two poles,
+     * where every longitude meets and a triangle spanning half the map is what
+     * the parameterisation is rather than a defect. */
+    if ((x1 - x0) > size / 3) continue;
+
+    const ax = su[a] * size, ay = tv[a] * size;
+    const bx = su[b] * size, by = tv[b] * size;
+    const cx = su[c] * size, cy = tv[c] * size;
+    const det = (by - cy) * (ax - cx) + (cx - bx) * (ay - cy);
+    if (Math.abs(det) < 1e-9) continue;
+    for (let y = y0; y <= y1; y++) {
+      for (let x = x0; x <= x1; x++) {
+        const px = x + 0.5, py = y + 0.5;
+        const l1 = ((by - cy) * (px - cx) + (cx - bx) * (py - cy)) / det;
+        const l2 = ((cy - ay) * (px - cx) + (ax - cx) * (py - cy)) / det;
+        if (l1 < 0 || l2 < 0 || l1 + l2 > 1) continue;
+        const i = y * size + x;
+        if (count[i] < 255) count[i]++;
+      }
+    }
+  }
+
+  let covered = 0, twice = 0;
+  for (let i = 0; i < count.length; i++) {
+    if (skin[i] < 64) continue;
+    if (count[i] >= 1) covered++;
+    if (count[i] >= 2) twice++;
+  }
+  return { covered, twice, fraction: covered ? twice / covered : 0 };
+}
+
+/* ------------------------------------------------------------------ *
  * The unwrap
  * ------------------------------------------------------------------ */
 
@@ -266,7 +490,59 @@ function rawFaceCoords(q) {
  */
 export function unwrapHead(source, landmarks, opts = {}) {
   const pose = fitPose(landmarks);
-  const { positions, indices } = source;
+  const srcPositions = source.positions;
+
+  /*
+   * Cut the bust off.
+   *
+   * Almost every head worth downloading is a bust: a head on a neck on a pair
+   * of shoulders, sometimes with a chest. None of that is wanted here — the
+   * game builds its own neck, its own clothes and its own hands, and they are
+   * the same for every customer so that the counter looks like one shop.
+   *
+   * It also happens to be where a spherical unwrap does its worst work. A
+   * shoulder is nowhere near star-shaped about the middle of a head: the ray
+   * from the head's centre to a shoulder leaves the surface twice and grazes it
+   * once, so that geometry folds, and on a real scan it is nearly half the
+   * triangles. Cutting it is not a workaround for the fold — it is removing
+   * geometry the game was never going to draw, and the fold goes with it.
+   *
+   * The cut is in head-space height, because that is the one axis on which
+   * "below the neck" is a statement about the model rather than about the
+   * projection: t saturates down there and cannot tell a jaw from a sternum.
+   */
+  const cutY = opts.cutBelowY === undefined ? null : opts.cutBelowY;
+  let positions = srcPositions;
+  let indices = source.indices;
+
+  const headOf = (i) => pose.toHead([
+    srcPositions[i * 3], srcPositions[i * 3 + 1], srcPositions[i * 3 + 2]]);
+
+  let cutTriangles = 0;
+  if (cutY !== null) {
+    const keep = [];
+    for (let f = 0; f < indices.length; f += 3) {
+      const y = (headOf(indices[f])[1] + headOf(indices[f + 1])[1] + headOf(indices[f + 2])[1]) / 3;
+      if (y >= cutY) keep.push(indices[f], indices[f + 1], indices[f + 2]);
+      else cutTriangles++;
+    }
+    /* Compact, so the vertices that only the shoulders referenced do not travel
+     * with the model for the rest of its life. */
+    const remap = new Int32Array(srcPositions.length / 3).fill(-1);
+    const kept = [];
+    for (const vi of keep) {
+      if (remap[vi] < 0) { remap[vi] = kept.length; kept.push(vi); }
+    }
+    positions = new Float32Array(kept.length * 3);
+    for (let i = 0; i < kept.length; i++) {
+      positions[i * 3] = srcPositions[kept[i] * 3];
+      positions[i * 3 + 1] = srcPositions[kept[i] * 3 + 1];
+      positions[i * 3 + 2] = srcPositions[kept[i] * 3 + 2];
+    }
+    indices = new Uint32Array(keep.length);
+    for (let i = 0; i < keep.length; i++) indices[i] = remap[keep[i]];
+  }
+
   const vertexCount = positions.length / 3;
 
   /* ---- pass one: every vertex into head space and face space ---- */
@@ -280,6 +556,22 @@ export function unwrapHead(source, landmarks, opts = {}) {
     q[0] = h[0]; q[1] = h[1]; q[2] = h[2];
     const st = rawFaceCoords(q);
     S[i] = st[0]; T[i] = st[1];
+  }
+
+  /*
+   * ---- drop the hidden layers ----
+   *
+   * Before anything is corrected or split, because this is a question about the
+   * geometry rather than about the fit: which of these triangles is the surface
+   * a player can see, and which are queueing up behind it.
+   */
+  let culled = 0;
+  if (opts.cull !== false) {
+    const rawST = new Float32Array(vertexCount * 2);
+    for (let i = 0; i < vertexCount; i++) { rawST[i * 2] = S[i]; rawST[i * 2 + 1] = T[i]; }
+    const cut = cullHidden(P, indices, rawST, opts.cullMargin);
+    culled = cut.dropped;
+    indices = cut.keep;
   }
 
   /* ---- the landmark correction ---- *
@@ -407,6 +699,8 @@ export function unwrapHead(source, landmarks, opts = {}) {
    * mesh has is the right way up, and the minority is what folded. */
   if (flipped > triangles / 2) flipped = triangles - flipped - degenerate;
 
+  const overlap = measureOverlap(su, tv, idx);
+
   /* ---- out ---- */
   const count = su.length;
   const vertices = new Float32Array(count * 9);
@@ -449,6 +743,12 @@ export function unwrapHead(source, landmarks, opts = {}) {
       flipped,
       degenerate,
       residual: pose.residual,
+      cutTriangles,
+      /* The share of the paintable face that more than one triangle covers —
+       * the one number that says whether the unwrap is usable. */
+      overlap: overlap.fraction,
+      overlapTexels: overlap.twice,
+      culled,
       orderProblems: orderBad,
     },
     opts,

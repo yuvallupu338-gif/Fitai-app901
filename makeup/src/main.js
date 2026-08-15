@@ -309,8 +309,12 @@ async function nextCustomer() {
     const head = face.kind === 'head' && !prepared ? face.record : null;
     if (head) {
       customer.name = head.name || customer.name;
+      /* A scanned head is a particular person, and the dialogue is gendered, so
+       * the model's own gender overrides the one the name table picked. */
+      if (head.gender) customer.gender = head.gender;
       customer.headId = head.id;
       credit = head.credit || '';
+      customer.greeting = say(makeRng(customer.seed + 3).pick(LINES.greet), customer.gender);
     }
     assets = buildCustomerAssets(customer, { skinSize: settings.face || 1024, head });
     paint.setMasks(masks, 1);

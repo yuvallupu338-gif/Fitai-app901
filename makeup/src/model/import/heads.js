@@ -20,6 +20,13 @@
 
 import { HEADS as BUILT_IN } from '../../data/heads/index.js';
 import { F } from '../face.js';
+import { headAO } from '../head.js';
+
+/* The average face, only so the occlusion fields can be evaluated against it. */
+const AVERAGE = {
+  width: 1, length: 1, depth: 1, jaw: 1, chin: 1, cheek: 1, brow: 1,
+  nose: 1, noseBridge: 1, lip: 1, eyeSize: 1, eyeDeep: 1,
+};
 
 /* Face space's own answer to "where is an eye", which the lashes and the lid
  * meshes are built around and which does not change with the model. */
@@ -131,8 +138,16 @@ export function packHead(unwrapped, meta = {}) {
   return {
     id: meta.id,
     name: meta.name,
+    /*
+     * Whose face it is, grammatically. Hebrew gives no choice: every line the
+     * customer says exists in both forms and is picked by this. A scanned head
+     * is a particular person, so it travels with the model rather than being
+     * drawn from the name table — and a man at a makeup counter then gets
+     * addressed as one instead of as a woman.
+     */
+    gender: meta.gender === 'm' ? 'm' : 'f',
     credit: meta.credit || '',
-    provides: meta.provides || [],
+    skip: meta.skip || [],
     landmarks: meta.landmarks,
     vertexCount: count,
     triangleCount: mesh.triangles,
@@ -250,7 +265,15 @@ export function buildImportedHead(record) {
     const t = (uv16[i * 2 + 1] / 65535) * UV_RANGE + UV_MIN;
     vertices[o + 6] = s;
     vertices[o + 7] = t;
-    vertices[o + 8] = 1;
+    /*
+     * Occlusion, recomputed rather than carried. The eye socket, the crease
+     * beside the nose and the underside of the jaw are dark on every face, and
+     * the fields that carve them are functions of (s, t) which this vertex now
+     * has. A flat 1.0 here — which is what it shipped with first — reads as a
+     * face lit from the inside, and it is the difference between a scan looking
+     * like a person and looking like a mask.
+     */
+    vertices[o + 8] = headAO(AVERAGE, s < 0 ? 0 : s > 1 ? 1 : s, t < 0 ? 0 : t > 1 ? 1 : t);
     uvs[i * 2] = s;
     uvs[i * 2 + 1] = t;
     if (x < min[0]) min[0] = x; if (x > max[0]) max[0] = x;
