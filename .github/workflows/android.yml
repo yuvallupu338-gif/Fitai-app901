@@ -1,0 +1,53 @@
+# Builds the APK on a runner that already has the Android SDK, so nobody has to
+# install one to get a build. The artifact is attached to the run.
+name: android
+
+on:
+  push:
+    branches: [main]
+    paths: ['app/**', 'android/**', '.github/workflows/android.yml']
+  workflow_dispatch:
+
+jobs:
+  apk:
+    runs-on: ubuntu-latest
+    steps:
+      - uses: actions/checkout@v4
+
+      - uses: actions/setup-java@v4
+        with:
+          distribution: temurin
+          java-version: '17'
+
+      - uses: android-actions/setup-android@v3
+
+      - uses: actions/setup-node@v4
+        with:
+          node-version: '22'
+
+      # The icon cutter reads the brand artwork through a headless browser.
+      - run: npx --yes playwright@1.56.1 install --with-deps chromium
+
+      - name: Build
+        run: node android/tools/build-apk.mjs
+        env:
+          ANDROID_HOME: ${{ env.ANDROID_HOME }}
+
+      # The APK is only worth shipping if the app inside it runs. This serves
+      # the packaged assets from a /assets/ path — the same shape
+      # WebViewAssetLoader maps them to — and drives the whole app through them.
+      - name: Check the packaged assets actually run
+        run: |
+          mkdir -p /tmp/apk && cd /tmp/apk
+          unzip -q "$GITHUB_WORKSPACE/dist/FitAI-debug.apk" 'assets/*'
+          npx --yes http-server -p 8097 -c-1 --silent /tmp/apk &
+          sleep 4
+          cd "$GITHUB_WORKSPACE"
+          node app/tools/smoke.mjs http://127.0.0.1:8097/assets/index.html /tmp/shots
+          node app/tools/security-check.mjs http://127.0.0.1:8097/assets/index.html
+
+      - uses: actions/upload-artifact@v4
+        with:
+          name: FitAI-apk
+          path: dist/*.apk
+          if-no-files-found: error

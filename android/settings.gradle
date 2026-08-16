@@ -1,0 +1,15 @@
+/* The Android wrapper for the FitAI web app.
+ *
+ * Everything the app is already lives in ../app as static files; this project
+ * only supplies the shell that Android needs to call it an application. See
+ * android/README.md for why it is a WebView and not a rewrite.
+ */
+pluginManagement {
+  repositories { google(); mavenCentral(); gradlePluginPortal() }
+}
+dependencyResolutionManagement {
+  repositoriesMode.set(RepositoriesMode.FAIL_ON_PROJECT_REPOS)
+  repositories { google(); mavenCentral() }
+}
+rootProject.name = 'FitAI'
+include ':app'

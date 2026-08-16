@@ -1,0 +1,7 @@
+<?xml version="1.0" encoding="utf-8"?>
+<resources>
+  <!-- The ground the app paints itself, from the bg token in
+       app/styles/tokens.css. Kept in step by hand: if that changes, the launch
+       window flashes the old colour before the first frame. -->
+  <color name="ground">#0B0C0E</color>
+</resources>

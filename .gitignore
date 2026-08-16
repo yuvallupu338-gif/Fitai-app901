@@ -1,3 +1,11 @@
 dist/shots/
 node_modules/
 .DS_Store
+
+# built by android/tools/build-apk.mjs
+android/app/src/main/assets/
+android/app/build/
+android/build/
+android/.gradle/
+android/local.properties
+dist/*.apk

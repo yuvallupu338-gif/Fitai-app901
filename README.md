@@ -54,6 +54,16 @@ everywhere from the tab icon to the progress card. It is served at `/app/` and
 keeps its own storage, so it does not touch anything above. See
 [`app/README.md`](app/README.md).
 
+### Also in this repo: `android/`
+
+`android/` wraps `app/` as an installable Android app — one activity and a file
+copy, not a rewrite. It serves the assets through `WebViewAssetLoader` on a real
+https origin rather than `file://`, because the app's own Content-Security-Policy
+says `script-src 'self'` and under `file://` that matches nothing. `node
+android/tools/build-apk.mjs` produces `dist/FitAI-debug.apk` (~21 MB, no
+permissions); pushing builds it in CI for anyone without an SDK. See
+[`android/README.md`](android/README.md).
+
 ### Also in this repo: `backrooms/`
 
 `backrooms/` is a separate, self-contained app: a realistic first-person

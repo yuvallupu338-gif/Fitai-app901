@@ -1,0 +1,49 @@
+plugins { id 'com.android.application' }
+
+android {
+  namespace 'com.fitai.app'
+  compileSdk 34
+
+  defaultConfig {
+    applicationId 'com.fitai.app'
+    minSdk 24                 // Android 7. WebViewAssetLoader needs 19+; 24 is where
+    targetSdk 34              // a modern WebView can be relied on without shims.
+    versionCode 1
+    versionName '1.0'
+  }
+
+  buildTypes {
+    release {
+      // No shrinking: there are ~40 lines of Java here and 25 MB of assets.
+      // R8 would have nothing to remove and would only make the build slower
+      // and the stack traces worse.
+      minifyEnabled false
+    }
+  }
+
+  // The 23 MB of base64 in assets/ is already-compressed image data wrapped in
+  // text. Letting the packager deflate it is the difference between a ~25 MB
+  // APK and a ~12 MB one, so nothing is excluded from compression.
+  compileOptions {
+    sourceCompatibility JavaVersion.VERSION_17
+    targetCompatibility JavaVersion.VERSION_17
+  }
+}
+
+dependencies {
+  // The whole reason the app runs unmodified: WebViewAssetLoader serves
+  // src/main/assets over a real https origin, so the app's own CSP —
+  // script-src 'self' — resolves. Loaded from file:// it would not.
+  implementation 'androidx.webkit:webkit:1.11.0'
+  implementation 'androidx.appcompat:appcompat:1.7.0'
+
+  // Two androidx artifacts arrive with different Kotlin runtimes — a modern
+  // kotlin-stdlib and the old kotlin-stdlib-jdk8 shim — and since Kotlin 1.8
+  // the shim's classes live in kotlin-stdlib itself, so d8 sees every one of
+  // them twice and refuses. Pinning the shims to a version that is empty
+  // resolves it without forcing a Kotlin version on anything else.
+  constraints {
+    implementation 'org.jetbrains.kotlin:kotlin-stdlib-jdk8:1.9.24'
+    implementation 'org.jetbrains.kotlin:kotlin-stdlib-jdk7:1.9.24'
+  }
+}

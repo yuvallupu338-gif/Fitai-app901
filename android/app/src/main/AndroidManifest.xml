@@ -1,0 +1,35 @@
+<?xml version="1.0" encoding="utf-8"?>
+<!-- This file declares no permission, and that is not an oversight: the app has
+     no network calls, no camera, no files, no location. Everything it knows
+     lives in its own localStorage.
+     The merged manifest does end up with one — DYNAMIC_RECEIVER_NOT_EXPORTED,
+     which AndroidX adds to itself for targetSdk 33+. It is the app's own
+     signature-level permission, not something the user is asked to grant, and
+     the install screen still shows no permissions at all. -->
+<manifest xmlns:android="http://schemas.android.com/apk/res/android">
+
+  <application
+      android:allowBackup="true"
+      android:fullBackupContent="false"
+      android:icon="@mipmap/ic_launcher"
+      android:roundIcon="@mipmap/ic_launcher"
+      android:label="@string/app_name"
+      android:supportsRtl="true"
+      android:theme="@style/Theme.FitAI"
+      android:hardwareAccelerated="true"
+      android:usesCleartextTraffic="false">
+
+    <activity
+        android:name=".MainActivity"
+        android:exported="true"
+        android:launchMode="singleTask"
+        android:screenOrientation="portrait"
+        android:configChanges="orientation|screenSize|smallestScreenSize|screenLayout|keyboardHidden|uiMode"
+        android:windowSoftInputMode="adjustResize">
+      <intent-filter>
+        <action android:name="android.intent.action.MAIN" />
+        <category android:name="android.intent.category.LAUNCHER" />
+      </intent-filter>
+    </activity>
+  </application>
+</manifest>
