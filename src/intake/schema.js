@@ -128,6 +128,11 @@ const EQUIPMENT_OPTIONS = [
   { value: 'treadmill', label: 'הליכון' },
   { value: 'bike', label: 'אופניים' },
   { value: 'rower', label: 'מכונת חתירה' },
+  // Not defaulted into any location above, deliberately. A "full gym" often has
+  // no pool and plenty of people swim without one, so this is the one piece of
+  // kit the location cannot guess — it has to be ticked. Until it is, the
+  // rest-day catalogue will not offer swimming.
+  { value: 'pool', label: 'בריכה' },
 ];
 
 const INJURY_OPTIONS = [

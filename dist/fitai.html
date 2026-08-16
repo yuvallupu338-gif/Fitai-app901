@@ -14,7 +14,7 @@
      style attributes. connect-src names the two vendors this app actually
      talks to and nothing else, so a scripting bug could not beacon a key out.
      frame-ancestors is omitted on purpose — it is ignored in a meta tag. -->
-<meta http-equiv="Content-Security-Policy" content="default-src 'none'; script-src 'sha256-wGfD6259oFedfgMgzalNGdNzn958uv8I0i+00h2Yynw='; style-src 'sha256-KqexG9RQypS/792d0kFTfYzk8SenX+HU4JXvQmWfdjE='; img-src 'self' data: blob:; font-src 'self' data:; connect-src 'self' https://api.anthropic.com https://api.deepseek.com; media-src 'none'; frame-src 'none'; worker-src 'none'; object-src 'none'; base-uri 'none'; form-action 'none'">
+<meta http-equiv="Content-Security-Policy" content="default-src 'none'; script-src 'sha256-biy5QlSsF9k4OTCHYT/mqyAqd4seis5ZQq6ZkkwAH4Q='; style-src 'sha256-KqexG9RQypS/792d0kFTfYzk8SenX+HU4JXvQmWfdjE='; img-src 'self' data: blob:; font-src 'self' data:; connect-src 'self' https://api.anthropic.com https://api.deepseek.com; media-src 'none'; frame-src 'none'; worker-src 'none'; object-src 'none'; base-uri 'none'; form-action 'none'">
 
 <link rel="icon" href="data:image/svg+xml,<svg xmlns='http://www.w3.org/2000/svg' viewBox='0 0 32 32'><rect width='32' height='32' rx='7' fill='%230E1520'/><path d='M9 22V10h11M9 16h8' stroke='%23FFB13C' stroke-width='2.6' fill='none' stroke-linecap='round'/></svg>">
 <style>
@@ -7511,7 +7511,7 @@ const SIBLING_PATTERN = {
 /** Equipment that adds external resistance, and equipment that only holds you. */
 const LOADING_EQUIP = ['dumbbells', 'barbell', 'kettlebell', 'machines', 'cable'];
 const APPARATUS_EQUIP = ['pullup_bar', 'dip_bars', 'rings', 'trx', 'bench', 'box',
-  'jump_rope', 'treadmill', 'bike', 'rower', 'sled'];
+  'jump_rope', 'treadmill', 'bike', 'rower', 'sled', 'pool'];
 
 /** Warm-up drills are picked in this order, so the session opens general and ends specific. */
 const WARMUP_PATTERN_ORDER = ['squat', 'hinge', 'lunge', 'plyo', 'horizontal_push', 'vertical_push',
@@ -9555,6 +9555,11 @@ const EQUIPMENT_OPTIONS = [
   { value: 'treadmill', label: 'הליכון' },
   { value: 'bike', label: 'אופניים' },
   { value: 'rower', label: 'מכונת חתירה' },
+  // Not defaulted into any location above, deliberately. A "full gym" often has
+  // no pool and plenty of people swim without one, so this is the one piece of
+  // kit the location cannot guess — it has to be ticked. Until it is, the
+  // rest-day catalogue will not offer swimming.
+  { value: 'pool', label: 'בריכה' },
 ];
 
 const INJURY_OPTIONS = [
@@ -14321,7 +14326,7 @@ const EQUIP_HE = {
   bands: 'גומיות', dumbbells: 'משקולות יד', barbell: 'מוט', kettlebell: 'קטלבל',
   bench: 'ספסל', box: 'קופסה', machines: 'מכונות', cable: 'פולי', trx: 'TRX',
   jump_rope: 'חבל קפיצה', mat: 'מזרן', sled: 'מזחלת', treadmill: 'הליכון',
-  bike: 'אופניים', rower: 'חתירה',
+  bike: 'אופניים', rower: 'חתירה', pool: 'בריכה',
 };
 
 /**
@@ -14535,7 +14540,11 @@ const TASKS = [
     // crawl is several hundred rotations of a loaded arm overhead, the single
     // movement a declared shoulder is being kept away from all week. The plan
     // then handed it back on the day meant for recovery.
-    load: 'easy', needs: [], hurts: ['shoulder'],
+    // Every other task here is doable from the front door; this one needs a
+    // body of water, and it was the only entry claiming otherwise. The app was
+    // telling people with no pool to go for a swim, which is not advice — it is
+    // a blank rest day dressed as one.
+    load: 'easy', needs: ['pool'], hurts: ['shoulder'],
   },
   {
     id: 'mobility_10',

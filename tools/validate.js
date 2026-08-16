@@ -508,18 +508,42 @@ try {
     }
     sets.push(ALL.slice());
 
-    const equipment = ['bike', 'rower', 'jump_rope'];
+    /*
+     * The two halves want opposite profiles, so they get them.
+     *
+     * Starvation is worst for someone who owns nothing: every task with a
+     * `needs` is already gone before a single injury is considered, so that is
+     * the profile that finds out whether the catalogue can still fill a week.
+     *
+     * A leak is only visible if the task can be reached at all — gate swimming
+     * behind a pool and a profile without one stops testing the shoulder rule
+     * entirely. So that half owns everything, and this list has to grow
+     * whenever a task learns a new `needs`.
+     */
+    const NOTHING = [];
+    const EVERYTHING = ['bike', 'rower', 'jump_rope', 'pool'];
+    const gated = new Set(rd.TASKS.flatMap((t) => t.needs));
+    for (const q of gated) {
+      if (EVERYTHING.indexOf(q) < 0) {
+        err(`validate.js: rest tasks need "${q}", which the sweep does not own — `
+          + `the tasks behind it are never checked for leaks`);
+      }
+    }
+
     let starved = 0, leaked = 0;
     for (const goal of ['fatloss', 'fitness', 'muscle', 'strength', 'sport']) {
       for (const injuries of sets) {
         for (const age of [12, 25, 45, 66, 71, 82, 90]) {
           const who = `${goal}/age ${age}/[${injuries.join('+') || 'none'}]`;
-          const tasks = rd.restDayTasks({ goal, age, injuries, equipment }, [1, 3, 5, 6]);
-          if (!tasks.length && starved++ < 4) {
-            err(`${who}: four rest days and not one task the profile is allowed — `
-              + `the injury filters have eaten the whole catalogue`);
+
+          const bare = rd.restDayTasks({ goal, age, injuries, equipment: NOTHING }, [1, 3, 5, 6]);
+          if (!bare.length && starved++ < 4) {
+            err(`${who}: four rest days, no equipment, and not one task the profile `
+              + `is allowed — the filters have eaten the whole catalogue`);
           }
-          for (const t of tasks) {
+
+          const kitted = rd.restDayTasks({ goal, age, injuries, equipment: EVERYTHING }, [1, 3, 5, 6]);
+          for (const t of bare.concat(kitted)) {
             for (const q of injuries) {
               if ((FORBIDDEN[q] || []).indexOf(t.id) >= 0 && leaked++ < 6) {
                 err(`${who}: rest task "${t.id}" loads a declared ${q}`);

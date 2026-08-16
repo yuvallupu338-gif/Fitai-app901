@@ -90,13 +90,30 @@ Three tasks were reaching the people they were meant to avoid:
 - **`stairs_10` for a declared ankle** and **`row_15` for a declared shoulder**,
   both inconsistent with lighter tasks beside them that already carried those.
 
+A fourth was the opposite mistake. `swim_20` declared `needs: []`, so the app
+told everyone to go for a swim without ever asking whether they could reach a
+pool — every other task in the catalogue is doable from the front door. `pool`
+is now an equipment option, deliberately not defaulted into any location
+(a "full gym" often has none), and swimming is offered only to someone who
+ticked it: zero profiles get it without, 91 with — and they are the right
+population, fat loss with a knee or an ankle, where the walking-heavy list
+thins out and swimming is genuinely the best thing left.
+
 The audit now asserts that every id in its own table resolves to a real task,
 and sweeps the rule rather than sampling it: five goals × every single injury
 and every pair × seven ages × a profile owning all the equipment, checking two
 things that pull against each other — that nothing forbidden reaches a declared
 injury, and that no profile ends up with a blank week, which is the failure the
-module exists to prevent. 1,050 profiles, and the sweep was confirmed to fail
-when the `play` fix is reverted.
+module exists to prevent. The two halves want opposite profiles and get them:
+starvation is checked against someone who owns nothing, leaks against someone
+who owns everything — gate a task behind equipment the sweep lacks and it stops
+being tested at all, so the sweep also asserts it owns every `needs` in the
+catalogue.
+
+Both halves were confirmed to fail before they were trusted: reverting the
+`play` fix trips the leak check, and blocking the three tasks that need no
+equipment trips the starvation check. A check nobody has watched fail is not a
+check.
 
 ## Security
 

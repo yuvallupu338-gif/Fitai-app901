@@ -73,7 +73,11 @@ const TASKS = [
     // crawl is several hundred rotations of a loaded arm overhead, the single
     // movement a declared shoulder is being kept away from all week. The plan
     // then handed it back on the day meant for recovery.
-    load: 'easy', needs: [], hurts: ['shoulder'],
+    // Every other task here is doable from the front door; this one needs a
+    // body of water, and it was the only entry claiming otherwise. The app was
+    // telling people with no pool to go for a swim, which is not advice — it is
+    // a blank rest day dressed as one.
+    load: 'easy', needs: ['pool'], hurts: ['shoulder'],
   },
   {
     id: 'mobility_10',

@@ -244,7 +244,7 @@ const EQUIP_HE = {
   bands: 'גומיות', dumbbells: 'משקולות יד', barbell: 'מוט', kettlebell: 'קטלבל',
   bench: 'ספסל', box: 'קופסה', machines: 'מכונות', cable: 'פולי', trx: 'TRX',
   jump_rope: 'חבל קפיצה', mat: 'מזרן', sled: 'מזחלת', treadmill: 'הליכון',
-  bike: 'אופניים', rower: 'חתירה',
+  bike: 'אופניים', rower: 'חתירה', pool: 'בריכה',
 };
 
 /**
