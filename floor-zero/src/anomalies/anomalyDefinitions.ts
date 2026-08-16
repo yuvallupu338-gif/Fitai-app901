@@ -650,6 +650,185 @@ export const ANOMALIES: AnomalyDef[] = [
     },
   },
   {
+    id: 'wall_faces',
+    minChapter: 2,
+    weight: 10,
+    cooldown: 130,
+    canRun: (ctx) => corridorOnly(ctx) && !!prop(ctx, 'wall_faces'),
+    run: function* (ctx): Routine {
+      const anchor = prop(ctx, 'wall_faces');
+      const faces = (anchor?.userData as { all?: THREE.Mesh[] } | undefined)?.all;
+      if (!faces?.length) return;
+
+      // They surface one after another along the corridor, in the order the
+      // player would walk it, and sink back before anyone reaches them.
+      const materials = faces.map((face) => face.material as THREE.MeshBasicMaterial);
+      for (const face of faces) face.visible = true;
+      for (const material of materials) material.opacity = 0;
+
+      for (let index = 0; index < faces.length; index++) {
+        const material = materials[index];
+        for (let step = 0; step < 12; step++) {
+          material.opacity = Math.min(0.82, material.opacity + 0.07);
+          yield 0.035;
+        }
+        ctx.audio.play('creak', {
+          position: faces[index].getWorldPosition(new THREE.Vector3()),
+          volume: 0.28,
+        });
+        yield 0.25;
+      }
+
+      yield 1.6;
+      for (let step = 0; step < 26; step++) {
+        for (const material of materials) material.opacity = Math.max(0, material.opacity - 0.035);
+        yield 0.04;
+      }
+      for (const face of faces) face.visible = false;
+      ctx.tension.add(14);
+    },
+  },
+  {
+    id: 'writing_bleeds',
+    minChapter: 2,
+    weight: 9,
+    cooldown: 160,
+    canRun: (ctx) => corridorOnly(ctx) && !!prop(ctx, 'wall_bleed'),
+    run: function* (ctx): Routine {
+      const bleed = prop(ctx, 'wall_bleed') as THREE.Mesh | undefined;
+      if (!bleed) return;
+      const material = bleed.material as THREE.MeshBasicMaterial;
+      bleed.visible = true;
+      material.opacity = 0;
+      // Slow: it soaks through rather than appearing.
+      for (let step = 0; step < 60; step++) {
+        material.opacity = Math.min(0.9, material.opacity + 0.016);
+        yield 0.06;
+      }
+      yield 3.5;
+      for (let step = 0; step < 40; step++) {
+        material.opacity = Math.max(0, material.opacity - 0.024);
+        yield 0.05;
+      }
+      bleed.visible = false;
+      ctx.tension.add(12);
+    },
+  },
+  {
+    id: 'floor_floods',
+    minChapter: 3,
+    weight: 8,
+    cooldown: 210,
+    canRun: (ctx) =>
+      corridorOnly(ctx) && !!prop(ctx, 'black_water') &&
+      ctx.world.roomAt(ctx.camera.position.x, ctx.camera.position.z) === 'corridor',
+    run: function* (ctx): Routine {
+      const water = prop(ctx, 'black_water') as THREE.Mesh | undefined;
+      if (!water) return;
+      const material = water.material as THREE.MeshBasicMaterial;
+      water.visible = true;
+      material.opacity = 0;
+      ctx.audio.play('sub_drop', { volume: 0.3 });
+      for (let step = 0; step < 30; step++) {
+        material.opacity = Math.min(0.92, material.opacity + 0.032);
+        // A slow drift, so the surface is never quite still.
+        water.position.z = Math.sin(step * 0.2) * 0.03;
+        yield 0.05;
+      }
+      yield 4;
+      for (let step = 0; step < 30; step++) {
+        material.opacity = Math.max(0, material.opacity - 0.032);
+        yield 0.05;
+      }
+      water.visible = false;
+      water.position.z = 0;
+      ctx.tension.add(16);
+    },
+  },
+  {
+    id: 'chair_rises',
+    minChapter: 3,
+    weight: 8,
+    cooldown: 190,
+    unobserved: true,
+    canRun: (ctx) => !!prop(ctx, 'corridor_chair'),
+    run: function* (ctx): Routine {
+      const chair = prop(ctx, 'corridor_chair');
+      if (!chair) return;
+      const restY = chair.position.y;
+      ctx.world.collision?.setSolid('corridor_chair', false);
+      ctx.audio.play('chair_scrape', { position: chair.position.clone(), volume: 0.5 });
+
+      // Up to just under the ceiling, turning as it goes.
+      for (let step = 0; step < 46; step++) {
+        chair.position.y = restY + (step / 45) * 1.9;
+        chair.rotation.y += 0.03;
+        chair.rotation.z = (step / 45) * 0.4;
+        yield 0.045;
+      }
+      // And it hangs there, which is the part that is wrong.
+      yield 3.4;
+      // Then it is simply dropped. Under gravity, not lowered.
+      const top = chair.position.y;
+      let fall = 0;
+      while (chair.position.y > restY) {
+        fall += 9.81 * 0.03;
+        chair.position.y = Math.max(restY, top - fall * 0.03 * 12);
+        chair.rotation.y += 0.05;
+        yield 0.03;
+      }
+      chair.position.y = restY;
+      chair.rotation.z = 0;
+      ctx.audio.play('thud', { position: chair.position.clone(), volume: 0.85 });
+      ctx.world.collision?.setSolid('corridor_chair', true);
+      ctx.mimic.noteNoise(chair.position.clone());
+      ctx.tension.add(18);
+    },
+  },
+  {
+    id: 'crawler_arrives',
+    minChapter: 2,
+    weight: 7,
+    cooldown: 260,
+    canRun: (ctx) => ctx.creatures.canSend(ctx, 'crawler'),
+    run: function* (ctx): Routine {
+      // It announces itself once, from a long way off, and then not again.
+      const behind = behindPlayer(ctx, 12).setY(0.4);
+      ctx.audio.play('shriek', { position: behind, volume: 0.45 });
+      ctx.world.lighting.flicker('*', 1.1, 0.8);
+      yield 2.2;
+      ctx.creatures.send(ctx, 'crawler');
+    },
+  },
+  {
+    id: 'tall_one_arrives',
+    minChapter: 3,
+    weight: 6,
+    cooldown: 300,
+    canRun: (ctx) => ctx.creatures.canSend(ctx, 'tall'),
+    run: function* (ctx): Routine {
+      // No warning sound for this one. The lights simply go, and it is there.
+      ctx.world.lighting.blackout(1.6);
+      yield 1.4;
+      ctx.creatures.send(ctx, 'tall');
+    },
+  },
+  {
+    id: 'stands_at_the_end',
+    minChapter: 2,
+    weight: 12,
+    cooldown: 100,
+    canRun: (ctx) =>
+      corridorOnly(ctx) &&
+      !ctx.mimic.isChasing &&
+      !ctx.mimic.isStandingWatch &&
+      // Only worth doing if the far end is somewhere they have to look.
+      ctx.camera.position.x < 19,
+    run: (ctx) => {
+      ctx.mimic.standWatching(ctx, 26 + ctx.rng.range(0, 14));
+    },
+  },
+  {
     id: 'board_remembers',
     minChapter: 3,
     weight: 8,

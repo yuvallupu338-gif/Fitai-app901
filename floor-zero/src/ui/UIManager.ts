@@ -329,11 +329,15 @@ export class UIManager {
     this.errorEl.hidden = false;
   }
 
-  showDeath(onRetry: () => void): void {
+  showDeath(onRetry: () => void, cause = 'mimic'): void {
     this.errorEl.innerHTML = '';
     this.errorEl.classList.add('error--death');
     const heading = document.createElement('h2');
-    heading.textContent = t('death.caught');
+    // Each thing on the floor gets its own last line. t() returns the key when
+    // it has no entry, so that is what an unknown cause is detected by.
+    const key = `death.caught.${cause}`;
+    const text = t(key);
+    heading.textContent = text === key ? t('death.caught') : text;
     const retry = document.createElement('button');
     retry.className = 'btn btn--menu';
     retry.textContent = t('death.retry');

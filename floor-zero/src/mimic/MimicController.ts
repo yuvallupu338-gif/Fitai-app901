@@ -126,6 +126,14 @@ export class MimicController {
   private targetFade = 0;
   private materials: THREE.MeshLambertMaterial[] = [];
   private lookYaw = 0;
+  /** Seconds left in the current silent glitch burst. */
+  private glitchTimer = 0;
+  private glitchStrength = 1;
+  /** Time until the next snap inside a burst. */
+  private glitchStep = 0;
+  private glitchHidden = false;
+  private readonly glitchAnchor = new THREE.Vector3();
+  private glitchAnchorYaw = 0;
 
   constructor(scene: THREE.Scene) {
     scene.add(this.visuals.root);
@@ -175,6 +183,7 @@ export class MimicController {
     this.mode = 'hidden';
     this.targetFade = 0;
     this.chaseTarget = null;
+    if (this.glitchTimer > 0) this.endGlitch();
   }
 
   show(): void {
@@ -187,6 +196,10 @@ export class MimicController {
     this.visuals.root.position.copy(position);
     this.visuals.root.rotation.y = yaw;
     this.previousPosition.copy(position);
+    // Moving mid-burst rebases it, or the next snap would drag the figure back
+    // to where it was standing before.
+    this.glitchAnchor.copy(position);
+    this.glitchAnchorYaw = yaw;
   }
 
   beginReplay(track: ReplayTrack, hooks: ReplayHooks = {}, startTime = 0): void {
@@ -202,6 +215,95 @@ export class MimicController {
 
   freeze(seconds: number): void {
     this.freezeTimer = Math.max(this.freezeTimer, seconds);
+  }
+
+  /**
+   * A silent malfunction. The figure snaps between poses and positions a few
+   * centimetres either side of where it was standing, strobes, and stretches —
+   * and makes no sound at all. Nothing is said, nothing is played: the whole
+   * effect is that the thing standing there stops looking like a person for a
+   * fraction of a second, and then does again.
+   *
+   * It always returns to the pose it started from, so a figure that is standing
+   * guard is still standing in the same place afterwards.
+   */
+  glitch(seconds = 0.6, strength = 1): void {
+    if (this.glitchTimer <= 0) {
+      this.glitchAnchor.copy(this.visuals.root.position);
+      this.glitchAnchorYaw = this.visuals.root.rotation.y;
+    }
+    this.glitchTimer = Math.max(this.glitchTimer, seconds);
+    this.glitchStrength = strength;
+    this.glitchStep = 0;
+  }
+
+  get isGlitching(): boolean {
+    return this.glitchTimer > 0;
+  }
+
+  /** Snap back to the anchor pose and clear any distortion. */
+  private endGlitch(): void {
+    this.glitchTimer = 0;
+    this.visuals.root.position.copy(this.glitchAnchor);
+    this.visuals.root.rotation.y = this.glitchAnchorYaw;
+    this.visuals.root.scale.set(1, 1, 1);
+    this.visuals.root.rotation.z = 0;
+    for (const side of [0, 1] as const) {
+      (this.visuals.arms[side].userData.pivot as THREE.Group).rotation.z = 0;
+      (this.visuals.legs[side].userData.pivot as THREE.Group).rotation.z = 0;
+    }
+    (this.visuals.head.userData.pivot as THREE.Group).rotation.z = 0;
+  }
+
+  /**
+   * One frame of the burst. Runs after the normal animation so it overrides it,
+   * and re-rolls the distortion a few times a second rather than every frame —
+   * a per-frame jitter reads as noise, a stepped one reads as a broken machine.
+   */
+  private applyGlitch(delta: number): void {
+    this.glitchTimer -= delta;
+    if (this.glitchTimer <= 0) {
+      this.endGlitch();
+      return;
+    }
+
+    // The dropout has to be re-asserted every frame: the fade pass at the top of
+    // update() turns the materials back on, so a flag set once would blink for a
+    // single frame and be invisible at 60fps.
+    if (this.glitchHidden) {
+      for (const material of this.materials) material.visible = false;
+    }
+
+    this.glitchStep -= delta;
+    if (this.glitchStep > 0) return;
+    this.glitchStep = 0.045 + Math.random() * 0.05;
+
+    const s = this.glitchStrength;
+    const root = this.visuals.root;
+    // Snap sideways, never far: it has not moved, it has *failed to be still*.
+    root.position.set(
+      this.glitchAnchor.x + (Math.random() - 0.5) * 0.16 * s,
+      this.glitchAnchor.y,
+      this.glitchAnchor.z + (Math.random() - 0.5) * 0.16 * s,
+    );
+    root.rotation.y = this.glitchAnchorYaw + (Math.random() - 0.5) * 0.5 * s;
+    root.rotation.z = (Math.random() - 0.5) * 0.09 * s;
+    root.scale.set(1 + (Math.random() - 0.5) * 0.1 * s, 1 + (Math.random() - 0.5) * 0.22 * s, 1);
+
+    for (const side of [0, 1] as const) {
+      const arm = this.visuals.arms[side].userData.pivot as THREE.Group;
+      const leg = this.visuals.legs[side].userData.pivot as THREE.Group;
+      arm.rotation.x = (Math.random() - 0.5) * 1.9 * s;
+      arm.rotation.z = (Math.random() - 0.5) * 0.8 * s;
+      leg.rotation.x = (Math.random() - 0.5) * 0.5 * s;
+    }
+    const headPivot = this.visuals.head.userData.pivot as THREE.Group;
+    headPivot.rotation.y = (Math.random() - 0.5) * 2.6 * s;
+    headPivot.rotation.z = (Math.random() - 0.5) * 0.7 * s;
+
+    // Dropped frames. The figure is simply not there for one step.
+    this.glitchHidden = Math.random() < 0.22 * s;
+    for (const material of this.materials) material.visible = !this.glitchHidden && this.fade > 0.02;
   }
 
   walkPath(points: THREE.Vector3[], speed = 1.5): void {
@@ -268,8 +370,11 @@ export class MimicController {
       this.visuals.root.position.x - this.previousPosition.x,
       this.visuals.root.position.z - this.previousPosition.z,
     );
-    this.currentSpeed = delta > 0 ? moved / delta : 0;
+    // A glitch snap is not walking; letting it feed the stride would set the
+    // legs marching on the spot, which is the opposite of the effect.
+    this.currentSpeed = delta > 0 && this.glitchTimer <= 0 ? moved / delta : 0;
     this.animate(delta, ctx);
+    if (this.glitchTimer > 0) this.applyGlitch(delta);
   }
 
   private updateReplay(delta: number, ctx: GameContext): void {

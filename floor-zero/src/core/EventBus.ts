@@ -25,6 +25,7 @@ export interface GameEventMap {
   recording_started: { visit: number };
   recording_finished: { visit: number; duration: number; samples: number };
   mimic_spawned: { level: number };
+  creature_spawned: { kind: string };
   mimic_deviation: { kind: string };
   mimic_interaction: { targetId: string };
 

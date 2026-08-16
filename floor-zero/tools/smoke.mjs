@@ -541,6 +541,180 @@ async function main() {
     const feedCount = await run(() => window.__floorZero.world.feeds.length);
     feedCount >= 9 ? pass('the monitor wall is live', `${feedCount} feeds`) : fail('feeds', String(feedCount));
 
+    // --- The figure that stands at the end and malfunctions --------------------
+    const sentinel = await run(async () => {
+      const g = window.__floorZero;
+      // player.teleport only moves the player; the camera is written during the
+      // next frame's update, so anything reading camera position or facing has
+      // to let a frame run first.
+      const frames = (n) =>
+        new Promise((resolve) => {
+          let left = n;
+          const tick = () => (left-- > 0 ? requestAnimationFrame(tick) : resolve());
+          requestAnimationFrame(tick);
+        });
+
+      g.player.teleport(6, 0, -Math.PI / 2);
+      await frames(3);
+      g.mimic.standWatching(g, 30);
+      const standing = g.mimic.isStandingWatch;
+      const spot = { x: g.mimic.controller.position.x, z: g.mimic.controller.position.z };
+
+      // Force a burst and sample it: the body must actually be displaced, and
+      // nothing may be said while it happens.
+      const saidBefore = g.state.objective;
+      g.mimic.controller.glitch(1.2, 1);
+      let displaced = 0;
+      for (let i = 0; i < 40; i++) {
+        await new Promise((r) => setTimeout(r, 25));
+        const p = g.mimic.controller.position;
+        displaced = Math.max(displaced, Math.hypot(p.x - spot.x, p.z - spot.z));
+      }
+      // And it must come back to exactly where it was standing. The sentinel
+      // schedules bursts of its own, so sample on the very frame the burst
+      // ends rather than after a delay that could land inside the next one.
+      const deadline = Date.now() + 20000;
+      let settled = null;
+      while (settled === null && Date.now() < deadline) {
+        await frames(1);
+        if (!g.mimic.controller.isGlitching) {
+          settled = { x: g.mimic.controller.position.x, z: g.mimic.controller.position.z };
+        }
+      }
+      const returned = !!settled && Math.hypot(settled.x - spot.x, settled.z - spot.z) < 0.001;
+      g.mimic.clearVisit();
+      return { standing, displaced, returned, quiet: g.state.objective === saidBefore };
+    });
+    sentinel.standing ? pass('the figure takes up its post at the end') : fail('sentinel', 'never stood');
+    sentinel.displaced > 0.01
+      ? pass('it glitches in place', `${sentinel.displaced.toFixed(3)}m of snap`)
+      : fail('glitch', 'the body never moved');
+    sentinel.returned ? pass('and settles back exactly where it stood') : fail('glitch', 'drifted off its post');
+    sentinel.quiet ? pass('the glitch says nothing') : fail('glitch', 'it spoke');
+
+    // --- The creatures ---------------------------------------------------------
+    // Both close in from behind while unwatched. What being looked at does is
+    // what separates them: the crawler breaks off under a working light, the
+    // tall one just stops dead and waits.
+    //
+    // Facing matters here. yaw -PI/2 points the player up the corridor (+x), so
+    // a creature spawned "behind" them lands at low x; staring back at it means
+    // turning to yaw +PI/2.
+    const AWAY = -Math.PI / 2;
+    const TOWARD = Math.PI / 2;
+    const creatures = await run(
+      async ([away, toward]) => {
+        const g = window.__floorZero;
+        const frames = (n) =>
+          new Promise((resolve) => {
+            let left = n;
+            const tick = () => (left-- > 0 ? requestAnimationFrame(tick) : resolve());
+            requestAnimationFrame(tick);
+          });
+        const out = {};
+        for (const kind of ['crawler', 'tall']) {
+          g.creatures.clear();
+          g.creatures.reset(0);
+          g.world.lighting.setOn('*', true);
+          // Face up the corridor and let the camera catch up before spawning:
+          // send() places the creature relative to where the camera is *now*.
+          g.player.teleport(14, 0, away);
+          await frames(3);
+          const sent = g.creatures.send(g, kind);
+          const creature = g.creatures.active;
+          const start = creature ? creature.distanceTo(g.camera.position) : 0;
+
+          // Unwatched: it should be closing.
+          await new Promise((r) => setTimeout(r, 2500));
+          const closed = creature ? start - creature.distanceTo(g.camera.position) : 0;
+
+          // Now turn and look straight at it, under a lit corridor.
+          g.player.teleport(14, 0, toward);
+          await frames(3);
+          await new Promise((r) => setTimeout(r, 500));
+          const held = creature ? creature.distanceTo(g.camera.position) : 0;
+          await new Promise((r) => setTimeout(r, 1500));
+          const after = creature ? creature.distanceTo(g.camera.position) : 0;
+
+          out[kind] = {
+            sent,
+            start,
+            closed,
+            delta: after - held,
+            state: creature ? creature.state : 'none',
+          };
+          g.creatures.clear();
+        }
+        g.creatures.reset(999);
+        return out;
+      },
+      [AWAY, TOWARD],
+    );
+    for (const kind of ['crawler', 'tall']) {
+      const row = creatures[kind];
+      row.sent ? pass(`the ${kind} can be sent`) : fail(`${kind}`, 'refused to spawn');
+      row.closed > 0.3
+        ? pass(`the ${kind} closes in while unwatched`, `${row.closed.toFixed(1)}m`)
+        : fail(`${kind} approach`, `gained only ${row.closed.toFixed(2)}m`);
+    }
+    creatures.crawler.delta > 0.4
+      ? pass('the crawler breaks off when seen in the light', `retreated ${creatures.crawler.delta.toFixed(1)}m`)
+      : fail('crawler light rule', `moved ${creatures.crawler.delta.toFixed(2)}m, state=${creatures.crawler.state}`);
+    Math.abs(creatures.tall.delta) < 0.35
+      ? pass('the tall one stops dead while watched')
+      : fail('tall one freeze', `moved ${creatures.tall.delta.toFixed(2)}m, state=${creatures.tall.state}`);
+
+    // The crawler turns up when the tubes are out, so the torch has to be able
+    // to do the job on its own — otherwise its one weakness is unusable exactly
+    // when the player meets it.
+    const torch = await run(
+      async ([away, toward]) => {
+        const g = window.__floorZero;
+        const frames = (n) =>
+          new Promise((resolve) => {
+            let left = n;
+            const tick = () => (left-- > 0 ? requestAnimationFrame(tick) : resolve());
+            requestAnimationFrame(tick);
+          });
+        g.creatures.clear();
+        g.creatures.reset(0);
+        g.world.lighting.setOn('*', false);
+        g.player.setFlashlight(false, g);
+        g.player.teleport(14, 0, away);
+        await frames(3);
+        g.creatures.send(g, 'crawler');
+        const creature = g.creatures.active;
+
+        // Dark corridor, no torch, staring at it: it should hold, not flee.
+        g.player.teleport(14, 0, toward);
+        await frames(3);
+        const a = creature.distanceTo(g.camera.position);
+        await new Promise((r) => setTimeout(r, 1200));
+        const dark = creature.distanceTo(g.camera.position) - a;
+
+        // Same again with the torch on it.
+        g.player.setFlashlight(true, g);
+        await frames(3);
+        const b = creature.distanceTo(g.camera.position);
+        await new Promise((r) => setTimeout(r, 1500));
+        const lit = creature.distanceTo(g.camera.position) - b;
+        const state = creature.state;
+
+        g.player.setFlashlight(false, g);
+        g.creatures.clear();
+        g.creatures.reset(999);
+        g.world.lighting.setOn('*', true);
+        return { dark, lit, state };
+      },
+      [AWAY, TOWARD],
+    );
+    Math.abs(torch.dark) < 0.35
+      ? pass('in the dark the crawler only freezes when stared at')
+      : fail('crawler dark rule', `moved ${torch.dark.toFixed(2)}m without a torch`);
+    torch.lit > 0.4
+      ? pass('the torch alone drives the crawler off', `retreated ${torch.lit.toFixed(1)}m`)
+      : fail('torch rule', `moved ${torch.lit.toFixed(2)}m, state=${torch.state}`);
+
     // --- Every anomaly, forced ------------------------------------------------
     // The director normally picks a handful per visit, so a full playthrough
     // proves almost nothing about the catalogue. Fire all of them by hand.

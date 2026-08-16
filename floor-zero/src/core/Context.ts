@@ -11,6 +11,7 @@ import type { LevelManager } from '../world/LevelManager';
 import type { PlayerController } from '../player/PlayerController';
 import type { PlayerRecorder } from '../player/PlayerRecorder';
 import type { MimicDirector } from '../mimic/MimicDirector';
+import type { CreatureDirector } from '../creatures/CreatureDirector';
 import type { AnomalyDirector } from '../anomalies/AnomalyDirector';
 import type { InteractionSystem } from '../interactions/InteractionSystem';
 import type { PostFX } from '../fx/PostFX';
@@ -33,6 +34,7 @@ export interface GameContext {
   readonly player: PlayerController;
   readonly recorder: PlayerRecorder;
   readonly mimic: MimicDirector;
+  readonly creatures: CreatureDirector;
   readonly anomalies: AnomalyDirector;
   readonly interactions: InteractionSystem;
   readonly postfx: PostFX;

@@ -8,6 +8,7 @@ import { DustField } from '../fx/Dust';
 import { InputManager } from '../input/InputManager';
 import { TouchControls } from '../input/TouchControls';
 import { InteractionSystem } from '../interactions/InteractionSystem';
+import { CreatureDirector } from '../creatures/CreatureDirector';
 import { MimicDirector } from '../mimic/MimicDirector';
 import { ReplayTrack } from '../mimic/ReplayTrack';
 import { PlayerController } from '../player/PlayerController';
@@ -41,6 +42,7 @@ export class Game implements GameContext {
   readonly player: PlayerController;
   readonly recorder = new PlayerRecorder({ interval: 0.1 });
   readonly mimic: MimicDirector;
+  readonly creatures: CreatureDirector;
   readonly anomalies: AnomalyDirector;
   readonly interactions = new InteractionSystem();
   readonly postfx: PostFX;
@@ -96,6 +98,7 @@ export class Game implements GameContext {
     this.world = new LevelManager(this.scene, this.settings.quality);
     this.player = new PlayerController(this.camera, this.scene);
     this.mimic = new MimicDirector(this.scene);
+    this.creatures = new CreatureDirector(this.scene);
     this.tension = new TensionSystem(this.audio, this.bus);
     this.anomalies = new AnomalyDirector(this.bus, this.state.run.seed);
     this.postfx = new PostFX(this.renderer);
@@ -357,6 +360,7 @@ export class Game implements GameContext {
     this.sequencer.stopAll();
     this.recorder.cancel();
     this.mimic.clearVisit();
+    this.creatures.clear();
     this.persist();
     this.input.releasePointerLock();
     this.ui.setHudVisible(false);
@@ -440,6 +444,7 @@ export class Game implements GameContext {
     // stops it firing again once the player is safely inside.
     this.chaseArmed = false;
     this.recorder.start(this.state.run.visit);
+    this.creatures.reset();
     this.bus.emit('recording_started', { visit: this.state.run.visit });
 
     this.anomalies.configure(
@@ -565,6 +570,7 @@ export class Game implements GameContext {
       });
     }
     this.mimic.clearVisit();
+    this.creatures.clear();
 
     // Stepping into the lift in the lobby is what ends the prologue, so the
     // floor is rebuilt as chapter 1 rather than chapter 0.
@@ -608,6 +614,7 @@ export class Game implements GameContext {
     this.player.frozen = true;
     this.input.releasePointerLock();
     this.mimic.stopChase();
+    this.creatures.clear();
     this.bus.emit('ending_selected', { ending });
     this.state.unlockEnding(ending);
 
@@ -697,6 +704,7 @@ export class Game implements GameContext {
     this.state.cinematic = true;
     this.player.frozen = true;
     this.mimic.stopChase();
+    this.creatures.clear();
     this.chaseArmed = false;
     void reason;
 
@@ -803,13 +811,14 @@ export class Game implements GameContext {
 
     this.bus.on('item_collected', () => this.updateObjective());
 
-    this.bus.on('player_caught', () => {
+    this.bus.on('player_caught', ({ by }) => {
       this.player.kick(0.25);
       this.postfx.kick(1);
       this.audio.play('stinger', { volume: 1 });
+      if (by === 'crawler' || by === 'tall') this.audio.play('shriek', { volume: 0.9 });
       this.state.cinematic = true;
       this.player.frozen = true;
-      this.ui.showDeath(() => this.respawnAtCheckpoint('caught'));
+      this.ui.showDeath(() => this.respawnAtCheckpoint('caught'), by);
       this.input.releasePointerLock();
     });
 
@@ -854,6 +863,7 @@ export class Game implements GameContext {
       this.world.update(delta, this);
       this.interactions.update(delta, this);
       this.mimic.update(delta, this);
+      this.creatures.update(delta, this);
       this.anomalies.update(delta, this);
       this.updateTension(delta);
       this.updateChase();
@@ -897,10 +907,12 @@ export class Game implements GameContext {
       ? Math.hypot(this.camera.position.x - rig.interior.x, this.camera.position.z - rig.interior.z) < 1.2
       : false;
 
+    // The tension system only wants to know how close the nearest threat is and
+    // whether it can be seen; which of them it is makes no difference to it.
     this.tension.update(delta, {
       brightness,
-      mimicDistance: this.mimic.distanceToPlayer(this),
-      mimicVisible: this.mimic.visible,
+      mimicDistance: Math.min(this.mimic.distanceToPlayer(this), this.creatures.distanceToPlayer(this)),
+      mimicVisible: this.mimic.visible || this.creatures.anyVisible,
       inElevator,
       enclosed: this.world.isEnclosed(this.camera.position.x, this.camera.position.z),
       idleTime: this.player.idleTime,
@@ -1029,6 +1041,7 @@ export class Game implements GameContext {
     this.audio.dispose();
     this.dust.dispose();
     this.mimic.dispose();
+    this.creatures.dispose();
     this.world.dispose();
     this.postfx.dispose();
     this.input.dispose();

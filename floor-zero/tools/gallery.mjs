@@ -97,6 +97,8 @@ const shots = [
   { name: 'control-room', x: 24.6, z: -3.0, yaw: Math.PI / 2, pitch: 0 },
   { name: 'control-monitors', x: 21.6, z: -3.6, yaw: Math.PI / 2, pitch: 0.05 },
   { name: 'lift-inside', x: -1.1, z: 0, yaw: -Math.PI / 2, pitch: 0 },
+  { name: 'crawler', x: 13.5, z: 0, yaw: Math.PI / 2, pitch: -0.1, creature: 'crawler', at: 9.6 },
+  { name: 'tall-one', x: 13.5, z: 0, yaw: Math.PI / 2, pitch: 0.13, creature: 'tall', at: 10.4 },
 ];
 
 for (const shot of shots) {
@@ -114,8 +116,22 @@ for (const shot of shots) {
     g.player.teleport(s.x, s.z, s.yaw);
     g.player.view.pitch = s.pitch;
     g.player.frozen = true;
+
+    if (s.creature) {
+      // place() rather than send(): send() positions relative to the camera,
+      // which has not caught up with the teleport above yet.
+      g.world.lighting.setOn('*', true);
+      g.creatures.clear();
+      g.creatures.place(s.creature, g.player.position.clone().set(s.at, 0, 0), Math.PI / 2);
+    } else {
+      g.creatures.clear();
+      g.world.lighting.setOn('*', true);
+    }
   }, shot);
-  await page.waitForTimeout(1600);
+  // A single frame at high quality under software rendering can take most of a
+  // second, and a freshly placed creature fades in over several frames, so the
+  // creature shots need long enough for that fade to finish.
+  await page.waitForTimeout(shot.creature ? 7000 : 1600);
   await page.screenshot({ path: path.join(out, `${shot.name}.png`) });
   console.log('shot', shot.name);
 }

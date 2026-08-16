@@ -73,7 +73,9 @@ export type SoundId =
   | 'drone_high'
   | 'line_noise'
   | 'power_up'
-  | 'power_down';
+  | 'power_down'
+  | 'crawl'
+  | 'shriek';
 
 type Builder = (audio: AudioManager, ctx: AudioContext, out: AudioNode, opts: PlayOptions) => (() => void) | void;
 
@@ -456,6 +458,8 @@ const ONE_SHOT_LIFE: Partial<Record<SoundId, number>> = {
   power_up: 2.0,
   power_down: 1.6,
   phone: 4.2,
+  crawl: 0.7,
+  shriek: 2.6,
 };
 
 function impact(audio: AudioManager, ctx: AudioContext, out: AudioNode, freq: number, decay: number, gain = 0.6): void {
@@ -1083,5 +1087,79 @@ const SOUNDS: Record<SoundId, Builder> = {
     g.gain.exponentialRampToValueAtTime(0.0001, t + 1.4);
     osc.start(t);
     osc.stop(t + 1.5);
+  },
+
+  /** Chitin on terrazzo: a dry scrape with a hard tick under it. */
+  crawl: (audio, ctx, out) => {
+    const source = audio.noise();
+    const bp = audio.filter('bandpass', 2600, 2.2);
+    const hp = audio.filter('highpass', 900, 0.7);
+    const g = audio.gain(0);
+    source.connect(bp);
+    bp.connect(hp);
+    hp.connect(g);
+    g.connect(out);
+    const t = ctx.currentTime;
+    bp.frequency.setValueAtTime(3400, t);
+    bp.frequency.exponentialRampToValueAtTime(1500, t + 0.22);
+    g.gain.setValueAtTime(0.0001, t);
+    g.gain.exponentialRampToValueAtTime(0.09, t + 0.015);
+    g.gain.exponentialRampToValueAtTime(0.0001, t + 0.3);
+    source.start(t);
+    source.stop(t + 0.36);
+
+    // The claw that lands after the drag.
+    const tick = audio.osc('square', 180);
+    const tickGain = audio.gain(0);
+    const tickLp = audio.filter('lowpass', 1800, 1);
+    tick.connect(tickLp);
+    tickLp.connect(tickGain);
+    tickGain.connect(out);
+    tick.frequency.setValueAtTime(210, t + 0.16);
+    tick.frequency.exponentialRampToValueAtTime(70, t + 0.26);
+    tickGain.gain.setValueAtTime(0.0001, t + 0.16);
+    tickGain.gain.exponentialRampToValueAtTime(0.05, t + 0.18);
+    tickGain.gain.exponentialRampToValueAtTime(0.0001, t + 0.32);
+    tick.start(t + 0.16);
+    tick.stop(t + 0.36);
+  },
+
+  /** Not a scream — an inhale run backwards, with the throat in the wrong place. */
+  shriek: (audio, ctx, out) => {
+    const t = ctx.currentTime;
+    const source = audio.noise(true);
+    const formant = audio.filter('bandpass', 900, 7);
+    const shape = audio.filter('highpass', 300, 0.8);
+    const g = audio.gain(0);
+    source.connect(formant);
+    formant.connect(shape);
+    shape.connect(g);
+    g.connect(out);
+    formant.frequency.setValueAtTime(420, t);
+    formant.frequency.exponentialRampToValueAtTime(2600, t + 0.9);
+    formant.frequency.exponentialRampToValueAtTime(600, t + 2.1);
+    g.gain.setValueAtTime(0.0001, t);
+    g.gain.exponentialRampToValueAtTime(0.11, t + 0.5);
+    g.gain.exponentialRampToValueAtTime(0.0001, t + 2.3);
+    source.start(t);
+    source.stop(t + 2.4);
+
+    // A detuned pair underneath so it reads as a throat rather than as noise.
+    for (const base of [143, 149]) {
+      const osc = audio.osc('sawtooth', base);
+      const lp = audio.filter('lowpass', 1400, 3);
+      const og = audio.gain(0);
+      osc.connect(lp);
+      lp.connect(og);
+      og.connect(out);
+      osc.frequency.setValueAtTime(base, t);
+      osc.frequency.exponentialRampToValueAtTime(base * 2.6, t + 0.85);
+      osc.frequency.exponentialRampToValueAtTime(base * 0.6, t + 2.1);
+      og.gain.setValueAtTime(0.0001, t);
+      og.gain.exponentialRampToValueAtTime(0.035, t + 0.45);
+      og.gain.exponentialRampToValueAtTime(0.0001, t + 2.2);
+      osc.start(t);
+      osc.stop(t + 2.4);
+    }
   },
 };

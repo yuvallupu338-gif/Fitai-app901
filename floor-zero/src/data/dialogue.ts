@@ -434,6 +434,15 @@ export const LINES: Record<string, LocalizedText> = {
   c4_toys_slow: { he: 'איחרתי. הוא חוזר על זה.', en: 'Too slow. It repeats them.' },
   c4_toys_solved: { he: 'הארון נפתח.', en: 'The cabinet opened.' },
 
+  creature_crawler: {
+    he: 'משהו זז על ארבע בקצה החשוך. תאיר עליו — הפנס מספיק.',
+    en: 'Something on four limbs, down in the dark. Put light on it — the torch is enough.',
+  },
+  creature_tall: {
+    he: 'הוא זז רק כשאני לא מסתכל. אל תוריד ממנו עיניים.',
+    en: 'It only moves when I look away. Do not take your eyes off it.',
+  },
+
   c5_hidden: { he: 'הקיר כאן חלול.', en: 'The wall here is hollow.' },
   c5_chase: { he: 'הוא לא מחקה יותר.', en: 'It is not copying any more.' },
   c5_safe: { he: 'הדלת נסגרה מאחוריי.', en: 'The door closed behind me.' },

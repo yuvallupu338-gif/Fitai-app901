@@ -41,6 +41,8 @@ export class MimicDirector {
   private noiseOrigin = new THREE.Vector3();
   private scriptedLook = 0;
   private lingerTimer = 0;
+  private sentinelTimer = 0;
+  private glitchCountdown = 0;
 
   constructor(scene: THREE.Scene) {
     this.controller = new MimicController(scene);
@@ -81,6 +83,7 @@ export class MimicDirector {
     this.active = false;
     this.finished = false;
     this.chaseActive = false;
+    this.sentinelTimer = 0;
     this.deviationTimer = plan.tier >= 3 ? 9 : 15;
     this.controller.hide();
     this.controller.attention = 0;
@@ -91,6 +94,7 @@ export class MimicDirector {
     this.pending = null;
     this.active = false;
     this.chaseActive = false;
+    this.sentinelTimer = 0;
     this.tier = 0;
     this.controller.hide();
   }
@@ -98,6 +102,65 @@ export class MimicDirector {
   /** Force the mimic to look straight at the player for a few seconds. */
   lookAtPlayer(seconds = 3): void {
     this.scriptedLook = seconds;
+  }
+
+  /**
+   * The sentinel beat: it plants itself at the far end of the corridor, facing
+   * back down it, and does not move. No walking, no approach, no line — it is
+   * simply there whenever the player looks that way, and every so often it
+   * malfunctions in place, silently.
+   *
+   * It ends on its own, or the moment the player walks into it.
+   */
+  standWatching(ctx: GameContext, seconds = 30): void {
+    if (this.chaseActive) return;
+    const corridorEnd = new THREE.Vector3(24.6, 0, 0);
+    this.active = true;
+    this.finished = true;
+    this.lingerTimer = seconds;
+    this.sentinelTimer = seconds;
+    this.glitchCountdown = 3 + ctx.rng.range(0, 5);
+    this.controller.show();
+    this.controller.standStill();
+    // Facing back down the corridor, at the player.
+    this.controller.teleport(corridorEnd, -Math.PI / 2);
+    this.controller.attention = 1;
+    this.scriptedLook = seconds;
+    ctx.bus.emit('mimic_deviation', { kind: 'stands_watching' });
+  }
+
+  get isStandingWatch(): boolean {
+    return this.sentinelTimer > 0;
+  }
+
+  /**
+   * While it is standing guard, roll for a silent malfunction every few seconds.
+   * Deliberately no audio cue: the player either happens to be looking at the
+   * end of the corridor when it happens, or never knows it did.
+   */
+  private updateSentinel(delta: number, ctx: GameContext): void {
+    this.sentinelTimer -= delta;
+    if (this.sentinelTimer <= 0) {
+      this.sentinelTimer = 0;
+      this.controller.hide();
+      this.active = false;
+      return;
+    }
+
+    this.glitchCountdown -= delta;
+    if (this.glitchCountdown > 0) return;
+    this.glitchCountdown = 2.5 + ctx.rng.range(0, 6);
+    // Longer, harder bursts the closer the player has come.
+    const distance = this.distanceToPlayer(ctx);
+    const closeness = clamp(1 - (distance - 4) / 18, 0, 1);
+    this.controller.glitch(0.28 + closeness * 0.7, 0.6 + closeness * 0.7);
+
+    // Walking into it ends the beat — it is gone by the time you arrive.
+    if (distance < 3) {
+      this.sentinelTimer = 0;
+      this.controller.hide();
+      this.active = false;
+    }
   }
 
   /* ---------------------------------------------------------------- */
@@ -120,7 +183,10 @@ export class MimicDirector {
       if (this.spawnTimer <= 0) this.spawn(ctx);
     }
 
-    if (this.active && !this.chaseActive) {
+    if (this.sentinelTimer > 0) {
+      // Standing guard overrides the ordinary behaviour clock entirely.
+      this.updateSentinel(delta, ctx);
+    } else if (this.active && !this.chaseActive) {
       this.updateBehaviour(delta, ctx);
     }
 
@@ -219,7 +285,10 @@ export class MimicDirector {
 
     // Tier 2 — faulty copy.
     options.push(() => {
-      this.controller.freeze(ctx.rng.range(2, 4.5));
+      const pause = ctx.rng.range(2, 4.5);
+      this.controller.freeze(pause);
+      // Half the time the pause is not a pause but a fault, in silence.
+      if (ctx.rng.chance(0.5)) this.controller.glitch(Math.min(0.9, pause * 0.35), 0.9);
       ctx.bus.emit('mimic_deviation', { kind: 'long_pause' });
     });
     options.push(() => {
@@ -309,6 +378,7 @@ export class MimicDirector {
     this.chaseActive = true;
     this.active = true;
     this.finished = true;
+    this.sentinelTimer = 0;
     this.chaseSpeed = 2.15;
     this.controller.attention = 1;
     this.controller.show();
@@ -326,6 +396,7 @@ export class MimicDirector {
 
   stopChase(): void {
     this.chaseActive = false;
+    this.sentinelTimer = 0;
     this.controller.hide();
     this.active = false;
   }

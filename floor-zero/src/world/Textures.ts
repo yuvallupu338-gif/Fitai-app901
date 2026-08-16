@@ -1065,6 +1065,145 @@ export function toySequenceTexture(sequence: readonly number[]): THREE.CanvasTex
   return toTexture(canvas, 1, 1);
 }
 
+/**
+ * A face pressing out from behind the wallpaper — drawn as light and shadow on
+ * a bulge rather than as a face, so it reads as the plaster being pushed from
+ * the other side instead of as a picture hung on it.
+ */
+export function wallFaceTexture(seed = 313): THREE.CanvasTexture {
+  const size = 256;
+  const { canvas, ctx } = surface(size);
+  const rng = new RNG(seed);
+  const cx = size / 2;
+  const cy = size / 2;
+
+  ctx.clearRect(0, 0, size, size);
+
+  // The bulge: a soft dome of highlight, fading to nothing at the edges so it
+  // blends into whatever wall it is laid over.
+  const dome = ctx.createRadialGradient(cx - 18, cy - 26, 8, cx, cy, size * 0.46);
+  dome.addColorStop(0, 'rgba(228,224,210,0.75)');
+  dome.addColorStop(0.45, 'rgba(150,146,134,0.4)');
+  dome.addColorStop(1, 'rgba(120,116,106,0)');
+  ctx.fillStyle = dome;
+  ctx.beginPath();
+  ctx.ellipse(cx, cy, size * 0.3, size * 0.42, 0, 0, Math.PI * 2);
+  ctx.fill();
+
+  // Sockets, pressed inward. No eyes in them.
+  for (const side of [-1, 1] as const) {
+    const ex = cx + side * 34;
+    const socket = ctx.createRadialGradient(ex, cy - 26, 2, ex, cy - 26, 30);
+    socket.addColorStop(0, 'rgba(16,14,12,0.72)');
+    socket.addColorStop(1, 'rgba(16,14,12,0)');
+    ctx.fillStyle = socket;
+    ctx.beginPath();
+    ctx.ellipse(ex, cy - 26, 26, 19, 0, 0, Math.PI * 2);
+    ctx.fill();
+  }
+
+  // The nose ridge and the open mouth, both as shadow only.
+  ctx.strokeStyle = 'rgba(30,26,22,0.34)';
+  ctx.lineWidth = 7;
+  ctx.beginPath();
+  ctx.moveTo(cx, cy - 20);
+  ctx.lineTo(cx - 5, cy + 16);
+  ctx.stroke();
+
+  const mouth = ctx.createRadialGradient(cx, cy + 48, 3, cx, cy + 48, 34);
+  mouth.addColorStop(0, 'rgba(10,8,7,0.8)');
+  mouth.addColorStop(1, 'rgba(10,8,7,0)');
+  ctx.fillStyle = mouth;
+  ctx.beginPath();
+  ctx.ellipse(cx, cy + 48, 24, 30, 0, 0, Math.PI * 2);
+  ctx.fill();
+
+  // Wallpaper still stretched over it: creases radiating from the pressure.
+  ctx.strokeStyle = 'rgba(90,86,78,0.3)';
+  ctx.lineWidth = 2;
+  for (let i = 0; i < 14; i++) {
+    const angle = (i / 14) * Math.PI * 2 + rng.range(-0.1, 0.1);
+    ctx.beginPath();
+    ctx.moveTo(cx + Math.cos(angle) * 60, cy + Math.sin(angle) * 78);
+    ctx.lineTo(cx + Math.cos(angle) * 122, cy + Math.sin(angle) * 126);
+    ctx.stroke();
+  }
+
+  return toTexture(canvas, 1, 1);
+}
+
+/** Writing coming through the wallpaper from behind, in a slow dark bleed. */
+export function bleedTexture(text: string, seed = 331): THREE.CanvasTexture {
+  const w = 512;
+  const h = 256;
+  const { canvas, ctx } = surface(w, h);
+  const rng = new RNG(seed);
+
+  ctx.clearRect(0, 0, w, h);
+  ctx.font = 'bold 92px sans-serif';
+  ctx.textAlign = 'center';
+  ctx.textBaseline = 'middle';
+
+  // Three passes: a wide dark halo where it has soaked, then the letters.
+  ctx.fillStyle = 'rgba(58,12,10,0.32)';
+  ctx.filter = 'blur(14px)';
+  ctx.fillText(text, w / 2, h / 2);
+  ctx.filter = 'none';
+  ctx.fillStyle = 'rgba(74,14,12,0.66)';
+  ctx.fillText(text, w / 2, h / 2);
+  ctx.fillStyle = 'rgba(28,6,6,0.85)';
+  ctx.font = 'bold 88px sans-serif';
+  ctx.fillText(text, w / 2, h / 2);
+
+  // Runs, because it is wet.
+  ctx.strokeStyle = 'rgba(52,10,9,0.5)';
+  for (let i = 0; i < 26; i++) {
+    const x = w / 2 + rng.range(-150, 150);
+    const y = h / 2 + rng.range(-10, 30);
+    ctx.lineWidth = rng.range(1.5, 4);
+    ctx.beginPath();
+    ctx.moveTo(x, y);
+    ctx.lineTo(x + rng.range(-3, 3), y + rng.range(20, 90));
+    ctx.stroke();
+  }
+
+  return toTexture(canvas, 1, 1);
+}
+
+/** Still black water: a dark mirror with a slow ripple pattern baked in. */
+export function blackWaterTexture(seed = 349): THREE.CanvasTexture {
+  const size = 512;
+  const { canvas, ctx } = surface(size);
+  const rng = new RNG(seed);
+
+  ctx.fillStyle = '#05070a';
+  ctx.fillRect(0, 0, size, size);
+
+  // Concentric rings from a handful of drip points, faint and overlapping.
+  for (let drop = 0; drop < 5; drop++) {
+    const cx = rng.range(0, size);
+    const cy = rng.range(0, size);
+    for (let ring = 1; ring < 22; ring++) {
+      ctx.strokeStyle = `rgba(120,146,168,${0.05 - ring * 0.002})`;
+      ctx.lineWidth = 1.6;
+      ctx.beginPath();
+      ctx.arc(cx, cy, ring * 11, 0, Math.PI * 2);
+      ctx.stroke();
+    }
+  }
+
+  // A cold sheen so it reads as a surface rather than as a hole.
+  const sheen = ctx.createLinearGradient(0, 0, size, size);
+  sheen.addColorStop(0, 'rgba(140,170,190,0.09)');
+  sheen.addColorStop(0.5, 'rgba(20,30,40,0.02)');
+  sheen.addColorStop(1, 'rgba(140,170,190,0.07)');
+  ctx.fillStyle = sheen;
+  ctx.fillRect(0, 0, size, size);
+
+  grain(ctx, size, size, 6, rng);
+  return toTexture(canvas, 3, 3);
+}
+
 /** Soft dark blob used for floor shadows and light spill. */
 export function softShadowTexture(): THREE.CanvasTexture {
   const size = 128;

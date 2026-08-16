@@ -129,6 +129,9 @@ const he: Dict = {
   'mobile.rotate_sub': 'המשחק בנוי למסך רחב',
 
   'death.caught': 'הוא הגיע ראשון',
+  'death.caught.mimic': 'הוא הגיע ראשון',
+  'death.caught.crawler': 'היה חשוך מדי',
+  'death.caught.tall': 'הורדת ממנו עיניים',
   'death.retry': 'חזרה לנקודת הבדיקה',
 
   'toast.saved': 'המשחק נשמר',
@@ -269,6 +272,9 @@ const en: Dict = {
   'mobile.rotate_sub': 'This game is built for landscape',
 
   'death.caught': 'It got there first',
+  'death.caught.mimic': 'It got there first',
+  'death.caught.crawler': 'It was too dark',
+  'death.caught.tall': 'You looked away',
   'death.retry': 'Return to checkpoint',
 
   'toast.saved': 'Game saved',

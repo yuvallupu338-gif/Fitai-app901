@@ -137,6 +137,7 @@ export class AnomalyDirector {
       case 'apartment_swap':
         return ctx.world.prop('plate_04') ?? null;
       case 'chair_move':
+      case 'chair_rises':
         return ctx.world.prop('corridor_chair') ?? null;
       case 'window_corridor':
         return ctx.world.prop('corridor_window') ?? null;

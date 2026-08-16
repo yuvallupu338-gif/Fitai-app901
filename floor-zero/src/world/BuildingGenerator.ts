@@ -43,7 +43,15 @@ import {
   table,
 } from './Props';
 import { SecurityFeed } from './Screens';
-import { rainWindowTexture, silhouetteTexture, softShadowTexture, windowCorridorTexture } from './Textures';
+import {
+  blackWaterTexture,
+  bleedTexture,
+  rainWindowTexture,
+  silhouetteTexture,
+  softShadowTexture,
+  wallFaceTexture,
+  windowCorridorTexture,
+} from './Textures';
 import {
   CORRIDOR,
   CORRIDOR_FIXTURES,
@@ -710,6 +718,57 @@ export function buildFloorZero(params: BuildParams & { chapter: number }): Level
   wrongShadow.visible = false;
   (wrongShadow.material as THREE.MeshBasicMaterial).depthWrite = false;
   props.set('wrong_shadow', wrongShadow);
+
+  // Faces that press out of the corridor walls. Four of them, alternating
+  // sides, hidden until something pushes.
+  const faceTexture = builder.ownTexture(wallFaceTexture());
+  const faces: THREE.Mesh[] = [];
+  [
+    { x: 6.2, side: -1 },
+    { x: 11.6, side: 1 },
+    { x: 16.4, side: -1 },
+    { x: 20.9, side: 1 },
+  ].forEach((spot, index) => {
+    const z = spot.side < 0 ? CORRIDOR.z0 + WALL_MOUNT * 0.6 : CORRIDOR.z1 - WALL_MOUNT * 0.6;
+    const face = builder.panel(faceTexture, 0.62, 0.86, [spot.x, 1.45, z], spot.side < 0 ? 0 : Math.PI, {
+      emissive: true,
+      opacity: 0,
+      name: `wall_face_${index}`,
+    });
+    (face.material as THREE.MeshBasicMaterial).depthWrite = false;
+    face.visible = false;
+    faces.push(face);
+    props.set(`wall_face_${index}`, face);
+  });
+  props.set('wall_faces', faces[0]);
+  (faces[0].userData as { all?: THREE.Mesh[] }).all = faces;
+
+  // Writing that soaks through the wallpaper opposite the lift.
+  const bleed = builder.panel(
+    builder.ownTexture(bleedTexture('0317')),
+    1.5,
+    0.75,
+    [5.0, 1.6, CORRIDOR.z1 - WALL_MOUNT * 0.6],
+    Math.PI,
+    { emissive: true, opacity: 0, name: 'wall_bleed' },
+  );
+  (bleed.material as THREE.MeshBasicMaterial).depthWrite = false;
+  bleed.visible = false;
+  props.set('wall_bleed', bleed);
+
+  // The corridor floor, when it stops being a floor.
+  const water = builder.panel(
+    builder.ownTexture(blackWaterTexture()),
+    CORRIDOR.x1 - CORRIDOR.x0,
+    CORRIDOR.z1 - CORRIDOR.z0,
+    [(CORRIDOR.x0 + CORRIDOR.x1) / 2, 0.012, 0],
+    0,
+    { emissive: true, opacity: 0, name: 'black_water' },
+  );
+  water.rotation.set(-Math.PI / 2, 0, 0);
+  (water.material as THREE.MeshBasicMaterial).depthWrite = false;
+  water.visible = false;
+  props.set('black_water', water);
 
   const hallFigure = builder.panel(
     builder.ownTexture(silhouetteTexture()),
