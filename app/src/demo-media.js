@@ -41,7 +41,7 @@ function prefetchGifs(){
     });}
   for(var c=0;c<4;c++)next();                      // small concurrency pool
 }
-function exDemo(frames,name){var a=Array.isArray(frames)?frames:(frames?[frames]:[]);var f0=a[0]||"",f1=a[1]||f0;var head='<div class="exdemo"><div class="exfb"><span class="e">🏋️</span><span class="n">'+esc(name)+'</span></div>';if(!f0)return head+'<div class="exlabel">הדגמה</div></div>';return head+'<img class="exg exanim" data-f0="'+f0+'" data-f1="'+f1+'" src="'+f0+'" loading="lazy" decoding="async" alt="'+esc(name)+'" onerror="this.style.display=&quot;none&quot;"><div class="exlabel">הדגמה חיה</div></div>';}
+function exDemo(frames,name){var a=Array.isArray(frames)?frames:(frames?[frames]:[]);var f0=a[0]||"",f1=a[1]||f0;var head='<div class="exdemo"><div class="exfb"><span class="e">🏋️</span><span class="n">'+esc(name)+'</span></div>';if(!f0)return head+'<div class="exlabel">הדגמה</div></div>';return head+'<img class="exg exanim" data-f0="'+f0+'" data-f1="'+f1+'" src="'+f0+'" loading="lazy" decoding="async" alt="'+esc(name)+'" data-call="hideBrokenImage" data-on="error"><div class="exlabel">הדגמה חיה</div></div>';}
 var _exFlip=0;try{setInterval(function(){_exFlip^=1;var ims=document.querySelectorAll("img.exanim");for(var i=0;i<ims.length;i++){var im=ims[i];if(!im._pf){im._pf=1;try{var _pi=new Image();_pi.src=im.getAttribute("data-f1");}catch(e){}}var t=_exFlip?im.getAttribute("data-f1"):im.getAttribute("data-f0");if(t&&im.getAttribute("src")!==t)im.src=t;}},850);}catch(e){}
 function coachStage(p,anim,curIdx){
   const fem=p.personal.gender==='נקבה';

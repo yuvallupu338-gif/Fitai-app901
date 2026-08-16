@@ -29,8 +29,8 @@ function openFoodPortion(fi,eid){
   _fp={fi:fi,eid:(eid==null?null:eid)};
   openSheet('<h3 style="display:flex;align-items:center;gap:9px">'+((typeof FOODIMG!=='undefined')&&FOODIMG[f.n]?'<img src="'+FOODIMG[f.n]+'" alt="" style="width:40px;height:40px;border-radius:12px;object-fit:cover;border:1px solid var(--line)">':'')+'<span>'+esc(foodBaseName(f.n))+'</span></h3>'+
     '<div class="sub" style="margin:0 0 10px">'+(eid!=null?'עריכת כמות':'בחר כמות')+' · לכל '+f.base+' '+f.u+': '+f.cal+' קל׳</div>'+
-    '<div class="field"><label>כמות ('+f.u+')</label><input class="inp" id="fp_qty" inputmode="decimal" value="'+qty+'" oninput="foodPortionCalc()"></div>'+
-    '<div class="pills" style="margin:8px 0">'+[0.5,1,1.5,2].map(function(m){return '<button type="button" class="pill" onclick="document.getElementById(&quot;fp_qty&quot;).value='+(Math.round(f.base*m*100)/100)+';foodPortionCalc()">×'+m+'</button>';}).join('')+'</div>'+
+    '<div class="field"><label>כמות ('+f.u+')</label><input class="inp" id="fp_qty" inputmode="decimal" value="'+esc(qty)+'" data-call="foodPortionCalc" data-on="input"></div>'+
+    '<div class="pills" style="margin:8px 0">'+[0.5,1,1.5,2].map(function(m){return '<button type="button" class="pill" data-call="fpSetQty" data-args="['+(Math.round(f.base*m*100)/100)+']">×'+m+'</button>';}).join('')+'</div>'+
     '<div id="fp_prev" class="card" style="margin:8px 0"></div>'+
     '<button class="btn grad" data-act="foodAddPortion" style="width:100%;margin-top:6px">'+(eid!=null?'עדכן ✓':'הוסף ליום ✓')+'</button>'+
     '<button class="btn ghost" data-act="close" style="width:100%;margin-top:6px">ביטול</button>');
@@ -60,7 +60,7 @@ function foodDiary(p){
 }
 var QA_PRESET=[['🍎 פרי',80,1,20,0],['🥚 ביצה',78,6,1,5],['🍗 מנת חלבון',150,28,2,4],['🥗 מנה מלאה',550,30,55,18],['½ מנה',275,15,28,9]];
 function quickAddForm(){return '<h3>➕ הוסף אוכל</h3>'+
-  '<div class="field" style="margin:0 0 8px"><label>🔎 חיפוש מזון</label><input class="inp" id="qa_search" placeholder="לדוגמה: בננה, חזה עוף, אורז" oninput="foodSearchRender(this.value)"></div>'+
+  '<div class="field" style="margin:0 0 8px"><label>🔎 חיפוש מזון</label><input class="inp" id="qa_search" placeholder="לדוגמה: בננה, חזה עוף, אורז" data-call="foodSearchRender" data-on="input" data-args="[&quot;$value&quot;]"></div>'+
   '<div id="qa_results" style="margin:0 0 8px;max-height:220px;overflow:auto"></div>'+
   '<div class="sub" style="margin:0 0 8px">— או מנה מהירה / ערכים ידניים —</div>'+'<div class="pills" style="margin-bottom:10px">'+'<div class="pills" style="margin-bottom:10px">'+QA_PRESET.map(function(o,i){return '<button class="pill" data-act="qaPreset" data-i="'+i+'">'+o[0]+'</button>';}).join('')+'</div>'+'<div class="field"><label>שם (אופציונלי — יישמר למזונים שלי)</label><input class="inp" id="qa_name" placeholder="לדוגמה: כריך טונה שלי"></div>'+'<div class="inrow"><div class="field"><label>קלוריות</label><input class="inp" id="qa_cal" inputmode="decimal" placeholder="0"></div><div class="field"><label>חלבון (ג׳)</label><input class="inp" id="qa_p" inputmode="decimal" placeholder="0"></div></div>'+'<div class="inrow"><div class="field"><label>פחמימות (ג׳)</label><input class="inp" id="qa_c" inputmode="decimal" placeholder="0"></div><div class="field"><label>שומן (ג׳)</label><input class="inp" id="qa_f" inputmode="decimal" placeholder="0"></div></div>'+'<div class="inrow"><div class="field"><label>נתרן (מ״ג)</label><input class="inp" id="qa_na" inputmode="decimal" placeholder="0"></div><div class="field"><label>סוכר (ג׳)</label><input class="inp" id="qa_sug" inputmode="decimal" placeholder="0"></div></div>'+'<button class="btn grad" data-act="quickAddSave" style="width:100%;margin-top:12px">הוסף ליום ✓</button>'+'<button class="btn ghost" data-act="close" style="width:100%;margin-top:6px">ביטול</button>';}
 

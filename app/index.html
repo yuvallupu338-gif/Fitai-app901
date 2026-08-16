@@ -2,7 +2,14 @@
 <html lang="he" dir="rtl" translate="no" class="notranslate">
 <head>
 <meta charset="UTF-8">
-<meta http-equiv="Content-Security-Policy" content="default-src 'self'; script-src 'self' 'unsafe-inline'; style-src 'self' 'unsafe-inline'; img-src 'self' data: blob:; media-src 'self' data: blob:; font-src 'self' data:; connect-src 'self' data: blob:; worker-src 'self' blob:; manifest-src 'self' blob:; object-src 'none'; base-uri 'none'; form-action 'none'">
+<!-- script-src has no 'unsafe-inline'. That one token used to be the whole
+     ballgame: it was there so the app's own generated onclick="…" would run,
+     and it let an injected <img onerror=…> run by exactly the same rule. The
+     handlers are data-call attributes now (see src/bindings.js), so markup
+     that reaches the DOM is markup, not code.
+     frame-ancestors is deliberately absent — it is ignored in a meta tag, and
+     writing it here would only look like clickjacking was handled. -->
+<meta http-equiv="Content-Security-Policy" content="default-src 'none'; script-src 'self'; style-src 'self' 'unsafe-inline'; img-src 'self' data: blob:; font-src 'self' data:; connect-src 'self'; manifest-src 'self' blob:; media-src 'none'; frame-src 'none'; worker-src 'none'; object-src 'none'; base-uri 'none'; form-action 'none'">
 <meta name="viewport" content="width=device-width, initial-scale=1.0, maximum-scale=5.0, user-scalable=yes">
 <meta name="google" content="notranslate">
 <meta name="theme-color" content="#0B0C0E">

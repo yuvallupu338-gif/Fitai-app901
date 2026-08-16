@@ -26,7 +26,7 @@ app/
   assets/                 5 scripts, 23 MB — photographs and animations
                           5 images — the brand marks, cut from one source
   tools/                  rebuild the fonts and the logo, check the load order,
-                          drive the app in a browser
+                          drive the app in a browser, run the security checks
 ```
 
 ---
@@ -224,6 +224,93 @@ cannot be re-fetched byte for byte.
 
 ---
 
+## Security
+
+Four agents were pointed at this app with instructions to break in, and what
+they found had one root cause: `importProfile` merged a hand-supplied `.json`
+into a profile with `Object.assign`, checking only that two keys existed. Every
+other field arrived at whatever type the file said — and most of this interface
+builds HTML by concatenation on the assumption that a weight is a number.
+
+Confirmed by planting each payload and driving the browser to the screen that
+renders it: **10 of 16 executed**, four of them at boot with no interaction. A
+`"name": {}` in the same file was worse than any of them — it threw inside the
+render, and the boot handler's recovery overwrote *both* storage keys, erasing
+every profile with no copy left.
+
+### What changed
+
+**The store has a schema, and it is enforced on the way in.** `sanitizeProfile`
+and `sanitizeDB` in `src/store.js` rebuild a profile from a fresh template,
+copying across only what the schema names, at the type the schema says: a
+number comes out a number, an enum comes out one of its members, a lookup key
+comes out free of the characters that end an attribute or open a tag, free text
+comes out a string. Keys the schema does not name are dropped. That runs at all
+three boundaries — reading from disk, importing a file, and a `storage` event
+from another tab, which used to install whatever it was handed on nothing more
+than one truthy check.
+
+**The two write paths that bypassed it are fixed.** `woSaveWeight` treated
+`parseFloat(v)` being truthy as proof the string was a number; `parseFloat` of
+`1"><img …` is `1`, so the whole string was stored and later interpolated into
+a `value=` attribute. Both it and `woInput` now store the number they claim to.
+
+**The sinks escape too.** Twenty numeric interpolations that the schema already
+makes safe are wrapped in `esc()` anyway, so the day someone adds a field the
+schema does not cover, it fails closed.
+
+**Losing data is no longer how the app handles a bad profile.** The import
+rolls back when the render throws instead of leaving the file committed while
+telling the user it failed, and the boot recovery sets the old store aside
+under `fitai_v1_broken` before starting fresh.
+
+**`script-src` no longer carries `'unsafe-inline'`.** That token existed so the
+app's own generated `onclick="…"` would run, and it let an injected
+`<img onerror=…>` run by exactly the same rule — the CSP could not tell them
+apart. All 46 generated handlers are now `data-call` attributes naming a
+function and its arguments, dispatched in `src/bindings.js` against a fixed
+list of callable names. `default-src` is `'none'`, `connect-src` is `'self'`,
+and `worker-src` is `'none'` — the service-worker registration for a `sw.js`
+that never existed is gone with it, which also removes the 404 that used to
+appear in the console on every load.
+
+`frame-ancestors` is deliberately **not** in the policy: it is ignored in a
+`<meta>` tag, and putting it there would only look like clickjacking was
+handled. It needs a real response header, which GitHub Pages cannot set.
+
+### Verifying it
+
+```bash
+node app/tools/security-check.mjs
+```
+
+Three sections, all measured in a browser rather than argued from the source:
+every payload replanted and blocked with the profile intact; the CSP proven to
+stop an injected handler, a `javascript:` URL, `eval`, `new Function` and a
+remote script; and each of the converted controls pressed to confirm the
+questionnaire still works. Currently 37 of 37.
+
+### What this does not fix
+
+- **The origin is shared.** GitHub Pages serves this app at
+  `/Fitai-app901/app/`, a different app at `/Fitai-app901/`, and a game at
+  `/Fitai-app901/backrooms/`. localStorage is per-origin, not per-path, and the
+  other two have no CSP of their own — so a scripting bug in either of them can
+  read `fitai_v1`. Hardening this directory does not close that; the other two
+  need their own policies.
+- **Nothing stops the device's owner.** Anyone with the browser open can edit
+  localStorage directly. For a local-only app with no accounts that is the
+  model, not a hole.
+- **Exfiltration by navigation.** `connect-src`/`img-src` block a beacon, but no
+  CSP directive governs `location = …`. Script execution, if it ever happened
+  again, could still carry data out that way.
+- **The data is plain text.** Name, age, weight, injuries and allergies sit
+  unencrypted in the browser and travel in the export file. Encrypting them with
+  a key stored beside them would protect nothing; it is worth knowing rather
+  than papering over.
+
+---
+
 ## Tools
 
 ```bash
@@ -231,6 +318,7 @@ node app/tools/check-load-order.mjs   # the guard described above
 node app/tools/fetch-fonts.mjs        # rebuild styles/fonts.css from Google Fonts
 node app/tools/build-logo.mjs         # re-cut the brand marks from assets/logo-source.png
 node app/tools/smoke.mjs              # drive the whole app in Chromium
+node app/tools/security-check.mjs     # payloads, CSP, and the converted controls
 node app/tools/recolor.mjs .          # the design pass's colour map (already applied)
 ```
 

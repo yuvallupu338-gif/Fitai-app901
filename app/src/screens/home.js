@@ -23,7 +23,7 @@ function Home(){
   <div class="daystat">${dayTxt} · ${DOW_HE[today]} · ${num(dd.eff.cal)} קלוריות · ${dd.eff.protein} ג׳ חלבון · ${(()=>{const _wt=weighedToday(p);return _wt
     ?`<span data-act="weighDone" class="lnk" data-notr>${_wt.v}</span> ק״ג`
     :`<span data-act="quickWeigh" class="lnk">${L('שקילה','log weight','pésate')}</span>`;})()}</div>
-  ${p.goalWeight?(()=>{var ws=p.weights||[];var start=ws.length?ws[0].v:p.personal.weight;var cur=p.personal.weight;var goal=p.goalWeight;var total=start-goal;var done=start-cur;var pct=total!==0?Math.max(0,Math.min(100,Math.round(done/total*100))):(cur===goal?100:0);var rem=(goal<start)?Math.round((cur-goal)*10)/10:Math.round((goal-cur)*10)/10;return `<div class="card" style="margin:0 4px 8px;padding:12px 14px"><div class="gauge"><span>${L('יעד משקל','Goal weight','Peso objetivo')}: ${goal} ק״ג</span><span style="color:var(--teal2);font-weight:800">${pct}%</span></div><div class="waterbar"><i style="width:${pct}%;background:var(--grad)"></i></div><div class="sub" style="margin-top:5px">${cur} ק״ג עכשיו · ${rem>0?('נותרו '+rem+' ק״ג'):rem<0?('עברת ביעד '+Math.abs(rem)+' ק״ג'):'הגעת ליעד! 🎉'}</div></div>`;})():''}
+  ${p.goalWeight?(()=>{var ws=p.weights||[];var start=ws.length?ws[0].v:p.personal.weight;var cur=p.personal.weight;var goal=esc(p.goalWeight);var total=start-goal;var done=start-cur;var pct=total!==0?Math.max(0,Math.min(100,Math.round(done/total*100))):(cur===goal?100:0);var rem=(goal<start)?Math.round((cur-goal)*10)/10:Math.round((goal-cur)*10)/10;return `<div class="card" style="margin:0 4px 8px;padding:12px 14px"><div class="gauge"><span>${L('יעד משקל','Goal weight','Peso objetivo')}: ${goal} ק״ג</span><span style="color:var(--teal2);font-weight:800">${pct}%</span></div><div class="waterbar"><i style="width:${pct}%;background:var(--grad)"></i></div><div class="sub" style="margin-top:5px">${cur} ק״ג עכשיו · ${rem>0?('נותרו '+rem+' ק״ג'):rem<0?('עברת ביעד '+Math.abs(rem)+' ק״ג'):'הגעת ליעד! 🎉'}</div></div>`;})():''}
   ${returnWeek(p)?`<div class="card" style="border-color:rgba(255,107,61,.45);background:rgba(255,107,61,.07)">
     <div style="font-weight:800">חזרה מהפסקה — שבוע ${returnWeek(p)} מתוך 4</div>
     <div class="sub" style="margin:4px 0 0">האימונים מותאמים: פחות סטים, משקלים קלים יותר ומנוחה ארוכה יותר. נעלה בהדרגה.</div>
@@ -76,7 +76,7 @@ function Home(){
     <div class="grid">
       <div class="stat"><div class="v">${p.workouts}</div><div class="l">אימונים</div></div>
       <div class="stat"><div class="v">${sl}</div><div class="l">רמת כוח</div></div>
-      <div class="stat"><div class="v">${num(p.xp)}</div><div class="l">נקודות XP</div></div>
+      <div class="stat"><div class="v">${esc(num(p.xp))}</div><div class="l">נקודות XP</div></div>
     </div>
     <div class="row" style="margin-top:12px">
       <button class="btn b" data-act="trends" style="flex:1">${L('גרפים והישגים','Charts and badges','Gráficos y logros')}</button>
@@ -103,7 +103,7 @@ function Home(){
   <div class="card">
     <h2>${L('מעקב משקל','Weight tracking','Seguimiento de peso')}</h2>
     <div style="display:flex;align-items:center;gap:14px">
-      <div style="font-size:34px;font-weight:900">${lastW.v} <span style="font-size:16px;color:var(--muted)">ק״ג</span></div>
+      <div style="font-size:34px;font-weight:900">${esc(lastW.v)} <span style="font-size:16px;color:var(--muted)">ק״ג</span></div>
       <div style="flex:1"><input class="inp" id="w_val" inputmode="decimal" placeholder="משקל חדש (ק״ג)"></div>
     </div>
     <button class="btn b" data-act="saveWeight">${L('שמור משקל','Save weight','Guardar peso')}</button>
@@ -119,7 +119,7 @@ function weightChart(p){
   const ws=p.weights.slice(-30),vals=ws.map(w=>w.v),min=Math.min(...vals),max=Math.max(...vals),rng=(max-min)||1;
   return `<div class="bars" style="height:90px;margin-top:12px">${ws.map(w=>{
     const h=18+((w.v-min)/rng)*80;
-    return `<div class="bar"><div class="col" style="height:${h}%;background:linear-gradient(180deg,var(--blue2),var(--blue))"></div><div class="lbl">${w.v}</div></div>`;
+    return `<div class="bar"><div class="col" style="height:${h}%;background:linear-gradient(180deg,var(--blue2),var(--blue))"></div><div class="lbl">${esc(w.v)}</div></div>`;
   }).join('')}</div>`;
 }
 function dayKey(ts){var d=new Date(ts);return d.getFullYear()+'-'+d.getMonth()+'-'+d.getDate();}

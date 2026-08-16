@@ -39,24 +39,31 @@ function importProfile(){
       try{
         const data=JSON.parse(r.result);
         if(!data||typeof data!=='object'||!data.personal||!data.workout)throw new Error('bad');
-        const tpl=newProfile(data.name||'מיובא');
-        const healed=Object.assign({},tpl,data);
-        healed.personal=Object.assign({},tpl.personal,data.personal||{});
-        healed.workout=Object.assign({},tpl.workout,data.workout||{});
-        healed.fitness=Object.assign({},tpl.fitness,data.fitness||{});
-        healed.nutrition=Object.assign({},tpl.nutrition,data.nutrition||{});
-        if(!Array.isArray(healed.workout.days)||!healed.workout.days.length)healed.workout.days=tpl.workout.days;
-        if(!Array.isArray(healed.weights)||!healed.weights.length)healed.weights=tpl.weights;
-        if(!Array.isArray(healed.history))healed.history=[];
-        healed.id='p_'+Math.random().toString(36).slice(2,9);
+        /* This file came from outside, so it is not merged — it is rebuilt.
+           sanitizeProfile starts from a fresh template and copies across only
+           what the schema names, at the type the schema says, which is what
+           stops a .json from putting markup where the screens expect a number.
+           The id is regenerated so an import can never target an existing
+           profile, and restore points are dropped rather than trusted. */
+        const healed=sanitizeProfile(data,'p_'+Math.random().toString(36).slice(2,9));
         healed.restorePoints=[];
-        ['history','weights','measurements'].forEach(function(k){if(Array.isArray(healed[k])&&healed[k].length>365)healed[k]=healed[k].slice(-365);});
-        if(Array.isArray(healed.foodLog)&&healed.foodLog.length>200)healed.foodLog=healed.foodLog.slice(-200);
         const prevActive=DB.active;
         DB.profiles[healed.id]=healed;DB.active=healed.id;
         var _ok=true;
         try{if(_saveT){clearTimeout(_saveT);_saveT=null;}var _s=JSON.stringify(DB);localStorage.setItem(KEY,_s);localStorage.setItem(KEY+'_bk',_s);}catch(_err){_ok=false;}
-        if(_ok){render();renderProfileMenu();toast('פרופיל יובא 📁');}
+        /* Rolling back on a storage failure was already handled; rolling back
+           when the *render* throws was not, and that was the worse of the two —
+           it left the bad profile committed to both storage keys and told the
+           user the import had failed. */
+        if(_ok){
+          try{render();renderProfileMenu();toast('פרופיל יובא 📁');}
+          catch(_rerr){
+            delete DB.profiles[healed.id];DB.active=prevActive;
+            try{flushSave();}catch(_e){}
+            try{render();}catch(_e2){}
+            toast('קובץ פרופיל לא תקין');
+          }
+        }
         else{delete DB.profiles[healed.id];DB.active=prevActive;try{save();}catch(_e){}render();toast('האחסון מלא — הייבוא בוטל');}
       }catch(e){toast('קובץ פרופיל לא תקין');}
     };

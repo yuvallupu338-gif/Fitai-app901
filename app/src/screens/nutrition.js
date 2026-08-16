@@ -61,7 +61,7 @@ function Nutrition(){
 
   ${isUnderweight(p)?`<div class="card" style="border-color:rgba(255,107,61,.45);background:linear-gradient(135deg,rgba(255,107,61,.10),rgba(217,255,61,.04))">
     <b style="color:var(--orange2);font-size:15px">⚠️ התאמה בריאותית</b>
-    <div class="sub" style="margin-top:6px">המשקל בפרופיל (${p.personal.weight} ק״ג · ${p.personal.height} ס״מ · BMI ${bmiOf(p).toFixed(1)}) מצביע על תת-משקל. לכן היעד הותאם ל<b>עודף קלורי לבנייה</b> — בלי המלצת גירעון — וצריכת החלבון רוככה. אם הנתון מדויק, מומלץ להיוועץ באיש מקצוע.</div>
+    <div class="sub" style="margin-top:6px">המשקל בפרופיל (${esc(p.personal.weight)} ק״ג · ${esc(p.personal.height)} ס״מ · BMI ${bmiOf(p).toFixed(1)}) מצביע על תת-משקל. לכן היעד הותאם ל<b>עודף קלורי לבנייה</b> — בלי המלצת גירעון — וצריכת החלבון רוככה. אם הנתון מדויק, מומלץ להיוועץ באיש מקצוע.</div>
   </div>`:''}
 
   <div class="grid g4">

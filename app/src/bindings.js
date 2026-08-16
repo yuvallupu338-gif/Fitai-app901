@@ -14,6 +14,64 @@ $('nav').addEventListener('click',e=>{
 });
 function gotoTab(tab){TAB=tab;[...$('nav').children].forEach(c=>{var on=c.dataset.tab===tab;c.classList.toggle('act',on);c.setAttribute('aria-selected',on?'true':'false');});window.scrollTo(0,0);render();}
 
+/* =====================================================================
+   data-call — inline handlers, without 'unsafe-inline'
+
+   Every onclick="…" this app generated was a string the browser compiled, and
+   that is precisely the capability an injected <img onerror=…> needs. The CSP
+   could not tell the two apart: the one directive that kept obGo() working
+   kept the payload working too.
+
+   So the markup names a function and its arguments instead of carrying code,
+   and this dispatcher resolves the name against the fixed list below. Nothing
+   outside that list can be called, whatever ends up in the DOM.
+
+     <button data-call="obStep" data-args="[1]">
+     <input  data-call="obSet" data-on="input" data-args="[&quot;age&quot;,&quot;$value&quot;]">
+
+   "$value" is replaced with the element's own value at dispatch time, which is
+   what `this.value` used to do.
+   ===================================================================== */
+var CALLABLE = [
+  'obPick','obSet','obStep','obGo','obFinish','cancelOb','obRender',
+  'obConsentAccept','obToggleConsent','obSetLang','obToggleDay','obBackToLang',
+  'obSetDate','obSetDateFromInput','obUseRecDays',
+  'setLang','setTrainEnv','setFontLevel','skillFilter',
+  'woSaveWeight','woInput','foodPortionCalc','foodSearchRender','fpSetQty',
+  'algToggle','toggleEquip','obToggleEquip','woSaveWeightAndSay','hideBrokenImage'
+];
+function _callFn(name){
+  return (CALLABLE.indexOf(name) >= 0 && typeof window[name] === 'function') ? window[name] : null;
+}
+function _callArgs(el){
+  var raw = el.getAttribute('data-args');
+  if (!raw) return [];
+  var a; try { a = JSON.parse(raw); } catch (e) { return []; }
+  if (!Array.isArray(a)) return [];
+  return a.map(function(v){ return v === '$value' ? el.value : v; });
+}
+function _dispatchCall(e, type){
+  var el = e.target && e.target.closest ? e.target.closest('[data-call]') : null;
+  if (!el) return;
+  if ((el.getAttribute('data-on') || 'click') !== type) return;
+  var fn = _callFn(el.getAttribute('data-call'));
+  if (fn) fn.apply(el, _callArgs(el));
+}
+/* All four are captured rather than bubbled: bindActs() calls stopPropagation()
+   on the elements it binds, so a data-call inside one would never be reached on
+   the way up — and `error` does not bubble at all, so capture is the only way
+   to hear it. */
+document.addEventListener('click',  function(e){ _dispatchCall(e, 'click'); },  true);
+document.addEventListener('input',  function(e){ _dispatchCall(e, 'input'); },  true);
+document.addEventListener('change', function(e){ _dispatchCall(e, 'change'); }, true);
+document.addEventListener('error',  function(e){ _dispatchCall(e, 'error'); },  true);
+
+/* the three handlers that were statements rather than calls */
+function obBackToLang(){ OB.step = -1; obRender(); }
+function obSetDateFromInput(v){ obSetDate(v ? Date.parse(v) : 0); }
+function fpSetQty(v){ var el = document.getElementById('fp_qty'); if (el) { el.value = v; foodPortionCalc(); } }
+function hideBrokenImage(){ this.style.display = 'none'; }
+
 function bindActs(root){
   root.querySelectorAll('[data-act]').forEach(x=>{
     if(x._b)return;x._b=1;
@@ -74,7 +132,7 @@ function equipOK(p,name){var have=studioEquip(p);var need=exNeeds(name);
   return true;}
 function studioHasWeights(p){var h=studioEquip(p);return ['dumbbells','barbell','kettlebell','machines','cables','weight'].some(function(k){return h.indexOf(k)>=0;});}
 function toggleEquip(k){commit(function(p){var a=p.workout.equipment=Array.isArray(p.workout.equipment)?p.workout.equipment:[];var i=a.indexOf(k);if(i>=0)a.splice(i,1);else a.push(k);});render();}
-function equipPills(sel,act,list){return '<div class="pills">'+(list||EQUIP_LIST).map(function(o){var k=o[0]||o;var nm=(typeof equipName==='function')?equipName(k):(EQUIP_HE[k]||k);return '<button class="pill '+(sel.indexOf(k)>=0?'act':'')+'" onclick="'+act+'(\''+k+'\')">'+nm+'</button>';}).join('')+'</div>';}
+function equipPills(sel,act,list){return '<div class="pills">'+(list||EQUIP_LIST).map(function(o){var k=o[0]||o;var nm=(typeof equipName==='function')?equipName(k):(EQUIP_HE[k]||k);return '<button class="pill '+(sel.indexOf(k)>=0?'act':'')+'" data-call="'+esc(act)+'" data-args="'+esc(JSON.stringify([k]))+'">'+nm+'</button>';}).join('')+'</div>';}
 function trainEnv(p){return trainStyle(p);}
 /* Switching style re-points the kit at the one that style asks about, keeping
    anything that is meaningful in both. Otherwise a gym profile that tried

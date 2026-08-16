@@ -124,12 +124,12 @@ function obPayoff(){
       '<li>הדגמות חיות לכל תרגיל + חימום ומתיחות</li>'+
       '<li>תפריט יומי בסגנון '+dietHe(p.nutrition.diet)+' עם יעדי מאקרו'+(p.nutrition.allergies?' (מסונן לאלרגיות)':'')+'</li>'+
       '<li>מעקב משקל, רצף ימים, XP ודרגות</li></ul></div>'+
-    '<button class="btn grad" style="margin-top:16px;width:100%" onclick="obGo()">בוא נתחיל 💪</button>'+
+    '<button class="btn grad" style="margin-top:16px;width:100%" data-call="obGo">בוא נתחיל 💪</button>'+
     '</div></div>';
   try{translateEl(w);}catch(e){}
 }
 function obGo(){var w=document.getElementById('obwrap');if(w){w.innerHTML='';w.style.display='none';}render();toast('ברוך הבא ל-FitAI! 🎯');}
-function obPills(field,opts){return '<div class="pills">'+opts.map(function(o){return '<button class="pill '+(OB.data[field]==o[0]?'act':'')+'" onclick="obPick(&quot;'+field+'&quot;,&quot;'+o[0]+'&quot;)">'+o[1]+'</button>';}).join('')+'</div>';}
+function obPills(field,opts){return '<div class="pills">'+opts.map(function(o){return '<button class="pill '+(OB.data[field]==o[0]?'act':'')+'" data-call="obPick" data-args="'+esc(JSON.stringify([field,o[0]]))+'">'+o[1]+'</button>';}).join('')+'</div>';}
 function obToggleEquip(k){var a=OB.data.equipment=Array.isArray(OB.data.equipment)?OB.data.equipment:[];var i=a.indexOf(k);if(i>=0)a.splice(i,1);else a.push(k);obRender();}
 function obToggleDay(i){var a=OB.data.days=Array.isArray(OB.data.days)?OB.data.days:[];var idx=a.indexOf(i);if(idx>=0)a.splice(idx,1);else a.push(i);a.sort(function(x,y){return x-y;});obRender();}
 var CONSENT_VERSION='1.0';
@@ -143,37 +143,37 @@ function obRender(){
   var d=OB.data,body='';
   if(OB.step===-0.5){
     var okH=!!d.c_health, okT=!!d.c_terms, both=okH&&okT;
-    function cRow(k,on,title){return '<div class="toggle" style="cursor:pointer;align-items:center" onclick="obToggleConsent(\''+k+'\')" role="checkbox" tabindex="0" aria-checked="'+(on?'true':'false')+'"><div class="tx"><b>'+title+'</b><span>קראתי, הבנתי ואני מאשר/ת</span></div><div class="sw '+(on?'on':'')+'"><i></i></div></div>';}
+    function cRow(k,on,title){return '<div class="toggle" style="cursor:pointer;align-items:center" data-call="obToggleConsent" data-args="'+esc(JSON.stringify([k]))+'" role="checkbox" tabindex="0" aria-checked="'+(on?'true':'false')+'"><div class="tx"><b>'+title+'</b><span>קראתי, הבנתי ואני מאשר/ת</span></div><div class="sw '+(on?'on':'')+'"><i></i></div></div>';}
     body='<h2 style="font-size:20px;margin:0 0 4px">⚕️ הצהרת בריאות ותנאי שימוש</h2>'+
       '<div class="sub" style="margin:0 0 12px">חובה לקרוא ולאשר לפני תחילת השימוש</div>'+
       '<div class="card" style="margin:0 0 10px;max-height:210px;overflow:auto">'+legalHealthHTML()+'</div>'+
       cRow('health',okH,'⚕️ הצהרת בריאות')+
       '<div class="card" style="margin:12px 0 10px;max-height:210px;overflow:auto">'+legalTermsHTML()+'</div>'+
       cRow('terms',okT,'📜 תנאי שימוש')+
-      '<button class="btn grad" style="margin-top:16px;width:100%'+(both?'':';opacity:.45')+'" onclick="obConsentAccept()">'+(both?'✓ אני מאשר/ת ומתחיל/ה':'יש לאשר את שני הסעיפים')+'</button>'+
-      '<button class="btn ghost" style="margin-top:8px;width:100%" onclick="OB.step=-1;obRender()">← החלף שפה</button>';
+      '<button class="btn grad" style="margin-top:16px;width:100%'+(both?'':';opacity:.45')+'" data-call="obConsentAccept">'+(both?'✓ אני מאשר/ת ומתחיל/ה':'יש לאשר את שני הסעיפים')+'</button>'+
+      '<button class="btn ghost" style="margin-top:8px;width:100%" data-call="obBackToLang">← החלף שפה</button>';
   } else if(OB.step===-1){
     body='<h2 style="font-size:21px;margin:0 0 4px">🌐 Choose your language</h2>'+
       '<div class="sub" style="margin:0 0 16px">בחר שפה · Elige tu idioma</div>'+
       '<div class="pills" style="flex-direction:column;gap:10px;align-items:stretch">'+
-      '<button class="pill" style="font-size:16px;padding:14px" onclick="obSetLang(&quot;en&quot;)">🇬🇧 English</button>'+
-      '<button class="pill" style="font-size:16px;padding:14px" onclick="obSetLang(&quot;he&quot;)">🇮🇱 עברית</button>'+
-      '<button class="pill" style="font-size:16px;padding:14px" onclick="obSetLang(&quot;es&quot;)">🇪🇸 Español</button>'+
+      '<button class="pill" style="font-size:16px;padding:14px" data-call="obSetLang" data-args="[&quot;en&quot;]">🇬🇧 English</button>'+
+      '<button class="pill" style="font-size:16px;padding:14px" data-call="obSetLang" data-args="[&quot;he&quot;]">🇮🇱 עברית</button>'+
+      '<button class="pill" style="font-size:16px;padding:14px" data-call="obSetLang" data-args="[&quot;es&quot;]">🇪🇸 Español</button>'+
       '</div>';
   } else if(OB.step===0){
     body='<h2 style="font-size:21px;margin:0 0 4px">👋 ברוך הבא ל-FitAI</h2>'+
       '<div class="sub" style="margin:0 0 16px">דקה אחת של התאמה אישית ונבנה לך תוכנית מדויקת</div>'+
-      '<div class="field"><label>איך לקרוא לך?</label><input class="inp" value="'+esc(d.name)+'" oninput="obSet(&quot;name&quot;,this.value)" placeholder="השם שלך"></div>'+
+      '<div class="field"><label>איך לקרוא לך?</label><input class="inp" value="'+esc(d.name)+'" data-call="obSet" data-on="input" data-args="[&quot;name&quot;,&quot;$value&quot;]" placeholder="השם שלך"></div>'+
       '<div class="field" style="margin-top:12px"><label>מגדר</label></div>'+obPills('gender',[['זכר','זכר'],['נקבה','נקבה'],['אחר','אחר']])+
-      '<div class="field" style="margin-top:12px"><label>גיל</label><input class="inp" inputmode="numeric" value="'+d.age+'" oninput="obSet(&quot;age&quot;,this.value)"></div>'+
-      '<button class="btn grad" style="margin-top:18px" onclick="obStep(1)">המשך →</button>';
+      '<div class="field" style="margin-top:12px"><label>גיל</label><input class="inp" inputmode="numeric" value="'+esc(d.age)+'" data-call="obSet" data-on="input" data-args="[&quot;age&quot;,&quot;$value&quot;]"></div>'+
+      '<button class="btn grad" style="margin-top:18px" data-call="obStep" data-args="[1]">המשך →</button>';
   } else if(OB.step===1){
     body='<h2 style="font-size:21px;margin:0 0 12px">📏 קצת נתונים</h2>'+
-      '<div class="inrow"><div class="field"><label>גובה (ס״מ)</label><input class="inp" inputmode="numeric" value="'+d.height+'" oninput="obSet(&quot;height&quot;,this.value)"></div>'+
-      '<div class="field"><label>משקל (ק״ג)</label><input class="inp" inputmode="decimal" value="'+d.weight+'" oninput="obSet(&quot;weight&quot;,this.value)"></div></div>'+
-      '<div class="field" style="margin-top:10px"><label>'+L('משקל יעד (ק״ג)','Target weight (kg)','Peso objetivo (kg)')+' <span class="sub" style="font-size:12px">· '+L('לא חובה','optional','opcional')+'</span></label><input class="inp" inputmode="decimal" value="'+(d.goalWeight||'')+'" placeholder="—" oninput="obSet(&quot;goalWeight&quot;,this.value)"></div>'+
+      '<div class="inrow"><div class="field"><label>גובה (ס״מ)</label><input class="inp" inputmode="numeric" value="'+esc(d.height)+'" data-call="obSet" data-on="input" data-args="[&quot;height&quot;,&quot;$value&quot;]"></div>'+
+      '<div class="field"><label>משקל (ק״ג)</label><input class="inp" inputmode="decimal" value="'+esc(d.weight)+'" data-call="obSet" data-on="input" data-args="[&quot;weight&quot;,&quot;$value&quot;]"></div></div>'+
+      '<div class="field" style="margin-top:10px"><label>'+L('משקל יעד (ק״ג)','Target weight (kg)','Peso objetivo (kg)')+' <span class="sub" style="font-size:12px">· '+L('לא חובה','optional','opcional')+'</span></label><input class="inp" inputmode="decimal" value="'+esc(d.goalWeight||'')+'" placeholder="—" data-call="obSet" data-on="input" data-args="[&quot;goalWeight&quot;,&quot;$value&quot;]"></div>'+
       '<div class="field" style="margin-top:12px"><label>מה המטרה שלך?</label></div>'+obPills('goal',[['fat','חיטוב 🔥'],['muscle','בניית שריר 💪'],['both','שריר + חיטוב ⚡'],['maintain','שמירה 🧘']])+
-      '<div class="row" style="margin-top:18px"><button class="btn ghost" onclick="obStep(0)">← חזרה</button><button class="btn grad" onclick="obStep(2)">המשך →</button></div>';
+      '<div class="row" style="margin-top:18px"><button class="btn ghost" data-call="obStep" data-args="[0]">← חזרה</button><button class="btn grad" data-call="obStep" data-args="[2]">המשך →</button></div>';
   } else if(OB.step===2){
     var _obSt=(STYLES.indexOf(d.equip)>=0)?d.equip:'calisthenics';
     var _obAsk=kitAsk(_obSt);
@@ -200,22 +200,22 @@ function obRender(){
       '<div class="field" style="margin-top:8px"><label style="font-size:13px">מתח (Pull-ups)</label></div>'+obPills('pullups',[['0','0'],['1-4','1-4'],['5-10','5-10'],['10+','10+']])+
       '<div class="field" style="margin-top:8px"><label style="font-size:13px">סקוואט (משקל גוף)</label></div>'+obPills('squats',[['0-20','0-20'],['21-50','21-50'],['51-100','51-100']])+
       '<div class="field" style="margin-top:12px"><label>באילו ימים תתאמן/י?</label></div>'+
-      '<div class="daysel">'+DOW.map(function(dn,i){return '<button type="button" class="'+((Array.isArray(d.days)?d.days:[]).indexOf(i)>=0?'act':'')+'" onclick="obToggleDay('+i+')" data-notr>'+dowName(i)+'</button>';}).join('')+'</div>'+
-      '<div class="row" style="margin-top:18px"><button class="btn ghost" onclick="obStep(1)">← חזרה</button><button class="btn grad" onclick="obStep(3)">המשך →</button></div>';
+      '<div class="daysel">'+DOW.map(function(dn,i){return '<button type="button" class="'+((Array.isArray(d.days)?d.days:[]).indexOf(i)>=0?'act':'')+'" data-call="obToggleDay" data-args="['+i+']" data-notr>'+dowName(i)+'</button>';}).join('')+'</div>'+
+      '<div class="row" style="margin-top:18px"><button class="btn ghost" data-call="obStep" data-args="[1]">← חזרה</button><button class="btn grad" data-call="obStep" data-args="[3]">המשך →</button></div>';
   } else if(OB.step===3){
     body='<h2 style="font-size:21px;margin:0 0 12px">🩺 בריאות והעדפות</h2>'+
       '<div class="sub" style="margin:0 0 12px">כדי שנתאים בבטחה לפציעות ולאלרגיות — אפשר לדלג</div>'+
       '<div class="field"><label>סוג תזונה</label></div>'+obPills('diet',[['regular','רגיל'],['vegetarian','צמחוני'],['vegan','טבעוני'],['pescatarian','פסקטריאני']])+
-      '<div class="field" style="margin-top:12px"><label>פציעות / מגבלות <span class="sub" style="font-size:12px">· נסנן תרגילים מסוכנים</span></label><input class="inp" value="'+esc(d.injuries||'')+'" oninput="obSet(&quot;injuries&quot;,this.value)" placeholder="לדוגמה: ברך, כתף, גב"></div>'+
-      '<div class="field" style="margin-top:10px"><label>אלרגיות <span class="sub" style="font-size:12px">· בחר או הקלד — נסנן מהתפריט</span></label><input class="inp" id="alg_ob" value="'+esc(d.allergies||'')+'" oninput="obSet(&quot;allergies&quot;,this.value)" placeholder="לדוגמה: בוטנים, גלוטן, או כל דבר אחר"></div>'+algChips('alg_ob',d.allergies||'')+
-      '<div class="row" style="margin-top:18px"><button class="btn ghost" onclick="obStep(2)">'+L('← חזרה','← Back','← Atrás')+'</button><button class="btn grad" onclick="obStep(4)">'+L('המשך →','Continue →','Continuar →')+'</button></div>';
+      '<div class="field" style="margin-top:12px"><label>פציעות / מגבלות <span class="sub" style="font-size:12px">· נסנן תרגילים מסוכנים</span></label><input class="inp" value="'+esc(d.injuries||'')+'" data-call="obSet" data-on="input" data-args="[&quot;injuries&quot;,&quot;$value&quot;]" placeholder="לדוגמה: ברך, כתף, גב"></div>'+
+      '<div class="field" style="margin-top:10px"><label>אלרגיות <span class="sub" style="font-size:12px">· בחר או הקלד — נסנן מהתפריט</span></label><input class="inp" id="alg_ob" value="'+esc(d.allergies||'')+'" data-call="obSet" data-on="input" data-args="[&quot;allergies&quot;,&quot;$value&quot;]" placeholder="לדוגמה: בוטנים, גלוטן, או כל דבר אחר"></div>'+algChips('alg_ob',d.allergies||'')+
+      '<div class="row" style="margin-top:18px"><button class="btn ghost" data-call="obStep" data-args="[2]">'+L('← חזרה','← Back','← Atrás')+'</button><button class="btn grad" data-call="obStep" data-args="[4]">'+L('המשך →','Continue →','Continuar →')+'</button></div>';
   } else {
     body=obDateStepHTML()+
-      '<div class="row" style="margin-top:18px"><button class="btn ghost" onclick="obStep(3)">'+L('← חזרה','← Back','← Atrás')+'</button>'+
-      '<button class="btn grad" onclick="obFinish()">'+L('🎯 בנה לי תוכנית','🎯 Build my plan','🎯 Crear mi plan')+'</button></div>';
+      '<div class="row" style="margin-top:18px"><button class="btn ghost" data-call="obStep" data-args="[3]">'+L('← חזרה','← Back','← Atrás')+'</button>'+
+      '<button class="btn grad" data-call="obFinish">'+L('🎯 בנה לי תוכנית','🎯 Build my plan','🎯 Crear mi plan')+'</button></div>';
   }
   w.innerHTML='<div style="position:fixed;inset:0;z-index:300;background:var(--bg);overflow:auto"><div class="app" style="padding-top:30px;max-width:520px;margin:0 auto">'+
-    (OB.redo?('<button class="btn ghost sm" onclick="cancelOb()" style="width:auto;margin:0 0 10px">'+
+    (OB.redo?('<button class="btn ghost sm" data-call="cancelOb" style="width:auto;margin:0 0 10px">'+
       L('✕ ביטול','✕ Cancel','✕ Cancelar')+'</button>'):'')+
     '<div style="text-align:center;margin-bottom:14px"><span class="logobox" style="width:46px;height:46px"></span> <b style="font-size:20px">FitAI</b></div>'+
     (OB.step<0?'':'<div style="display:flex;gap:6px;justify-content:center;margin-bottom:18px">'+[0,1,2,3,4].map(function(i){return '<span style="width:'+(i===OB.step?'26px':'9px')+';height:9px;border-radius:5px;background:'+(i<=OB.step?'var(--teal)':'var(--line2)')+';transition:.3s"></span>';}).join('')+'</div>')+
