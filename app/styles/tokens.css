@@ -1,0 +1,103 @@
+/* tokens.css — the design language, in one place.
+ *
+ * Taken from the Mobile Sport App handoff bundle: a near-black ground, one
+ * lime accent doing all the pointing, Archivo for anything that carries weight
+ * and IBM Plex Mono for the small upper-case labels. The three secondary hues
+ * are the alternates the bundle itself offers as accent options, kept here for
+ * the few places the app has to mean something other than "this one".
+ *
+ * Every surface, line and hue the rest of the app draws with is named here, and
+ * the screens are written against the names — which is why re-dressing a
+ * 24 MB application came down to this file plus the four beside it.
+ */
+
+:root {
+  /* ---- ground ---- */
+  --bg: #0B0C0E;          /* the app itself */
+  --bg2: #111214;         /* recessed: inputs, tracks, wells */
+  --card: #131519;        /* a card */
+  --card2: #16181C;       /* a card that sits on a card */
+
+  /* ---- lines ---- */
+  --line: rgba(255, 255, 255, .07);
+  --line2: rgba(255, 255, 255, .13);
+
+  /* ---- ink ---- */
+  --txt: #F4F5F6;
+  /* The bundle sets secondary text at 50% and its labels at 40%. Both are
+     under 4.5:1 on --card at the sizes this app uses them, so they are lifted
+     until they clear it — the same greys, a little less shy. */
+  --muted: rgba(244, 245, 246, .62);
+  --muted2: rgba(244, 245, 246, .55);
+
+  /* ---- the accent ---- */
+  --accent: #D9FF3D;
+  --accent-soft: #E8FF8A;
+  --ink: #0B0C0E;                          /* text that sits on the accent */
+  --accent-wash: rgba(217, 255, 61, .07);
+  --accent-wash2: rgba(217, 255, 61, .12);
+  --accent-line: rgba(217, 255, 61, .24);
+  --accent-line2: rgba(217, 255, 61, .45);
+  --grad: linear-gradient(135deg, #D9FF3D, #C4F03A);
+
+  /* ---- the alternates, used only where a second meaning is unavoidable ---- */
+  --orange: #FF6B3D;  --orange2: #FF9166;   /* caution */
+  --blue: #4DE1FF;    --blue2: #8DEDFF;     /* water, information */
+  --red: #FF4D8D;     --yellow: #FFC94D;
+  --green: #D9FF3D;   --green2: #E8FF8A;    /* done — the accent again */
+  /* the old palette still has callers; both now point at the accent */
+  --teal: var(--accent);   --teal2: var(--accent);
+  --purple: var(--accent); --purple2: var(--accent);
+  --emerald: var(--accent);
+
+  /* ---- type ---- */
+  /* Archivo draws no Hebrew, so Hebrew falls through to Rubik glyph by glyph:
+     Latin and digits set in Archivo, Hebrew in Rubik, on one line. */
+  --display: 'Archivo', 'Rubik', 'Segoe UI', system-ui, -apple-system, sans-serif;
+  --body: 'Archivo', 'Rubik', 'Segoe UI', system-ui, -apple-system, sans-serif;
+  --mono: 'IBM Plex Mono', 'Rubik', ui-monospace, SFMono-Regular, Menlo, monospace;
+
+  /* ---- geometry ---- */
+  --radius: 22px;
+  --r-sm: 16px;
+  --r-xs: 12px;
+  --pill: 99px;
+  --shadow: 0 18px 40px rgba(0, 0, 0, .55);
+  --shadow-accent: 0 10px 26px rgba(217, 255, 61, .16);
+}
+
+/* ---------- light ----------
+   The bundle is dark only. Lime on white is unreadable as text, so on light the
+   accent keeps its job as a fill — with the same near-black ink on top — and
+   hands the text job to a dark olive that clears AA on both white and --card2. */
+html.light {
+  --bg: #F1F2ED;
+  --bg2: #FFFFFF;
+  --card: #FFFFFF;
+  --card2: #F6F7F1;
+  --line: rgba(11, 12, 14, .09);
+  --line2: rgba(11, 12, 14, .17);
+  --txt: #0B0C0E;
+  --muted: rgba(11, 12, 14, .62);
+  --muted2: rgba(11, 12, 14, .55);
+
+  --accent: #C8EE28;
+  --accent-soft: #B4D91E;
+  --ink: #0B0C0E;
+  --accent-wash: rgba(120, 160, 0, .10);
+  --accent-wash2: rgba(120, 160, 0, .16);
+  --accent-line: rgba(96, 128, 0, .30);
+  --accent-line2: rgba(96, 128, 0, .50);
+  --grad: linear-gradient(135deg, #D9FF3D, #BFE62E);
+
+  --teal: #4F6B00;  --teal2: #4F6B00;
+  --purple: #4F6B00; --purple2: #4F6B00;
+  --emerald: #4F6B00;
+  --orange: #B24012; --orange2: #9C380F;
+  --blue: #0E6E86;   --blue2: #0B5D72;
+  --red: #A8194B;    --yellow: #7A5010;
+  --green: #4F6B00;  --green2: #4F6B00;
+
+  --shadow: 0 14px 34px rgba(20, 24, 12, .10);
+  --shadow-accent: 0 10px 24px rgba(120, 160, 0, .18);
+}

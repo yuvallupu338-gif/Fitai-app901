@@ -1,0 +1,371 @@
+/* components.css — the pieces every screen is built from.
+ *
+ * Shapes come straight off the bundle: cards at 22px, anything pressable at
+ * 99px, a 5–6px track for every bar, one lime fill for the primary action and
+ * a monospace label above the block it names.
+ */
+
+/* ---------- profile selector ---------- */
+.profbtn {
+  display: flex; align-items: center; gap: 8px;
+  background: var(--card); border: 1px solid var(--line);
+  padding: 8px 14px 8px 10px; border-radius: var(--pill);
+  font-weight: 700; font-size: 13px;
+}
+.profbtn .av {
+  width: 24px; height: 24px; border-radius: 50%; background: var(--grad);
+  color: var(--ink); display: grid; place-items: center;
+  font-size: 12px; font-weight: 800;
+}
+.profmenu {
+  position: absolute; top: 62px; inset-inline-start: 10px;
+  width: 290px; max-width: 92vw;
+  background: var(--card2); border: 1px solid var(--line2);
+  border-radius: var(--radius); box-shadow: var(--shadow);
+  z-index: 60; overflow: hidden; display: none;
+}
+.profmenu.open { display: block; animation: pop .15s ease }
+.profmenu .ph {
+  padding: 14px 16px 10px;
+  font-family: var(--mono); font-size: 10px; font-weight: 600;
+  letter-spacing: .16em; text-transform: uppercase;
+  color: var(--muted2); border-bottom: 1px solid var(--line);
+}
+.profrow {
+  display: flex; align-items: center; gap: 10px;
+  padding: 12px 16px; font-size: 14px; border-bottom: 1px solid var(--line);
+}
+.profrow:hover { background: var(--card) }
+.profrow .av {
+  width: 28px; height: 28px; border-radius: 50%; background: var(--grad);
+  color: var(--ink); display: grid; place-items: center;
+  font-size: 13px; font-weight: 800; flex-shrink: 0;
+}
+.profrow.act { background: var(--accent-wash) }
+.profrow .nm { flex: 1; font-weight: 700 }
+.profact { display: flex; flex-wrap: wrap; gap: 7px; padding: 12px }
+.profact button {
+  flex: 1 1 46%; background: var(--card); border: 1px solid var(--line2);
+  border-radius: var(--pill); padding: 10px; font-size: 12px; font-weight: 700;
+  text-align: center;
+}
+.profact button:hover { border-color: var(--accent-line2); color: var(--accent) }
+
+/* ---------- cards ---------- */
+.card {
+  background: var(--card); border: 1px solid var(--line);
+  border-radius: var(--radius); padding: 16px 17px; margin: 14px 0;
+}
+.card h2 {
+  font-size: 18px; margin-bottom: 5px;
+  display: flex; align-items: center; gap: 8px; flex-wrap: wrap;
+}
+.card .sub { color: var(--muted); font-size: 13px; margin-bottom: 10px; line-height: 1.6 }
+/* One accented card per screen and no more — the bundle's coach-note card. */
+.card.glow { border-color: var(--line) }
+#screen > .card.glow:first-of-type {
+  background: var(--accent-wash); border-color: var(--accent-line);
+}
+.hello {
+  font-family: var(--display); font-size: 30px; font-weight: 800;
+  letter-spacing: -.03em; line-height: 1.08; margin: 14px 4px 4px;
+}
+.hello .wave { display: inline-block; animation: wave 2.4s infinite }
+/* A mono strip under the greeting. The bundle tracks its labels out at .18em,
+   but this one is a whole sentence: at that width it wrapped, so it keeps the
+   face and gives back the letter-spacing. */
+.daystat {
+  font-family: var(--mono); font-size: 11.5px; font-weight: 500;
+  letter-spacing: .01em; color: var(--muted2); margin: 6px 4px 8px;
+}
+
+/* ---------- chips ---------- */
+.chips { display: flex; flex-wrap: wrap; gap: 8px; margin-top: 8px }
+.chip {
+  display: inline-flex; align-items: center; gap: 6px;
+  background: var(--card2); border: 1px solid var(--line2);
+  border-radius: var(--pill); padding: 8px 13px;
+  font-size: 12.5px; font-weight: 600; color: var(--muted);
+}
+/* The words already say what they say; only "this one" gets colour. */
+.chip.o, .chip.b, .chip.g { border-color: var(--line2); color: var(--muted); background: var(--card2) }
+.chip.p {
+  border-color: var(--accent-line2); color: var(--accent); background: var(--accent-wash);
+}
+html.light .chip.p { color: var(--teal2) }
+.chip.sm { font-size: 11.5px; padding: 5px 10px }
+.chip.dim { opacity: .55 }
+
+/* ---------- buttons ---------- */
+.btn {
+  display: inline-flex; align-items: center; justify-content: center; gap: 8px;
+  background: var(--card2); border: 1px solid var(--line2);
+  border-radius: var(--pill); padding: 14px 18px; min-height: 52px;
+  font-family: var(--body); font-size: 14px; font-weight: 700;
+  width: 100%; margin-top: 9px; transition: .14s;
+  position: relative; overflow: hidden;
+}
+.btn:hover { border-color: var(--accent-line2) }
+.btn:active { transform: scale(.98) }
+/* the primary action: a lime pill with near-black on it */
+.btn.grad {
+  background: var(--accent); border: none; color: var(--ink);
+  min-height: 56px; font-size: 15.5px; box-shadow: var(--shadow-accent);
+}
+.btn.grad:hover { background: var(--accent-soft) }
+.btn.o, .btn.b { background: var(--card2); border-color: var(--line2); color: var(--muted) }
+.btn.p, .btn.g {
+  background: var(--accent-wash2); border-color: var(--accent-line2); color: var(--accent);
+}
+html.light .btn.p, html.light .btn.g { color: var(--teal2) }
+.btn.danger { background: rgba(255, 77, 141, .10); border-color: rgba(255, 77, 141, .42); color: #FF8FB6 }
+html.light .btn.danger { color: var(--red); background: rgba(168, 25, 75, .08); border-color: rgba(168, 25, 75, .35) }
+.btn.sm { padding: 10px 15px; min-height: 42px; font-size: 13px; width: auto }
+.btn.ghost { background: transparent }
+.btn[disabled] { opacity: .38; pointer-events: none }
+.row { display: flex; gap: 8px; flex-wrap: wrap }
+/* flex:1 lets a button shrink past its own text and .btn hides overflow for the
+   ripple, so the label was being cut. Stop the shrink at the longest word. */
+.row > .btn { margin-top: 9px; min-width: min-content }
+.btn:focus-visible, .pill:focus-visible, [data-act]:focus-visible {
+  outline: 2px solid var(--accent); outline-offset: 2px;
+}
+.linkbtn {
+  font-family: var(--mono); font-size: 11px; font-weight: 600; letter-spacing: .1em;
+  text-transform: uppercase; color: var(--accent); margin-top: 10px; display: inline-block;
+}
+html.light .linkbtn { color: var(--teal2) }
+/* a word you can press, inline in a sentence */
+.lnk { color: var(--accent); cursor: pointer; font-weight: 700; padding: 7px 3px }
+html.light .lnk { color: var(--teal2) }
+
+/* ---------- stat tiles ---------- */
+/* The floor is in em, so the column count follows the text size: the row keeps
+   its shape and drops to fewer columns instead of off the screen. */
+.grid { display: grid; grid-template-columns: repeat(auto-fit, minmax(min(4.6em, 100%), 1fr)); gap: 10px; margin-top: 10px }
+.grid.g2 { grid-template-columns: repeat(auto-fit, minmax(min(7em, 100%), 1fr)) }
+.grid.g4 { grid-template-columns: repeat(auto-fit, minmax(min(5.4em, 100%), 1fr)) }
+.stat {
+  background: var(--card2); border: 1px solid var(--line);
+  border-radius: 18px; padding: 14px 9px; text-align: center;
+  min-width: 0; overflow-wrap: anywhere;
+}
+/* Archivo's figures are wider than Rubik's at the same size, and four of these
+   sit across a 360px screen — so the number gives back what the face took. */
+.stat .v { font-family: var(--display); font-size: 22px; font-weight: 800; letter-spacing: -.04em }
+.stat .l {
+  font-family: var(--mono); font-size: 9.5px; font-weight: 600;
+  letter-spacing: .13em; text-transform: uppercase; color: var(--muted2); margin-top: 6px;
+}
+.stat.o .v, .stat.p .v, .stat.b .v, .stat.g .v { color: var(--txt) }
+
+/* ---------- bars ---------- */
+.bars { display: flex; align-items: flex-end; gap: 7px; height: 120px; margin-top: 16px; padding: 0 2px }
+.bar { flex: 1; min-width: 0; display: flex; flex-direction: column; align-items: center; gap: 7px; height: 100%; justify-content: flex-end }
+.bar .col { width: 100%; border-radius: 5px; background: var(--grad); min-height: 4px }
+.bar .lbl { font-family: var(--mono); font-size: 9.5px; letter-spacing: .04em; color: var(--muted2) }
+.bar.today .col { box-shadow: 0 0 0 1px var(--accent-line2), 0 0 18px rgba(217, 255, 61, .35) }
+.empty { text-align: center; color: var(--muted2); padding: 22px; font-size: 13px }
+
+/* ---------- inputs ---------- */
+.field { margin: 12px 0 }
+.field label {
+  display: block; font-family: var(--mono); font-size: 10px; font-weight: 600;
+  letter-spacing: .14em; text-transform: uppercase; color: var(--muted2); margin-bottom: 7px;
+}
+.inp, select.inp, textarea.inp {
+  width: 100%; background: var(--bg2); border: 1px solid var(--line2);
+  border-radius: var(--r-sm); padding: 13px 14px; min-height: 50px;
+  color: var(--txt); font-size: 15px;
+}
+.inp:focus { outline: none; border-color: var(--accent-line2); background: var(--card2) }
+.inrow { display: flex; gap: 9px } .inrow .field { flex: 1 }
+
+/* ---------- segmented control, pills, day picker ---------- */
+.seg {
+  display: flex; gap: 5px; background: var(--card2); border: 1px solid var(--line);
+  border-radius: var(--pill); padding: 6px; margin: 12px 0;
+}
+.seg button {
+  flex: 1; padding: 11px 8px; border-radius: var(--pill);
+  font-size: 12.5px; font-weight: 700; color: var(--muted);
+}
+.seg button.act { background: var(--accent); color: var(--ink) }
+.pills { display: flex; flex-wrap: wrap; gap: 8px; margin-top: 8px }
+.pill {
+  padding: 11px 16px; border-radius: var(--pill); border: 1px solid var(--line2);
+  background: var(--card2); font-size: 13px; font-weight: 600; color: var(--muted);
+}
+.pill.act { border-color: var(--accent-line2); color: var(--accent); background: var(--accent-wash2) }
+html.light .pill.act { color: var(--teal2) }
+.daysel { display: grid; grid-template-columns: repeat(auto-fit, minmax(min(6.5em, 100%), 1fr)); gap: 7px }
+.daysel button {
+  min-height: 52px; padding: 11px 6px; border-radius: var(--r-sm);
+  border: 1px solid var(--line2); background: var(--card2);
+  font-weight: 700; font-size: 13px; color: var(--muted); overflow-wrap: break-word;
+}
+.daysel button.act { background: var(--accent); color: var(--ink); border-color: var(--accent) }
+
+/* ---------- progress tracks ---------- */
+.pbar { height: 6px; background: rgba(255, 255, 255, .08); border-radius: var(--pill); overflow: hidden; margin-top: 6px }
+html.light .pbar { background: rgba(11, 12, 14, .08) }
+.pbar i { display: block; height: 100%; background: var(--accent); border-radius: var(--pill) }
+.gaugewrap { margin: 10px 0 }
+.gauge {
+  display: flex; justify-content: space-between; align-items: baseline; gap: 8px;
+  font-family: var(--mono); font-size: 11px; font-weight: 600;
+  letter-spacing: .01em; color: var(--muted2); margin-bottom: 6px;
+}
+.water { display: flex; align-items: center; gap: 10px; margin-top: 10px }
+.waterbar { flex: 1; height: 12px; background: rgba(255, 255, 255, .08); border-radius: var(--pill); overflow: hidden }
+html.light .waterbar { background: rgba(11, 12, 14, .08) }
+.waterbar i { display: block; height: 100%; background: linear-gradient(90deg, var(--blue), var(--blue2)); border-radius: var(--pill) }
+
+/* ---------- toggle ---------- */
+.toggle {
+  display: flex; align-items: center; justify-content: space-between;
+  flex-wrap: wrap; gap: 10px;
+  background: var(--card2); border: 1px solid var(--line);
+  border-radius: 18px; padding: 15px; margin: 10px 0;
+}
+.toggle .tx { flex: 1; min-width: 0 }
+.toggle .tx b { font-size: 14px; display: block; font-weight: 700 }
+.toggle .tx span { font-size: 12.5px; color: var(--muted) }
+.sw {
+  width: 52px; height: 31px; border-radius: var(--pill);
+  background: var(--line2); position: relative; transition: .2s; flex-shrink: 0; cursor: pointer;
+}
+.sw.on { background: var(--accent) }
+.sw i { position: absolute; top: 4px; right: 4px; width: 23px; height: 23px; border-radius: 50%; background: #fff; transition: .2s }
+.sw.on i { right: 25px; background: var(--ink) }
+
+/* ---------- floating actions ---------- */
+.floats { position: fixed; left: 16px; bottom: 112px; z-index: 45; display: flex; flex-direction: column; gap: 10px }
+.fab {
+  width: 50px; height: 50px; border-radius: 50%; display: grid; place-items: center;
+  font-size: 20px; background: var(--card2); border: 1px solid var(--line2); box-shadow: var(--shadow);
+}
+.fab.goal { background: var(--accent); border: none; color: var(--ink); box-shadow: var(--shadow-accent) }
+
+/* ---------- bottom nav ----------
+   The bundle's tab bar: one blurred pill, the current tab filled lime. */
+.nav {
+  position: fixed; bottom: 16px; left: 50%; transform: translateX(-50%); z-index: 50;
+  display: flex; gap: 2px;
+  background: rgba(30, 33, 38, .86); backdrop-filter: blur(20px);
+  border: 1px solid rgba(255, 255, 255, .08); border-radius: var(--pill);
+  padding: 7px; box-shadow: var(--shadow);
+  width: calc(100% - 32px); max-width: 540px; justify-content: space-between;
+}
+html.light .nav { background: rgba(255, 255, 255, .90); border-color: var(--line2) }
+.nav button {
+  flex: 1 1 0; min-width: 0; display: flex; flex-direction: column;
+  align-items: center; justify-content: center; gap: 2px;
+  padding: 7px 2px; min-height: 46px; border-radius: var(--pill);
+  color: var(--muted2); font-size: 11px; font-weight: 700;
+}
+.nav button .i { font-size: 19px; line-height: 1 }
+.nav button.act { color: var(--ink); background: var(--accent) }
+/* No label may push its tab past the edge of the bar, in any language. */
+.nav button .t { max-width: 100%; overflow: hidden; text-overflow: ellipsis; white-space: nowrap }
+
+/* ---------- sheets and modals ---------- */
+.overlay {
+  position: fixed; inset: 0; background: rgba(0, 0, 0, .72); backdrop-filter: blur(6px);
+  z-index: 80; display: none; align-items: flex-end; justify-content: center; padding: 0;
+}
+.overlay.open { display: flex; animation: fade .15s }
+.sheet {
+  background: var(--card2); border: 1px solid var(--line2);
+  border-radius: 26px 26px 0 0; width: 100%; max-width: 560px;
+  max-height: 90vh; overflow-y: auto; padding: 18px 18px 30px; animation: slideup .22s ease;
+}
+.sheet .grab { width: 42px; height: 5px; border-radius: var(--pill); background: var(--line2); margin: 0 auto 16px }
+.sheet h3 { font-size: 19px; margin-bottom: 5px }
+.sheet .desc { color: var(--muted); font-size: 13.5px; margin-bottom: 16px }
+.modalC { align-items: center; padding: 14px }
+.modalC .sheet { border-radius: 26px; max-height: 88vh }
+.popact { display: flex; flex-direction: column; gap: 9px; margin-top: 6px }
+
+/* ---------- toast ---------- */
+.toast {
+  position: fixed; bottom: 100px; left: 50%; transform: translateX(-50%) translateY(20px);
+  z-index: 100; background: var(--card2); border: 1px solid var(--accent-line2);
+  color: var(--accent); padding: 13px 22px; border-radius: var(--pill);
+  font-weight: 700; font-size: 14px; opacity: 0; transition: .25s;
+  box-shadow: var(--shadow); pointer-events: none; max-width: 90vw; text-align: center;
+}
+html.light .toast { color: var(--teal2) }
+.toast.show { opacity: 1; transform: translateX(-50%) translateY(0) }
+
+/* ---------- small blocks ---------- */
+.tip { background: var(--card); border: 1px solid var(--line) }
+.steps { counter-reset: s; list-style: none; padding: 0; margin: 8px 0 0 }
+.steps li { counter-increment: s; display: flex; gap: 12px; padding: 10px 0; font-size: 14px; align-items: flex-start }
+.steps li::before {
+  content: counter(s); width: 26px; height: 26px; border-radius: var(--pill);
+  background: var(--accent); color: var(--ink); display: grid; place-items: center;
+  font-family: var(--mono); font-weight: 700; font-size: 12px; flex-shrink: 0;
+}
+.sectitle {
+  font-family: var(--mono); font-size: 10px; font-weight: 600;
+  letter-spacing: .18em; text-transform: uppercase; color: var(--accent);
+  margin: 22px 4px 2px;
+}
+html.light .sectitle { color: var(--teal2) }
+.weekrow { display: flex; gap: 5px; justify-content: space-between; margin: 12px 0 }
+.weekd {
+  flex: 1; text-align: center; padding: 10px 2px; border-radius: var(--r-xs);
+  background: var(--card2); border: 1px solid var(--line);
+  font-family: var(--mono); font-size: 11px; font-weight: 600; color: var(--muted2);
+}
+.weekd.train { background: var(--accent-wash2); color: var(--accent); border-color: var(--accent-line) }
+html.light .weekd.train { color: var(--teal2) }
+.weekd.today { border: 1px solid var(--accent); box-shadow: 0 0 0 1px var(--accent) }
+
+/* the badge on the option the app would pick for you, and the panel that says
+   why — a panel and not a nested card, which would pay its padding twice */
+.reco {
+  display: inline-block; margin-inline-start: 6px; padding: 3px 9px; border-radius: var(--pill);
+  background: var(--accent); color: var(--ink);
+  font-family: var(--mono); font-size: 10px; font-weight: 700; letter-spacing: .08em;
+  vertical-align: middle;
+}
+.recobox {
+  border: 1px solid var(--accent-line); background: var(--accent-wash);
+  border-radius: 18px; padding: 14px 13px; margin-top: 14px; overflow-wrap: break-word;
+}
+.recsum { cursor: pointer; font-weight: 700; font-size: 13px; color: var(--accent); padding: 8px 2px; list-style-position: inside }
+html.light .recsum { color: var(--teal2) }
+.recrow { display: flex; align-items: center; gap: 8px; flex-wrap: wrap; padding: 8px 0; border-top: 1px solid var(--line) }
+
+/* ---------- the week as rows, not as cards ---------- */
+.dayrow { border-top: 1px solid var(--line) }
+.dayrow:first-of-type { border-top: 0; margin-top: 2px }
+.dayrow > summary { cursor: pointer; padding: 12px 2px; font-size: 14px; list-style-position: inside; min-height: 30px }
+.dayrow > summary::marker { color: var(--muted2); font-size: 11px }
+.dayrow .dayhead { font-weight: 700 }
+.dayrow .daynow {
+  font-family: var(--mono); font-size: 10px; font-weight: 600; letter-spacing: .12em;
+  text-transform: uppercase; color: var(--accent);
+}
+html.light .dayrow .daynow { color: var(--teal2) }
+.dayrow .daymus { display: block; color: var(--muted); font-size: 12.5px; margin-top: 4px }
+.dayrow.now .dayhead { color: var(--accent) }
+html.light .dayrow.now .dayhead { color: var(--teal2) }
+.daybody { padding: 2px 2px 14px }
+
+/* Long words break rather than dragging the page sideways. At the largest font
+   on a 320px screen a single Spanish word — Notificaciones, Estiramientos — is
+   wider than the heading that holds it. */
+.btn, .pill, .chip, .catbadge { overflow-wrap: anywhere }
+h1, h2, h3, b, .hello, .tx b { overflow-wrap: break-word }
+
+/* Six labels do not fit 320px in any language, so under that the icons carry
+   the nav alone — each button still names itself through aria-label. */
+@media (max-width: 379px) {
+  .nav button .t { display: none }
+  .nav button .i { font-size: 22px }
+  .nav button { padding: 11px 2px }
+}
+@media (min-width: 600px) { .floats { left: calc(50% - 300px) } }
