@@ -17,6 +17,7 @@
  */
 
 import { readFileSync, writeFileSync, mkdirSync } from 'node:fs';
+import { createHash } from 'node:crypto';
 import { resolve, dirname, relative } from 'node:path';
 import { fileURLToPath } from 'node:url';
 
@@ -146,12 +147,45 @@ const css = CSS_FILES.map((f) => readFileSync(f, 'utf8')).join('\n\n');
 /* The same source the entry point and stylesheets were discovered in — reading
  * index.html again here is how the first version of this emitted FitAI's shell
  * wrapped around the Backrooms bundle. */
+const styleBody = `\n${css}\n`;
+const scriptBody = `\n${bundle}\n`;
+
+/* The page carries a Content-Security-Policy that says script-src 'self' and
+ * style-src 'self' — correct for the served app, and fatal here, because this
+ * build turns both into inline blocks. They cannot be 'self' and they must not
+ * be 'unsafe-inline' (that would hand the single file the very hole the served
+ * app was hardened against), so they are named by hash: exactly these two
+ * blocks run, and nothing else — not an injected handler, not another script.
+ *
+ * 'self' is also meaningless once the file is opened from file://, which is the
+ * whole point of this build, and every asset is already a data: URI. */
+const sha = (s) => `'sha256-${createHash('sha256').update(s, 'utf8').digest('base64')}'`;
+function singleFileCsp(policy) {
+  return policy
+    .split(';')
+    .map((d) => {
+      const t = d.trim();
+      if (t.startsWith('script-src')) return ` script-src ${sha(scriptBody)}`;
+      if (t.startsWith('style-src')) return ` style-src ${sha(styleBody)}`;
+      return d;
+    })
+    .join(';');
+}
+
 let html = htmlSrc;
 html = html
   .replace(/\n?[ \t]*<link rel="stylesheet"[^>]*>/g, '')
   .replace(/[ \t]*<script type="module"[^>]*><\/script>/, '')
-  .replace('</head>', `<style>\n${css}\n</style>\n</head>`)
-  .replace('</body>', `<script>\n${bundle}\n</script>\n</body>`);
+  .replace(
+    /(<meta http-equiv="Content-Security-Policy" content=")([^"]*)(">)/,
+    (_, a, policy, c) => a + singleFileCsp(policy) + c
+  )
+  .replace('</head>', `<style>${styleBody}</style>\n</head>`)
+  .replace('</body>', `<script>${scriptBody}</script>\n</body>`);
+
+if (!/Content-Security-Policy/.test(html)) {
+  throw new Error(`${HTML_IN}: no CSP meta tag — the single-file build must not ship without one`);
+}
 
 mkdirSync(dirname(resolve(ROOT, HTML_OUT)), { recursive: true });
 writeFileSync(resolve(ROOT, HTML_OUT), html);

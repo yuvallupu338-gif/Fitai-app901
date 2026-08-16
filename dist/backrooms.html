@@ -13,6 +13,11 @@
 <meta name="apple-mobile-web-app-status-bar-style" content="black-translucent">
 <meta name="apple-mobile-web-app-title" content="Backrooms">
 <title>The Backrooms · 100 Levels</title>
+<!-- This game shares an origin with the two FitAI apps, so their stored data
+     is only as safe as the weakest page on it. It draws everything itself and
+     talks to nobody: script-src is 'self' with no inline anything, and
+     connect-src is 'none'. frame-ancestors is omitted — ignored in a meta tag. -->
+<meta http-equiv="Content-Security-Policy" content="default-src 'none'; script-src 'sha256-2ZsDh241FtZmew//1F1OPI5cKq7EX5hfVoAH3cLBAew='; style-src 'sha256-jpOMZGD9uLRZltqHCAmbANjTiT1kJqBYWxJontQHWNE='; img-src 'self' data:; font-src 'self' data:; connect-src 'none'; media-src 'none'; frame-src 'none'; worker-src 'none'; object-src 'none'; base-uri 'none'; form-action 'none'">
 <link rel="icon" href="data:image/svg+xml,<svg xmlns='http://www.w3.org/2000/svg' viewBox='0 0 32 32'><rect width='32' height='32' fill='%23c9b24e'/><rect x='7' y='4' width='18' height='24' fill='%238d7a2c'/><rect x='12' y='12' width='8' height='16' fill='%23e6d68a'/></svg>">
 <style>
 /*
@@ -736,6 +741,10 @@ body.touch #rotate { top: calc(122px + env(safe-area-inset-top)); }
   #fade { transition: none; }
 }
 
+/* The <noscript> message, moved out of a style attribute so the page can take
+   a Content-Security-Policy with style-src 'self' and no 'unsafe-inline'. */
+.noscript-note { padding: 40px; color: #c9b24e; font: 16px/1.6 system-ui; }
+
 </style>
 </head>
 <body>
@@ -926,7 +935,7 @@ body.touch #rotate { top: calc(122px + env(safe-area-inset-top)); }
 </div>
 
 <noscript>
-  <p style="padding:40px;color:#c9b24e;font:16px/1.6 system-ui">
+  <p class="noscript-note">
     המשחק דורש JavaScript ו-WebGL2.
   </p>
 </noscript>

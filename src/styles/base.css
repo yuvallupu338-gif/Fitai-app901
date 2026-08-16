@@ -67,3 +67,8 @@ footer {
 @media (prefers-reduced-motion: reduce) {
   *, *::before, *::after { transition: none !important; animation: none !important; }
 }
+
+/* The <noscript> message. It carried its own style attribute until the page
+   took a Content-Security-Policy without 'unsafe-inline' — with this rule the
+   app has no inline style anywhere, which is what lets style-src be 'self'. */
+.noscript-note { padding: 40px 0; color: var(--dim); }
