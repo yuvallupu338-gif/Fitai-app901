@@ -12,12 +12,12 @@ function Settings(){
   <h1 class="hello" style="font-size:24px">⚙️ הגדרות</h1>
 
   <div class="sectitle">🌐 שפה · Language · Idioma</div>
-  <div class="card"><div class="pills"><button class="pill ${lang()==='en'?'act':''}" onclick="setLang('en')">🇬🇧 English</button><button class="pill ${lang()==='he'?'act':''}" onclick="setLang('he')">🇮🇱 עברית</button><button class="pill ${lang()==='es'?'act':''}" onclick="setLang('es')">🇪🇸 Español</button></div></div>
+  <div class="card"><div class="pills"><button class="pill ${lang()==='en'?'act':''}" data-call="setLang" data-args="[&quot;en&quot;]">🇬🇧 English</button><button class="pill ${lang()==='he'?'act':''}" data-call="setLang" data-args="[&quot;he&quot;]">🇮🇱 עברית</button><button class="pill ${lang()==='es'?'act':''}" data-call="setLang" data-args="[&quot;es&quot;]">🇪🇸 Español</button></div></div>
   <div class="sectitle">אימון</div>
   <div class="card">
     <div class="field"><label>${L('איך אתה מתאמן?','How do you train?','¿Cómo entrenas?')}</label></div>
     <div class="pills">
-      ${(()=>{const _r=recommendTrack(p).style;return STYLES.map(k=>`<button class="pill ${trainStyle(p)===k?'act':''}" onclick="setTrainEnv('${k}')">${styleName(k)}${k===_r?`<span class="reco">${L('מומלץ','best fit','recomendado')}</span>`:''}</button>`).join('');})()}
+      ${(()=>{const _r=recommendTrack(p).style;return STYLES.map(k=>`<button class="pill ${trainStyle(p)===k?'act':''}" data-call="setTrainEnv" data-args="${esc(JSON.stringify([k]))}">${styleName(k)}${k===_r?`<span class="reco">${L('מומלץ','best fit','recomendado')}</span>`:''}</button>`).join('');})()}
     </div>
     <div class="sub" style="margin:6px 0 0">${styleBlurb(trainStyle(p))}</div>
     ${recoTrackHTML(p)}
@@ -47,7 +47,7 @@ function Settings(){
   <div class="sectitle">תצוגה ונגישות</div>
   <div class="card">
     <div class="field"><label>גודל טקסט (1-10)</label>
-      <select class="inp" aria-label="גודל טקסט" onchange="setFontLevel(this.value)">${[...Array(10)].map((_,i)=>{const lv=i+1,cur=fontLevel(p);return `<option value="${lv}" ${cur===lv?'selected':''}>${lv}${lv===1?' · הכי קטן':lv===3?' · רגיל':lv===10?' · הכי גדול':''}</option>`;}).join('')}</select></div>
+      <select class="inp" aria-label="גודל טקסט" data-call="setFontLevel" data-on="change" data-args="[&quot;$value&quot;]">${[...Array(10)].map((_,i)=>{const lv=i+1,cur=fontLevel(p);return `<option value="${lv}" ${cur===lv?'selected':''}>${lv}${lv===1?' · הכי קטן':lv===3?' · רגיל':lv===10?' · הכי גדול':''}</option>`;}).join('')}</select></div>
     <div class="sub" style="margin-top:8px">אפשר גם להגדיל באמצעות צביטה במסך (zoom)</div>
     <div class="field" style="margin-top:12px"><label>ערכת נושא</label></div>
     <div class="pills"><button class="pill ${(DB.theme||'dark')==='dark'?'act':''}" data-act="setTheme" data-v="dark">🌙 כהה</button><button class="pill ${DB.theme==='light'?'act':''}" data-act="setTheme" data-v="light">☀️ בהיר</button></div>
@@ -60,15 +60,15 @@ function Settings(){
   <div class="card">
     <div class="field"><label>שם</label><input class="inp" data-set="personal.name" value="${esc(p.personal.name)}"></div>
     <div class="inrow">
-      <div class="field"><label>גיל</label><input class="inp" inputmode="numeric" data-set="personal.age" value="${p.personal.age}"></div>
+      <div class="field"><label>גיל</label><input class="inp" inputmode="numeric" data-set="personal.age" value="${esc(p.personal.age)}"></div>
       <div class="field"><label>מגדר</label>
         <select class="inp" data-set="personal.gender">
           ${['זכר','נקבה','אחר'].map(g=>`<option ${p.personal.gender===g?'selected':''}>${g}</option>`).join('')}
         </select></div>
     </div>
     <div class="inrow">
-      <div class="field"><label>גובה (ס״מ)</label><input class="inp" inputmode="numeric" data-set="personal.height" value="${p.personal.height}"></div>
-      <div class="field"><label>משקל (ק״ג)</label><input class="inp" inputmode="decimal" data-set="personal.weight" value="${p.personal.weight}"></div>
+      <div class="field"><label>גובה (ס״מ)</label><input class="inp" inputmode="numeric" data-set="personal.height" value="${esc(p.personal.height)}"></div>
+      <div class="field"><label>משקל (ק״ג)</label><input class="inp" inputmode="decimal" data-set="personal.weight" value="${esc(p.personal.weight)}"></div>
     </div>
   </div>
 
@@ -103,7 +103,7 @@ function Settings(){
       ${[['regular','רגיל'],['vegetarian','צמחוני'],['vegan','טבעוני'],['pescatarian','פסקטריאני']].map(([k,v])=>`<button class="pill ${p.nutrition.diet===k?'act':''}" data-v="${k}">${v}</button>`).join('')}
     </div>
     <div class="field" style="margin-top:10px"><label>אלרגיות <span class="sub" style="font-size:12px">· בחר מהרשימה או הקלד חופשי</span></label><input class="inp" id="alg_set" data-set="nutrition.allergies" value="${esc(p.nutrition.allergies)}" placeholder="לדוגמה: בוטנים, גלוטן, או כל דבר אחר">${algChips('alg_set',p.nutrition.allergies)}</div>
-    <div class="inrow" style="margin-top:10px"><div class="field"><label>יעד נתרן (מ״ג/יום)</label><input class="inp" inputmode="numeric" data-set="naTarget" value="${p.naTarget||2300}"></div><div class="field"><label>יעד סוכר (ג׳/יום)</label><input class="inp" inputmode="numeric" data-set="sugTarget" value="${p.sugTarget||50}"></div></div>
+    <div class="inrow" style="margin-top:10px"><div class="field"><label>יעד נתרן (מ״ג/יום)</label><input class="inp" inputmode="numeric" data-set="naTarget" value="${esc(p.naTarget||2300)}"></div><div class="field"><label>יעד סוכר (ג׳/יום)</label><input class="inp" inputmode="numeric" data-set="sugTarget" value="${esc(p.sugTarget||50)}"></div></div>
     <div class="field"><label>פציעות / מגבלות <span style="color:var(--muted);font-weight:600;font-size:12px">· משפיע על אימונים ומתיחות</span></label><input class="inp" data-set="nutrition.injuries" value="${esc(p.nutrition.injuries)}" placeholder="לדוגמה: כתף, ברך, גב"></div>
     <div class="field"><label>מאכלים שאני לא אוהב <span style="color:var(--muted);font-weight:600;font-size:12px">· יסוננו מהתפריט</span></label><input class="inp" data-set="nutrition.dislikes" value="${esc(p.nutrition.dislikes||'')}" placeholder="לדוגמה: טונה, עגבניות"></div>
   </div>

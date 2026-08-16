@@ -60,8 +60,22 @@ function isBW(n){
   if(_mv)return _mv.m!=='משקל 🏋️';        // the library knows; no guessing from the name
   n=(n||'').toLowerCase();if(/dumbbell|barbell|machine|cable|leg press|lat pulldown|goblet|romanian|deadlift|bench press|yoke|weighted/.test(n))return false;return /push-up|pull-up|squat|plank|crunch|dip|lever|pistol|raise|flag|l-sit|handstand|bridge|archer|dragon|chin/.test(n);}
 function showWeights(p){return trainStyle(p)!=='calisthenics'&&studioHasWeights(p);}
-function woSaveWeight(base,v){commit(function(pp){pp.exWeights=pp.exWeights||{};if(v&&parseFloat(v))pp.exWeights[base]=v;else delete pp.exWeights[base];});}
-function woInput(i,k,v){if(WO&&WO.list[i])WO.list[i][k]=v;}
+/* These two are the only places a raw keystroke becomes state without passing
+   through the schema in src/store.js, because they are written and read back
+   inside one session, before any reload. `parseFloat(v)` being truthy was
+   taken as proof the string was a number — it is not: parseFloat('1"><img …')
+   is 1, and the whole string was stored and later interpolated into a value=
+   attribute. Both now store the number they claim to store. */
+function woSaveWeight(base,v){var n=parseFloat(v);commit(function(pp){pp.exWeights=pp.exWeights||{};if(isFinite(n)&&n>0)pp.exWeights[base]=Math.min(2000,n);else delete pp.exWeights[base];});}
+/* The skill-tree field saved and then announced, as two statements in an
+   attribute; the announcement moves in here so the markup only names a call. */
+function woSaveWeightAndSay(base,v){woSaveWeight(base,v);toast(v?'משקל נשמר 💾':'נמחק');}
+function woInput(i,k,v){
+  if(!WO||!WO.list[i])return;
+  if(k==='rir'&&(v===''||v==null)){WO.list[i][k]='';return;}
+  var n=parseFloat(v);
+  WO.list[i][k]=isFinite(n)?Math.max(0,Math.min(100000,n)):'';
+}
 function woUndoSwap(i){if(WO&&WO._undo&&WO._undo[i]){WO.list[i]=WO._undo[i];delete WO._undo[i];if(WO._swap)WO._swap[i]=0;renderWorkout();toast('ההחלפה בוטלה ↩');}}
 function lastLog(p,base){var a=p.exLog&&p.exLog[base];return a&&a.length?a[a.length-1]:null;}
 function prWeight(p,base){var a=p.exLog&&p.exLog[base];if(!a)return 0;return a.reduce(function(m,e){return Math.max(m,parseFloat(e.w)||0);},0);}
@@ -116,10 +130,10 @@ function exLogBlock(p,ex,i){
   } else if(hi){hint='🎯 היעד '+lo+'-'+hi+' '+unit+' — מילאנו לך אוטומטית, עדכן לפי מה שעשית בפועל';} else hint=weighted?'תיעוד ראשון — רשום משקל וחזרות לעקוב אחר התקדמות':'תיעוד ראשון — רשום '+unit+' לעקוב אחר התקדמות';
   return '<div style="background:var(--card2);border:1px solid var(--line);border-radius:11px;padding:9px 10px;margin:0 0 10px">'+
     '<div style="display:flex;align-items:center;gap:7px;flex-wrap:wrap">'+
-      (weighted?'<span class="sub" style="margin:0">🏋️ משקל</span><input class="inp" id="wt_'+i+'" style="width:72px;padding:6px 9px" inputmode="decimal" value="'+prefW+'" placeholder="ק״ג" oninput="woInput('+i+',&quot;w&quot;,this.value)">':'')+
+      (weighted?'<span class="sub" style="margin:0">🏋️ משקל</span><input class="inp" id="wt_'+i+'" style="width:72px;padding:6px 9px" inputmode="decimal" value="'+esc(prefW)+'" placeholder="ק״ג" data-call="woInput" data-on="input" data-args="'+esc(JSON.stringify([i,'w','$value']))+'">':'')+
       '<span class="sub" style="margin:0">'+unit+'</span>'+
-      '<input class="inp" id="rp_'+i+'" style="width:60px;padding:6px 9px" inputmode="numeric" value="'+prefR+'" placeholder="'+(hi?lo+'-'+hi:'#')+'" oninput="woInput('+i+',&quot;reps&quot;,this.value)">'+
-      (!isTime?'<span class="sub" style="margin:0" title="RIR — כמה חזרות נשארו לך בסוף הסט לפני כשל">💪 כוח שנשאר</span><input class="inp" id="ri_'+i+'" style="width:50px;padding:6px 9px" inputmode="numeric" value="'+(ex.rir!=null&&ex.rir!==''?ex.rir:'')+'" placeholder="0-4" oninput="woInput('+i+',&quot;rir&quot;,this.value)"><span class="sub" style="margin:0;font-size:11px;opacity:.75">0=כשל · 2=נשארו 2</span>':'')+
+      '<input class="inp" id="rp_'+i+'" style="width:60px;padding:6px 9px" inputmode="numeric" value="'+esc(prefR)+'" placeholder="'+(hi?lo+'-'+hi:'#')+'" data-call="woInput" data-on="input" data-args="'+esc(JSON.stringify([i,'reps','$value']))+'">'+
+      (!isTime?'<span class="sub" style="margin:0" title="RIR — כמה חזרות נשארו לך בסוף הסט לפני כשל">💪 כוח שנשאר</span><input class="inp" id="ri_'+i+'" style="width:50px;padding:6px 9px" inputmode="numeric" value="'+(ex.rir!=null&&ex.rir!==''?ex.rir:'')+'" placeholder="0-4" data-call="woInput" data-on="input" data-args="'+esc(JSON.stringify([i,'rir','$value']))+'"><span class="sub" style="margin:0;font-size:11px;opacity:.75">0=כשל · 2=נשארו 2</span>':'')+
     '</div>'+
     '<div class="sub" style="margin:6px 0 0;font-size:12px">'+esc(hint)+'</div>'+
   '</div>';

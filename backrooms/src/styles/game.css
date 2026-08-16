@@ -718,3 +718,7 @@ body.touch #rotate { top: calc(122px + env(safe-area-inset-top)); }
   .screen, #hud-log div { animation: none; }
   #fade { transition: none; }
 }
+
+/* The <noscript> message, moved out of a style attribute so the page can take
+   a Content-Security-Policy with style-src 'self' and no 'unsafe-inline'. */
+.noscript-note { padding: 40px; color: #c9b24e; font: 16px/1.6 system-ui; }

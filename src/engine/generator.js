@@ -100,7 +100,7 @@ const SIBLING_PATTERN = {
 /** Equipment that adds external resistance, and equipment that only holds you. */
 const LOADING_EQUIP = ['dumbbells', 'barbell', 'kettlebell', 'machines', 'cable'];
 const APPARATUS_EQUIP = ['pullup_bar', 'dip_bars', 'rings', 'trx', 'bench', 'box',
-  'jump_rope', 'treadmill', 'bike', 'rower', 'sled'];
+  'jump_rope', 'treadmill', 'bike', 'rower', 'sled', 'pool'];
 
 /** Warm-up drills are picked in this order, so the session opens general and ends specific. */
 const WARMUP_PATTERN_ORDER = ['squat', 'hinge', 'lunge', 'plyo', 'horizontal_push', 'vertical_push',

@@ -21,7 +21,11 @@ var LOGO_MASKABLE='assets/logo-maskable.png';// 512², inside Android's safe zon
   var mani={name:'FitAI — מאמן כושר ותזונה',short_name:'FitAI',start_url:'.',scope:'.',display:'standalone',orientation:'portrait',background_color:'#0B0C0E',theme_color:'#0B0C0E',dir:'rtl',lang:'he',icons:[{src:abs(LOGO_MARK),sizes:'256x256',type:'image/png',purpose:'any'},{src:abs(LOGO_ICON),sizes:'512x512',type:'image/png',purpose:'any'},{src:abs(LOGO_MASKABLE),sizes:'512x512',type:'image/png',purpose:'maskable'}]};
   var ml=document.createElement('link');ml.rel='manifest';ml.href=URL.createObjectURL(new Blob([JSON.stringify(mani)],{type:'application/manifest+json'}));document.head.appendChild(ml);
   try{if(navigator.storage&&navigator.storage.persist){navigator.storage.persisted().then(function(has){if(!has)navigator.storage.persist();});}}catch(e){}
-  try{if('serviceWorker' in navigator && String(location.protocol).indexOf('http')===0){navigator.serviceWorker.register('sw.js').catch(function(){});}}catch(e){}
+  /* There is no sw.js and there never was — this registered a 404 on every
+     load and swallowed it. Left in place it is also a standing invitation:
+     anything that ever lands at that path gets a persistent worker that
+     survives a cache clear and controls every future navigation. Gone, and
+     worker-src is 'none' in the CSP so it cannot come back by accident. */
   try{window.addEventListener('beforeinstallprompt',function(ev){ev.preventDefault();_deferredPrompt=ev;try{if(typeof TAB!=='undefined'&&TAB==='settings')render();}catch(_){}});window.addEventListener('appinstalled',function(){_deferredPrompt=null;try{toast('הותקן בהצלחה ✓ 🎉');}catch(_){}try{render();}catch(_){}});}catch(e){}
 }catch(e){}})();
 

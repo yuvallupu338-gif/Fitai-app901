@@ -56,13 +56,107 @@ keeps its own storage, so it does not touch anything above. See
 
 ### Also in this repo: `backrooms/`
 
-`backrooms/` is a separate, self-contained app that shares nothing with FitAI
-but the server: a realistic first-person Backrooms build covering levels 0–99,
-with a WebGL2 renderer, procedural materials, an endless world generated as you
-walk it, and synthesised audio — no libraries and no media files, same as
-everything else here. It is served at `/backrooms/` and does not touch the
-questionnaire, the plan, or any of FitAI's storage. See
-[`backrooms/README.md`](backrooms/README.md).
+`backrooms/` is a separate, self-contained app: a realistic first-person
+Backrooms build covering levels 0–99, with a WebGL2 renderer, procedural
+materials, an endless world generated as you walk it, and synthesised audio —
+no libraries and no media files, same as everything else here. It is served at
+`/backrooms/`, and its code touches neither the questionnaire, the plan, nor
+any of FitAI's storage. See [`backrooms/README.md`](backrooms/README.md).
+
+Its *code* does not, which is not the same as saying it cannot — see
+[Security](#security) below. All three apps here share one browser origin, and
+localStorage is scoped per origin, not per path.
+
+## Rest days and declared injuries
+
+Every task in `src/engine/restday.js` carries a `hurts` list, and `allowed()`
+drops any task naming an injury the trainee declared. `tools/validate.js`
+audits that with a table it states independently, because asking the module
+whether it agrees with itself proves nothing — emptying every `hurts` list
+would leave a self-referential check green.
+
+Three tasks were reaching the people they were meant to avoid:
+
+- **`swim_20` for a declared shoulder.** Its own description says swimming is
+  the easiest thing there is on the joints, which is exactly right for knees and
+  hips and is what makes the shoulder easy to miss. Twenty minutes of front
+  crawl is several hundred rotations of a loaded arm overhead — the one movement
+  the whole week was built to keep away from that shoulder, handed back on the
+  recovery day.
+- **`play` — half an hour of ball games — for a declared knee, ankle or hip.**
+  The audit meant to rule this out and had been naming `ball_game`, an id that
+  does not exist in the catalogue, so all three cases had been checking nothing
+  since they were written.
+- **`stairs_10` for a declared ankle** and **`row_15` for a declared shoulder**,
+  both inconsistent with lighter tasks beside them that already carried those.
+
+A fourth was the opposite mistake. `swim_20` declared `needs: []`, so the app
+told everyone to go for a swim without ever asking whether they could reach a
+pool — every other task in the catalogue is doable from the front door. `pool`
+is now an equipment option, deliberately not defaulted into any location
+(a "full gym" often has none), and swimming is offered only to someone who
+ticked it: zero profiles get it without, 91 with — and they are the right
+population, fat loss with a knee or an ankle, where the walking-heavy list
+thins out and swimming is genuinely the best thing left.
+
+The audit now asserts that every id in its own table resolves to a real task,
+and sweeps the rule rather than sampling it: five goals × every single injury
+and every pair × seven ages × a profile owning all the equipment, checking two
+things that pull against each other — that nothing forbidden reaches a declared
+injury, and that no profile ends up with a blank week, which is the failure the
+module exists to prevent. The two halves want opposite profiles and get them:
+starvation is checked against someone who owns nothing, leaks against someone
+who owns everything — gate a task behind equipment the sweep lacks and it stops
+being tested at all, so the sweep also asserts it owns every `needs` in the
+catalogue.
+
+Both halves were confirmed to fail before they were trusted: reverting the
+`play` fix trips the leak check, and blocking the three tasks that need no
+equipment trips the starvation check. A check nobody has watched fail is not a
+check.
+
+## Security
+
+The three apps in this repo are served from one GitHub Pages origin —
+`/` , `/app/` and `/backrooms/` — and a browser origin is the security boundary,
+not a directory. They share one localStorage jar, and this app's share of it
+holds the vendor API keys under `fitai.key.*`. A scripting bug in any one of the
+three could read the other two's data, so hardening one of them alone would have
+been theatre.
+
+All three now carry a Content-Security-Policy with **`script-src 'self'` and no
+`'unsafe-inline'`**, which is the directive that decides whether HTML that
+reaches the DOM is markup or code. This app and the game needed nothing but the
+policy — no generated event handlers, no `eval`, and exactly one inline `style`
+attribute each (in their `<noscript>` blocks, now a CSS class), so both also run
+`style-src 'self'` with no inline styles at all. `connect-src` names the two
+vendors this app actually calls and nothing else; the game's is `'none'`.
+`app/` needed a larger change and has [its own account](app/README.md#security).
+
+The single-file builds in `dist/` inline their script and stylesheet, so they
+cannot use `'self'` and must not use `'unsafe-inline'`. `tools/build-single.js`
+names them **by hash** instead: exactly those two blocks run and nothing else,
+which also works from `file://`, where `'self'` means nothing.
+
+```bash
+node tools/csp-check.mjs
+```
+
+drives all three pages, requires each to raise no violations of its own, and
+then tries to execute code the way an injection would — an inline handler, a
+`javascript:` URL, `eval`, and a remote script — and requires all four to fail.
+Currently 24 of 24.
+
+Two things this deliberately does not claim:
+
+- **`frame-ancestors` is absent from every policy.** It is ignored in a `<meta>`
+  tag and needs a real response header, which GitHub Pages cannot set. Writing
+  it in anyway would only look like clickjacking was handled.
+- **The keys are still on a shared origin.** The policies make it much harder to
+  get script running on any of the three, but the honest fix for billable
+  credentials sitting beside a game is a separate origin. Until then, an XSS
+  anywhere here is a key-disclosure bug and should be treated at that severity.
+
 
 ## What it does
 

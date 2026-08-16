@@ -197,16 +197,16 @@ function obDateStepHTML(){
       [180,L('חצי שנה','6 months','6 meses')],[365,L('שנה','a year','un año')]].map(function(o){
       var ts=Date.now()+o[0]*MS_D;
       var on=d.goalDate&&Math.abs(+d.goalDate-ts)<3*MS_D;
-      return '<button class="pill '+(on?'act':'')+'" onclick="obSetDate('+ts+')">'+o[1]+'</button>';}).join('')+'</div>'+
+      return '<button class="pill '+(on?'act':'')+'" data-call="obSetDate" data-args="['+ts+']">'+o[1]+'</button>';}).join('')+'</div>'+
     '<div class="field" style="margin-top:12px"><label>'+L('או תאריך מדויק','or an exact date','o una fecha exacta')+'</label>'+
-      '<input class="inp" type="date" value="'+iso+'" min="'+min+'" max="'+max+'" onchange="obSetDate(this.value?Date.parse(this.value):0)"></label></div>'+
+      '<input class="inp" type="date" value="'+iso+'" min="'+min+'" max="'+max+'" data-call="obSetDateFromInput" data-on="change" data-args="[&quot;$value&quot;]"></label></div>'+
     (pl.set?('<div class="recobox" style="margin-top:12px">'+
       '<div style="font-weight:900;font-size:15px">'+fmtDate(pl.date)+' — '+pl.weeks+' '+L('שבועות','weeks','semanas')+'</div>'+
       (pl.need?('<div class="sub" style="margin:6px 0 0">'+L('צריך ','that is ','eso son ')+'<b>'+pl.need+' '+L('ק״ג','kg','kg')+'</b>'+
         L(' — כלומר ',' — about ',' — o sea ')+'<b>'+pl.rate+' '+L('ק״ג בשבוע','kg a week','kg por semana')+'</b>'+
         L(', והבטוח הוא עד ',', where safe is up to ',', y lo seguro es hasta ')+pl.safe+'</div>'):'')+
       '<div class="sub" style="margin:6px 0 0;color:'+col+';font-weight:700">'+goalVerdictText(pl)+'</div>'+
-      (pl.verdict==='unrealistic'&&pl.earliestDate?('<button class="btn b sm" style="width:100%;margin-top:8px" onclick="obSetDate('+pl.earliestDate+')">'+
+      (pl.verdict==='unrealistic'&&pl.earliestDate?('<button class="btn b sm" style="width:100%;margin-top:8px" data-call="obSetDate" data-args="['+pl.earliestDate+']">'+
         L('קבע ל-','Use ','Usar ')+fmtDate(pl.earliestDate)+L(' — התאריך המוקדם ביותר שאפשר',' — the earliest that works',' — la fecha más temprana posible')+'</button>'):'')+
       '<div class="sub" style="margin:8px 0 0">🗓️ '+L('לפי זה נמליץ על ','From that we would train you ','Por eso entrenaríamos ')+
         '<b style="color:var(--teal2)">'+rec.days+' '+L('ימים בשבוע','days a week','días por semana')+'</b>'+
@@ -215,7 +215,7 @@ function obDateStepHTML(){
       /* the day picker is three steps back, so the recommendation it produced
          is applied from here rather than sending the user to look for it */
       ((Array.isArray(d.days)?d.days.length:0)!==rec.days
-        ?('<button class="btn p sm" style="width:100%;margin-top:8px" onclick="obUseRecDays()">'+
+        ?('<button class="btn p sm" style="width:100%;margin-top:8px" data-call="obUseRecDays">'+
           L('קבע ל-','Make it ','Ponerlo en ')+rec.days+' '+L('ימים בשבוע','days a week','días por semana')+
           L(' (בחרת ',' (you picked ',' (elegiste ')+(Array.isArray(d.days)?d.days.length:0)+')</button>')
         :('<div class="sub" style="margin:4px 0 0;color:var(--green2);font-weight:700">✓ '+

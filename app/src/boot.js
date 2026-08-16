@@ -15,6 +15,11 @@ try{
   try{translateChrome();}catch(e){}
 }catch(e){
   console.error('render',e);
+  /* Last resort: start from a blank profile so the app is usable again. It used
+     to overwrite BOTH storage keys on the way, which meant one render error
+     erased every profile with no copy left anywhere — in an app that is the
+     user's only store. Whatever was there is set aside first. */
+  try{ localStorage.setItem(KEY+'_broken',localStorage.getItem(KEY)||localStorage.getItem(KEY+'_bk')||''); }catch(_b){}
   try{ DB=null; const p=newProfile('אני'); DB={profiles:{[p.id]:p},active:p.id,lang:'en',schema:(typeof SCHEMA_VERSION!=='undefined'?SCHEMA_VERSION:2)}; store.write(DB); render(); }
   catch(e2){
     document.getElementById('screen').innerHTML='<div style="padding:40px 16px;text-align:center;color:#F4F5F6"><h2 style="font-size:18px">אופס — משהו השתבש בטעינה</h2><p style="color:rgba(244,245,246,.55);font-size:14px;margin-top:8px">נסה לרענן את הדף. אם זה לא עוזר, ייתכן שנתונים שמורים פגומים — אפשר לאפס דרך ההגדרות.</p></div>';
@@ -25,7 +30,11 @@ try{hydrateGifs();var _gifMO=new MutationObserver(function(muts){for(var i=0;i<m
 /* pre-cache all demo GIFs while online so they work offline later */
 try{var _pf=function(){prefetchGifs();};if('requestIdleCallback' in window)requestIdleCallback(_pf,{timeout:4000});else setTimeout(_pf,2500);window.addEventListener('online',function(){_gifPF=0;prefetchGifs();});}catch(e){}
 /* cross-tab sync: if another tab saves the DB, refresh ours (avoid clobbering) */
-try{window.addEventListener('storage',function(e){if(e.key===KEY&&e.newValue){try{var nd=JSON.parse(e.newValue);if(nd&&nd.profiles){if(_saveT){flushSave();return;}DB=nd;if(typeof OB==='undefined'||!OB)render();if(typeof toast==='function')toast('סונכרן מחלון אחר ↻');}}catch(_e){}}});}catch(e){}
+/* Another tab's write is data from outside this tab, so it goes through the
+   schema like everything else — it used to be installed as-is on nothing more
+   than `nd.profiles` being truthy, which handed anything that could write this
+   origin's localStorage a direct route into every screen. */
+try{window.addEventListener('storage',function(e){if(e.key===KEY&&e.newValue){try{var nd=sanitizeDB(JSON.parse(e.newValue));if(nd){if(_saveT){flushSave();return;}DB=nd;if(typeof OB==='undefined'||!OB)render();if(typeof toast==='function')toast('סונכרן מחלון אחר ↻');}}catch(_e){}}});}catch(e){}
 /* a permission revoked in site settings must not leave the switch claiming on */
 try{syncNotifPerm();}catch(e){}
 /* and a gym profile from an older build must not arrive with nothing to lift */

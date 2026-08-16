@@ -15,7 +15,7 @@ function Skills(){
     trainStyle(P())==='gym'?L('תרגילי חדר כושר','gym movements','ejercicios de gimnasio')
     :trainStyle(P())==='hybrid'?L('משקל גוף וחדר כושר','bodyweight and gym','peso corporal y gimnasio')
     :L('משקל גוף','bodyweight','peso corporal')} · ${L('חזה · גב · רגליים · ליבה','chest · back · legs · core','pecho · espalda · piernas · core')}</div>
-  <div class="field" style="margin:2px 0 10px"><input class="inp" id="skq" placeholder="🔎 חפש תרגיל..." aria-label="חיפוש תרגיל" oninput="skillFilter(this.value)"></div>`;
+  <div class="field" style="margin:2px 0 10px"><input class="inp" id="skq" placeholder="🔎 חפש תרגיל..." aria-label="חיפוש תרגיל" data-call="skillFilter" data-on="input" data-args="[&quot;$value&quot;]"></div>`;
   if(P().woPicks&&P().woPicks.length){var _pw=pickedWorkout(P());var _pm=_pw.length?estMinutes(_pw):0;var _rest=effectiveDayMode(P())!=='training';html+=`<div class="card" style="border-color:rgba(217,255,61,.55);background:linear-gradient(135deg,rgba(217,255,61,.08),transparent)"><b>🏋️ אימון מותאם אישית</b><div class="sub" style="margin:4px 0 8px">${P().woPicks.length} תרגילים שבחרת${_rest?'':' · אימון מודרך קצר (~'+_pm+' דק׳)'}</div>${_rest?`<div class="sub" style="margin:0 0 8px">🧘 היום יום מנוחה — האימון ימתין ליום האימון הבא. <span data-goto="stretches" style="color:var(--teal2);cursor:pointer;text-decoration:underline">למתיחות התאוששות</span></div><div class="row"><button class="btn ghost" data-act="clearPicks" style="flex:1">נקה בחירה</button></div>`:`<div class="row"><button class="btn grad" data-act="startPicked" style="flex:1">▶ התחל אימון מותאם</button><button class="btn ghost" data-act="clearPicks" style="flex:none">נקה</button></div>`}</div>`;}
   html+=`
   <div class="card">
@@ -73,7 +73,7 @@ function exercisePopover(exId,lvl){
       <button class="btn grad" data-act="trainEx" data-ex="${exId}" data-lvl="${lvl}">${picked?'✓ במסלול האימון — הסר':'🏋️ שלב באימון המודרך'}</button>
       <button class="btn g" data-act="masterEx" data-ex="${exId}" data-lvl="${lvl}">${done?'✗ בטל סימון שליטה':'✓ אני כבר שולט בזה — סמן כהושלם'}</button>
       <button class="btn b" data-act="swapEx" data-ex="${exId}" data-lvl="${lvl}">⇄ ${conf?'החלף לתרגיל בטוח':'החלף תרגיל (אין בחדר הכושר)'}</button>
-      ${isBW(base)?'':`<div class="field" style="margin:4px 0"><label>💾 משקל עבודה (ק״ג) <span class="sub" style="font-size:12px">· נשמר לתרגיל</span></label><input class="inp" inputmode="decimal" value="${(p.exWeights&&p.exWeights[base])||''}" placeholder="—" onchange="woSaveWeight(&quot;${base.replace(/\"/g,'')}&quot;,this.value);toast(this.value?'משקל נשמר 💾':'נמחק')"></div>`}
+      ${isBW(base)?'':`<div class="field" style="margin:4px 0"><label>💾 משקל עבודה (ק״ג) <span class="sub" style="font-size:12px">· נשמר לתרגיל</span></label><input class="inp" inputmode="decimal" value="${(p.exWeights&&p.exWeights[base])||''}" placeholder="—" data-call="woSaveWeightAndSay" data-on="change" data-args="${esc(JSON.stringify([base,'$value']))}"></div>`}
       <a class="linkbtn" href="${yt}" target="_blank" rel="noopener">▶ טכניקה ביוטיוב</a>
       <button class="btn ghost" data-act="close">סגור</button>
     </div>`);

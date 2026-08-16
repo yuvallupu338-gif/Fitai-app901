@@ -23,9 +23,9 @@ function Notif(){
   </div>${perm==='denied'?`<div class="sub" style="margin:-2px 6px 8px">${L('בכרום: 🔒 בשורת הכתובת ← התראות ← אפשר. בספארי: הגדרות ← אתרים ← התראות.','In Chrome: the lock icon in the address bar → Notifications → Allow. In Safari: Settings → Websites → Notifications.','En Chrome: el candado de la barra de direcciones → Notificaciones → Permitir. En Safari: Ajustes → Sitios web → Notificaciones.')}</div>`:''}`;})()}
   <div class="card">
     <h2>⏰ זמני תזכורת</h2>
-    <div class="field"><label>בוקר טוב ☀️</label><input class="inp" type="time" data-set="reminders.morning" value="${R.morning||'07:00'}"></div>
-    <div class="field" style="margin-top:8px"><label>תזכורת אימון 🏋️ (בימי אימון)</label><input class="inp" type="time" data-set="reminders.workout" value="${R.workout||'18:00'}"></div>
-    <div class="field" style="margin-top:8px"><label>שעת שינה 🌙</label><input class="inp" type="time" data-set="reminders.sleep" value="${R.sleep||'22:00'}"></div>
+    <div class="field"><label>בוקר טוב ☀️</label><input class="inp" type="time" data-set="reminders.morning" value="${esc(R.morning||'07:00')}"></div>
+    <div class="field" style="margin-top:8px"><label>תזכורת אימון 🏋️ (בימי אימון)</label><input class="inp" type="time" data-set="reminders.workout" value="${esc(R.workout||'18:00')}"></div>
+    <div class="field" style="margin-top:8px"><label>שעת שינה 🌙</label><input class="inp" type="time" data-set="reminders.sleep" value="${esc(R.sleep||'22:00')}"></div>
   </div>
   <div class="card">
     ${(()=>{const wOn=notifOn(p)&&!!R.water;return `<div class="toggle"><div class="tx"><b>${L('תזכורות מים','Water reminders','Recordatorios de agua')}</b><span>${L('תזכורת לשתות לאורך היום','A nudge to drink through the day','Un aviso para beber durante el día')}</span></div><div class="sw ${wOn?'on':''}" data-act="toggleWater" role="switch" tabindex="0" aria-checked="${wOn?'true':'false'}" aria-label="${L('תזכורות מים','Water reminders','Recordatorios de agua')}"><i></i></div></div>`;})()}
