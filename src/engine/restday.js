@@ -67,7 +67,13 @@ const TASKS = [
     id: 'swim_20',
     title: 'שחייה 20 דקות',
     body: 'הדבר הכי קל על המפרקים שיש. גם מי שלא יודע לשחות טוב — 20 דקות של תנועה במים עושות את העבודה.',
-    load: 'easy', needs: [], hurts: [],
+    // 'shoulder' was missing, and the sentence above is why: swimming is the
+    // joint-friendly exercise, and for knees and hips that is exactly right —
+    // which is what makes the shoulder easy to miss. Twenty minutes of front
+    // crawl is several hundred rotations of a loaded arm overhead, the single
+    // movement a declared shoulder is being kept away from all week. The plan
+    // then handed it back on the day meant for recovery.
+    load: 'easy', needs: [], hurts: ['shoulder'],
   },
   {
     id: 'mobility_10',
@@ -79,7 +85,10 @@ const TASKS = [
     id: 'stairs_10',
     title: '10 קומות מדרגות',
     body: 'עולים ברגל, יורדים במעלית. הירידה היא מה שמכאיב מחר, והיא לא נחוצה כאן.',
-    load: 'moderate', needs: [], hurts: ['knee', 'hip'], maxAge: 65,
+    // 'ankle' to match the flat 5 km walk beside it, which already carries it.
+    // Ten flights is the same plantarflexion the walk asks for, concentrated:
+    // every step up drives off the forefoot with the whole body over it.
+    load: 'moderate', needs: [], hurts: ['knee', 'ankle', 'hip'], maxAge: 65,
   },
   {
     id: 'carry_walk',
@@ -108,13 +117,21 @@ const TASKS = [
     id: 'row_15',
     title: 'חתירה 15 דקות',
     body: 'קצב נוח, נשימה שמדברת. רגליים דוחפות ראשונות, ידיים מושכות אחרונות.',
-    load: 'moderate', needs: ['rower'], hurts: ['lower_back'],
+    // 'shoulder' because the pull is the point of the movement. The catalogue
+    // already rules out carrying the shopping for a declared shoulder, and a
+    // rowing machine asks considerably more of it than two bags do — rarely
+    // reached, since it needs a rower, but the rule should not depend on that.
+    load: 'moderate', needs: ['rower'], hurts: ['lower_back', 'shoulder'],
   },
   {
     id: 'play',
     title: 'משחק כדור או ריקוד — חצי שעה',
     body: 'לא חייב להיראות כמו אימון כדי לספור. חצי שעה של תנועה שאתה נהנה ממנה עושה את אותה עבודה.',
-    load: 'easy', needs: [], hurts: [],
+    // Half an hour of a ball game is cutting, pivoting and landing at whatever
+    // speed the game asks for — the least controlled thing in this catalogue,
+    // and the classic mechanism for exactly these three joints. The audit meant
+    // to rule it out and had been naming an id that does not exist.
+    load: 'easy', needs: [], hurts: ['knee', 'ankle', 'hip'],
   },
 ];
 

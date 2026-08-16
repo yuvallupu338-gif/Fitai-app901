@@ -67,6 +67,37 @@ Its *code* does not, which is not the same as saying it cannot — see
 [Security](#security) below. All three apps here share one browser origin, and
 localStorage is scoped per origin, not per path.
 
+## Rest days and declared injuries
+
+Every task in `src/engine/restday.js` carries a `hurts` list, and `allowed()`
+drops any task naming an injury the trainee declared. `tools/validate.js`
+audits that with a table it states independently, because asking the module
+whether it agrees with itself proves nothing — emptying every `hurts` list
+would leave a self-referential check green.
+
+Three tasks were reaching the people they were meant to avoid:
+
+- **`swim_20` for a declared shoulder.** Its own description says swimming is
+  the easiest thing there is on the joints, which is exactly right for knees and
+  hips and is what makes the shoulder easy to miss. Twenty minutes of front
+  crawl is several hundred rotations of a loaded arm overhead — the one movement
+  the whole week was built to keep away from that shoulder, handed back on the
+  recovery day.
+- **`play` — half an hour of ball games — for a declared knee, ankle or hip.**
+  The audit meant to rule this out and had been naming `ball_game`, an id that
+  does not exist in the catalogue, so all three cases had been checking nothing
+  since they were written.
+- **`stairs_10` for a declared ankle** and **`row_15` for a declared shoulder**,
+  both inconsistent with lighter tasks beside them that already carried those.
+
+The audit now asserts that every id in its own table resolves to a real task,
+and sweeps the rule rather than sampling it: five goals × every single injury
+and every pair × seven ages × a profile owning all the equipment, checking two
+things that pull against each other — that nothing forbidden reaches a declared
+injury, and that no profile ends up with a blank week, which is the failure the
+module exists to prevent. 1,050 profiles, and the sweep was confirmed to fail
+when the `play` fix is reverted.
+
 ## Security
 
 The three apps in this repo are served from one GitHub Pages origin —

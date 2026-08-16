@@ -436,12 +436,25 @@ try {
              */
             const HURTS = {
               // Landing, loaded knee flexion, and changing direction at speed.
-              knee: ['jump_rope_10', 'stairs_10', 'walk_hills', 'ball_game'],
-              ankle: ['jump_rope_10', 'walk_hills', 'ball_game'],
-              hip: ['walk_hills', 'ball_game'],
-              lower_back: ['jump_rope_10', 'carry_walk'],
-              shoulder: ['swim_20'],
+              knee: ['jump_rope_10', 'stairs_10', 'walk_hills', 'play'],
+              ankle: ['jump_rope_10', 'walk_hills', 'stairs_10', 'play'],
+              hip: ['walk_hills', 'play'],
+              lower_back: ['jump_rope_10', 'carry_walk', 'row_15'],
+              shoulder: ['swim_20', 'carry_walk', 'row_15'],
             };
+            /*
+             * Every id above must be a real task. Three of them were 'ball_game',
+             * which is not — the task is called 'play' — so the whole knee, ankle
+             * and hip case for a ball game had been checking a name that matched
+             * nothing since it was written, while restday.js offered `play` to a
+             * declared bad knee with no filter at all. A list of names is only a
+             * rule if the names resolve, so now it says so out loud.
+             */
+            for (const [q, list] of Object.entries(HURTS)) {
+              for (const id of list) {
+                if (!byId.has(id)) err(`validate.js: HURTS.${q} names "${id}", which is not a rest task`);
+              }
+            }
             if (injury && (HURTS[injury] || []).indexOf(t.id) >= 0) {
               err(`${goal}/${injury}: rest task "${def.title}" loads a declared ${injury} `
                 + `on a recovery day, which the whole week was built to avoid`);
@@ -459,6 +472,64 @@ try {
       }
     }
   } catch (e) { err(`rest-day check could not run: ${e.message}`); }
+
+  /*
+   * The same rule, swept rather than sampled.
+   *
+   * The block above walks the goals the questionnaire actually produces, one
+   * injury at a time. That is how "ball game for a bad knee" survived: the
+   * combination existed, the id naming it did not, and one more pass over the
+   * same shapes would never have said so. This asks the harder question — every
+   * goal, every single injury AND every pair, seven ages, and a profile that
+   * owns every piece of equipment so nothing is hidden behind `needs` — and
+   * checks two things that must both hold at once.
+   *
+   * They pull in opposite directions, which is the point of testing them
+   * together: rule out too little and someone rehabbing a shoulder is sent
+   * swimming; rule out too much and an injured trainee opens the app to a week
+   * of blank days, which is the failure this whole module exists to prevent.
+   */
+  try {
+    const rd = await load('src/engine/restday.js');
+    const ALL = ['knee', 'ankle', 'hip', 'lower_back', 'shoulder', 'elbow', 'wrist'];
+    const FORBIDDEN = {
+      knee: ['jump_rope_10', 'stairs_10', 'walk_hills', 'play', 'walk_5k'],
+      ankle: ['jump_rope_10', 'stairs_10', 'walk_hills', 'play', 'walk_5k'],
+      hip: ['stairs_10', 'walk_hills', 'play', 'walk_5k'],
+      lower_back: ['jump_rope_10', 'carry_walk', 'row_15'],
+      shoulder: ['swim_20', 'carry_walk', 'row_15'],
+      elbow: ['carry_walk'],
+      wrist: ['carry_walk'],
+    };
+    const sets = [[]];
+    for (const a of ALL) sets.push([a]);
+    for (let i = 0; i < ALL.length; i++) {
+      for (let j = i + 1; j < ALL.length; j++) sets.push([ALL[i], ALL[j]]);
+    }
+    sets.push(ALL.slice());
+
+    const equipment = ['bike', 'rower', 'jump_rope'];
+    let starved = 0, leaked = 0;
+    for (const goal of ['fatloss', 'fitness', 'muscle', 'strength', 'sport']) {
+      for (const injuries of sets) {
+        for (const age of [12, 25, 45, 66, 71, 82, 90]) {
+          const who = `${goal}/age ${age}/[${injuries.join('+') || 'none'}]`;
+          const tasks = rd.restDayTasks({ goal, age, injuries, equipment }, [1, 3, 5, 6]);
+          if (!tasks.length && starved++ < 4) {
+            err(`${who}: four rest days and not one task the profile is allowed — `
+              + `the injury filters have eaten the whole catalogue`);
+          }
+          for (const t of tasks) {
+            for (const q of injuries) {
+              if ((FORBIDDEN[q] || []).indexOf(t.id) >= 0 && leaked++ < 6) {
+                err(`${who}: rest task "${t.id}" loads a declared ${q}`);
+              }
+            }
+          }
+        }
+      }
+    }
+  } catch (e) { err(`rest-day sweep could not run: ${e.message}`); }
 }
 
 /*
