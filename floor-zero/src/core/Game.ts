@@ -673,6 +673,12 @@ export class Game implements GameContext {
       yield 4.5;
     }
 
+    // Whichever lever was pulled, a complete photo set earns the last card.
+    if (this.state.flag('photos_all')) {
+      this.ui.cinematic(line('ending_photos'));
+      yield 4;
+    }
+
     this.ui.cinematic(null);
     this.state.meta.completedOnce = true;
     this.save.saveMeta(this.state.meta);

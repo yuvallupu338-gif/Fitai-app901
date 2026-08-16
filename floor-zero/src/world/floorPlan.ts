@@ -12,6 +12,13 @@ export const CORRIDOR = {
   height: 2.7,
 };
 
+/**
+ * Walls are 0.18m thick and centred on their coordinate, so a flat panel hung
+ * at the wall's own coordinate is buried inside it and never drawn. Anything
+ * mounted on a wall face offsets by this much toward the room instead.
+ */
+export const WALL_MOUNT = 0.12;
+
 export interface Doorway {
   id: string;
   axis: 'x' | 'z';

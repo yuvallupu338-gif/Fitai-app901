@@ -86,6 +86,8 @@ const shots = [
   { name: 'corridor-mid', x: 10.5, z: 0.6, yaw: -Math.PI / 2, pitch: -0.05 },
   { name: 'corridor-back', x: 22, z: 0, yaw: Math.PI / 2, pitch: 0 },
   { name: 'notice-board', x: 2.0, z: 1.0, yaw: 0, pitch: 0.06 },
+  { name: 'photo-corridor', x: 1.05, z: -0.35, yaw: 0, pitch: -0.5 },
+  { name: 'photo-apt01', x: 3.0, z: -3.2, yaw: Math.PI / 2, pitch: -0.2 },
   { name: 'family-photo', x: 10.4, z: 0.9, yaw: 0, pitch: 0.05 },
   { name: 'apt03-living', x: 13.4, z: -6.0, yaw: Math.PI / 2 + 0.5, pitch: -0.05 },
   { name: 'apt03-clocks', x: 12.6, z: -3.4, yaw: 0, pitch: 0.12 },

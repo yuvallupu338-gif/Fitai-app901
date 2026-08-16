@@ -2,7 +2,7 @@ import * as THREE from 'three';
 import type { GameContext } from '../core/Context';
 import type { GameState } from '../core/GameState';
 import { RNG } from '../core/RNG';
-import { NOTES, TAPES, line } from '../data/dialogue';
+import { NOTES, TAPES, line, localized } from '../data/dialogue';
 import { t } from '../data/localization';
 import { Interactable, SimpleInteractable } from '../interactions/Interactable';
 import { ReplayDoorPuzzle } from '../puzzles/ReplayDoorPuzzle';
@@ -15,6 +15,7 @@ import {
   buildAlcove,
   buildControlRoom,
   buildRoom,
+  placePhoto,
 } from './ApartmentBuilder';
 import { Builder } from './Builders';
 import { TriggerVolume, makeTrigger } from './Collision';
@@ -23,6 +24,7 @@ import { buildElevatorCar } from './ElevatorController';
 import { Frame } from './Frame';
 import { LevelBuild } from './LevelTypes';
 import { MaterialLibrary } from './Materials';
+import { rememberedNote } from './Memory';
 import { NavGraph } from './Nav';
 import {
   apartmentPlate,
@@ -50,6 +52,7 @@ import {
   LIFT_ORIGIN,
   ROOM_RECTS,
   SHUTTER_X,
+  WALL_MOUNT,
 } from './floorPlan';
 
 export interface BuildParams {
@@ -491,17 +494,23 @@ export function buildFloorZero(params: BuildParams & { chapter: number }): Level
 
   // The window at the far end: it shows a corridor, not a street.
   const windowTexture = builder.ownTexture(rainWindowTexture());
-  const windowPanel = builder.panel(windowTexture, 1.6, 1.05, [CORRIDOR.x1 - 0.02, 1.52, 0], -Math.PI / 2, {
-    emissive: true,
-    name: 'corridor_window',
-  });
+  const windowPanel = builder.panel(
+    windowTexture,
+    1.6,
+    1.05,
+    [CORRIDOR.x1 - WALL_MOUNT, 1.52, 0],
+    -Math.PI / 2,
+    { emissive: true, name: 'corridor_window' },
+  );
   windowPanel.userData.rainTexture = windowTexture;
   windowPanel.userData.corridorTexture = builder.ownTexture(windowCorridorTexture());
   props.set('corridor_window', windowPanel);
+  // The surround sits behind the glass and reaches back into the opening; a
+  // frame the pane is *inside* would swallow it.
   builder.decor({
     material: 'darkMetal',
-    center: [CORRIDOR.x1 - 0.04, 1.52, 0],
-    size: [0.05, 1.15, 1.72],
+    center: [CORRIDOR.x1 - 0.06, 1.52, 0],
+    size: [0.1, 1.15, 1.72],
   });
 
   // Ceiling detail.
@@ -538,12 +547,34 @@ export function buildFloorZero(params: BuildParams & { chapter: number }): Level
   interactables.push(makeLiftButton(rig.buttonMeshes[0], t('prompt.press')));
 
   // --- Corridor dressing -----------------------------------------
-  const board = noticeBoard(builder, [2.0, 1.62, CORRIDOR.z0 + 0.06], 0);
+  const board = noticeBoard(builder, [2.0, 1.62, CORRIDOR.z0 + WALL_MOUNT], 0);
   props.set('corridor_board', board.mesh);
   props.set('corridor_board_api', board.mesh);
   (board.mesh.userData as { setMessage?: (message: string) => void }).setMessage = board.setMessage;
 
-  const photo = familyPhoto(builder, [10.4, 1.6, CORRIDOR.z0 + 0.05], 0);
+  // The floor writes its own notice. From the second arrival on, the committee
+  // is quoting the player's behaviour profile back at them.
+  const memory = rememberedNote(params.state);
+  if (params.variant >= 2) board.setMessage(localized(memory.board));
+  interactables.push(
+    new SimpleInteractable(
+      'corridor_board_read',
+      'note',
+      board.mesh,
+      () => t('prompt.read'),
+      (ctx) => {
+        ctx.audio.play('paper', { volume: 0.5 });
+        ctx.ui.showNote({
+          id: 'corridor_board_read',
+          title: params.variant >= 2 ? memory.title : NOTES.note_board.title,
+          body: params.variant >= 2 ? memory.body : NOTES.note_board.body,
+        });
+      },
+      { maxDistance: 2.5 },
+    ),
+  );
+
+  const photo = familyPhoto(builder, [10.4, 1.6, CORRIDOR.z0 + WALL_MOUNT], 0);
   props.set('family_photo', photo.mesh);
   (photo.mesh.userData as { setVariant?: (variant: number) => void }).setVariant = photo.setVariant;
   photo.setVariant(params.variant >= 3 ? Math.min(4, params.variant - 2) : 0);
@@ -558,10 +589,10 @@ export function buildFloorZero(params: BuildParams & { chapter: number }): Level
 
   // Apartment number plates. One of them is wrong from visit three onward.
   const plateSpecs: Array<{ text: string; position: [number, number, number]; rotationY: number }> = [
-    { text: '01', position: [3.55, 1.85, CORRIDOR.z0 + 0.06], rotationY: 0 },
-    { text: '02', position: [9.05, 1.85, CORRIDOR.z1 - 0.06], rotationY: Math.PI },
-    { text: '03', position: [14.05, 1.85, CORRIDOR.z0 + 0.06], rotationY: 0 },
-    { text: '04', position: [18.75, 1.85, CORRIDOR.z1 - 0.06], rotationY: Math.PI },
+    { text: '01', position: [3.55, 1.85, CORRIDOR.z0 + WALL_MOUNT], rotationY: 0 },
+    { text: '02', position: [9.05, 1.85, CORRIDOR.z1 - WALL_MOUNT], rotationY: Math.PI },
+    { text: '03', position: [14.05, 1.85, CORRIDOR.z0 + WALL_MOUNT], rotationY: 0 },
+    { text: '04', position: [18.75, 1.85, CORRIDOR.z1 - WALL_MOUNT], rotationY: Math.PI },
   ];
   const plates = plateSpecs.map((spec) => apartmentPlate(builder, spec.text, spec.position, spec.rotationY));
   props.set('plate_04', plates[3].mesh);
@@ -641,7 +672,10 @@ export function buildFloorZero(params: BuildParams & { chapter: number }): Level
     ),
   );
 
-  interactables.push(makeNote(builder, NOTES.note_floor, [6.9, 1.35, CORRIDOR.z1 - 0.07], Math.PI));
+  interactables.push(makeNote(builder, NOTES.note_floor, [6.9, 1.35, CORRIDOR.z1 - WALL_MOUNT], Math.PI));
+
+  // The first photograph, taped low by the lift where somebody knelt to leave it.
+  placePhoto(fc, 0, [1.05, 0.95, CORRIDOR.z0 + WALL_MOUNT], 0);
 
   // --- Hidden props the anomaly director animates -------------------
   const falseWall = builder.box({

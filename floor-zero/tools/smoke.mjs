@@ -42,10 +42,13 @@ async function alreadyServing() {
 }
 
 function startServer() {
+  // Detached so the whole `npx → sh → vite` tree can be killed as one group.
+  // SIGTERM to npx alone leaves the vite process holding the port and its stdio
+  // pipe open, which keeps this script's event loop alive for ever.
   const child = spawn(
     'npx',
     ['vite', 'preview', '--port', String(PORT), '--strictPort', '--host', '127.0.0.1'],
-    { cwd: root, stdio: ['ignore', 'pipe', 'pipe'] },
+    { cwd: root, stdio: ['ignore', 'pipe', 'pipe'], detached: true },
   );
   return new Promise((resolve, reject) => {
     const timer = setTimeout(() => reject(new Error('preview server did not start')), 25000);
@@ -76,10 +79,16 @@ async function main() {
   // Reuse a preview server that is already up, otherwise start one and make
   // sure it dies with this process.
   const server = (await alreadyServing()) ? null : await startServer();
-  if (server) {
-    for (const signal of ['SIGINT', 'SIGTERM', 'exit']) {
-      process.on(signal, () => server.kill('SIGTERM'));
+  const stopServer = () => {
+    if (!server?.pid) return;
+    try {
+      process.kill(-server.pid, 'SIGTERM');
+    } catch {
+      /* already gone */
     }
+  };
+  if (server) {
+    for (const signal of ['SIGINT', 'SIGTERM', 'exit']) process.on(signal, stopServer);
   }
 
   const browser = await chromium.launch({
@@ -200,6 +209,69 @@ async function main() {
 
     const recording = await run(() => window.__floorZero.recorder.isRecording);
     recording ? pass('the recorder is running') : fail('recorder', 'not recording');
+
+    // --- The optional photographs ----------------------------------------
+    const photoTaken = await run(() => {
+      const g = window.__floorZero;
+      g.player.teleport(1.05, -0.3, 0);
+      g.interactions.activate(g.interactions.get('photo_1'), g);
+      g.ui.hideNote();
+      return g.state.flag('found_photo_1');
+    });
+    photoTaken ? pass('a hidden photograph can be collected') : fail('photograph', 'flag not set');
+
+    // The corridor board is readable, and says something before it knows you.
+    const boardRead = await run(() => {
+      const g = window.__floorZero;
+      g.player.teleport(2.0, -0.4, 0);
+      g.interactions.activate(g.interactions.get('corridor_board_read'), g);
+      const open = g.ui.isReading;
+      g.ui.hideNote();
+      return open;
+    });
+    boardRead ? pass('the notice board can be read') : fail('notice board', 'reader did not open');
+
+    // --- Nothing is hidden inside solid geometry --------------------------
+    // Walls are 0.18m thick and centred on their coordinate, and picture
+    // surrounds have depth of their own, so a flat panel placed at the wall's
+    // coordinate is swallowed whole and silently never drawn. Every note,
+    // plate, drawing and photograph has to clear the surface it hangs on.
+    const buried = await run(() => {
+      const g = window.__floorZero;
+      const solids = [];
+      const panels = [];
+      g.world.current.builder.group.traverse((object) => {
+        if (!object.geometry || !object.visible) return;
+        object.updateWorldMatrix(true, false);
+        if (object.geometry.type === 'PlaneGeometry') {
+          const e = object.matrixWorld.elements;
+          panels.push({ name: object.name, x: e[12], y: e[13], z: e[14] });
+          return;
+        }
+        if (object.geometry.type !== 'BoxGeometry') return;
+        object.geometry.computeBoundingBox();
+        solids.push({
+          name: object.name,
+          box: object.geometry.boundingBox.clone().applyMatrix4(object.matrixWorld),
+        });
+      });
+      // A hair of tolerance so a panel resting flush on a face is not "inside".
+      const bite = 0.004;
+      return panels
+        .map((panel) => {
+          const hit = solids.find(
+            (s) =>
+              panel.x > s.box.min.x + bite && panel.x < s.box.max.x - bite &&
+              panel.y > s.box.min.y + bite && panel.y < s.box.max.y - bite &&
+              panel.z > s.box.min.z + bite && panel.z < s.box.max.z - bite,
+          );
+          return hit ? `${panel.name} in ${hit.name}` : null;
+        })
+        .filter(Boolean);
+    });
+    buried.length === 0
+      ? pass('no wall decoration is buried in solid geometry')
+      : fail('buried decorations', `${buried.length}: ${buried.slice(0, 4).join(', ')}`);
 
     // --- Chapter 1: find the fuse, restore the floor --------------------
     await run(() => {
@@ -326,6 +398,12 @@ async function main() {
     const apt03Open = await run(() => window.__floorZero.world.current.doors.get('door_apt03').open);
     apt03Open ? pass('apartment 03 unlocks in chapter 3') : fail('apt 03', 'still locked');
 
+    // The clock already showing its answer locks itself, so only three are left.
+    const clocksLeft = await run(() => window.__floorZero.world.current.puzzles.clocks.remaining);
+    clocksLeft === 3
+      ? pass('one clock starts already answered')
+      : fail('clock lock-in', `${clocksLeft} remaining`);
+
     const clocksSolved = await run(async () => {
       const g = window.__floorZero;
       const solution = [5, 1, 3, 0];
@@ -341,6 +419,17 @@ async function main() {
       return g.state.isSolved('puzzle_clocks');
     });
     clocksSolved ? pass('the clock puzzle accepts its solution') : fail('clock puzzle', 'not solved');
+
+    // A clock that has locked refuses further presses rather than cycling off
+    // its own answer.
+    const stayedLocked = await run(() => {
+      const g = window.__floorZero;
+      const item = g.interactions.get('clock_1');
+      item.activate(g);
+      item.activate(g);
+      return g.state.isSolved('puzzle_clocks');
+    });
+    stayedLocked ? pass('a locked clock cannot be turned back off') : fail('clock lock', 'unsolved again');
 
     const serviceOpen = await run(() => {
       const g = window.__floorZero;
@@ -371,24 +460,41 @@ async function main() {
     const kidsOpen = await run(() => window.__floorZero.world.current.doors.get('door_apt02').open);
     kidsOpen ? pass("the children's room unlocks in chapter 4") : fail('apt 02', 'still locked');
 
-    const toysSolved = await run(async () => {
+    const toyRun = await run(async () => {
       const g = window.__floorZero;
       g.player.teleport(8.4, 10.0, 0);
-      // Start the sequence, wait for the mimic to finish its half, then answer.
       const puzzle = g.world.current.puzzles.toys;
+      const waitFor = async (stage, ms) => {
+        const deadline = Date.now() + ms;
+        while (puzzle.stage !== stage && Date.now() < deadline) {
+          await new Promise((r) => setTimeout(r, 200));
+        }
+        return puzzle.stage === stage;
+      };
+
+      // Start the sequence and wait for the mimic to finish its half.
       g.interactions.activate(g.interactions.get('toy_0'), g);
-      const deadline = Date.now() + 40000;
-      while (puzzle.stage !== 'player' && Date.now() < deadline) {
-        await new Promise((r) => setTimeout(r, 200));
-      }
+      if (!(await waitFor('player', 40000))) return { opened: false };
       const sequence = puzzle.sequence;
+
+      // Deliberately get it wrong: the mimic should re-offer the three tones
+      // the player owes rather than starting the whole sequence over.
+      const wrong = (sequence[3] + 1) % 4;
+      g.interactions.activate(g.interactions.get(`toy_${wrong}`), g);
+      const retried = await waitFor('retry', 4000);
+      const reopened = await waitFor('player', 60000);
+
       for (let i = 3; i < 6; i++) {
         g.interactions.activate(g.interactions.get(`toy_${sequence[i]}`), g);
         await new Promise((r) => setTimeout(r, 120));
       }
-      return g.state.isSolved('puzzle_toys');
+      return { opened: true, retried, reopened, solved: g.state.isSolved('puzzle_toys') };
     });
-    toysSolved ? pass('the toy sequence puzzle can be completed') : fail('toy puzzle', 'not solved');
+    toyRun.retried
+      ? pass('a wrong toy re-offers the sequence instead of restarting it')
+      : fail('toy retry', 'puzzle did not enter the retry phase');
+    toyRun.reopened ? pass('the answer window reopens by itself') : fail('toy retry', 'window never reopened');
+    toyRun.solved ? pass('the toy sequence puzzle can be completed') : fail('toy puzzle', 'not solved');
 
     const gotKey = await run(() => {
       const g = window.__floorZero;
@@ -435,6 +541,33 @@ async function main() {
     const feedCount = await run(() => window.__floorZero.world.feeds.length);
     feedCount >= 9 ? pass('the monitor wall is live', `${feedCount} feeds`) : fail('feeds', String(feedCount));
 
+    // --- Every anomaly, forced ------------------------------------------------
+    // The director normally picks a handful per visit, so a full playthrough
+    // proves almost nothing about the catalogue. Fire all of them by hand.
+    const anomalyRun = await run(async () => {
+      const g = window.__floorZero;
+      g.player.teleport(12.0, 0, -Math.PI / 2);
+      const ids = g.anomalies.catalogue.map((def) => def.id);
+      const broken = [];
+      for (const id of ids) {
+        try {
+          g.anomalies.force(id, g);
+        } catch (error) {
+          broken.push(`${id}: ${error}`);
+        }
+        await new Promise((r) => setTimeout(r, 40));
+      }
+      // Let the routines the anomalies queued actually run for a while.
+      await new Promise((r) => setTimeout(r, 4000));
+      return { count: ids.length, broken };
+    });
+    anomalyRun.count >= 30
+      ? pass('the anomaly catalogue is stocked', `${anomalyRun.count} definitions`)
+      : fail('anomaly catalogue', `${anomalyRun.count} definitions`);
+    anomalyRun.broken.length === 0
+      ? pass('every anomaly runs without throwing')
+      : fail('anomalies', anomalyRun.broken.slice(0, 3).join(' | '));
+
     // --- Ending --------------------------------------------------------------
     const endingId = { 1: 'ending_lift', 2: 'ending_stop', 3: 'ending_erase' }[ENDING];
     await run((id) => {
@@ -471,12 +604,14 @@ async function main() {
     else fail('console errors', realErrors.slice(0, 5).join(' | '));
 
     await browser.close();
-    server?.kill('SIGTERM');
+    stopServer();
   }
 
   const failed = steps.filter((step) => !step.ok);
   console.log(`\n${steps.length - failed.length}/${steps.length} checks passed`);
-  if (failed.length > 0) process.exitCode = 1;
+  // Explicit: a stray handle from the browser or the server must not turn a
+  // finished run into a hang with its output still sitting in the buffer.
+  process.exit(failed.length > 0 ? 1 : 0);
 }
 
 main().catch((error) => {

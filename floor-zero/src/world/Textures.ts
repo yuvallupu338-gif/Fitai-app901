@@ -622,6 +622,169 @@ export function familyPhotoTexture(variant: number, seed = 97): THREE.CanvasText
   return toTexture(canvas, 1, 1);
 }
 
+/**
+ * A found instant photo. Every one is a shot of somewhere on this floor, taken
+ * by whoever came before, with the caption they wrote on the white border.
+ * Kinds 0-4 are the collectibles; kind 5 is the one that only develops once the
+ * player has all five.
+ */
+export function polaroidTexture(kind: number, caption: string): THREE.CanvasTexture {
+  const w = 256;
+  const h = 300;
+  const { canvas, ctx } = surface(w, h);
+  const rng = new RNG(127 + kind * 13);
+
+  // The white frame: wide at the bottom, the way instant film is.
+  ctx.fillStyle = '#e8e4d8';
+  ctx.fillRect(0, 0, w, h);
+  const inset = 16;
+  const iw = w - inset * 2;
+  const ih = 208;
+
+  ctx.fillStyle = '#12161a';
+  ctx.fillRect(inset, inset, iw, ih);
+
+  const clip = (draw: () => void): void => {
+    ctx.save();
+    ctx.beginPath();
+    ctx.rect(inset, inset, iw, ih);
+    ctx.clip();
+    draw();
+    ctx.restore();
+  };
+
+  // A one-point perspective corridor, reused by most of the shots.
+  const corridor = (vanishX: number, tint: string): void => {
+    const cy = inset + ih * 0.52;
+    const grad = ctx.createRadialGradient(vanishX, cy, 6, vanishX, cy, iw * 0.9);
+    grad.addColorStop(0, tint);
+    grad.addColorStop(1, '#0b0e12');
+    ctx.fillStyle = grad;
+    ctx.fillRect(inset, inset, iw, ih);
+    ctx.strokeStyle = 'rgba(190,200,205,0.28)';
+    ctx.lineWidth = 2;
+    for (const corner of [
+      [inset, inset],
+      [inset + iw, inset],
+      [inset, inset + ih],
+      [inset + iw, inset + ih],
+    ] as const) {
+      ctx.beginPath();
+      ctx.moveTo(corner[0], corner[1]);
+      ctx.lineTo(vanishX, cy);
+      ctx.stroke();
+    }
+    // Ceiling tubes receding toward the vanishing point.
+    for (let i = 1; i <= 4; i++) {
+      const k = i / 5;
+      const y = inset + (cy - inset) * k;
+      const half = (iw / 2) * (1 - k) * 0.6;
+      ctx.fillStyle = `rgba(226,232,224,${0.5 - k * 0.3})`;
+      ctx.fillRect(vanishX - half * 0.28, y, half * 0.56, 3);
+    }
+  };
+
+  const figure = (x: number, baseY: number, scale: number, faceless = true): void => {
+    const bodyH = 84 * scale;
+    ctx.fillStyle = '#0a0c0e';
+    ctx.beginPath();
+    ctx.moveTo(x - 18 * scale, baseY);
+    ctx.lineTo(x - 13 * scale, baseY - bodyH);
+    ctx.lineTo(x + 13 * scale, baseY - bodyH);
+    ctx.lineTo(x + 18 * scale, baseY);
+    ctx.closePath();
+    ctx.fill();
+    ctx.fillStyle = faceless ? '#15181b' : '#8d8375';
+    ctx.beginPath();
+    ctx.arc(x, baseY - bodyH - 14 * scale, 13 * scale, 0, Math.PI * 2);
+    ctx.fill();
+  };
+
+  clip(() => {
+    switch (kind) {
+      case 0: // the corridor, empty, from the lift
+        corridor(inset + iw * 0.52, '#3a4148');
+        break;
+      case 1: // a doorway standing open onto black
+        corridor(inset + iw * 0.3, '#2c3238');
+        ctx.fillStyle = '#05070a';
+        ctx.fillRect(inset + iw * 0.56, inset + ih * 0.24, iw * 0.3, ih * 0.62);
+        ctx.strokeStyle = 'rgba(200,205,200,0.3)';
+        ctx.lineWidth = 3;
+        ctx.strokeRect(inset + iw * 0.56, inset + ih * 0.24, iw * 0.3, ih * 0.62);
+        break;
+      case 2: // the lift car, doors open, nobody inside
+        ctx.fillStyle = '#1a1f24';
+        ctx.fillRect(inset, inset, iw, ih);
+        ctx.fillStyle = '#2e353c';
+        ctx.fillRect(inset + iw * 0.16, inset + ih * 0.1, iw * 0.68, ih * 0.86);
+        ctx.fillStyle = '#0a0d10';
+        ctx.fillRect(inset + iw * 0.5 - 2, inset + ih * 0.1, 4, ih * 0.86);
+        ctx.fillStyle = 'rgba(233,238,230,0.55)';
+        ctx.fillRect(inset + iw * 0.3, inset + ih * 0.14, iw * 0.4, 6);
+        break;
+      case 3: // the children's room, drawings on the wall
+        ctx.fillStyle = '#3b342c';
+        ctx.fillRect(inset, inset, iw, ih);
+        ctx.fillStyle = '#241f1a';
+        ctx.fillRect(inset, inset + ih * 0.66, iw, ih * 0.34);
+        for (let i = 0; i < 6; i++) {
+          const px = inset + 18 + (i % 3) * (iw / 3);
+          const py = inset + 30 + Math.floor(i / 3) * 62;
+          ctx.fillStyle = '#ddd6c2';
+          ctx.fillRect(px, py, 44, 52);
+          ctx.strokeStyle = '#7a6a52';
+          ctx.lineWidth = 2;
+          ctx.beginPath();
+          ctx.arc(px + 22, py + 22, 11, 0, Math.PI * 2);
+          ctx.moveTo(px + 22, py + 33);
+          ctx.lineTo(px + 22, py + 46);
+          ctx.stroke();
+        }
+        break;
+      case 4: // someone standing at the far end, turned away
+        corridor(inset + iw * 0.5, '#333a40');
+        figure(inset + iw * 0.5, inset + ih * 0.68, 0.72);
+        break;
+      default: // the sixth: the photographer, holding the camera, faceless
+        corridor(inset + iw * 0.48, '#41474b');
+        figure(inset + iw * 0.48, inset + ih * 0.92, 1.5);
+        ctx.fillStyle = '#e6ead8';
+        ctx.fillRect(inset + iw * 0.42, inset + ih * 0.42, iw * 0.12, iw * 0.09);
+        break;
+    }
+
+    // Flash burn and the soft vignette instant film always has.
+    const flash = ctx.createRadialGradient(
+      inset + iw * 0.5,
+      inset + ih * 0.42,
+      4,
+      inset + iw * 0.5,
+      inset + ih * 0.42,
+      iw * 0.55,
+    );
+    flash.addColorStop(0, 'rgba(255,250,230,0.22)');
+    flash.addColorStop(1, 'rgba(255,250,230,0)');
+    ctx.fillStyle = flash;
+    ctx.fillRect(inset, inset, iw, ih);
+    ctx.fillStyle = 'rgba(120,90,50,0.16)';
+    ctx.fillRect(inset, inset, iw, ih);
+  });
+
+  ctx.strokeStyle = 'rgba(0,0,0,0.35)';
+  ctx.lineWidth = 2;
+  ctx.strokeRect(inset, inset, iw, ih);
+
+  // Handwriting on the white border.
+  ctx.fillStyle = '#2b3550';
+  ctx.font = 'italic 20px sans-serif';
+  ctx.textAlign = 'center';
+  ctx.fillText(caption, w / 2, inset + ih + 42);
+
+  grain(ctx, w, h, 12, rng);
+  return toTexture(canvas, 1, 1);
+}
+
 export function plateTexture(text: string, seed = 101): THREE.CanvasTexture {
   const w = 192;
   const h = 128;
@@ -781,10 +944,19 @@ export function clockFaceTexture(hour: number, minute: number, highlight = false
   ctx.arc(center, center, center - 4, 0, Math.PI * 2);
   ctx.fill();
 
-  ctx.strokeStyle = highlight ? '#5f7f4f' : '#2b2721';
-  ctx.lineWidth = 6;
+  // A locked clock has to read as "answered" from across a dark room, so the
+  // highlight is a thick green rim over a warm face rather than a subtle tint.
+  if (highlight) {
+    ctx.fillStyle = '#dfe7cf';
+    ctx.beginPath();
+    ctx.arc(center, center, center - 6, 0, Math.PI * 2);
+    ctx.fill();
+  }
+
+  ctx.strokeStyle = highlight ? '#4f8a46' : '#2b2721';
+  ctx.lineWidth = highlight ? 11 : 6;
   ctx.beginPath();
-  ctx.arc(center, center, center - 7, 0, Math.PI * 2);
+  ctx.arc(center, center, center - 9, 0, Math.PI * 2);
   ctx.stroke();
 
   ctx.strokeStyle = '#2b2721';
@@ -821,7 +993,7 @@ export function clockFaceTexture(hour: number, minute: number, highlight = false
   ctx.fill();
 
   // Digital readout so the time is never ambiguous.
-  ctx.fillStyle = '#4a443a';
+  ctx.fillStyle = highlight ? '#2f6a2b' : '#4a443a';
   ctx.font = 'bold 20px monospace';
   ctx.textAlign = 'center';
   ctx.fillText(

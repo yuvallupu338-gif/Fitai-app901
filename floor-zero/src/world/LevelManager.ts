@@ -4,6 +4,7 @@ import type { GameState } from '../core/GameState';
 import { QualityLevel } from '../core/types';
 import { buildFloorZero, buildLobby } from './BuildingGenerator';
 import { CollisionWorld, updateTriggers } from './Collision';
+import type { DoorSystem } from './DoorController';
 import { ElevatorController } from './ElevatorController';
 import { LevelBuild, LevelId, RoomBounds, SurfaceKind } from './LevelTypes';
 import { LightingManager } from './LightingManager';
@@ -51,6 +52,10 @@ export class LevelManager {
 
   get nav(): NavGraph {
     return this.build?.nav ?? this.emptyNav;
+  }
+
+  get doors(): DoorSystem | null {
+    return this.build?.doors ?? null;
   }
 
   get safePoint(): { x: number; z: number } {

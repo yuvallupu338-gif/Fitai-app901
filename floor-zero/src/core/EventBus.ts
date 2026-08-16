@@ -17,6 +17,7 @@ export interface GameEventMap {
   puzzle_solved: { id: string };
   note_read: { id: string };
   tape_played: { id: string };
+  photo_found: { id: string; found: number; total: number };
 
   anomaly_triggered: { id: string; index: number };
   anomaly_resolved: { id: string };

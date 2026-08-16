@@ -1,6 +1,8 @@
 import * as THREE from 'three';
 import type { GameContext } from '../core/Context';
 import type { Routine } from '../core/Sequencer';
+import { localized } from '../data/dialogue';
+import { rememberedRoomLine } from '../world/Memory';
 import { CORRIDOR } from '../world/floorPlan';
 
 export interface AnomalyDef {
@@ -524,6 +526,144 @@ export const ANOMALIES: AnomalyDef[] = [
           volume: 0.5,
         });
       }
+    },
+  },
+  {
+    id: 'own_footsteps',
+    minChapter: 1,
+    weight: 13,
+    cooldown: 65,
+    canRun: (ctx) => corridorOnly(ctx) && ctx.player.motion === 0,
+    run: function* (ctx): Routine {
+      // Three steps closing in from behind after the player has already stopped
+      // walking, and then nothing. The sound follows the surface they are on.
+      const surface = ctx.world.surfaceAt(ctx.camera.position.x, ctx.camera.position.z);
+      const step =
+        surface === 'wood' ? 'step_wood' : surface === 'carpet' ? 'step_carpet' : 'step_terrazzo';
+      const origin = behindPlayer(ctx, 4.2);
+      for (let i = 0; i < 3; i++) {
+        origin.x += ctx.player.forward.x * 1.15;
+        origin.z += ctx.player.forward.z * 1.15;
+        ctx.audio.play(step, { position: origin.clone(), volume: 0.6 - i * 0.08, rate: 0.94 });
+        yield 0.52;
+      }
+      ctx.mimic.noteNoise(origin.clone());
+      ctx.tension.add(6);
+    },
+  },
+  {
+    id: 'doors_ajar',
+    minChapter: 2,
+    weight: 9,
+    cooldown: 170,
+    canRun: (ctx) => corridorOnly(ctx) && !!ctx.world.doors,
+    run: function* (ctx): Routine {
+      const doors = ctx.world.doors;
+      if (!doors) return;
+      // Apartment doors only: the shutter, the service door and the control
+      // door all gate progress and must never open themselves.
+      const openable = doors.all.filter(
+        (door) => /^door_apt/.test(door.id) && !door.locked && !door.open,
+      );
+      if (openable.length === 0) return;
+      for (const door of openable) {
+        door.setOpen(true);
+        ctx.audio.play('creak', {
+          position: door.pivot.getWorldPosition(new THREE.Vector3()),
+          volume: 0.45,
+        });
+        yield 0.75;
+      }
+      ctx.tension.add(10);
+    },
+  },
+  {
+    id: 'lift_counts_down',
+    minChapter: 2,
+    weight: 8,
+    cooldown: 150,
+    canRun: (ctx) => {
+      const rig = ctx.world.current?.elevator;
+      if (!rig || !corridorOnly(ctx)) return false;
+      // Only worth doing from far enough away that walking back is a decision.
+      return Math.hypot(ctx.camera.position.x - rig.interior.x, ctx.camera.position.z - rig.interior.z) > 9;
+    },
+    run: function* (ctx): Routine {
+      const rig = ctx.world.current?.elevator;
+      if (!rig) return;
+      for (const floor of ['-1', '-2', '-3', '-4']) {
+        ctx.world.elevator.setDisplay(floor);
+        ctx.audio.play('lift_bell', { position: rig.interior.clone().setY(1.6), volume: 0.35 });
+        yield 1.1;
+      }
+      ctx.world.elevator.glitchDisplay(1.6);
+      yield 1.6;
+      ctx.world.elevator.setDisplay('0');
+      ctx.tension.add(8);
+    },
+  },
+  {
+    id: 'light_walk',
+    minChapter: 2,
+    weight: 11,
+    cooldown: 95,
+    canRun: (ctx) => corridorOnly(ctx) && ctx.world.roomAt(ctx.camera.position.x, ctx.camera.position.z) === 'corridor',
+    run: function* (ctx): Routine {
+      const lighting = ctx.world.lighting;
+      // Corridor tubes are numbered west to east, so walking the list backwards
+      // reads as something coming up the corridor toward the lift.
+      const ids = lighting
+        .fixtureIds()
+        .filter((id) => id.startsWith('corridor_light_'))
+        .sort((a, b) => Number(b.split('_').pop()) - Number(a.split('_').pop()));
+      if (ids.length === 0) return;
+      const wasOn = ids.map((id) => lighting.isOn(id));
+      for (let i = 0; i < ids.length; i++) {
+        if (!wasOn[i]) continue;
+        lighting.flicker(ids[i], 0.3, 1);
+        lighting.setOn(ids[i], false);
+        ctx.audio.play('switch', { volume: 0.3 });
+        yield 0.34;
+      }
+      yield 1.4;
+      // And back on all at once, which is the part that lands.
+      for (let i = 0; i < ids.length; i++) if (wasOn[i]) lighting.setOn(ids[i], true);
+      ctx.audio.play('power_up', { volume: 0.5 });
+      ctx.tension.add(12);
+    },
+  },
+  {
+    id: 'whisper_objective',
+    minChapter: 3,
+    weight: 9,
+    cooldown: 120,
+    canRun: (ctx) => corridorOnly(ctx) && ctx.state.objective.length > 0,
+    run: function* (ctx): Routine {
+      const behind = behindPlayer(ctx, 2.4).setY(1.55);
+      const voice = ctx.audio.play('whisper', { position: behind, volume: 0.9 });
+      yield 0.55;
+      // The floor reads the player's own objective back to them, unprompted.
+      ctx.say(`«${ctx.state.objective}»`, 3.4);
+      yield 2.4;
+      ctx.audio.stop(voice, 0.8);
+      ctx.tension.add(11);
+    },
+  },
+  {
+    id: 'board_remembers',
+    minChapter: 3,
+    weight: 8,
+    cooldown: 200,
+    unobserved: true,
+    canRun: (ctx) => !!prop(ctx, 'corridor_board'),
+    run: (ctx) => {
+      const board = prop(ctx, 'corridor_board');
+      const setMessage = (board?.userData as { setMessage?: (message: string) => void } | undefined)
+        ?.setMessage;
+      if (!setMessage) return;
+      const room = ctx.world.room || 'corridor';
+      setMessage(localized(rememberedRoomLine(room)));
+      ctx.audio.play('paper', { volume: 0.4 });
     },
   },
 ];

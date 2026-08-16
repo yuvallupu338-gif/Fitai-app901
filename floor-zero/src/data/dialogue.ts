@@ -171,6 +171,88 @@ export const NOTES: Record<string, NoteDef> = {
 };
 
 /* ------------------------------------------------------------------ */
+/* Photographs                                                         */
+/* ------------------------------------------------------------------ */
+
+export interface PhotoDef {
+  id: string;
+  /** Which polaroid artwork to generate. */
+  kind: number;
+  /** Handwriting on the white border — kept short, it is drawn on the print. */
+  caption: LocalizedText;
+  title: LocalizedText;
+  body: LocalizedText;
+}
+
+/**
+ * Five instant photos hidden across Floor 0, left by whoever was called out
+ * here before. They are entirely optional; finding all five develops a sixth.
+ */
+export const PHOTOS: PhotoDef[] = [
+  {
+    id: 'photo_1',
+    kind: 0,
+    caption: { he: 'ביקור ראשון', en: 'first visit' },
+    title: { he: 'תצלום — המסדרון', en: 'Photograph — the corridor' },
+    body: {
+      he: 'צילום מיידי, מטושטש בקצוות.\nמסדרון ריק, מצולם מתוך המעלית.\n\nעל השוליים הלבנים כתוב בעט: „ביקור ראשון”.\nהתאריך מחוק.',
+      en: 'An instant photo, soft at the edges.\nAn empty corridor, shot from inside the lift.\n\nWritten on the white border in pen: "first visit".\nThe date is rubbed out.',
+    },
+  },
+  {
+    id: 'photo_2',
+    kind: 1,
+    caption: { he: 'היא נשארה פתוחה', en: 'it stayed open' },
+    title: { he: 'תצלום — דלת', en: 'Photograph — a door' },
+    body: {
+      he: 'דלת דירה פתוחה אל חושך גמור.\nאין פלאש בפנים. אין רצפה שנראית.\n\nעל השוליים: „היא נשארה פתוחה”.\nמתחת, בכתב אחר: „לא על ידי”.',
+      en: 'An apartment door open onto complete darkness.\nNo flash inside. No floor visible.\n\nOn the border: "it stayed open".\nBeneath it, in a different hand: "not by me".',
+    },
+  },
+  {
+    id: 'photo_3',
+    kind: 2,
+    caption: { he: 'ירדתי לבד', en: 'i rode down alone' },
+    title: { he: 'תצלום — המעלית', en: 'Photograph — the lift' },
+    body: {
+      he: 'תא המעלית, דלתות פתוחות, ריק.\n\nעל השוליים: „ירדתי לבד”.\nהצג בתמונה מראה 0, אבל התמונה צולמה מתוך התא —\nכלומר מישהו החזיק את המצלמה מבחוץ.',
+      en: 'The lift car, doors open, empty.\n\nOn the border: "i rode down alone".\nThe display in the shot reads 0, but the picture was taken from inside the car —\nwhich means somebody held the camera outside it.',
+    },
+  },
+  {
+    id: 'photo_4',
+    kind: 3,
+    caption: { he: 'הם ציירו אותי', en: 'they drew me' },
+    title: { he: 'תצלום — חדר הילדים', en: "Photograph — the children's room" },
+    body: {
+      he: 'קיר מכוסה ציורים.\n\nעל השוליים: „הם ציירו אותי”.\nבתצלום יש שישה ציורים. בחדר יש שישה.\nהם לא אותם ציורים.',
+      en: 'A wall covered in drawings.\n\nOn the border: "they drew me".\nThere are six drawings in the photograph. There are six in the room.\nThey are not the same six.',
+    },
+  },
+  {
+    id: 'photo_5',
+    kind: 4,
+    caption: { he: 'הוא חיכה', en: 'it waited' },
+    title: { he: 'תצלום — קצה המסדרון', en: 'Photograph — the far end' },
+    body: {
+      he: 'דמות עומדת בקצה המסדרון, גבה למצלמה.\n\nעל השוליים: „הוא חיכה”.\nהתמונה חדה. הדמות לא זזה בזמן החשיפה.\nאף אחד לא עומד כל כך בשקט.',
+      en: 'A figure at the far end of the corridor, back to the camera.\n\nOn the border: "it waited".\nThe photo is sharp. The figure did not move during the exposure.\nNobody stands that still.',
+    },
+  },
+];
+
+export const PHOTO_BONUS: PhotoDef = {
+  id: 'photo_6',
+  kind: 5,
+  caption: { he: 'מי צילם', en: 'who took these' },
+  title: { he: 'תצלום — הצלם', en: 'Photograph — the photographer' },
+  body: {
+    he: 'חמישה תצלומים, ואף אחד מהם לא צולם על ידי מי שכתב עליהם.\nהשישי פותח את זה.\n\nבמסדרון עומדת דמות עם מצלמה, מכוונת קדימה.\nאין לה פנים. יש לה את המדים שלך.\n\nהמצלמה מכוונת בדיוק למקום שבו אתה עומד עכשיו.',
+    en: 'Five photographs, and not one was taken by the person who wrote on them.\nThe sixth explains that.\n\nA figure stands in the corridor with a camera, aimed forward.\nIt has no face. It is wearing your uniform.\n\nThe camera is pointed exactly where you are standing now.',
+  },
+};
+
+/* ------------------------------------------------------------------ */
 /* Tapes                                                               */
 /* ------------------------------------------------------------------ */
 
@@ -338,13 +420,18 @@ export const LINES: Record<string, LocalizedText> = {
   c3_tv_live: { he: 'הטלוויזיה מציגה את המסדרון.', en: 'The television shows the corridor.' },
   c3_tv_ahead: { he: 'המסך מקדים אותי בשתי שניות.', en: 'The screen is two seconds ahead of me.' },
   c3_clocks_all: { he: 'כל השעונים עומדים על 00:17.', en: 'Every clock is stopped at 00:17.' },
+  c3_clock_locked: {
+    he: 'השעון הזה נעל. נשארו {0}.',
+    en: 'That one locked. {0} to go.',
+  },
   c3_clock_ok: { he: 'משהו השתחרר.', en: 'Something released.' },
   c3_solved: { he: 'דלת השירות נפתחה.', en: 'The service door opened.' },
 
   c4_drawings: { he: 'הציורים מתארים דברים שעוד לא עשיתי.', en: 'The drawings show things I have not done yet.' },
   c4_toys_start: { he: 'הוא מתחיל את הסדר.', en: 'It is starting the sequence.' },
-  c4_toys_your_turn: { he: 'עכשיו אני.', en: 'My turn.' },
-  c4_toys_fail: { he: 'לא. מהתחלה.', en: 'No. From the start.' },
+  c4_toys_your_turn: { he: 'עכשיו אני. שלושה.', en: 'My turn. Three of them.' },
+  c4_toys_fail: { he: 'לא זה. הוא מנגן לי שוב.', en: 'Not that one. It plays them again.' },
+  c4_toys_slow: { he: 'איחרתי. הוא חוזר על זה.', en: 'Too slow. It repeats them.' },
   c4_toys_solved: { he: 'הארון נפתח.', en: 'The cabinet opened.' },
 
   c5_hidden: { he: 'הקיר כאן חלול.', en: 'The wall here is hollow.' },
@@ -371,6 +458,11 @@ export const LINES: Record<string, LocalizedText> = {
     en: 'No record was found of anyone entering the building.',
   },
 
+  ending_photos: {
+    he: 'חמישה תצלומים, ואחד שצולם ממקום שאיש לא עמד בו.',
+    en: 'Five photographs, and one taken from somewhere nobody stood.',
+  },
+
   ending1_choice: { he: 'הפעל את המעלית וצא מהבניין', en: 'Start the lift and leave the building' },
   ending2_choice: { he: 'השבת את מערכת ההקלטה וסגור את המעלית', en: 'Shut down the recorder and seal the lift' },
   ending3_choice: { he: 'מחק את כל ההקלטות', en: 'Erase every recording' },
@@ -383,9 +475,17 @@ export const LINES: Record<string, LocalizedText> = {
     he: 'רמז: 23:47, 03:17, 08:00, ואחד שאין לגעת בו.',
     en: 'Hint: 23:47, 03:17, 08:00, and one you must not touch.',
   },
+  hint_clocks_3: {
+    he: 'רמז אחרון: 1 — 23:47. 2 — 03:17. 3 — 08:00. 4 — 00:17. שעון שנעל מסתמן בירוק.',
+    en: 'Last hint: 1 — 23:47. 2 — 03:17. 3 — 08:00. 4 — 00:17. A locked clock turns green.',
+  },
   hint_shutter: {
     he: 'רמז: אתה לא צריך להגיע למתג. מישהו כבר הולך אליו.',
     en: 'Hint: you do not need to reach the switch. Someone is already walking to it.',
+  },
+  hint_shutter_2: {
+    he: 'רמז אחרון: הפעל את המתג, סע במעלית וחזור — ואז חכה ליד השער עצמו.',
+    en: 'Last hint: trip the switch, ride the lift and come back — then wait at the shutter itself.',
   },
   hint_toys: {
     he: 'רמז: הצפה בציור על הקיר. הוא מנגן שלושה, אתה מנגן שלושה.',

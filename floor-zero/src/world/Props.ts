@@ -1,13 +1,20 @@
 import * as THREE from 'three';
 import type { GameContext } from '../core/Context';
-import { localized, NoteDef, TapeDef } from '../data/dialogue';
+import { localized, NoteDef, PhotoDef, PHOTOS, TapeDef } from '../data/dialogue';
 import { t } from '../data/localization';
 import { Interactable, SimpleInteractable } from '../interactions/Interactable';
 import { Builder } from './Builders';
 import { Door, DoorSystem } from './DoorController';
 import { FixtureConfig } from './LightingManager';
 import { MaterialKey } from './Materials';
-import { childDrawingTexture, familyPhotoTexture, noticeBoardTexture, paperTexture, plateTexture } from './Textures';
+import {
+  childDrawingTexture,
+  familyPhotoTexture,
+  noticeBoardTexture,
+  paperTexture,
+  plateTexture,
+  polaroidTexture,
+} from './Textures';
 
 /* ------------------------------------------------------------------ */
 /* Lighting                                                            */
@@ -286,7 +293,8 @@ export function noticeBoard(
     center: position,
     size: Math.abs(rotationY) < 0.01 || Math.abs(Math.abs(rotationY) - Math.PI) < 0.01 ? [1.18, 0.9, 0.04] : [0.04, 0.9, 1.18],
   });
-  mesh.translateZ(0.014);
+  // Clear of the surround's own half-depth, or the cork sits inside its frame.
+  mesh.translateZ(0.035);
   return {
     mesh,
     setMessage: (message: string) => {
@@ -344,6 +352,57 @@ export function makeNote(
     },
     { maxDistance: 2.2 },
   );
+}
+
+/**
+ * A found photograph. Collecting one is optional and never gates anything, so
+ * it stays a discovery rather than a chore: it reads like a note, but it also
+ * counts, and the fifth one changes what is waiting in the control room.
+ */
+export function makePhotoPickup(
+  builder: Builder,
+  photo: PhotoDef,
+  position: [number, number, number],
+  rotationY: number,
+  options: { collect?: boolean } = {},
+): Interactable {
+  const collect = options.collect ?? true;
+  const texture = builder.ownTexture(polaroidTexture(photo.kind, localized(photo.caption)));
+  const mesh = builder.panel(texture, 0.14, 0.165, position, rotationY, { name: `photo_${photo.id}` });
+  mesh.translateZ(0.007);
+  // A sliver of white edge-on, so the print reads as an object on the wall.
+  // The size already encodes which way it faces; rotating it as well would turn
+  // the thin axis into the deep one and drive the slab through the wall.
+  const backing = builder.decor({
+    material: 'paper',
+    center: position,
+    size: Math.abs(Math.sin(rotationY)) > 0.5 ? [0.006, 0.17, 0.145] : [0.145, 0.17, 0.006],
+  });
+
+  const item = new SimpleInteractable(
+    photo.id,
+    'note',
+    mesh,
+    () => (collect ? t('prompt.take') : t('prompt.read')),
+    (ctx) => {
+      ctx.audio.play('paper', { volume: 0.7 });
+      ctx.ui.showNote(photo);
+      if (!collect) return;
+
+      mesh.visible = false;
+      backing.visible = false;
+      item.enabled = false;
+      ctx.state.setFlag(`found_${photo.id}`);
+      const found = PHOTOS.filter((entry) => ctx.state.flag(`found_${entry.id}`)).length;
+      const complete = found >= PHOTOS.length;
+      if (complete) ctx.state.setFlag('photos_all');
+      // One toast slot: the set being finished outranks the running count.
+      ctx.ui.toast(complete ? t('toast.photo_all') : t('toast.photo', found, PHOTOS.length));
+      ctx.bus.emit('photo_found', { id: photo.id, found, total: PHOTOS.length });
+    },
+    { maxDistance: 2.2, recordAs: 'pickup' },
+  );
+  return item;
 }
 
 export function makeTapePlayer(

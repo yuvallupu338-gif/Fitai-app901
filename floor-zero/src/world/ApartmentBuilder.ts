@@ -2,7 +2,7 @@ import * as THREE from 'three';
 import type { GameContext } from '../core/Context';
 import type { GameState } from '../core/GameState';
 import type { RNG } from '../core/RNG';
-import { NOTES, TAPES, line } from '../data/dialogue';
+import { NOTES, PHOTOS, PHOTO_BONUS, TAPES, line } from '../data/dialogue';
 import { t } from '../data/localization';
 import { Interactable, SimpleInteractable } from '../interactions/Interactable';
 import { ClockPuzzle } from '../puzzles/ClockPuzzle';
@@ -14,7 +14,7 @@ import { FixtureConfig } from './LightingManager';
 import { MaterialKey } from './Materials';
 import { NavGraph } from './Nav';
 import { RoomBounds, SurfaceKind } from './LevelTypes';
-import { DOORWAYS, ROOM_RECTS } from './floorPlan';
+import { DOORWAYS, ROOM_RECTS, WALL_MOUNT } from './floorPlan';
 import {
   cabinet,
   childDrawing,
@@ -22,6 +22,7 @@ import {
   fluorescentFixture,
   makeDoorInteractable,
   makeNote,
+  makePhotoPickup,
   makePickup,
   makeTapePlayer,
   table,
@@ -146,6 +147,22 @@ export function buildRoom(fc: FloorBuildContext, options: RoomOptions): void {
   });
 }
 
+/**
+ * Hangs one of the optional photographs, unless this run has already taken it.
+ * Floor 0 is rebuilt from scratch on every arrival, so the flag is the only
+ * thing that remembers.
+ */
+export function placePhoto(
+  fc: FloorBuildContext,
+  index: number,
+  position: [number, number, number],
+  rotationY: number,
+): void {
+  const photo = PHOTOS[index];
+  if (!photo || fc.state.flag(`found_${photo.id}`)) return;
+  fc.interactables.push(makePhotoPickup(fc.builder, photo, position, rotationY));
+}
+
 function navNode(fc: FloorBuildContext, id: string, x: number, z: number, room?: string): void {
   fc.nav.add({ id, x, z, links: [], room });
 }
@@ -201,8 +218,9 @@ export function buildApartment01(fc: FloorBuildContext): void {
     }),
   );
 
-  fc.interactables.push(makeNote(fc.builder, NOTES.note_switch, [5.6, 1.55, -6.32], 0));
+  fc.interactables.push(makeNote(fc.builder, NOTES.note_switch, [5.6, 1.55, rect.minZ + WALL_MOUNT], 0));
   fc.interactables.push(makeTapePlayer(fc.builder, TAPES.tape_2, [6.05, 0.95, -2.6], -Math.PI / 2));
+  placePhoto(fc, 1, [rect.minX + WALL_MOUNT, 1.28, -3.2], Math.PI / 2);
 
   navNode(fc, 'apt01_door', 4.3, -2.0, 'apt01');
   navNode(fc, 'apt01_mid', 3.6, -4.4, 'apt01');
@@ -427,12 +445,14 @@ export function buildApartment03(fc: FloorBuildContext): void {
   fc.interactables.push(makeNote(fc.builder, NOTES.note_clock_number, [11.12, 1.3, -8.4], Math.PI / 2));
   fc.interactables.push(makeNote(fc.builder, NOTES.note_clock_last, [17.6, 0.86, -3.0], Math.PI));
   fc.interactables.push(makeTapePlayer(fc.builder, TAPES.tape_3, [13.4, 0.54, -7.4], Math.PI));
+  // West of the apt03_p2 partition, which lands exactly on x = 15.4.
+  placePhoto(fc, 4, [12.4, 1.24, rect.minZ + WALL_MOUNT], 0);
 
   // Service room contents.
   fc.interactables.push(makeTapePlayer(fc.builder, TAPES.tape_4, [18.1, 0.8, -11.4], Math.PI));
   table(fc.builder, 'service_table', 18.1, -11.4, 1.0, 0.6, 0.76);
-  fc.interactables.push(makeNote(fc.builder, NOTES.note_report, [16.92, 1.4, -11.0], Math.PI / 2));
-  fc.interactables.push(makeNote(fc.builder, NOTES.note_system, [19.42, 1.4, -11.6], -Math.PI / 2));
+  fc.interactables.push(makeNote(fc.builder, NOTES.note_report, [service.minX + WALL_MOUNT, 1.4, -11.0], Math.PI / 2));
+  fc.interactables.push(makeNote(fc.builder, NOTES.note_system, [service.maxX - WALL_MOUNT, 1.4, -11.6], -Math.PI / 2));
 
   // A dial telephone in the hall — rings on its own later.
   const phone = fc.builder.box({
@@ -570,12 +590,12 @@ export function buildApartment02(fc: FloorBuildContext): void {
   // Drawings that describe what the player is about to do.
   const drawingKinds = [0, 1, 2, 3, 4, 5];
   const drawingSpots: Array<{ position: [number, number, number]; rotationY: number }> = [
-    { position: [5.06, 1.5, 8.4], rotationY: Math.PI / 2 },
-    { position: [5.06, 1.5, 9.6], rotationY: Math.PI / 2 },
-    { position: [7.0, 1.55, 7.26], rotationY: 0 },
-    { position: [9.6, 1.55, 7.26], rotationY: 0 },
-    { position: [11.94, 1.5, 9.0], rotationY: -Math.PI / 2 },
-    { position: [9.0, 1.5, 12.34], rotationY: Math.PI },
+    { position: [kids.minX + WALL_MOUNT, 1.5, 8.4], rotationY: Math.PI / 2 },
+    { position: [kids.minX + WALL_MOUNT, 1.5, 9.6], rotationY: Math.PI / 2 },
+    { position: [7.0, 1.55, kids.minZ + WALL_MOUNT], rotationY: 0 },
+    { position: [9.6, 1.55, kids.minZ + WALL_MOUNT], rotationY: 0 },
+    { position: [kids.maxX - WALL_MOUNT, 1.5, 9.0], rotationY: -Math.PI / 2 },
+    { position: [9.0, 1.5, kids.maxZ - WALL_MOUNT], rotationY: Math.PI },
   ];
   const drawings = drawingSpots.map((spot, index) =>
     childDrawing(fc.builder, drawingKinds[index], spot.position, spot.rotationY),
@@ -590,6 +610,7 @@ export function buildApartment02(fc: FloorBuildContext): void {
   });
 
   fc.interactables.push(makeNote(fc.builder, NOTES.note_toys, [10.18, 1.2, 8.0], -Math.PI / 2));
+  placePhoto(fc, 3, [kids.minX + WALL_MOUNT, 1.2, 10.2], Math.PI / 2);
 
   // The toy sequence puzzle.
   const sequence = Array.from({ length: 6 }, () => fc.rng.int(0, 3));
@@ -602,7 +623,7 @@ export function buildApartment02(fc: FloorBuildContext): void {
       { x: 10.4, z: 9.8 },
     ],
     sequence,
-    [8.4, 1.55, 12.34],
+    [8.4, 1.55, kids.maxZ - WALL_MOUNT],
     Math.PI,
   );
   const prizeCabinet = cabinet(fc.builder, 'kids_prize', [5.6, 0.5, 11.6], [1.0, 1.0, 1.0], 'wood');
@@ -691,8 +712,9 @@ export function buildApartment04(fc: FloorBuildContext): void {
   table(fc.builder, 'apt04_table', 18.6, 5.8, 1.0, 0.6, 0.72);
 
   fc.interactables.push(makeTapePlayer(fc.builder, TAPES.tape_1, [18.6, 0.79, 5.8], Math.PI));
-  fc.interactables.push(makeNote(fc.builder, NOTES.note_floor, [15.62, 1.4, 4.0], Math.PI / 2));
-  fc.interactables.push(makeNote(fc.builder, NOTES.note_mirror, [21.38, 1.4, 5.6], -Math.PI / 2));
+  fc.interactables.push(makeNote(fc.builder, NOTES.note_floor, [rect.minX + WALL_MOUNT, 1.4, 4.0], Math.PI / 2));
+  fc.interactables.push(makeNote(fc.builder, NOTES.note_mirror, [rect.maxX - WALL_MOUNT, 1.4, 5.6], -Math.PI / 2));
+  placePhoto(fc, 2, [rect.maxX - WALL_MOUNT, 1.3, 3.2], -Math.PI / 2);
 
   navNode(fc, 'apt04_a', 18.0, 2.2, 'apt04');
   navNode(fc, 'apt04_mid', 19.2, 4.6, 'apt04');
@@ -789,8 +811,16 @@ export function buildControlRoom(fc: FloorBuildContext): void {
   table(fc.builder, 'control_table', 23.6, -6.8, 1.4, 0.8, 0.76, 'darkMetal');
 
   fc.interactables.push(makeTapePlayer(fc.builder, TAPES.tape_5, [23.6, 0.82, -6.8], Math.PI));
-  fc.interactables.push(makeNote(fc.builder, NOTES.note_experiment, [26.42, 1.45, -5.2], -Math.PI / 2));
-  fc.interactables.push(makeNote(fc.builder, NOTES.note_versions, [26.42, 1.45, -6.6], -Math.PI / 2));
+  fc.interactables.push(makeNote(fc.builder, NOTES.note_experiment, [rect.maxX - WALL_MOUNT, 1.45, -5.2], -Math.PI / 2));
+  fc.interactables.push(makeNote(fc.builder, NOTES.note_versions, [rect.maxX - WALL_MOUNT, 1.45, -6.6], -Math.PI / 2));
+
+  // The reward for finding all five: the sixth print, already developed, pinned
+  // where the others were filed. It is read, not taken.
+  if (fc.state.flag('photos_all')) {
+    fc.interactables.push(
+      makePhotoPickup(fc.builder, PHOTO_BONUS, [rect.maxX - WALL_MOUNT, 1.45, -3.8], -Math.PI / 2, { collect: false }),
+    );
+  }
 
   // The three ways this ends.
   const endingSpecs: Array<{ id: string; ending: 1 | 2 | 3; center: [number, number, number]; color: number }> = [

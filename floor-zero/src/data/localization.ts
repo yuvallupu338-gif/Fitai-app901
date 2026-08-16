@@ -136,6 +136,8 @@ const he: Dict = {
   'toast.no_key': 'הדלת נעולה',
   'toast.power_off': 'אין חשמל',
   'toast.recorded': 'המערכת מקליטה',
+  'toast.photo': 'תצלום {0} מתוך {1}',
+  'toast.photo_all': 'כל התצלומים נאספו. משהו התפתח בחדר הבקרה.',
 
   'note.title': 'פתק',
   'tape.title': 'קלטת תחזוקה',
@@ -274,6 +276,8 @@ const en: Dict = {
   'toast.no_key': 'The door is locked',
   'toast.power_off': 'No power',
   'toast.recorded': 'The system is recording',
+  'toast.photo': 'Photograph {0} of {1}',
+  'toast.photo_all': 'Every photograph found. Something developed in the control room.',
 
   'note.title': 'Note',
   'tape.title': 'Maintenance tape',

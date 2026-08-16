@@ -16,17 +16,23 @@ export interface ToyPlacement {
   z: number;
 }
 
-type Phase = 'idle' | 'mimic' | 'player' | 'solved';
+type Phase = 'idle' | 'mimic' | 'player' | 'retry' | 'solved';
 
 /**
  * Six tones. The mimic plays the first three from the corridor doorway, then
- * stops and waits; the player has to finish the other three in time. Getting it
- * wrong restarts the whole sequence, including the mimic's half.
+ * stops and waits; the player has to finish the other three.
+ *
+ * A wrong press or a missed window does not throw the player back to the
+ * beginning — the mimic simply plays the three they owe again and reopens the
+ * window. The tension comes from who is standing in the doorway, not from
+ * re-watching a cutscene.
  */
 export class ToySoundPuzzle {
   readonly id = 'puzzle_toys';
   readonly interactables: Interactable[] = [];
   readonly sequence: number[];
+  /** Seconds the player gets to answer, per attempt. */
+  readonly windowDuration = 22;
   private toys: THREE.Mesh[] = [];
   private glows: THREE.Mesh[] = [];
   private phase: Phase = 'idle';
@@ -35,6 +41,7 @@ export class ToySoundPuzzle {
   private hintTimer = 0;
   private hintShown = false;
   private started = false;
+  private attempts = 0;
   onSolved: ((ctx: GameContext) => void) | null = null;
   /** Where the mimic should stand while it plays its half. */
   readonly mimicSpot = new THREE.Vector3();
@@ -158,10 +165,16 @@ export class ToySoundPuzzle {
     }
 
     ctx.mimic.controller.teleport(this.mimicSpot.clone());
-    this.phase = 'player';
-    this.windowTimer = 12;
-    ctx.say(line('c4_toys_your_turn'), 2.5);
+    this.openWindow(ctx);
     ctx.audio.play('glitch', { volume: 0.3 });
+  }
+
+  /** Hands the sequence back to the player with a fresh timer. */
+  private openWindow(ctx: GameContext): void {
+    this.phase = 'player';
+    this.playerStep = 0;
+    this.windowTimer = this.windowDuration;
+    ctx.say(line('c4_toys_your_turn'), 2.5);
   }
 
   private press(ctx: GameContext, index: number): void {
@@ -175,6 +188,7 @@ export class ToySoundPuzzle {
     }
 
     if (this.phase !== 'player') {
+      // While the mimic is playing, a press is just a noise.
       this.ping(ctx, index);
       return;
     }
@@ -182,24 +196,51 @@ export class ToySoundPuzzle {
     this.ping(ctx, index);
     const expected = this.sequence[3 + this.playerStep];
     if (index !== expected) {
-      this.fail(ctx);
+      this.fail(ctx, 'wrong');
       return;
     }
 
     this.playerStep += 1;
+    // A rising confirmation so progress through the three is audible.
+    ctx.audio.play('button', { volume: 0.3, rate: 1 + this.playerStep * 0.18 });
     if (this.playerStep >= 3) {
       this.solve(ctx);
     }
   }
 
-  private fail(ctx: GameContext): void {
-    this.phase = 'idle';
+  private fail(ctx: GameContext, reason: 'wrong' | 'timeout'): void {
+    this.attempts += 1;
+    this.phase = 'retry';
     this.playerStep = 0;
     this.windowTimer = 0;
-    ctx.audio.play('sub_drop', { volume: 0.5 });
-    ctx.say(line('c4_toys_fail'), 2.5);
-    ctx.tension.add(7);
-    ctx.mimic.controller.hide();
+    ctx.audio.play('sub_drop', { volume: 0.4 });
+    ctx.say(line(reason === 'wrong' ? 'c4_toys_fail' : 'c4_toys_slow'), 2.6);
+    ctx.tension.add(4);
+    // Two misses is enough evidence that the drawing has not been read.
+    if (this.attempts >= 2 && !this.hintShown) {
+      this.hintShown = true;
+      ctx.say(line('hint_toys'), 6);
+    }
+    ctx.sequencer.run(this.retry(ctx), 'toy_retry');
+  }
+
+  /**
+   * The mimic replays only the three the player owes, slowly, and hands the
+   * window straight back. Its half of the sequence is never repeated.
+   */
+  private *retry(ctx: GameContext): Routine {
+    yield 1.2;
+    if (this.phase !== 'retry') return;
+    ctx.mimic.controller.show();
+    ctx.mimic.controller.standStill();
+    ctx.mimic.controller.teleport(this.mimicSpot.clone());
+    for (let i = 3; i < 6; i++) {
+      this.ping(ctx, this.sequence[i]);
+      yield 0.9;
+    }
+    yield 0.5;
+    if (this.phase !== 'retry') return;
+    this.openWindow(ctx);
   }
 
   private solve(ctx: GameContext): void {
@@ -235,14 +276,14 @@ export class ToySoundPuzzle {
 
     if (this.phase === 'player') {
       this.windowTimer -= delta;
-      if (this.windowTimer <= 0) this.fail(ctx);
+      if (this.windowTimer <= 0) this.fail(ctx, 'timeout');
     }
 
     if (!this.started && !this.hintShown && this.toys.length) {
       const anchor = this.toys[0].position;
       if (Math.hypot(ctx.camera.position.x - anchor.x, ctx.camera.position.z - anchor.z) < 6) {
         this.hintTimer += delta;
-        const threshold = ctx.settings.extraHints ? 15 : 55;
+        const threshold = ctx.settings.extraHints ? 8 : 24;
         if (this.hintTimer > threshold) {
           this.hintShown = true;
           ctx.say(line('hint_toys'), 6);

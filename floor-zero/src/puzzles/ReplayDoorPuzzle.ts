@@ -35,10 +35,10 @@ export class ReplayDoorPuzzle {
   private openedBy: 'player' | 'mimic' | null = null;
   private solved = false;
   private hintTimer = 0;
-  private hintShown = false;
+  private hintStage = 0;
   private readonly shutterMesh: THREE.Mesh;
   /** Seconds the shutter stays open — deliberately not enough to run it. */
-  readonly openDuration = 2.4;
+  readonly openDuration = 3.4;
 
   constructor(builder: Builder, doors: DoorSystem, private readonly config: ShutterConfig) {
     const width = Math.abs(config.maxZ - config.minZ);
@@ -185,8 +185,9 @@ export class ReplayDoorPuzzle {
     }
 
     // Solved the moment the player is on the far side while it was the mimic
-    // that opened it.
-    if (this.openedBy && ctx.camera.position.x > this.config.x + 0.6) {
+    // that opened it. The threshold is barely past the leaf: squeezing through
+    // as it drops should count.
+    if (this.openedBy && ctx.camera.position.x > this.config.x + 0.4) {
       this.solved = true;
       this.door.forceState(true);
       ctx.state.markSolved(this.id);
@@ -195,13 +196,18 @@ export class ReplayDoorPuzzle {
       return;
     }
 
-    // Nudge the player once if they keep trying to sprint it alone.
-    if (!this.hintShown && ctx.state.run.chapter === 2 && ctx.state.run.visit >= 3) {
+    // Nudge the player if they keep trying to sprint it alone. The second stage
+    // spells out the whole loop, because the trick is a leap of faith and there
+    // is nothing in the corridor that can teach it.
+    if (this.hintStage < 2 && ctx.state.run.chapter === 2 && ctx.state.run.visit >= 2) {
       this.hintTimer += delta;
-      const threshold = ctx.settings.extraHints ? 25 : 80;
-      if (this.hintTimer > threshold) {
-        this.hintShown = true;
+      const threshold = ctx.settings.extraHints ? 12 : 32;
+      if (this.hintStage === 0 && this.hintTimer > threshold) {
+        this.hintStage = 1;
         ctx.say(line('hint_shutter'), 6);
+      } else if (this.hintStage === 1 && this.hintTimer > threshold * 2.5) {
+        this.hintStage = 2;
+        ctx.say(line('hint_shutter_2'), 8);
       }
     }
   }

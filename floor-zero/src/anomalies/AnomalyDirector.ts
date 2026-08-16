@@ -44,6 +44,11 @@ export class AnomalyDirector {
     for (const [id, value] of this.cooldowns) this.cooldowns.set(id, Math.max(0, value - 60));
   }
 
+  /** Every definition this director can draw from — used by the smoke test. */
+  get catalogue(): readonly AnomalyDef[] {
+    return this.defs;
+  }
+
   get quietTime(): number {
     return this.sinceLast;
   }
@@ -136,6 +141,7 @@ export class AnomalyDirector {
       case 'window_corridor':
         return ctx.world.prop('corridor_window') ?? null;
       case 'board_message':
+      case 'board_remembers':
         return ctx.world.prop('corridor_board') ?? null;
       case 'item_returns':
         return ctx.interactions.get('fuse')?.hitbox ?? null;
