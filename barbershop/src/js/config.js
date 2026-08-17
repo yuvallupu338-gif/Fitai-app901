@@ -11,16 +11,11 @@ export const BUSINESS = {
   blurb: 'תספורת שנראית טוב גם ביום השלישי. עבודת מספריים ותער, בלי למהר, בלי לקצר בפינות.',
 
   /* ------------------------------------------------------------------ contact
-   * PHONE_E164 is the number bookings are relayed to over WhatsApp. It must be
-   * in international form, digits only, no leading + and no dashes:
-   * 05X-XXXXXXX  →  9725XXXXXXXX
-   *
-   * ⚠️  The value below is a PLACEHOLDER. Replace it with the real number, or
-   *     the "send to Ron on WhatsApp" button will lead nowhere. tools/smoke.mjs
-   *     warns while it is still unchanged. */
-  phoneE164: '972500000000',
-  /** The same number as a human reads it. */
-  phoneDisplay: '050-000-0000',
+   * phoneE164 is the number a booking is relayed to over WhatsApp. International
+   * form, digits only, no leading + and no dashes:  05X-XXXXXXX → 9725XXXXXXXX */
+  phoneE164: '972526564130',
+  /** The same number as a person reads it. */
+  phoneDisplay: '052-656-4130',
 
   address: 'הרצל 42, תל אביב',
   /** Used for the "open in maps" link. Any map service URL works. */

@@ -12,7 +12,7 @@
      policy can name no host at all — connect-src 'none' means a scripting bug
      here has nowhere to send anything. There is no inline script and no inline
      style, so neither 'unsafe-inline' nor a nonce is required. -->
-<meta http-equiv="Content-Security-Policy" content="default-src 'none'; script-src 'sha256-Wx4Sufbbej0E+8I7rA0kps4mdsrs1WbdYDPv/K20TaM='; style-src 'sha256-SokvqYcc//twn7nPCVb8cBc6K/Lq3Z0OrWH2bHNpF+k='; img-src data:; font-src data:; connect-src 'none'; media-src 'none'; frame-src 'none'; worker-src 'none'; object-src 'none'; base-uri 'none'; form-action 'none'">
+<meta http-equiv="Content-Security-Policy" content="default-src 'none'; script-src 'sha256-cdb0JosKhdmdpf1QiMLK4DR4gfoMvTy6yqtRw/vA7iA='; style-src 'sha256-SokvqYcc//twn7nPCVb8cBc6K/Lq3Z0OrWH2bHNpF+k='; img-src data:; font-src data:; connect-src 'none'; media-src 'none'; frame-src 'none'; worker-src 'none'; object-src 'none'; base-uri 'none'; form-action 'none'">
 
 <link rel="icon" href="data:image/svg+xml,<svg xmlns='http://www.w3.org/2000/svg' viewBox='0 0 32 32'><rect width='32' height='32' rx='8' fill='%230B0B0D'/><path d='M10 8l12 16M10 24L22 8' stroke='%23C9A24A' stroke-width='2.2' stroke-linecap='round'/><circle cx='9.5' cy='9.5' r='2.6' fill='none' stroke='%23C9A24A' stroke-width='2'/><circle cx='9.5' cy='22.5' r='2.6' fill='none' stroke='%23C9A24A' stroke-width='2'/></svg>">
 
@@ -2864,16 +2864,11 @@ const BUSINESS = {
   blurb: 'תספורת שנראית טוב גם ביום השלישי. עבודת מספריים ותער, בלי למהר, בלי לקצר בפינות.',
 
   /* ------------------------------------------------------------------ contact
-   * PHONE_E164 is the number bookings are relayed to over WhatsApp. It must be
-   * in international form, digits only, no leading + and no dashes:
-   * 05X-XXXXXXX  →  9725XXXXXXXX
-   *
-   * ⚠️  The value below is a PLACEHOLDER. Replace it with the real number, or
-   *     the "send to Ron on WhatsApp" button will lead nowhere. tools/smoke.mjs
-   *     warns while it is still unchanged. */
-  phoneE164: '972500000000',
-  /** The same number as a human reads it. */
-  phoneDisplay: '050-000-0000',
+   * phoneE164 is the number a booking is relayed to over WhatsApp. International
+   * form, digits only, no leading + and no dashes:  05X-XXXXXXX → 9725XXXXXXXX */
+  phoneE164: '972526564130',
+  /** The same number as a person reads it. */
+  phoneDisplay: '052-656-4130',
 
   address: 'הרצל 42, תל אביב',
   /** Used for the "open in maps" link. Any map service URL works. */
