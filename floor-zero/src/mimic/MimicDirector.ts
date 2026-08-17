@@ -43,6 +43,11 @@ export class MimicDirector {
   private lingerTimer = 0;
   private sentinelTimer = 0;
   private glitchCountdown = 0;
+  private behindTimer = 0;
+  private behindSeen = false;
+  private behindPresence = 0;
+  private breathTimer = 4;
+  private lightTimer = 0;
 
   constructor(scene: THREE.Scene) {
     this.controller = new MimicController(scene);
@@ -134,6 +139,108 @@ export class MimicDirector {
   }
 
   /**
+   * It stops being wherever it was and is directly behind you instead.
+   *
+   * Nothing is played at the moment of the snap. The whole beat is that the
+   * corridor ahead is empty, nothing announced anything, and the thing that has
+   * been walking your route one minute late is now standing at your shoulder
+   * facing you — and you only find that out by turning round.
+   *
+   * It waits there. If you turn and look at it, it holds for a moment and then
+   * faults out of existence; if you never turn, it breathes once, and goes.
+   */
+  snapBehind(ctx: GameContext, distance = 1.9): boolean {
+    if (this.chaseActive) return false;
+    const forward = ctx.player.forward;
+    const collision = ctx.world.collision;
+
+    // Directly behind, then progressively closer if that spot is inside a wall.
+    let spot: THREE.Vector3 | null = null;
+    for (const back of [distance, distance * 0.75, distance * 0.55]) {
+      const candidate = new THREE.Vector3(
+        ctx.camera.position.x - forward.x * back,
+        0,
+        ctx.camera.position.z - forward.z * back,
+      );
+      if (!collision || !collision.overlaps(candidate.x, candidate.z, 0.3, 0.1, 1.7)) {
+        spot = candidate;
+        break;
+      }
+    }
+    // Standing inside the wall behind them is not a scare, it is a bug.
+    if (!spot) return false;
+
+    this.active = true;
+    this.finished = true;
+    this.sentinelTimer = 0;
+    this.lingerTimer = 9;
+    this.controller.show();
+    this.controller.standStill();
+    this.controller.teleport(spot, Math.atan2(ctx.camera.position.x - spot.x, ctx.camera.position.z - spot.z));
+    this.controller.attention = 1;
+    this.scriptedLook = 8;
+    this.behindTimer = 6;
+    this.behindSeen = false;
+    ctx.bus.emit('mimic_deviation', { kind: 'behind_you' });
+    return true;
+  }
+
+  /**
+   * How much of a presence is right behind the player, 0..1. Drives the breath
+   * and the screen effects; ramps rather than switching so the player feels it
+   * arrive instead of seeing it pop.
+   */
+  get closeBehind(): number {
+    return this.behindPresence;
+  }
+
+  /** True while the mimic is close and outside the player's view cone. */
+  private isLurkingBehind(ctx: GameContext): boolean {
+    if (!this.active || this.chaseActive || !this.controller.isVisible) return false;
+    const dx = this.controller.position.x - ctx.camera.position.x;
+    const dz = this.controller.position.z - ctx.camera.position.z;
+    const distance = Math.hypot(dx, dz);
+    if (distance > 6 || distance < 0.001) return false;
+    const forward = ctx.player.forward;
+    // Behind the shoulders, not merely off-centre.
+    return (forward.x * dx + forward.z * dz) / distance < 0.1;
+  }
+
+  /** Runs the aftermath of a snap: it is found, or it is not. */
+  private updateBehind(delta: number, ctx: GameContext): void {
+    this.behindTimer -= delta;
+    const dx = this.controller.position.x - ctx.camera.position.x;
+    const dz = this.controller.position.z - ctx.camera.position.z;
+    const distance = Math.max(0.001, Math.hypot(dx, dz));
+    const forward = ctx.player.forward;
+    const facing = (forward.x * dx + forward.z * dz) / distance;
+
+    if (!this.behindSeen && facing > 0.6) {
+      // Turned round and found it. It holds just long enough to be certain.
+      this.behindSeen = true;
+      this.behindTimer = Math.min(this.behindTimer, 1.1);
+      this.controller.glitch(0.5, 1);
+      ctx.tension.add(22);
+    }
+
+    if (this.behindTimer > 0) return;
+    if (!this.behindSeen) {
+      // Never turned round. One breath, from where it has been standing.
+      ctx.audio.play('breath', {
+        position: this.controller.position.clone().setY(1.5),
+        volume: 0.9,
+        bus: 'voice',
+      });
+      ctx.tension.add(14);
+    }
+    this.controller.glitch(0.35, 1.2);
+    this.behindTimer = 0;
+    this.behindSeen = false;
+    this.controller.hide();
+    this.active = false;
+  }
+
+  /**
    * While it is standing guard, roll for a silent malfunction every few seconds.
    * Deliberately no audio cue: the player either happens to be looking at the
    * end of the corridor when it happens, or never knows it did.
@@ -183,7 +290,13 @@ export class MimicDirector {
       if (this.spawnTimer <= 0) this.spawn(ctx);
     }
 
-    if (this.sentinelTimer > 0) {
+    this.updatePresence(delta, ctx);
+    this.disturbLights(delta, ctx);
+
+    if (this.behindTimer > 0) {
+      // Standing at the player's shoulder overrides everything else.
+      this.updateBehind(delta, ctx);
+    } else if (this.sentinelTimer > 0) {
       // Standing guard overrides the ordinary behaviour clock entirely.
       this.updateSentinel(delta, ctx);
     } else if (this.active && !this.chaseActive) {
@@ -195,6 +308,45 @@ export class MimicDirector {
     }
 
     this.controller.update(delta, ctx);
+  }
+
+  /**
+   * Tracks how strongly something is standing behind the player, and breathes
+   * from where it actually is. Being followed should be something you feel in
+   * the back of your neck before you ever see it — a figure that is only
+   * frightening once it is on screen is a figure you can avoid by not looking.
+   */
+  private updatePresence(delta: number, ctx: GameContext): void {
+    const lurking = this.isLurkingBehind(ctx);
+    // Ramps in about a second, decays over three: it arrives faster than it leaves.
+    const rate = lurking ? 1.1 : -0.34;
+    this.behindPresence = clamp(this.behindPresence + rate * delta, 0, 1);
+    if (!lurking || ctx.settings.scareIntensity === 'reduced') return;
+
+    this.breathTimer -= delta * (0.7 + this.behindPresence);
+    if (this.breathTimer > 0) return;
+    this.breathTimer = 4.5 - this.behindPresence * 2;
+    ctx.audio.play('breath', {
+      position: this.controller.position.clone().setY(1.5),
+      volume: 0.35 + this.behindPresence * 0.5,
+      bus: 'voice',
+    });
+  }
+
+  /**
+   * The tube it is standing under stutters. A light misbehaving further down
+   * the corridor is a report that something is there, delivered without ever
+   * putting it on screen — and it is the one tell that works when the figure is
+   * behind a corner, in the dark, or simply not being looked at.
+   */
+  private disturbLights(delta: number, ctx: GameContext): void {
+    if (!this.active || !this.controller.isVisible) return;
+    this.lightTimer -= delta;
+    if (this.lightTimer > 0) return;
+    this.lightTimer = 1.4 + ctx.rng.range(0, 2.2);
+    const id = ctx.world.lighting.nearestFixture(this.controller.position, 3.2);
+    if (!id || !ctx.world.lighting.isOn(id)) return;
+    ctx.world.lighting.flicker(id, 0.5 + ctx.rng.range(0, 0.6), 0.85);
   }
 
   private spawn(ctx: GameContext): void {
@@ -326,6 +478,11 @@ export class MimicDirector {
         if (behind) this.controller.teleport(new THREE.Vector3(behind.x, 0, behind.z));
         ctx.bus.emit('mimic_deviation', { kind: 'relocated' });
         ctx.audio.play('glitch', { volume: 0.35 });
+      });
+      // It stops being over there and is at your shoulder instead, in silence.
+      options.push(() => {
+        if (distance < 4) return;
+        this.snapBehind(ctx);
       });
       options.push(() => {
         const door = this.nearestReplayableDoor(ctx);

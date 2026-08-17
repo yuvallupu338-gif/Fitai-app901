@@ -822,8 +822,10 @@ export class Game implements GameContext {
       this.input.releasePointerLock();
     });
 
-    this.bus.on('anomaly_triggered', () => {
-      this.postfx.kick(0.35);
+    this.bus.on('anomaly_triggered', ({ startle }) => {
+      // Only the jolts move the camera. A kick on a photograph quietly changing
+      // behind the player's back tells them it changed.
+      if (startle) this.postfx.kick(0.35);
     });
 
     this.bus.on('mimic_spawned', () => {
@@ -925,12 +927,17 @@ export class Game implements GameContext {
   private updatePostFX(delta: number): void {
     const level = this.tension.normalized;
     const brightness = this.world.lighting.brightnessAt(this.camera.position);
+    // Something standing behind the player closes the image in on itself: the
+    // edges darken, the grain rises and the colour starts to separate. None of
+    // it points at where the thing is, so the player is told they are not alone
+    // without being told where to look.
+    const behind = this.mimic.closeBehind;
     this.postfx.setTargets({
-      grain: 0.026 + level * 0.05 + (1 - brightness) * 0.012,
-      vignette: 0.72 + level * 0.28,
-      aberration: 0.0009 + level * 0.0035,
+      grain: 0.026 + level * 0.05 + (1 - brightness) * 0.012 + behind * 0.03,
+      vignette: 0.72 + level * 0.28 + behind * 0.3,
+      aberration: 0.0009 + level * 0.0035 + behind * 0.004,
       warp: this.settings.reduceMotion ? 0.012 : 0.016 + level * 0.05,
-      exposure: 0.95 - level * 0.1 + (brightness < 0.15 ? 0.07 : 0),
+      exposure: 0.95 - level * 0.1 + (brightness < 0.15 ? 0.07 : 0) - behind * 0.08,
       contrast: 1.05 + level * 0.1,
       bloom: 0.85 + level * 0.35,
       ao: 0.85,

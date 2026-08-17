@@ -650,16 +650,93 @@ async function main() {
     sentinel.returned ? pass('and settles back exactly where it stood') : fail('glitch', 'drifted off its post');
     sentinel.quiet ? pass('the glitch says nothing') : fail('glitch', 'it spoke');
 
+    // Facing conventions, shared by the beats below. forward is
+    // (-sin yaw, -cos yaw), so yaw -PI/2 points the player up the corridor
+    // (+x) and anything spawned "behind" them lands at low x; staring back at
+    // it means turning to yaw +PI/2.
+    const AWAY = -Math.PI / 2;
+    const TOWARD = Math.PI / 2;
+
+    // --- It arrives at your shoulder without a sound ---------------------------
+    const behind = await run(
+      async ([away]) => {
+        const g = window.__floorZero;
+        const frames = (n) =>
+          new Promise((resolve) => {
+            let left = n;
+            const tick = () => (left-- > 0 ? requestAnimationFrame(tick) : resolve());
+            requestAnimationFrame(tick);
+          });
+        g.mimic.clearVisit();
+        g.player.teleport(12, 0, away);
+        await frames(3);
+
+        const played = [];
+        const realPlay = g.audio.play.bind(g.audio);
+        g.audio.play = (id, opts) => {
+          played.push(id);
+          return realPlay(id, opts);
+        };
+        const snapped = g.mimic.snapBehind(g);
+        const quiet = played.length === 0;
+        g.audio.play = realPlay;
+
+        const p = g.mimic.controller.position;
+        const dx = p.x - g.camera.position.x;
+        const dz = p.z - g.camera.position.z;
+        const distance = Math.hypot(dx, dz);
+        const forward = g.player.forward;
+        // Negative dot means it is behind the shoulders, not merely off to one side.
+        const dot = (forward.x * dx + forward.z * dz) / distance;
+
+        // A moment later the presence should have ramped up on its own.
+        await new Promise((r) => setTimeout(r, 1600));
+        const presence = g.mimic.closeBehind;
+
+        g.mimic.clearVisit();
+        return { snapped, quiet, distance, dot, presence };
+      },
+      [AWAY],
+    );
+    behind.snapped ? pass('it can snap to the player') : fail('snap behind', 'refused');
+    behind.dot < -0.6 && behind.distance < 2.6
+      ? pass('it lands behind the shoulders', `${behind.distance.toFixed(2)}m, dot ${behind.dot.toFixed(2)}`)
+      : fail('snap position', `${behind.distance.toFixed(2)}m, dot ${behind.dot.toFixed(2)}`);
+    behind.quiet ? pass('the snap itself is silent') : fail('snap behind', 'it made a sound');
+    behind.presence > 0.5
+      ? pass('standing there builds a presence', behind.presence.toFixed(2))
+      : fail('presence', `only reached ${behind.presence.toFixed(2)}`);
+
+    // --- It is audible ---------------------------------------------------------
+    // The tapes promise footsteps repeating the player's route; for most of the
+    // project the figure walked in silence.
+    const steps = await run(async () => {
+      const g = window.__floorZero;
+      g.mimic.clearVisit();
+      const heard = [];
+      const realPlay = g.audio.play.bind(g.audio);
+      g.audio.play = (id, opts) => {
+        if (String(id).startsWith('step_')) heard.push(id);
+        return realPlay(id, opts);
+      };
+      // Walk it down the corridor under its own power.
+      g.mimic.controller.show();
+      g.mimic.controller.teleport(g.mimic.controller.position.clone().set(6, 0, 0));
+      g.mimic.controller.walkPath(
+        [4, 8, 12].map((x) => g.mimic.controller.position.clone().set(x, 0, 0)),
+        1.6,
+      );
+      await new Promise((r) => setTimeout(r, 4000));
+      g.audio.play = realPlay;
+      g.mimic.clearVisit();
+      return heard.length;
+    });
+    steps > 0 ? pass('the mimic has footsteps', `${steps} heard`) : fail('mimic footsteps', 'walked in silence');
+
     // --- The creatures ---------------------------------------------------------
     // Both close in from behind while unwatched. What being looked at does is
     // what separates them: the crawler breaks off under a working light, the
     // tall one just stops dead and waits.
-    //
-    // Facing matters here. yaw -PI/2 points the player up the corridor (+x), so
-    // a creature spawned "behind" them lands at low x; staring back at it means
-    // turning to yaw +PI/2.
-    const AWAY = -Math.PI / 2;
-    const TOWARD = Math.PI / 2;
     const creatures = await run(
       async ([away, toward]) => {
         const g = window.__floorZero;

@@ -119,6 +119,7 @@ export class MimicController {
   /** Set above zero to override the walking speed (used by the chase ramp). */
   walkSpeedOverride = 0;
   private stride = 0;
+  private lastStepPhase = 0;
   private currentSpeed = 0;
   private readonly previousPosition = new THREE.Vector3();
   private chaseTarget: THREE.Vector3 | null = null;
@@ -458,10 +459,44 @@ export class MimicController {
     this.visuals.root.position.set(point.x, 0, point.z);
   }
 
+  /**
+   * One footfall, from wherever it is actually standing.
+   *
+   * The tapes have been promising this since chapter 1 — "I hear footsteps
+   * repeating my route" — and the figure walked in total silence. Hearing your
+   * own route played back behind you is the whole premise made audible, so the
+   * steps use the surface it is really crossing and are pitched down a fraction:
+   * close enough to yours to be recognised, wrong enough to be noticed.
+   */
+  private footstep(ctx: GameContext): void {
+    const surface = ctx.world.surfaceAt(this.position.x, this.position.z);
+    const id =
+      surface === 'wood'
+        ? 'step_wood'
+        : surface === 'carpet'
+          ? 'step_carpet'
+          : surface === 'metal'
+            ? 'step_metal'
+            : 'step_terrazzo';
+    ctx.audio.play(id, {
+      position: new THREE.Vector3(this.position.x, 0.1, this.position.z),
+      volume: this.mode === 'chase' ? 0.75 : 0.5,
+      rate: 0.93,
+    });
+  }
+
   private animate(delta: number, ctx: GameContext): void {
     const speed = this.currentSpeed;
     this.stride += delta * (2.6 + speed * 2.6);
     const amount = clamp(speed / 1.6, 0, 1.4);
+
+    // A footfall on every half stride, but only when it is really covering
+    // ground: a frozen or glitching figure reports zero speed and stays silent.
+    const phase = Math.floor(this.stride / Math.PI);
+    if (speed > 0.35 && this.fade > 0.15) {
+      if (phase !== this.lastStepPhase) this.footstep(ctx);
+    }
+    this.lastStepPhase = phase;
 
     const swing = Math.sin(this.stride) * 0.55 * amount;
     (this.visuals.legs[0].userData.pivot as THREE.Group).rotation.x = swing;

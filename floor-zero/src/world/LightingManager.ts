@@ -181,6 +181,20 @@ export class LightingManager {
   }
 
   /** 0..1 estimate of how lit a world position is; feeds the tension system. */
+  /** Id of the closest fixture within range, or null when nothing is near. */
+  nearestFixture(position: THREE.Vector3, maxDistance = 4): string | null {
+    let best: string | null = null;
+    let bestDistance = maxDistance;
+    for (const fixture of this.fixtures) {
+      const distance = fixture.position.distanceTo(position);
+      if (distance < bestDistance) {
+        bestDistance = distance;
+        best = fixture.id;
+      }
+    }
+    return best;
+  }
+
   brightnessAt(position: THREE.Vector3): number {
     if (this.blackoutTimer > 0) return 0;
     let total = 0;

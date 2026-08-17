@@ -17,6 +17,13 @@ export interface AnomalyDef {
   rooms?: string[];
   /** True when the anomaly needs the player to be looking elsewhere. */
   unobserved?: boolean;
+  /**
+   * True for the ones that are meant to land as a jolt. Everything else passes
+   * without a sting or a camera kick, because an anomaly the game points at is
+   * an anomaly the player knows happened — and the quiet ones only work while
+   * you are still deciding whether you imagined them.
+   */
+  startle?: boolean;
   /** Guard: is the world in a state where this makes sense right now? */
   canRun?: (ctx: GameContext) => boolean;
   /** Do it. Returns an optional routine for anything that takes time. */
@@ -287,6 +294,7 @@ export const ANOMALIES: AnomalyDef[] = [
   },
   {
     id: 'phone_ring',
+    startle: true,
     minChapter: 3,
     weight: 9,
     cooldown: 110,
@@ -352,6 +360,7 @@ export const ANOMALIES: AnomalyDef[] = [
   },
   {
     id: 'knock_rhythm',
+    startle: true,
     minChapter: 1,
     weight: 12,
     cooldown: 55,
@@ -367,6 +376,7 @@ export const ANOMALIES: AnomalyDef[] = [
   },
   {
     id: 'figure_at_end',
+    startle: true,
     minChapter: 2,
     weight: 9,
     cooldown: 120,
@@ -413,6 +423,7 @@ export const ANOMALIES: AnomalyDef[] = [
   },
   {
     id: 'mimic_preempts',
+    startle: true,
     minChapter: 3,
     weight: 8,
     cooldown: 90,
@@ -457,6 +468,7 @@ export const ANOMALIES: AnomalyDef[] = [
   },
   {
     id: 'shadow_wrong',
+    startle: true,
     minChapter: 2,
     weight: 9,
     cooldown: 90,
@@ -604,6 +616,7 @@ export const ANOMALIES: AnomalyDef[] = [
   },
   {
     id: 'light_walk',
+    startle: true,
     minChapter: 2,
     weight: 11,
     cooldown: 95,
@@ -716,6 +729,7 @@ export const ANOMALIES: AnomalyDef[] = [
   },
   {
     id: 'floor_floods',
+    startle: true,
     minChapter: 3,
     weight: 8,
     cooldown: 210,
@@ -747,6 +761,7 @@ export const ANOMALIES: AnomalyDef[] = [
   },
   {
     id: 'chair_rises',
+    startle: true,
     minChapter: 3,
     weight: 8,
     cooldown: 190,
@@ -787,6 +802,7 @@ export const ANOMALIES: AnomalyDef[] = [
   },
   {
     id: 'crawler_arrives',
+    startle: true,
     minChapter: 2,
     weight: 7,
     cooldown: 260,
@@ -802,6 +818,7 @@ export const ANOMALIES: AnomalyDef[] = [
   },
   {
     id: 'tall_one_arrives',
+    startle: true,
     minChapter: 3,
     weight: 6,
     cooldown: 300,
@@ -811,6 +828,17 @@ export const ANOMALIES: AnomalyDef[] = [
       ctx.world.lighting.blackout(1.6);
       yield 1.4;
       ctx.creatures.send(ctx, 'tall');
+    },
+  },
+  {
+    id: 'right_behind_you',
+    minChapter: 2,
+    weight: 11,
+    cooldown: 115,
+    canRun: (ctx) => corridorOnly(ctx) && !ctx.mimic.isChasing && ctx.mimic.closeBehind < 0.05,
+    run: (ctx) => {
+      // No approach, no sound, no warning: it is simply there now.
+      ctx.mimic.snapBehind(ctx);
     },
   },
   {

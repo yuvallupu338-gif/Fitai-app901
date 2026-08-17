@@ -163,11 +163,12 @@ export class AnomalyDirector {
 
     ctx.state.markAnomalySeen(def.id);
     ctx.tension.add(6);
-    this.bus.emit('anomaly_triggered', { id: def.id, index: this.fired });
+    this.bus.emit('anomaly_triggered', { id: def.id, index: this.fired, startle: !!def.startle });
 
-    // A short sting, but not on every anomaly — that is what makes the ones
-    // that do have it land.
-    if (this.rng.chance(0.3) && ctx.settings.scareIntensity === 'normal') {
+    // A short sting, and only on the ones built to be a jolt. The quiet
+    // anomalies get nothing at all: a sting is the game confirming that
+    // something happened, and half of what makes them work is not being sure.
+    if (def.startle && this.rng.chance(0.55) && ctx.settings.scareIntensity === 'normal') {
       ctx.audio.play('sub_drop', { volume: 0.25 });
     }
   }
