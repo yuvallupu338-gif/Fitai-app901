@@ -17,11 +17,13 @@ export const BUSINESS = {
   /** The same number as a person reads it. */
   phoneDisplay: '052-656-4130',
 
-  /* Placeholder until the exact address is known — update both of these
-   * together, or the map link will point somewhere the text does not. */
-  address: 'החיד״א פינת ויצמן, חדרה',
+  /* Still missing the house number. Update both of these together, or the map
+   * link will point somewhere the text does not.
+   * Weizmann is the neighbourhood, not a second street — the map search leaves
+   * it out, because a street and a city are what Waze resolves cleanly. */
+  address: 'החיד״א, שכונת ויצמן, חדרה',
   /** "Open in maps" link. Any map service URL works; this is a Waze search. */
-  mapsUrl: 'https://waze.com/ul?q=%D7%94%D7%97%D7%99%D7%93%D7%90%20%D7%95%D7%99%D7%A6%D7%9E%D7%9F%20%D7%97%D7%93%D7%A8%D7%94',
+  mapsUrl: 'https://waze.com/ul?q=%D7%94%D7%97%D7%99%D7%93%D7%90%20%D7%97%D7%93%D7%A8%D7%94',
   instagramUrl: '',
   email: '',
 }

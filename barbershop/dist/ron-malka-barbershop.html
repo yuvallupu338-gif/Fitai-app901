@@ -12,7 +12,7 @@
      policy can name no host at all — connect-src 'none' means a scripting bug
      here has nowhere to send anything. There is no inline script and no inline
      style, so neither 'unsafe-inline' nor a nonce is required. -->
-<meta http-equiv="Content-Security-Policy" content="default-src 'none'; script-src 'sha256-TfhY/1YRidmKiOX9qoTo+APZlVCOnFL6+bJCtoTN20g='; style-src 'sha256-SokvqYcc//twn7nPCVb8cBc6K/Lq3Z0OrWH2bHNpF+k='; img-src data:; font-src data:; connect-src 'none'; media-src 'none'; frame-src 'none'; worker-src 'none'; object-src 'none'; base-uri 'none'; form-action 'none'">
+<meta http-equiv="Content-Security-Policy" content="default-src 'none'; script-src 'sha256-eW2AmtwAxSObySAdjyYCL0rxiaiUDIvRehOAq52Lxi8='; style-src 'sha256-SokvqYcc//twn7nPCVb8cBc6K/Lq3Z0OrWH2bHNpF+k='; img-src data:; font-src data:; connect-src 'none'; media-src 'none'; frame-src 'none'; worker-src 'none'; object-src 'none'; base-uri 'none'; form-action 'none'">
 
 <link rel="icon" href="data:image/svg+xml,<svg xmlns='http://www.w3.org/2000/svg' viewBox='0 0 32 32'><rect width='32' height='32' rx='8' fill='%230B0B0D'/><path d='M10 8l12 16M10 24L22 8' stroke='%23C9A24A' stroke-width='2.2' stroke-linecap='round'/><circle cx='9.5' cy='9.5' r='2.6' fill='none' stroke='%23C9A24A' stroke-width='2'/><circle cx='9.5' cy='22.5' r='2.6' fill='none' stroke='%23C9A24A' stroke-width='2'/></svg>">
 
@@ -2871,11 +2871,13 @@ const BUSINESS = {
   /** The same number as a person reads it. */
   phoneDisplay: '052-656-4130',
 
-  /* Placeholder until the exact address is known — update both of these
-   * together, or the map link will point somewhere the text does not. */
-  address: 'החיד״א פינת ויצמן, חדרה',
+  /* Still missing the house number. Update both of these together, or the map
+   * link will point somewhere the text does not.
+   * Weizmann is the neighbourhood, not a second street — the map search leaves
+   * it out, because a street and a city are what Waze resolves cleanly. */
+  address: 'החיד״א, שכונת ויצמן, חדרה',
   /** "Open in maps" link. Any map service URL works; this is a Waze search. */
-  mapsUrl: 'https://waze.com/ul?q=%D7%94%D7%97%D7%99%D7%93%D7%90%20%D7%95%D7%99%D7%A6%D7%9E%D7%9F%20%D7%97%D7%93%D7%A8%D7%94',
+  mapsUrl: 'https://waze.com/ul?q=%D7%94%D7%97%D7%99%D7%93%D7%90%20%D7%97%D7%93%D7%A8%D7%94',
   instagramUrl: '',
   email: '',
 }
