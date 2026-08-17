@@ -61,10 +61,6 @@ function reachCard() {
   return el('div', { className: 'contact__card' }, [
     el('h3', {}, [icon('pin', { size: 20 }), 'איך מגיעים']),
     el('ul', { className: 'contact__lines' }, lines),
-    el('p', {
-      className: 'field__hint',
-      textContent: 'חניה כחול־לבן ברחוב, ומגרש בתשלום במרחק דקה הליכה.',
-    }),
   ])
 }
 

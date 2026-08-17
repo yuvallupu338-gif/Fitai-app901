@@ -17,9 +17,11 @@ export const BUSINESS = {
   /** The same number as a person reads it. */
   phoneDisplay: '052-656-4130',
 
-  address: 'הרצל 42, תל אביב',
-  /** Used for the "open in maps" link. Any map service URL works. */
-  mapsUrl: 'https://waze.com/ul?q=%D7%94%D7%A8%D7%A6%D7%9C%2042%20%D7%AA%D7%9C%20%D7%90%D7%91%D7%99%D7%91',
+  /* Placeholder until the exact address is known — update both of these
+   * together, or the map link will point somewhere the text does not. */
+  address: 'החיד״א פינת ויצמן, חדרה',
+  /** "Open in maps" link. Any map service URL works; this is a Waze search. */
+  mapsUrl: 'https://waze.com/ul?q=%D7%94%D7%97%D7%99%D7%93%D7%90%20%D7%95%D7%99%D7%A6%D7%9E%D7%9F%20%D7%97%D7%93%D7%A8%D7%94',
   instagramUrl: '',
   email: '',
 }
