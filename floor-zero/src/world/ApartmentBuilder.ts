@@ -708,7 +708,9 @@ export function buildApartment04(fc: FloorBuildContext): void {
   fc.fixtures.push(fluorescentFixture(fc.builder, 'apt04_light', 18.4, 4.4, 2.42, { length: 0.9 }));
 
   cabinet(fc.builder, 'apt04_sofa', [16.4, 0.35, 5.4], [0.9, 0.7, 1.8], 'fabric');
-  cabinet(fc.builder, 'apt04_shelf', [20.8, 0.6, 3.4], [0.4, 1.2, 1.6], 'wood');
+  // Deep in the room against the east wall. Anywhere nearer the corridor and it
+  // stands squarely in the apt04b doorway, which is 20.2–21.0 wide.
+  cabinet(fc.builder, 'apt04_shelf', [21.15, 0.6, 5.9], [0.4, 1.2, 1.6], 'wood');
   table(fc.builder, 'apt04_table', 18.6, 5.8, 1.0, 0.6, 0.72);
 
   fc.interactables.push(makeTapePlayer(fc.builder, TAPES.tape_1, [18.6, 0.79, 5.8], Math.PI));

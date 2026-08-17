@@ -273,6 +273,64 @@ async function main() {
       ? pass('no wall decoration is buried in solid geometry')
       : fail('buried decorations', `${buried.length}: ${buried.slice(0, 4).join(', ')}`);
 
+    // --- Every doorway is walkable ----------------------------------------
+    // Furniture is placed by hand in room coordinates, so nothing stops a
+    // wardrobe being written into the middle of a doorway — and it is only
+    // noticed by someone who happens to walk that way.
+    const doorways = await run(() => {
+      const g = window.__floorZero;
+      const collision = g.world.collision;
+      // Everything that is supposed to be openable, opened: a shut leaf and the
+      // sealed alcove are meant to block, and neither is what this is looking
+      // for. Prior states are remembered so the level is handed back intact.
+      const wasOpen = g.world.current.doors.all.map((door) => [door, door.open]);
+      for (const [door] of wasOpen) door.forceState(true);
+      collision.setSolid('alcove_seal', false);
+      collision.setSolid('control_cover', false);
+      collision.setSolid('shutter_col', false);
+
+      const RADIUS = 0.3;
+      const openings = [
+        { id: 'apt01', at: -1.4, x: 4.3, into: -1 },
+        { id: 'alcove', at: -1.4, x: 8.9, into: -1 },
+        { id: 'apt03', at: -1.4, x: 13.3, into: -1 },
+        { id: 'control', at: -1.4, x: 22.5, into: -1 },
+        { id: 'apt02', at: 1.4, x: 8.3, into: 1 },
+        { id: 'apt04a', at: 1.4, x: 18.0, into: 1 },
+        { id: 'apt04b', at: 1.4, x: 20.6, into: 1 },
+      ];
+      const blocked = [];
+      for (const o of openings) {
+        for (const step of [-0.5, 0, 0.5, 1.0, 1.5]) {
+          const z = o.at + o.into * step;
+          if (!collision.overlaps(o.x, z, RADIUS, 0.05, 1.7)) continue;
+          const by = collision.all
+            .filter(
+              (b) =>
+                b.solid &&
+                o.x > b.minX - RADIUS && o.x < b.maxX + RADIUS &&
+                z > b.minZ - RADIUS && z < b.maxZ + RADIUS &&
+                b.minY < 1.7 && b.maxY > 0.05,
+            )
+            .map((b) => b.id);
+          blocked.push(`${o.id} by ${by.join('/') || '?'}`);
+          break;
+        }
+      }
+
+      // Put the level back the way it was found: the shutter puzzle is tested
+      // later in this same run and needs its collider, and the lift doors have
+      // to stay as the arrival left them.
+      for (const [door, open] of wasOpen) door.forceState(open);
+      collision.setSolid('alcove_seal', true);
+      collision.setSolid('control_cover', true);
+      collision.setSolid('shutter_col', true);
+      return blocked;
+    });
+    doorways.length === 0
+      ? pass('every doorway can be walked through')
+      : fail('blocked doorways', doorways.slice(0, 3).join(', '));
+
     // --- Chapter 1: find the fuse, restore the floor --------------------
     await run(() => {
       const g = window.__floorZero;
