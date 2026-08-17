@@ -63,6 +63,27 @@ no libraries and no media files, same as everything else here. It is served at
 `/backrooms/`, and its code touches neither the questionnaire, the plan, nor
 any of FitAI's storage. See [`backrooms/README.md`](backrooms/README.md).
 
+### Also in this repo: `מה-לעשות-היום.html`
+
+A fourth app, in Hebrew and unrelated to training: a wheel of fortune that
+picks what to do today out of an editable list — sixty activities across six
+categories, all of which can be switched off, deleted or added to. It is one
+self-contained HTML file with no build step, no modules and no fetches, so it
+opens straight off the disk as readily as it does over Pages.
+
+Two things in it are less obvious than they look. The wheel draws at most
+twelve wedges but the list can be far longer: each spin takes a fresh uniform
+sample of twelve and then picks one of *those*, which stays uniform over the
+whole list while keeping the labels large enough to read on a phone. And the
+landing is solved backwards — the winner is drawn first, from
+`crypto.getRandomValues` rather than `Math.random`, and the rotation is then
+computed so the pointer comes to rest inside that wedge. Nothing reads a result
+off wherever the animation happened to stop, which is the usual way a wheel
+ends up highlighting one thing and announcing another.
+
+It keeps its own localStorage key (`mah-laasot-hayom.v1`) and touches nothing
+else on the origin.
+
 Its *code* does not, which is not the same as saying it cannot — see
 [Security](#security) below. All three apps here share one browser origin, and
 localStorage is scoped per origin, not per path.
@@ -303,11 +324,13 @@ src/
   vision/    photo-scan prompt, response normaliser, plan translation
   ui/        wizard, quickstart, plan, exercise cards, nutrition, guide, scan
   styles/    design tokens and components
+מה-לעשות-היום.html    the wheel app, entire
 tools/
   validate.js       cross-checks the data and engine layers
   vision-audit.mjs  proves a photo scan cannot break the engine's rules
   ai-audit.mjs      provider request shapes, and that a filled form stays legal
   smoke.mjs         drives the real app in Chromium
+  wheel-smoke.mjs   drives the wheel app, and checks where it actually lands
   build-single.js   bundles everything into dist/fitai.html
   fetch-fonts.js    regenerates the embedded font subsets
 docs/
@@ -322,6 +345,7 @@ node tools/vision-audit.mjs                             # photo-scan containment
 node tools/ai-audit.mjs                                 # providers + intake containment
 node tools/build-single.js                              # single-file bundle
 NODE_PATH=/opt/node22/lib/node_modules node tools/smoke.mjs --shots
+NODE_PATH=/opt/node22/lib/node_modules node tools/wheel-smoke.mjs    # the wheel app
 ```
 
 `validate.js` verifies exercise ids, equipment tokens, injury tags and warm-up
@@ -359,6 +383,19 @@ renders, that every exercise card carries a YouTube link pointing at the right
 search and opening away from the app, that the detail sheet still opens from the
 exercise name, that the age floor holds where a trainee meets it, and that
 swapping and ticking survive a reload.
+
+`wheel-smoke.mjs` covers the other app in this repo. Its main job is the one
+assertion a wheel needs and rarely gets: after each of forty spins it reads the
+rotation and the wedge list back out of the live page, works out from scratch
+which wedge is sitting under the pointer, and checks that this is the activity
+the card names and the wedge the app highlighted — arithmetic run in the
+opposite direction from the app's own, so the two agreeing means something. It
+also holds the pools that break wheels: none, one, and two, and it reads one
+real pixel off the bottom of a scrolled page, because "the background stops at
+the fold and the buttons below it are white on white" is invisible to every
+assertion that is not looking at pixels. The whole run happens with the font
+CDN blocked and ends by opening the file over `file://`, so a pass is also
+proof it needs nothing but itself.
 
 None of them is sufficient alone, and the gap is not the kind a tool closes. A
 plan can satisfy every rule here and still be wrong for the person holding it —
