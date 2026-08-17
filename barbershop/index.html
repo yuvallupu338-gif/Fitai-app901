@@ -1,0 +1,183 @@
+<!DOCTYPE html>
+<html lang="he" dir="rtl">
+<head>
+<meta charset="utf-8">
+<meta name="viewport" content="width=device-width, initial-scale=1, viewport-fit=cover">
+<meta name="theme-color" content="#0B0B0D">
+<title>רון מלכה · ברברשופ — הזמנת תור</title>
+<meta name="description" content="ברברשופ רון מלכה. תספורות, פייד, עיצוב זקן וגילוח מגבת חמה. הזמנת תור אונליין תוך פחות מדקה.">
+
+<!-- Everything this page needs is served from this origin: the photographs, the
+     two typefaces, and four modules. Nothing is fetched at runtime, so the
+     policy can name no host at all — connect-src 'none' means a scripting bug
+     here has nowhere to send anything. There is no inline script and no inline
+     style, so neither 'unsafe-inline' nor a nonce is required. -->
+<meta http-equiv="Content-Security-Policy" content="default-src 'none'; script-src 'self'; style-src 'self'; img-src 'self' data:; font-src 'self'; connect-src 'none'; media-src 'none'; frame-src 'none'; worker-src 'none'; object-src 'none'; base-uri 'none'; form-action 'none'">
+
+<link rel="icon" href="data:image/svg+xml,<svg xmlns='http://www.w3.org/2000/svg' viewBox='0 0 32 32'><rect width='32' height='32' rx='8' fill='%230B0B0D'/><path d='M10 8l12 16M10 24L22 8' stroke='%23C9A24A' stroke-width='2.2' stroke-linecap='round'/><circle cx='9.5' cy='9.5' r='2.6' fill='none' stroke='%23C9A24A' stroke-width='2'/><circle cx='9.5' cy='22.5' r='2.6' fill='none' stroke='%23C9A24A' stroke-width='2'/></svg>">
+
+<link rel="preload" as="image" href="assets/img/hero.jpg" fetchpriority="high">
+<link rel="stylesheet" href="assets/fonts/fonts.css">
+<link rel="stylesheet" href="src/styles/tokens.css">
+<link rel="stylesheet" href="src/styles/base.css">
+<link rel="stylesheet" href="src/styles/components.css">
+</head>
+<body>
+
+<a class="skip-link" href="#main">דלג לתוכן</a>
+
+<header class="site-header" id="siteHeader">
+  <div class="container site-header__inner">
+    <a class="brand" href="#top">
+      <span class="brand__mark" id="brandMark"></span>
+      <span>
+        <span class="brand__name">רון מלכה</span>
+        <span class="brand__sub">ברברשופ</span>
+      </span>
+    </a>
+    <nav class="site-nav" aria-label="ניווט ראשי">
+      <a href="#services">מחירון</a>
+      <a href="#gallery">גלריה</a>
+      <a href="#about">על המספרה</a>
+      <a href="#contact">שעות והגעה</a>
+    </nav>
+    <a class="btn" href="#booking">הזמנת תור</a>
+  </div>
+</header>
+
+<main id="main">
+
+  <!-- ------------------------------------------------------------- hero -->
+  <section class="hero" id="top">
+    <div class="hero__media">
+      <img src="assets/img/hero.jpg" width="2000" height="1333"
+           alt="חלל המספרה — שלוש כורסאות ברבר עתיקות מול קיר לבנים ותאורה חמה"
+           fetchpriority="high">
+    </div>
+    <div class="container hero__inner">
+      <p class="eyebrow">מאז 2014 · תל אביב</p>
+      <h1>
+        רון מלכה
+        <span class="hero__sub">ברברשופ</span>
+      </h1>
+      <p class="hero__blurb" id="heroBlurb"></p>
+      <div class="hero__actions">
+        <a class="btn btn--lg" href="#booking">הזמנת תור אונליין</a>
+        <a class="btn btn--lg btn--ghost" href="#services">לראות מחירון</a>
+      </div>
+      <ul class="hero__facts" id="heroFacts"></ul>
+    </div>
+  </section>
+
+  <!-- --------------------------------------------------------- services -->
+  <section class="section section--alt" id="services">
+    <div class="container">
+      <div class="section-head" data-reveal>
+        <p class="eyebrow">מחירון</p>
+        <h2>מה שאפשר לעשות פה</h2>
+        <p>מחיר אחד, בלי תוספות בסוף. כל שירות והזמן שהוא באמת לוקח — זה גם הזמן שנתפס ביומן.</p>
+      </div>
+      <div class="services" id="serviceList" data-reveal></div>
+    </div>
+  </section>
+
+  <!-- ---------------------------------------------------------- gallery -->
+  <section class="section" id="gallery">
+    <div class="container">
+      <div class="section-head" data-reveal>
+        <p class="eyebrow">גלריה</p>
+        <h2>עבודות מהכיסא</h2>
+        <p>לחיצה על תמונה פותחת אותה בגדול. אפשר לדפדף עם מקשי החצים.</p>
+      </div>
+      <div class="gallery" id="galleryGrid" data-reveal></div>
+    </div>
+  </section>
+
+  <!-- ---------------------------------------------------------- booking -->
+  <section class="section section--alt" id="booking">
+    <div class="container container--narrow">
+      <div class="section-head" data-reveal>
+        <p class="eyebrow">הזמנת תור</p>
+        <h2>לתפוס מקום בכיסא</h2>
+        <p>ארבעה שלבים, פחות מדקה. מוצגות רק שעות שבאמת פנויות.</p>
+      </div>
+      <div class="booking" id="bookingCard" data-reveal></div>
+      <p class="notice" id="bookingNotice" hidden></p>
+    </div>
+  </section>
+
+  <!-- ------------------------------------------------------------ about -->
+  <section class="section" id="about">
+    <div class="container about">
+      <div class="about__media" data-reveal>
+        <img src="assets/img/about.jpg" width="1100" height="1650" loading="lazy"
+             alt="מספריים מסדרות זקן, צילום שחור־לבן">
+      </div>
+      <div data-reveal>
+        <p class="eyebrow">על המספרה</p>
+        <h2>לא ממהרים על הראש שלך</h2>
+        <blockquote class="about__quote">
+          „תספורת טובה נמדדת ביום השלישי, לא ביציאה מהמספרה.”
+        </blockquote>
+        <p>
+          רון פתח את הכיסא הראשון ב־2014 אחרי חמש שנים אצל ספרים אחרים, עם רעיון פשוט
+          למדי: להקצות לכל לקוח את הזמן שהתספורת שלו דורשת, ולא את הזמן שנשאר בין שני
+          תורים. מאז זה לא השתנה.
+        </p>
+        <ul class="about__list" id="aboutList"></ul>
+      </div>
+    </div>
+  </section>
+
+  <!-- ---------------------------------------------------------- contact -->
+  <section class="section section--alt" id="contact">
+    <div class="container">
+      <div class="section-head" data-reveal>
+        <p class="eyebrow">שעות והגעה</p>
+        <h2>מתי ואיפה</h2>
+      </div>
+      <div class="contact" id="contactGrid" data-reveal></div>
+    </div>
+  </section>
+
+</main>
+
+<footer class="site-footer">
+  <div class="container site-footer__inner">
+    <span id="footerCopy"></span>
+    <nav aria-label="ניווט תחתון">
+      <a href="#services">מחירון</a>
+      <a href="#booking">הזמנת תור</a>
+      <a href="admin.html">כניסת מנהל</a>
+    </nav>
+  </div>
+</footer>
+
+<a class="btn book-fab" id="bookFab" href="#booking">הזמנת תור</a>
+
+<!-- The lightbox lives here rather than being created on demand, so the markup
+     is in one place and the script only toggles `hidden`. -->
+<div class="lightbox" id="lightbox" hidden role="dialog" aria-modal="true" aria-label="תצוגת תמונה">
+  <div class="lightbox__bar">
+    <button class="lightbox__nav" id="lightboxClose" type="button" aria-label="סגירה"></button>
+    <span id="lightboxCount"></span>
+  </div>
+  <figure class="lightbox__figure">
+    <img id="lightboxImg" alt="">
+  </figure>
+  <div class="lightbox__foot">
+    <button class="lightbox__nav" id="lightboxPrev" type="button" aria-label="הקודם"></button>
+    <figcaption id="lightboxCaption"></figcaption>
+    <button class="lightbox__nav lightbox__nav--next" id="lightboxNext" type="button" aria-label="הבא"></button>
+  </div>
+</div>
+
+<noscript>
+  <p class="noscript-note">
+    הזמנת התור והגלריה דורשות JavaScript. אפשר גם פשוט להתקשר — המספר מופיע למטה בעמוד.
+  </p>
+</noscript>
+
+<script type="module" src="src/js/site.js"></script>
+</body>
+</html>

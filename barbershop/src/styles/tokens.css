@@ -1,0 +1,87 @@
+/* Design tokens.
+ *
+ * The site commits to one look — a dark room with warm brass light — rather
+ * than shipping a light theme it would never use. Every colour below is a
+ * deliberate step on that ramp, and nothing outside this file hard-codes a hex.
+ */
+
+:root {
+  /* --- surfaces, darkest to lightest --------------------------------- */
+  --ink-950: #08080A;   /* under the hero, the deepest well */
+  --ink-900: #0B0B0D;   /* page */
+  --ink-850: #101116;   /* alternating section */
+  --ink-800: #15161A;   /* card */
+  --ink-700: #1C1E24;   /* raised card, input */
+  --ink-600: #262931;   /* hover on a raised surface */
+
+  /* --- brass ---------------------------------------------------------- */
+  --gold: #C9A24A;
+  --gold-bright: #E3C378;
+  --gold-deep: #8C6D28;
+  --gold-wash: rgba(201, 162, 74, 0.12);
+  --gold-line: rgba(201, 162, 74, 0.34);
+
+  /* --- text ----------------------------------------------------------- */
+  --cream: #F4F0E8;     /* headings and primary text: 16.9:1 on --ink-900 */
+  --text: #DED9D0;      /* body: 13.6:1 */
+  --muted: #A49E94;     /* secondary: 6.9:1 */
+  --faint: #6E6A63;     /* labels and timestamps: 3.4:1, decorative only */
+  --on-gold: #14100A;   /* text on a brass fill: 9.2:1 */
+
+  /* --- status --------------------------------------------------------- */
+  --ok: #6FBF8B;
+  --ok-wash: rgba(111, 191, 139, 0.14);
+  --warn: #E0B44C;
+  --warn-wash: rgba(224, 180, 76, 0.14);
+  --bad: #E4776B;
+  --bad-wash: rgba(228, 119, 107, 0.14);
+  --info: #7FA9D8;
+  --info-wash: rgba(127, 169, 216, 0.14);
+
+  /* --- lines and shadow ----------------------------------------------- */
+  --line: rgba(244, 240, 232, 0.09);
+  --line-strong: rgba(244, 240, 232, 0.18);
+  --shadow-sm: 0 1px 2px rgba(0, 0, 0, 0.4);
+  --shadow-md: 0 10px 30px -12px rgba(0, 0, 0, 0.75);
+  --shadow-lg: 0 28px 70px -24px rgba(0, 0, 0, 0.85);
+
+  /* --- type ------------------------------------------------------------ */
+  --font-display: 'Frank Ruhl Libre', 'Times New Roman', serif;
+  --font-ui: 'Heebo', system-ui, -apple-system, 'Segoe UI', sans-serif;
+
+  --step--1: clamp(0.78rem, 0.76rem + 0.1vw, 0.84rem);
+  --step-0: clamp(0.95rem, 0.92rem + 0.15vw, 1.05rem);
+  --step-1: clamp(1.1rem, 1.03rem + 0.35vw, 1.3rem);
+  --step-2: clamp(1.35rem, 1.2rem + 0.75vw, 1.75rem);
+  --step-3: clamp(1.7rem, 1.4rem + 1.5vw, 2.5rem);
+  --step-4: clamp(2.1rem, 1.5rem + 3vw, 4rem);
+  --step-5: clamp(2.6rem, 1.6rem + 5vw, 5.5rem);
+
+  /* --- space ----------------------------------------------------------- */
+  --s-1: 0.25rem;
+  --s-2: 0.5rem;
+  --s-3: 0.75rem;
+  --s-4: 1rem;
+  --s-5: 1.5rem;
+  --s-6: 2rem;
+  --s-7: 3rem;
+  --s-8: 4rem;
+  --s-9: 6rem;
+
+  /* --- geometry --------------------------------------------------------- */
+  --radius-sm: 6px;
+  --radius: 12px;
+  --radius-lg: 20px;
+  --radius-pill: 999px;
+  --container: 1180px;
+  --container-narrow: 760px;
+
+  --ease: cubic-bezier(0.22, 0.61, 0.36, 1);
+  --dur: 260ms;
+}
+
+@media (prefers-reduced-motion: reduce) {
+  :root {
+    --dur: 1ms;
+  }
+}
