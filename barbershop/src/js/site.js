@@ -1,8 +1,12 @@
 /**
  * Assembles the customer page from the data in config.js and services.js.
  *
- * The marketing copy is in index.html; everything here is the part that has to
+ * The marketing copy is in the HTML; everything here is the part that has to
  * stay in step with the price list and the opening hours.
+ *
+ * Nothing runs on import — `mountSite()` is called by whichever entry point
+ * loaded it, so the same module serves the served pages and the single-file
+ * build without either one guessing at the other's DOM.
  */
 
 import { BUSINESS, HOURS, DAY_NAMES } from './config.js'
@@ -11,48 +15,6 @@ import { hoursLabel, todayISO, toISO, fromISO } from './schedule.js'
 import { el, render, icon, qs, observeReveals } from './ui.js'
 import { mountGallery } from './gallery.js'
 import { mountBooking } from './booking.js'
-
-/* ------------------------------------------------------------------- hero */
-
-qs('#brandMark').append(icon('scissors', { size: 20 }))
-qs('#heroBlurb').textContent = BUSINESS.blurb
-
-render(qs('#heroFacts'), [
-  ['pin', BUSINESS.address],
-  ['clock', `היום ${hoursLabel(todayISO())}`],
-  ['phone', BUSINESS.phoneDisplay],
-].map(([name, text]) =>
-  el('li', { className: 'hero__fact' }, [icon(name, { size: 17 }), text]),
-))
-
-/* --------------------------------------------------------------- services */
-
-render(
-  qs('#serviceList'),
-  SERVICES.map((s) =>
-    el('article', { className: `service${s.featured ? ' service--featured' : ''}` }, [
-      s.featured && el('span', { className: 'service__flag', textContent: 'הכי מבוקש' }),
-      el('div', { className: 'service__head' }, [el('h3', { className: 'service__name', textContent: s.name })]),
-      el('p', { className: 'service__desc', textContent: s.desc }),
-      el('div', { className: 'service__meta' }, [
-        el('span', { className: 'service__price', textContent: `₪${s.price}` }),
-        el('span', { className: 'service__duration' }, [icon('clock', { size: 15 }), `${s.durationMin} דק׳`]),
-      ]),
-    ]),
-  ),
-)
-
-/* ------------------------------------------------------------------ about */
-
-render(
-  qs('#aboutList'),
-  [
-    'תור אחד בכל פעם — בלי חפיפות ובלי המתנה בעמידה.',
-    'מספריים ותער, לא רק מכונה.',
-    'ילדים מגיל 3, בלי לחץ ובלי הבטחות שווא.',
-    'תיקון חינם עד שבוע, אם משהו לא יושב נכון.',
-  ].map((text) => el('li', {}, [icon('check', { size: 17 }), el('span', { textContent: text })])),
-)
 
 /* ---------------------------------------------------------------- contact */
 
@@ -116,43 +78,79 @@ function bookCard() {
   ])
 }
 
-render(qs('#contactGrid'), [hoursCard(), reachCard(), bookCard()])
+/* -------------------------------------------------------------------- mount */
 
-/* ----------------------------------------------------------------- footer */
+export function mountSite() {
+  /* --- hero --- */
+  qs('#brandMark').append(icon('scissors', { size: 20 }))
+  qs('#heroBlurb').textContent = BUSINESS.blurb
 
-qs('#footerCopy').textContent = `© ${new Date().getFullYear()} ${BUSINESS.name} ברברשופ · ${BUSINESS.address}`
+  render(
+    qs('#heroFacts'),
+    [
+      ['pin', BUSINESS.address],
+      ['clock', `היום ${hoursLabel(todayISO())}`],
+      ['phone', BUSINESS.phoneDisplay],
+    ].map(([name, text]) => el('li', { className: 'hero__fact' }, [icon(name, { size: 17 }), text])),
+  )
 
-/* ------------------------------------------------------------ interactive */
+  /* --- services --- */
+  render(
+    qs('#serviceList'),
+    SERVICES.map((s) =>
+      el('article', { className: `service${s.featured ? ' service--featured' : ''}` }, [
+        s.featured && el('span', { className: 'service__flag', textContent: 'הכי מבוקש' }),
+        el('div', { className: 'service__head' }, [el('h3', { className: 'service__name', textContent: s.name })]),
+        el('p', { className: 'service__desc', textContent: s.desc }),
+        el('div', { className: 'service__meta' }, [
+          el('span', { className: 'service__price', textContent: `₪${s.price}` }),
+          el('span', { className: 'service__duration' }, [icon('clock', { size: 15 }), `${s.durationMin} דק׳`]),
+        ]),
+      ]),
+    ),
+  )
 
-mountGallery(qs('#galleryGrid'))
-mountBooking(qs('#bookingCard'))
-observeReveals()
+  /* --- about --- */
+  render(
+    qs('#aboutList'),
+    [
+      'תור אחד בכל פעם — בלי חפיפות ובלי המתנה בעמידה.',
+      'מספריים ותער, לא רק מכונה.',
+      'ילדים מגיל 3, בלי לחץ ובלי הבטחות שווא.',
+      'תיקון חינם עד שבוע, אם משהו לא יושב נכון.',
+    ].map((text) => el('li', {}, [icon('check', { size: 17 }), el('span', { textContent: text })])),
+  )
 
-/* --------------------------------------------------- header and the mobile CTA
- * One observer on a sentinel beats a scroll listener: the header solidifies once
- * the hero's top edge leaves, and the floating button appears at the same point
- * but hides again while the booking card itself is on screen. */
+  /* --- contact and footer --- */
+  render(qs('#contactGrid'), [hoursCard(), reachCard(), bookCard()])
+  qs('#footerCopy').textContent = `© ${new Date().getFullYear()} ${BUSINESS.name} ברברשופ · ${BUSINESS.address}`
 
-const header = qs('#siteHeader')
-const fab = qs('#bookFab')
-const bookingSection = qs('#booking')
+  /* --- interactive --- */
+  mountGallery(qs('#galleryGrid'))
+  mountBooking(qs('#bookingCard'))
+  observeReveals()
 
-const sentinel = el('div', { className: 'scroll-sentinel', 'aria-hidden': 'true' })
-document.body.prepend(sentinel)
+  /* One observer on a sentinel beats a scroll listener: the header solidifies
+   * once the hero's top edge leaves, and the floating button appears at the same
+   * point but hides again while the booking card itself is on screen. */
+  const header = qs('#siteHeader')
+  const fab = qs('#bookFab')
+  const bookingSection = qs('#booking')
 
-if ('IntersectionObserver' in window) {
-  new IntersectionObserver(
-    ([entry]) => {
-      header.classList.toggle('is-stuck', !entry.isIntersecting)
-      fab.classList.toggle('is-shown', !entry.isIntersecting)
-    },
-    { rootMargin: '-120px 0px 0px 0px' },
-  ).observe(sentinel)
+  const sentinel = el('div', { className: 'scroll-sentinel', 'aria-hidden': 'true' })
+  document.body.prepend(sentinel)
 
-  new IntersectionObserver(
-    ([entry]) => {
+  if ('IntersectionObserver' in window) {
+    new IntersectionObserver(
+      ([entry]) => {
+        header.classList.toggle('is-stuck', !entry.isIntersecting)
+        fab.classList.toggle('is-shown', !entry.isIntersecting)
+      },
+      { rootMargin: '-120px 0px 0px 0px' },
+    ).observe(sentinel)
+
+    new IntersectionObserver(([entry]) => {
       if (entry.isIntersecting) fab.classList.remove('is-shown')
-    },
-    { threshold: 0.15 },
-  ).observe(bookingSection)
+    }, { threshold: 0.15 }).observe(bookingSection)
+  }
 }

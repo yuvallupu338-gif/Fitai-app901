@@ -48,6 +48,7 @@ import {
 } from './ui.js'
 import { openSheet, confirmSheet } from './sheet.js'
 import { mountBlocks, blockWholeDay, FULL_DAY } from './admin-blocks.js'
+import { ROUTES } from './routes.js'
 
 const LIVE = (b) => b.status !== 'cancelled'
 
@@ -127,7 +128,7 @@ function drawBar() {
       ]),
     ]),
     el('span', { className: 'admin-bar__spacer' }),
-    el('a', { className: 'btn btn--quiet', href: 'index.html' }, 'לאתר'),
+    el('a', { className: 'btn btn--quiet', href: ROUTES.site }, 'לאתר'),
     el(
       'button',
       {
@@ -868,5 +869,12 @@ function draw({ keepFocus = null } = {}) {
 
 /* ==================================================================== boot */
 
-if (isUnlocked()) boot()
-else mountLock()
+/**
+ * Shows the diary if a session is already open, otherwise the lock screen.
+ * Called by the entry point rather than on import, so the single-file build can
+ * hold this module in memory without it seizing a page that is showing the shop.
+ */
+export function mountAdmin() {
+  if (isUnlocked()) boot()
+  else mountLock()
+}

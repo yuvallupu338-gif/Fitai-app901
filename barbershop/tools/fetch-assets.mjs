@@ -19,22 +19,28 @@ const IMG_DIR = join(ROOT, 'assets', 'img')
 const FONT_DIR = join(ROOT, 'assets', 'fonts')
 
 /* ---------------------------------------------------------------- photographs
- * Unsplash, whose licence covers commercial use without permission. Credit is
- * not required by the licence; assets/CREDITS.md carries it anyway.
+ * From Unsplash, whose licence covers commercial use without permission. Credit
+ * is not required by it; assets/CREDITS.md carries it anyway.
+ *
+ * `w` is chosen from how large each photograph is ever actually painted, doubled
+ * for a retina screen. A gallery tile is about 350 CSS px across, so 760 is
+ * already generous — the 1400 these started at was bytes every visitor paid for
+ * and no screen ever showed.
+ *
  * `landscape` decides the crop ratio the CDN renders, so a portrait shot is not
  * squashed into a 16:9 box before it ever reaches the gallery. */
 const PHOTOS = [
-  { file: 'hero',          id: 'photo-1585747860715-2ba37e788b70', w: 2000, landscape: true,  alt: 'חלל המספרה — שלוש כורסאות ברבר עתיקות מול קיר לבנים ותאורה חמה' },
-  { file: 'cut-fade',      id: 'photo-1599351431202-1e0f0137899a', w: 1100, landscape: false, alt: 'פייד גבוה עם קו תער חד לאורך הרקה' },
-  { file: 'cut-crop',      id: 'photo-1622286342621-4bd786c2447c', w: 1400, landscape: true,  alt: 'קרופ מרקמי עם מעבר מדורג בצדדים' },
-  { file: 'cut-pompadour', id: 'photo-1614252369475-531eba835eb1', w: 1100, landscape: false, alt: 'פומפדור מסורק לאחור עם צדדים קצרים' },
-  { file: 'cut-classic',   id: 'photo-1493256338651-d82f7acb2b38', w: 1400, landscape: true,  alt: 'מכונת תספורת מסדרת את קו העורף בתספורת קלאסית' },
-  { file: 'cut-shave',     id: 'photo-1596728325488-58c87691e9af', w: 1400, landscape: true,  alt: 'גילוח בתער ישר אחרי מגבת חמה' },
-  { file: 'cut-beard',     id: 'photo-1503951914875-452162b0f3f1', w: 1400, landscape: true,  alt: 'עיצוב זקן במספריים' },
-  { file: 'cut-curls',     id: 'photo-1567894340315-735d7c361db0', w: 1100, landscape: false, alt: 'תלתלים מעוצבים מעל פייד נקי' },
-  { file: 'cut-kids',      id: 'photo-1622287162716-f311baa1a2b8', w: 1400, landscape: true,  alt: 'תספורת ילדים בכיסא הברבר' },
-  { file: 'about',         id: 'photo-1517832606299-7ae9b720a186', w: 1100, landscape: false, alt: 'מספריים מסדרות זקן, צילום שחור־לבן' },
-  { file: 'tools',         id: 'photo-1621605815971-fbc98d665033', w: 1400, landscape: true,  alt: 'מכונות תספורת, מספריים, מסרק ופומייד מסודרים על משטח אבן' },
+  { file: 'hero',          id: 'photo-1585747860715-2ba37e788b70', w: 1800, landscape: true,  alt: 'חלל המספרה — שלוש כורסאות ברבר עתיקות מול קיר לבנים ותאורה חמה' },
+  { file: 'cut-fade',      id: 'photo-1599351431202-1e0f0137899a', w: 760, landscape: false, alt: 'פייד גבוה עם קו תער חד לאורך הרקה' },
+  { file: 'cut-crop',      id: 'photo-1622286342621-4bd786c2447c', w: 900, landscape: true,  alt: 'קרופ מרקמי עם מעבר מדורג בצדדים' },
+  { file: 'cut-pompadour', id: 'photo-1614252369475-531eba835eb1', w: 760, landscape: false, alt: 'פומפדור מסורק לאחור עם צדדים קצרים' },
+  { file: 'cut-classic',   id: 'photo-1493256338651-d82f7acb2b38', w: 900, landscape: true,  alt: 'מכונת תספורת מסדרת את קו העורף בתספורת קלאסית' },
+  { file: 'cut-shave',     id: 'photo-1596728325488-58c87691e9af', w: 900, landscape: true,  alt: 'גילוח בתער ישר אחרי מגבת חמה' },
+  { file: 'cut-beard',     id: 'photo-1503951914875-452162b0f3f1', w: 900, landscape: true,  alt: 'עיצוב זקן במספריים' },
+  { file: 'cut-curls',     id: 'photo-1567894340315-735d7c361db0', w: 760, landscape: false, alt: 'תלתלים מעוצבים מעל פייד נקי' },
+  { file: 'cut-kids',      id: 'photo-1622287162716-f311baa1a2b8', w: 900, landscape: true,  alt: 'תספורת ילדים בכיסא הברבר' },
+  { file: 'about',         id: 'photo-1517832606299-7ae9b720a186', w: 760, landscape: false, alt: 'מספריים מסדרות זקן, צילום שחור־לבן' },
+  { file: 'tools',         id: 'photo-1621605815971-fbc98d665033', w: 900, landscape: true,  alt: 'מכונות תספורת, מספריים, מסרק ופומייד מסודרים על משטח אבן' },
 ]
 
 /* --------------------------------------------------------------------- fonts
@@ -73,7 +79,7 @@ async function fetchPhotos() {
     const ratio = photo.landscape ? 3 / 2 : 2 / 3
     const url =
       `https://images.unsplash.com/${photo.id}` +
-      `?w=${photo.w}&h=${Math.round(photo.w / ratio)}&q=78&fm=jpg&fit=crop&crop=entropy`
+      `?w=${photo.w}&h=${Math.round(photo.w / ratio)}&q=74&fm=jpg&fit=crop&crop=entropy`
 
     if (existsSync(dest) && !force) {
       console.log(`skip   ${photo.file}.jpg (exists)`)

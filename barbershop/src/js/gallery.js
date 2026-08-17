@@ -7,8 +7,9 @@
 
 import { el, render, icon, qs, trapFocus } from './ui.js'
 import { PHOTO_ALT } from './photo-alt.js'
+import { photoSrc } from './assets.js'
 
-/** Order here is the order on the wall. Items 1 and 6 get the tall cells. */
+/** Order here is the order on the wall, and in the lightbox. */
 const ITEMS = [
   { photo: 'cut-fade', caption: 'סקין פייד' },
   { photo: 'cut-crop', caption: 'קרופ מרקמי' },
@@ -20,7 +21,7 @@ const ITEMS = [
   { photo: 'cut-kids', caption: 'תספורת ילדים' },
 ]
 
-const src = (photo) => `assets/img/${photo}.jpg`
+const src = (photo) => photoSrc(photo)
 const alt = (photo) => PHOTO_ALT[photo] ?? ''
 
 export function mountGallery(grid) {

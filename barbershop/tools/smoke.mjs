@@ -126,6 +126,30 @@ for (const page of ['index.html', 'admin.html']) {
   if (/\sstyle="/.test(html)) fail(`${page} contains an inline style attribute, which the CSP blocks`)
 }
 
+/* ------------------------------------------------- 3b. the single-file build */
+
+console.log('\nsingle-file build')
+{
+  const built = sources.filter(([name]) => name.startsWith('dist/') && name.endsWith('.html'))
+  if (!built.length) {
+    warn('no bundle in dist/ — run: node tools/build-single.mjs')
+  }
+  for (const [name, html] of built) {
+    const csp = html.match(/http-equiv="Content-Security-Policy" content="([^"]+)"/)?.[1] ?? ''
+
+    // The bundle inlines its script and style, so 'self' would block both. The
+    // only acceptable substitute is a hash — never 'unsafe-inline'.
+    if (csp.includes("'unsafe-inline'")) fail(`${name} CSP allows unsafe-inline`)
+    else if (!/script-src 'sha256-/.test(csp) || !/style-src 'sha256-/.test(csp)) {
+      fail(`${name} does not pin its inline script and style by hash`)
+    } else pass(`${name} — inline script and style pinned by sha256`)
+
+    if (/(?:href|src)="(?!data:|#|https:|tel:|mailto:)[^"]+"/.test(html)) {
+      fail(`${name} still points at a file outside itself — it would break off a server`)
+    } else pass(`${name} — self-contained, no reference leaves the document`)
+  }
+}
+
 /* --------------------------------------------- 4. no innerHTML on user data */
 
 console.log('\ninjection surface')
