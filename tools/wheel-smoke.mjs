@@ -307,6 +307,43 @@ ok(
 );
 ok('the stale result card is dismissed', await page.locator('#result').isHidden());
 
+console.log('\ncarnival details');
+ok('twenty-four bulbs around the bezel', (await page.locator('.led').count()) === 24);
+await page.click('#spinBtn');
+ok('the bulbs chase while it spins',
+  await page.evaluate(() => document.querySelector('.stage').classList.contains('spinning')));
+await settled(page);
+ok('and celebrate when it lands',
+  await page.evaluate(() => document.querySelector('.stage').classList.contains('won')));
+ok('a quip under the result', ((await page.textContent('#rQuip')) || '').trim().length > 0);
+const cardUrl = await page.evaluate(() => window.__wheel.card());
+ok('the share card renders as a real PNG',
+  cardUrl.startsWith('data:image/png') && cardUrl.length > 20000, `${cardUrl.length} chars`);
+await page.click('#shareBtn');
+await page.waitForTimeout(400);
+ok('sharing without the Web Share API falls back without errors', noise.length === 0, noise.join(' | '));
+
+console.log('\nsound');
+ok('sound starts on', (await page.getAttribute('#muteBtn', 'aria-pressed')) === 'true');
+await page.click('#muteBtn');
+ok('one tap mutes it', (await page.getAttribute('#muteBtn', 'aria-pressed')) === 'false');
+await page.reload({ waitUntil: 'networkidle' });
+ok('the choice survives a reload', (await page.getAttribute('#muteBtn', 'aria-pressed')) === 'false');
+await page.click('#muteBtn');
+ok('and a tap brings it back', (await page.getAttribute('#muteBtn', 'aria-pressed')) === 'true');
+ok('spinning with sound on logs no audio errors', await (async () => {
+  await spin(page);
+  return noise.length === 0;
+})(), noise.join(' | '));
+
+console.log('\nthe wheel itself is a button');
+const rotBefore = await page.evaluate(() => window.__wheel.rotation());
+const stageBox = await page.locator('.stage').boundingBox();
+await page.mouse.click(stageBox.x + stageBox.width * 0.82, stageBox.y + stageBox.height / 2);
+try { await page.waitForFunction(() => window.__wheel.spinning(), null, { timeout: 1500 }); } catch {}
+await settled(page);
+ok('tapping the wheel spins it', (await page.evaluate(() => window.__wheel.rotation())) !== rotBefore);
+
 console.log('\nkeyboard and assistive tech');
 ok('the spin button is labelled', !!(await page.getAttribute('#spinBtn', 'aria-label')));
 ok('the result is announced through a live region that is always present',

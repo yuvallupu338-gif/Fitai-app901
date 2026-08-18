@@ -81,6 +81,14 @@ computed so the pointer comes to rest inside that wedge. Nothing reads a result
 off wherever the animation happened to stop, which is the usual way a wheel
 ends up highlighting one thing and announcing another.
 
+The carnival dressing is honest too. The ratchet ticks are not on a timer:
+a frame loop reads the wheel's real angle out of its transform matrix and
+clicks — synthesised in WebAudio, no media files, mutable and remembered —
+each time a seam actually passes the pointer, kicking the pin with it. The
+share button renders a 1080×1080 result card on a canvas and hands it to the
+Web Share API as a file, falling back to text share and then to the clipboard
+on browsers that take less.
+
 It keeps its own localStorage key (`mah-laasot-hayom.v1`) and touches nothing
 else on the origin.
 
