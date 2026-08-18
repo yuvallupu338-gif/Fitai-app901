@@ -341,6 +341,23 @@
   transform: translateX(-3px);
 }
 
+/* Sits under the grid, quieter than a card but louder than a footnote — it
+ * answers "how do I pay" right where the prices raise it. */
+.pay-note {
+  display: flex;
+  align-items: center;
+  justify-content: center;
+  gap: var(--s-2);
+  margin-block-start: var(--s-5);
+  color: var(--muted);
+  font-size: var(--step--1);
+  text-align: center;
+}
+
+.pay-note svg {
+  color: var(--gold);
+}
+
 /* ----------------------------------------------------------------- gallery */
 
 /* Uniform portrait tiles. Row spans were tried and abandoned: with eight items

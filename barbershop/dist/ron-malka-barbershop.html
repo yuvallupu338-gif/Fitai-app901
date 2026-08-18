@@ -12,7 +12,7 @@
      policy can name no host at all — connect-src 'none' means a scripting bug
      here has nowhere to send anything. There is no inline script and no inline
      style, so neither 'unsafe-inline' nor a nonce is required. -->
-<meta http-equiv="Content-Security-Policy" content="default-src 'none'; script-src 'sha256-OEa6mwKysNoLlePo8uaUJrvaDSmRJccZQp7dx/e+KQ8='; style-src 'sha256-uWdokD893R9ODdcexpNOdoI0sGvNPr8nr4k+txmYwwk='; img-src data:; font-src data:; connect-src 'none'; media-src 'none'; frame-src 'none'; worker-src 'none'; object-src 'none'; base-uri 'none'; form-action 'none'">
+<meta http-equiv="Content-Security-Policy" content="default-src 'none'; script-src 'sha256-m2mVMkyhCxBGiukLdbU2orVFswWxBwQ3DtY4HJw/EdE='; style-src 'sha256-HAcdPUmfGIMtczRcDcxPbZ6A/lhPOi5IzrK/jg1KRuI='; img-src data:; font-src data:; connect-src 'none'; media-src 'none'; frame-src 'none'; worker-src 'none'; object-src 'none'; base-uri 'none'; form-action 'none'">
 
 <link rel="icon" href="data:image/svg+xml,<svg xmlns='http://www.w3.org/2000/svg' viewBox='0 0 32 32'><rect width='32' height='32' rx='8' fill='%230B0B0D'/><path d='M10 8l12 16M10 24L22 8' stroke='%23C9A24A' stroke-width='2.2' stroke-linecap='round'/><circle cx='9.5' cy='9.5' r='2.6' fill='none' stroke='%23C9A24A' stroke-width='2'/><circle cx='9.5' cy='22.5' r='2.6' fill='none' stroke='%23C9A24A' stroke-width='2'/></svg>">
 
@@ -1182,6 +1182,23 @@ a:hover {
 /* The arrow points along the reading direction, so in RTL it travels start-ward. */
 .service:hover .service__cta svg {
   transform: translateX(-3px);
+}
+
+/* Sits under the grid, quieter than a card but louder than a footnote — it
+ * answers "how do I pay" right where the prices raise it. */
+.pay-note {
+  display: flex;
+  align-items: center;
+  justify-content: center;
+  gap: var(--s-2);
+  margin-block-start: var(--s-5);
+  color: var(--muted);
+  font-size: var(--step--1);
+  text-align: center;
+}
+
+.pay-note svg {
+  color: var(--gold);
 }
 
 /* ----------------------------------------------------------------- gallery */
@@ -2938,6 +2955,9 @@ const BUSINESS = {
   address: 'החיד״א, שכונת ויצמן, חדרה',
   /** "Open in maps" link. Any map service URL works; this is a Waze search. */
   mapsUrl: 'https://waze.com/ul?q=%D7%94%D7%97%D7%99%D7%93%D7%90%20%D7%97%D7%93%D7%A8%D7%94',
+  /** How a customer settles up. Shown by the price list and both summaries. */
+  payment: 'ביט או מזומן',
+
   instagramUrl: '',
   email: '',
 }
@@ -3311,6 +3331,7 @@ const ICON_PATHS = {
   trash: 'M4 7h16M9 7V5a1 1 0 0 1 1-1h4a1 1 0 0 1 1 1v2M6 7l1 13a1 1 0 0 0 1 1h8a1 1 0 0 0 1-1l1-13',
   plus: 'M12 5v14M5 12h14',
   logout: 'M15 4h3a1 1 0 0 1 1 1v14a1 1 0 0 1-1 1h-3M10 8l-4 4 4 4M6 12h9',
+  wallet: 'M3 7a2 2 0 0 1 2-2h11v2M3 7v10a2 2 0 0 0 2 2h14a2 2 0 0 0 2-2v-7a2 2 0 0 0-2-2H3M17 13.5h.01',
 }
 
 const SVG_NS = 'http://www.w3.org/2000/svg'
@@ -4235,6 +4256,7 @@ function mountBooking(root) {
       ['שירות', svc.name],
       ['תאריך', formatDateHe(state.date)],
       ['שעה', `${state.time} · ${svc.durationMin} דק׳`],
+      ['תשלום', `במקום, ב${BUSINESS.payment}`],
     ]
     return el('dl', { className: 'summary' }, [
       ...rows.map(([label, value]) =>
@@ -4426,6 +4448,7 @@ function mountBooking(root) {
       ['תאריך', formatDateHe(b.date, { withYear: true })],
       ['שעה', `${b.time} · ${b.durationMin} דק׳`],
       ['על שם', `${b.name} · ${formatPhone(b.phone)}`],
+      ['תשלום', `במקום, ב${BUSINESS.payment}`],
     ]
     return el('dl', { className: 'summary' }, [
       ...rows.map(([label, value]) =>
@@ -4707,6 +4730,14 @@ function mountSite() {
         ]),
       ]),
     ),
+  )
+
+  /* Payment sits with the prices, which is where the question comes up. */
+  qs('#serviceList').after(
+    el('p', { className: 'pay-note', 'data-reveal': '' }, [
+      icon('wallet', { size: 17 }),
+      `התשלום במקום, ב${BUSINESS.payment}.`,
+    ]),
   )
 
   /* --- about --- */

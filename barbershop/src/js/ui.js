@@ -68,6 +68,7 @@ const ICON_PATHS = {
   trash: 'M4 7h16M9 7V5a1 1 0 0 1 1-1h4a1 1 0 0 1 1 1v2M6 7l1 13a1 1 0 0 0 1 1h8a1 1 0 0 0 1-1l1-13',
   plus: 'M12 5v14M5 12h14',
   logout: 'M15 4h3a1 1 0 0 1 1 1v14a1 1 0 0 1-1 1h-3M10 8l-4 4 4 4M6 12h9',
+  wallet: 'M3 7a2 2 0 0 1 2-2h11v2M3 7v10a2 2 0 0 0 2 2h14a2 2 0 0 0 2-2v-7a2 2 0 0 0-2-2H3M17 13.5h.01',
 }
 
 const SVG_NS = 'http://www.w3.org/2000/svg'

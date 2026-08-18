@@ -24,6 +24,9 @@ export const BUSINESS = {
   address: 'החיד״א, שכונת ויצמן, חדרה',
   /** "Open in maps" link. Any map service URL works; this is a Waze search. */
   mapsUrl: 'https://waze.com/ul?q=%D7%94%D7%97%D7%99%D7%93%D7%90%20%D7%97%D7%93%D7%A8%D7%94',
+  /** How a customer settles up. Shown by the price list and both summaries. */
+  payment: 'ביט או מזומן',
+
   instagramUrl: '',
   email: '',
 }

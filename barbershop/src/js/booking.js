@@ -253,6 +253,7 @@ export function mountBooking(root) {
       ['שירות', svc.name],
       ['תאריך', formatDateHe(state.date)],
       ['שעה', `${state.time} · ${svc.durationMin} דק׳`],
+      ['תשלום', `במקום, ב${BUSINESS.payment}`],
     ]
     return el('dl', { className: 'summary' }, [
       ...rows.map(([label, value]) =>
@@ -444,6 +445,7 @@ export function mountBooking(root) {
       ['תאריך', formatDateHe(b.date, { withYear: true })],
       ['שעה', `${b.time} · ${b.durationMin} דק׳`],
       ['על שם', `${b.name} · ${formatPhone(b.phone)}`],
+      ['תשלום', `במקום, ב${BUSINESS.payment}`],
     ]
     return el('dl', { className: 'summary' }, [
       ...rows.map(([label, value]) =>

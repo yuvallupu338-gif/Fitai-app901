@@ -122,6 +122,14 @@ export function mountSite() {
     ),
   )
 
+  /* Payment sits with the prices, which is where the question comes up. */
+  qs('#serviceList').after(
+    el('p', { className: 'pay-note', 'data-reveal': '' }, [
+      icon('wallet', { size: 17 }),
+      `התשלום במקום, ב${BUSINESS.payment}.`,
+    ]),
+  )
+
   /* --- about --- */
   render(
     qs('#aboutList'),
