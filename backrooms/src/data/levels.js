@@ -719,14 +719,30 @@ const RAW = [
 
   { id: 58, name: 'Service Alleys', he: 'סמטאות השירות', cls: 3,
     note: 'סמטאות ברוחב אדם וחצי בין קירות לבנים. הפחים מלאים.',
-    arch: 'maze', fog: '#1e1c1a', far: 18, amb: '#171614', ceil: 8.0, cell: 2.4,
+    /*
+     * The fog is the level here, and it was the thing making it unreadable.
+     *
+     * These alleys are 2.4m wide with a 16m draw distance, so most of any
+     * frame is the haze at the end of the alley rather than a surface — and
+     * the haze was authored at #1e1c1a, darker than the brick it sits in front
+     * of. Nearly half the frame came back pure black and the whole picture
+     * held ten distinct colours.
+     *
+     * Measured rather than guessed, by changing one value at a time on a live
+     * level: brightening the fog took it from 10 colours to 50 and tripled the
+     * frame mean, raising ambient alone reached 28, and pushing the fog
+     * *further away* made it worse — 6 colours — because more distance just
+     * means more unlit geometry behind it. Lifting the lamps, which is what
+     * was tried first, moved it from 11 to 15 and was never going to be
+     * enough: a lamp eight metres up an alley is not what lights an alley.
+     *
+     * So the haze now reads as a strip of night sky hanging between the walls,
+     * and the fixtures go back to being what the note describes — service
+     * lighting, present, but not what you see by.
+     */
+    arch: 'maze', fog: '#454039', far: 18, amb: '#302d28', ceil: 8.0, cell: 2.4,
     mats: KIT.urban('#2e2c2a', '#5a4a3e', '#4a4642'),
-    /* The alley walls run up to an 8m ceiling, but the lamps on it were given
-     * an intensity and a radius tuned for the 3m ceilings everywhere else, so
-     * nothing reached the ground: the frame came back with eleven distinct
-     * colours in it and a mean of 5/255. Lighting a alley from eight metres up
-     * costs more than lighting a corridor from three. */
-    gen: { lightSpacing: 3, lightIntensity: 3.2, lightRadius: 16, deadLights: 22,
+    gen: { lightSpacing: 3, lightIntensity: 2.0, lightRadius: 12, deadLights: 26,
       loops: 7, flickerPct: 40 },
     lightColor: [1.0, 0.78, 0.44],
     entities: { kind: 'crawler', density: 0.7 },
