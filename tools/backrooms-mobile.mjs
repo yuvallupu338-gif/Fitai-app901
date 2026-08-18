@@ -297,6 +297,48 @@ async function run(deviceName, browser) {
   await waitFrames(page, 3);
   check((await state(page)).state === 'play', `${deviceName}: resume returns to the game`);
 
+  /*
+   * A finger going down must never turn the view.
+   *
+   * This is the bug that had the player "suddenly flung across the map".
+   * Touch identifiers get reused, and a `touchend` that never arrives — the
+   * browser swallows them on a level load, an alert, a notification shade —
+   * leaves the look slot holding the position the old finger was last at. The
+   * next touchmove carrying that same id measured from there to wherever the
+   * new finger now was and applied the whole difference in one frame: half a
+   * screen of travel is about 0.9rad, so the room span round instantly.
+   *
+   * Reproduced the way it happens: put a finger down, drag, then start a
+   * fresh touch with the *same identifier* somewhere far away without ever
+   * sending the touchend. Correct behaviour is that the new touch re-anchors
+   * and the view does not move until the finger does.
+   */
+  const yawBefore = await page.evaluate(() => window.backrooms.player.yaw);
+  await page.evaluate(() => {
+    const c = document.querySelector('canvas');
+    const W = window.innerWidth, H = window.innerHeight;
+    const send = (type, id, x, y) => {
+      const t = new Touch({ identifier: id, target: c, clientX: x, clientY: y });
+      c.dispatchEvent(new TouchEvent(type, {
+        touches: type === 'touchend' ? [] : [t],
+        targetTouches: type === 'touchend' ? [] : [t],
+        changedTouches: [t], bubbles: true, cancelable: true,
+      }));
+    };
+    /* A normal look drag on the right-hand side. */
+    send('touchstart', 7, W * 0.75, H * 0.5);
+    send('touchmove', 7, W * 0.75 + 12, H * 0.5);
+    /* The touchend never arrives. The same id reappears far away. */
+    send('touchstart', 7, W * 0.55, H * 0.2);
+    send('touchmove', 7, W * 0.55 + 2, H * 0.2);
+  });
+  await waitFrames(page, 3);
+  const yawAfter = await page.evaluate(() => window.backrooms.player.yaw);
+  const swing = Math.abs(((yawAfter - yawBefore + Math.PI * 3) % (Math.PI * 2)) - Math.PI);
+  check(swing < 0.25,
+    `${deviceName}: a re-used touch id does not spin the view `
+    + `(${swing.toFixed(2)}rad; the bug gave about 0.9)`);
+
   /* ---- the frame is a real frame ---- */
   const px = await frameStats(page);
   check(!px.lost, `${deviceName}: the context survived`);

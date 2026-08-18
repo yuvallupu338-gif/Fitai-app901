@@ -39,8 +39,23 @@ export class Input {
 
     this._onMouseMove = (e) => {
       if (!this.locked) return;
-      this.lookX += e.movementX * this.sensitivity;
-      this.lookY += e.movementY * this.sensitivity * (this.invertY ? -1 : 1);
+      /*
+       * Clamped, because `movementX` is not always a mouse movement. Browsers
+       * deliver one enormous value on the first event after pointer lock is
+       * acquired — the jump from wherever the cursor was to the centre of the
+       * canvas — and this game re-acquires the lock on every level load and
+       * every click back into the window. Unclamped, a single one of those
+       * spun the view by whatever fraction of the screen the pointer had been
+       * away from centre, which reads as being thrown across the room.
+       *
+       * 180px is far more than a hand moves between two mouse events at any
+       * polling rate, so nothing an actual mouse does is affected.
+       */
+      const MAX_STEP = 180;
+      const dx = Math.max(-MAX_STEP, Math.min(MAX_STEP, e.movementX || 0));
+      const dy = Math.max(-MAX_STEP, Math.min(MAX_STEP, e.movementY || 0));
+      this.lookX += dx * this.sensitivity;
+      this.lookY += dy * this.sensitivity * (this.invertY ? -1 : 1);
     };
     this._onLockChange = () => {
       this.locked = document.pointerLockElement === this.canvas;
@@ -66,11 +81,31 @@ export class Input {
   bindTouch() {
     const c = this.canvas;
     const half = () => window.innerWidth / 2;
+    /*
+     * No single touch event may turn the view more than this. A drag is
+     * reported as a stream of small deltas, so a real thumb never comes
+     * anywhere near it; only a delta measured against a stale anchor does.
+     * 90px is about 0.45rad — a firm flick, and nothing worse.
+     */
+    const MAX_STEP = 90;
 
     c.addEventListener('touchstart', (e) => {
       if (!this.enabled) return;
       for (const t of e.changedTouches) {
         const left = t.clientX < half();
+        /*
+         * Re-anchor first. Identifiers get reused, and a touch whose `touchend`
+         * never arrived leaves its slot occupied with the position the finger
+         * was last at. Without this the next touchmove for that id measures
+         * from wherever the old finger was to wherever the new one is and
+         * applies the difference in a single frame.
+         */
+        if (this.touch.move && this.touch.move.id === t.identifier) {
+          this.touch.move = null;
+        }
+        if (this.touch.look && this.touch.look.id === t.identifier) {
+          this.touch.look = null;
+        }
         if (left && !this.touch.move) {
           this.touch.move = { id: t.identifier, ox: t.clientX, oy: t.clientY, x: 0, y: 0 };
         } else if (!left && !this.touch.look) {
@@ -81,6 +116,11 @@ export class Input {
     }, { passive: false });
 
     c.addEventListener('touchmove', (e) => {
+      /* The guard `touchstart` has always had, which this handler did not.
+       * Nothing currently clears `enabled`, so today this changes no
+       * behaviour — it is here so that the first thing which does cannot
+       * reintroduce the stale-anchor bug above through this door. */
+      if (!this.enabled) return;
       for (const t of e.changedTouches) {
         const m = this.touch.move;
         if (m && m.id === t.identifier) {
@@ -89,8 +129,10 @@ export class Input {
         }
         const l = this.touch.look;
         if (l && l.id === t.identifier) {
-          this.lookX += (t.clientX - l.px) * 0.005;
-          this.lookY += (t.clientY - l.py) * 0.005;
+          const dx = Math.max(-MAX_STEP, Math.min(MAX_STEP, t.clientX - l.px));
+          const dy = Math.max(-MAX_STEP, Math.min(MAX_STEP, t.clientY - l.py));
+          this.lookX += dx * 0.005;
+          this.lookY += dy * 0.005;
           l.px = t.clientX;
           l.py = t.clientY;
         }
