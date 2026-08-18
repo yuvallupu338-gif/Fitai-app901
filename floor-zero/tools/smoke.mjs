@@ -445,6 +445,25 @@ async function main() {
     chapterAfter2 === 3 ? pass('chapter 2 completes') : fail('chapter 2', `chapter=${chapterAfter2}`);
     await shot('corridor');
 
+    // --- A door that says "open" opens ---------------------------------------
+    // The chapter just advanced and the floor has NOT been rebuilt, so the level
+    // still carries the lock state it was built with while canOpen() already
+    // says yes. This is the exact state a player is in after pulling the reset
+    // lever and walking to apartment 03, and the door used to read "open" and
+    // then do absolutely nothing.
+    const stale = await run(() => {
+      const g = window.__floorZero;
+      const item = g.interactions.get('door_apt03');
+      const door = g.world.current.doors.get('door_apt03');
+      g.player.teleport(13.3, -0.2, 0);
+      const prompt = item.prompt(g);
+      g.interactions.activate(item, g);
+      return { prompt, opened: door.open, locked: door.locked };
+    });
+    stale.prompt !== 'נעול' && stale.opened
+      ? pass('a door promising "open" actually opens after a chapter advance')
+      : fail('stale door lock', `prompt=${stale.prompt} open=${stale.opened} locked=${stale.locked}`);
+
     // --- Chapter 3: the clocks ---------------------------------------------
     await rideBack();
     await run(() => {

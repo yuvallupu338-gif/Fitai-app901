@@ -45,11 +45,13 @@ export class Door {
     return Math.abs(this.progress - this.target) > 1e-3;
   }
 
-  setOpen(open: boolean): void {
-    if (this.locked && open) return;
+  /** Returns false when the door refused to open because it is locked. */
+  setOpen(open: boolean): boolean {
+    if (this.locked && open) return false;
     this.open = open;
     this.target = open ? 1 : 0;
     this.config.onStateChange?.(open);
+    return true;
   }
 
   toggle(): void {

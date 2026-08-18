@@ -210,8 +210,18 @@ export function makeDoorInteractable(
         ctx.ui.toast(options.lockedMessage ?? t('toast.no_key'));
         return;
       }
+      // Doors carry two locks: Door.locked, baked in when the level was built,
+      // and canOpen(), evaluated now. They disagree the moment the chapter
+      // advances without the floor being rebuilt — which is exactly what
+      // completeChapter() does — and the player is left reading "open" on a
+      // door that silently refuses. Where a predicate exists it is the truth.
+      if (options.canOpen) door.locked = false;
       const opening = !door.open;
-      door.setOpen(opening);
+      if (!door.setOpen(opening)) {
+        ctx.audio.play('door_metal_close', { volume: 0.35 });
+        ctx.ui.toast(options.lockedMessage ?? t('toast.no_key'));
+        return;
+      }
       const kind = options.sound ?? 'wood';
       ctx.audio.play(
         opening ? (kind === 'metal' ? 'door_metal_open' : 'door_wood_open') : kind === 'metal' ? 'door_metal_close' : 'door_wood_close',
