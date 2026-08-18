@@ -89,6 +89,12 @@ share button renders a 1080×1080 result card on a canvas and hands it to the
 Web Share API as a file, falling back to text share and then to the clipboard
 on browsers that take less.
 
+Every activity also carries a rough duration, and the "how much time have you
+got" row filters the pool to what fits — cumulatively, so an afternoon still
+offers you the twenty-minute things. That one filter is deliberately the only
+piece of state that is neither stored nor shared: it describes the moment, not
+the list.
+
 A list can also travel: the editor turns the whole state into base64url in the
 URL hash, and opening that link offers the list to whoever clicks it — asked
 first if they already have one of their own, undoable if they say yes. Anything

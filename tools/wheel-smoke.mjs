@@ -307,6 +307,91 @@ ok(
 );
 ok('the stale result card is dismissed', await page.locator('#result').isHidden());
 
+console.log('\nhow much time have you got');
+ok('three time buckets', (await page.locator('.time').count()) === 3);
+ok('it starts unfiltered', (await page.evaluate(() => window.__wheel.time())) === 'l');
+const everything = await page.evaluate(() => window.__wheel.pool().length);
+await page.locator('.time').nth(1).click();
+const upToTwo = await page.evaluate(() => window.__wheel.pool().length);
+await page.locator('.time').nth(0).click();
+const upToHalf = await page.evaluate(() => window.__wheel.pool().length);
+ok('the buckets nest rather than partition', upToHalf < upToTwo && upToTwo < everything,
+  `${upToHalf} < ${upToTwo} < ${everything}`);
+ok('the short bucket is still worth spinning', upToHalf >= 20, `${upToHalf} activities`);
+ok('every draw in the short bucket really is short', await page.evaluate(() =>
+  window.__wheel.pool().every((i) => i.len === 's')));
+await spin(page);
+const shortWin = await readPointer(page);
+ok('and a spin respects it', shortWin.winner.len === 's', shortWin.winner.len);
+ok('the note says what it is drawing from',
+  (await page.textContent('#poolNote')).includes('עד חצי שעה'));
+
+/* the time filter is about this moment, not about the list */
+await page.reload({ waitUntil: 'networkidle' });
+ok('the time filter resets on a new visit, unlike everything else',
+  (await page.evaluate(() => window.__wheel.time())) === 'l');
+
+/* leave exactly one long activity switched on, then ask for half an hour:
+ * the list is not empty, the time filter is what emptied the pool */
+await page.evaluate(() => document.querySelectorAll('.chip').forEach((c, i) => { if (i !== 5) c.click(); }));
+await page.click('#editBtn');
+/* the editor lists every category, switched-off ones included, so "move" is
+ * still the sixth group even with the other five off */
+const moveBulk = page.locator('.grp').nth(5).locator('.bulk');
+await moveBulk.click();
+await page.locator('.grp').nth(5).locator('.items .tog').nth(6).click();   /* מדרגות, ארוכה */
+await page.click('#doneBtn');
+ok('one long activity left on', (await page.evaluate(() => window.__wheel.pool().length)) === 1);
+await page.locator('.time').nth(0).click();
+ok('an empty pool blames the time filter when that is the cause',
+  (await page.textContent('#poolNote')).includes('לא נכנסת בזמן'),
+  await page.textContent('#poolNote'));
+ok('and the spin button is disabled rather than spinning an empty wheel',
+  await page.locator('#spinBtn').isDisabled());
+ok('tapping the wheel in that state does nothing either', await (async () => {
+  const before = await page.evaluate(() => window.__wheel.rotation());
+  const box = await page.locator('.stage').boundingBox();
+  await page.mouse.click(box.x + box.width * 0.85, box.y + box.height / 2);
+  await page.waitForTimeout(250);
+  return (await page.evaluate(() => window.__wheel.rotation())) === before;
+})());
+await page.locator('.time').nth(2).click();
+await page.click('#editBtn');
+await moveBulk.click();
+await page.click('#doneBtn');
+await page.evaluate(() => document.querySelectorAll('.chip').forEach((c) => {
+  if (c.getAttribute('aria-pressed') === 'false') c.click();
+}));
+ok('and the pool comes back', (await page.evaluate(() => window.__wheel.pool().length)) === 60);
+
+console.log('\nediting an activity instead of deleting it');
+await page.click('#editBtn');
+await page.fill('#newText', 'פעילות עם שגיאת קלדה');
+await page.selectOption('#newCat', 'prod');
+await page.click('#addForm button[type=submit]');
+await page.fill('#newText', 'פעילות עם שגיאת קלדה');
+await page.click('#addForm button[type=submit]');
+ok('the same activity cannot be added twice',
+  (await page.evaluate(() => window.__wheel.custom().length)) === 1);
+await page.locator('.items .edit').first().click();
+ok('editing loads the activity into the form',
+  (await page.inputValue('#newText')) === 'פעילות עם שגיאת קלדה'
+  && (await page.inputValue('#newCat')) === 'prod');
+await page.fill('#newText', 'פעילות מתוקנת');
+await page.selectOption('#newLen', 's');
+await page.click('#addForm button[type=submit]');
+const edited = await page.evaluate(() => window.__wheel.custom());
+ok('saving edits in place instead of adding a second one', edited.length === 1);
+ok('the text changed', edited[0].text === 'פעילות מתוקנת');
+ok('the duration changed', edited[0].len === 's');
+ok('the id survived, so its on/off state would too', /^c\./.test(edited[0].id));
+ok('the form is back to adding', (await page.textContent('#addBtn')).trim() === 'הוסף');
+await page.locator('.items .edit').first().click();
+await page.click('#cancelEdit');
+ok('cancelling leaves edit mode', await page.locator('#editNote').isHidden());
+await page.locator('.items .del').first().click();
+await page.click('#doneBtn');
+
 console.log('\nundo on the destructive things');
 await page.click('#editBtn');
 await page.fill('#newText', 'פעילות שנמחקת');
@@ -508,6 +593,36 @@ await spin(page);
 const spoken = await page.textContent('#announce');
 const shown = await page.textContent('#rText');
 ok('the live region names the winner', spoken.includes(shown), `"${spoken}"`);
+
+console.log('\nit fits a landscape phone');
+const short = await ctx.newPage();
+await short.setViewportSize({ width: 740, height: 360 });
+await short.goto(url, { waitUntil: 'networkidle' });
+const stageH = await short.evaluate(() => document.querySelector('.stage').getBoundingClientRect().height);
+ok('the wheel shrinks to the height, not just the width', stageH <= 360 * 0.62 + 1, `${Math.round(stageH)}px tall`);
+ok('and the spin button is still on screen', await short.evaluate(() => {
+  const b = document.getElementById('spinBtn').getBoundingClientRect();
+  return b.top >= 0 && b.bottom <= window.innerHeight;
+}));
+ok('with no horizontal overflow', await short.evaluate(() =>
+  document.documentElement.scrollWidth <= window.innerWidth + 1));
+await spin(short);
+const landscape = await readPointer(short);
+ok('and it still lands honestly', landscape.winner.id === landscape.under.id);
+await short.close();
+
+console.log('\nadd to home screen');
+ok('an apple-touch-icon that iOS will actually accept', await page.evaluate(() => {
+  const l = document.querySelector('link[rel="apple-touch-icon"]');
+  return !!l && l.getAttribute('href').startsWith('data:image/png;base64,');
+}));
+ok('a manifest with a name', await page.evaluate(() => {
+  const l = document.querySelector('link[rel="manifest"]');
+  if (!l) return false;
+  const raw = decodeURIComponent(l.getAttribute('href').split(',').slice(1).join(','));
+  const m = JSON.parse(raw);
+  return m.name && m.dir === 'rtl' && m.lang === 'he';
+}));
 
 console.log('\nthe background reaches the bottom of the page');
 const height = await page.evaluate(() => document.documentElement.scrollHeight);
