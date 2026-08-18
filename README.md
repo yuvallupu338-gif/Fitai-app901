@@ -99,9 +99,10 @@ the pointer the same wedge — the third dimension is not allowed anywhere near
 the arithmetic of the landing. It does reach the dragging, though: the screen
 shows an ellipse, so a finger angle is un-squashed by the cosine of the tilt
 before it turns the wheel, and the suite sweeps a real ninety degrees and
-checks ninety degrees came out. The confetti got a Z axis too, projected
-through the same focal length, so near pieces are big and fast and far ones
-small and faint, each one flipping about its own axis.
+checks ninety degrees came out. The celebration is thin paper ribbons drifting down past the wheel rather than
+a burst out of its middle — a burst covers exactly the thing the reader came
+to read — each one projected through the same focal length and flipping about
+its long axis, so it narrows and widens as it falls.
 
 The carnival dressing is honest too. The ratchet ticks are not on a timer:
 a frame loop reads the wheel's real angle out of its transform matrix and

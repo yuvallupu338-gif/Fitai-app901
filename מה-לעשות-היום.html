@@ -199,6 +199,9 @@ h1{
 
 .bezel{
   position:absolute; inset:0; border-radius:50%;
+  /* קישוט בלבד. במרחב תלת-ממדי הוא והגלגל חולקים את אותו מישור, והדפדפן
+     בחר דווקא בו כשמישהו נגע בפנים הגלגל — כלומר הקשה על הגלגל הפסיקה לעבוד. */
+  pointer-events:none;
   background:conic-gradient(from 0deg,#FFC63C,#FF6B9D,#6C8CFF,#2FC4A5,#FFC63C);
   padding:10px;
   box-shadow:
@@ -244,14 +247,15 @@ h1{
 /* גל הדף רגעי סביב הגלגל ברגע הנחיתה */
 .shock{
   position:absolute; top:50%; left:50%; width:100%; aspect-ratio:1;
-  transform:translate(-50%,-50%) translateZ(8px) scale(.28);
-  border-radius:50%; border:3px solid rgba(255,255,255,.85);
+  transform:translate(-50%,-50%) translateZ(8px) scale(1);
+  border-radius:50%; border:2px solid rgba(255,255,255,.5);
   opacity:0; pointer-events:none; z-index:6;
 }
-.stage.won .shock{ animation:shock .72s cubic-bezier(.2,.7,.3,1) 1; }
+/* הילה רכה על השפה, לא טבעת שמתפוצצת החוצה */
+.stage.won .shock{ animation:shock .9s ease-out 1; }
 @keyframes shock{
-  0%  { opacity:.95; transform:translate(-50%,-50%) translateZ(8px) scale(.3); border-width:5px; }
-  100%{ opacity:0;   transform:translate(-50%,-50%) translateZ(8px) scale(1.5); border-width:1px; }
+  0%  { opacity:.5; transform:translate(-50%,-50%) translateZ(8px) scale(.97); }
+  100%{ opacity:0;  transform:translate(-50%,-50%) translateZ(8px) scale(1.09); }
 }
 
 /* מחוג — מרחף מעל שפת הגלגל, לא שוכב עליה */
@@ -557,10 +561,10 @@ dialog::backdrop{ background:rgba(12,4,32,.7); backdrop-filter:blur(3px); }
   animation-delay:calc(var(--i) * .37s);
 }
 .stage.spinning .led{ animation:ledchase .55s linear infinite; animation-delay:calc(var(--i) * -0.023s); }
-.stage.won .led{ animation:ledwin .3s ease-in-out 6; }
+.stage.won .led{ animation:ledwin .38s ease-in-out 3; }
 @keyframes ledtwinkle{ 0%,100%{ opacity:.3 } 50%{ opacity:.9 } }
 @keyframes ledchase{ 0%{ opacity:.12 } 12%{ opacity:1 } 45%{ opacity:.12 } 100%{ opacity:.12 } }
-@keyframes ledwin{ 0%,100%{ opacity:.25 } 50%{ opacity:1 } }
+@keyframes ledwin{ 0%,100%{ opacity:.35 } 50%{ opacity:.95 } }
 
 /* ---------- השתקה ---------- */
 
@@ -1631,37 +1635,33 @@ dialog{ color-scheme:light; }
     fx.style.display = 'block';
     ctx.setTransform(dpr, 0, 0, dpr, 0, 0);
 
-    var box = rotor.getBoundingClientRect();
-    var ox = box.left + box.width / 2;
-    var oy = box.top + box.height / 2;
-
-    /* קונפטי במרחב: לכל פתית יש גם עומק, והוא מוקרן דרך אותה מרחקיות
-       שהסצנה משתמשת בה — מה שקרוב גדול ומהיר, מה שרחוק קטן וחיוור. */
-    var FOCAL = 620;
+    /* סרטי נייר דקים שיורדים מלמעלה ומתנדנדים. הפיצוץ ממרכז הגלגל כיסה
+       בדיוק את מה שבאו לקרוא, וגם נראה זול. */
+    var FOCAL = 900;
     var parts = [];
-    var count = 150;
+    var count = 110;
     for (var i = 0; i < count; i++) {
-      var ang = rand() * Math.PI * 2;
-      var pitch = (rand() - 0.5) * 1.1;
-      var speed = 4 + rand() * 11;
       parts.push({
-        x: ox, y: oy, z: (rand() - 0.5) * 60,
-        vx: Math.cos(ang) * speed * Math.cos(pitch),
-        vy: Math.sin(ang) * speed - 5,
-        vz: Math.sin(pitch) * speed * 1.4,
-        size: 6 + rand() * 8,
+        x: rand() * w,
+        y: -12 - rand() * h * 0.45,
+        z: (rand() - 0.5) * 300,
+        drift: (rand() - 0.5) * 0.5,
+        fall: 3.2 + rand() * 3.0,
+        sway: 0.4 + rand() * 1.0,
+        phase: rand() * Math.PI * 2,
+        pw: 3.5 + rand() * 3.5,
+        ph: 9 + rand() * 7,
         rot: rand() * Math.PI * 2,
-        vr: (rand() - 0.5) * 0.35,
+        vr: (rand() - 0.5) * 0.05,
         spin: rand() * Math.PI * 2,
-        vspin: (rand() - 0.5) * 0.5,     /* התהפכות סביב הציר שלו */
-        color: PALETTE[randInt(PALETTE.length)],
-        round: rand() < 0.3
+        vspin: (rand() - 0.5) * 0.13,    /* התהפכות סביב הציר הארוך */
+        color: PALETTE[randInt(PALETTE.length)]
       });
     }
     /* הרחוקים נצבעים ראשונים כדי שהקרובים יכסו אותם */
-    parts.sort(function (a, b) { return a.z - b.z; });
+    parts.sort(function (a, b) { return b.z - a.z; });
 
-    var DURATION = 2300;
+    var DURATION = 2800;
     var start = null;
 
     function frame(ts) {
@@ -1676,38 +1676,29 @@ dialog{ color-scheme:light; }
       ctx.clearRect(0, 0, w, h);
       var alpha = t > DURATION - 600 ? Math.max(0, (DURATION - t) / 600) : 1;
 
+      /* אף שם מקומי כאן לא חוזר על w או h: var מטפס לראש הפונקציה, ומשתנה
+         בשם w בתוך הלולאה האפיל על רוחב החלון שב-clearRect למעלה — כלומר
+         הקנבס לא נוקה אף פעם וכל הפריימים הצטברו למרחה אחת. */
       for (var i = 0; i < parts.length; i++) {
         var p = parts[i];
-        p.vy += 0.32;          /* כבידה */
-        p.vx *= 0.992;
-        p.vz *= 0.992;
-        p.x += p.vx;
-        p.y += p.vy;
-        p.z += p.vz;
+        p.fall += 0.02;                               /* כבידה קלה מאוד */
+        p.y += p.fall;
+        p.x += p.drift + Math.sin(t / 620 + p.phase) * p.sway * 0.5;
         p.rot += p.vr;
         p.spin += p.vspin;
+        if (p.y - 40 > h) continue;
 
-        if (p.z <= -FOCAL + 24) continue;             /* חלף מאחורי המצלמה */
-        var k = FOCAL / (FOCAL + p.z);                /* הקרנה פרספקטיבית */
-        var sx = ox + (p.x - ox) * k;
-        var sy = oy + (p.y - oy) * k;
-        var size = p.size * k;
-        if (size < 0.6) continue;
+        var k = Math.max(0.7, Math.min(1.35, FOCAL / (FOCAL + p.z)));
+        var pw = p.pw * k, ph = p.ph * k;
 
         ctx.save();
-        ctx.translate(sx, sy);
+        ctx.translate(p.x, p.y);
         ctx.rotate(p.rot);
-        ctx.globalAlpha = alpha * Math.max(0.25, Math.min(1, k));
+        ctx.globalAlpha = alpha * (0.4 + 0.45 * (k - 0.7) / 0.65);
         ctx.fillStyle = p.color;
-        if (p.round) {
-          ctx.beginPath();
-          ctx.arc(0, 0, size / 2, 0, Math.PI * 2);
-          ctx.fill();
-        } else {
-          /* רוחב הפתית מתכווץ לפי ההתהפכות שלו — נראה כמו נייר שמסתובב */
-          var w = size * Math.abs(Math.cos(p.spin));
-          ctx.fillRect(-w / 2, -size / 3, Math.max(0.7, w), size * 0.66);
-        }
+        /* הרוחב מתכווץ לפי ההתהפכות — נראה כמו סרט נייר שמסתובב */
+        var flat = pw * Math.abs(Math.cos(p.spin));
+        ctx.fillRect(-flat / 2, -ph / 2, Math.max(0.6, flat), ph);
         ctx.restore();
       }
       fxRaf = requestAnimationFrame(frame);
@@ -2557,8 +2548,11 @@ dialog{ color-scheme:light; }
 
   var FLICK_WINDOW = 120;            /* מודדים תנופה על החלון האחרון בלבד */
 
-  rotor.addEventListener('pointerdown', function (e) {
+  /* התופס הוא כל הבמה ולא הדיסק עצמו: הפרלקסה מזיזה את הדיסק כמה פיקסלים
+     בין תזוזת הסמן ללחיצה, ואז הלחיצה נחתה ליד הגלגל במקום עליו. */
+  stageEl.addEventListener('pointerdown', function (e) {
     if (spinning || spinBtn.disabled || e.button > 0) return;
+    if (e.target && e.target.closest && e.target.closest('.hub')) return;   /* לציר יש כפתור משלו */
     drag = {
       last: pointerAngle(e),
       moved: 0,
@@ -2566,10 +2560,10 @@ dialog{ color-scheme:light; }
       samples: [{ p: 0, t: e.timeStamp }]
     };
     rotor.style.transition = 'none';
-    try { rotor.setPointerCapture(e.pointerId); } catch (err) {}
+    try { stageEl.setPointerCapture(e.pointerId); } catch (err) {}
   });
 
-  rotor.addEventListener('pointermove', function (e) {
+  stageEl.addEventListener('pointermove', function (e) {
     if (!drag) return;
     var a = pointerAngle(e);
     var step = ((a - drag.last + 540) % 360) - 180;    /* הקצר משני הכיוונים */
@@ -2600,7 +2594,7 @@ dialog{ color-scheme:light; }
     if (!drag) return;
     var d = drag;
     drag = null;
-    try { rotor.releasePointerCapture(e.pointerId); } catch (err) {}
+    try { stageEl.releasePointerCapture(e.pointerId); } catch (err) {}
     if (spinBtn.disabled || spinning) return;
 
     if (d.moved <= DEAD) { spin(null); return; }        /* הקשה */
@@ -2616,8 +2610,8 @@ dialog{ color-scheme:light; }
     spin(null, Math.min(1.8, 0.75 + Math.abs(vel) * 0.9), vel < 0 ? -1 : 1);
   }
 
-  rotor.addEventListener('pointerup', endDrag);
-  rotor.addEventListener('pointercancel', endDrag);
+  stageEl.addEventListener('pointerup', endDrag);
+  stageEl.addEventListener('pointercancel', endDrag);
 
   document.getElementById('editBtn').addEventListener('click', openEditor);
   document.getElementById('closeEd').addEventListener('click', closeEditor);
@@ -2689,7 +2683,7 @@ dialog{ color-scheme:light; }
       if (e.pointerType === 'touch' || drag) return;
       var nx = (e.clientX / window.innerWidth) * 2 - 1;
       var ny = (e.clientY / window.innerHeight) * 2 - 1;
-      sway = Math.max(-7, Math.min(7, nx * 7));
+      sway = Math.max(-5, Math.min(5, nx * 5));
       tilt = TILT + Math.max(-5, Math.min(5, ny * 5));
       queue();
     }, { passive: true });

@@ -713,11 +713,32 @@ try {
 }
 await settled(page);
 ok('space spins the wheel', spaceSpins);
-await page.waitForTimeout(2800);
+await page.waitForTimeout(3400);
 ok(
   'the confetti canvas takes itself back down',
   (await page.evaluate(() => getComputedStyle(document.getElementById('fx')).display)) === 'none',
 );
+
+/* A local `var w` inside the draw loop once hoisted over the viewport width
+ * that clearRect uses, so the canvas was never cleared and every frame piled
+ * up into one smear. Sample coverage twice mid-celebration: a smear only ever
+ * grows, drifting paper stays in the same band. */
+ok('the celebration clears its canvas between frames', await (async () => {
+  await page.click('#spinBtn');
+  await settled(page);
+  await page.waitForTimeout(500);
+  const ink = () => page.evaluate(() => {
+    const c = document.getElementById('fx');
+    const d = c.getContext('2d').getImageData(0, 0, c.width, c.height).data;
+    let n = 0;
+    for (let i = 3; i < d.length; i += 4 * 97) if (d[i] > 8) n++;
+    return n;
+  });
+  const a = await ink();
+  await page.waitForTimeout(420);
+  const b = await ink();
+  return b <= a * 1.6 + 12;
+})());
 
 console.log('\nfocus survives a toggle');
 await page.locator('.chip').nth(2).focus();
