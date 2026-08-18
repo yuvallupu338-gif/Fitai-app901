@@ -77,6 +77,10 @@ function bookCard() {
 /* -------------------------------------------------------------------- mount */
 
 export function mountSite() {
+  /* The booking flow mounts first: the price list below hands work to it, so
+   * its handle has to exist before those cards are built. */
+  const booking = mountBooking(qs('#bookingCard'))
+
   /* --- hero --- */
   qs('#brandMark').append(icon('scissors', { size: 20 }))
   qs('#heroBlurb').textContent = BUSINESS.blurb
@@ -101,6 +105,18 @@ export function mountSite() {
         el('div', { className: 'service__meta' }, [
           el('span', { className: 'service__price', textContent: `₪${s.price}` }),
           el('span', { className: 'service__duration' }, [icon('clock', { size: 15 }), `${s.durationMin} דק׳`]),
+          el(
+            'button',
+            {
+              type: 'button',
+              className: 'service__cta',
+              // Named per service: six buttons all called "book" tell a screen
+              // reader running through them nothing about which is which.
+              'aria-label': `לקבוע תור ל${s.name}`,
+              onclick: () => booking.selectService(s.id),
+            },
+            ['לקבוע תור', icon('arrow', { size: 15 })],
+          ),
         ]),
       ]),
     ),
@@ -123,7 +139,6 @@ export function mountSite() {
 
   /* --- interactive --- */
   mountGallery(qs('#galleryGrid'))
-  mountBooking(qs('#bookingCard'))
   observeReveals()
 
   /* One observer on a sentinel beats a scroll listener: the header solidifies

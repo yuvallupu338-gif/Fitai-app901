@@ -55,6 +55,24 @@ export function mountBooking(root) {
     root.scrollIntoView({ block: 'nearest', behavior: 'smooth' })
   }
 
+  /**
+   * Picks a service and moves on to the day. Both the buttons in step 1 and the
+   * cards in the price list up the page call this — one copy, so the two entry
+   * points cannot drift apart on the next change.
+   */
+  function selectService(id) {
+    // Changing the service can invalidate a time already picked, and a service
+    // chosen from the price list while the confirmation is showing means the
+    // visitor is booking again rather than re-reading the last one.
+    if (state.serviceId !== id) state.time = null
+    state.serviceId = id
+    state.booking = null
+    go(1)
+    // Arriving from the price list, focus is left far up the page. Move it to
+    // the destination — preventScroll, or it would fight go()'s smooth scroll.
+    root.querySelector('.day:not([disabled])')?.focus({ preventScroll: true })
+  }
+
   /* ------------------------------------------------------------- step bar */
 
   function stepBar() {
@@ -94,12 +112,7 @@ export function mountBooking(root) {
               type: 'button',
               className: 'pick',
               'aria-pressed': String(state.serviceId === s.id),
-              onclick: () => {
-                // Changing the service can invalidate a time already picked.
-                if (state.serviceId !== s.id) state.time = null
-                state.serviceId = s.id
-                go(1)
-              },
+              onclick: () => selectService(s.id),
             },
             [
               el('span', { className: 'pick__name', textContent: s.name }),
@@ -480,6 +493,9 @@ export function mountBooking(root) {
         'הדפדפן חוסם שמירה מקומית, אז תור שתזמין כאן יישמר רק עד סגירת הלשונית. אחרי האישור כדאי לשלוח את ההודעה בוואטסאפ.'
     }
   }
+
+  // The price list drives the flow through this, rather than reaching into it.
+  return { selectService }
 }
 
 /* ---------------------------------------------------------------- calendar */

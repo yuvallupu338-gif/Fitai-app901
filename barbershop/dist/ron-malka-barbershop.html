@@ -12,7 +12,7 @@
      policy can name no host at all — connect-src 'none' means a scripting bug
      here has nowhere to send anything. There is no inline script and no inline
      style, so neither 'unsafe-inline' nor a nonce is required. -->
-<meta http-equiv="Content-Security-Policy" content="default-src 'none'; script-src 'sha256-eW2AmtwAxSObySAdjyYCL0rxiaiUDIvRehOAq52Lxi8='; style-src 'sha256-SokvqYcc//twn7nPCVb8cBc6K/Lq3Z0OrWH2bHNpF+k='; img-src data:; font-src data:; connect-src 'none'; media-src 'none'; frame-src 'none'; worker-src 'none'; object-src 'none'; base-uri 'none'; form-action 'none'">
+<meta http-equiv="Content-Security-Policy" content="default-src 'none'; script-src 'sha256-k5kmamRkcnoDgfpHG8hZZ3coPVRyv6Z/DANkNUj5u9Q='; style-src 'sha256-uWdokD893R9ODdcexpNOdoI0sGvNPr8nr4k+txmYwwk='; img-src data:; font-src data:; connect-src 'none'; media-src 'none'; frame-src 'none'; worker-src 'none'; object-src 'none'; base-uri 'none'; form-action 'none'">
 
 <link rel="icon" href="data:image/svg+xml,<svg xmlns='http://www.w3.org/2000/svg' viewBox='0 0 32 32'><rect width='32' height='32' rx='8' fill='%230B0B0D'/><path d='M10 8l12 16M10 24L22 8' stroke='%23C9A24A' stroke-width='2.2' stroke-linecap='round'/><circle cx='9.5' cy='9.5' r='2.6' fill='none' stroke='%23C9A24A' stroke-width='2'/><circle cx='9.5' cy='22.5' r='2.6' fill='none' stroke='%23C9A24A' stroke-width='2'/></svg>">
 
@@ -1039,8 +1039,12 @@ a:hover {
   grid-template-columns: repeat(auto-fit, minmax(min(100%, 20rem), 1fr));
 }
 
+/* The whole card is the hit target — see .service__cta below, which stretches
+ * itself over it. The card only *looked* clickable before, which is a promise
+ * a visitor tries to collect. */
 .service {
   position: relative;
+  cursor: pointer;
   display: flex;
   flex-direction: column;
   gap: var(--s-2);
@@ -1054,10 +1058,23 @@ a:hover {
     transform var(--dur) var(--ease);
 }
 
-.service:hover {
+.service:hover,
+.service:focus-within {
   border-color: var(--gold-line);
   background: var(--ink-700);
   transform: translateY(-3px);
+}
+
+/* The focus ring belongs on the card, not the button: the real focus target is
+ * the stretched ::after, and an outline on that would trace the whole card
+ * anyway — this way it follows the card's own rounding. */
+.service:has(.service__cta:focus-visible) {
+  outline: 2px solid var(--gold-bright);
+  outline-offset: 3px;
+}
+
+.service__cta:focus-visible {
+  outline: none;
 }
 
 .service--featured {
@@ -1101,7 +1118,8 @@ a:hover {
 .service__meta {
   display: flex;
   align-items: center;
-  gap: var(--s-4);
+  flex-wrap: wrap;
+  gap: var(--s-3) var(--s-4);
   margin-block-start: var(--s-3);
   padding-block-start: var(--s-3);
   border-block-start: 1px dashed var(--line);
@@ -1121,7 +1139,49 @@ a:hover {
   gap: var(--s-2);
   color: var(--faint);
   font-size: var(--step--1);
+}
+
+.service__cta {
+  display: inline-flex;
+  align-items: center;
+  gap: var(--s-2);
   margin-inline-start: auto;
+  padding: 0.35em 0.9em;
+  border: 1px solid var(--gold-line);
+  border-radius: var(--radius-pill);
+  background: transparent;
+  color: var(--gold);
+  font-size: var(--step--1);
+  font-weight: 700;
+  white-space: nowrap;
+  transition:
+    background var(--dur) var(--ease),
+    color var(--dur) var(--ease);
+}
+
+/* Stretched over the card, so a tap anywhere on it books. .service is already
+ * positioned, and nothing else inside the card is interactive, so there is
+ * nothing for this to cover up. */
+.service__cta::after {
+  content: '';
+  position: absolute;
+  inset: 0;
+  border-radius: inherit;
+}
+
+.service:hover .service__cta,
+.service:focus-within .service__cta {
+  background: var(--gold);
+  color: var(--on-gold);
+}
+
+.service__cta svg {
+  transition: transform var(--dur) var(--ease);
+}
+
+/* The arrow points along the reading direction, so in RTL it travels start-ward. */
+.service:hover .service__cta svg {
+  transform: translateX(-3px);
 }
 
 /* ----------------------------------------------------------------- gallery */
@@ -3977,6 +4037,24 @@ function mountBooking(root) {
     root.scrollIntoView({ block: 'nearest', behavior: 'smooth' })
   }
 
+  /**
+   * Picks a service and moves on to the day. Both the buttons in step 1 and the
+   * cards in the price list up the page call this — one copy, so the two entry
+   * points cannot drift apart on the next change.
+   */
+  function selectService(id) {
+    // Changing the service can invalidate a time already picked, and a service
+    // chosen from the price list while the confirmation is showing means the
+    // visitor is booking again rather than re-reading the last one.
+    if (state.serviceId !== id) state.time = null
+    state.serviceId = id
+    state.booking = null
+    go(1)
+    // Arriving from the price list, focus is left far up the page. Move it to
+    // the destination — preventScroll, or it would fight go()'s smooth scroll.
+    root.querySelector('.day:not([disabled])')?.focus({ preventScroll: true })
+  }
+
   /* ------------------------------------------------------------- step bar */
 
   function stepBar() {
@@ -4016,12 +4094,7 @@ function mountBooking(root) {
               type: 'button',
               className: 'pick',
               'aria-pressed': String(state.serviceId === s.id),
-              onclick: () => {
-                // Changing the service can invalidate a time already picked.
-                if (state.serviceId !== s.id) state.time = null
-                state.serviceId = s.id
-                go(1)
-              },
+              onclick: () => selectService(s.id),
             },
             [
               el('span', { className: 'pick__name', textContent: s.name }),
@@ -4402,6 +4475,9 @@ function mountBooking(root) {
         'הדפדפן חוסם שמירה מקומית, אז תור שתזמין כאן יישמר רק עד סגירת הלשונית. אחרי האישור כדאי לשלוח את ההודעה בוואטסאפ.'
     }
   }
+
+  // The price list drives the flow through this, rather than reaching into it.
+  return { selectService }
 }
 
 /* ---------------------------------------------------------------- calendar */
@@ -4588,6 +4664,10 @@ function bookCard() {
 /* -------------------------------------------------------------------- mount */
 
 function mountSite() {
+  /* The booking flow mounts first: the price list below hands work to it, so
+   * its handle has to exist before those cards are built. */
+  const booking = mountBooking(qs('#bookingCard'))
+
   /* --- hero --- */
   qs('#brandMark').append(icon('scissors', { size: 20 }))
   qs('#heroBlurb').textContent = BUSINESS.blurb
@@ -4612,6 +4692,18 @@ function mountSite() {
         el('div', { className: 'service__meta' }, [
           el('span', { className: 'service__price', textContent: `₪${s.price}` }),
           el('span', { className: 'service__duration' }, [icon('clock', { size: 15 }), `${s.durationMin} דק׳`]),
+          el(
+            'button',
+            {
+              type: 'button',
+              className: 'service__cta',
+              // Named per service: six buttons all called "book" tell a screen
+              // reader running through them nothing about which is which.
+              'aria-label': `לקבוע תור ל${s.name}`,
+              onclick: () => booking.selectService(s.id),
+            },
+            ['לקבוע תור', icon('arrow', { size: 15 })],
+          ),
         ]),
       ]),
     ),
@@ -4634,7 +4726,6 @@ function mountSite() {
 
   /* --- interactive --- */
   mountGallery(qs('#galleryGrid'))
-  mountBooking(qs('#bookingCard'))
   observeReveals()
 
   /* One observer on a sentinel beats a scroll listener: the header solidifies
