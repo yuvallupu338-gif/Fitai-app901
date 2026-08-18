@@ -381,7 +381,10 @@ export function buildApartment03(fc: FloorBuildContext): void {
   table(fc.builder, 'apt03_hall_table', 12.1, -2.6, 0.8, 0.45, 0.74);
   table(fc.builder, 'apt03_living_table', 13.4, -7.4, 1.1, 0.6, 0.5);
   cabinet(fc.builder, 'apt03_sofa', [14.4, 0.35, -6.0], [0.85, 0.7, 1.9], 'fabric');
-  cabinet(fc.builder, 'apt03_counter', [17.4, 0.45, -8.9], [3.6, 0.9, 0.6], 'wood');
+  // Along the east wall, not across the room. At [17.4, -8.9] this counter was
+  // 3.6m of worktop lying broadside in front of the service doorway, sealing the
+  // service room off completely — and entering that room is what ends chapter 3.
+  cabinet(fc.builder, 'apt03_counter', [19.05, 0.45, -8.75], [0.6, 0.9, 1.4], 'wood');
   cabinet(fc.builder, 'apt03_fridge', [19.0, 0.85, -7.4], [0.7, 1.7, 0.7], 'metal');
   cabinet(fc.builder, 'apt03_bed', [17.6, 0.28, -3.0], [1.6, 0.55, 2.0], 'fabric');
 

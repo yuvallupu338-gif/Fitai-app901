@@ -273,63 +273,95 @@ async function main() {
       ? pass('no wall decoration is buried in solid geometry')
       : fail('buried decorations', `${buried.length}: ${buried.slice(0, 4).join(', ')}`);
 
-    // --- Every doorway is walkable ----------------------------------------
-    // Furniture is placed by hand in room coordinates, so nothing stops a
-    // wardrobe being written into the middle of a doorway — and it is only
-    // noticed by someone who happens to walk that way.
-    const doorways = await run(() => {
+    // --- Every room can actually be walked to --------------------------------
+    // Furniture is placed by hand in room coordinates, so nothing stops a piece
+    // being written across a doorway — and it is only noticed by someone who
+    // happens to walk that way. Rather than enumerate doorways and hope the list
+    // stays complete, flood-fill the walkable floor from the lift at the
+    // player's own radius and demand that every room comes out connected.
+    const unreachable = await run(() => {
       const g = window.__floorZero;
       const collision = g.world.collision;
-      // Everything that is supposed to be openable, opened: a shut leaf and the
-      // sealed alcove are meant to block, and neither is what this is looking
-      // for. Prior states are remembered so the level is handed back intact.
+      // Everything meant to be openable, opened. The alcove seal, the control
+      // cover and the shutter are supposed to block, and are not what this is for.
       const wasOpen = g.world.current.doors.all.map((door) => [door, door.open]);
       for (const [door] of wasOpen) door.forceState(true);
-      collision.setSolid('alcove_seal', false);
-      collision.setSolid('control_cover', false);
-      collision.setSolid('shutter_col', false);
+      for (const id of ['alcove_seal', 'control_cover', 'shutter_col']) collision.setSolid(id, false);
 
       const RADIUS = 0.3;
-      const openings = [
-        { id: 'apt01', at: -1.4, x: 4.3, into: -1 },
-        { id: 'alcove', at: -1.4, x: 8.9, into: -1 },
-        { id: 'apt03', at: -1.4, x: 13.3, into: -1 },
-        { id: 'control', at: -1.4, x: 22.5, into: -1 },
-        { id: 'apt02', at: 1.4, x: 8.3, into: 1 },
-        { id: 'apt04a', at: 1.4, x: 18.0, into: 1 },
-        { id: 'apt04b', at: 1.4, x: 20.6, into: 1 },
-      ];
-      const blocked = [];
-      for (const o of openings) {
-        for (const step of [-0.5, 0, 0.5, 1.0, 1.5]) {
-          const z = o.at + o.into * step;
-          if (!collision.overlaps(o.x, z, RADIUS, 0.05, 1.7)) continue;
-          const by = collision.all
-            .filter(
-              (b) =>
-                b.solid &&
-                o.x > b.minX - RADIUS && o.x < b.maxX + RADIUS &&
-                z > b.minZ - RADIUS && z < b.maxZ + RADIUS &&
-                b.minY < 1.7 && b.maxY > 0.05,
-            )
-            .map((b) => b.id);
-          blocked.push(`${o.id} by ${by.join('/') || '?'}`);
-          break;
+      const STEP = 0.1;
+      const b = { minX: -2, maxX: 28, minZ: -13, maxZ: 13.5 };
+      const cols = Math.ceil((b.maxX - b.minX) / STEP);
+      const rows = Math.ceil((b.maxZ - b.minZ) / STEP);
+      const free = new Uint8Array(cols * rows);
+      for (let i = 0; i < cols; i++) {
+        for (let j = 0; j < rows; j++) {
+          free[i * rows + j] = collision.overlaps(b.minX + i * STEP, b.minZ + j * STEP, RADIUS, 0.05, 1.7) ? 0 : 1;
         }
       }
 
-      // Put the level back the way it was found: the shutter puzzle is tested
-      // later in this same run and needs its collider, and the lift doors have
-      // to stay as the arrival left them.
+      const seen = new Uint8Array(cols * rows);
+      const start = Math.round((1.4 - b.minX) / STEP) * rows + Math.round((0 - b.minZ) / STEP);
+      const stack = [start];
+      seen[start] = 1;
+      while (stack.length) {
+        const cell = stack.pop();
+        const i = Math.floor(cell / rows);
+        const j = cell % rows;
+        for (const [di, dj] of [[1, 0], [-1, 0], [0, 1], [0, -1]]) {
+          const ni = i + di;
+          const nj = j + dj;
+          if (ni < 0 || nj < 0 || ni >= cols || nj >= rows) continue;
+          const n = ni * rows + nj;
+          if (seen[n] || !free[n]) continue;
+          seen[n] = 1;
+          stack.push(n);
+        }
+      }
+
+      const stranded = [];
+      for (const room of g.world.current.rooms) {
+        let freeCells = 0;
+        let reached = 0;
+        let sample = null;
+        for (let i = 0; i < cols; i++) {
+          for (let j = 0; j < rows; j++) {
+            const x = b.minX + i * STEP;
+            const z = b.minZ + j * STEP;
+            if (x < room.minX || x > room.maxX || z < room.minZ || z > room.maxZ) continue;
+            const cell = i * rows + j;
+            if (!free[cell]) continue;
+            freeCells++;
+            if (seen[cell]) reached++;
+            else if (!sample) sample = [+x.toFixed(1), +z.toFixed(1)];
+          }
+        }
+        // Some floor is expected to be tucked behind furniture; a room that is
+        // mostly cut off is a room the player cannot use.
+        if (freeCells > 0 && reached / freeCells < 0.9) {
+          const near = sample
+            ? collision.all
+                .filter(
+                  (k) =>
+                    k.solid &&
+                    sample[0] > k.minX - 1.2 && sample[0] < k.maxX + 1.2 &&
+                    sample[1] > k.minZ - 1.2 && sample[1] < k.maxZ + 1.2 &&
+                    k.minY < 1.7 && k.maxY > 0.05,
+                )
+                .map((k) => k.id)
+            : [];
+          stranded.push(`${room.id} ${Math.round((reached / freeCells) * 100)}% (near ${near.slice(0, 3).join('/')})`);
+        }
+      }
+
+      // Hand the level back exactly as it was found.
       for (const [door, open] of wasOpen) door.forceState(open);
-      collision.setSolid('alcove_seal', true);
-      collision.setSolid('control_cover', true);
-      collision.setSolid('shutter_col', true);
-      return blocked;
+      for (const id of ['alcove_seal', 'control_cover', 'shutter_col']) collision.setSolid(id, true);
+      return stranded;
     });
-    doorways.length === 0
-      ? pass('every doorway can be walked through')
-      : fail('blocked doorways', doorways.slice(0, 3).join(', '));
+    unreachable.length === 0
+      ? pass('every room can be walked to from the lift')
+      : fail('unreachable rooms', unreachable.slice(0, 3).join(', '));
 
     // --- Chapter 1: find the fuse, restore the floor --------------------
     await run(() => {
@@ -675,6 +707,59 @@ async function main() {
     // it means turning to yaw +PI/2.
     const AWAY = -Math.PI / 2;
     const TOWARD = Math.PI / 2;
+
+    // --- The torch points where the player looks --------------------------------
+    // Aim alone is not enough: a lamp mounted off the view axis but fired
+    // parallel to it puts the pool off-centre by atan(offset / distance), which
+    // is invisible across a corridor and glaring up against a wall. Only a lamp
+    // sitting on the axis is centred at every distance.
+    const torchAim = await run(
+      async ([away, toward]) => {
+        const g = window.__floorZero;
+        const frames = (n) =>
+          new Promise((resolve) => {
+            let left = n;
+            const tick = () => (left-- > 0 ? requestAnimationFrame(tick) : resolve());
+            requestAnimationFrame(tick);
+          });
+        g.player.setFlashlight(true, g);
+        let worstAim = 0;
+        let worstOffset = 0;
+        for (const yaw of [away, toward, 0, 2.2]) {
+          g.player.teleport(12, 0, yaw);
+          await frames(4);
+          const cam = g.camera;
+          const light = g.player.flashlight;
+          // Read the matrices the renderer just used; forcing an update here
+          // would hide a target that never gets refreshed.
+          const lp = light.matrixWorld.elements;
+          const tp = light.target.matrixWorld.elements;
+          const dir = { x: tp[12] - lp[12], y: tp[13] - lp[13], z: tp[14] - lp[14] };
+          const len = Math.hypot(dir.x, dir.y, dir.z) || 1;
+          dir.x /= len; dir.y /= len; dir.z /= len;
+          const e = cam.matrixWorld.elements;
+          const fwd = { x: -e[8], y: -e[9], z: -e[10] };
+          const dot = Math.max(-1, Math.min(1, dir.x * fwd.x + dir.y * fwd.y + dir.z * fwd.z));
+          worstAim = Math.max(worstAim, (Math.acos(dot) * 180) / Math.PI);
+
+          const off = { x: lp[12] - cam.position.x, y: lp[13] - cam.position.y, z: lp[14] - cam.position.z };
+          const along = off.x * fwd.x + off.y * fwd.y + off.z * fwd.z;
+          worstOffset = Math.max(
+            worstOffset,
+            Math.hypot(off.x - fwd.x * along, off.y - fwd.y * along, off.z - fwd.z * along),
+          );
+        }
+        g.player.setFlashlight(false, g);
+        return { worstAim, worstOffset };
+      },
+      [AWAY, TOWARD],
+    );
+    torchAim.worstAim < 0.5
+      ? pass('the torch fires along the line of sight', `${torchAim.worstAim.toFixed(2)}deg`)
+      : fail('torch aim', `${torchAim.worstAim.toFixed(2)}deg off`);
+    torchAim.worstOffset < 0.01
+      ? pass('and sits on the view axis, so the pool is centred at any range')
+      : fail('torch parallax', `mounted ${torchAim.worstOffset.toFixed(3)}m off axis`);
 
     // --- It arrives at your shoulder without a sound ---------------------------
     const behind = await run(

@@ -46,8 +46,15 @@ export class PlayerController {
     this.flashlight.visible = false;
     camera.add(this.flashlight);
     camera.add(this.flashlight.target);
-    this.flashlight.position.set(0.12, -0.1, 0);
-    this.flashlight.target.position.set(0.12, -0.1, -1);
+    // Boresighted: the lamp sits on the view axis and fires straight down it.
+    // It used to hang 0.12m to the right and 0.1m below, firing parallel — so
+    // the beam ran alongside the line of sight instead of along it, and the
+    // pool landed off-axis by atan(0.12 / distance). Harmless across a corridor,
+    // 5 degrees at arm's length from a wall and far worse closer, which reads as
+    // a torch that simply is not pointed where you are looking. Any mounting
+    // offset has that problem at some distance; only zero has it at none.
+    this.flashlight.position.set(0, 0, 0);
+    this.flashlight.target.position.set(0, 0, -1);
     scene.add(camera);
   }
 
