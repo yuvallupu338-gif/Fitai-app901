@@ -307,6 +307,100 @@ ok(
 );
 ok('the stale result card is dismissed', await page.locator('#result').isHidden());
 
+console.log('\nundo on the destructive things');
+await page.click('#editBtn');
+await page.fill('#newText', 'פעילות שנמחקת');
+await page.click('#addForm button[type=submit]');
+const beforeDelete = await page.evaluate(() => window.__wheel.custom().length);
+await page.locator('.items .del').first().click();
+ok('deleting removes it', (await page.evaluate(() => window.__wheel.custom().length)) === beforeDelete - 1);
+ok('and offers an undo', await page.locator('#toastUndo').isVisible());
+ok('the undo is reachable above the modal editor, not painted under it',
+  await page.evaluate(() => {
+    const b = document.getElementById('toastUndo').getBoundingClientRect();
+    const hit = document.elementFromPoint(b.left + b.width / 2, b.top + b.height / 2);
+    return !!hit && hit.id === 'toastUndo';
+  }));
+await page.click('#toastUndo');
+ok('which brings it back', await page.evaluate(() =>
+  window.__wheel.custom().some((c) => c.text === 'פעילות שנמחקת')));
+await page.click('#doneBtn');
+
+await page.locator('.chip').nth(1).click();
+await page.click('#resetBtn');
+ok('reset offers an undo too', await page.locator('#toastUndo').isVisible());
+await page.click('#toastUndo');
+ok('undoing reset restores the custom activity', await page.evaluate(() =>
+  window.__wheel.custom().some((c) => c.text === 'פעילות שנמחקת')));
+ok('and restores the switched-off category',
+  (await page.locator('.chip').nth(1).getAttribute('aria-pressed')) === 'false');
+
+console.log('\nthe list travels as a link');
+const link = await page.evaluate(() => window.__wheel.link());
+ok('the link carries the state in its hash', /#l=[A-Za-z0-9\-_]+$/.test(link), link.slice(0, 80) + '…');
+const guest = await ctx.newPage();
+const guestNoise = [];
+guest.on('pageerror', (e) => guestNoise.push(e.message));
+await guest.goto(link, { waitUntil: 'networkidle' });
+ok('a fresh visitor gets the shared list', await guest.evaluate(() =>
+  window.__wheel.custom().some((c) => c.text === 'פעילות שנמחקת')));
+ok('including the switched-off category',
+  (await guest.locator('.chip').nth(1).getAttribute('aria-pressed')) === 'false');
+ok('and the hash is cleaned up so a refresh does not re-ask',
+  !(await guest.evaluate(() => location.hash)));
+ok('with nothing thrown', guestNoise.length === 0, guestNoise.join(' | '));
+
+/* hostile payloads only ever reach the page through textContent, but the
+ * caps still have to hold: over-long text, unknown category, junk emoji */
+const nasty = await page.evaluate(() => {
+  const payload = {
+    custom: [
+      { text: '<img src=x onerror=alert(1)>'.repeat(6), cat: 'nope', emoji: '💣💣💣💣💣💣' },
+      { text: '   ', cat: 'food' },
+    ],
+    catsOff: ['nope'],
+    disabled: [123],
+  };
+  const bin = new TextEncoder().encode(JSON.stringify(payload));
+  let str = '';
+  bin.forEach((b) => { str += String.fromCharCode(b); });
+  return location.href.split('#')[0] + '#l=' + btoa(str).replace(/\+/g, '-').replace(/\//g, '_').replace(/=+$/, '');
+});
+const hostile = await ctx.newPage();
+const hostileNoise = [];
+hostile.on('pageerror', (e) => hostileNoise.push(e.message));
+hostile.on('dialog', (d) => d.accept());
+await hostile.goto(nasty, { waitUntil: 'networkidle' });
+const taken = await hostile.evaluate(() => window.__wheel.custom());
+ok('a junk link cannot inject markup', await hostile.evaluate(() => !document.querySelector('img')));
+ok('over-long text is cut to the cap', taken.every((c) => c.text.length <= 46), JSON.stringify(taken[0] || {}));
+ok('an unknown category falls back to a real one', taken.every((c) => c.cat === 'out'));
+ok('a runaway emoji is cut to four', taken.every((c) => c.emoji.length <= 4));
+ok('a blank activity is dropped', taken.length === 1);
+ok('and nothing threw', hostileNoise.length === 0, hostileNoise.join(' | '));
+await hostile.close();
+await guest.close();
+await page.click('#resetBtn');
+
+console.log('\nfinding things in a long list');
+await page.click('#editBtn');
+await page.fill('#edSearch', 'פיצה');
+ok('search narrows to the matches', (await page.locator('.items li').count()) === 1);
+ok('and hides the categories with nothing in them', (await page.locator('.grp').count()) === 1);
+await page.fill('#edSearch', 'זזזזז');
+ok('a search with no hits says so', await page.locator('.no-results').isVisible());
+await page.fill('#edSearch', '');
+ok('clearing it brings everything back', (await page.locator('.items li').count()) === 60);
+
+const firstBulk = page.locator('.grp').first().locator('.bulk');
+await firstBulk.click();
+ok('one tap clears a whole category',
+  (await page.evaluate(() => window.__wheel.pool().length)) === 50);
+await firstBulk.click();
+ok('and one tap brings it all back',
+  (await page.evaluate(() => window.__wheel.pool().length)) === 60);
+await page.click('#doneBtn');
+
 console.log('\ncarnival details');
 ok('twenty-four bulbs around the bezel', (await page.locator('.led').count()) === 24);
 await page.click('#spinBtn');

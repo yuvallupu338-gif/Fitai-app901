@@ -311,6 +311,23 @@ dialog::backdrop{ background:rgba(12,4,32,.7); backdrop-filter:blur(3px); }
 }
 .emoji-picks button:hover{ background:rgba(36,21,54,.14); }
 
+.search{
+  position:relative; margin-bottom:14px;
+}
+.search input{
+  font:inherit; font-size:15px; color:var(--ink); width:100%;
+  border:1.5px solid var(--line); border-radius:12px; padding:11px 38px 11px 12px;
+  background:#fff;
+}
+.search input:focus{ outline:none; border-color:#6C8CFF; }
+.search::before{
+  content:"🔎"; position:absolute; top:50%; right:12px; transform:translateY(-50%);
+  font-size:14px; opacity:.5; pointer-events:none;
+}
+.no-results{
+  text-align:center; color:var(--muted); font-size:14.5px; padding:26px 10px;
+}
+
 .grp{ margin-bottom:14px; }
 .grp-head{
   display:flex; align-items:center; gap:9px;
@@ -318,6 +335,11 @@ dialog::backdrop{ background:rgba(12,4,32,.7); backdrop-filter:blur(3px); }
 }
 .grp-head h3{ margin:0; font-size:15.5px; font-weight:800; flex:1; }
 .grp-head .count{ font-size:12px; color:var(--muted); font-weight:600; }
+.grp-head .bulk{
+  border:none; background:rgba(36,21,54,.07); color:var(--muted);
+  border-radius:8px; padding:5px 9px; font-size:11.5px; font-weight:700; cursor:pointer; flex:none;
+}
+.grp-head .bulk:hover{ background:rgba(36,21,54,.15); color:var(--ink); }
 .grp.off .items{ opacity:.42; }
 
 .switch{
@@ -361,7 +383,10 @@ dialog::backdrop{ background:rgba(12,4,32,.7); backdrop-filter:blur(3px); }
   flex:none; padding:12px 16px calc(14px + env(safe-area-inset-bottom));
   border-top:1px solid var(--line); display:flex; gap:9px;
 }
-.dlg-foot .btn{ flex:1; }
+.dlg-foot{ flex-wrap:wrap; }
+.dlg-foot .btn{ flex:1; min-width:120px; }
+.btn-link{ background:rgba(108,140,255,.12); color:#4f46e5; }
+.btn-link:hover{ background:rgba(108,140,255,.22); }
 .btn-danger{ background:rgba(225,29,72,.1); color:#be123c; }
 .btn-danger:hover{ background:rgba(225,29,72,.18); }
 
@@ -374,13 +399,22 @@ dialog::backdrop{ background:rgba(12,4,32,.7); backdrop-filter:blur(3px); }
 
 #toast{
   position:fixed; bottom:22px; left:50%; transform:translate(-50%,20px);
-  background:rgba(20,10,40,.94); color:#fff; padding:11px 18px; border-radius:999px;
+  background:rgba(20,10,40,.94); color:#fff; padding:9px 10px 9px 18px; border-radius:999px;
   font-size:14px; font-weight:600; z-index:70; opacity:0; pointer-events:none;
   transition:opacity .25s ease, transform .25s ease;
-  box-shadow:0 10px 30px rgba(0,0,0,.4);
-  max-width:88vw; text-align:center;
+  box-shadow:0 10px 30px rgba(0,0,0,.45);
+  max-width:92vw;
+  display:flex; align-items:center; gap:10px;
 }
 #toast.show{ opacity:1; transform:translate(-50%,0); }
+#toast.has-undo{ pointer-events:auto; }
+#toastText{ flex:1; text-align:center; }
+#toastUndo{
+  border:none; background:var(--accent); color:#3a2205; cursor:pointer;
+  border-radius:999px; padding:7px 15px; font-size:13.5px; font-weight:800; flex:none;
+}
+#toastUndo:hover{ filter:brightness(1.07); }
+#toastUndo[hidden]{ display:none; }
 
 .noscript{
   background:#fff; color:var(--ink); border-radius:16px; padding:16px;
@@ -543,17 +577,25 @@ dialog{ color-scheme:light; }
         </div>
       </form>
 
+      <div class="search">
+        <input id="edSearch" type="search" placeholder="חיפוש בפעילויות…" aria-label="חיפוש בפעילויות" autocomplete="off">
+      </div>
+
       <div id="edGroups"></div>
     </div>
 
     <div class="dlg-foot">
+      <button class="btn btn-link" id="shareListBtn" type="button">🔗 שיתוף הרשימה</button>
       <button class="btn btn-danger" id="resetBtn2" type="button">↺ איפוס הכול</button>
       <button class="btn btn-primary" id="doneBtn" type="button">סיימתי</button>
     </div>
   </div>
 </dialog>
 
-<div id="toast" role="status" aria-live="polite"></div>
+<div id="toast" role="status" aria-live="polite">
+  <span id="toastText"></span>
+  <button id="toastUndo" type="button" hidden>בטל</button>
+</div>
 <script>
 (function () {
   'use strict';
@@ -686,56 +728,76 @@ dialog{ color-scheme:light; }
     try { window.localStorage.removeItem(STORE_KEY); } catch (e) {}
   }
 
+  function catIdSet() {
+    var m = {};
+    CATS.forEach(function (c) { m[c.id] = true; });
+    return m;
+  }
+
+  /* כל פעילות שמגיעה מבחוץ — מהאחסון או מקישור משותף — עוברת דרך כאן.
+     טקסט נכנס ל-DOM רק דרך textContent, אז הסינון כאן הוא על גודל ושפיות. */
+  function sanitizeCustom(list) {
+    if (!Array.isArray(list)) return [];
+    var catIds = catIdSet();
+    var known = {};
+    DEFAULTS.forEach(function (d) { known[d.id] = true; });
+
+    var out = [];
+    list.slice(0, MAX_CUSTOM).forEach(function (it) {
+      if (!it || typeof it.text !== 'string') return;
+      var text = it.text.trim().replace(/\s+/g, ' ').slice(0, 46);
+      if (!text) return;
+      var id = (typeof it.id === 'string' && it.id.indexOf('c.') === 0 && !known[it.id]) ? it.id : newId();
+      known[id] = true;
+      out.push({
+        id: id,
+        cat: catIds[it.cat] ? it.cat : CATS[0].id,
+        emoji: (typeof it.emoji === 'string' && it.emoji.trim()) ? it.emoji.trim().slice(0, 4) : '✨',
+        text: text,
+        custom: true
+      });
+    });
+    return out;
+  }
+
+  function adopt(data) {
+    var catIds = catIdSet();
+    var next = { disabled: {}, catsOff: {}, custom: [], soundOff: state.soundOff };
+
+    if (Array.isArray(data.disabled)) {
+      data.disabled.forEach(function (id) { if (typeof id === 'string') next.disabled[id] = true; });
+    }
+    if (Array.isArray(data.catsOff)) {
+      data.catsOff.forEach(function (id) { if (catIds[id]) next.catsOff[id] = true; });
+    }
+    if (typeof data.soundOff === 'boolean') next.soundOff = data.soundOff;
+    next.custom = sanitizeCustom(data.custom);
+    state = next;
+  }
+
   function load() {
     var raw = storageGet();
     if (!raw) return;
     var data;
     try { data = JSON.parse(raw); } catch (e) { return; }
     if (!data || typeof data !== 'object') return;
-
-    var known = {};
-    DEFAULTS.forEach(function (d) { known[d.id] = true; });
-    var catIds = {};
-    CATS.forEach(function (c) { catIds[c.id] = true; });
-
-    if (Array.isArray(data.disabled)) {
-      data.disabled.forEach(function (id) { if (typeof id === 'string') state.disabled[id] = true; });
-    }
-    if (Array.isArray(data.catsOff)) {
-      data.catsOff.forEach(function (id) { if (catIds[id]) state.catsOff[id] = true; });
-    }
-    state.soundOff = data.soundOff === true;
-    if (Array.isArray(data.custom)) {
-      data.custom.slice(0, MAX_CUSTOM).forEach(function (it) {
-        if (!it || typeof it.text !== 'string') return;
-        var text = it.text.trim().slice(0, 46);
-        if (!text) return;
-        var cat = catIds[it.cat] ? it.cat : CATS[0].id;
-        var id = (typeof it.id === 'string' && it.id.indexOf('c.') === 0 && !known[it.id]) ? it.id : newId();
-        known[id] = true;
-        state.custom.push({
-          id: id,
-          cat: cat,
-          emoji: (typeof it.emoji === 'string' && it.emoji.trim()) ? it.emoji.trim().slice(0, 4) : '✨',
-          text: text,
-          custom: true
-        });
-      });
-    }
-    /* כל קטגוריה שהופעלה מחדש לא יכולה להישאר מכובה בטעות */
-    Object.keys(state.catsOff).forEach(function (id) { if (!catIds[id]) delete state.catsOff[id]; });
+    adopt(data);
   }
 
-  function save() {
-    var payload = {
-      v: 1,
+  function snapshot() {
+    return {
       disabled: Object.keys(state.disabled),
       catsOff: Object.keys(state.catsOff),
-      soundOff: !!state.soundOff,
+      soundOff: state.soundOff,
       custom: state.custom.map(function (it) {
         return { id: it.id, cat: it.cat, emoji: it.emoji, text: it.text };
       })
     };
+  }
+
+  function save() {
+    var payload = snapshot();
+    payload.v = 1;
     if (!storageSet(JSON.stringify(payload))) {
       toast('לא הצלחנו לשמור — הדפדפן חוסם אחסון מקומי');
     }
@@ -971,7 +1033,8 @@ dialog{ color-scheme:light; }
     resultEl.hidden = true;
     announce.textContent = '';
 
-    rotor.style.transition = 'transform ' + dur + 'ms cubic-bezier(.16,.72,.13,1)';
+    rotor.style.transition = 'transform ' + dur + 'ms cubic-bezier('
+      + EASE[0] + ',' + EASE[1] + ',' + EASE[2] + ',' + EASE[3] + ')';
     /* מאלצים חישוב סגנון כדי שהמעבר יתחיל מהמצב הנוכחי */
     void rotor.offsetWidth;
     rotor.style.transform = 'rotate(' + rotation + 'deg)';
@@ -979,7 +1042,7 @@ dialog{ color-scheme:light; }
     ac();                                   /* מחוות המשתמש מעירות את האודיו */
     stageEl.classList.remove('won');
     stageEl.classList.add('spinning');
-    startTicker(n, fromRot);
+    startTicker(n, fromRot, rotation - fromRot, dur);
 
     var winner = cands[winIdx];
     var done = false;
@@ -1094,45 +1157,47 @@ dialog{ color-scheme:light; }
   var stageEl = document.querySelector('.stage');
   var tickRaf = null;
 
+  var EASE = [0.16, 0.72, 0.13, 1];        /* אותו עיקום כמו ב-CSS למטה */
+
+  /* מחשבים את מיקום הגלגל מהעיקום עצמו במקום לקרוא אותו חזרה מה-DOM:
+     קריאת getComputedStyle בכל פריים מכריחה חישוב סגנון מחדש ומקרטעת
+     דווקא במכשירים החלשים, וכאן ממילא ידועים ההתחלה, הסוף והעיקום. */
+  function easeAt(x) {
+    var x1 = EASE[0], y1 = EASE[1], x2 = EASE[2], y2 = EASE[3];
+    function cx(a) { var b = 1 - a; return 3 * x1 * a * b * b + 3 * x2 * a * a * b + a * a * a; }
+    function cy(a) { var b = 1 - a; return 3 * y1 * a * b * b + 3 * y2 * a * a * b + a * a * a; }
+    var lo = 0, hi = 1, mid = 0;
+    for (var i = 0; i < 22; i++) {
+      mid = (lo + hi) / 2;
+      if (cx(mid) < x) lo = mid; else hi = mid;
+    }
+    return cy((lo + hi) / 2);
+  }
+
   function stopTicker() {
     if (tickRaf) { cancelAnimationFrame(tickRaf); tickRaf = null; }
   }
 
-  function startTicker(n, fromRot) {
+  function startTicker(n, fromRot, travel, dur) {
     stopTicker();
-    if (!n) return;
+    if (!n || travel <= 0) return;
     var seg = 360 / n;
-    var prev = null;
-    var acc = ((fromRot % 360) + 360) % 360;
-    var lastAt = 0;
+    var acc0 = ((fromRot % 360) + 360) % 360;
+    var lastCount = Math.floor(acc0 / seg);
+    var start = null;
 
     function frame(ts) {
-      var tr = getComputedStyle(rotor).transform, ang = null;
-      if (tr && tr !== 'none') {
-        var m = tr.match(/matrix\(([^)]+)\)/);
-        if (m) {
-          var v = m[1].split(',');
-          ang = Math.atan2(parseFloat(v[1]), parseFloat(v[0])) * 180 / Math.PI;
-        }
+      if (start === null) start = ts;
+      var p = Math.min(1, (ts - start) / dur);
+      var count = Math.floor((acc0 + travel * easeAt(p)) / seg);
+      if (count > lastCount) {              /* לכל היותר נקישה אחת לפריים */
+        lastCount = count;
+        tickSound();
+        pinEl.classList.remove('kick');
+        void pinEl.offsetWidth;
+        pinEl.classList.add('kick');
       }
-      if (ang !== null) {
-        if (prev !== null) {
-          var d = ((ang - prev) % 360 + 360) % 360;
-          if (d < 180) {                         /* הגלגל נע קדימה בלבד */
-            var before = Math.floor(acc / seg);
-            acc += d;
-            if (Math.floor(acc / seg) > before && ts - lastAt > 40) {
-              lastAt = ts;
-              tickSound();
-              pinEl.classList.remove('kick');
-              void pinEl.offsetWidth;
-              pinEl.classList.add('kick');
-            }
-          }
-        }
-        prev = ang;
-      }
-      tickRaf = spinning ? requestAnimationFrame(frame) : null;
+      tickRaf = (p < 1 && spinning) ? requestAnimationFrame(frame) : null;
     }
     tickRaf = requestAnimationFrame(frame);
   }
@@ -1222,14 +1287,34 @@ dialog{ color-scheme:light; }
    * 8. טוסט
    * ================================================================ */
 
-  var toastEl = document.getElementById('toast');
+  var toastEl   = document.getElementById('toast');
+  var toastText = document.getElementById('toastText');
+  var toastBtn  = document.getElementById('toastUndo');
   var toastTimer = null;
-  function toast(msg) {
-    toastEl.textContent = msg;
+  var undoFn = null;
+
+  function hideToast() {
+    toastEl.classList.remove('show', 'has-undo');
+    toastBtn.hidden = true;
+    undoFn = null;
+  }
+
+  /* onUndo אופציונלי — כל פעולה הרסנית מקבלת דרך חזרה */
+  function toast(msg, onUndo) {
+    toastText.textContent = msg;
+    undoFn = onUndo || null;
+    toastBtn.hidden = !undoFn;
+    toastEl.classList.toggle('has-undo', !!undoFn);
     toastEl.classList.add('show');
     if (toastTimer) clearTimeout(toastTimer);
-    toastTimer = setTimeout(function () { toastEl.classList.remove('show'); }, 2600);
+    toastTimer = setTimeout(hideToast, undoFn ? 7000 : 2600);
   }
+
+  toastBtn.addEventListener('click', function () {
+    var fn = undoFn;
+    hideToast();
+    if (fn) fn();
+  });
 
   /* ================================================================
    * 9. שיתוף
@@ -1394,6 +1479,92 @@ dialog{ color-scheme:light; }
   }
 
   /* ================================================================
+   * 9ב. הרשימה כקישור — base64url של המצב, בתוך ה-hash
+   * ================================================================ */
+
+  function toB64Url(str) {
+    var bytes = new TextEncoder().encode(str);
+    var bin = '';
+    for (var i = 0; i < bytes.length; i++) bin += String.fromCharCode(bytes[i]);
+    return btoa(bin).replace(/\+/g, '-').replace(/\//g, '_').replace(/=+$/, '');
+  }
+
+  function fromB64Url(str) {
+    var b = str.replace(/-/g, '+').replace(/_/g, '/');
+    while (b.length % 4) b += '=';
+    var bin = atob(b);
+    var bytes = new Uint8Array(bin.length);
+    for (var i = 0; i < bin.length; i++) bytes[i] = bin.charCodeAt(i);
+    return new TextDecoder().decode(bytes);
+  }
+
+  function listLink() {
+    var payload = snapshot();
+    delete payload.soundOff;                 /* העדפת הצליל היא של המכשיר, לא של הרשימה */
+    var base = location.href.split('#')[0];
+    return base + '#l=' + toB64Url(JSON.stringify(payload));
+  }
+
+  function shareList() {
+    var link;
+    try { link = listLink(); } catch (e) { toast('לא הצלחנו לבנות קישור'); return; }
+    if (link.length > 6000) toast('הקישור ארוך — יש אפליקציות שיקצצו אותו');
+    var text = 'הנה רשימת הפעילויות שלי ל"מה לעשות היום":\n' + link;
+    if (navigator.share) {
+      var pr;
+      try { pr = navigator.share({ title: 'מה לעשות היום', text: text }); } catch (e) { pr = null; }
+      if (pr && typeof pr.then === 'function') {
+        pr.catch(function (err) {
+          if (err && err.name === 'AbortError') return;
+          copyFallback(link);
+        });
+        return;
+      }
+    }
+    copyFallback(link);
+  }
+
+  /* קישור שהגיע מבחוץ מוצע, לא נכפה — מי שכבר בנה רשימה נשאל קודם */
+  function readSharedLink() {
+    var m = /(?:^|[#&])l=([A-Za-z0-9\-_]+)/.exec(location.hash || '');
+    if (!m) return false;
+
+    var stripHash = function () {
+      try { history.replaceState(null, '', location.href.split('#')[0]); }
+      catch (e) { location.hash = ''; }
+    };
+
+    var data;
+    try { data = JSON.parse(fromB64Url(m[1])); } catch (e) { data = null; }
+    if (!data || typeof data !== 'object') { stripHash(); return false; }
+
+    var mine = storageGet();
+    if (mine && !window.confirm('מישהו שיתף איתכם רשימת פעילויות. להחליף את הרשימה שלכם?')) {
+      stripHash();
+      return false;
+    }
+
+    var before = mine;
+    adopt(data);
+    save();
+    stripHash();
+    setTimeout(function () {
+      toast('נטענה רשימה משותפת ✨', before ? function () {
+        var old;
+        try { old = JSON.parse(before); } catch (e) { old = null; }
+        if (!old) return;
+        adopt(old);
+        save();
+        renderChips();
+        refreshPool();
+        if (editorOpen()) renderEditor();
+        toast('חזרנו לרשימה שלכם');
+      } : null);
+    }, 60);
+    return true;
+  }
+
+  /* ================================================================
    * 10. שבבי קטגוריות + שורת המצב
    * ================================================================ */
 
@@ -1486,22 +1657,39 @@ dialog{ color-scheme:light; }
   var newEmoji  = document.getElementById('newEmoji');
   var newCat    = document.getElementById('newCat');
   var picksEl   = document.getElementById('emojiPicks');
+  var edSearch  = document.getElementById('edSearch');
+  var query     = '';
 
   function editorOpen() { return dlg.hasAttribute('open'); }
 
+  /* דיאלוג מודאלי יושב ב-top layer, מעל כל z-index שהוא. הטוסט צויר מתחתיו,
+     כלומר כפתור "בטל" של מחיקה — שקורית דווקא בתוך העורך — לא היה לחיץ.
+     מעבירים את הטוסט פנימה כל עוד העורך פתוח, וחזרה החוצה בסגירה. */
+  function moveToast(intoDialog) {
+    var host = intoDialog ? dlg : document.body;
+    if (toastEl.parentNode !== host) host.appendChild(toastEl);
+  }
+
   function openEditor() {
+    query = '';
+    edSearch.value = '';
     renderEditor();
     if (typeof dlg.showModal === 'function') {
       if (!dlg.open) dlg.showModal();
     } else {
       dlg.setAttribute('open', '');      /* דפדפנים ישנים בלי <dialog> */
     }
+    moveToast(true);
     newText.focus();
   }
   function closeEditor() {
     if (typeof dlg.close === 'function' && dlg.open) dlg.close();
     else dlg.removeAttribute('open');
+    moveToast(false);
   }
+
+  /* Esc סוגר את הדיאלוג בלי לעבור דרך closeEditor */
+  dlg.addEventListener('close', function () { moveToast(false); });
 
   function fillCatSelect() {
     newCat.textContent = '';
@@ -1550,9 +1738,16 @@ dialog{ color-scheme:light; }
   function renderEditor() {
     edGroups.textContent = '';
     catSwitches = {};
+    var q = query.trim().toLowerCase();
+    var shown = 0;
 
     CATS.forEach(function (c) {
-      var items = itemsOfCat(c.id);
+      var all = itemsOfCat(c.id);
+      var items = q
+        ? all.filter(function (it) { return it.text.toLowerCase().indexOf(q) >= 0; })
+        : all;
+      if (q && !items.length) return;
+      shown += items.length;
       var catOn = !state.catsOff[c.id];
       var activeCount = items.filter(function (it) { return !state.disabled[it.id]; }).length;
 
@@ -1576,11 +1771,30 @@ dialog{ color-scheme:light; }
 
       var cnt = document.createElement('span');
       cnt.className = 'count';
-      cnt.textContent = activeCount + '/' + items.length;
+      cnt.textContent = liveCount(c.id) + '/' + all.length;
+
+      /* עשר לחיצות כדי לכבות קטגוריה שלמה זה יותר מדי */
+      var bulk = document.createElement('button');
+      bulk.type = 'button';
+      bulk.className = 'bulk';
+      var allOn = all.every(function (it) { return !state.disabled[it.id]; });
+      bulk.textContent = allOn ? 'נקה' : 'הכול';
+      bulk.setAttribute('aria-label',
+        (allOn ? 'כיבוי כל הפעילויות בקטגוריית ' : 'הפעלת כל הפעילויות בקטגוריית ') + c.name);
+      bulk.addEventListener('click', function () {
+        all.forEach(function (it) {
+          if (allOn) state.disabled[it.id] = true;
+          else delete state.disabled[it.id];
+        });
+        save();
+        renderEditor();
+        refreshPool();
+      });
 
       head.appendChild(sw);
       head.appendChild(h3);
       head.appendChild(cnt);
+      head.appendChild(bulk);
       grp.appendChild(head);
 
       var ul = document.createElement('ul');
@@ -1632,6 +1846,10 @@ dialog{ color-scheme:light; }
           del.textContent = '🗑';
           del.setAttribute('aria-label', 'מחיקת הפעילות ' + it.text);
           del.addEventListener('click', function () {
+            var at = state.custom.findIndex
+              ? state.custom.findIndex(function (x) { return x.id === it.id; })
+              : -1;
+            var wasOff = !!state.disabled[it.id];
             state.custom = state.custom.filter(function (x) { return x.id !== it.id; });
             delete state.disabled[it.id];
             save();
@@ -1641,7 +1859,14 @@ dialog{ color-scheme:light; }
             if (next) { var b = next.querySelector('.del') || next.querySelector('.tog'); if (b) b.focus(); }
             else sw.focus();
             refreshPool();
-            toast('נמחק');
+            toast('"' + it.text + '" נמחקה', function () {
+              state.custom.splice(at < 0 ? state.custom.length : at, 0, it);
+              if (wasOff) state.disabled[it.id] = true;
+              save();
+              if (editorOpen()) renderEditor();
+              syncChips();
+              refreshPool();
+            });
           });
           li.appendChild(del);
         }
@@ -1652,6 +1877,13 @@ dialog{ color-scheme:light; }
       grp.appendChild(ul);
       edGroups.appendChild(grp);
     });
+
+    if (q && !shown) {
+      var none = document.createElement('p');
+      none.className = 'no-results';
+      none.textContent = 'לא נמצאה פעילות עם "' + query.trim() + '"';
+      edGroups.appendChild(none);
+    }
   }
 
   function addCustom(e) {
@@ -1678,6 +1910,7 @@ dialog{ color-scheme:light; }
 
   function resetAll() {
     if (!window.confirm('לאפס את הרשימה לברירת המחדל? כל הפעילויות שהוספתם יימחקו.')) return;
+    var before = snapshot();
     storageDel();
     state = { disabled: {}, catsOff: {}, custom: [], soundOff: false };
     syncMute();
@@ -1687,7 +1920,15 @@ dialog{ color-scheme:light; }
     renderChips();
     refreshPool();
     if (editorOpen()) renderEditor();
-    toast('הרשימה אופסה ↺');
+    toast('הרשימה אופסה ↺', function () {
+      adopt(before);
+      save();
+      syncMute();
+      renderChips();
+      refreshPool();
+      if (editorOpen()) renderEditor();
+      toast('הרשימה שוחזרה');
+    });
   }
 
   /* ================================================================
@@ -1724,6 +1965,12 @@ dialog{ color-scheme:light; }
   document.getElementById('doneBtn').addEventListener('click', closeEditor);
   document.getElementById('resetBtn').addEventListener('click', resetAll);
   document.getElementById('resetBtn2').addEventListener('click', resetAll);
+  document.getElementById('shareListBtn').addEventListener('click', shareList);
+
+  edSearch.addEventListener('input', function () {
+    query = edSearch.value;
+    renderEditor();
+  });
   addForm.addEventListener('submit', addCustom);
 
   /* רווח או Enter על הגלגל עצמו — נוח במקלדת */
@@ -1750,6 +1997,7 @@ dialog{ color-scheme:light; }
    * ================================================================ */
 
   load();
+  readSharedLink();
 
   (function initLeds() {
     var box = document.getElementById('leds');
@@ -1777,7 +2025,9 @@ dialog{ color-scheme:light; }
     spinning: function () { return spinning; },
     card: function () {
       return buildCardCanvas(lastWinner || DEFAULTS[0]).toDataURL('image/png');
-    }
+    },
+    link: listLink,
+    custom: function () { return state.custom.slice(); }
   };
 
 })();

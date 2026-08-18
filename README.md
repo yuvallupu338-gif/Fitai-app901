@@ -89,6 +89,12 @@ share button renders a 1080×1080 result card on a canvas and hands it to the
 Web Share API as a file, falling back to text share and then to the clipboard
 on browsers that take less.
 
+A list can also travel: the editor turns the whole state into base64url in the
+URL hash, and opening that link offers the list to whoever clicks it — asked
+first if they already have one of their own, undoable if they say yes. Anything
+arriving that way goes through the same sanitiser the stored state does, so a
+hostile link is only ever text with a length cap on it.
+
 It keeps its own localStorage key (`mah-laasot-hayom.v1`) and touches nothing
 else on the origin.
 
