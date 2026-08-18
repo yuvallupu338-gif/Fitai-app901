@@ -529,6 +529,59 @@ ok('and one tap brings it all back',
   (await page.evaluate(() => window.__wheel.pool().length)) === TOTAL);
 await page.click('#doneBtn');
 
+console.log('\nthe wheel has a third dimension');
+ok('the stage is a perspective scene', await page.evaluate(() =>
+  getComputedStyle(document.querySelector('.stage')).perspective !== 'none'));
+ok('the wheel is tilted back, and the tilt is a real 3D matrix', await page.evaluate(() => {
+  const t = getComputedStyle(document.getElementById('scene')).transform;
+  return t.startsWith('matrix3d(');
+}));
+ok('depth layers stack behind it', (await page.locator('.depth i').count()) === 9);
+ok('the hub and the pin stand off the disc', await page.evaluate(() => {
+  const z = (sel) => {
+    const m = getComputedStyle(document.querySelector(sel)).transform;
+    const v = m.startsWith('matrix3d(') ? m.slice(9, -1).split(',').map(Number) : null;
+    return v ? v[14] : 0;
+  };
+  return z('.hub') > 10 && z('.pin') > z('.hub');
+}));
+ok('the scene keeps 3D rather than flattening', await page.evaluate(() =>
+  getComputedStyle(document.getElementById('scene')).transformStyle === 'preserve-3d'));
+
+/* the tilt squashes the circle into an ellipse on screen, which is exactly
+ * the thing that would make dragging feel wrong if it were not corrected */
+ok('the wheel really is foreshortened on screen', await page.evaluate(() => {
+  const b = document.getElementById('rotor').getBoundingClientRect();
+  return b.height < b.width - 4;
+}), await page.evaluate(() => {
+  const b = document.getElementById('rotor').getBoundingClientRect();
+  return `${Math.round(b.width)}x${Math.round(b.height)}`;
+}));
+
+/* dragging along the squashed axis must still move the wheel by the angle the
+ * finger swept, not the angle the flat projection suggests */
+const tiltDeg = await page.evaluate(() => window.__wheel.tilt());
+const sBox = await page.locator('.stage').boundingBox();
+const scx = sBox.x + sBox.width / 2;
+const scy = sBox.y + sBox.height / 2;
+const rr = sBox.width * 0.36;
+const squash = Math.cos((tiltDeg * Math.PI) / 180);
+const before3d = await page.evaluate(() => window.__wheel.rotation());
+await page.mouse.move(scx + rr, scy);
+await page.mouse.down();
+/* sweep a true 90 degrees on the disc, drawn as the ellipse the screen shows */
+for (let a = 0; a <= 90; a += 6) {
+  const r = (a * Math.PI) / 180;
+  await page.mouse.move(scx + rr * Math.cos(r), scy + rr * Math.sin(r) * squash);
+  await page.waitForTimeout(12);
+}
+const swept = Math.abs((await page.evaluate(() => window.__wheel.rotation())) - before3d);
+await page.mouse.up();
+await page.waitForTimeout(300);
+try { await settled(page); } catch {}
+ok('a 90 degree sweep of the finger turns the wheel 90 degrees', Math.abs(swept - 90) < 8,
+  `turned ${swept.toFixed(1)}deg`);
+
 console.log('\ncarnival details');
 ok('twenty-four bulbs around the bezel', (await page.locator('.led').count()) === 24);
 await page.click('#spinBtn');
@@ -585,12 +638,14 @@ const cy = stageBox.y + stageBox.height / 2;
 const rim = stageBox.width * 0.38;
 const atAngle = (deg) => [cx + rim * Math.cos((deg * Math.PI) / 180), cy + rim * Math.sin((deg * Math.PI) / 180)];
 
+/* Playwright delivers roughly one move every 70ms, so the steps have to be
+ * big for this to be a flick rather than a slow drag — 20 degrees a move is
+ * about 0.3 deg/ms, comfortably over the 0.15 the app asks for. */
 const beforeDrag = await page.evaluate(() => window.__wheel.rotation());
 await page.mouse.move(...atAngle(-90));
 await page.mouse.down();
-for (let a = -90; a <= 10; a += 10) {
+for (let a = -90; a <= 50; a += 20) {
   await page.mouse.move(...atAngle(a));
-  await page.waitForTimeout(8);
 }
 const midDrag = await page.evaluate(() => window.__wheel.rotation());
 ok('the wheel follows the finger while held', Math.abs(midDrag - beforeDrag) > 60,

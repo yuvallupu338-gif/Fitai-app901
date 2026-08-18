@@ -176,6 +176,25 @@ h1{
   width:var(--stage); height:var(--stage);
   flex:none;
   margin-top:2px;
+  /* הסצנה. הטיה סביב X בלבד, כך שמישור הגלגל נשאר מישור והפלח שמתחת
+     למחוג נשאר בדיוק אותו פלח — התלת-ממד לא נוגע במתמטיקה של הנחיתה. */
+  perspective:1100px;
+  perspective-origin:50% 42%;
+}
+
+.scene{
+  position:absolute; inset:0;
+  transform-style:preserve-3d;
+  transform:rotateX(var(--tilt,16deg)) rotateY(var(--sway,0deg));
+  transition:transform .5s cubic-bezier(.2,.7,.3,1);
+}
+.stage.spinning .scene{ transition:transform .9s ease-out; }
+
+/* דופן הגלילה: כמה דיסקים אחורה בציר Z, כל אחד כהה מקודמו */
+.depth{ position:absolute; inset:0; transform-style:preserve-3d; pointer-events:none; }
+.depth i{
+  position:absolute; inset:0; display:block; border-radius:50%;
+  background:#2a1650;
 }
 
 .bezel{
@@ -190,7 +209,7 @@ h1{
 
 .rotor{
   position:absolute; inset:10px; border-radius:50%;
-  cursor:pointer;
+  cursor:pointer; touch-action:none;
   will-change:transform;
   transform:rotate(0deg);
   background:#fff;          /* מציץ מבעד לפלחים שהועמעמו — מבהיר ולא מלכלך */
@@ -225,19 +244,20 @@ h1{
 /* גל הדף רגעי סביב הגלגל ברגע הנחיתה */
 .shock{
   position:absolute; top:50%; left:50%; width:100%; aspect-ratio:1;
-  transform:translate(-50%,-50%) scale(.28);
+  transform:translate(-50%,-50%) translateZ(8px) scale(.28);
   border-radius:50%; border:3px solid rgba(255,255,255,.85);
   opacity:0; pointer-events:none; z-index:6;
 }
 .stage.won .shock{ animation:shock .72s cubic-bezier(.2,.7,.3,1) 1; }
 @keyframes shock{
-  0%  { opacity:.95; transform:translate(-50%,-50%) scale(.3); border-width:5px; }
-  100%{ opacity:0;   transform:translate(-50%,-50%) scale(1.5); border-width:1px; }
+  0%  { opacity:.95; transform:translate(-50%,-50%) translateZ(8px) scale(.3); border-width:5px; }
+  100%{ opacity:0;   transform:translate(-50%,-50%) translateZ(8px) scale(1.5); border-width:1px; }
 }
 
-/* מחוג */
+/* מחוג — מרחף מעל שפת הגלגל, לא שוכב עליה */
 .pin{
-  position:absolute; top:-8px; left:50%; transform:translateX(-50%);
+  position:absolute; top:-8px; left:50%;
+  transform:translateX(-50%) translateZ(46px);
   width:36px; height:50px; z-index:5;
   filter:drop-shadow(0 5px 7px rgba(0,0,0,.5));
   pointer-events:none;
@@ -246,10 +266,10 @@ h1{
 .pin.kick svg{ animation:pinkick .13s ease-out; }
 @keyframes pinkick{ 0%{ transform:rotate(0) } 35%{ transform:rotate(-13deg) } 100%{ transform:rotate(0) } }
 
-/* ציר מרכזי — הוא כפתור הסיבוב */
+/* ציר מרכזי — הוא כפתור הסיבוב, ועומד מוגבה מעל מישור הגלגל */
 .hub{
   position:absolute; top:50%; left:50%;
-  transform:translate(-50%,-50%);
+  transform:translate(-50%,-50%) translateZ(26px);
   width:25.5%; aspect-ratio:1; border-radius:50%;
   border:none; cursor:pointer; z-index:4;
   background:radial-gradient(circle at 32% 28%, #fff 0%, #ffe9b0 38%, var(--accent) 100%);
@@ -260,13 +280,13 @@ h1{
   transition:box-shadow .18s ease, filter .18s ease;
 }
 .hub:hover{ filter:brightness(1.05); }
-.hub:active{ transform:translate(-50%,-50%) scale(.94); }
+.hub:active{ transform:translate(-50%,-50%) translateZ(26px) scale(.94); }
 .hub[disabled]{ filter:grayscale(.65) brightness(.85); cursor:not-allowed; }
 /* הזמנה ללחיצה — הילה פועמת ולא שינוי גודל, כדי שהכפתור לא "יזוז" */
 .hub.idle{ animation:invite 2.6s ease-in-out infinite; }
 @keyframes invite{
-  0%,100%{ box-shadow:0 8px 22px rgba(0,0,0,.4), inset 0 -4px 10px rgba(180,110,0,.35), 0 0 0 6px rgba(255,255,255,.16); }
-  50%    { box-shadow:0 8px 22px rgba(0,0,0,.4), inset 0 -4px 10px rgba(180,110,0,.35), 0 0 0 15px rgba(255,255,255,.06); }
+  0%,100%{ box-shadow:0 12px 26px rgba(0,0,0,.45), inset 0 -4px 10px rgba(180,110,0,.35), 0 0 0 6px rgba(255,255,255,.16); }
+  50%    { box-shadow:0 12px 26px rgba(0,0,0,.45), inset 0 -4px 10px rgba(180,110,0,.35), 0 0 0 15px rgba(255,255,255,.06); }
 }
 
 .poolnote{
@@ -296,9 +316,9 @@ h1{
   background:linear-gradient(90deg, transparent, var(--win), transparent);
 }
 @keyframes pop{
-  0%  { opacity:0; transform:scale(.72) translateY(14px); }
+  0%  { opacity:0; transform:perspective(900px) rotateX(-42deg) translateY(26px) scale(.82); }
   60% { opacity:1; }
-  100%{ opacity:1; transform:scale(1) translateY(0); }
+  100%{ opacity:1; transform:perspective(900px) rotateX(0deg) translateY(0) scale(1); }
 }
 .result[hidden]{ display:none; }
 
@@ -596,6 +616,7 @@ dialog{ color-scheme:light; }
 @media (prefers-reduced-motion: reduce){
   *{ animation-duration:.001ms !important; animation-iteration-count:1 !important; }
   .aurora i{ animation:none; }
+  .scene{ transition:none; }
   .hub.idle{ animation:none; }
 }
 </style>
@@ -626,6 +647,8 @@ dialog{ color-scheme:light; }
   </div>
 
   <div class="stage">
+    <div class="scene" id="scene">
+    <div class="depth" id="depth" aria-hidden="true"></div>
     <div class="bezel" aria-hidden="true"></div>
     <div class="leds" id="leds" aria-hidden="true"></div>
 
@@ -656,6 +679,7 @@ dialog{ color-scheme:light; }
     <div class="shock" aria-hidden="true"></div>
 
     <button class="hub idle" id="spinBtn" type="button" aria-label="סובב את הגלגל ובחר פעילות אקראית">סובב!</button>
+    </div>
   </div>
 
   <p class="poolnote" id="poolNote"></p>
@@ -1611,22 +1635,31 @@ dialog{ color-scheme:light; }
     var ox = box.left + box.width / 2;
     var oy = box.top + box.height / 2;
 
+    /* קונפטי במרחב: לכל פתית יש גם עומק, והוא מוקרן דרך אותה מרחקיות
+       שהסצנה משתמשת בה — מה שקרוב גדול ומהיר, מה שרחוק קטן וחיוור. */
+    var FOCAL = 620;
     var parts = [];
-    var count = 130;
+    var count = 150;
     for (var i = 0; i < count; i++) {
       var ang = rand() * Math.PI * 2;
+      var pitch = (rand() - 0.5) * 1.1;
       var speed = 4 + rand() * 11;
       parts.push({
-        x: ox, y: oy,
-        vx: Math.cos(ang) * speed,
+        x: ox, y: oy, z: (rand() - 0.5) * 60,
+        vx: Math.cos(ang) * speed * Math.cos(pitch),
         vy: Math.sin(ang) * speed - 5,
-        size: 5 + rand() * 7,
+        vz: Math.sin(pitch) * speed * 1.4,
+        size: 6 + rand() * 8,
         rot: rand() * Math.PI * 2,
         vr: (rand() - 0.5) * 0.35,
+        spin: rand() * Math.PI * 2,
+        vspin: (rand() - 0.5) * 0.5,     /* התהפכות סביב הציר שלו */
         color: PALETTE[randInt(PALETTE.length)],
-        round: rand() < 0.35
+        round: rand() < 0.3
       });
     }
+    /* הרחוקים נצבעים ראשונים כדי שהקרובים יכסו אותם */
+    parts.sort(function (a, b) { return a.z - b.z; });
 
     var DURATION = 2300;
     var start = null;
@@ -1641,26 +1674,39 @@ dialog{ color-scheme:light; }
         return;
       }
       ctx.clearRect(0, 0, w, h);
-      ctx.globalAlpha = t > DURATION - 600 ? Math.max(0, (DURATION - t) / 600) : 1;
+      var alpha = t > DURATION - 600 ? Math.max(0, (DURATION - t) / 600) : 1;
 
       for (var i = 0; i < parts.length; i++) {
         var p = parts[i];
         p.vy += 0.32;          /* כבידה */
         p.vx *= 0.992;
+        p.vz *= 0.992;
         p.x += p.vx;
         p.y += p.vy;
+        p.z += p.vz;
         p.rot += p.vr;
+        p.spin += p.vspin;
+
+        if (p.z <= -FOCAL + 24) continue;             /* חלף מאחורי המצלמה */
+        var k = FOCAL / (FOCAL + p.z);                /* הקרנה פרספקטיבית */
+        var sx = ox + (p.x - ox) * k;
+        var sy = oy + (p.y - oy) * k;
+        var size = p.size * k;
+        if (size < 0.6) continue;
 
         ctx.save();
-        ctx.translate(p.x, p.y);
+        ctx.translate(sx, sy);
         ctx.rotate(p.rot);
+        ctx.globalAlpha = alpha * Math.max(0.25, Math.min(1, k));
         ctx.fillStyle = p.color;
         if (p.round) {
           ctx.beginPath();
-          ctx.arc(0, 0, p.size / 2, 0, Math.PI * 2);
+          ctx.arc(0, 0, size / 2, 0, Math.PI * 2);
           ctx.fill();
         } else {
-          ctx.fillRect(-p.size / 2, -p.size / 3, p.size, p.size * 0.66);
+          /* רוחב הפתית מתכווץ לפי ההתהפכות שלו — נראה כמו נייר שמסתובב */
+          var w = size * Math.abs(Math.cos(p.spin));
+          ctx.fillRect(-w / 2, -size / 3, Math.max(0.7, w), size * 0.66);
         }
         ctx.restore();
       }
@@ -2500,9 +2546,12 @@ dialog{ color-scheme:light; }
   var drag = null;
   var DEAD = 5;                      /* מתחת לזה זו הקשה, לא גרירה */
 
+  /* המסך מראה אליפסה, לא מעגל: מחזירים את ציר Y לגודלו לפני חישוב הזווית,
+     אחרת האצבע והגלגל מסכימים רק בארבע נקודות. */
   function pointerAngle(e) {
     var b = rotor.getBoundingClientRect();
-    return Math.atan2(e.clientY - (b.top + b.height / 2),
+    var squash = Math.cos(TILT * Math.PI / 180) || 1;
+    return Math.atan2((e.clientY - (b.top + b.height / 2)) / squash,
                       e.clientX - (b.left + b.width / 2)) * 180 / Math.PI;
   }
 
@@ -2611,6 +2660,48 @@ dialog{ color-scheme:light; }
   load();
   readSharedLink();
 
+  var TILT = 16;                       /* מעלות, חייב להתאים ל---tilt ב-CSS */
+  var sceneEl = document.getElementById('scene');
+
+  (function initDepth() {
+    var box = document.getElementById('depth');
+    for (var i = 1; i <= 9; i++) {
+      var d = document.createElement('i');
+      d.style.transform = 'translateZ(' + (-i * 2.4) + 'px)';
+      d.style.filter = 'brightness(' + (1 - i * 0.075).toFixed(3) + ')';
+      box.appendChild(d);
+    }
+  })();
+
+  /* פרלקסה: הסצנה נעה קלות אחרי הסמן או אחרי הטיית המכשיר. */
+  (function initParallax() {
+    if (reduced()) return;
+    var raf = null, sway = 0, tilt = TILT;
+
+    function apply() {
+      raf = null;
+      sceneEl.style.setProperty('--sway', sway.toFixed(2) + 'deg');
+      sceneEl.style.setProperty('--tilt', tilt.toFixed(2) + 'deg');
+    }
+    function queue() { if (!raf) raf = requestAnimationFrame(apply); }
+
+    window.addEventListener('pointermove', function (e) {
+      if (e.pointerType === 'touch' || drag) return;
+      var nx = (e.clientX / window.innerWidth) * 2 - 1;
+      var ny = (e.clientY / window.innerHeight) * 2 - 1;
+      sway = Math.max(-7, Math.min(7, nx * 7));
+      tilt = TILT + Math.max(-5, Math.min(5, ny * 5));
+      queue();
+    }, { passive: true });
+
+    window.addEventListener('deviceorientation', function (e) {
+      if (e.gamma === null || e.beta === null) return;
+      sway = Math.max(-9, Math.min(9, e.gamma / 4));
+      tilt = TILT + Math.max(-6, Math.min(6, (e.beta - 45) / 6));
+      queue();
+    }, { passive: true });
+  })();
+
   (function initLeds() {
     var box = document.getElementById('leds');
     for (var i = 0; i < 24; i++) {
@@ -2642,7 +2733,8 @@ dialog{ color-scheme:light; }
     link: listLink,
     custom: function () { return state.custom.slice(); },
     time: function () { return timeBudget; },
-    fling: function (power, dir) { spin(null, power, dir); }
+    fling: function (power, dir) { spin(null, power, dir); },
+    tilt: function () { return TILT; }
   };
 
 })();

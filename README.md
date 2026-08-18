@@ -90,6 +90,19 @@ the speed of the flick setting how many turns it takes. The winner is still
 drawn first and the rotation still solved backwards to it, so a throw changes
 how it spins and never what comes up.
 
+The wheel stands in a scene rather than on a page: the stage carries a
+perspective, the disc is tilted back on its X axis with a stack of darkening
+discs behind it for the thickness of the rim, and the hub and the pointer are
+lifted off the face on Z so they cast over it. The tilt is deliberately X-only,
+because a rotation about X leaves the disc a plane and leaves the wedge under
+the pointer the same wedge — the third dimension is not allowed anywhere near
+the arithmetic of the landing. It does reach the dragging, though: the screen
+shows an ellipse, so a finger angle is un-squashed by the cosine of the tilt
+before it turns the wheel, and the suite sweeps a real ninety degrees and
+checks ninety degrees came out. The confetti got a Z axis too, projected
+through the same focal length, so near pieces are big and fast and far ones
+small and faint, each one flipping about its own axis.
+
 The carnival dressing is honest too. The ratchet ticks are not on a timer:
 a frame loop reads the wheel's real angle out of its transform matrix and
 clicks — synthesised in WebAudio, no media files, mutable and remembered —
