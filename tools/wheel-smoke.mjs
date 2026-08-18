@@ -179,8 +179,8 @@ ok(
 );
 ok('six categories', (await page.locator('.chip').count()) === 6);
 ok('sixty activities in the default pool', (await page.evaluate(() => window.__wheel.pool().length)) === 60);
-ok('the wheel is capped at twelve wedges', (await page.locator('#segs .seg').count()) === 12);
-ok('every wedge carries a label', (await page.locator('#labels text').count()) === 12);
+ok('the wheel is capped at eight wedges', (await page.locator('#segs .seg').count()) === 8);
+ok('every wedge carries an emoji and a label', (await page.locator('#labels text').count()) === 16);
 ok('the result card starts hidden', await page.locator('#result').isHidden());
 ok(
   'no horizontal overflow on a phone',
@@ -495,6 +495,19 @@ await settled(page);
 ok('and celebrate when it lands',
   await page.evaluate(() => document.querySelector('.stage').classList.contains('won')));
 ok('a quip under the result', ((await page.textContent('#rQuip')) || '').trim().length > 0);
+ok('the card is tinted with the winning wedge colour', await page.evaluate(() => {
+  const win = document.querySelector('#segs .seg.win');
+  const card = getComputedStyle(document.getElementById('result')).getPropertyValue('--win').trim();
+  return !!win && !!card && win.getAttribute('fill').toLowerCase() === card.toLowerCase();
+}));
+ok('a shockwave ring exists and only runs on landing', await page.evaluate(() => {
+  const s = document.querySelector('.shock');
+  return !!s && getComputedStyle(s).animationName === 'shock';
+}));
+ok('the ambient layer sits behind the content', await page.evaluate(() => {
+  const a = document.querySelector('.aurora');
+  return !!a && getComputedStyle(a).zIndex === '-1' && a.children.length === 3;
+}));
 const cardUrl = await page.evaluate(() => window.__wheel.card());
 ok('the share card renders as a real PNG',
   cardUrl.startsWith('data:image/png') && cardUrl.length > 20000, `${cardUrl.length} chars`);
@@ -515,13 +528,58 @@ ok('spinning with sound on logs no audio errors', await (async () => {
   return noise.length === 0;
 })(), noise.join(' | '));
 
-console.log('\nthe wheel itself is a button');
+console.log('\ngrab it and throw it');
 const rotBefore = await page.evaluate(() => window.__wheel.rotation());
 const stageBox = await page.locator('.stage').boundingBox();
 await page.mouse.click(stageBox.x + stageBox.width * 0.82, stageBox.y + stageBox.height / 2);
 try { await page.waitForFunction(() => window.__wheel.spinning(), null, { timeout: 1500 }); } catch {}
 await settled(page);
 ok('tapping the wheel spins it', (await page.evaluate(() => window.__wheel.rotation())) !== rotBefore);
+
+/* drag the rim a quarter turn and let go */
+const cx = stageBox.x + stageBox.width / 2;
+const cy = stageBox.y + stageBox.height / 2;
+const rim = stageBox.width * 0.38;
+const atAngle = (deg) => [cx + rim * Math.cos((deg * Math.PI) / 180), cy + rim * Math.sin((deg * Math.PI) / 180)];
+
+const beforeDrag = await page.evaluate(() => window.__wheel.rotation());
+await page.mouse.move(...atAngle(-90));
+await page.mouse.down();
+for (let a = -90; a <= 10; a += 10) {
+  await page.mouse.move(...atAngle(a));
+  await page.waitForTimeout(8);
+}
+const midDrag = await page.evaluate(() => window.__wheel.rotation());
+ok('the wheel follows the finger while held', Math.abs(midDrag - beforeDrag) > 60,
+  `moved ${Math.round(midDrag - beforeDrag)}deg`);
+ok('and it does not count as a spin yet', !(await page.evaluate(() => window.__wheel.spinning())));
+await page.mouse.up();
+try { await page.waitForFunction(() => window.__wheel.spinning(), null, { timeout: 1500 }); } catch {}
+await settled(page);
+const flung = await readPointer(page);
+ok('letting go throws it', flung.winner !== null);
+ok('and a thrown wheel still lands where it says', flung.winner.id === flung.under.id);
+
+/* a deliberate, slow drag is a reposition, not a throw */
+await page.mouse.move(...atAngle(0));
+await page.mouse.down();
+for (let a = 0; a <= 40; a += 10) {
+  await page.mouse.move(...atAngle(a));
+  await page.waitForTimeout(140);
+}
+await page.mouse.up();
+await page.waitForTimeout(250);
+ok('a slow drag repositions instead of spinning', !(await page.evaluate(() => window.__wheel.spinning())));
+
+/* thrown the other way, the wheel must still be honest */
+let backwards = 0;
+for (let i = 0; i < 6; i++) {
+  await page.evaluate(() => window.__wheel.fling(1.4, -1));
+  await settled(page);
+  const r = await readPointer(page);
+  if (r.winner.id !== r.under.id) backwards++;
+}
+ok('spun anticlockwise it lands correctly too', backwards === 0, `${backwards} of 6 wrong`);
 
 console.log('\nkeyboard and assistive tech');
 ok('the spin button is labelled', !!(await page.getAttribute('#spinBtn', 'aria-label')));

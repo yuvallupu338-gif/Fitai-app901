@@ -79,6 +79,32 @@ button{ font:inherit; color:inherit; touch-action:manipulation; }
 
 :focus-visible{ outline:3px solid var(--accent); outline-offset:3px; border-radius:12px; }
 
+/* ---------- אווירה: כתמי אור שנעים לאט מאחורי הכול ---------- */
+
+.aurora{
+  position:fixed; inset:0; z-index:-1; overflow:hidden; pointer-events:none;
+  contain:strict;
+}
+.aurora i{
+  position:absolute; display:block; border-radius:50%;
+  filter:blur(64px); opacity:.42; will-change:transform;
+}
+.aurora i:nth-child(1){
+  width:62vmax; height:62vmax; inset-inline-start:-22vmax; top:-26vmax;
+  background:#8B2FB0; animation:drift1 31s ease-in-out infinite alternate;
+}
+.aurora i:nth-child(2){
+  width:48vmax; height:48vmax; inset-inline-end:-18vmax; top:22vmax;
+  background:#2F6BC4; animation:drift2 37s ease-in-out infinite alternate;
+}
+.aurora i:nth-child(3){
+  width:40vmax; height:40vmax; inset-inline-start:8vmax; bottom:-18vmax;
+  background:#C43F86; opacity:.3; animation:drift3 43s ease-in-out infinite alternate;
+}
+@keyframes drift1{ to{ transform:translate3d(9vmax, 7vmax, 0) scale(1.14); } }
+@keyframes drift2{ to{ transform:translate3d(-11vmax, -6vmax, 0) scale(1.09); } }
+@keyframes drift3{ to{ transform:translate3d(6vmax, -9vmax, 0) scale(1.18); } }
+
 /* ---------- פריסה ---------- */
 
 .wrap{
@@ -124,7 +150,10 @@ h1{
   display:flex; align-items:center; justify-content:center; gap:7px;
   flex-wrap:wrap; width:100%; margin-top:-6px;
 }
-.timebar .lbl{ font-size:13px; color:rgba(255,255,255,.55); font-weight:500; }
+.timebar .lbl{
+  flex-basis:100%; text-align:center; margin-bottom:1px;
+  font-size:12.5px; color:rgba(255,255,255,.5); font-weight:500;
+}
 .time{
   border:1.5px solid rgba(255,255,255,.18);
   background:rgba(255,255,255,.06);
@@ -193,6 +222,19 @@ h1{
 .rotor.settled text{ opacity:.85; transition:opacity .35s ease; }
 .rotor.settled text.win{ opacity:1; }
 
+/* גל הדף רגעי סביב הגלגל ברגע הנחיתה */
+.shock{
+  position:absolute; top:50%; left:50%; width:100%; aspect-ratio:1;
+  transform:translate(-50%,-50%) scale(.28);
+  border-radius:50%; border:3px solid rgba(255,255,255,.85);
+  opacity:0; pointer-events:none; z-index:6;
+}
+.stage.won .shock{ animation:shock .72s cubic-bezier(.2,.7,.3,1) 1; }
+@keyframes shock{
+  0%  { opacity:.95; transform:translate(-50%,-50%) scale(.3); border-width:5px; }
+  100%{ opacity:0;   transform:translate(-50%,-50%) scale(1.5); border-width:1px; }
+}
+
 /* מחוג */
 .pin{
   position:absolute; top:-8px; left:50%; transform:translateX(-50%);
@@ -208,7 +250,7 @@ h1{
 .hub{
   position:absolute; top:50%; left:50%;
   transform:translate(-50%,-50%);
-  width:29%; aspect-ratio:1; border-radius:50%;
+  width:25.5%; aspect-ratio:1; border-radius:50%;
   border:none; cursor:pointer; z-index:4;
   background:radial-gradient(circle at 32% 28%, #fff 0%, #ffe9b0 38%, var(--accent) 100%);
   color:#3a2205; font-weight:900; font-size:clamp(15px,4.4vw,20px);
@@ -237,10 +279,21 @@ h1{
 /* ---------- כרטיס תוצאה ---------- */
 
 .result{
+  --win:#FFC63C;
+  position:relative;
   width:100%; background:var(--card); color:var(--ink);
-  border-radius:var(--radius); padding:22px 18px 18px;
-  box-shadow:var(--shadow); text-align:center;
+  border-radius:var(--radius); padding:26px 18px 18px;
+  text-align:center;
+  box-shadow:var(--shadow),
+             0 0 0 1.5px color-mix(in srgb, var(--win) 45%, transparent),
+             0 14px 44px -14px color-mix(in srgb, var(--win) 65%, transparent);
   animation:pop .5s cubic-bezier(.2,1.4,.4,1) both;
+  overflow:hidden;
+}
+/* פס בצבע הפלח שיצא — הכרטיס והגלגל מדברים על אותו דבר */
+.result::before{
+  content:""; position:absolute; inset-inline:0; top:0; height:5px;
+  background:linear-gradient(90deg, transparent, var(--win), transparent);
 }
 @keyframes pop{
   0%  { opacity:0; transform:scale(.72) translateY(14px); }
@@ -268,7 +321,8 @@ h1{
 }
 .result .cat{
   display:inline-block; margin:2px 0 16px; padding:4px 12px;
-  background:rgba(36,21,54,.07); border-radius:999px;
+  background:color-mix(in srgb, var(--win) 18%, rgba(36,21,54,.06));
+  border-radius:999px;
   font-size:12.5px; font-weight:600; color:var(--muted);
 }
 
@@ -533,6 +587,7 @@ dialog{ color-scheme:light; }
   .chip{ flex:none; padding:5px 11px; font-size:12.5px; }
   .timebar{ margin-top:0; }
   .timebar .lbl{ display:none; }
+  .timebar{ flex-wrap:nowrap; }
   .time{ padding:4px 10px; font-size:12px; }
   .poolnote{ font-size:11.5px; }
   .mute{ width:38px; height:38px; font-size:17px; }
@@ -540,11 +595,14 @@ dialog{ color-scheme:light; }
 
 @media (prefers-reduced-motion: reduce){
   *{ animation-duration:.001ms !important; animation-iteration-count:1 !important; }
+  .aurora i{ animation:none; }
   .hub.idle{ animation:none; }
 }
 </style>
 </head>
 <body>
+
+<div class="aurora" aria-hidden="true"><i></i><i></i><i></i></div>
 
 <canvas id="fx" aria-hidden="true"></canvas>
 
@@ -594,6 +652,8 @@ dialog{ color-scheme:light; }
         <circle cx="18" cy="16" r="5" fill="#fff"/>
       </svg>
     </div>
+
+    <div class="shock" aria-hidden="true"></div>
 
     <button class="hub idle" id="spinBtn" type="button" aria-label="סובב את הגלגל ובחר פעילות אקראית">סובב!</button>
   </div>
@@ -797,7 +857,9 @@ dialog{ color-scheme:light; }
   ];
 
   var STORE_KEY = 'mah-laasot-hayom.v1';
-  var MAX_SEG = 12;          /* כמה פלחים הגלגל מציג לכל היותר */
+  /* שמונה ולא שתים-עשרה: הכיתוב הוא התוכן, ובפלח של 30° הוא נחתך אחרי
+     שלוש-עשרה אותיות. ב-45° נכנסות שתי שורות שלמות בגופן גדול יותר. */
+  var MAX_SEG = 8;
   var MAX_CUSTOM = 200;
 
   /* ================================================================
@@ -989,7 +1051,7 @@ dialog{ color-scheme:light; }
 
   var SVG_NS = 'http://www.w3.org/2000/svg';
   var R_OUT = 147;          /* רדיוס חיצוני */
-  var R_HUB = 44;           /* מתחת לזה יושב כפתור הסיבוב */
+  var R_HUB = 39;           /* מתחת לזה יושב כפתור הסיבוב */
 
   /* זווית a נמדדת במעלות עם כיוון השעון, החל מ-12 */
   function polar(a, r) {
@@ -1005,12 +1067,28 @@ dialog{ color-scheme:light; }
            ' A ' + r + ' ' + r + ' 0 ' + large + ' 1 ' + p1.x + ' ' + p1.y + ' Z';
   }
 
-  function labelMax(n) { return n <= 4 ? 20 : (n <= 8 ? 16 : 13); }
-  function labelSize(n) { return n <= 4 ? 15 : (n <= 8 ? 13.5 : 12); }
+  function labelSize(n) { return n <= 3 ? 16 : (n <= 5 ? 15 : 13.5); }
+  function labelChars(n) { return n <= 3 ? 15 : (n <= 5 ? 13 : 12); }
 
-  function clip(text, max) {
-    var t = text.trim();
-    return t.length > max ? t.slice(0, max - 1).trim() + '…' : t;
+  /* עד שתי שורות, נשברות בין מילים. מה שלא נכנס נחתך בסוף השנייה בלבד. */
+  function wrapLabel(text, maxChars) {
+    var words = text.trim().split(/\s+/);
+    var lines = [], line = '';
+    for (var i = 0; i < words.length; i++) {
+      var probe = line ? line + ' ' + words[i] : words[i];
+      if (probe.length > maxChars && line) {
+        lines.push(line);
+        line = words[i];
+        if (lines.length === 2) break;
+      } else {
+        line = probe;
+      }
+    }
+    if (lines.length < 2 && line) lines.push(line);
+    if (lines.length === 2 && lines[1].length > maxChars) {
+      lines[1] = lines[1].slice(0, maxChars - 1).trim() + '…';
+    }
+    return lines;
   }
 
   var segsG   = document.getElementById('segs');
@@ -1038,9 +1116,10 @@ dialog{ color-scheme:light; }
     }
 
     var seg = 360 / n;
-    var maxChars = labelMax(n);
+    var maxChars = labelChars(n);
     var fontSize = labelSize(n);
-    var rLabel = (R_HUB + R_OUT) / 2;
+    var rLabel = 84;
+    var rEmoji = 134;
 
     for (var i = 0; i < n; i++) {
       var it = items[i];
@@ -1059,29 +1138,43 @@ dialog{ color-scheme:light; }
       }
       segsG.appendChild(path);
 
+      var ac = (n === 1) ? 0 : i * seg + seg / 2;
+      /* בחצי השמאלי הופכים את הכיתוב כדי שלא יעמוד על הראש */
+      var flip = (ac > 180 && ac < 360) ? 90 : -90;
+      var place = function (r) {
+        return n === 1 ? '' : 'rotate(' + ac + ') rotate(' + flip + ' 0 ' + (-r) + ')';
+      };
+
+      /* האימוג'י יושב בנפרד ליד השפה, בלי ההילה שרק מלכלכת אותו */
+      var badge = document.createElementNS(SVG_NS, 'text');
+      badge.setAttribute('class', 'em');
+      badge.setAttribute('font-size', Math.round(fontSize * 1.5));
+      badge.setAttribute('text-anchor', 'middle');
+      badge.setAttribute('dominant-baseline', 'middle');
+      badge.setAttribute('stroke', 'none');
+      badge.setAttribute('x', 0);
+      badge.setAttribute('y', n === 1 ? -(R_HUB + 62) : -rEmoji);
+      if (n !== 1) badge.setAttribute('transform', place(rEmoji));
+      badge.textContent = it.emoji;
+      labelsG.appendChild(badge);
+
+      var lines = wrapLabel(it.text, maxChars);
       var label = document.createElementNS(SVG_NS, 'text');
       label.setAttribute('font-size', fontSize);
       label.setAttribute('text-anchor', 'middle');
       label.setAttribute('dominant-baseline', 'middle');
-      /* ההילה הלבנה עוזרת לאותיות ורק מלכלכת את האימוג'י */
-      var badge = document.createElementNS(SVG_NS, 'tspan');
-      badge.setAttribute('stroke', 'none');
-      badge.textContent = it.emoji + ' ';
-      label.appendChild(badge);
-      label.appendChild(document.createTextNode(clip(it.text, maxChars)));
+      label.setAttribute('x', 0);
+      label.setAttribute('y', n === 1 ? -(R_HUB + 26) : -rLabel);
+      if (n !== 1) label.setAttribute('transform', place(rLabel));
 
-      if (n === 1) {
-        label.setAttribute('x', 0);
-        label.setAttribute('y', -(R_HUB + 42));
-      } else {
-        var ac = i * seg + seg / 2;
-        /* בחצי השמאלי הופכים את הכיתוב כדי שלא יעמוד על הראש */
-        var flip = (ac > 180 && ac < 360) ? 90 : -90;
-        label.setAttribute('x', 0);
-        label.setAttribute('y', -rLabel);
-        label.setAttribute('transform',
-          'rotate(' + ac + ') rotate(' + flip + ' 0 ' + (-rLabel) + ')');
-      }
+      lines.forEach(function (ln, li2) {
+        var t = document.createElementNS(SVG_NS, 'tspan');
+        t.setAttribute('x', 0);
+        /* הזזה ניצבת לרדיוס — בפלח של 45° יש לזה מקום בשפע */
+        t.setAttribute('dy', li2 === 0 ? (lines.length > 1 ? -fontSize * 0.58 : 0) : fontSize * 1.16);
+        t.textContent = ln;
+        label.appendChild(t);
+      });
       labelsG.appendChild(label);
     }
   }
@@ -1106,8 +1199,12 @@ dialog{ color-scheme:light; }
   var rQuip    = document.getElementById('rQuip');
   var announce = document.getElementById('announce');
 
-  function spin(excludeId) {
+  /* power: 1 = לחיצה רגילה. סיבוב ביד מעביר לכאן את עוצמת התנופה,
+     ו-dir הוא הכיוון שאליו נזרק הגלגל. */
+  function spin(excludeId, power, dir) {
     if (spinning) return;
+    power = power || 1;
+    dir = dir < 0 ? -1 : 1;
     var pool = activePool();
     if (!pool.length) {
       toast((timeBudget !== 'l' && poolIgnoringTime().length)
@@ -1123,17 +1220,14 @@ dialog{ color-scheme:light; }
     var winIdx = randInt(n);
     var seg = 360 / n;
     var centerAngle = winIdx * seg + seg / 2;
+    var winner = cands[winIdx];
     /* רעש קטן כדי שהמחוג לא ינחת תמיד באמצע המדויק — ותמיד בתוך הפלח */
     var jitter = (rand() - 0.5) * seg * 0.7;
 
-    /* המחוג יושב בזווית מסך 0. צריך שזווית הפלח + הסיבוב תתאפס. */
-    var base = (((-(centerAngle + rotation + jitter)) % 360) + 360) % 360;
-    /* בלי אנימציות: הדרך הקצרה לתשובה, לא ארבעה סיבובים מהירים */
-    var turns = reduced() ? 0 : 4 + randInt(3);
-    var dur = reduced() ? 320 : 2700 + randInt(1200);
-
-    var fromRot = rotation;
-    rotation += turns * 360 + base;
+    var calm = reduced();
+    var turns = calm ? 0 : Math.min(9, Math.round((4 + randInt(3)) * power));
+    var dur = calm ? 320 : Math.round((2700 + randInt(1200)) * Math.min(1.35, Math.max(.8, power)));
+    var wind = (calm || power > 1.4) ? 0 : 170;   /* זריקה ביד היא התנופה שלה */
 
     spinning = true;
     spinBtn.disabled = true;
@@ -1142,19 +1236,17 @@ dialog{ color-scheme:light; }
     spinBtn.textContent = '…';
     resultEl.hidden = true;
     announce.textContent = '';
-
-    rotor.style.transition = 'transform ' + dur + 'ms cubic-bezier('
-      + EASE[0] + ',' + EASE[1] + ',' + EASE[2] + ',' + EASE[3] + ')';
-    /* מאלצים חישוב סגנון כדי שהמעבר יתחיל מהמצב הנוכחי */
-    void rotor.offsetWidth;
-    rotor.style.transform = 'rotate(' + rotation + 'deg)';
-
     ac();                                   /* מחוות המשתמש מעירות את האודיו */
     stageEl.classList.remove('won');
     stageEl.classList.add('spinning');
-    startTicker(n, fromRot, rotation - fromRot, dur);
 
-    var winner = cands[winIdx];
+    /* תנופה קטנה אחורה לפני הזינוק — זה מה שגורם לגלגל להרגיש כמו חפץ */
+    if (wind) {
+      rotor.style.transition = 'transform ' + wind + 'ms cubic-bezier(.35,0,.5,1)';
+      void rotor.offsetWidth;
+      rotor.style.transform = 'rotate(' + (rotation - 11 * dir) + 'deg)';
+    }
+
     var done = false;
     function finish() {
       if (done) return;
@@ -1165,8 +1257,27 @@ dialog{ color-scheme:light; }
     }
     function onEnd(e) { if (e.propertyName === 'transform') finish(); }
 
-    rotor.addEventListener('transitionend', onEnd);
-    endTimer = setTimeout(finish, dur + 400);   /* רשת ביטחון אם transitionend לא נורה */
+    function launch() {
+      var fromRot = wind ? rotation - 11 * dir : rotation;
+      /* המחוג יושב בזווית מסך 0. צריך שזווית הפלח + הסיבוב תתאפס,
+         בין אם מגיעים אליה עם כיוון השעון ובין אם נגדו. */
+      var base = dir > 0
+        ? (((-(centerAngle + fromRot + jitter)) % 360) + 360) % 360
+        : (((centerAngle + fromRot + jitter) % 360) + 360) % 360;
+      rotation = fromRot + dir * (turns * 360 + base);
+
+      rotor.style.transition = 'transform ' + dur + 'ms cubic-bezier('
+        + EASE[0] + ',' + EASE[1] + ',' + EASE[2] + ',' + EASE[3] + ')';
+      /* מאלצים חישוב סגנון כדי שהמעבר יתחיל מהמצב הנוכחי */
+      void rotor.offsetWidth;
+      rotor.style.transform = 'rotate(' + rotation + 'deg)';
+
+      startTicker(n, fromRot, rotation - fromRot, dur);
+      rotor.addEventListener('transitionend', onEnd);
+      endTimer = setTimeout(finish, dur + 400);   /* רשת ביטחון אם transitionend לא נורה */
+    }
+
+    if (wind) setTimeout(launch, wind); else launch();
   }
 
   var wonTimer = null;
@@ -1187,9 +1298,10 @@ dialog{ color-scheme:light; }
     /* הדגשת הפלח הזוכה */
     var segEls = segsG.querySelectorAll('.seg');
     var txtEls = labelsG.querySelectorAll('text');
-    for (var i = 0; i < segEls.length; i++) {
-      segEls[i].classList.toggle('win', i === winIdx);
-      if (txtEls[i]) txtEls[i].classList.toggle('win', i === winIdx);
+    for (var i = 0; i < segEls.length; i++) segEls[i].classList.toggle('win', i === winIdx);
+    /* לכל פלח שני אלמנטי טקסט: אימוג'י וכיתוב */
+    for (var t = 0; t < txtEls.length; t++) {
+      txtEls[t].classList.toggle('win', Math.floor(t / 2) === winIdx);
     }
     if (n > 1) {
       var seg = 360 / n;
@@ -1200,6 +1312,7 @@ dialog{ color-scheme:light; }
     }
     rotor.classList.add('settled');
 
+    resultEl.style.setProperty('--win', PALETTE[winIdx % PALETTE.length]);
     rEmoji.textContent = winner.emoji;
     rText.textContent = winner.text;
     rQuip.textContent = QUIPS[randInt(QUIPS.length)];
@@ -1290,7 +1403,8 @@ dialog{ color-scheme:light; }
 
   function startTicker(n, fromRot, travel, dur) {
     stopTicker();
-    if (!n || travel <= 0) return;
+    var span = Math.abs(travel);
+    if (!n || span <= 0) return;
     var seg = 360 / n;
     var acc0 = ((fromRot % 360) + 360) % 360;
     var lastCount = Math.floor(acc0 / seg);
@@ -1299,7 +1413,7 @@ dialog{ color-scheme:light; }
     function frame(ts) {
       if (start === null) start = ts;
       var p = Math.min(1, (ts - start) / dur);
-      var count = Math.floor((acc0 + travel * easeAt(p)) / seg);
+      var count = Math.floor((acc0 + span * easeAt(p)) / seg);
       if (count > lastCount) {              /* לכל היותר נקישה אחת לפריים */
         lastCount = count;
         tickSound();
@@ -2171,10 +2285,65 @@ dialog{ color-scheme:light; }
     syncMute();
   });
 
-  /* הקשה על הגלגל עצמו מסובבת — הציר נשאר הכפתור הנגיש */
-  rotor.addEventListener('click', function () {
-    if (!spinning && !spinBtn.disabled) spin(null);
+  /* ------------------------------------------------------------------
+   * תפיסה וזריקה. הגלגל עוקב אחרי האצבע, והשחרור זורק אותו — לאיזה כיוון
+   * שזרקו. הזוכה עדיין מוגרל מראש והסיבוב נפתר לאחור אליו, כך שהמהירות
+   * קובעת כמה סיבובים וכמה זמן, ולא מה יצא.
+   * ------------------------------------------------------------------ */
+
+  var drag = null;
+  var DEAD = 5;                      /* מתחת לזה זו הקשה, לא גרירה */
+
+  function pointerAngle(e) {
+    var b = rotor.getBoundingClientRect();
+    return Math.atan2(e.clientY - (b.top + b.height / 2),
+                      e.clientX - (b.left + b.width / 2)) * 180 / Math.PI;
+  }
+
+  rotor.addEventListener('pointerdown', function (e) {
+    if (spinning || spinBtn.disabled || e.button > 0) return;
+    drag = {
+      from: pointerAngle(e),
+      base: rotation,
+      moved: 0,
+      last: pointerAngle(e),
+      lastT: e.timeStamp,
+      vel: 0
+    };
+    rotor.style.transition = 'none';
+    try { rotor.setPointerCapture(e.pointerId); } catch (err) {}
   });
+
+  rotor.addEventListener('pointermove', function (e) {
+    if (!drag) return;
+    var a = pointerAngle(e);
+    var step = ((a - drag.last + 540) % 360) - 180;    /* הקצר משני הכיוונים */
+    var dt = Math.max(1, e.timeStamp - drag.lastT);
+    drag.vel = drag.vel * 0.7 + (step / dt) * 0.3;     /* החלקה, מעלות למילישנייה */
+    drag.moved += Math.abs(step);
+    drag.last = a;
+    drag.lastT = e.timeStamp;
+    rotation += step;
+    rotor.style.transform = 'rotate(' + rotation + 'deg)';
+    if (drag.moved > DEAD) e.preventDefault();
+  });
+
+  function endDrag(e) {
+    if (!drag) return;
+    var d = drag;
+    drag = null;
+    try { rotor.releasePointerCapture(e.pointerId); } catch (err) {}
+    if (spinBtn.disabled || spinning) return;
+
+    if (d.moved <= DEAD) { spin(null); return; }        /* הקשה */
+
+    var speed = Math.abs(d.vel);                        /* מעלות למילישנייה */
+    if (speed < 0.15) return;                           /* גרירה איטית: נשאר איפה שהושאר */
+    spin(null, Math.min(1.8, 0.75 + speed * 0.9), d.vel < 0 ? -1 : 1);
+  }
+
+  rotor.addEventListener('pointerup', endDrag);
+  rotor.addEventListener('pointercancel', endDrag);
 
   document.getElementById('editBtn').addEventListener('click', openEditor);
   document.getElementById('closeEd').addEventListener('click', closeEditor);
@@ -2247,7 +2416,8 @@ dialog{ color-scheme:light; }
     },
     link: listLink,
     custom: function () { return state.custom.slice(); },
-    time: function () { return timeBudget; }
+    time: function () { return timeBudget; },
+    fling: function (power, dir) { spin(null, power, dir); }
   };
 
 })();

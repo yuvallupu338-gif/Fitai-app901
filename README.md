@@ -81,6 +81,14 @@ computed so the pointer comes to rest inside that wedge. Nothing reads a result
 off wherever the animation happened to stop, which is the usual way a wheel
 ends up highlighting one thing and announcing another.
 
+The wheel shows eight wedges rather than twelve, which sounds like less and
+reads like more: at 45° a label gets two full lines in a larger face instead of
+thirteen characters and an ellipsis. It can also be grabbed — the wheel follows
+a finger, and letting go throws it, in whichever direction it was thrown, with
+the speed of the flick setting how many turns it takes. The winner is still
+drawn first and the rotation still solved backwards to it, so a throw changes
+how it spins and never what comes up.
+
 The carnival dressing is honest too. The ratchet ticks are not on a timer:
 a frame loop reads the wheel's real angle out of its transform matrix and
 clicks — synthesised in WebAudio, no media files, mutable and remembered —
