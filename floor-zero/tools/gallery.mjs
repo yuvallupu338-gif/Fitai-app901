@@ -97,6 +97,9 @@ const shots = [
   { name: 'control-room', x: 24.6, z: -3.0, yaw: Math.PI / 2, pitch: 0 },
   { name: 'control-monitors', x: 21.6, z: -3.6, yaw: Math.PI / 2, pitch: 0.05 },
   { name: 'lift-inside', x: -1.1, z: 0, yaw: -Math.PI / 2, pitch: 0 },
+  { name: 'torch-dark', x: 8.0, z: 0, yaw: -Math.PI / 2, pitch: -0.02, torch: true, dark: true },
+  { name: 'service-doorway', x: 17.9, z: -8.2, yaw: 0, pitch: -0.06, torch: true },
+  { name: 'apt04-doorway', x: 20.6, z: 0.4, yaw: Math.PI, pitch: -0.05 },
   { name: 'crawler', x: 13.5, z: 0, yaw: Math.PI / 2, pitch: -0.1, creature: 'crawler', at: 9.6 },
   { name: 'tall-one', x: 13.5, z: 0, yaw: Math.PI / 2, pitch: 0.13, creature: 'tall', at: 10.4 },
 ];
@@ -117,6 +120,9 @@ for (const shot of shots) {
     g.player.view.pitch = s.pitch;
     g.player.frozen = true;
 
+    g.player.setFlashlight(!!s.torch, g);
+    if (s.dark) g.world.lighting.setOn('*', false);
+
     if (s.creature) {
       // place() rather than send(): send() positions relative to the camera,
       // which has not caught up with the teleport above yet.
@@ -125,7 +131,7 @@ for (const shot of shots) {
       g.creatures.place(s.creature, g.player.position.clone().set(s.at, 0, 0), Math.PI / 2);
     } else {
       g.creatures.clear();
-      g.world.lighting.setOn('*', true);
+      if (!s.dark) g.world.lighting.setOn('*', true);
     }
   }, shot);
   // A single frame at high quality under software rendering can take most of a
