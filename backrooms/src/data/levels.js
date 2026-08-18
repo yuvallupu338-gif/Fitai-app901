@@ -1246,9 +1246,19 @@ function ambientFor(raw) {
  * is not atmosphere, it is a bug — so the darkest channel is held at a value
  * that still separates a wall from a doorway. Levels that are *meant* to be
  * pitch black were already at that floor and are left where they are.
+ *
+ * These two numbers are set by the phone and not by how it looks on a desktop.
+ * At 0.55 and a floor of 6 the game was fine on a monitor and came back from
+ * an emulated iPhone and Pixel with *eleven distinct colours in the frame*.
+ * A phone renders at a fraction of the resolution and drops it further to hold
+ * its framerate, and a frame whose mean lands near 5/255 has almost no room
+ * left inside eight bits — the picture stops being dark and starts being one
+ * flat sheet of near-black. Backing off to 0.70 over a floor of 10 keeps a
+ * third of the light out of the level while leaving the frame somewhere to be
+ * dark *in*. The fixture cuts below were softened for the same reason.
  */
-const DIM = 0.55;
-const FLOOR = 0x06;
+const DIM = 0.70;
+const FLOOR = 0x0a;
 
 /*
  * How hard a level can be dimmed depends on how much light it had to start
@@ -1361,13 +1371,13 @@ function finalise(raw) {
    * light, not harder light. A quarter of the tubes being out does more for
    * the feeling of the place than any amount of colour grading.
    */
-  level.gen.lightIntensity *= 1 - 0.28 * s;
+  level.gen.lightIntensity *= 1 - 0.18 * s;
   /* Killing tubes takes a share of what is still *working*, rather than a flat
    * multiple. A flat 1.45× turned a level that was already 55% dark into one
    * with three tubes alight in the whole draw distance, which is where the
    * black screens came from. */
   level.gen.deadLights = Math.min(70,
-    Math.round(level.gen.deadLights + (70 - level.gen.deadLights) * 0.30 * s));
+    Math.round(level.gen.deadLights + (70 - level.gen.deadLights) * 0.20 * s));
   /* Walls run to the ceiling unless the archetype overrode it. Levels almost
    * never want to say this twice. */
   if (level.gen.wallHeight === undefined) level.gen.wallHeight = level.ceilHeight;
