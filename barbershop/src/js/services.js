@@ -12,7 +12,7 @@ export const SERVICES = [
     name: 'תספורת גבר',
     desc: 'מספריים ומכונה, שטיפה וסידור בסוף.',
     durationMin: 30,
-    price: 80,
+    price: 60,
     photo: 'cut-classic',
   },
   {
@@ -20,7 +20,7 @@ export const SERVICES = [
     name: 'תספורת + זקן',
     desc: 'התספורת המלאה, ועיצוב הזקן בתער אחריה.',
     durationMin: 45,
-    price: 110,
+    price: 90,
     photo: 'cut-beard',
     featured: true,
   },
@@ -29,7 +29,7 @@ export const SERVICES = [
     name: 'פייד / סקין פייד',
     desc: 'מעבר נקי מהעור כלפי מעלה. עבודה איטית, בלי קפיצות.',
     durationMin: 45,
-    price: 100,
+    price: 80,
     photo: 'cut-fade',
   },
   {
@@ -37,7 +37,7 @@ export const SERVICES = [
     name: 'עיצוב זקן',
     desc: 'קווים, קיצור וטיפוח — בלי תספורת.',
     durationMin: 20,
-    price: 50,
+    price: 30,
     photo: 'cut-crop',
   },
   {
@@ -45,7 +45,7 @@ export const SERVICES = [
     name: 'גילוח מגבת חמה',
     desc: 'מגבת חמה, קצף, תער ישר, ובלסם לסיום.',
     durationMin: 40,
-    price: 90,
+    price: 70,
     photo: 'cut-shave',
   },
   {
@@ -53,7 +53,7 @@ export const SERVICES = [
     name: 'תספורת ילדים',
     desc: 'עד גיל 12, בקצב שלהם.',
     durationMin: 25,
-    price: 60,
+    price: 40,
     photo: 'cut-kids',
   },
 ]
