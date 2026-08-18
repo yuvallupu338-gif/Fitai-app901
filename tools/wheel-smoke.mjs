@@ -171,6 +171,11 @@ page.on('dialog', (d) => d.accept());
 
 await page.goto(url, { waitUntil: 'networkidle' });
 
+/* read the sizes off the page rather than hardcoding them — the list grows */
+const TOTAL = await page.evaluate(() => window.__wheel.pool().length);
+const PER_CAT = await page.evaluate(() =>
+  window.__wheel.pool().filter((i) => i.cat === 'out').length);
+
 console.log('\nloads');
 ok('title', (await page.title()) === 'מה לעשות היום?');
 ok(
@@ -178,7 +183,19 @@ ok(
   (await page.getAttribute('html', 'dir')) === 'rtl' && (await page.getAttribute('html', 'lang')) === 'he',
 );
 ok('six categories', (await page.locator('.chip').count()) === 6);
-ok('sixty activities in the default pool', (await page.evaluate(() => window.__wheel.pool().length)) === 60);
+ok('a big default pool', TOTAL >= 200, `${TOTAL} activities`);
+ok('six evenly stocked categories', await page.evaluate(() => {
+  const by = {};
+  window.__wheel.pool().forEach((i) => { by[i.cat] = (by[i.cat] || 0) + 1; });
+  const counts = Object.values(by);
+  return counts.length === 6 && counts.every((c) => c === counts[0]);
+}), `${PER_CAT} per category`);
+ok('no two activities say the same thing', await page.evaluate(() => {
+  const seen = new Set(window.__wheel.pool().map((i) => i.text.trim()));
+  return seen.size === window.__wheel.pool().length;
+}));
+ok('every activity carries a duration', await page.evaluate(() =>
+  window.__wheel.pool().every((i) => ['s', 'm', 'l'].includes(i.len))));
 ok('the wheel is capped at eight wedges', (await page.locator('#segs .seg').count()) === 8);
 ok('every wedge carries an emoji and a label', (await page.locator('#labels text').count()) === 16);
 ok('the result card starts hidden', await page.locator('#result').isHidden());
@@ -228,7 +245,7 @@ ok('"spin again" spins', !!(await page.evaluate(() => window.__wheel.winner())))
 
 console.log('\ncategories');
 await page.locator('.chip').nth(0).click();
-ok('switching one off removes its ten activities', (await page.evaluate(() => window.__wheel.pool().length)) === 50);
+ok('switching one off removes exactly its share', (await page.evaluate(() => window.__wheel.pool().length)) === TOTAL - PER_CAT);
 ok('the chip reports its state', (await page.locator('.chip').nth(0).getAttribute('aria-pressed')) === 'false');
 for (let i = 1; i < 6; i++) await page.locator('.chip').nth(i).click();
 ok('all off empties the pool', (await page.evaluate(() => window.__wheel.pool().length)) === 0);
@@ -237,7 +254,7 @@ ok('and says so in the note', (await page.locator('#poolNote').textContent()).in
 await page.evaluate(() => document.getElementById('spinBtn').click());
 ok('spinning an empty wheel does nothing rather than throwing', noise.length === 0, noise.join(' | '));
 for (let i = 0; i < 6; i++) await page.locator('.chip').nth(i).click();
-ok('all back on restores the pool', (await page.evaluate(() => window.__wheel.pool().length)) === 60);
+ok('all back on restores the pool', (await page.evaluate(() => window.__wheel.pool().length)) === TOTAL);
 
 console.log('\npools of one and two');
 await page.evaluate(() =>
@@ -300,7 +317,7 @@ await page.click('#doneBtn');
 console.log('\nreset');
 await page.click('#resetBtn');
 ok('storage is cleared', (await page.evaluate(() => localStorage.getItem('mah-laasot-hayom.v1'))) === null);
-ok('all sixty activities are back', (await page.evaluate(() => window.__wheel.pool().length)) === 60);
+ok('the whole default pool is back', (await page.evaluate(() => window.__wheel.pool().length)) === TOTAL);
 ok(
   'all categories are back on',
   await page.evaluate(() => [...document.querySelectorAll('.chip')].every((c) => c.getAttribute('aria-pressed') === 'true')),
@@ -317,7 +334,7 @@ await page.locator('.time').nth(0).click();
 const upToHalf = await page.evaluate(() => window.__wheel.pool().length);
 ok('the buckets nest rather than partition', upToHalf < upToTwo && upToTwo < everything,
   `${upToHalf} < ${upToTwo} < ${everything}`);
-ok('the short bucket is still worth spinning', upToHalf >= 20, `${upToHalf} activities`);
+ok('the short bucket is still worth spinning', upToHalf >= 60, `${upToHalf} activities`);
 ok('every draw in the short bucket really is short', await page.evaluate(() =>
   window.__wheel.pool().every((i) => i.len === 's')));
 await spin(page);
@@ -362,7 +379,7 @@ await page.click('#doneBtn');
 await page.evaluate(() => document.querySelectorAll('.chip').forEach((c) => {
   if (c.getAttribute('aria-pressed') === 'false') c.click();
 }));
-ok('and the pool comes back', (await page.evaluate(() => window.__wheel.pool().length)) === 60);
+ok('and the pool comes back', (await page.evaluate(() => window.__wheel.pool().length)) === TOTAL);
 
 console.log('\nediting an activity instead of deleting it');
 await page.click('#editBtn');
@@ -423,6 +440,23 @@ ok('and restores the switched-off category',
 console.log('\nthe list travels as a link');
 const link = await page.evaluate(() => window.__wheel.link());
 ok('the link carries the state in its hash', /#l=[A-Za-z0-9\-_]+$/.test(link), link.slice(0, 80) + '…');
+
+/* the worst realistic case: keep a handful, switch the rest off */
+const curatedLink = await page.evaluate(() => {
+  document.querySelectorAll('.grp .bulk').forEach((b) => {
+    if (b.textContent === 'נקה') b.click();
+  });
+  return window.__wheel.link();
+});
+ok('switching almost everything off still fits in a shareable link',
+  curatedLink.split('#')[1].length < 400,
+  `${curatedLink.split('#')[1].length} chars of hash for ${TOTAL} activities`);
+const curated = await ctx.newPage();
+await curated.goto(curatedLink, { waitUntil: 'networkidle' });
+ok('and that packed link round-trips exactly',
+  (await curated.evaluate(() => window.__wheel.pool().length)) === 0);
+await curated.close();
+await page.click('#resetBtn');                 /* back to the full list */
 const guest = await ctx.newPage();
 const guestNoise = [];
 guest.on('pageerror', (e) => guestNoise.push(e.message));
@@ -469,21 +503,30 @@ await page.click('#resetBtn');
 
 console.log('\nfinding things in a long list');
 await page.click('#editBtn');
-await page.fill('#edSearch', 'פיצה');
-ok('search narrows to the matches', (await page.locator('.items li').count()) === 1);
-ok('and hides the categories with nothing in them', (await page.locator('.grp').count()) === 1);
+const NEEDLE = 'לבשל';
+const expected = await page.evaluate((q) => {
+  const hits = window.__wheel.pool().filter((i) => i.text.includes(q));
+  return { rows: hits.length, cats: new Set(hits.map((i) => i.cat)).size };
+}, NEEDLE);
+await page.fill('#edSearch', NEEDLE);
+ok('search narrows to exactly the matches',
+  (await page.locator('.items li').count()) === expected.rows, `${expected.rows} expected`);
+ok('and hides the categories with nothing in them',
+  (await page.locator('.grp').count()) === expected.cats, `${expected.cats} expected`);
+ok('the search actually cut the list down', expected.rows > 0 && expected.rows < TOTAL / 4,
+  `${expected.rows} of ${TOTAL}`);
 await page.fill('#edSearch', 'זזזזז');
 ok('a search with no hits says so', await page.locator('.no-results').isVisible());
 await page.fill('#edSearch', '');
-ok('clearing it brings everything back', (await page.locator('.items li').count()) === 60);
+ok('clearing it brings everything back', (await page.locator('.items li').count()) === TOTAL);
 
 const firstBulk = page.locator('.grp').first().locator('.bulk');
 await firstBulk.click();
 ok('one tap clears a whole category',
-  (await page.evaluate(() => window.__wheel.pool().length)) === 50);
+  (await page.evaluate(() => window.__wheel.pool().length)) === TOTAL - PER_CAT);
 await firstBulk.click();
 ok('and one tap brings it all back',
-  (await page.evaluate(() => window.__wheel.pool().length)) === 60);
+  (await page.evaluate(() => window.__wheel.pool().length)) === TOTAL);
 await page.click('#doneBtn');
 
 console.log('\ncarnival details');
@@ -554,11 +597,15 @@ ok('the wheel follows the finger while held', Math.abs(midDrag - beforeDrag) > 6
   `moved ${Math.round(midDrag - beforeDrag)}deg`);
 ok('and it does not count as a spin yet', !(await page.evaluate(() => window.__wheel.spinning())));
 await page.mouse.up();
-try { await page.waitForFunction(() => window.__wheel.spinning(), null, { timeout: 1500 }); } catch {}
+let threw = true;
+try { await page.waitForFunction(() => window.__wheel.spinning(), null, { timeout: 2500 }); }
+catch { threw = false; }
+ok('letting go throws it', threw);
 await settled(page);
 const flung = await readPointer(page);
-ok('letting go throws it', flung.winner !== null);
-ok('and a thrown wheel still lands where it says', flung.winner.id === flung.under.id);
+/* only meaningful if it actually threw — otherwise this would compare a
+ * dragged rotation against the winner of the previous spin */
+ok('and a thrown wheel still lands where it says', threw && flung.winner.id === flung.under.id);
 
 /* a deliberate, slow drag is a reposition, not a throw */
 await page.mouse.move(...atAngle(0));
@@ -570,6 +617,8 @@ for (let a = 0; a <= 40; a += 10) {
 await page.mouse.up();
 await page.waitForTimeout(250);
 ok('a slow drag repositions instead of spinning', !(await page.evaluate(() => window.__wheel.spinning())));
+ok('and it drops the highlight rather than pointing at a stale winner',
+  await page.evaluate(() => !document.getElementById('rotor').classList.contains('settled')));
 
 /* thrown the other way, the wheel must still be honest */
 let backwards = 0;
@@ -704,7 +753,7 @@ const localNoise = [];
 local.on('pageerror', (e) => localNoise.push(e.message));
 await local.goto(pathToFileURL(resolve(ROOT, APP)).href, { waitUntil: 'domcontentloaded' });
 ok('the file loads over file://', (await local.locator('.chip').count()) === 6);
-ok('with the full default list', (await local.evaluate(() => window.__wheel.pool().length)) === 60);
+ok('with the full default list', (await local.evaluate(() => window.__wheel.pool().length)) === TOTAL);
 await spin(local);
 const offline = await readPointer(local);
 ok('it spins and lands correctly with no storage at all', offline.winner.id === offline.under.id);

@@ -66,8 +66,9 @@ any of FitAI's storage. See [`backrooms/README.md`](backrooms/README.md).
 ### Also in this repo: `מה-לעשות-היום.html`
 
 A fourth app, in Hebrew and unrelated to training: a wheel of fortune that
-picks what to do today out of an editable list — sixty activities across six
-categories, all of which can be switched off, deleted or added to. It is one
+picks what to do today out of an editable list — 210 activities across six
+categories, thirty-five each, all of which can be switched off, edited,
+deleted or added to. It is one
 self-contained HTML file with no build step, no modules and no fetches, so it
 opens straight off the disk as readily as it does over Pages.
 
@@ -103,8 +104,10 @@ offers you the twenty-minute things. That one filter is deliberately the only
 piece of state that is neither stored nor shared: it describes the moment, not
 the list.
 
-A list can also travel: the editor turns the whole state into base64url in the
-URL hash, and opening that link offers the list to whoever clicks it — asked
+A list can also travel: the editor packs the whole state into base64url in the
+URL hash — the switched-off defaults as one bit each rather than 210 ids, which
+is the difference between a link that survives a messenger and one that does
+not — and opening that link offers the list to whoever clicks it — asked
 first if they already have one of their own, undoable if they say yes. Anything
 arriving that way goes through the same sanitiser the stored state does, so a
 hostile link is only ever text with a length cap on it.
