@@ -354,32 +354,57 @@ async function main() {
       return {
         state: g.flag.state,
         site: g.flag.site.id,
+        lock: g.flag.site.lock,
         x: g.flag.x, y: g.flag.y, z: g.flag.z,
         guide: !document.querySelector('#guide').hidden,
         clock: g.clock.text,
+        answer: String(g.layout.puzzles.code.answer),
       };
     });
     check(flag.state === 'placed', `the flag is out at ${flag.clock} (${flag.site})`);
     check(flag.guide, 'the arrow points at it');
+    /* The first night is always the mailbox at 14, because the arithmetic is
+     * stamped on the box and it is thirty metres from Adam's door. */
+    check(flag.site === 'mailbox' && flag.lock === 'code',
+      `night one is the mailbox with the combination (got ${flag.site}/${flag.lock})`);
 
-    /*
-     * Walk up and take it, by pressing E. The crouch is held as a key rather
-     * than set on the player: the controller releases a crouch nobody is
-     * holding on the very next frame, which is correct behaviour and makes the
-     * obvious version of this silently do nothing.
-     */
     const stood = await approachFlag(page);
     check(stood.ok, `there is somewhere to stand to reach the ${flag.site}`);
     await frames(page, 3);
     await shot('flag');
+
+    /* E on a locked flag opens the lock, not the flag. */
+    await press(page, 'KeyE', 4);
+    check(await page.evaluate(() => !document.querySelector('#puzzle').hidden),
+      'E on the locked mailbox opens the keypad');
+    await shot('puzzle');
+
+    /* A wrong code first, because a wrong answer is supposed to cost. */
+    const wrong = flag.answer.split('').map((d) => String((Number(d) + 1) % 10)).join('');
+    for (const d of wrong) await page.click(`#puzzle-body .key >> text="${d}"`);
+    await frames(page, 3);
+    const bad = await page.evaluate(() => ({
+      cls: document.querySelector('#puzzle-status').className,
+      solved: window.suburb.layout.puzzles.code.solved,
+    }));
+    check(!bad.solved && bad.cls === 'bad', 'a wrong code is rejected');
+
+    for (const d of flag.answer) await page.click(`#puzzle-body .key >> text="${d}"`);
+    await frames(page, 6);
+    check(await page.evaluate(() => window.suburb.layout.puzzles.code.solved),
+      'the right code opens the box');
+    await page.waitForFunction(() => document.querySelector('#puzzle').hidden,
+      null, { timeout: 10000 });
+
+    await approachFlag(page);
+    await frames(page, 2);
     await press(page, 'KeyE', 5);
     const took = await page.evaluate(() => ({
       state: window.suburb.flag.state,
       carrying: window.suburb.player.carrying,
-      lock: window.suburb.flag.site.lock,
     }));
     check(took.state === 'carried' && took.carrying,
-      `E on an unlocked flag picks it up (state ${took.state}, lock ${took.lock})`);
+      `E on an open box picks the flag up (state ${took.state})`);
 
     /* Carry it home. */
     await page.evaluate(() => window.suburb.input.hold('KeyC', false));
@@ -389,7 +414,6 @@ async function main() {
     const won = await page.evaluate(() => ({
       screen: window.suburb.ui.current,
       cleared: JSON.parse(localStorage.getItem('suburb.v1')).cleared,
-      title: document.querySelector('#night-title').textContent,
     }));
     check(won.screen === 'night', 'carrying it through the front door ends the night');
     check(won.cleared.includes(1), 'the first night is recorded as cleared');
@@ -442,46 +466,55 @@ async function main() {
     check(!caught.cleared.includes(2), 'a night you were caught on is not recorded as cleared');
     await shot('caught');
 
-    /* ---- a locked night ---- */
-    /* Night three is always the mailbox, and the mailbox is always arithmetic
-     * on a house number the player can read off the box in front of them. */
+    /* ---- a lock you do with your hands ---- */
+    /*
+     * Three of the ten locks have no panel at all: read the writing on a window
+     * through a mirror and lift the right porch board, drag a ladder under
+     * cover of the whistle, dig up a bone for the dog. This drives the first
+     * one, because it is the one that spans two ends of the neighbourhood.
+     */
     await enterNight(page, 3);
     await sleep(page);
-    await page.evaluate(() => { window.suburb.clock.t = window.suburb.clock.flagAt + 1; });
-    await frames(page, 6);
-    const locked = await page.evaluate(() => {
+    const world = await page.evaluate(() => {
       const g = window.suburb;
-      return { site: g.flag.site.id, lock: g.flag.site.lock, x: g.flag.x, z: g.flag.z,
-        answer: String(g.layout.puzzles.code.answer) };
+      const P = g.layout.puzzles;
+      const mirror = g.world.interact.find((i) => i.kind === 'mirror');
+      const win = g.world.interact.find((i) => i.kind === 'window');
+      const board = g.world.interact.find((i) => i.kind === 'board');
+      return {
+        read: P.mirror.read, solved: P.mirror.solved,
+        mirror: mirror && { x: mirror.x, z: mirror.z },
+        window: win && { x: win.x, z: win.z },
+        board: board && { x: board.x, z: board.z },
+      };
     });
-    check(locked.lock === 'code', `night three is the locked mailbox (got ${locked.site})`);
-    await approachFlag(page);
-    await frames(page, 3);
-    await press(page, 'KeyE', 4);
-    check(await page.evaluate(() => !document.querySelector('#puzzle').hidden),
-      'E on the locked flag opens the keypad');
-    await shot('puzzle');
-
-    /* A wrong code first, because the wrong answer is supposed to cost. */
-    const wrong = locked.answer.split('').map((d) => String((Number(d) + 1) % 10)).join('');
-    for (const d of wrong) await page.click(`#puzzle-body .key >> text="${d}"`);
-    await frames(page, 3);
-    const bad = await page.evaluate(() => ({
-      status: document.querySelector('#puzzle-status').textContent,
-      cls: document.querySelector('#puzzle-status').className,
-      solved: window.suburb.layout.puzzles.code.solved,
-    }));
-    check(!bad.solved && bad.cls === 'bad', 'a wrong code is rejected');
-
-    for (const d of locked.answer) await page.click(`#puzzle-body .key >> text="${d}"`);
-    await frames(page, 6);
-    check(await page.evaluate(() => window.suburb.layout.puzzles.code.solved),
-      'the right code opens the box');
-    await page.waitForFunction(() => document.querySelector('#puzzle').hidden,
-      null, { timeout: 10000 });
-    await press(page, 'KeyE', 5);
-    check(await page.evaluate(() => window.suburb.flag.state === 'carried'),
-      'the flag can be taken once the box is open');
+    check(!!world.mirror && !!world.window && !!world.board,
+      'the empty house has a window, a mirror and a loose board');
+    if (world.mirror && world.board) {
+      const face = async (t) => {
+        await page.evaluate((p) => {
+          const g = window.suburb;
+          g.player.yaw = Math.atan2(-(p.x - g.player.pos.x), -(p.z - g.player.pos.z));
+        }, t);
+        await frames(page, 2);
+      };
+      /* The board does not come up until the mirror has been read. */
+      await teleport(page, world.board.x + 1.2, world.board.z + 1.2);
+      await face(world.board);
+      await press(page, 'KeyE', 4);
+      check(!(await page.evaluate(() => window.suburb.layout.puzzles.mirror.solved)),
+        'the board stays down until the writing has been read');
+      await teleport(page, world.mirror.x + 1.2, world.mirror.z + 1.2);
+      await face(world.mirror);
+      await press(page, 'KeyE', 4);
+      check(await page.evaluate(() => window.suburb.layout.puzzles.mirror.read),
+        'the mirror reads the writing the right way round');
+      await teleport(page, world.board.x + 1.2, world.board.z + 1.2);
+      await face(world.board);
+      await press(page, 'KeyE', 4);
+      check(await page.evaluate(() => window.suburb.layout.puzzles.mirror.solved),
+        'and then the board comes up');
+    }
 
     /* ---- the last night ---- */
     await page.evaluate(() => {

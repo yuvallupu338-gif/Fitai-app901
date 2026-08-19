@@ -196,6 +196,18 @@ export class UI {
     el.classList.toggle('low', fraction < 0.3);
   }
 
+  /* The bar for the things that take time. `label` ending in a marker the
+   * caller chooses is deliberate: the ladder's two states are "now" and
+   * "wait", and they need to be visibly different at a glance. */
+  setAction(fraction, label) {
+    const el = $('#hud-action');
+    el.hidden = fraction === null;
+    if (fraction === null) return;
+    el.querySelector('i').style.width = `${Math.round(clamp01(fraction) * 100)}%`;
+    $('#hud-action-label').textContent = label || '';
+    el.classList.toggle('wait', /לחכות/.test(label || ''));
+  }
+
   setGuide(angle, dist, label, carrying) {
     const el = $('#guide');
     if (angle === null) { el.hidden = true; return; }
@@ -368,6 +380,8 @@ export class UI {
       '<b>M</b> סגירה · הבית שלך מסומן בירוק · הדגל באדום, אם אתה יודע איפה הוא';
   }
 }
+
+function clamp01(v) { return v < 0 ? 0 : v > 1 ? 1 : v; }
 
 function kindName(kind) {
   return kind === 'journal' ? 'יומן' : kind === 'tape' ? 'קלטת' : 'תצלום';

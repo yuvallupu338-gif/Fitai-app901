@@ -54,15 +54,37 @@ export const PLAN = {
   boundaryHeight: 3.4,
 };
 
-/* House numbers: evens on the north side, odds on the south, ascending east.
- * The mailbox puzzle does arithmetic on these, so they have to be somewhere a
- * player can read them — they are on the mailbox and over the front door. */
+/*
+ * House numbers. Odds on the south side ascending east — 11, 13, 15, 17, 19,
+ * 21 — and evens on the north side ascending *west*: 12 opposite 21, then 14,
+ * 16, 18, 20, 22 going away from it.
+ *
+ * The two sides running opposite ways is unusual for a street and deliberate
+ * here, because the numbers are load-bearing in three separate places and they
+ * all pull the same way. Adam lives at 21, at the end of the road, which is
+ * where the map has always put him. The mailbox puzzle does arithmetic on the
+ * number 14 and it is the first lock the game ever gives you, so number 14 has
+ * to be a short walk from his front door rather than a hundred metres away.
+ * And the empty house at 17 has to be far enough to be a journey. Numbering
+ * the north side the other way round gets all three; numbering it the obvious
+ * way gets none of them.
+ */
 function houseNumber(side, col) {
-  return side === 'north' ? (col + 1) * 2 : col * 2 + 1;
+  return side === 'south' ? 11 + col * 2 : 22 - col * 2;
 }
 
-export const HOME_NUMBER = 5;        /* south side, third from the west     */
-export const ABANDONED_NUMBER = 11;  /* south side, far east                */
+export const HOME_NUMBER = 21;       /* Adam, south side, the end of the road */
+export const ABANDONED_NUMBER = 17;  /* empty for twenty years                */
+export const BOB_NUMBER = 16;        /* the neighbour who waters his lawn     */
+
+/*
+ * How many white hedge panels stand along number 12's boundary. One of the ten
+ * locks is a chain with a code on that gate and the code is the count, so the
+ * fence has to actually have this many panels in it: a player who does not
+ * trust the neighbour's answer can stand there and count them, which is
+ * exactly what the puzzle is about — twenty seconds in the open at 3:33.
+ */
+export const HEDGE_PANELS = 47;
 
 /* ------------------------------------------------------------------ *
  * Occupants
@@ -72,20 +94,20 @@ export const ABANDONED_NUMBER = 11;  /* south side, far east                */
  * they are who is asleep behind the window you are about to walk past.
  * ------------------------------------------------------------------ */
 
-const OCCUPANTS = [
-  { name: 'מר קלמן', trait: 'גוזם את הגדר בשלוש בבוקר לפעמים' },
-  { name: 'משפחת ורדי', trait: 'שלושה ילדים, אף אחד לא בחוץ' },
-  { name: 'גברת אלוני', trait: 'מכינה עוגת גבינה ומדברת הרבה' },
-  { name: 'הזוג נחמיאס', trait: 'חדשים כאן. כמעט כמוך' },
-  { name: 'דוד ומירי', trait: 'הכלב שלהם לא ישן אף פעם' },
-  { name: 'את הבית שלך', trait: 'המיטה שלך. השעון על השידה' },
-  { name: 'מר בכר', trait: 'שומר על הדשא כאילו הוא ילד' },
-  { name: 'משפחת אזולאי', trait: 'המכונית תמיד נעולה' },
-  { name: 'גברת שוורץ', trait: 'יודעת מה קרה כאן. לא תגיד' },
-  { name: 'הזוג מלכה', trait: 'תיבת הדואר שלהם עם מנעול' },
-  { name: 'רון מהפינה', trait: 'עובד לילות. מחייך יותר מדי' },
-  { name: 'אף אחד', trait: 'הבית הזה ריק כבר עשרים שנה' },
-];
+const OCCUPANTS = {
+  11: { name: 'מר קלמן', trait: 'הגדר האחורית שלו נשענת על הגן' },
+  12: { name: 'משפחת ורדי', trait: 'ארגזים ליד המוסך כבר שנתיים' },
+  13: { name: 'גברת שוורץ', trait: 'הבובות בגינה היו כאן לפניה' },
+  14: { name: 'גברת רוזנברג', trait: 'מתלוננת שכולם שוכחים את הקוד' },
+  15: { name: 'דוד ומירי', trait: 'הכלב שלהם לא ישן אף פעם' },
+  16: { name: 'בוב', trait: 'משקה את הדשא בשעות מוזרות ומחייך' },
+  17: { name: 'אף אחד', trait: 'הבית הזה ריק כבר עשרים שנה' },
+  18: { name: 'הזוג נחמיאס', trait: 'הפחים שלהם בסמטה מאחור' },
+  19: { name: 'מר בכר', trait: 'שומר על הדשא כאילו הוא ילד' },
+  20: { name: 'משפחת אזולאי', trait: 'המכונית תמיד נעולה' },
+  21: { name: 'הבית שלך', trait: 'המיטה שלך. השעון על השידה' },
+  22: { name: 'רון מהפינה', trait: 'עובד לילות. מחייך יותר מדי' },
+};
 
 /* ------------------------------------------------------------------ *
  * The layout
@@ -171,7 +193,7 @@ export function buildLayout(night, seed) {
           wallTop: PLAN.garage.wall,
           roof: PLAN.garage.roof,
         },
-        occupant: OCCUPANTS[idx - 1] || OCCUPANTS[0],
+        occupant: OCCUPANTS[number] || { name: 'שכן', trait: '' },
         /* Four front windows and two on each side, lit or not. Two in the
          * whole street stay lit all night; the rest go out between 3:30 and
          * 3:33, which is the only thing in the neighbourhood that changes
@@ -195,9 +217,9 @@ export function buildLayout(night, seed) {
   /* The dog. One back garden, never the player's, and never next door to it —
    * a barking dog fifteen metres from your own front door on night one is not
    * a hazard, it is a wall. */
-  const dogCandidates = houses.filter((h) => !h.home && !h.abandoned
-    && Math.abs(h.x - homeOf(houses).x) > 30);
-  const dogHouse = rng.pick(dogCandidates);
+  /* The dog is at 15 and nowhere else: it is the family dog that barked that
+   * night and did not stop, and one of the ten locks is getting past it. */
+  const dogHouse = houses.find((h) => h.number === 15);
   dogHouse.dog = true;
 
   for (const h of houses) {
@@ -329,15 +351,19 @@ function streetLamps(rng) {
 function propsFor(houses, rng, night) {
   const props = [];
   const home = homeOf(houses);
+  const byNumber = (n) => houses.find((h) => h.number === n);
 
   for (const h of houses) {
     const s = h.sign;
     const gx = h.x + h.garageSide * (h.w / 2 - 1.8);
 
-    /* Mailbox at the kerb, on the driveway side. */
+    /* Mailbox at the kerb, on the driveway side. Number 14's has a combination
+     * lock on it and everyone else's does not, which is a thing you can see
+     * from the pavement in daylight. */
     props.push({
       kind: 'mailbox', houseId: h.id, number: h.number,
       x: gx, z: s * (PLAN.roadHalf + PLAN.pave + 0.8), yaw: s > 0 ? Math.PI : 0,
+      locked: h.number === 14,
     });
     /* The flag pole every house has, and nobody mentions. */
     props.push({
@@ -345,31 +371,24 @@ function propsFor(houses, rng, night) {
       x: h.x - h.garageSide * 3.2, z: s * (PLAN.frontZ - 3.0), yaw: 0,
       flying: !h.abandoned,
     });
-    /* Bins, out for collection, on about half the plots. */
-    if (rng.chance(0.5)) {
-      props.push({
-        kind: 'bin', houseId: h.id,
-        x: h.x + rng.range(-3.5, 3.5), z: s * (PLAN.roadHalf + PLAN.pave + 0.5),
-        yaw: rng.range(0, Math.PI * 2),
-      });
-    }
-    /* A car on most driveways — and always on number 6's, because the flag
-     * spends one night of every seven locked inside it. */
-    if (!h.abandoned && (h.number === 6 || rng.chance(0.7))) {
+    /* A car on most driveways — and always on 13's, which is the one with the
+     * radio and the piano sticker on the sun visor. */
+    if (!h.abandoned && (h.number === 13 || rng.chance(0.6))) {
       props.push({
         kind: 'car', houseId: h.id,
         x: gx, z: s * (PLAN.frontZ - 4.2), yaw: h.sign > 0 ? 0 : Math.PI,
-        locked: true,
+        radio: h.number === 13,
       });
     }
-    /* A hedge down one plot boundary — the side the garage is not on, since
-     * the garage and its crates take up the whole of the other one. */
+    /* A hedge down the boundary the garage is not on. Number 12's is the one
+     * with the chain lock on its gate, and it is exactly as long as the puzzle
+     * says it is — see hedgePanels() below. */
     props.push({
       kind: 'hedgeRow', houseId: h.id,
       x: h.x - h.garageSide * (PLAN.houseW / 2 + PLAN.plotEdge),
       z0: s * (PLAN.frontZ - 6), z1: s * (PLAN.frontZ + h.d + 4), axis: 'z',
+      panels: h.number === 12 ? HEDGE_PANELS : 0,
     });
-    /* A tree in most front gardens. */
     if (rng.chance(0.65)) {
       props.push({
         kind: 'tree', houseId: h.id,
@@ -377,36 +396,87 @@ function propsFor(houses, rng, night) {
         r: rng.range(0.9, 1.35), h: rng.range(5.5, 7.5),
       });
     }
-    if (h.dog) {
-      props.push({
-        kind: 'doghouse', houseId: h.id,
-        x: h.x + 3, z: s * (PLAN.frontZ + h.d + 3.5), yaw: h.sign > 0 ? 0 : Math.PI,
-      });
-    }
-    /*
-     * Garden gnomes. Four of them, in number 6's front garden and nowhere
-     * else, because they are the lock on number 6's car and a second identical
-     * row two doors down would make the puzzle unsolvable by exactly the
-     * player who was paying attention. They stand there on every night of
-     * every save, including the six nights they are not needed — a puzzle
-     * object that only appears on the night it matters is a puzzle you can see
-     * coming.
-     */
-    if (h.number === 6) {
-      const gz = s * (PLAN.frontZ - 2.2);
-      for (let i = 0; i < 4; i++) {
-        props.push({ kind: 'gnome', houseId: h.id, x: h.x - 3 + i * 2, z: gz, slot: i });
-      }
-    }
   }
 
-  /* The park: a fountain, benches, and the biggest tree in the neighbourhood. */
+  /* --- the ten locks, each of them a thing standing in a garden --- */
+
+  /* Three music boxes on Bob's lawn at 16. One of them plays the lullaby the
+   * way she actually sang it. */
+  const bob = byNumber(BOB_NUMBER);
+  for (let i = 0; i < 3; i++) {
+    props.push({
+      kind: 'musicbox', houseId: bob.id, slot: i,
+      x: bob.x - 2.4 + i * 2.4, z: bob.sign * (PLAN.frontZ - 5.4),
+    });
+  }
+
+  /* Four garden dolls at 13, in a row, in the wrong order. They are Adam's
+   * toys from the photograph, which is not something the game ever says. */
+  const dollHouse = byNumber(13);
+  for (let i = 0; i < 4; i++) {
+    props.push({
+      kind: 'doll', houseId: dollHouse.id, slot: i,
+      x: dollHouse.x - 3 + i * 2, z: dollHouse.sign * (PLAN.frontZ - 2.2),
+    });
+  }
+  /* And the bone, buried under 13's porch, for the dog at 15. */
+  props.push({
+    kind: 'digspot', houseId: dollHouse.id,
+    x: dollHouse.x + 2.4, z: dollHouse.sign * (PLAN.frontZ - 1.4),
+  });
+
+  /* The wardrobe mirror somebody left leaning on the back fence of the empty
+   * house twenty years ago. */
+  const ab = byNumber(ABANDONED_NUMBER);
+  props.push({
+    kind: 'mirror', houseId: ab.id,
+    x: ab.x - 4.4, z: ab.sign * (PLAN.frontZ + ab.d + 2.2), yaw: ab.sign > 0 ? 0 : Math.PI,
+  });
+  /* The third board of its porch, which is what the mirror is about. */
+  props.push({
+    kind: 'board', houseId: ab.id,
+    x: ab.x + 1.1, z: ab.sign * (PLAN.frontZ - 1.4),
+  });
+
+  /* The dog at 15. */
+  const dogHouse = houses.find((h) => h.dog) || byNumber(15);
+  props.push({
+    kind: 'doghouse', houseId: dogHouse.id,
+    x: dogHouse.x + 3, z: dogHouse.sign * (PLAN.frontZ + dogHouse.d + 3.5),
+    yaw: dogHouse.sign > 0 ? 0 : Math.PI,
+  });
+
+  /* Three bins in the alley behind 18, chained one to the next. */
+  const binHouse = byNumber(18);
+  for (let i = 0; i < 3; i++) {
+    props.push({
+      kind: 'bin', houseId: binHouse.id, slot: i,
+      x: binHouse.x - 2.2 + i * 2.2,
+      z: binHouse.sign * (PLAN.frontZ + binHouse.d + 5.2),
+      yaw: rng.range(0, Math.PI * 2),
+    });
+  }
+  /* Everyone else's bins are just bins, out for collection. */
+  for (const h of houses) {
+    if (h.number === 18 || !rng.chance(0.4)) continue;
+    props.push({
+      kind: 'bin', houseId: h.id, slot: -1,
+      x: h.x + rng.range(-3.5, 3.5), z: h.sign * (PLAN.roadHalf + PLAN.pave + 0.5),
+      yaw: rng.range(0, Math.PI * 2),
+    });
+  }
+
+  /* The park: a fountain, the tall tree, the ladder against it, the fuse
+   * cabinet that drives the fountain pump, and somewhere to sit. */
   const p = PLAN.park;
-  props.push({ kind: 'fountain', x: (p.x0 + p.x1) / 2, z: (p.z0 + p.z1) / 2 - 2, r: 3.2 });
+  const px = (p.x0 + p.x1) / 2;
+  props.push({ kind: 'fountain', x: px, z: (p.z0 + p.z1) / 2 - 2, r: 3.2 });
   props.push({ kind: 'tree', x: p.x0 + 3, z: p.z0 + 5, r: 1.7, h: 9.5, big: true });
+  props.push({ kind: 'ladder', x: p.x0 + 5.2, z: p.z0 + 5, yaw: 0 });
+  props.push({ kind: 'panel', x: p.x1 - 1.6, z: p.z0 + 2.4, yaw: -Math.PI / 2 });
   props.push({ kind: 'tree', x: p.x1 - 3.5, z: p.z0 + 8, r: 1.2, h: 7 });
-  props.push({ kind: 'bench', x: (p.x0 + p.x1) / 2 - 4.6, z: (p.z0 + p.z1) / 2 - 2, yaw: Math.PI / 2 });
-  props.push({ kind: 'bench', x: (p.x0 + p.x1) / 2 + 4.6, z: (p.z0 + p.z1) / 2 - 2, yaw: -Math.PI / 2 });
+  props.push({ kind: 'bench', x: px - 4.6, z: (p.z0 + p.z1) / 2 - 2, yaw: Math.PI / 2 });
+  props.push({ kind: 'bench', x: px + 4.6, z: (p.z0 + p.z1) / 2 - 2, yaw: -Math.PI / 2 });
   props.push({ kind: 'sign', x: 2.5, z: p.z1 + 1.5, yaw: 0, text: 'גן האורנים' });
 
   /* The green at the south end, which is where the bus never comes. */
@@ -414,30 +484,16 @@ function propsFor(houses, rng, night) {
   props.push({ kind: 'shelter', x: (g.x0 + g.x1) / 2, z: g.z0 + 3, yaw: Math.PI });
   props.push({ kind: 'tree', x: g.x0 + 4, z: g.z0 + 9, r: 1.1, h: 6.5 });
 
-  /* Three music boxes on a lawn — the sound puzzle's furniture. Always the
-   * same lawn, so a player who learned it in daylight on night two can walk
-   * to it in the dark on night five. */
-  const musicHouse = houses.find((h) => h.number === 3);
-  for (let i = 0; i < 3; i++) {
-    props.push({
-      kind: 'musicbox', houseId: musicHouse.id, slot: i,
-      x: musicHouse.x - 2.4 + i * 2.4, z: musicHouse.sign * (PLAN.frontZ - 5.4),
-    });
-  }
-  /* The mirror in the garden of the abandoned house: a wardrobe mirror
-   * somebody left leaning against the fence twenty years ago. */
-  const ab = houses.find((h) => h.abandoned);
+  /* Your own front door, marked, so the goal is a thing in the world. */
   props.push({
-    kind: 'mirror', houseId: ab.id,
-    x: ab.x - 4.4, z: ab.sign * (PLAN.frontZ + ab.d + 2.2), yaw: ab.sign > 0 ? 0 : Math.PI,
+    kind: 'homeMark', houseId: home.id, x: home.x,
+    z: home.frontZ - home.sign * 1.4,
   });
-  /* Your own porch, marked, so the goal is a thing in the world and not a
-   * number on the HUD. */
-  props.push({ kind: 'homeMark', houseId: home.id, x: home.x, z: home.frontZ - home.sign * 1.4 });
 
   void night;
   return props;
 }
+
 
 /* ------------------------------------------------------------------ *
  * The walk graph
@@ -527,114 +583,129 @@ function walkGraph(houses) {
  * ------------------------------------------------------------------ */
 
 /*
- * Ten sites, fixed to the street rather than scattered randomly. Fixed is the
- * point: a player who has played four nights knows all ten places, and the
- * tension stops being "where could it possibly be" and becomes "which of the
- * ten, and can I get there and back". Random placement would make every night
- * the same search.
+ * The ten places a flag can be, and the ten locks on them.
  *
- * `lock` names a puzzle in puzzles.js, or null for a site that is guarded by
- * where it is rather than by a lock.
+ * Fixed to the street rather than scattered randomly, and that is the point: a
+ * player who has played four nights knows all ten, and the tension stops being
+ * "where could it possibly be" and becomes "which of the ten, and can I get
+ * there and back". Random placement would make every night the same search.
+ *
+ * Every one of them is guarded by something, and every guard is a piece of the
+ * same night twenty years ago: the toys in the garden are Adam's toys, the dog
+ * is the dog that barked, the red tape on the fuse is where his mother marked
+ * it so he would not be afraid of the dark.
+ *
+ * `lock` names a puzzle in buildPuzzles(). `kind` is how the game asks for it:
+ *   keypad  digits on a panel
+ *   choice  one of three or four things in the world
+ *   order   put things in the right order
+ *   world   done entirely by pressing E on things, no panel at all
  */
 function flagSites(houses) {
   const byNumber = (n) => houses.find((h) => h.number === n);
   const p = PLAN.park;
   const sites = [];
 
-  const abandoned = byNumber(ABANDONED_NUMBER);
-  sites.push({
-    id: 'abandoned', lock: 'mirror', houseId: abandoned.id,
-    x: abandoned.x - 2.2, y: 0.9, z: abandoned.sign * (PLAN.frontZ + 3.5),
-    inside: abandoned.id,
-    label: 'הבית הנטוש',
-    hint: 'בתוך הבית שאף אחד לא גר בו. הדלת האחורית נעולה בקוד.',
-  });
-
-  const garage = byNumber(4);
-  const G = garage.garage;
-  sites.push({
-    id: 'garage', lock: null, houseId: garage.id,
-    x: G.x, y: G.roof + 0.3, z: (G.z0 + G.z1) / 2,
-    climb: true,
-    label: 'גג המוסך',
-    hint: 'על גג המוסך. יש ארגזים בצד, ומהם אפשר לעלות.',
-  });
-
-  const pitHouse = byNumber(10);
-  sites.push({
-    id: 'pit', lock: null, houseId: pitHouse.id,
-    /*
-     * On the side away from the garage. Somebody dug a hole in the lawn; a
-     * hole through the middle of their own concrete drive is a different
-     * story, and worse, the drive is a slab in the collision world — it lies
-     * across the hole and fills it in, which leaves the flag under solid
-     * ground with no way to reach it.
-     */
-    x: pitHouse.x - pitHouse.garageSide * 3.4, y: -0.9,
-    z: pitHouse.sign * (PLAN.frontZ - 6.4),
-    crouch: true,
-    label: 'הבור בדשא',
-    hint: 'בבור שמישהו חפר בדשא הקדמי ולא כיסה.',
-  });
-
-  const mail = byNumber(9);
+  /* 1 — the mailbox at 14. The first lock the game ever gives you, thirty
+   * metres from Adam's front door, and the answer is written on the box. */
+  const mail = byNumber(14);
   sites.push({
     id: 'mailbox', lock: 'code', houseId: mail.id,
     x: mail.x + mail.garageSide * (mail.w / 2 - 1.8), y: 1.05,
     z: mail.sign * (PLAN.roadHalf + PLAN.pave + 0.8),
-    label: 'תיבת הדואר הנעולה',
-    hint: 'בתיבת דואר עם מנעול ספרות.',
+    label: 'תיבת הדואר של מספר 14',
+    hint: 'בתיבת הדואר הנעולה של גברת רוזנברג, מספר 14.',
   });
 
+  /* 2 — under the third board of the empty house's porch. */
+  const ab = byNumber(ABANDONED_NUMBER);
   sites.push({
-    id: 'tree', lock: null,
-    x: p.x0 + 3, y: 2.4, z: p.z0 + 5,
+    id: 'boards', lock: 'mirror', houseId: ab.id,
+    x: ab.x + 1.1, y: 0.5, z: ab.sign * (PLAN.frontZ - 1.4),
+    crouch: true,
+    label: 'מתחת למרפסת של הבית הנטוש',
+    hint: 'מתחת לקרש במרפסת של הבית הריק, מספר 17. כתוב על החלון איזה.',
+  });
+
+  /* 3 — the roof of 12's garage, behind a gate with a chain on it. */
+  const garage = byNumber(12);
+  const G = garage.garage;
+  sites.push({
+    id: 'garage', lock: 'hedges', houseId: garage.id,
+    x: G.x, y: G.roof + 0.3, z: (G.z0 + G.z1) / 2,
     climb: true,
-    label: 'העץ הגדול בגן',
-    hint: 'על ענף של העץ הגדול בגן. אפשר לעלות מהספסל.',
+    label: 'גג המוסך של מספר 12',
+    hint: 'על גג המוסך של מספר 12. השער נעול בשרשרת עם קוד.',
   });
 
-  const carHouse = byNumber(6);
+  /* 4 — the hole in Bob's lawn. */
+  const bob = byNumber(BOB_NUMBER);
   sites.push({
-    id: 'car', lock: 'gnomes', houseId: carHouse.id,
+    id: 'pit', lock: 'sound', houseId: bob.id,
+    x: bob.x - bob.garageSide * 3.4, y: -0.9,
+    z: bob.sign * (PLAN.frontZ - 6.4),
+    crouch: true,
+    label: 'הבור בדשא של בוב',
+    hint: 'בבור שבוב חפר בדשא הקדמי שלו ולא כיסה.',
+  });
+
+  /* 5 — a branch of the big tree in the park, and a ladder that shrieks. */
+  sites.push({
+    id: 'tree', lock: 'ladder',
+    x: p.x0 + 3, y: 3.4, z: p.z0 + 5,
+    climb: true,
+    label: 'העץ הגבוה בגן',
+    hint: 'על ענף גבוה בעץ הגדול שבגן. יש שם סולם.',
+  });
+
+  /* 6 — the back seat of the locked car at 13. */
+  const carHouse = byNumber(13);
+  sites.push({
+    id: 'car', lock: 'radio', houseId: carHouse.id,
     x: carHouse.x + carHouse.garageSide * (carHouse.w / 2 - 1.8), y: 1.0,
     z: carHouse.sign * (PLAN.frontZ - 4.2),
-    label: 'המכונית הנעולה',
-    hint: 'במושב האחורי של מכונית נעולה.',
+    label: 'המכונית של מספר 13',
+    hint: 'במושב האחורי של המכונית הנעולה מול 13. הרדיו שלה דולק.',
   });
 
+  /* 7 — under the fountain, which is full of water until you find the pump. */
   sites.push({
-    id: 'fountain', lock: null,
+    id: 'fountain', lock: 'panel',
     x: (p.x0 + p.x1) / 2, y: 0.35, z: (p.z0 + p.z1) / 2 - 2 + 2.4,
     crouch: true,
     label: 'מתחת למזרקה',
-    hint: 'מתחת לשפה של המזרקה בגן. צריך להתכופף.',
+    hint: 'מתחת למזרקה בגן. צריך לכבות את המשאבה קודם.',
   });
 
-  const binHouse = byNumber(2);
+  /* 8 — the third bin in the alley behind 18. */
+  const binHouse = byNumber(18);
   sites.push({
-    id: 'bin', lock: null, houseId: binHouse.id,
-    x: binHouse.x, y: 0.7, z: binHouse.sign * (PLAN.roadHalf + PLAN.pave + 0.5),
+    id: 'bin', lock: 'bins', houseId: binHouse.id,
+    x: binHouse.x + 2.2, y: 0.7,
+    z: binHouse.sign * (PLAN.frontZ + binHouse.d + 5.2),
     loud: true,
-    label: 'בתוך פח האשפה',
-    hint: 'בתוך פח על המדרכה. הפח יעשה רעש.',
+    label: 'הפח בסמטה מאחורי 18',
+    hint: 'באחד הפחים בסמטה מאחורי 18. הם נעולים זה בזה.',
   });
 
-  const fenceHouse = byNumber(3);
+  /* 9 — the back fence at 11, at the far end of the road. */
+  const fenceHouse = byNumber(11);
   sites.push({
-    id: 'fence', lock: 'sound', houseId: fenceHouse.id,
-    x: fenceHouse.x - 2, y: 1.4, z: fenceHouse.sign * (PLAN.frontZ + fenceHouse.d + 5.2),
-    label: 'הגדר האחורית',
-    hint: 'תלוי על הגדר האחורית, מאחורי הבית עם תיבות הנגינה.',
+    id: 'fence', lock: 'dolls', houseId: fenceHouse.id,
+    x: fenceHouse.x - 2, y: 1.4,
+    z: fenceHouse.sign * (PLAN.frontZ + fenceHouse.d + 5.2),
+    label: 'הגדר האחורית של 11',
+    hint: 'תלוי על הגדר האחורית של 11, בקצה הרחוב.',
   });
 
-  const dogHouse = houses.find((h) => h.dog) || byNumber(1);
+  /* 10 — inside the kennel at 15, with the dog in it. */
+  const dogHouse = byNumber(15);
   sites.push({
-    id: 'doghouse', lock: null, houseId: dogHouse.id,
+    id: 'kennel', lock: 'bone', houseId: dogHouse.id,
     x: dogHouse.x + 3, y: 0.5, z: dogHouse.sign * (PLAN.frontZ + dogHouse.d + 3.5),
     crouch: true, loud: true,
-    label: 'בתוך המלונה',
-    hint: 'בתוך המלונה של הכלב. כן, באמת.',
+    label: 'המלונה בחצר של 15',
+    hint: 'בתוך המלונה של הכלב בחצר האחורית של 15. כן, באמת.',
   });
 
   return sites;
@@ -643,152 +714,175 @@ function flagSites(houses) {
 /*
  * Which site tonight.
  *
- * The whole seven-night schedule is drawn at once, from the save seed alone,
- * and then indexed by night. Drawing it per night would be simpler and would
- * be wrong twice over: the same site could come up three nights running, and
- * the puzzles could go the whole game without ever being the thing in the way.
- *
- * The shape of the schedule is the difficulty curve. Night one is the closest
- * site you can walk to and pick up — no climb, no crouch, no lock — because a
- * first night that opens with a padlock teaches the player that the game is
- * unfair rather than that it is tense. Nights three and four are locked, in
- * increasing order of how much the lock asks of you. After that it is
- * whatever is left, and by then "whatever is left" is the far side of the
- * neighbourhood.
+ * Night one is always the mailbox at 14 — it is thirty metres from Adam's
+ * front door, the arithmetic is stamped on the box itself, and a first night
+ * spent learning that the game has locks in it is worth more than a first
+ * night spent lost. Everything after that is drawn from the save seed, so the
+ * seven nights of a save never repeat a place, and the six after the first are
+ * sorted so the walk grows.
  */
 function siteSchedule(sites, houses, seed) {
   const home = homeOf(houses);
   const dist = (s) => Math.hypot(s.x - home.x, s.z - home.frontZ);
-  const deck = rngFrom(((seed | 0) ^ 0x5bf03635) | 0).shuffle(sites);
-  const used = new Set();
-  const take = (pred) => {
-    const found = deck.find((s) => !used.has(s.id) && pred(s));
-    if (found) used.add(found.id);
-    return found;
-  };
-
-  const plan = [];
-  /*
-   * 1 — the nearest unlocked site, ranked by how much it asks of you before
-   * distance is even considered. Every one of the ten sites asks for
-   * something; crouching under a fountain is the cheapest thing to be asked
-   * on a first night, waking a dog is the dearest, and there is no site that
-   * asks for nothing — which is the point of the first night.
-   */
-  const cost = (s) => (s.loud ? 4 : 0) + (s.climb ? 2 : 0) + (s.crouch ? 1 : 0);
-  const easy = sites
-    .filter((s) => !s.lock)
-    .sort((a, b) => (cost(a) - cost(b)) || (dist(a) - dist(b)))[0] || sites[0];
-  used.add(easy.id);
-  plan.push(easy);
-  /* 2 — still no lock, but now it is across the street or up something. */
-  plan.push(take((s) => !s.lock) || take(() => true));
-  /* 3, 4 — the locks, easiest first: the mailbox is arithmetic you can do
-   * standing in front of the answer; everything else needs a second trip. */
-  const lockOrder = ['code', 'sound', 'gnomes', 'mirror'];
-  for (const want of [0, 1]) {
-    const picked = lockOrder
-      .map((l) => sites.find((s) => s.lock === l && !used.has(s.id)))
-      .filter(Boolean)[want === 0 ? 0 : 0];
-    if (picked) { used.add(picked.id); plan.push(picked); }
-    else plan.push(take(() => true));
-  }
-  /* 5, 6, 7 — whatever is left, furthest last. */
-  const rest = deck.filter((s) => !used.has(s.id)).sort((a, b) => dist(a) - dist(b));
-  while (plan.length < 7) plan.push(rest.pop() || deck[plan.length % deck.length]);
-  return plan;
+  const first = sites.find((s) => s.id === 'mailbox') || sites[0];
+  const rest = rngFrom(((seed | 0) ^ 0x5bf03635) | 0)
+    .shuffle(sites.filter((s) => s !== first))
+    .slice(0, 6)
+    .sort((x, y) => dist(x) - dist(y));
+  return [first, ...rest];
 }
 
 function chooseSite(sites, houses, seed, night) {
   const plan = siteSchedule(sites, houses, seed);
-  return plan[Math.min(Math.max(night, 1), 7) - 1];
+  const n = Math.min(Math.max(night, 1), 7);
+  return plan[n - 1] || plan[plan.length - 1];
 }
 
 /* ------------------------------------------------------------------ *
- * Puzzles
+ * The ten locks
  *
- * The answers are generated here, from things that are visible in the world,
- * and the clue text says how to get from the visible thing to the answer.
- * That is the whole contract: a puzzle whose answer is not derivable from
- * something you can walk up to and look at is a guessing game.
+ * Everything here is derivable from something the player can walk up to and
+ * look at, and — for the four that are numbers — from something a neighbour
+ * says in daylight. That is the whole contract: a puzzle whose answer is not
+ * derivable from something in the world is a guessing game, and a guessing
+ * game with a woman walking towards you is just a way of losing.
+ *
+ * The three fixed answers (22, 47, 3576) are fixed on purpose. They are
+ * properties of the neighbourhood — a house number, a fence, a sticker on a
+ * sun visor — and a neighbourhood whose house numbers changed nightly would
+ * not be a neighbourhood. What rotates per night is which lock is in the way.
  * ------------------------------------------------------------------ */
 
 function buildPuzzles(houses, sites, rng) {
   const byNumber = (n) => houses.find((h) => h.number === n);
+  const mail = byNumber(14);
 
-  /* The mailbox: arithmetic on the house number, which is stamped on the box
-   * you are standing in front of and painted over the door behind it. */
-  const mailHouse = byNumber(9);
-  const codeAnswer = String((mailHouse.number - 3) * 2);
+  /* 1 — the mailbox. The number is on the box you are standing at and painted
+   * over the door behind it, and the arithmetic is engraved on the lock. */
+  const codeAnswer = String((mail.number - 3) * 2);
 
-  /*
-   * The padlock on the abandoned house. Four digits, written on the inside of
-   * the kitchen window in something that has been there a long time — so from
-   * outside you read it backwards, and the only way to see it the right way
-   * round is the wardrobe mirror leaning on the back fence.
-   */
-  const digits = [];
-  for (let i = 0; i < 4; i++) digits.push(rng.irange(1, 9));
-  const mirrorAnswer = digits.join('');
+  /* 2 — the empty house. Somebody wrote on the inside of the kitchen window a
+   * long time ago, so from the garden it reads backwards, and the only way to
+   * read it the right way round is the wardrobe mirror on the back fence. */
+  const boardIndex = 3;
 
-  /*
-   * The gnomes. Four of them, each with an age on the base, to be stood in
-   * order. The ages are on little brass plates you can only read close up,
-   * which is the risk: they are in a front garden under a street lamp.
-   */
-  const ages = rng.shuffle([4, 11, 27, 63]);
-  const gnomeNames = ['הגמד עם הדלי', 'הגמד עם החכה', 'הגמד הישן', 'הגמד עם הפנס'];
-  const gnomes = ages.map((age, i) => ({ id: i, name: gnomeNames[i], age }));
-  const gnomeAnswer = gnomes.slice().sort((a, b) => a.age - b.age).map((g) => g.id);
+  /* 3 — the chain on 12's gate. The code is how many white hedge panels there
+   * are, and there are exactly that many, and counting them takes twenty
+   * seconds of standing still in the open. */
+  const hedgeAnswer = String(HEDGE_PANELS);
 
-  /*
-   * The music boxes. Three of them; one plays in the same key as the whistle.
-   * The whistle's root moves by night, so the answer does too, and the only
-   * way to know it is to have stood still and listened to her — which costs
-   * time you do not have. That is the trade the puzzle is about.
-   */
+  /* 4 — three music boxes on Bob's lawn. Two of them play the tune with the
+   * wrong fourth note, the way she whistles it now; one plays it the way she
+   * actually sang it. Which box is which moves, because the boxes get wound
+   * and put back. */
   const soundAnswer = rng.int(3);
-  const soundNotes = [0, 0, 0].map((_, i) => (i === soundAnswer ? 0 : rng.pick([-3, -1, 2, 5])));
 
+  /* 5 — the ladder against the tree. Not a code: it shrieks when you drag it,
+   * and the only cover is the whistle itself, so it has to be dragged in the
+   * loud half of her phrase and left alone in the quiet half. */
+
+  /* 6 — the car radio at 13. Four notes, and a piano sticker on the sun visor
+   * numbering the white keys from C. E G B A becomes 3 5 7 6. */
+  const NOTE_DIGITS = { C: 1, D: 2, E: 3, F: 4, G: 5, A: 6, B: 7 };
+  const radioNotes = ['E', 'G', 'B', 'A'];
+  const radioAnswer = radioNotes.map((n) => NOTE_DIGITS[n]).join('');
+
+  /* 7 — the fuse cabinet in the park. Four switches, and the one that stops
+   * the fountain pump is the one with a strip of red tape on it, which is in
+   * one of the photographs. The wrong one sets off a buzzer. */
+  const panelAnswer = rng.int(4);
+
+  /* 8 — three bins in the alley, chained one to the next. Read, drink, ring:
+   * newspapers, then the milk bottles, then the tins. */
+  const bins = [
+    { id: 0, name: 'הפח עם העיתונים' },
+    { id: 1, name: 'הפח עם בקבוקי החלב' },
+    { id: 2, name: 'הפח עם הפחיות' },
+  ];
+
+  /* 9 — four garden dolls at 13, in the wrong order. The clues are on three
+   * plaques in the same garden, and the order is a thing about their ages
+   * rather than their sizes. */
+  const dolls = [
+    { id: 0, name: 'הדובי' },
+    { id: 1, name: 'הכובע האדום' },
+    { id: 2, name: 'הכדור' },
+    { id: 3, name: 'הספר' },
+  ];
+
+  /* 10 — the dog. There is no code and no order: there is a bone buried under
+   * the porch at 13, and a dog at 15 that has been barking for twenty years. */
+
+  void sites;
   return {
     code: {
-      id: 'code',
-      title: 'המנעול על תיבת הדואר',
-      note: `על התיבה חרוט: "המספר של הבית שלי, פחות 3, כפול 2".`,
-      kind: 'keypad',
-      answer: codeAnswer,
-      digits: codeAnswer.length,
-      houseNumber: mailHouse.number,
-      solved: false,
+      id: 'code', kind: 'keypad', title: 'המנעול על תיבת הדואר',
+      note: 'חרוט על המכסה: "המספר של הבית שלי, פחות 3, כפול 2".',
+      answer: codeAnswer, digits: codeAnswer.length,
+      houseNumber: mail.number, solved: false,
     },
     mirror: {
-      id: 'mirror',
-      title: 'המנעול על הדלת האחורית',
-      note: 'ארבע ספרות. מישהו כתב אותן על החלון מבפנים.',
-      kind: 'keypad',
-      answer: mirrorAnswer,
-      digits: 4,
-      /* What the window shows from outside: the same digits, reversed. */
-      windowText: mirrorAnswer.split('').reverse().join(''),
-      solved: false,
+      id: 'mirror', kind: 'world', title: 'הקרש במרפסת',
+      note: 'על החלון של הבית הריק כתוב משהו, מבפנים.',
+      board: boardIndex,
+      /* Written on the glass from the inside, so from the garden every word of
+       * it is back to front. */
+      windowText: `הדגל מתחת לקרש ה${boardIndex} במרפסת`.split('').reverse().join(''),
+      readable: `הדגל מתחת לקרש ה${boardIndex} במרפסת`,
+      read: false, solved: false,
     },
-    gnomes: {
-      id: 'gnomes',
-      title: 'ארבעת הגמדים',
-      note: 'מהצעיר לזקן. הגילים חרוטים על הבסיסים.',
-      kind: 'order',
-      items: gnomes,
-      answer: gnomeAnswer,
-      solved: false,
+    hedges: {
+      id: 'hedges', kind: 'keypad', title: 'השרשרת על השער',
+      note: 'על הפתק שקשור לשרשרת: "כמה משוכות לבנות יש לי?"',
+      answer: hedgeAnswer, digits: hedgeAnswer.length,
+      counted: false, solved: false,
     },
     sound: {
-      id: 'sound',
-      title: 'שלוש תיבות נגינה',
-      note: 'אחת מהן מנגנת באותו סולם כמו השריקה.',
-      kind: 'choice',
-      options: soundNotes.map((semi, i) => ({ id: i, semitone: semi })),
-      answer: soundAnswer,
+      id: 'sound', kind: 'choice', title: 'שלוש תיבות הנגינה',
+      note: 'אחת מהן מנגנת את השיר כמו שהוא באמת. שתיים מנגנות אותו כמו שהיא שורקת אותו עכשיו.',
+      options: [0, 1, 2].map((i) => ({ id: i, memory: i === soundAnswer })),
+      answer: soundAnswer, solved: false,
+    },
+    ladder: {
+      id: 'ladder', kind: 'world', title: 'הסולם',
+      note: 'הסולם צורח כשגוררים אותו. השריקה מכסה עליו — אבל רק בחצי הראשון שלה.',
+      progress: 0, solved: false,
+    },
+    radio: {
+      id: 'radio', kind: 'keypad', title: 'הקודן במכונית',
+      note: 'הרדיו מנגן ארבעה תווים. על מגן השמש מדבקה של פסנתר, והקלידים ממוספרים מ-C.',
+      answer: radioAnswer, digits: 4, notes: radioNotes, solved: false,
+    },
+    panel: {
+      id: 'panel', kind: 'choice', title: 'ארון החשמל',
+      note: 'ארבעה מפסקים. אחד מהם מכבה את המשאבה של המזרקה.',
+      options: [0, 1, 2, 3].map((i) => ({ id: i, tape: i === panelAnswer })),
+      answer: panelAnswer, solved: false,
+    },
+    bins: {
+      id: 'bins', kind: 'order', title: 'שלושת הפחים',
+      note: 'פתק על השרשרת: "תתחיל עם מה שקוראים, תמשיך עם מה ששותים, תסיים עם מה שמצלצל".',
+      items: bins, answer: [0, 1, 2], solved: false,
+    },
+    dolls: {
+      id: 'dolls', kind: 'order', title: 'ארבע הבובות',
+      note: 'מהמבוגר לצעיר. הרמזים על הלוחיות בגינה.',
+      items: dolls,
+      /* Teddy, hat, ball, book — from the three plaques: the hat is not the
+       * oldest but is older than the ball, the ball is older than the book,
+       * and the book is the youngest. */
+      answer: [0, 1, 2, 3],
+      clues: [
+        '"הכובע לא הכי מבוגר, אבל מבוגר מהכדור."',
+        '"הכדור מבוגר מהספר."',
+        '"הספר הכי צעיר מכולם."',
+      ],
       solved: false,
+    },
+    bone: {
+      id: 'bone', kind: 'world', title: 'הכלב',
+      note: 'הוא נובח על כל מי שמתקרב. יש עצם קבורה מתחת למרפסת של 13.',
+      dug: false, solved: false,
     },
   };
 }

@@ -188,9 +188,25 @@ class Game {
 
     this.puzzle.onSolve = (p) => {
       this.audio.keypad(0, true);
-      this.ui.log('נפתח.');
       p.solved = true;
-      this.afterPuzzle = null;
+      /* Two of the locks open something in the world rather than simply
+       * marking themselves done, and it has to happen here: a chain that comes
+       * off a gate has to make the gate walk-through-able, and a pump that
+       * stops takes the water with it. */
+      if (p.id === 'hedges') {
+        for (const it of this.world.interact) {
+          if (it.kind === 'gate' && it.box) {
+            it.box.solid = false;
+            it.box.opaque = false;
+          }
+        }
+        this.world.collision.build();
+        this.ui.log('השרשרת נופלת. השער נפתח.', true);
+      } else if (p.id === 'panel') {
+        this.ui.log('המשאבה נדמה. המים יורדים.', true);
+      } else {
+        this.ui.log('נפתח.', true);
+      }
     };
     this.puzzle.onWrong = (p) => {
       this.audio.keypad(0, false);
@@ -489,6 +505,11 @@ class Game {
     this.decided = false;
     this.ending = null;
     this.audio.startWhistle({ tempo: 1 + (this.night - 1) * 0.04 });
+    /* When the phrase started, so the one puzzle that has to be done under
+     * cover of it can ask which half of the loop we are in. */
+    this.whistleFrom = this.time;
+    this.action = null;
+    this.ui.setAction(null);
     this.ui.subtitle(NIGHT_INTRO[this.night - 1] || NIGHT_INTRO[0], 6000);
     this.ui.log('3:30. השריקה התחילה.');
   }
@@ -502,6 +523,8 @@ class Game {
     this.puzzle.locked = false;
     this.puzzle.close();
     this.ui.setMap(false);
+    this.action = null;
+    this.ui.setAction(null);
     this.clock.stop();
     this.audio.stopWhistle(reason === 'caught');
     this.input.releaseLock();
@@ -663,6 +686,7 @@ class Game {
     if (this.scene === 'night') this.tickNight(dt, lit);
     else this.tickDay(dt);
 
+    this.updateAction(dt);
     this.interact();
     this.hud();
     if (this.ui.mapOn) this.ui.drawMap(this.layout, player, this.flagKnown ? this.flag : null);
@@ -802,6 +826,11 @@ class Game {
       if (input.hit('KeyE')) player.unhide();
       return;
     }
+    if (this.action) {
+      ui.prompt('<b>E</b> להפסיק');
+      if (input.hit('KeyE')) this.cancelAction('עזבת את זה.');
+      return;
+    }
 
     /*
      * Nearest thing in front of you wins — except that some things outrank
@@ -858,12 +887,13 @@ class Game {
   }
 
   labelFor(it) {
-    const puzzles = this.layout.puzzles;
+    const P = this.layout.puzzles;
+    const site = this.flag && this.flag.site;
     switch (it.kind) {
       case 'flag': {
-        const lock = this.flag.site.lock;
-        if (lock && !puzzles[lock].solved) return `${this.flag.site.label} — נעול`;
-        if (this.flag.site.crouch && !this.player.crouch) return 'להתכופף כדי להגיע';
+        const lock = site.lock;
+        if (lock && !P[lock].solved) return `${site.label} — נעול`;
+        if (site.crouch && !this.player.crouch) return 'להתכופף כדי להגיע';
         return 'לקחת את הדגל';
       }
       case 'door': {
@@ -874,14 +904,31 @@ class Game {
       case 'bed': return this.scene === 'day' ? 'ללכת לישון' : 'המיטה שלך';
       case 'talk': return `לדבר עם ${it.person.name}`;
       case 'hide': return 'להתחבא בארון';
-      case 'mailbox': return this.mailboxLabel(it);
-      case 'car': return this.carLabel(it);
+      case 'mailbox':
+        if (!it.locked) return 'תיבת דואר';
+        return P.code.solved ? 'התיבה פתוחה' : 'מנעול הספרות';
+      case 'car':
+        if (!it.radio) return 'מכונית נעולה';
+        return P.radio.solved ? 'המכונית פתוחה' : 'הרדיו והקודן';
       case 'mirror': return 'להסתכל במראה';
-      case 'gnome': return 'לקרוא את הבסיס';
+      case 'window': return 'לקרוא את החלון';
+      case 'board':
+        if (P.mirror.solved) return 'הקרש מורם';
+        return P.mirror.read ? 'להרים את הקרש' : 'קרש רופף';
+      case 'doll': return 'לקרוא את הלוחית';
       case 'musicbox': return 'להקיש על התיבה';
-      case 'bin': return 'לפתוח את הפח';
-      case 'doghouse': return 'לבדוק במלונה';
-      case 'fountain': return 'להסתכל מתחת למזרקה';
+      case 'bin':
+        if (it.slot < 0) return 'לפתוח את הפח';
+        return P.bins.solved ? 'הפחים פתוחים' : 'השרשרת בין הפחים';
+      case 'doghouse':
+        if (P.bone.solved) return 'המלונה';
+        return this.player.bone ? 'להניח את העצם' : 'הכלב לא יזוז';
+      case 'dig': return this.player.bone || P.bone.dug ? 'כבר חפרת כאן' : 'לחפור';
+      case 'ladder': return P.ladder.solved ? 'הסולם במקום' : 'לגרור את הסולם';
+      case 'count': return P.hedges.counted ? `ספרת ${P.hedges.answer}` : 'לספור את המשוכות';
+      case 'panel': return P.panel.solved ? 'המשאבה כבויה' : 'ארון החשמל';
+      case 'gate': return P.hedges.solved ? 'השער פתוח' : 'השרשרת על השער';
+      case 'fountain': return 'המזרקה';
       case 'number': return null;
       case 'home':
         return this.flag && this.flag.state === FLAG.CARRIED ? null : 'הבית שלך';
@@ -892,48 +939,24 @@ class Game {
     }
   }
 
-  mailboxLabel(it) {
-    const p = this.layout.puzzles.code;
-    if (this.flag && this.flag.site.id === 'mailbox' && it.houseId === this.flag.site.houseId) {
-      return p.solved ? 'התיבה פתוחה' : 'מנעול הספרות';
-    }
-    return 'תיבת דואר';
-  }
-
-  carLabel(it) {
-    const p = this.layout.puzzles.gnomes;
-    if (this.flag && this.flag.site.id === 'car' && it.houseId === this.flag.site.houseId) {
-      return p.solved ? 'המכונית פתוחה' : 'המכונית נעולה — הגמדים';
-    }
-    return 'מכונית נעולה';
-  }
-
   house(id) { return this.layout.houses.find((h) => h.id === id); }
   doorFor(h) { return this.world.doors.find((d) => d.houseId === h.id); }
 
   use(it) {
     const { ui, audio, player } = this;
-    const puzzles = this.layout.puzzles;
+    const P = this.layout.puzzles;
+    const site = this.flag && this.flag.site;
     switch (it.kind) {
       case 'flag': {
-        const lock = this.flag.site.lock;
-        if (lock && !puzzles[lock].solved) { this.openPuzzle(lock); return; }
-        if (this.flag.site.crouch && !player.crouch) {
-          ui.log('צריך להתכופף.');
+        const lock = site.lock;
+        if (lock && !P[lock].solved) {
+          if (P[lock].kind === 'world') { ui.log(this.worldHint(lock)); return; }
+          this.openPuzzle(lock);
           return;
         }
+        if (site.crouch && !player.crouch) { ui.log('צריך להתכופף.'); return; }
         if (!this.flag.inReach(player)) { ui.log('רחוק מדי.'); return; }
-        /*
-         * On the seventh night reaching the flag is not a pickup, it is the
-         * decision the whole game has been walking towards, and it is put in
-         * the panel rather than on a second key because it has to be
-         * answerable on a phone and because it should stop the world for a
-         * moment. Both answers are answers; neither is the good ending.
-         */
-        if (this.night >= TOTAL_NIGHTS && !this.decided) {
-          this.offerEnding();
-          return;
-        }
+        if (this.night >= TOTAL_NIGHTS && !this.decided) { this.offerEnding(); return; }
         this.takeFlag();
         break;
       }
@@ -946,16 +969,11 @@ class Game {
         d.box.opaque = !d.open;
         this.world.collision.build();
         audio.door(d.open);
-        /* A door is loud, and an open door is a hole she can see through for
-         * the rest of the night. Both are the cost of going inside. */
         this.noise(it.x, it.z, 0.45);
         break;
       }
       case 'bed':
         if (this.scene === 'day' && !this.sleeping) {
-          /* The fade is half a second long and E repeats, so without the guard
-           * a second press starts a second night on top of the first: two
-           * whistlers, two clocks, and the older one still updating. */
           this.sleeping = true;
           this.ui.fade(true).then(() => {
             this.startNight();
@@ -967,62 +985,147 @@ class Game {
       case 'talk': this.talk(it.person); break;
       case 'hide': {
         if (this.scene !== 'night') { ui.log('אין סיבה.'); return; }
-        if (player.hideCooldown > 0) {
-          ui.log('לא עכשיו. תן לזה רגע.');
-          return;
-        }
+        if (player.hideCooldown > 0) { ui.log('לא עכשיו. תן לזה רגע.'); return; }
         player.hide(it.spot, this.cfg.hideTime);
         ui.log(this.cfg.entersHouses
           ? 'בארון. הלילה זה כבר לא בטוח.' : 'בארון. תשמע אותה מבחוץ.');
         break;
       }
+
+      /* ---- the ten locks ---- */
+
       case 'mailbox':
-        if (this.flag && this.flag.site.id === 'mailbox'
-          && it.houseId === this.flag.site.houseId && !puzzles.code.solved) {
-          this.openPuzzle('code');
-        } else ui.log('ריקה. חשבונות.');
+        if (it.locked && !P.code.solved) this.openPuzzle('code');
+        else ui.log(it.locked ? 'התיבה פתוחה.' : 'ריקה. חשבונות.');
         break;
       case 'car':
-        if (this.flag && this.flag.site.id === 'car'
-          && it.houseId === this.flag.site.houseId && !puzzles.gnomes.solved) {
-          this.openPuzzle('gnomes');
+        if (it.radio && !P.radio.solved) {
+          /* The radio plays the four notes as you lean in, every time, because
+           * the answer is a thing you hear rather than a thing you remember. */
+          audio.playLullaby('memory', { gain: 0.5 });
+          this.openPuzzle('radio');
         } else ui.log('נעולה.');
         break;
-      case 'mirror':
-        ui.subtitle(`במראה המספר נקרא: ${puzzles.mirror.answer}`, 6000);
-        ui.log('מישהו כתב את זה מבפנים.');
+      case 'window':
+        /* Read from the garden, so it is back to front. The game does not
+         * explain that; the mirror does. */
+        ui.subtitle(`על הזכוכית, מבפנים: "${P.mirror.windowText}"`, 6000);
         break;
-      case 'gnome': {
-        const g = puzzles.gnomes.items[it.slot % puzzles.gnomes.items.length];
-        ui.subtitle(`על הבסיס חרוט: ${g.name}, בן ${g.age}.`, 4200);
+      case 'mirror':
+        P.mirror.read = true;
+        ui.subtitle(`במראה זה נקרא: "${P.mirror.readable}"`, 6000);
+        ui.log('מישהו כתב את זה מבפנים, לפני הרבה זמן.');
+        break;
+      case 'board':
+        if (P.mirror.solved) { ui.log('כבר פתוח.'); return; }
+        if (!P.mirror.read) {
+          ui.log('קרש כמו כל השאר. איזה מהם?');
+          return;
+        }
+        P.mirror.solved = true;
+        audio.fence();
+        this.noise(it.x, it.z, 0.5);
+        ui.log('הקרש עולה.', true);
+        break;
+      case 'doll': {
+        const d = P.dolls.items[it.slot % P.dolls.items.length];
+        const clue = P.dolls.clues[it.slot % P.dolls.clues.length];
+        ui.subtitle(`${d.name}. על הלוחית: ${clue}`, 5000);
         break;
       }
       case 'musicbox': {
-        const opt = puzzles.sound.options[it.slot % puzzles.sound.options.length];
-        audio.musicBox(opt.semitone, opt.semitone !== 0);
+        const opt = P.sound.options[it.slot % P.sound.options.length];
+        audio.musicBox(it.slot, !opt.memory);
         this.noise(it.x, it.z, 0.35);
-        ui.log(opt.semitone === 0 ? 'הצליל הזה מוכר.' : 'לא זה.');
+        ui.log(opt.memory ? 'הצליל הזה נכון. הרביעי לא צורם.' : 'התו הרביעי צורם.');
         break;
       }
       case 'bin':
-        audio.bin();
-        this.noise(it.x, it.z, 1.0);
-        ui.log('הפח. זה היה חזק.');
+        if (it.slot < 0) {
+          audio.bin();
+          this.noise(it.x, it.z, 1.0);
+          ui.log('הפח. זה היה חזק.');
+        } else if (!P.bins.solved) this.openPuzzle('bins');
+        else ui.log('פתוח.');
+        break;
+      case 'panel':
+        if (!P.panel.solved) this.openPuzzle('panel');
+        else ui.log('המשאבה כבויה.');
+        break;
+      case 'gate':
+        if (!P.hedges.solved) this.openPuzzle('hedges');
+        else ui.log('השער כבר פתוח.');
+        break;
+      case 'count':
+        if (P.hedges.counted) {
+          ui.subtitle(`ספרת ${P.hedges.answer} משוכות.`, 4000);
+          return;
+        }
+        /* Twenty seconds standing at the fence in the open, and it cancels if
+         * you move. That is the puzzle: not the number, the twenty seconds. */
+        this.startAction({
+          kind: 'count', need: 20, label: 'סופר משוכות',
+          x: it.x, z: it.z,
+          onDone: () => {
+            P.hedges.counted = true;
+            ui.subtitle(`${P.hedges.answer}. ספרת אותן פעמיים.`, 5000);
+          },
+        });
+        break;
+      case 'dig':
+        if (player.bone || P.bone.dug) { ui.log('כבר חפרת כאן.'); return; }
+        this.startAction({
+          kind: 'dig', need: 4, label: 'חופר', x: it.x, z: it.z,
+          noise: 0.4,
+          onDone: () => {
+            P.bone.dug = true;
+            player.bone = true;
+            audio.pickup();
+            ui.log('עצם. ישנה מאוד.', true);
+          },
+        });
         break;
       case 'doghouse':
-        this.noise(it.x, it.z, 0.6);
-        ui.log('ריק בפנים. כמעט.');
+        if (P.bone.solved) { ui.log('הוא מכשכש.'); return; }
+        if (!player.bone) {
+          ui.log('הוא לא יזוז. משהו צריך להעסיק אותו.');
+          audio.dogBark(2);
+          this.noise(it.x, it.z, 0.8);
+          return;
+        }
+        player.bone = false;
+        P.bone.solved = true;
+        audio.pickup();
+        ui.log('הוא לוקח את העצם והולך.', true);
         break;
+      case 'ladder':
+        if (P.ladder.solved) { ui.log('הסולם כבר במקום.'); return; }
+        /* Dragged only under the whistle, and the whistle covers you for six
+         * seconds of every twelve. Drag in the quiet half and she hears the
+         * whole thing. */
+        this.startAction({
+          kind: 'ladder', need: 9, label: 'גורר את הסולם', x: it.x, z: it.z,
+          gated: true,
+          onDone: () => {
+            P.ladder.solved = true;
+            P.ladder.progress = 1;
+            ui.log('הסולם נשען על העץ.', true);
+          },
+        });
+        break;
+
+      /* ---- everything else ---- */
+
       case 'fountain':
-        ui.log('מים, עלים, ומשהו מתחת לשפה.');
+        ui.log(P.panel.solved ? 'המים ירדו. יש משהו מתחת לשפה.'
+          : 'מים, עלים, ומשהו מתחת לשפה שאי אפשר להגיע אליו.');
         break;
       case 'number':
         ui.subtitle(`מספר ${it.number}.`, 2600);
         break;
       case 'home':
         ui.subtitle(this.scene === 'night'
-          ? 'הבית שלך. לכאן צריך להביא את הדגל.'
-          : 'הבית שלך.', 3200);
+          ? 'הבית שלך. לכאן צריך להביא את הדגל.' : 'הבית שלך.', 3200);
         break;
       case 'flagpole':
         ui.subtitle(this.night >= TOTAL_NIGHTS
@@ -1038,12 +1141,83 @@ class Game {
         if (isNew) this.refresh();
         break;
       }
-      case 'window':
-        ui.subtitle(`על החלון, הפוך: ${puzzles.mirror.windowText}`, 5200);
-        break;
       default:
         if (it.label) ui.log(it.label);
         break;
+    }
+  }
+
+  /* What a lock that has no panel is waiting for. */
+  worldHint(lock) {
+    const P = this.layout.puzzles;
+    if (lock === 'mirror') {
+      return P.mirror.read ? 'הקרש השלישי במרפסת של 17.'
+        : 'כתוב על החלון, הפוך. יש מראה על הגדר האחורית.';
+    }
+    if (lock === 'ladder') return 'הסולם. אי אפשר לעלות בלעדיו.';
+    if (lock === 'bone') return 'הכלב. הוא לא יזוז בשביל כלום.';
+    return 'נעול.';
+  }
+
+  /* ---------------------------------------------------------------- *
+   * Things that take time
+   *
+   * Counting a fence, digging under a porch, dragging a ladder. All three are
+   * the same shape: stand still somewhere exposed for a number of seconds,
+   * and lose it if you walk away. The ladder adds the only twist — it only
+   * moves while the whistle is loud enough to cover it, which is six seconds
+   * of every twelve, so the player has to work in the phrase and stop in the
+   * silence they are otherwise waiting for.
+   * ---------------------------------------------------------------- */
+
+  startAction(a) {
+    this.action = Object.assign({ t: 0, warned: false }, a);
+    this.ui.log(`${a.label}…`);
+  }
+
+  cancelAction(why) {
+    if (!this.action) return;
+    if (why) this.ui.log(why);
+    this.action = null;
+    this.ui.setAction(null);
+  }
+
+  updateAction(dt) {
+    const a = this.action;
+    if (!a) return;
+    const p = this.player;
+    if (Math.hypot(p.pos.x - a.x, p.pos.z - a.z) > 2.6) {
+      this.cancelAction('עזבת את זה באמצע.');
+      return;
+    }
+    if (a.gated) {
+      /* The loud half of her phrase. The twelve-second loop is the design's,
+       * and it starts when the whistle does, so this is the same clock the
+       * player is listening to rather than a second one. */
+      const phase = ((this.time - (this.whistleFrom || 0)) % 12 + 12) % 12;
+      const loud = phase < 6;
+      this.ui.setAction(a.t / a.need, loud ? `${a.label} — עכשיו` : `${a.label} — לחכות`);
+      if (!loud) {
+        /* Dragging it in the silence is the loudest thing in the game. */
+        if (this.input.down('KeyE')) {
+          this.noise(a.x, a.z, 1.2);
+          this.cancelAction('הסולם צרח. היא שמעה.');
+          this.audio.fence();
+        }
+        return;
+      }
+      a.t += dt;
+      this.noise(a.x, a.z, 0.25);
+    } else {
+      a.t += dt;
+      this.ui.setAction(a.t / a.need, a.label);
+      if (a.noise) this.noise(a.x, a.z, a.noise * 0.5);
+    }
+    if (a.t >= a.need) {
+      const done = a.onDone;
+      this.action = null;
+      this.ui.setAction(null);
+      done();
     }
   }
 
@@ -1055,7 +1229,13 @@ class Game {
     ui.log('הדגל אצלך. הביתה.', true);
   }
 
-  /* The last night. */
+  /*
+   * The seventh night. Reaching the flag is not a pickup, it is the decision
+   * the whole game has been walking towards, and it is put in the panel rather
+   * than on a second key because it has to be answerable on a phone and
+   * because it should stop the world for a moment. Both answers are answers;
+   * neither is the good ending.
+   */
   offerEnding() {
     this.decided = true;
     this.input.releaseLock();
@@ -1106,10 +1286,17 @@ class Game {
     const extra = {};
     if (which === 'sound') {
       extra.labels = ['התיבה הימנית', 'התיבה האמצעית', 'התיבה השמאלית'];
-      extra.onPreview = (i, opt) => this.audio.musicBox(opt.semitone, opt.semitone !== 0);
+      extra.onPreview = (i) => this.audio.musicBox(i, !p.options[i].memory);
     }
-    if (which === 'mirror') {
-      extra.note = `${p.note} מהחצר קראת: ${p.windowText}`;
+    if (which === 'panel') {
+      extra.labels = ['מפסק 1', 'מפסק 2', 'מפסק 3', 'מפסק 4'];
+      extra.onPreview = () => this.audio.keypad(0, null);
+    }
+    if (which === 'radio') {
+      extra.note = `${p.note} הרדיו מנגן: ${p.notes.join(' ')}`;
+    }
+    if (which === 'hedges' && !p.counted) {
+      extra.note = `${p.note} עוד לא ספרת אותן.`;
     }
     this.puzzle.show(p, extra);
   }

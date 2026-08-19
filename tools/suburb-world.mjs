@@ -59,7 +59,11 @@ const GRID = 0.35, STEP = 0.62, RADIUS = 0.34;
 
 function floodFill(layout, world) {
   const col = world.collision;
+  /* Doors and gates count as open. Pressing E is not a puzzle, and whether a
+   * chain has come off a gate must not decide whether the geometry behind it
+   * can be reached at all. */
   for (const d of world.doors) { d.box.solid = false; d.box.opaque = false; }
+  for (const b of col.boxes) if (b.tag === 'gate') { b.solid = false; b.opaque = false; }
   col.build();
 
   const b = layout.bounds;
@@ -175,13 +179,21 @@ for (const seed of SEEDS) {
           `seed ${seed} night ${n}: keypad answer "${p.answer}" is not ${p.digits} digits`);
       }
       if (p && p.kind === 'order') {
-        const sorted = p.items.slice().sort((a, b) => a.age - b.age).map((x) => x.id);
-        check(sorted.join() === p.answer.join(),
-          `seed ${seed} night ${n}: the gnome answer is not the ages in order`);
+        check(p.answer.length === p.items.length,
+          `seed ${seed} night ${n}: "${s.lock}" answers ${p.answer.length} of `
+          + `${p.items.length} items`);
+        check(new Set(p.answer).size === p.answer.length,
+          `seed ${seed} night ${n}: "${s.lock}" has a repeated item in its answer`);
       }
       if (p && p.kind === 'choice') {
-        check(p.options[p.answer].semitone === 0,
-          `seed ${seed} night ${n}: the correct music box is not the in-tune one`);
+        check(p.options.length >= 3,
+          `seed ${seed} night ${n}: a choice lock with only ${p.options.length} options`);
+        check(p.answer >= 0 && p.answer < p.options.length,
+          `seed ${seed} night ${n}: "${s.lock}" answers an option that is not there`);
+      }
+      if (p && p.kind === 'world') {
+        check(p.solved === false,
+          `seed ${seed} night ${n}: the world lock "${s.lock}" starts solved`);
       }
     }
 
@@ -190,39 +202,34 @@ for (const seed of SEEDS) {
     const day = new Neighbours(layout, cfg, seed, 'day');
     const spoken = new Set(day.people.map((p) => p.houseId));
     const clueHouse = {
-      code: 9, gnomes: 6, mirror: 7, sound: 3,
+      code: 14, hedges: 12, radio: 13, dolls: 13, sound: 16, bins: 18, bone: 15,
+      mirror: 16, ladder: 16, panel: 18,
     }[s.lock];
     if (clueHouse) {
       const h = layout.houses.find((x) => x.number === clueHouse);
-      check(spoken.has(h.id),
+      check(!!h, `seed ${seed} night ${n}: no house numbered ${clueHouse}`);
+      check(h && spoken.has(h.id),
         `seed ${seed} night ${n}: the clue for "${s.lock}" belongs to number `
         + `${clueHouse}, who is not outside in the daylight`);
       const lines = neighbourLines(h, layout, n);
       check(lines.length >= 2,
         `seed ${seed} night ${n}: number ${clueHouse} has nothing to say`);
-      if (s.lock === 'code') {
-        /* The neighbour says it in words and the box itself has it in digits.
-         * Both have to be there: the words are the clue you get in daylight,
-         * and the digits are what you can still read at 3:33 with nobody to
-         * ask. */
-        check(lines.join(' ').includes('פחות שלוש'),
-          `seed ${seed} night ${n}: the neighbour does not state the arithmetic`);
-        check(layout.puzzles.code.note.includes('פחות 3'),
-          `seed ${seed} night ${n}: the mailbox does not carry the arithmetic`);
-        const mail = layout.houses.find((x) => x.number === 9);
-        check(String((mail.number - 3) * 2) === layout.puzzles.code.answer,
-          `seed ${seed} night ${n}: the mailbox answer does not follow from the clue`);
-      }
-      if (s.lock === 'gnomes') {
-        const ages = layout.puzzles.gnomes.items.slice()
-          .sort((a, b) => a.age - b.age).map((g) => g.age);
-        const said = lines.join(' ');
-        const order = ages.map((a) => said.indexOf(`בן ${a}`));
-        check(order.every((v, i) => v > 0 && (i === 0 || v > order[i - 1])),
-          `seed ${seed} night ${n}: the gnome clue lists the ages out of order`);
-      }
     }
-
+    if (s.lock === 'code') {
+      /* The arithmetic is on the box itself, so it is readable at 3:33 with
+       * nobody to ask. */
+      check(layout.puzzles.code.note.includes('פחות 3'),
+        `seed ${seed} night ${n}: the mailbox does not carry the arithmetic`);
+      const mail = layout.houses.find((x) => x.number === 14);
+      check(String((mail.number - 3) * 2) === layout.puzzles.code.answer,
+        `seed ${seed} night ${n}: the mailbox answer does not follow from the clue`);
+    }
+    if (s.lock === 'hedges') {
+      /* And the fence really does have that many panels in it. */
+      const run = layout.props.find((x) => x.kind === 'hedgeRow' && x.panels);
+      check(run && String(run.panels) === layout.puzzles.hedges.answer,
+        `seed ${seed} night ${n}: the gate code is not the number of panels`);
+    }
     /* Her walk graph has to be connected, or she patrols one corner all night
      * while the other half of the neighbourhood is free. */
     const g = layout.graph;
@@ -263,15 +270,13 @@ for (const seed of SEEDS) {
     if (cfg.relocate) {
       const flag = new Flag(layout, cfg, seed);
       flag.place();
-      const free = layout.sites.filter((x) => !x.lock && x.id !== flag.site.id);
-      check(free.length > 0,
-        `seed ${seed} night ${n}: nowhere for the flag to relocate to`);
-      if (!flag.site.lock) {
-        flag.age = cfg.relocate + 1;
-        flag.update(0.1);
-        check(!flag.site.lock,
-          `seed ${seed} night ${n}: the flag relocated into a locked site`);
-      }
+      flag.age = cfg.relocate + 1;
+      flag.update(0.1);
+      const lock = layout.puzzles[flag.site.lock];
+      check(!!lock, `seed ${seed} night ${n}: the flag relocated to an unlocked site`);
+      check(lock && (lock.solved || lock.kind !== 'world'),
+        `seed ${seed} night ${n}: the flag relocated behind "${flag.site.lock}", `
+        + 'which needs a second journey first');
     }
 
     /* The interior anchors the builder and the spawn both read. */
@@ -335,6 +340,9 @@ function walkNight(night, seed, mode) {
   const layout = buildLayout(night, seed);
   const world = buildWorld(layout);
   for (const d of world.doors) { d.box.solid = false; d.box.opaque = false; }
+  for (const b of world.collision.boxes) {
+    if (b.tag === 'gate') { b.solid = false; b.opaque = false; }
+  }
   world.collision.build();
   const cfg = nightConfig(night);
   const w = new Whistler(layout, cfg, seed);

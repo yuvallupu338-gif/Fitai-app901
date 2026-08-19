@@ -62,6 +62,7 @@ export class Player {
     this.breath = 1;
     this.torchOn = false;
     this.carrying = false;
+    this.bone = false;         /* dug out from under a porch, for the dog   */
     this.hidden = null;        /* { x, z, until } while inside something    */
     this.still = 0;            /* seconds spent not moving and not looking  */
     this.speed = 0;

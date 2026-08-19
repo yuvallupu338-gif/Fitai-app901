@@ -41,14 +41,31 @@ and every night runs to the same last number:
 | 3:35:00 | the whistle stops. If the flag is not through your own front door, the night restarts |
 | any time | if she sees you, the whistle stops dead, she screams, and the night restarts |
 
-The ten places are fixed — a locked mailbox, the roof of a garage, a hole
-somebody dug in a lawn, a locked car, a branch in the park, under the fountain,
-inside a wheelie bin, on a back fence, in the doghouse, and the empty house at
-the end of the road. Fixed is the point: after four nights you know all ten,
-and the question stops being *where could it possibly be* and becomes *which
-one, and can I get there and back*. Which one it is on which night is drawn
-once per save, so the seven nights never repeat a place and never open with a
-lock.
+The ten places are fixed and so are the ten things guarding them. Fixed is the
+point: a player who has played four nights knows all ten, and the question
+stops being *where could it possibly be* and becomes *which one, and can I get
+there and back*. Which one it is on which night is drawn once per save, so the
+seven nights never repeat a place — except the first, which is always the
+mailbox at number 14, thirty metres from Adam's own door, with the arithmetic
+stamped on the lid.
+
+| | where | what is in the way |
+| --- | --- | --- |
+| 1 | the locked mailbox at 14 | a combination: *my house number, minus 3, times 2* |
+| 2 | under the porch of the empty house at 17 | a sentence written on the inside of the kitchen window, which from the garden reads backwards. There is a mirror on the back fence |
+| 3 | the garage roof at 12 | a chain on the side gate, and the code is how many white hedge panels there are. There are exactly that many, and counting them is twenty seconds standing still in the open |
+| 4 | the hole in Bob's lawn at 16 | three music boxes. Two play the tune with the wrong fourth note. One plays it the way she actually sang it |
+| 5 | a branch of the big tree in the park | a ladder that shrieks when you drag it. The whistle covers six seconds in every twelve |
+| 6 | the back seat of the locked car at 13 | the radio plays four notes and there is a piano sticker on the sun visor numbering the keys from C |
+| 7 | under the fountain | the fountain is full. The fuse cabinet at the edge of the park has four switches and one strip of red tape |
+| 8 | a bin in the alley behind 18 | three bins chained one to the next: *start with what you read, then what you drink, then what rings* |
+| 9 | the back fence at 11, the far end of the road | four garden dolls in the wrong order, and three plaques about their ages |
+| 10 | the kennel at 15 | a dog that has been barking for twenty years, and a bone buried under the porch at 13 |
+
+None of the answers is invented on the spot. The house number is on the box you
+are standing at; the panels are really there to be counted; the notes are
+really being played. Everything you need is said by somebody in a garden that
+afternoon — which is what the afternoon is for.
 
 ## Her
 
@@ -82,13 +99,13 @@ lap.
 
 Every night starts in daylight, with no clock and nothing hunting you. The
 neighbours are in their gardens and they will talk to you, and what they say is
-not colour: **the answers to that night's puzzles are in their small talk.**
-The code on the mailbox is arithmetic on a house number; the gnomes have to be
-stood in order of ages that are on their bases and unreadable in the dark; one
-of three music boxes is in the same key as the whistle; and the four digits on
-the padlock of the empty house are written on the inside of its kitchen window,
-which from the garden reads backwards — there is a mirror leaning on the back
-fence.
+not colour: **the answers to that night's lock are in their small talk.** Mrs
+Rosenberg at 14 will tell you what her son set the combination to. The Vardi
+family at 12 painted their own fence and counted the panels twice because they
+did not believe it the first time. Bob at 16 will tell you that only one of the
+three music boxes was ever in tune. The couple at 18 will tell you that
+somebody wrote on the empty house's kitchen window from the inside, and that
+there is a mirror on its back fence.
 
 You can skip all of it and still play the night. You will just be solving it
 blind, which is the trade the design is about.
@@ -104,6 +121,24 @@ blind, which is the trade the design is about.
 | 5 | the flag moves if you leave it more than a minute |
 | 6 | every door in the street is open, and hiding stops working |
 | 7 | the last one. She is not searching any more |
+
+## What it is about
+
+The player is Adam, twenty-six, who has just moved into number 21. The woman is
+Evelyn Marlowe, a music teacher, who went out at half past three one foggy
+night twenty years ago to look for a six-year-old who had run out of the house,
+whistling so that he could find her in the dark, and did not come back. The
+neighbourhood is his, not hers: a memory built as a prison, with neighbours
+who keep the routine going and never mention the flags. She only sees movement
+because she is looking for a child who ran, which is why standing still works.
+The flag is the paper one he left at her marker, so she would know where home
+was.
+
+None of that is narrated. It is in twelve objects lying around the
+neighbourhood — a diary, three tapes, some photographs — and in what the
+neighbours say without knowing they are saying it. A player who picks up
+nothing finishes all seven nights and gets an ending that means nothing to
+them. That is the deal, and the game does not hedge it.
 
 ## What it actually is
 

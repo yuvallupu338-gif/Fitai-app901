@@ -45,13 +45,24 @@ export class Flag {
   }
 
   /*
-   * Move to another site. Only ever to one with no lock: relocating into a
-   * puzzle you have already solved would be free, and relocating into one you
-   * have not, with ninety seconds left, is not a difficulty increase — it is
-   * the night being taken away.
+   * Move somewhere else.
+   *
+   * Every one of the ten sites has a lock on it, so "somewhere without a lock"
+   * is not an option and the rule has to be about what the new lock asks for.
+   * Anything solvable where it stands — a keypad, a choice, an order — is fair
+   * game with two minutes left. The three that need a second journey first
+   * (read the mirror at the back fence, drag the ladder across the park, dig
+   * the bone up at another house) are not: arriving at one of those at 3:33 is
+   * not a difficulty increase, it is the night being taken away. A site whose
+   * lock is already open tonight is better still, so it is preferred.
    */
   relocate() {
-    const pool = this.layout.sites.filter((s) => s.id !== this.site.id && !s.lock);
+    const puzzles = this.layout.puzzles;
+    const other = this.layout.sites.filter((s) => s.id !== this.site.id);
+    const open = other.filter((s) => puzzles[s.lock] && puzzles[s.lock].solved);
+    const pool = open.length
+      ? open
+      : other.filter((s) => puzzles[s.lock] && puzzles[s.lock].kind !== 'world');
     if (!pool.length) return;
     this.site = this.rng.pick(pool);
     this.x = this.site.x;
@@ -66,11 +77,13 @@ export class Flag {
     this.events.length = 0;
     if (this.state !== FLAG.PLACED) return this.events;
     this.age += dt;
-    /* A locked site never moves. Relocating out of a puzzle would hand the
-     * night back to a player who was about to lose it, and relocating into
-     * one with ninety seconds left is not difficulty, it is the night being
-     * taken away. When the flag is behind a lock, the lock is the timer. */
-    if (this.cfg.relocate && !this.site.lock && this.age > this.cfg.relocate) {
+    /*
+     * A lock the player has already opened does not move out from under them:
+     * once a site is open the flag has been earned, and taking it away is the
+     * one thing that would make the moving flag feel unfair rather than tense.
+     */
+    const lock = this.layout.puzzles[this.site.lock];
+    if (this.cfg.relocate && !(lock && lock.solved) && this.age > this.cfg.relocate) {
       this.relocate();
     }
     return this.events;

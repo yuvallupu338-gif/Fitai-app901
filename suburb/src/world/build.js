@@ -22,8 +22,10 @@
  *   ground floor 2.9 (some houses 3.25) · garage roof 3.0 · hedge 1.9
  */
 
-import { MeshBuilder, addQuad, addGround, addBox, addCylinder, addCross, addGableRoof }
-  from './meshbuilder.js';
+import {
+  MeshBuilder, addQuad, addGround, addBox, addCylinder, addCross, addGableRoof,
+  addSphere, addLimb,
+} from './meshbuilder.js';
 import { CollisionWorld } from './collide.js';
 import { MAT, SIDING_SLOTS } from './materials.js';
 import { PLAN } from './layout.js';
@@ -439,6 +441,20 @@ function house(sec, col, lights, interact, doors, h, layout, rng) {
     label: h.enterable ? 'הדלת' : 'הדלת נעולה',
   });
 
+  /*
+   * The kitchen window of the empty house, which has a sentence written on the
+   * inside of it. From the garden every word of it is back to front, and the
+   * only thing in the neighbourhood that reads it the right way round is the
+   * wardrobe mirror on its own back fence.
+   */
+  if (h.abandoned) {
+    interact.push({
+      kind: 'window', houseId: h.id,
+      x: h.x + h.w * 0.22, y: 1.6, z: h.backZ - s * 0.6, radius: 2.0,
+      label: 'החלון',
+    });
+  }
+
   /* The number over the door — the mailbox puzzle's other half. */
   interact.push({
     kind: 'number', houseId: h.id, number: h.number,
@@ -645,10 +661,14 @@ function props(sec, col, lights, interact, layout, rng) {
       case 'flagpole': flagpole(sec, col, interact, p); break;
       case 'bin': bin(sec, col, interact, p); break;
       case 'car': car(sec, col, interact, p); break;
-      case 'hedgeRow': hedgeRow(sec, col, p, rng); break;
+      case 'hedgeRow': hedgeRow(sec, col, interact, p, rng); break;
       case 'tree': tree(sec, col, p, rng); break;
       case 'doghouse': doghouse(sec, col, interact, p); break;
-      case 'gnome': gnome(sec, col, interact, p); break;
+      case 'doll': doll(sec, col, interact, p); break;
+      case 'digspot': digspot(sec, col, interact, p); break;
+      case 'board': board(sec, col, interact, p); break;
+      case 'ladder': ladder(sec, col, interact, p); break;
+      case 'panel': fusePanel(sec, col, interact, p); break;
       case 'musicbox': musicbox(sec, col, interact, p); break;
       case 'mirror': mirror(sec, col, interact, p); break;
       case 'fountain': fountain(sec, col, interact, p); break;
@@ -662,13 +682,27 @@ function props(sec, col, lights, interact, layout, rng) {
   /* Picket fences along every plot line, front garden only — back gardens get
    * the tall boarded fence, which is what makes the back of the street a
    * different, worse place to be. */
+  const gateSite = layout.sites.find((x) => x.id === 'garage');
   for (const h of layout.houses) {
     const s = h.sign;
     const edge = h.w / 2 + PLAN.plotEdge;
     for (const side of [-1, 1]) {
       const fx = h.x + side * edge;
       picketFence(sec, col, fx, s * (PLAN.roadHalf + PLAN.pave), fx, s * (PLAN.frontZ - 0.5));
-      boardFence(sec, col, fx, s * (PLAN.frontZ + 0.5), fx, s * (PLAN.frontZ + h.d + 6));
+      /*
+       * The side passage of one house in the street has a gate in it with a
+       * chain and a combination on the chain, and behind that gate is the only
+       * way onto its garage roof. Every other side passage is a solid run of
+       * boarded fence.
+       */
+      const gated = gateSite && gateSite.houseId === h.id && side === -h.garageSide;
+      if (gated) {
+        boardFence(sec, col, fx, s * (PLAN.frontZ + 0.5), fx, s * (PLAN.frontZ + 2.4));
+        gate(sec, col, interact, fx, s * (PLAN.frontZ + 2.4), s * (PLAN.frontZ + 3.9), h);
+        boardFence(sec, col, fx, s * (PLAN.frontZ + 3.9), fx, s * (PLAN.frontZ + h.d + 6));
+      } else {
+        boardFence(sec, col, fx, s * (PLAN.frontZ + 0.5), fx, s * (PLAN.frontZ + h.d + 6));
+      }
     }
     boardFence(sec, col, h.x - edge, s * (PLAN.frontZ + h.d + 6),
       h.x + edge, s * (PLAN.frontZ + h.d + 6));
@@ -714,8 +748,9 @@ function bin(sec, col, interact, p) {
   addBox(mb, p.x, 1.14, p.z, 0.66, 0.08, 0.76, p.yaw, MAT.METAL, { ao: aoFlat });
   col.add(p.x - 0.38, 0, p.z - 0.42, p.x + 0.38, 1.18, p.z + 0.42, { tag: 'bin' });
   interact.push({
-    kind: 'bin', houseId: p.houseId, x: p.x, y: 1.0, z: p.z, radius: 1.5,
-    label: 'לפתוח את הפח',
+    kind: 'bin', houseId: p.houseId, slot: p.slot ?? -1,
+    x: p.x, y: 1.0, z: p.z, radius: 1.5,
+    label: (p.slot ?? -1) >= 0 ? 'פח משורשר' : 'לפתוח את הפח',
   });
 }
 
@@ -749,12 +784,21 @@ function car(sec, col, interact, p) {
  * collision that is shorter than the leaves: you walk into the woody part and
  * the top of it brushes past your shoulders, which is both how a hedge works
  * and where the rustle comes from. */
-function hedgeRow(sec, col, p, rng) {
+/*
+ * A hedge, as a row of panels. `panels` forces the count, which matters for
+ * exactly one boundary in the neighbourhood: the chain on number 12's gate
+ * takes the number of white panels along it as its code, and a player who does
+ * not believe the neighbour can stand there and count them. If the fence had
+ * "about that many" the puzzle would be a lie.
+ */
+function hedgeRow(sec, col, interact, p, rng) {
   const z0 = Math.min(p.z0, p.z1), z1 = Math.max(p.z0, p.z1);
-  for (let z = z0; z < z1; z += 1.1) {
+  const step = p.panels ? (z1 - z0) / p.panels : 1.1;
+  for (let z = z0; z < z1 - 1e-6; z += step) {
     const mb = sec.at(p.x, z, 1.2, 1.2, 2.2);
-    addCross(mb, p.x + rng.range(-0.12, 0.12), 0, z, 1.5, 1.9 + rng.range(-0.15, 0.2),
-      rng.range(0, Math.PI), MAT.LEAF, { ao: (s, t) => 0.5 + 0.5 * t });
+    addCross(mb, p.x + rng.range(-0.12, 0.12), 0, z, step * 1.4,
+      1.9 + rng.range(-0.15, 0.2), rng.range(0, Math.PI), MAT.LEAF,
+      { ao: (s, t) => 0.5 + 0.5 * t });
   }
   /*
    * 1.75, not 1.45. The drawn hedge is 1.9m of leaf, and the box is what
@@ -765,6 +809,14 @@ function hedgeRow(sec, col, p, rng) {
    * against it, and a picket fence at 1.15 still only covers a crouch.
    */
   col.add(p.x - 0.5, 0, z0, p.x + 0.5, 1.75, z1, { tag: 'hedge', opaque: true });
+  if (p.panels) {
+    /* Somewhere to stand and count from, which is the whole of that puzzle:
+     * twenty seconds in the open, at the front of the plot, at 3:33. */
+    interact.push({
+      kind: 'count', houseId: p.houseId, panels: p.panels,
+      x: p.x, y: 1.2, z: z0 + 2.5, radius: 2.0, label: 'לספור את המשוכות',
+    });
+  }
 }
 
 function tree(sec, col, p, rng) {
@@ -796,22 +848,96 @@ function doghouse(sec, col, interact, p) {
   });
 }
 
-function gnome(sec, col, interact, p) {
-  const mb = sec.at(p.x, p.z, 0.4, 0.4, 0.8);
-  addCylinder(mb, p.x, 0, p.z, 0.16, 0.34, 7, MAT.PATH, { ao: aoUnder });
-  addSphereLike(mb, p.x, 0.46, p.z);
-  col.add(p.x - 0.2, 0, p.z - 0.2, p.x + 0.2, 0.6, p.z + 0.2,
-    { tag: 'gnome', opaque: false });
+/*
+ * A garden doll. Four of them stand in a row at 13 and they are Adam's toys
+ * from the photograph — a teddy, a red hat, a ball and a book — which is why
+ * they are four visibly different things rather than four garden gnomes. At
+ * night they are four small silhouettes on a lawn, and that is enough.
+ */
+function doll(sec, col, interact, p) {
+  const mb = sec.at(p.x, p.z, 0.5, 0.5, 0.9);
+  addCylinder(mb, p.x, 0, p.z, 0.17, 0.3, 7, MAT.PATH, { ao: aoUnder });
+  const y = 0.3;
+  switch (p.slot) {
+    case 0:   /* the teddy */
+      addLimb(mb, p.x, y + 0.34, p.z, [0.11, 0.09], [0.09, 0.08], 0.34, MAT.CLOTH,
+        { ao: aoWall });
+      addSphere(mb, p.x, y + 0.42, p.z, 0.1, 8, 6, MAT.CLOTH, { ao: aoFlat });
+      break;
+    case 1:   /* the red hat */
+      addCylinder(mb, p.x, y, p.z, 0.13, 0.22, 8, MAT.CLOTH, { ao: aoWall });
+      addBox(mb, p.x, y + 0.24, p.z, 0.42, 0.05, 0.42, 0, MAT.GLOW, { ao: aoFlat });
+      addCylinder(mb, p.x, y + 0.24, p.z, 0.12, 0.16, 8, MAT.GLOW, { ao: aoWall });
+      break;
+    case 2:   /* the ball */
+      addSphere(mb, p.x, y + 0.16, p.z, 0.16, 10, 8, MAT.CLOTH, { ao: aoFlat });
+      break;
+    default:  /* the book */
+      addBox(mb, p.x, y + 0.06, p.z, 0.3, 0.11, 0.22, 0.3, MAT.WOOD, { ao: aoWall });
+      break;
+  }
+  col.add(p.x - 0.2, 0, p.z - 0.2, p.x + 0.2, 0.7, p.z + 0.2,
+    { tag: 'doll', opaque: false });
   interact.push({
-    kind: 'gnome', slot: p.slot, houseId: p.houseId, x: p.x, y: 0.5, z: p.z, radius: 1.4,
-    label: 'גמד גינה',
+    kind: 'doll', slot: p.slot, houseId: p.houseId,
+    x: p.x, y: 0.55, z: p.z, radius: 1.4, label: 'בובת גינה',
   });
 }
 
-/* A gnome's head and hat, which is all of a gnome that anyone remembers. */
-function addSphereLike(mb, x, y, z) {
-  addBox(mb, x, y, z, 0.24, 0.24, 0.24, 0, MAT.SKIN, { ao: aoFlat });
-  addBox(mb, x, y + 0.2, z, 0.2, 0.22, 0.2, 0.4, MAT.GLOW, { ao: aoFlat });
+/* Loose earth under 13's porch. There is a bone under it, and the dog at 15
+ * has been waiting twenty years for somebody to work that out. */
+function digspot(sec, col, interact, p) {
+  const mb = sec.at(p.x, p.z, 1, 1, 0.4);
+  addGround(mb, p.x - 0.55, p.z - 0.45, p.x + 0.55, p.z + 0.45, 0.05, MAT.PATH,
+    { sub: 2, ao: aoUnder });
+  void col;
+  interact.push({
+    kind: 'dig', houseId: p.houseId, x: p.x, y: 0.3, z: p.z, radius: 1.5,
+    label: 'אדמה תחוחה',
+  });
+}
+
+/* The third board of the empty house's porch, standing a little proud of the
+ * others — which is the only way a player who has read the window can find the
+ * right one in the dark. */
+function board(sec, col, interact, p) {
+  const mb = sec.at(p.x, p.z, 1, 1, 0.6);
+  addBox(mb, p.x, 0.47, p.z, 0.22, 0.1, 1.6, 0, MAT.WOOD, { ao: aoWall });
+  void col;
+  interact.push({
+    kind: 'board', houseId: p.houseId, x: p.x, y: 0.5, z: p.z, radius: 1.6,
+    label: 'קרש רופף',
+  });
+}
+
+/* An aluminium ladder leaning on the big tree. It is drawn lying against the
+ * trunk and it is the loudest object in the game. */
+function ladder(sec, col, interact, p) {
+  const mb = sec.at(p.x, p.z, 1.2, 1.2, 3.4);
+  for (const ox of [-0.28, 0.28]) {
+    addBox(mb, p.x + ox, 1.5, p.z, 0.07, 3.0, 0.07, 0, MAT.METAL, { ao: aoWall });
+  }
+  for (let i = 0; i < 8; i++) {
+    addBox(mb, p.x, 0.35 + i * 0.36, p.z, 0.62, 0.05, 0.05, 0, MAT.METAL, { ao: aoFlat });
+  }
+  col.add(p.x - 0.4, 0, p.z - 0.2, p.x + 0.4, 1.2, p.z + 0.2,
+    { tag: 'ladder', opaque: false });
+  interact.push({
+    kind: 'ladder', x: p.x, y: 1.2, z: p.z, radius: 1.8, label: 'הסולם',
+  });
+}
+
+/* The fuse cabinet at the edge of the park: four switches behind a door that
+ * has not been locked in years, and one strip of red tape. */
+function fusePanel(sec, col, interact, p) {
+  const mb = sec.at(p.x, p.z, 1, 1, 2.2);
+  addBox(mb, p.x, 1.1, p.z, 0.7, 1.1, 0.34, p.yaw, MAT.METAL, { ao: aoWall });
+  addCylinder(mb, p.x, 0, p.z, 0.09, 0.6, 6, MAT.METAL, { ao: aoUnder });
+  addBox(mb, p.x, 0.3, p.z, 0.5, 0.6, 0.5, p.yaw, MAT.BRICK, { ao: aoUnder });
+  col.add(p.x - 0.4, 0, p.z - 0.4, p.x + 0.4, 1.7, p.z + 0.4, { tag: 'panel' });
+  interact.push({
+    kind: 'panel', x: p.x, y: 1.2, z: p.z, radius: 1.8, label: 'ארון החשמל',
+  });
 }
 
 function musicbox(sec, col, interact, p) {
@@ -925,6 +1051,26 @@ function shelter(sec, col, p) {
  * Fences
  * ------------------------------------------------------------------ */
 
+/*
+ * A gate: one panel of the same boarded fence with a chain across it. Its box
+ * is tagged 'gate' and goes non-solid when the chain comes off — the same
+ * mechanism the front doors use, and the reachability test knows to treat both
+ * as open, because "can the player get there at all" must not depend on
+ * whether they have solved a puzzle yet.
+ */
+function gate(sec, col, interact, x, z0, z1, h) {
+  const lo = Math.min(z0, z1), hi = Math.max(z0, z1);
+  const mb = sec.at(x, (lo + hi) / 2, 0.6, (hi - lo) / 2 + 0.5, 2.2);
+  addBox(mb, x, 0.92, (lo + hi) / 2, 0.1, 1.85, hi - lo, 0, MAT.WOOD,
+    { ao: aoWall, bottom: false });
+  addBox(mb, x, 1.05, (lo + hi) / 2, 0.16, 0.06, 0.5, 0, MAT.METAL, { ao: aoFlat });
+  const box = col.add(x - 0.09, 0, lo, x + 0.09, 1.85, hi, { tag: 'gate', id: h.id });
+  interact.push({
+    kind: 'gate', houseId: h.id, box,
+    x, y: 1.1, z: (lo + hi) / 2, radius: 1.8, label: 'השער',
+  });
+}
+
 function picketFence(sec, col, x0, z0, x1, z1) {
   const len = Math.hypot(x1 - x0, z1 - z0);
   if (len < 0.5) return;
@@ -1010,23 +1156,21 @@ function climbFurniture(sec, col, layout) {
   for (const site of layout.sites) {
     if (site.id === 'garage') {
       /*
-       * A stack of crates against the outboard wall of the garage: 0.6, 1.2,
-       * 1.8, 2.4, and then a 0.7m pull onto the roof at 3.1. Every step is
-       * under the 62cm the player can walk up, and the last one is a jump —
-       * which is why the top crate sits hard against the wall.
-       */
-      /*
-       * Stacked on the drive in front of the garage door, stepping up towards
-       * it: 0.6, 1.2, 1.8, 2.4, 3.0, and the roof is 3.1. Beside the garage
-       * would be the obvious place and it is the wrong one — that strip is
-       * outside the boundary fence, so the crates would be in the neighbour's
-       * garden with a boarded fence between them and the drive.
+       * Stacked against the back wall of the garage, inside the back garden —
+       * which is sealed except for the gate with the chain on it. 0.6, 1.2,
+       * 1.8, 2.4, 3.0, and the roof is 3.1: every step is under the 62cm the
+       * player can walk up, and the last is a 10cm rise rather than a jump
+       * they have to discover.
        */
       const h = layout.houses.find((x) => x.id === site.houseId);
       const G = h.garage;
+      /* Hard against the back wall: the roof overhangs it by 17cm, so the top
+       * crate and the roof edge overlap and the last move is a step rather
+       * than a leap across a gap the player cannot see. */
+      const back = G.z1 + h.sign * 0.45;
       for (let i = 0; i < 5; i++) {
         const top = 0.6 * (i + 1);
-        const cz = h.frontZ - h.sign * (0.55 + (4 - i) * 0.9);
+        const cz = back + h.sign * (4 - i) * 0.9;
         addBox(sec.at(G.x, cz, 1.4, 1, top + 0.5), G.x, top / 2, cz, 1.7, top, 0.9, 0,
           MAT.WOOD, { ao: aoWall, bottom: false });
         col.add(G.x - 0.85, 0, cz - 0.45, G.x + 0.85, top, cz + 0.45, { tag: 'crate' });
