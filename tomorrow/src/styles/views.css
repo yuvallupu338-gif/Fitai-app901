@@ -50,8 +50,15 @@
 .empty-icon { width: 28px; height: 28px; color: var(--text-mute); }
 
 /*
- * A checkbox drawn as a switch. Built from the real input so it stays
- * keyboard-operable and announces its state; only the paint is borrowed.
+ * A checkbox drawn as a switch, built from the real input so it stays
+ * keyboard-operable and announces its own state; only the paint is borrowed.
+ *
+ * The geometry is written against the document direction rather than with
+ * logical properties, because a form control does not reliably inherit the
+ * page's direction for the purposes of positioning its own pseudo-element —
+ * the knob was ending up on the left in an RTL page, which is where an unset
+ * switch is *not*. iOS mirrors switches in RTL and so does this: off is the
+ * side the reader starts from, which in Hebrew is the right.
  */
 .switch {
   appearance: none;
@@ -70,7 +77,6 @@
   content: '';
   position: absolute;
   inset-block-start: 3px;
-  inset-inline-start: 3px;
   inline-size: 20px;
   block-size: 20px;
   border-radius: var(--r-pill);
@@ -78,9 +84,14 @@
   transition: transform var(--t-fast) var(--ease), background var(--t-fast) var(--ease);
 }
 
+[dir='rtl'] .switch::after { right: 3px; }
+[dir='ltr'] .switch::after { left: 3px; }
+
 .switch:checked { background: var(--primary-wash); border-color: var(--primary-line); }
-.switch:checked::after { background: var(--primary); transform: translateX(calc(18px * var(--dir, -1))); }
-:root:dir(ltr) .switch:checked::after { transform: translateX(18px); }
+.switch:checked::after { background: var(--primary); }
+
+[dir='rtl'] .switch:checked::after { transform: translateX(-18px); }
+[dir='ltr'] .switch:checked::after { transform: translateX(18px); }
 
 .flip { transform: scaleX(-1); }
 

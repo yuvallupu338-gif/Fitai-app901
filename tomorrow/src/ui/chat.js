@@ -58,7 +58,12 @@ export function render(root, ctx) {
   }, input,
   h('button.btn.primary.icon', {
     type: 'submit', 'data-t': 'chat-send', 'aria-label': 'שליחה',
-  }, icon('M4 12h14M13 6l6 6-6 6', { weight: '2' }))));
+    /*
+     * The arrow is flipped because an inline SVG is not mirrored by dir="rtl" —
+     * only text is. Drawn as-is it points right, which in Hebrew is the
+     * direction you came from, so the send button read as a back button.
+     */
+  }, icon('M4 12h14M13 6l6 6-6 6', { weight: '2', class: 'flip' }))));
 
   function send() {
     const text = input.value.trim();
