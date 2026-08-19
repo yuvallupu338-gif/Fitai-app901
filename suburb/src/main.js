@@ -402,13 +402,21 @@ class Game {
     this.ui.show('loading');
     this.ui.setLoading(0, 'בונה חומרים…', this.cfg.title);
 
+    /*
+     * Seventeen materials at 256 square is about 1.7 seconds of arithmetic, and
+     * they depend on the save's seed and on nothing else — so they are baked
+     * once and kept. The seed is part of the key because resetting progress
+     * draws a new neighbourhood, and a new neighbourhood painted in the old
+     * one's noise is a subtle, permanent wrongness nobody would ever trace
+     * back to here.
+     */
     const s = store.settings();
-    if (!this.baked || this.bakedSize !== s.textureSize) {
+    if (this.bakedSeed !== st.seed || this.bakedSize !== s.textureSize) {
       this.renderer.quality.textureSize = s.textureSize;
       await this.renderer.setMaterials(st.seed, (p, kind) => {
         this.ui.setLoading(p * 0.6, `חומר: ${kind}`);
       });
-      this.baked = true;
+      this.bakedSeed = st.seed;
       this.bakedSize = s.textureSize;
     }
     this.ui.setLoading(0.62, 'בונה את הרחוב…');
@@ -439,6 +447,10 @@ class Game {
    */
   startDay() {
     this.scene = 'day';
+    /* Whatever the last night was doing, it is over. Starting a new night from
+     * the pause menu mid-hunt otherwise leaves her whistling through the
+     * afternoon, from a position that no longer exists. */
+    this.audio.stopWhistle(true);
     this.audio.setNight(this.night);
     this.audio.setScene('day');
     this.renderer.setScene('day');
@@ -483,6 +495,12 @@ class Game {
   endNight(reason) {
     if (this.state !== 'play') return;
     this.state = 'over';
+    /* Whatever was open goes with it. A keypad left on screen over the
+     * night-over card is the kind of thing that looks like the game has
+     * crashed. */
+    this.puzzle.locked = false;
+    this.puzzle.close();
+    this.ui.setMap(false);
     this.clock.stop();
     this.audio.stopWhistle(reason === 'caught');
     this.input.releaseLock();
@@ -518,7 +536,7 @@ class Game {
   }
 
   pause() {
-    if (this.state !== 'play') return;
+    if (this.state !== 'play' || this.puzzle.open) return;
     this.state = 'paused';
     this.input.releaseLock();
     this.input.touch.move = null;
@@ -591,15 +609,24 @@ class Game {
     const { player, input, audio, ui } = this;
     const col = this.world.collision;
 
-    /* A puzzle panel takes the keyboard and the mouse, but not the clock. */
+    /*
+     * A puzzle panel takes the keyboard and the mouse. It takes nothing else:
+     * the clock runs, she keeps walking, and she can still find you standing
+     * at a keypad with a panel over your eyes — which is the whole cost of a
+     * lock, and the reason the daylight walk is worth doing. Freezing her here
+     * was the first version and it turned every puzzle into a safe room.
+     */
     input.enabled = !this.puzzle.open;
     if (this.puzzle.open) {
-      if (this.clock) this.tickNight(dt, true);
+      /* Standing at a keypad is standing still, and she treats it that way. */
+      player.still += dt;
+      if (this.clock) this.tickNight(dt, this.lightAt(player.pos.x, player.cameraY,
+        player.pos.z));
       return;
     }
 
     const lit = this.lightAt(player.pos.x, player.cameraY, player.pos.z);
-    player.update(dt, input, col, this.cfg);
+    player.update(dt, input, col);
 
     if (input.hit('KeyF')) {
       player.torchOn = !player.torchOn;
@@ -621,11 +648,11 @@ class Game {
       else if (e.type === 'hide-timeout') ui.log('אי אפשר להישאר שם יותר.');
     }
 
-    if (this.scene === 'night') this.tickNight(dt, false, lit);
+    if (this.scene === 'night') this.tickNight(dt, lit);
     else this.tickDay(dt);
 
-    this.interact(dt);
-    this.hud(dt);
+    this.interact();
+    this.hud();
     if (this.ui.mapOn) this.ui.drawMap(this.layout, player, this.flagKnown ? this.flag : null);
   }
 
@@ -637,7 +664,7 @@ class Game {
     });
   }
 
-  tickNight(dt, frozen, lit = 0) {
+  tickNight(dt, lit = 0) {
     const { player, audio, ui } = this;
     const col = this.world.collision;
     this.clock.update(dt);
@@ -650,7 +677,7 @@ class Game {
     }
     for (const e of this.flag.update(dt)) {
       if (e.type === 'moved') {
-        ui.log('הדגל זז.');
+        ui.log('הדגל זז.', true);
         ui.subtitle(`הוא כבר לא שם. ${e.site.hint}`, 3600);
       }
     }
@@ -668,22 +695,20 @@ class Game {
       }
     }
 
-    if (!frozen) {
-      this.whistler.update(dt, player, col, lit);
-      for (const e of this.whistler.events) {
-        if (e.type === 'spotted') this.spotted();
-        else if (e.type === 'caught') this.caught();
-        else if (e.type === 'lost') ui.log('היא איבדה אותך.');
-      }
-      for (const e of this.neighbours.update(dt, player)) {
-        if (e.type === 'wake') {
-          audio.neighbourWake();
-          ui.log(`${e.name} התעורר. הוא צורח.`);
-          this.noise(e.x, e.z, screamLoudness(0));
-        } else if (e.type === 'bark') {
-          audio.dogBark(e.dist);
-          this.noise(e.x, e.z, 0.75);
-        }
+    this.whistler.update(dt, player, col, lit);
+    for (const e of this.whistler.events) {
+      if (e.type === 'spotted') this.spotted();
+      else if (e.type === 'caught') this.caught();
+      else if (e.type === 'lost') ui.log('היא איבדה אותך.');
+    }
+    for (const e of this.neighbours.update(dt, player)) {
+      if (e.type === 'wake') {
+        audio.neighbourWake();
+        ui.log(`${e.name} התעורר. הוא צורח.`);
+        this.noise(e.x, e.z, screamLoudness(0));
+      } else if (e.type === 'bark') {
+        audio.dogBark(e.dist);
+        this.noise(e.x, e.z, 0.75);
       }
     }
 
@@ -732,8 +757,11 @@ class Game {
     const s = store.settings();
     this.audio.stopWhistle(true);
     this.audio.scream();
-    if (s.scares) this.ui.flash('white', 70);
-    this.ui.log('היא ראתה אותך.');
+    if (s.scares) {
+      this.ui.flash('white', 70);
+      this.ui.shake();
+    }
+    this.ui.log('היא ראתה אותך.', true);
     this.ui.subtitle('רוץ.', 1800);
   }
 
@@ -753,9 +781,8 @@ class Game {
    * touch is in world.interact — which is built in the same pass that draws it,
    * so there is nothing here that is not also a thing on the screen.
    */
-  interact(dt) {
-    const { player, input, ui, audio } = this;
-    const cam = player.camera();
+  interact() {
+    const { player, input, ui } = this;
     const fx = -Math.sin(player.yaw), fz = -Math.cos(player.yaw);
 
     if (player.hidden) {
@@ -809,9 +836,6 @@ class Game {
     const label = this.labelFor(best);
     ui.prompt(label ? `<b>E</b> ${label}` : null);
     if (input.hit('KeyE')) this.use(best);
-    void dt;
-    void cam;
-    void audio;
   }
 
   hintForNothing() {
@@ -1000,7 +1024,7 @@ class Game {
     this.flag.take(player);
     audio.flagTake();
     this.noise(player.pos.x, player.pos.z, this.flag.site.loud ? 0.9 : 0.35);
-    ui.log('הדגל אצלך. הביתה.');
+    ui.log('הדגל אצלך. הביתה.', true);
   }
 
   /* The last night. */
@@ -1086,7 +1110,8 @@ class Game {
     }
     ui.setNight(this.night, st.cleared.length);
     ui.setSuspicion(this.scene === 'night' ? this.awareShown : 0);
-    ui.setItems(st.cleared.length, player.torchOn, st.found.length);
+    ui.setItems(st.cleared.length, player.torchOn, st.found.length,
+      this.flag && this.flag.state === FLAG.CARRIED);
     ui.setBreath(player.breath);
     ui.setHide(player.hidden ? clamp(player.hidden.until / this.cfg.hideTime, 0, 1) : null);
 
@@ -1108,7 +1133,8 @@ class Game {
         const cy = Math.cos(player.yaw), sy = Math.sin(player.yaw);
         const fwd = ex * -sy + ez * -cy;
         const right = ex * cy + ez * -sy;
-        ui.setGuide(Math.atan2(right, fwd), dist, label);
+        ui.setGuide(Math.atan2(right, fwd), dist, label,
+          this.flag.state === FLAG.CARRIED);
       } else ui.setGuide(null);
     } else ui.setGuide(null);
 

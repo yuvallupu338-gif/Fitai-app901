@@ -100,7 +100,7 @@ export class Player {
     this.events.push({ type: 'hide', on: false });
   }
 
-  update(dt, input, world, cfg) {
+  update(dt, input, world) {
     this.events.length = 0;
 
     /* ---- look ---- */
@@ -251,7 +251,5 @@ export class Player {
     this.frozenOut = Math.max(0, this.frozenOut - dt);
     if (planar < 0.12 && input.idle > 0 && this.frozenOut <= 0) this.still += dt;
     else this.still = 0;
-
-    void cfg;
   }
 }

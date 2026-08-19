@@ -18,7 +18,7 @@
      everything itself and talks to nobody: script-src is 'self' with no inline
      anything, and connect-src is 'none'. frame-ancestors is omitted — it is
      ignored in a meta tag. -->
-<meta http-equiv="Content-Security-Policy" content="default-src 'none'; script-src 'sha256-PwqpqWJVF9zERxBxwvmlKoFM0heg2wzQ6+AxSYWqNkg='; style-src 'sha256-gdUDtSmekqOcBn8CCc22rsE0V7gD+72c9SCTvZ46ncA='; img-src 'self' data:; font-src 'self' data:; connect-src 'none'; media-src 'none'; frame-src 'none'; worker-src 'none'; object-src 'none'; base-uri 'none'; form-action 'none'">
+<meta http-equiv="Content-Security-Policy" content="default-src 'none'; script-src 'sha256-4eFSIuj+P2egTtj+0/D7A8cE1FGyOTMDhTWcmz8aMvE='; style-src 'sha256-gdUDtSmekqOcBn8CCc22rsE0V7gD+72c9SCTvZ46ncA='; img-src 'self' data:; font-src 'self' data:; connect-src 'none'; media-src 'none'; frame-src 'none'; worker-src 'none'; object-src 'none'; base-uri 'none'; form-action 'none'">
 <link rel="icon" href="data:image/svg+xml,<svg xmlns='http://www.w3.org/2000/svg' viewBox='0 0 32 32'><rect width='32' height='32' fill='%230b1018'/><path d='M8 27V5' stroke='%23cfd6df' stroke-width='2'/><path d='M9 6h15l-4 5 4 5H9z' fill='%23c0261f'/></svg>">
 <style>
 /*
@@ -7649,7 +7649,7 @@ class Player {
     this.events.push({ type: 'hide', on: false });
   }
 
-  update(dt, input, world, cfg) {
+  update(dt, input, world) {
     this.events.length = 0;
 
     /* ---- look ---- */
@@ -7800,8 +7800,6 @@ class Player {
     this.frozenOut = Math.max(0, this.frozenOut - dt);
     if (planar < 0.12 && input.idle > 0 && this.frozenOut <= 0) this.still += dt;
     else this.still = 0;
-
-    void cfg;
   }
 }
 
@@ -10651,21 +10649,32 @@ class UI {
     el.classList.toggle('high', v > 0.6);
   }
 
-  setItems(flags, torchOn, found) {
-    $('#it-flags').textContent = `🚩 ${flags}/${TOTAL_NIGHTS}`;
-    $('#it-torch').textContent = torchOn ? '🔦 דולק' : '🔦 כבוי';
+  setItems(flags, torchOn, found, carrying) {
+    const f = $('#it-flags');
+    f.textContent = `🚩 ${flags}/${TOTAL_NIGHTS}`;
+    f.classList.toggle('has', !!carrying);
+    const t = $('#it-torch');
+    t.textContent = torchOn ? '🔦 דולק' : '🔦 כבוי';
+    t.classList.toggle('on', !!torchOn);
     $('#it-found').textContent = `📓 ${found}/${COLLECTIBLES.length}`;
   }
 
-  setBreath(v) { $('#m-breath i').style.width = `${Math.round(v * 100)}%`; }
+  setBreath(v) {
+    $('#m-breath i').style.width = `${Math.round(v * 100)}%`;
+    /* Amber under a quarter, which is also where the gasping starts — the
+     * meter and the noise you are making have to agree. */
+    $('#m-breath').classList.toggle('low', v < 0.25);
+  }
 
   setHide(fraction) {
     const el = $('#hud-hide');
     el.hidden = fraction === null;
-    if (fraction !== null) el.querySelector('i').style.width = `${Math.round(fraction * 100)}%`;
+    if (fraction === null) return;
+    el.querySelector('i').style.width = `${Math.round(fraction * 100)}%`;
+    el.classList.toggle('low', fraction < 0.3);
   }
 
-  setGuide(angle, dist, label) {
+  setGuide(angle, dist, label, carrying) {
     const el = $('#guide');
     if (angle === null) { el.hidden = true; return; }
     el.hidden = false;
@@ -10673,6 +10682,10 @@ class UI {
     $('#guide-dist').textContent = `${Math.round(dist)}m`;
     $('#guide-label').textContent = label;
     el.classList.toggle('close', dist < 10);
+    /* Faint at range. A bright permanent marker turns the neighbourhood into a
+     * corridor with an arrow in it, which is not what anyone came for. */
+    el.classList.toggle('faint', dist > 55);
+    el.classList.toggle('carry', !!carrying);
   }
 
   prompt(text) {
@@ -10689,16 +10702,18 @@ class UI {
     this._subT = setTimeout(() => { this.subtitleEl.hidden = true; }, ms);
   }
 
-  log(text) {
+  log(text, hot) {
     const div = document.createElement('div');
+    if (hot) div.className = 'hot';
     div.textContent = text;
     this.logEl.appendChild(div);
     setTimeout(() => div.remove(), 4600);
     while (this.logEl.children.length > 4) this.logEl.firstChild.remove();
   }
 
-  toast(text, ms = 3400) {
+  toast(text, ms = 3400, hot) {
     this.toastEl.innerHTML = text;
+    this.toastEl.classList.toggle('hot', !!hot);
     this.toastEl.hidden = false;
     clearTimeout(this._toastT);
     this._toastT = setTimeout(() => { this.toastEl.hidden = true; }, ms);
@@ -10711,6 +10726,21 @@ class UI {
   fade(on) {
     this.fadeEl.classList.toggle('on', on);
     return new Promise((r) => setTimeout(r, on ? 520 : 60));
+  }
+
+  /* The scream, as one short shake of the whole interface. The stylesheet
+   * turns it off under prefers-reduced-motion, which is why it is a class
+   * rather than an inline animation. */
+  shake() {
+    const ui = document.querySelector('#ui');
+    ui.classList.remove('shake');
+    /* Reading offsetWidth is what restarts a CSS animation that is already on
+     * the element; without it a second scream inside half a second does
+     * nothing at all. */
+    void ui.offsetWidth;
+    ui.classList.add('shake');
+    clearTimeout(this._shakeT);
+    this._shakeT = setTimeout(() => ui.classList.remove('shake'), 500);
   }
 
   flash(kind, ms = 90) {
@@ -11618,13 +11648,21 @@ class Game {
     this.ui.show('loading');
     this.ui.setLoading(0, 'בונה חומרים…', this.cfg.title);
 
+    /*
+     * Seventeen materials at 256 square is about 1.7 seconds of arithmetic, and
+     * they depend on the save's seed and on nothing else — so they are baked
+     * once and kept. The seed is part of the key because resetting progress
+     * draws a new neighbourhood, and a new neighbourhood painted in the old
+     * one's noise is a subtle, permanent wrongness nobody would ever trace
+     * back to here.
+     */
     const s = store.settings();
-    if (!this.baked || this.bakedSize !== s.textureSize) {
+    if (this.bakedSeed !== st.seed || this.bakedSize !== s.textureSize) {
       this.renderer.quality.textureSize = s.textureSize;
       await this.renderer.setMaterials(st.seed, (p, kind) => {
         this.ui.setLoading(p * 0.6, `חומר: ${kind}`);
       });
-      this.baked = true;
+      this.bakedSeed = st.seed;
       this.bakedSize = s.textureSize;
     }
     this.ui.setLoading(0.62, 'בונה את הרחוב…');
@@ -11655,6 +11693,10 @@ class Game {
    */
   startDay() {
     this.scene = 'day';
+    /* Whatever the last night was doing, it is over. Starting a new night from
+     * the pause menu mid-hunt otherwise leaves her whistling through the
+     * afternoon, from a position that no longer exists. */
+    this.audio.stopWhistle(true);
     this.audio.setNight(this.night);
     this.audio.setScene('day');
     this.renderer.setScene('day');
@@ -11699,6 +11741,12 @@ class Game {
   endNight(reason) {
     if (this.state !== 'play') return;
     this.state = 'over';
+    /* Whatever was open goes with it. A keypad left on screen over the
+     * night-over card is the kind of thing that looks like the game has
+     * crashed. */
+    this.puzzle.locked = false;
+    this.puzzle.close();
+    this.ui.setMap(false);
     this.clock.stop();
     this.audio.stopWhistle(reason === 'caught');
     this.input.releaseLock();
@@ -11734,7 +11782,7 @@ class Game {
   }
 
   pause() {
-    if (this.state !== 'play') return;
+    if (this.state !== 'play' || this.puzzle.open) return;
     this.state = 'paused';
     this.input.releaseLock();
     this.input.touch.move = null;
@@ -11807,15 +11855,24 @@ class Game {
     const { player, input, audio, ui } = this;
     const col = this.world.collision;
 
-    /* A puzzle panel takes the keyboard and the mouse, but not the clock. */
+    /*
+     * A puzzle panel takes the keyboard and the mouse. It takes nothing else:
+     * the clock runs, she keeps walking, and she can still find you standing
+     * at a keypad with a panel over your eyes — which is the whole cost of a
+     * lock, and the reason the daylight walk is worth doing. Freezing her here
+     * was the first version and it turned every puzzle into a safe room.
+     */
     input.enabled = !this.puzzle.open;
     if (this.puzzle.open) {
-      if (this.clock) this.tickNight(dt, true);
+      /* Standing at a keypad is standing still, and she treats it that way. */
+      player.still += dt;
+      if (this.clock) this.tickNight(dt, this.lightAt(player.pos.x, player.cameraY,
+        player.pos.z));
       return;
     }
 
     const lit = this.lightAt(player.pos.x, player.cameraY, player.pos.z);
-    player.update(dt, input, col, this.cfg);
+    player.update(dt, input, col);
 
     if (input.hit('KeyF')) {
       player.torchOn = !player.torchOn;
@@ -11837,11 +11894,11 @@ class Game {
       else if (e.type === 'hide-timeout') ui.log('אי אפשר להישאר שם יותר.');
     }
 
-    if (this.scene === 'night') this.tickNight(dt, false, lit);
+    if (this.scene === 'night') this.tickNight(dt, lit);
     else this.tickDay(dt);
 
-    this.interact(dt);
-    this.hud(dt);
+    this.interact();
+    this.hud();
     if (this.ui.mapOn) this.ui.drawMap(this.layout, player, this.flagKnown ? this.flag : null);
   }
 
@@ -11853,7 +11910,7 @@ class Game {
     });
   }
 
-  tickNight(dt, frozen, lit = 0) {
+  tickNight(dt, lit = 0) {
     const { player, audio, ui } = this;
     const col = this.world.collision;
     this.clock.update(dt);
@@ -11866,7 +11923,7 @@ class Game {
     }
     for (const e of this.flag.update(dt)) {
       if (e.type === 'moved') {
-        ui.log('הדגל זז.');
+        ui.log('הדגל זז.', true);
         ui.subtitle(`הוא כבר לא שם. ${e.site.hint}`, 3600);
       }
     }
@@ -11884,22 +11941,20 @@ class Game {
       }
     }
 
-    if (!frozen) {
-      this.whistler.update(dt, player, col, lit);
-      for (const e of this.whistler.events) {
-        if (e.type === 'spotted') this.spotted();
-        else if (e.type === 'caught') this.caught();
-        else if (e.type === 'lost') ui.log('היא איבדה אותך.');
-      }
-      for (const e of this.neighbours.update(dt, player)) {
-        if (e.type === 'wake') {
-          audio.neighbourWake();
-          ui.log(`${e.name} התעורר. הוא צורח.`);
-          this.noise(e.x, e.z, screamLoudness(0));
-        } else if (e.type === 'bark') {
-          audio.dogBark(e.dist);
-          this.noise(e.x, e.z, 0.75);
-        }
+    this.whistler.update(dt, player, col, lit);
+    for (const e of this.whistler.events) {
+      if (e.type === 'spotted') this.spotted();
+      else if (e.type === 'caught') this.caught();
+      else if (e.type === 'lost') ui.log('היא איבדה אותך.');
+    }
+    for (const e of this.neighbours.update(dt, player)) {
+      if (e.type === 'wake') {
+        audio.neighbourWake();
+        ui.log(`${e.name} התעורר. הוא צורח.`);
+        this.noise(e.x, e.z, screamLoudness(0));
+      } else if (e.type === 'bark') {
+        audio.dogBark(e.dist);
+        this.noise(e.x, e.z, 0.75);
       }
     }
 
@@ -11948,8 +12003,11 @@ class Game {
     const s = store.settings();
     this.audio.stopWhistle(true);
     this.audio.scream();
-    if (s.scares) this.ui.flash('white', 70);
-    this.ui.log('היא ראתה אותך.');
+    if (s.scares) {
+      this.ui.flash('white', 70);
+      this.ui.shake();
+    }
+    this.ui.log('היא ראתה אותך.', true);
     this.ui.subtitle('רוץ.', 1800);
   }
 
@@ -11969,9 +12027,8 @@ class Game {
    * touch is in world.interact — which is built in the same pass that draws it,
    * so there is nothing here that is not also a thing on the screen.
    */
-  interact(dt) {
-    const { player, input, ui, audio } = this;
-    const cam = player.camera();
+  interact() {
+    const { player, input, ui } = this;
     const fx = -Math.sin(player.yaw), fz = -Math.cos(player.yaw);
 
     if (player.hidden) {
@@ -12025,9 +12082,6 @@ class Game {
     const label = this.labelFor(best);
     ui.prompt(label ? `<b>E</b> ${label}` : null);
     if (input.hit('KeyE')) this.use(best);
-    void dt;
-    void cam;
-    void audio;
   }
 
   hintForNothing() {
@@ -12216,7 +12270,7 @@ class Game {
     this.flag.take(player);
     audio.flagTake();
     this.noise(player.pos.x, player.pos.z, this.flag.site.loud ? 0.9 : 0.35);
-    ui.log('הדגל אצלך. הביתה.');
+    ui.log('הדגל אצלך. הביתה.', true);
   }
 
   /* The last night. */
@@ -12302,7 +12356,8 @@ class Game {
     }
     ui.setNight(this.night, st.cleared.length);
     ui.setSuspicion(this.scene === 'night' ? this.awareShown : 0);
-    ui.setItems(st.cleared.length, player.torchOn, st.found.length);
+    ui.setItems(st.cleared.length, player.torchOn, st.found.length,
+      this.flag && this.flag.state === FLAG.CARRIED);
     ui.setBreath(player.breath);
     ui.setHide(player.hidden ? clamp(player.hidden.until / this.cfg.hideTime, 0, 1) : null);
 
@@ -12324,7 +12379,8 @@ class Game {
         const cy = Math.cos(player.yaw), sy = Math.sin(player.yaw);
         const fwd = ex * -sy + ez * -cy;
         const right = ex * cy + ez * -sy;
-        ui.setGuide(Math.atan2(right, fwd), dist, label);
+        ui.setGuide(Math.atan2(right, fwd), dist, label,
+          this.flag.state === FLAG.CARRIED);
       } else ui.setGuide(null);
     } else ui.setGuide(null);
 

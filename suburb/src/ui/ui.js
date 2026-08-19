@@ -171,21 +171,32 @@ export class UI {
     el.classList.toggle('high', v > 0.6);
   }
 
-  setItems(flags, torchOn, found) {
-    $('#it-flags').textContent = `🚩 ${flags}/${TOTAL_NIGHTS}`;
-    $('#it-torch').textContent = torchOn ? '🔦 דולק' : '🔦 כבוי';
+  setItems(flags, torchOn, found, carrying) {
+    const f = $('#it-flags');
+    f.textContent = `🚩 ${flags}/${TOTAL_NIGHTS}`;
+    f.classList.toggle('has', !!carrying);
+    const t = $('#it-torch');
+    t.textContent = torchOn ? '🔦 דולק' : '🔦 כבוי';
+    t.classList.toggle('on', !!torchOn);
     $('#it-found').textContent = `📓 ${found}/${COLLECTIBLES.length}`;
   }
 
-  setBreath(v) { $('#m-breath i').style.width = `${Math.round(v * 100)}%`; }
+  setBreath(v) {
+    $('#m-breath i').style.width = `${Math.round(v * 100)}%`;
+    /* Amber under a quarter, which is also where the gasping starts — the
+     * meter and the noise you are making have to agree. */
+    $('#m-breath').classList.toggle('low', v < 0.25);
+  }
 
   setHide(fraction) {
     const el = $('#hud-hide');
     el.hidden = fraction === null;
-    if (fraction !== null) el.querySelector('i').style.width = `${Math.round(fraction * 100)}%`;
+    if (fraction === null) return;
+    el.querySelector('i').style.width = `${Math.round(fraction * 100)}%`;
+    el.classList.toggle('low', fraction < 0.3);
   }
 
-  setGuide(angle, dist, label) {
+  setGuide(angle, dist, label, carrying) {
     const el = $('#guide');
     if (angle === null) { el.hidden = true; return; }
     el.hidden = false;
@@ -193,6 +204,10 @@ export class UI {
     $('#guide-dist').textContent = `${Math.round(dist)}m`;
     $('#guide-label').textContent = label;
     el.classList.toggle('close', dist < 10);
+    /* Faint at range. A bright permanent marker turns the neighbourhood into a
+     * corridor with an arrow in it, which is not what anyone came for. */
+    el.classList.toggle('faint', dist > 55);
+    el.classList.toggle('carry', !!carrying);
   }
 
   prompt(text) {
@@ -209,16 +224,18 @@ export class UI {
     this._subT = setTimeout(() => { this.subtitleEl.hidden = true; }, ms);
   }
 
-  log(text) {
+  log(text, hot) {
     const div = document.createElement('div');
+    if (hot) div.className = 'hot';
     div.textContent = text;
     this.logEl.appendChild(div);
     setTimeout(() => div.remove(), 4600);
     while (this.logEl.children.length > 4) this.logEl.firstChild.remove();
   }
 
-  toast(text, ms = 3400) {
+  toast(text, ms = 3400, hot) {
     this.toastEl.innerHTML = text;
+    this.toastEl.classList.toggle('hot', !!hot);
     this.toastEl.hidden = false;
     clearTimeout(this._toastT);
     this._toastT = setTimeout(() => { this.toastEl.hidden = true; }, ms);
@@ -231,6 +248,21 @@ export class UI {
   fade(on) {
     this.fadeEl.classList.toggle('on', on);
     return new Promise((r) => setTimeout(r, on ? 520 : 60));
+  }
+
+  /* The scream, as one short shake of the whole interface. The stylesheet
+   * turns it off under prefers-reduced-motion, which is why it is a class
+   * rather than an inline animation. */
+  shake() {
+    const ui = document.querySelector('#ui');
+    ui.classList.remove('shake');
+    /* Reading offsetWidth is what restarts a CSS animation that is already on
+     * the element; without it a second scream inside half a second does
+     * nothing at all. */
+    void ui.offsetWidth;
+    ui.classList.add('shake');
+    clearTimeout(this._shakeT);
+    this._shakeT = setTimeout(() => ui.classList.remove('shake'), 500);
   }
 
   flash(kind, ms = 90) {
