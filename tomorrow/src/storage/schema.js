@@ -725,14 +725,22 @@ function normalizeFeedback(raw) {
   return out;
 }
 
+/*
+ * A line whose role is neither 'user' nor 'ai' is dropped rather than
+ * defaulted. There are only two speakers, so a third value is corrupt, and
+ * guessing puts one of them's words in the other's mouth — a transcript that
+ * shows the engine's answer as something the user said is worse than a
+ * transcript with a line missing. If a role is ever renamed, the rename
+ * belongs in migrate.js where it can be done knowingly.
+ */
 function normalizeChat(raw) {
   const out = [];
   if (!Array.isArray(raw)) return out;
   for (const entry of raw) {
     if (!isObject(entry)) continue;
     const text = str(entry.text, '');
-    if (!text) continue;
-    out.push({ role: oneOf(CHAT_ROLES, entry.role, 'user'), text, at: stamp(entry.at, '') });
+    if (!text || CHAT_ROLES.indexOf(entry.role) < 0) continue;
+    out.push({ role: entry.role, text, at: stamp(entry.at, '') });
   }
   return out;
 }

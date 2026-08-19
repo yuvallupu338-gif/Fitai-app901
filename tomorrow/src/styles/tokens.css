@@ -90,7 +90,9 @@
   --grid: rgba(166, 182, 206, .14);
   --grid-strong: rgba(166, 182, 206, .26);
 
-  --ring: #8FA2FF;              /* focus-visible outline */
+  /* The focus-visible outline. Named for the CSS property it feeds, not "ring",
+     which in this app means the score dial. */
+  --outline: #8FA2FF;
   --scrim: rgba(4, 6, 11, .66); /* behind a modal or a sheet */
 
   /* ---------------------------------------------------------------- *
@@ -234,7 +236,7 @@
   --grid: rgba(14, 21, 33, .10);
   --grid-strong: rgba(14, 21, 33, .20);
 
-  --ring: #3A4CD4;
+  --outline: #3A4CD4;
   --scrim: rgba(16, 24, 40, .40);
 
   /* On white, the same drop shadow reads as dirt. Lighter, tighter, and
