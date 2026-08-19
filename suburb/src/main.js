@@ -40,6 +40,11 @@ import { Scene } from './ui/scene.js';
 import * as store from './ui/store.js';
 import { clamp, damp } from './core/math.js';
 
+/* The last line of both endings. The connections table only appears in the
+ * archive once an ending has been reached, and a player who has just watched
+ * the credits of their own memory has no reason to go and look. */
+const AFTER = '<br><br><span class="dim">"מה שנמצא" פתוח עכשיו עד הסוף.</span>';
+
 const canvas = document.querySelector('#view');
 
 /* The two halves of the day, as lighting. Everything that separates the warm
@@ -588,7 +593,7 @@ class Game {
       eyebrow: last ? 'הלילה השביעי' : 'הדגל בבית',
       title: last ? end.title : `לילה ${this.night} נגמר`,
       note: last
-        ? `${REVEAL.join('<br><br>')}<br><br><b>${end.text}</b>`
+        ? `${REVEAL.join('<br><br>')}<br><br><b>${end.text}</b>${AFTER}`
         : `הבאת את הדגל הביתה ב-${at}. `
           + `${store.load().cleared.length} מתוך ${TOTAL_NIGHTS}.`,
       again: false,
@@ -1365,7 +1370,7 @@ class Game {
     this.ui.nightOver({
       eyebrow: 'הלילה השביעי',
       title: end.title,
-      note: `${REVEAL.join('<br><br>')}<br><br><b>${end.text}</b>`,
+      note: `${REVEAL.join('<br><br>')}<br><br><b>${end.text}</b>${AFTER}`,
       again: false,
     });
   }

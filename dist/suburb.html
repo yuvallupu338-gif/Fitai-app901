@@ -18,7 +18,7 @@
      everything itself and talks to nobody: script-src is 'self' with no inline
      anything, and connect-src is 'none'. frame-ancestors is omitted — it is
      ignored in a meta tag. -->
-<meta http-equiv="Content-Security-Policy" content="default-src 'none'; script-src 'sha256-vMZfjyHkRyba9pafwAUtLsB6KSGl9pJr92CGZEYOyKI='; style-src 'sha256-22dDPMHN1uSSAyz4sWMXNTZeCEQ1utXI+sjUN9QCtcw='; img-src 'self' data:; font-src 'self' data:; connect-src 'none'; media-src 'none'; frame-src 'none'; worker-src 'none'; object-src 'none'; base-uri 'none'; form-action 'none'">
+<meta http-equiv="Content-Security-Policy" content="default-src 'none'; script-src 'sha256-FfTCKRRs9qfHU+l//FkW11+vyXaB9W1Chjjos5bSwfs='; style-src 'sha256-mZEYVez5b3eXnFo3vrG9wqbW8kaMXTZ0ej34Kvsr5So='; img-src 'self' data:; font-src 'self' data:; connect-src 'none'; media-src 'none'; frame-src 'none'; worker-src 'none'; object-src 'none'; base-uri 'none'; form-action 'none'">
 <link rel="icon" href="data:image/svg+xml,<svg xmlns='http://www.w3.org/2000/svg' viewBox='0 0 32 32'><rect width='32' height='32' fill='%230b1018'/><path d='M8 27V5' stroke='%23cfd6df' stroke-width='2'/><path d='M9 6h15l-4 5 4 5H9z' fill='%23c0261f'/></svg>">
 <style>
 /*
@@ -419,6 +419,32 @@ h2 { font-size: clamp(20px, 3.4vw, 30px); margin: 0 0 10px; font-weight: 700; }
   vertical-align: 0.1em;
 }
 .arch-item.empty { color: var(--faint); pointer-events: none; background: none; }
+
+/*
+ * The connections table, under the twelve objects and hidden until an ending
+ * has been reached. Set apart from the cards above it rather than styled as
+ * more of them: these are not things you found, they are the answer, and the
+ * page has to read as having a second half.
+ */
+#archive-links {
+  margin-top: 12px;
+  padding-top: 16px;
+  border-top: 1px solid var(--line);
+  display: grid;
+  gap: 12px;
+}
+#archive-links[hidden] { display: none; }
+#archive-links h3 {
+  margin: 0;
+  font-family: var(--mono);
+  font-size: 12px;
+  letter-spacing: 0.14em;
+  color: var(--dim);
+  text-transform: uppercase;
+}
+.link-row { display: grid; gap: 3px; }
+.link-row .t { font-size: 14px; font-weight: 600; color: var(--amber-lit); }
+.link-row .m { margin: 0; font-size: 13px; line-height: 1.62; color: var(--ink); }
 
 /* ------------------------------------------------------------------ *
  * Settings
@@ -1893,7 +1919,13 @@ body.touch #hud-action { bottom: calc(190px + env(safe-area-inset-bottom)); }
           <button id="btn-archive-back" class="btn small">חזרה</button>
         </div>
       </header>
-      <div id="archive-list"></div>
+      <!-- #archive-links lives inside the list because the list is the only
+           thing in this panel that scrolls: a sibling below it would take its
+           own height out of the panel and squeeze the twelve cards down to
+           one. -->
+      <div id="archive-list">
+        <div id="archive-links" hidden></div>
+      </div>
       <footer class="panel-foot" id="archive-foot"></footer>
     </div>
   </section>
@@ -12029,7 +12061,7 @@ __m["suburb/src/ui/ui.js"] = (function () {
  */
 
 const { NIGHTS, TOTAL_NIGHTS } = __m["suburb/src/game/nights.js"];
-const { COLLECTIBLES } = __m["suburb/src/game/story.js"];
+const { COLLECTIBLES, CONNECTIONS } = __m["suburb/src/game/story.js"];
 const { PLAN } = __m["suburb/src/world/layout.js"];
 
 const $ = (sel) => document.querySelector(sel);
@@ -12116,6 +12148,11 @@ class UI {
 
   buildArchive(state) {
     const list = $('#archive-list');
+    /* The connections block is a child of the list rather than a sibling — see
+     * index.html — so it is taken out before the cards are rebuilt and put
+     * back underneath them. */
+    const links = $('#archive-links');
+    if (links) links.remove();
     list.textContent = '';
     for (const c of COLLECTIBLES) {
       const found = state.found.includes(c.id);
@@ -12133,6 +12170,38 @@ class UI {
     $('#archive-foot').textContent =
       `${state.found.length} מתוך ${COLLECTIBLES.length}. הם מפוזרים בבתים, `
       + 'ורובם בבתים שנעולים ברוב הלילות.';
+    if (links) list.appendChild(links);
+    this.buildConnections(state);
+  }
+
+  /*
+   * What each rule of the game actually was, and it is behind the ending on
+   * purpose: read before the seventh night it turns every mechanic into a
+   * puzzle about the plot instead of a thing you do in the dark with two
+   * minutes left. Either ending unlocks it — both of them are the same
+   * understanding, and only one of them acts on it.
+   */
+  buildConnections(state) {
+    const box = $('#archive-links');
+    box.textContent = '';
+    box.hidden = !state.ending;
+    if (!state.ending) return;
+    const h = document.createElement('h3');
+    h.textContent = 'מה זה היה';
+    box.appendChild(h);
+    for (const c of CONNECTIONS) {
+      const row = document.createElement('div');
+      row.className = 'link-row';
+      const t = document.createElement('span');
+      t.className = 't';
+      t.textContent = c.thing;
+      const m = document.createElement('p');
+      m.className = 'm';
+      m.textContent = c.meaning;
+      row.appendChild(t);
+      row.appendChild(m);
+      box.appendChild(row);
+    }
   }
 
   buildCredits() {
@@ -13309,6 +13378,11 @@ const { Scene } = __m["suburb/src/ui/scene.js"];
 const store = __m["suburb/src/ui/store.js"];
 const { clamp, damp } = __m["suburb/src/core/math.js"];
 
+/* The last line of both endings. The connections table only appears in the
+ * archive once an ending has been reached, and a player who has just watched
+ * the credits of their own memory has no reason to go and look. */
+const AFTER = '<br><br><span class="dim">"מה שנמצא" פתוח עכשיו עד הסוף.</span>';
+
 const canvas = document.querySelector('#view');
 
 /* The two halves of the day, as lighting. Everything that separates the warm
@@ -13857,7 +13931,7 @@ class Game {
       eyebrow: last ? 'הלילה השביעי' : 'הדגל בבית',
       title: last ? end.title : `לילה ${this.night} נגמר`,
       note: last
-        ? `${REVEAL.join('<br><br>')}<br><br><b>${end.text}</b>`
+        ? `${REVEAL.join('<br><br>')}<br><br><b>${end.text}</b>${AFTER}`
         : `הבאת את הדגל הביתה ב-${at}. `
           + `${store.load().cleared.length} מתוך ${TOTAL_NIGHTS}.`,
       again: false,
@@ -14634,7 +14708,7 @@ class Game {
     this.ui.nightOver({
       eyebrow: 'הלילה השביעי',
       title: end.title,
-      note: `${REVEAL.join('<br><br>')}<br><br><b>${end.text}</b>`,
+      note: `${REVEAL.join('<br><br>')}<br><br><b>${end.text}</b>${AFTER}`,
       again: false,
     });
   }

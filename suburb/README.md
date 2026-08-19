@@ -187,6 +187,14 @@ neighbours say without knowing they are saying it. A player who picks up
 nothing finishes all seven nights and gets an ending that means nothing to
 them. That is the deal, and the game does not hedge it.
 
+Once an ending has been reached — either one — the archive grows a second half
+that says what each rule of the game actually was: why 3:30, why five minutes,
+why the flag, why standing still works, why the dolls are in that order, why
+there is red tape on a fuse switch, and why the neighbours are always in their
+gardens and never mention any of it. It is behind the ending on purpose. Read
+any earlier it turns every mechanic into a puzzle about the plot instead of a
+thing you do in the dark with two minutes left.
+
 ## What it actually is
 
 A first-person renderer with no dependencies and no assets. Everything you see

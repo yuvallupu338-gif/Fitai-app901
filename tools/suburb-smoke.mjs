@@ -667,6 +667,23 @@ async function main() {
       check(ending.saved === 'leave', `leaving the flag is recorded (got ${ending.saved})`);
       check(ending.screen === 'night' && ending.title.length > 2,
         'leaving the flag ends the game with an ending');
+
+      /* And the archive grows a second half. The connections table is the one
+       * place the game explains itself, and it is behind the ending because
+       * read any earlier it turns every mechanic into a puzzle about the plot. */
+      await page.evaluate(() => window.suburb.refresh());
+      await frames(page, 2);
+      const links = await page.evaluate(() => {
+        const box = document.querySelector('#archive-links');
+        return {
+          shown: !!box && !box.hidden,
+          rows: box ? box.querySelectorAll('.link-row').length : 0,
+          first: box ? (box.querySelector('.link-row .t') || {}).textContent : '',
+        };
+      });
+      check(links.shown && links.rows >= 8,
+        `the archive explains itself once it is over (${links.rows} rows, `
+        + `first "${links.first}")`);
     }
 
     /* ---- the phone ---- */

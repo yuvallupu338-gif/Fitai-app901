@@ -156,7 +156,13 @@
           <button id="btn-archive-back" class="btn small">חזרה</button>
         </div>
       </header>
-      <div id="archive-list"></div>
+      <!-- #archive-links lives inside the list because the list is the only
+           thing in this panel that scrolls: a sibling below it would take its
+           own height out of the panel and squeeze the twelve cards down to
+           one. -->
+      <div id="archive-list">
+        <div id="archive-links" hidden></div>
+      </div>
       <footer class="panel-foot" id="archive-foot"></footer>
     </div>
   </section>

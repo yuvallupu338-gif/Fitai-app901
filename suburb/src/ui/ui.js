@@ -14,7 +14,7 @@
  */
 
 import { NIGHTS, TOTAL_NIGHTS } from '../game/nights.js';
-import { COLLECTIBLES } from '../game/story.js';
+import { COLLECTIBLES, CONNECTIONS } from '../game/story.js';
 import { PLAN } from '../world/layout.js';
 
 const $ = (sel) => document.querySelector(sel);
@@ -101,6 +101,11 @@ export class UI {
 
   buildArchive(state) {
     const list = $('#archive-list');
+    /* The connections block is a child of the list rather than a sibling — see
+     * index.html — so it is taken out before the cards are rebuilt and put
+     * back underneath them. */
+    const links = $('#archive-links');
+    if (links) links.remove();
     list.textContent = '';
     for (const c of COLLECTIBLES) {
       const found = state.found.includes(c.id);
@@ -118,6 +123,38 @@ export class UI {
     $('#archive-foot').textContent =
       `${state.found.length} מתוך ${COLLECTIBLES.length}. הם מפוזרים בבתים, `
       + 'ורובם בבתים שנעולים ברוב הלילות.';
+    if (links) list.appendChild(links);
+    this.buildConnections(state);
+  }
+
+  /*
+   * What each rule of the game actually was, and it is behind the ending on
+   * purpose: read before the seventh night it turns every mechanic into a
+   * puzzle about the plot instead of a thing you do in the dark with two
+   * minutes left. Either ending unlocks it — both of them are the same
+   * understanding, and only one of them acts on it.
+   */
+  buildConnections(state) {
+    const box = $('#archive-links');
+    box.textContent = '';
+    box.hidden = !state.ending;
+    if (!state.ending) return;
+    const h = document.createElement('h3');
+    h.textContent = 'מה זה היה';
+    box.appendChild(h);
+    for (const c of CONNECTIONS) {
+      const row = document.createElement('div');
+      row.className = 'link-row';
+      const t = document.createElement('span');
+      t.className = 't';
+      t.textContent = c.thing;
+      const m = document.createElement('p');
+      m.className = 'm';
+      m.textContent = c.meaning;
+      row.appendChild(t);
+      row.appendChild(m);
+      box.appendChild(row);
+    }
   }
 
   buildCredits() {
