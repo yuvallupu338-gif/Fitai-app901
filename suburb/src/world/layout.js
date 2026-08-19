@@ -563,7 +563,15 @@ function flagSites(houses) {
   const pitHouse = byNumber(10);
   sites.push({
     id: 'pit', lock: null, houseId: pitHouse.id,
-    x: pitHouse.x + 3.4, y: -0.9, z: pitHouse.sign * (PLAN.frontZ - 6.4),
+    /*
+     * On the side away from the garage. Somebody dug a hole in the lawn; a
+     * hole through the middle of their own concrete drive is a different
+     * story, and worse, the drive is a slab in the collision world — it lies
+     * across the hole and fills it in, which leaves the flag under solid
+     * ground with no way to reach it.
+     */
+    x: pitHouse.x - pitHouse.garageSide * 3.4, y: -0.9,
+    z: pitHouse.sign * (PLAN.frontZ - 6.4),
     crouch: true,
     label: 'הבור בדשא',
     hint: 'בבור שמישהו חפר בדשא הקדמי ולא כיסה.',

@@ -252,9 +252,18 @@ function strip(sec, col, x0, z0, x1, z1, y, mat, tag) {
   addGround(sec.at(cx, cz, Math.abs(x1 - x0) / 2, Math.abs(z1 - z0) / 2, y + 0.2),
     Math.min(x0, x1), Math.min(z0, z1), Math.max(x0, x1), Math.max(z0, z1), y, mat,
     { sub: Math.max(1, Math.round(Math.max(Math.abs(x1 - x0), Math.abs(z1 - z0)) / 6)) });
-  if (y > 0.05) {
-    col.add(x0, 0, z0, x1, y, z1, { tag, opaque: false, solid: false, platform: true });
-  }
+  /*
+   * Always, even for the road, which is two centimetres proud of the lawn.
+   *
+   * This box is not there to be stood on — it is there to be *named*: the
+   * footstep sound and how far that footstep carries both come from the tag of
+   * whatever you are standing on, and without a box the tarmac reports itself
+   * as grass. Running down the middle of the road was the quietest way to
+   * cross the neighbourhood, which is the exact opposite of the intended
+   * trade, and nothing on screen said so.
+   */
+  col.add(x0, 0, z0, x1, Math.max(y, 0.02), z1,
+    { tag, opaque: false, solid: false, platform: true });
 }
 
 /* ------------------------------------------------------------------ *
@@ -747,7 +756,15 @@ function hedgeRow(sec, col, p, rng) {
     addCross(mb, p.x + rng.range(-0.12, 0.12), 0, z, 1.5, 1.9 + rng.range(-0.15, 0.2),
       rng.range(0, Math.PI), MAT.LEAF, { ao: (s, t) => 0.5 + 0.5 * t });
   }
-  col.add(p.x - 0.5, 0, z0, p.x + 0.5, 1.45, z1, { tag: 'hedge', soft: false, opaque: true });
+  /*
+   * 1.75, not 1.45. The drawn hedge is 1.9m of leaf, and the box is what
+   * decides whether she can see through it — at 1.45 a standing player was
+   * visible over a hedge that fills the screen in front of them, which is the
+   * worst kind of unfair: the picture says you are hidden and the rules say
+   * you are not. It is now just tall enough to cover someone standing right
+   * against it, and a picket fence at 1.15 still only covers a crouch.
+   */
+  col.add(p.x - 0.5, 0, z0, p.x + 0.5, 1.75, z1, { tag: 'hedge', opaque: true });
 }
 
 function tree(sec, col, p, rng) {
