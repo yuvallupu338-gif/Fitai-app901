@@ -892,6 +892,38 @@ if (opt && typeof opt.improve === 'function' && predict) {
       check(sched.conflicts(imp.items).length === 0, 'optimize: the improved day has no overlapping items');
   }
 
+  /*
+   * The optimiser may not improve a day by cancelling it.
+   *
+   * An empty day has no overload, no conflicts, no bad placements and all the
+   * free time there is, so "defer everything" is a degenerate optimum sitting
+   * right there in the search space. The browser test found it doing exactly
+   * that on a one-task day.
+   */
+  {
+    const solo = [mkItem({ title: 'ללמוד למבחן', start: 600, duration: 120, focusRequirement: 'high' })];
+    const result = opt.improve(fixInput({ items: solo, plan: fixPlan({ topPriorities: [] }) }), {});
+    if (result) {
+      check(result.items.filter((i) => i.kind === 'task').length >= 1,
+        'optimize: a day with one task is never improved by removing it');
+      check(!result.changes.some((c) => c.kind === 'defer'),
+        'optimize: nothing is deferred off a day that is not full');
+    } else ok('optimize: a one-task day is left alone');
+
+    /* And on a genuinely stuffed day, deferring is allowed again. */
+    const stuffed = Array.from({ length: 6 }, (_, i) => mkItem({
+      title: `מטלה ${i + 1}`, start: 480 + i * 90, duration: 80,
+      energyRequirement: 'high', focusRequirement: 'high',
+      priority: i === 0 ? 'low' : 'medium',
+    }));
+    const full = opt.improve(fixInput({ items: stuffed, plan: fixPlan({ topPriorities: [] }) }), {});
+    check(full !== null, 'optimize: a stuffed day has something to fix');
+    if (full) {
+      check(full.items.filter((i) => i.kind === 'task' && i.type !== 'break').length >= 4,
+        `optimize: even a stuffed day keeps most of its work (${full.items.length} items left)`);
+    }
+  }
+
   /* An already-good day should not be handed a fake improvement. */
   if (typeof opt.improve === 'function') {
     const lean = [mkItem({ kind: 'event', title: 'פגישה', start: 600, duration: 60, locked: true })];

@@ -206,19 +206,38 @@ function breakCandidates(input) {
 /*
  * Move the least important thing off the day entirely.
  *
- * Only ever the lowest-priority unlocked task, never something the user marked
- * as one of tomorrow's three important things, and never anything with a
- * deadline that lands tomorrow. Deferring work the user said mattered is not an
- * improvement, however much it flatters the number.
+ * The only change in the whole set that reduces what gets done, so it is the
+ * only one that has to justify itself before being offered. Without a guard the
+ * optimiser finds a degenerate optimum immediately: an empty day has no
+ * overload, no conflicts, no low-energy placements and all the free time in the
+ * world, so cancelling everything scores beautifully. The browser test caught
+ * exactly that — Improve Tomorrow deferred the day's only task and proudly
+ * reported a better score for a day with nothing in it.
+ *
+ * So deferring is offered only when the day is genuinely too full to hold what
+ * is on it: at least three planned tasks, and more than three fifths of the
+ * waking hours already booked. Below that the honest answer is to rearrange the
+ * day, not to shrink it.
  */
 function deferCandidates(input) {
-  const droppable = input.items
-    .filter((i) => !i.locked && !i.isTop && i.status === 'planned' && i.type !== 'break')
+  const planned = input.items.filter((i) => i.status === 'planned' && i.type !== 'break' && i.kind === 'task');
+  if (planned.length < 3) return [];
+
+  const wake = input.plan.wake;
+  const end = bedtimeAbs(input.plan.nextBedtime);
+  const awake = Math.max(1, end - wake);
+  const booked = input.items.reduce((a, i) => a + (i.start === null ? 0 : i.duration), 0);
+  if (booked / awake < 0.6) return [];
+
+  const droppable = planned
+    .filter((i) => !i.locked && !i.isTop)
     .filter((i) => !i.deadline || i.deadline > input.date)
+    .filter((i) => i.priority !== 'critical')
     .sort((a, b) => (PRIORITY_RANK[a.priority] !== PRIORITY_RANK[b.priority]
       ? PRIORITY_RANK[a.priority] - PRIORITY_RANK[b.priority]
       : a.id < b.id ? -1 : 1));
   if (!droppable.length) return [];
+
   const item = droppable[0];
   return [{
     change: {

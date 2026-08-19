@@ -105,6 +105,7 @@ function makeCtx() {
     greeting: greeting(now),
     go,
     setFocus,
+    setFocusDate,
     refresh: repaint,
     toast,
     flow,
@@ -161,6 +162,15 @@ function go(view) {
 function setFocus(which) {
   painting = true;
   try { setUi({ focus: which, focusDate: null }); } finally { painting = false; }
+  show(currentView() || 'tomorrow', makeCtx());
+}
+
+/** Jump to a specific day — used when something is saved onto another one. */
+function setFocusDate(date) {
+  const today = todayKey(new Date());
+  const which = date === today ? 'today' : date === addDays(today, 1) ? 'tomorrow' : 'other';
+  painting = true;
+  try { setUi({ focus: which, focusDate: which === 'other' ? date : null }); } finally { painting = false; }
   show(currentView() || 'tomorrow', makeCtx());
 }
 
@@ -223,9 +233,15 @@ function start() {
     runOnboarding(makeCtx(), () => {
       invalidate();
       show(get().ui.view || 'tomorrow', makeCtx());
-      // A brand new user has an empty tomorrow and no reason to guess what the
-      // app wants from them. The ritual is the answer to "now what".
-      openRitual();
+      /*
+       * A brand new user has an empty tomorrow and no reason to guess what the
+       * app wants from them, so the ritual is the answer to "now what". Somebody
+       * who chose the demo has the opposite problem — a full day is already
+       * waiting — and opening a five-screen flow over it is the app talking
+       * across its own first impression.
+       */
+      const ctx = makeCtx();
+      if (!ctx.input.items.length) openRitual(ctx.date);
     });
     return;
   }

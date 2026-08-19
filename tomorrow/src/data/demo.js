@@ -297,9 +297,55 @@ export function demoRoot(nowIso, now) {
     preparedAt: nowIso, appliedPlanId: null,
   };
 
+  /*
+   * Today, half lived.
+   *
+   * The demo's showcase is tomorrow, but somebody opening it at ten in the
+   * morning is shown today — and an empty today reads as a broken demo rather
+   * than as a product that has not started yet. So today is a real day with its
+   * morning already behind it: school done, the check-in answered, and the
+   * afternoon still ahead. It is also the only way to see the live view doing
+   * what it does, which is adapting to a day in progress.
+   */
+  const D = [
+    item({ id: 'itm_d0', date: today, kind: 'event', type: 'event', title: 'בית ספר',
+      start: 480, duration: 300, locked: true, priority: 'high', category: 'study',
+      focusRequirement: 'medium', energyRequirement: 'medium', status: 'done',
+      completedAt: nowIso, actualDuration: 300, createdAt: nowIso }),
+    item({ id: 'itm_d1', date: today, title: 'לסיים את התרגיל באנגלית',
+      start: 840, duration: 30, estimatedDuration: 30, actualDuration: 40,
+      category: 'study', focusRequirement: 'medium', energyRequirement: 'low',
+      difficulty: 2, priority: 'medium', status: 'done', completedAt: nowIso, createdAt: nowIso }),
+    item({ id: 'itm_d2', date: today, title: 'לחזור על היסטוריה',
+      start: 900, duration: 45, estimatedDuration: 45, category: 'study',
+      focusRequirement: 'high', energyRequirement: 'medium', difficulty: 3,
+      priority: 'high', isTop: true, createdAt: nowIso }),
+    item({ id: 'itm_d3', date: today, kind: 'event', type: 'meeting', title: 'שיחה עם המורה',
+      start: 1005, duration: 30, locked: true, priority: 'high', category: 'study',
+      energyRequirement: 'low', focusRequirement: 'medium', createdAt: nowIso }),
+    item({ id: 'itm_d4', date: today, title: 'לסדר את החדר',
+      start: null, duration: 25, estimatedDuration: 25, category: 'personal',
+      focusRequirement: 'low', energyRequirement: 'low', difficulty: 1,
+      priority: 'low', createdAt: nowIso }),
+  ];
+  for (const it of D) root.items[it.id] = it;
+
   root.days[today] = {
     date: today, wake: 425, bedtime: 1395, nextBedtime: 1400,
-    eveningState: null, topPriorities: [], preparedAt: null, appliedPlanId: null,
+    eveningState: { energy: 3, mood: 4, stress: 3 },
+    topPriorities: ['itm_d2'], preparedAt: nowIso, appliedPlanId: null,
+  };
+
+  /* The check-in that was answered this morning, so the live forecast has
+   * something real to have re-levelled itself against. */
+  root.records[today] = {
+    date: today,
+    forecast: null,
+    morning: { energy: 3, mood: 4, sleepQuality: 3, at: nowIso },
+    checkpoints: [],
+    actual: null,
+    review: null,
+    accuracy: null,
   };
 
   /* ---------------------------------------------------------- learning */
@@ -310,8 +356,14 @@ export function demoRoot(nowIso, now) {
    * to the learning model updates the demo automatically instead of quietly
    * making it a lie.
    */
-  root.learning = updateLearning(root.learning, recordsNewestFirst(root), Object.values(root.items), {});
-  root.ui = Object.assign({}, root.ui, { view: 'tomorrow' });
+  root.learning = updateLearning(root.learning, recordsNewestFirst(root), Object.values(root.items), { at: nowIso });
+  /*
+   * Open on tomorrow regardless of the hour. Everything the demo exists to show
+   * — the score, the focus window, the recommendation, Improve Tomorrow — is on
+   * that day, and landing somebody on a half-finished Tuesday to demonstrate a
+   * product called TomorrowAI would be an odd choice.
+   */
+  root.ui = Object.assign({}, root.ui, { view: 'tomorrow', focus: 'tomorrow', focusDate: null });
 
   return root;
 }

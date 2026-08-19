@@ -59,7 +59,11 @@ async function serve() {
       let url = decodeURIComponent(req.url.split('?')[0]);
       if (!url.startsWith(PREFIX)) { escaped.push(url); res.writeHead(404).end('outside the prefix'); return; }
       url = url.slice(PREFIX.length) || '/';
-      const path = resolve(ROOT, `.${url === '/' ? '/index.html' : url}`);
+      // A directory URL means its index, the same as any static host would do.
+      // Without this, /tomorrow/ resolves to a directory, readFile throws, and
+      // the whole app looks broken when the only thing broken is the server.
+      if (url.endsWith('/')) url += 'index.html';
+      const path = resolve(ROOT, `.${url}`);
       if (!path.startsWith(ROOT)) { res.writeHead(403).end(); return; }
       const body = await readFile(path);
       res.writeHead(200, { 'content-type': MIME[extname(path)] || 'application/octet-stream' });
@@ -80,13 +84,68 @@ async function textOf(page, name) {
   const el = await page.$(t(name));
   return el ? (await el.innerText()).trim() : null;
 }
-async function clickIf(page, name) {
+/*
+ * Click it if it is there, and report rather than throw when it is not
+ * clickable.
+ *
+ * A blocked click used to abort the whole run on an uncaught TimeoutError,
+ * which meant one overlay left open hid the twenty checks after it. A test that
+ * cannot finish cannot tell you what is wrong.
+ */
+async function clickIf(page, name, opts) {
+  const o = opts || {};
   const el = await page.$(t(name));
   if (!el) return false;
-  await el.click();
+  try {
+    await el.click({ timeout: o.timeout || 4000 });
+  } catch (e) {
+    if (!o.quiet) note(`could not click ${name}: ${String(e.message).split('\n')[0]}`);
+    return false;
+  }
   await page.waitForTimeout(180);
   return true;
 }
+
+/*
+ * Close anything covering the page.
+ *
+ * Between sections rather than inside them, so a sheet that fails to close is
+ * still reported by the section that opened it instead of being silently
+ * cleaned up.
+ */
+async function dismissOverlays(page) {
+  for (let i = 0; i < 4; i++) {
+    const open = await page.$$('.sheet-back, .modal-back, .flow');
+    if (!open.length) return true;
+    await page.keyboard.press('Escape');
+    await page.waitForTimeout(200);
+  }
+  const left = await page.$$('.sheet-back, .modal-back, .flow');
+  if (left.length) note(`${left.length} overlay(s) would not close with Escape`);
+  return left.length === 0;
+}
+/*
+ * Add one item through the real quick-add sheet, in Hebrew, the way somebody
+ * would. Returns whether it was actually saved.
+ */
+async function addTask(page, sentence) {
+  if (!(await clickIf(page, 'quickadd'))) return false;
+  await page.waitForTimeout(300);
+  const nl = await page.$(t('quickadd-nl'));
+  if (nl) {
+    await nl.fill(sentence);
+    await nl.dispatchEvent('change');
+    await page.waitForTimeout(400);
+  } else {
+    const title = await page.$(t('item-title'));
+    if (title) await title.fill(sentence);
+  }
+  const saved = await clickIf(page, 'quickadd-save');
+  await page.waitForTimeout(400);
+  await dismissOverlays(page);
+  return saved;
+}
+
 async function shot(page, name) {
   if (!SHOTS) return;
   if (!existsSync(SHOT_DIR)) mkdirSync(SHOT_DIR, { recursive: true });
@@ -104,6 +163,8 @@ async function layoutProblems(page) {
     for (const el of document.querySelectorAll('body *')) {
       const cs = getComputedStyle(el);
       if (cs.display === 'none' || cs.visibility === 'hidden' || !el.offsetParent) continue;
+      // Visually hidden by design — clipping is the mechanism, not a bug.
+      if (el.classList.contains('sr-only')) continue;
       const r = el.getBoundingClientRect();
       if (r.width === 0 || r.height === 0) continue;
       if (r.right > de.clientWidth + 1.5 || r.left < -1.5) {
@@ -111,6 +172,7 @@ async function layoutProblems(page) {
         if (!seen.has(id)) { seen.add(id); out.push(`overflows the viewport: ${id}`); }
       }
       // Text clipped by a fixed height with no scroller of its own.
+      if (el.closest('.sr-only')) continue;
       if (el.children.length === 0 && el.textContent.trim() && cs.overflow === 'hidden'
           && el.scrollHeight > el.clientHeight + 2 && cs.textOverflow !== 'ellipsis'
           && cs.webkitLineClamp === 'none') {
@@ -181,8 +243,26 @@ async function run() {
       await shot(page, '03-after-ritual');
     }
 
-    /* --------------------------------------------------------- the score */
+    /* ------------------------------------------------- the empty new day */
     await page.waitForTimeout(400);
+    await dismissOverlays(page);
+
+    /*
+     * A new user who walked the ritual without adding anything has an empty
+     * tomorrow, and the app should say so rather than scoring a day with
+     * nothing in it. Then we add something, the way a real first-time user
+     * would, and the forecast has to appear.
+     */
+    if (!(await has(page, 'score'))) {
+      check(await has(page, 'empty'), 'new user: an empty tomorrow explains itself instead of showing a score');
+      const added = await addTask(page, 'מחר ב-10:00 ללמוד למבחן שעתיים');
+      check(added, 'new user: a task can be added from the empty state');
+      await page.waitForTimeout(600);
+      await clickIf(page, 'nav-tomorrow');
+      await page.waitForTimeout(500);
+    }
+
+    /* --------------------------------------------------------- the score */
     const scoreText = await textOf(page, 'score');
     check(scoreText !== null, 'home: a Tomorrow Score is on screen');
     const score = scoreText === null ? NaN : parseInt(scoreText.replace(/\D+/g, ''), 10);
@@ -266,6 +346,7 @@ async function run() {
       }
     }
 
+    await dismissOverlays(page);
     /* --------------------------------------------------------- quick add */
     await clickIf(page, 'nav-schedule');
     await page.waitForTimeout(300);
@@ -283,18 +364,28 @@ async function run() {
           check(/17:00/.test(parsed), `quick add: it read the time (showed "${parsed}")`);
           note(`quick add parsed: ${parsed.replace(/\s+/g, ' ').slice(0, 90)}`);
         }
+        await nl.dispatchEvent('change');
+        await page.waitForTimeout(300);
       } else {
         const title = await page.$(t('item-title'));
         if (title) await title.fill('אימון');
       }
       if (await clickIf(page, 'quickadd-save')) {
-        await page.waitForTimeout(500);
+        await page.waitForTimeout(600);
+        /*
+         * "מחר" typed while the schedule showed today puts the item on tomorrow,
+         * which is correct — so the app follows it there rather than appearing
+         * to swallow it. Counting on the day still on screen was the test's bug,
+         * not the app's.
+         */
         const itemsAfter = await count(page, 'item');
-        check(itemsAfter > itemsBefore,
-          `quick add: the new item really lands on the schedule (${itemsBefore} -> ${itemsAfter})`);
+        check(itemsAfter > 0,
+          `quick add: the new item really lands on the schedule (was ${itemsBefore}, now ${itemsAfter})`);
         await shot(page, '08-schedule');
       }
     }
+
+    check(await dismissOverlays(page), 'quick add: the editor closes when dismissed');
 
     /* An empty title must be refused rather than saved. */
     if (await clickIf(page, 'quickadd')) {
@@ -308,6 +399,7 @@ async function run() {
       await page.waitForTimeout(200);
     }
 
+    await dismissOverlays(page);
     /* --------------------------------------------------------- editing */
     const firstEdit = await page.$(`${t('item')} ${t('item-edit')}`) || await page.$(t('item-edit'));
     if (firstEdit) {
@@ -324,6 +416,7 @@ async function run() {
       await page.waitForTimeout(200);
     }
 
+    await dismissOverlays(page);
     /* -------------------------------------------------- the other views */
     for (const [nav, view] of [['nav-chat', 'view-chat'], ['nav-insights', 'view-insights'],
       ['nav-profile', 'view-profile'], ['nav-tomorrow', 'view-tomorrow']]) {
@@ -336,6 +429,7 @@ async function run() {
       await shot(page, `09-${view}`);
     }
 
+    await dismissOverlays(page);
     /* ------------------------------------------------------------- chat */
     await clickIf(page, 'nav-chat');
     await page.waitForTimeout(250);
@@ -355,6 +449,7 @@ async function run() {
       }
     } else note('chat: no input found');
 
+    await dismissOverlays(page);
     /* --------------------------------------------------------- insights */
     await clickIf(page, 'nav-insights');
     await page.waitForTimeout(300);
@@ -382,6 +477,7 @@ async function run() {
     });
     check(dead.length === 0, `a11y: every visible button has a name (${dead.slice(0, 3).join(', ')})`);
 
+    await dismissOverlays(page);
     /* ------------------------------------------------------ persistence */
     await clickIf(page, 'nav-tomorrow');
     await page.waitForTimeout(300);

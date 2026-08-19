@@ -263,12 +263,26 @@ function dateOptions(ctx, selected) {
  * Writing
  * ------------------------------------------------------------------ */
 
+/*
+ * Saving names the day it saved to.
+ *
+ * The natural-language box can put something on a different day from the one on
+ * screen — "מחר ב-17:00" typed while looking at today does exactly that — and an
+ * item that vanishes from the view you added it in looks like a bug. Saying
+ * "נוסף למחר" costs one word and removes the question.
+ */
 function save(ctx, draft, existing) {
   if (existing) patchItem(existing.id, draft);
   else putItem(draft);
   invalidate();
+
+  if (!existing && draft.date !== ctx.date) {
+    ctx.setFocusDate(draft.date);
+    ctx.toast(`נוסף ל${dateLabel(draft.date, ctx.now)}`, 'good');
+    return;
+  }
   ctx.refresh();
-  ctx.toast(existing ? 'הפריט עודכן' : 'נוסף ליום', 'good');
+  ctx.toast(existing ? 'הפריט עודכן' : `נוסף ל${dateLabel(draft.date, ctx.now)}`, 'good');
 }
 
 function remove(ctx, id) {
