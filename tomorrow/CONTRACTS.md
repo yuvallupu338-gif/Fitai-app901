@@ -306,7 +306,9 @@ Root = {
   feedback: [ { at: String, kind: String, payload: Object } ],
   chat: [ { role: 'user'|'ai', text: String, at: String } ],
   settings: { firstRun: Boolean, lastSeenDate: DateKey|null },
-  ui: { view: String, historyRange: 7|30|90|365, scheduleMode: 'day'|'week' }
+  ui: { view: String, historyRange: 7|30|90|365, scheduleMode: 'day'|'week',
+        focus: ''|'today'|'tomorrow'|'other',   // '' = decide from the clock
+        focusDate: DateKey|null }               // set only when focus is 'other'
 }
 ```
 

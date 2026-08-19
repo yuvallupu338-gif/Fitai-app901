@@ -52,6 +52,7 @@ const FOCUS_PREFERENCES = ['morning', 'afternoon', 'evening', 'unsure'];
 const TIME_FORMATS = ['24h', '12h'];
 const THEMES = ['dark', 'light'];
 const HISTORY_RANGES = [7, 30, 90, 365];
+const FOCUS_MODES = ['', 'today', 'tomorrow', 'other'];
 const SCHEDULE_MODES = ['day', 'week'];
 const CHAT_ROLES = ['user', 'ai'];
 
@@ -275,7 +276,7 @@ export function emptyRoot(nowIso) {
     feedback: [],
     chat: [],
     settings: { firstRun: true, lastSeenDate: null },
-    ui: { view: 'tomorrow', historyRange: 7, scheduleMode: 'day' },
+    ui: { view: 'tomorrow', historyRange: 7, scheduleMode: 'day', focus: '', focusDate: null },
   };
 }
 
@@ -794,6 +795,15 @@ export function normalizeRoot(raw, nowIso) {
     view: str(ui.view, '').trim() || root.ui.view,
     historyRange: oneOf(HISTORY_RANGES, intOr(ui.historyRange, 7, 365, 7), 7),
     scheduleMode: oneOf(SCHEDULE_MODES, ui.scheduleMode, 'day'),
+    /*
+     * Which day the app is looking at. Empty means "decide from the clock",
+     * which is the default and the right answer almost always: before the
+     * evening the useful day is today, after it, tomorrow. The other two values
+     * are an explicit choice the user made in the header, and 'other' is any
+     * date they navigated to from the schedule.
+     */
+    focus: oneOf(FOCUS_MODES, ui.focus, ''),
+    focusDate: keyOr(ui.focusDate, null),
   };
 
   // The version is stamped, not carried: a Root returned from here is a v1

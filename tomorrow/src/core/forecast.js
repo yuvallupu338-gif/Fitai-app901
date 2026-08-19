@@ -69,19 +69,21 @@ export function inputFor(date, now) {
  * `now` is passed through rather than read here, so the engine below stays a
  * function of its arguments and the whole thing remains testable in plain Node.
  */
-export function forecastFor(date, now) {
+export function forecastFor(date, now, opts) {
+  const light = !!(opts && opts.light);
+  const key = light ? `${date}:light` : date;
   const root = get();
   const items = itemsOn(date);
   const plan = dayPlan(date);
   const rec = record(date);
   const sig = signatureOf(date, root, items, plan, rec.morning);
 
-  const hit = cache.get(date);
+  const hit = cache.get(key);
   if (hit && hit.sig === sig) return hit.value;
 
   const input = inputFor(date, now);
-  const value = predictForecast(input);
-  cache.set(date, { sig, value, input });
+  const value = predictForecast(light ? Object.assign({}, input, { withRecommendation: false }) : input);
+  cache.set(key, { sig, value, input });
 
   /*
    * The week view asks for seven days at once and history scrolls through
@@ -95,8 +97,20 @@ export function forecastFor(date, now) {
   return value;
 }
 
-/** Drop everything. Used after import, reset and demo load. */
+/**
+ * Seven days at a glance, for the week forecast.
+ *
+ * Light on purpose: the highest-impact recommendation costs dozens of inner
+ * forecasts to find, and the week grid shows a score and a headline risk per
+ * day, neither of which needs it. Asking for the full thing seven times over
+ * turned opening the week view into a visible pause.
+ */
+export function weekForecast(dates, now) {
+  return dates.map((d) => forecastFor(d, now, { light: true }));
+}
+
+/** Drop everything. Used after any write, and after import, reset or demo load. */
 export function invalidate(date) {
-  if (date) cache.delete(date);
+  if (date) { cache.delete(date); cache.delete(`${date}:light`); }
   else cache.clear();
 }

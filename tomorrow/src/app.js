@@ -12,7 +12,7 @@
 import { h } from './core/dom.js';
 import { get, subscribe, setUi, record, dayPlan } from './core/store.js';
 import { forecastFor, inputFor, invalidate } from './core/forecast.js';
-import { todayKey, addDays, nowMinutes } from './core/time.js';
+import { todayKey, addDays, nowMinutes, isValidKey } from './core/time.js';
 import { watch as watchMotion } from './core/motion.js';
 import { build, show, refresh, toast, flow, currentView } from './ui/shell.js';
 
@@ -44,10 +44,24 @@ function defaultFocus(now) {
   return nowMinutes(now) >= EVENING_FROM ? 'tomorrow' : 'today';
 }
 
+/*
+ * Which day is on screen.
+ *
+ * An explicit choice wins over the clock, but only while it still makes sense.
+ * A tab left open overnight would otherwise come back in the morning still
+ * pinned to "tomorrow" — meaning the day after the one the user actually wants
+ * — or, worse, parked on a date that is now in the past. Anything before today
+ * falls back to today rather than showing a day nobody can change.
+ */
 function focusDate(now) {
   const root = get();
-  const which = root.ui.focus || defaultFocus(now);
   const today = todayKey(now);
+  const which = root.ui.focus || defaultFocus(now);
+  if (which === 'other') {
+    const pinned = root.ui.focusDate;
+    if (pinned && isValidKey(pinned) && pinned >= today) return pinned;
+    return today;
+  }
   return which === 'tomorrow' ? addDays(today, 1) : today;
 }
 
@@ -107,7 +121,7 @@ function go(view) {
 }
 
 function setFocus(which) {
-  setUi({ focus: which });
+  setUi({ focus: which, focusDate: null });
   repaint();
 }
 
