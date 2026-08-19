@@ -68,8 +68,16 @@ export function build(host, registry, onNavigate) {
   toastHost = h('div.toasts', { 'aria-live': 'polite', 'aria-atomic': 'false' });
   navBar = nav;
 
+  /*
+   * index.html already carries the .shell class on #app, so the frame is built
+   * into the host rather than wrapped in another one. A second .shell would
+   * nest two min-height:100dvh boxes and put the bottom nav's fixed position in
+   * a containing block nobody expected.
+   */
   clear(host);
-  host.appendChild(h('div.shell', null, nav, mount, toastHost));
+  host.appendChild(nav);
+  host.appendChild(mount);
+  host.appendChild(toastHost);
   return { mount, nav };
 }
 
