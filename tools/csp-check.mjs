@@ -4,10 +4,11 @@
  * Content-Security-Policy.
  *
  * localStorage is per-origin, not per-path. GitHub Pages serves the plan app at
- * /, this repo's larger FitAI at /app/ and the game at /backrooms/, and they
- * share one storage jar — which holds, among other things, the vendor API keys
- * this app keeps under `fitai.key.*`. A policy on one page secures nothing
- * while a neighbour has none, so all three are checked together.
+ * /, this repo's larger FitAI at /app/ and the two games at /backrooms/ and
+ * /suburb/, and they share one storage jar — which holds, among other things,
+ * the vendor API keys this app keeps under `fitai.key.*`. A policy on one page
+ * secures nothing while a neighbour has none, so all four are checked
+ * together.
  *
  * For each page: drive it, collect every securitypolicyviolation the browser
  * raises, and then try to run code the way an injection would — an inline
@@ -46,6 +47,17 @@ const PAGES = [
       const start = page.locator('button', { hasText: /התחל|Start|שחק/ }).first();
       if (await start.count()) await start.click().catch(() => {});
       await page.waitForTimeout(2500);
+    } },
+  { name: 'game       /suburb/',    url: `${BASE}/suburb/index.html`,
+    drive: async page => {
+      await page.waitForTimeout(1500);
+      await page.click('#btn-start').catch(() => {});
+      /* Baking seventeen materials under software rendering takes a while, and
+       * the interesting violations are the ones the game raises once it is
+       * actually running. */
+      await page.waitForFunction(() => window.suburb && window.suburb.state === 'play',
+        null, { timeout: 120000 }).catch(() => {});
+      await page.waitForTimeout(1500);
     } },
 ];
 
@@ -126,5 +138,7 @@ for (const p of PAGES) {
 }
 
 await browser.close();
-console.log(failures ? `\n✗ ${failures} check(s) failed` : '\n✓ all three pages carry a policy and none of them will run injected code');
+console.log(failures
+  ? `\n✗ ${failures} check(s) failed`
+  : `\n✓ all ${PAGES.length} pages carry a policy and none of them will run injected code`);
 process.exit(failures ? 1 : 0);

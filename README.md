@@ -63,9 +63,24 @@ no libraries and no media files, same as everything else here. It is served at
 `/backrooms/`, and its code touches neither the questionnaire, the plan, nor
 any of FitAI's storage. See [`backrooms/README.md`](backrooms/README.md).
 
-Its *code* does not, which is not the same as saying it cannot — see
-[Security](#security) below. All three apps here share one browser origin, and
-localStorage is scoped per origin, not per path.
+### Also in this repo: `suburb/`
+
+`suburb/` is the second game and the second self-contained app: **שכונת השקט /
+The Quiet Neighborhood**, a first-person horror game in a 1990s American
+suburb. By day it is the quietest street you have ever seen. At 3:30 every
+night a woman in a filthy white dress starts whistling, at 3:31 a red flag
+appears somewhere between the houses, and at 3:35 the whistle stops — and if
+the flag is not through your own front door by then, the night starts again.
+Seven nights, each one different in exactly one way you can name.
+
+Same rules as everything else here: a WebGL2 renderer written from scratch,
+every surface generated from noise, every sound synthesised, no libraries and
+no media files. It is served at `/suburb/`, keeps its own storage, and touches
+nothing above it. See [`suburb/README.md`](suburb/README.md).
+
+Their *code* does not touch this app's data, which is not the same as saying it
+cannot — see [Security](#security) below. All four apps here share one browser
+origin, and localStorage is scoped per origin, not per path.
 
 ## Rest days and declared injuries
 
@@ -117,21 +132,22 @@ check.
 
 ## Security
 
-The three apps in this repo are served from one GitHub Pages origin —
-`/` , `/app/` and `/backrooms/` — and a browser origin is the security boundary,
-not a directory. They share one localStorage jar, and this app's share of it
-holds the vendor API keys under `fitai.key.*`. A scripting bug in any one of the
-three could read the other two's data, so hardening one of them alone would have
-been theatre.
+The four apps in this repo are served from one GitHub Pages origin —
+`/`, `/app/`, `/backrooms/` and `/suburb/` — and a browser origin is the
+security boundary, not a directory. They share one localStorage jar, and this
+app's share of it holds the vendor API keys under `fitai.key.*`. A scripting bug
+in any one of the four could read the others' data, so hardening one of them
+alone would have been theatre.
 
-All three now carry a Content-Security-Policy with **`script-src 'self'` and no
+All four now carry a Content-Security-Policy with **`script-src 'self'` and no
 `'unsafe-inline'`**, which is the directive that decides whether HTML that
-reaches the DOM is markup or code. This app and the game needed nothing but the
-policy — no generated event handlers, no `eval`, and exactly one inline `style`
-attribute each (in their `<noscript>` blocks, now a CSS class), so both also run
-`style-src 'self'` with no inline styles at all. `connect-src` names the two
-vendors this app actually calls and nothing else; the game's is `'none'`.
-`app/` needed a larger change and has [its own account](app/README.md#security).
+reaches the DOM is markup or code. This app and the two games needed nothing but
+the policy — no generated event handlers, no `eval`, and exactly one inline
+`style` attribute each (in their `<noscript>` blocks, now a CSS class), so they
+also run `style-src 'self'` with no inline styles at all. `connect-src` names
+the two vendors this app actually calls and nothing else; the games' is
+`'none'`. `app/` needed a larger change and has
+[its own account](app/README.md#security).
 
 The single-file builds in `dist/` inline their script and stylesheet, so they
 cannot use `'self'` and must not use `'unsafe-inline'`. `tools/build-single.js`
@@ -142,7 +158,7 @@ which also works from `file://`, where `'self'` means nothing.
 node tools/csp-check.mjs
 ```
 
-drives all three pages, requires each to raise no violations of its own, and
+drives all four pages, requires each to raise no violations of its own, and
 then tries to execute code the way an injection would — an inline handler, a
 `javascript:` URL, `eval`, and a remote script — and requires all four to fail.
 Currently 24 of 24.

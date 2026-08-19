@@ -1,0 +1,288 @@
+<!DOCTYPE html>
+<html lang="he" dir="rtl">
+<head>
+<meta charset="utf-8">
+<meta name="viewport" content="width=device-width, initial-scale=1, viewport-fit=cover, user-scalable=no">
+<meta name="theme-color" content="#070a10">
+<meta name="description" content="שכונת האורנים: ביום היא מושלמת. ב-3:30 בלילה מתחילה השריקה, ויש לך חמש דקות.">
+<!-- Added to the home screen on iOS these give a real fullscreen shell, which
+     is the only way to lose Safari's bars on an iPhone: it has no Fullscreen
+     API. On Android they make the PWA-style launch behave the same way. -->
+<meta name="apple-mobile-web-app-capable" content="yes">
+<meta name="mobile-web-app-capable" content="yes">
+<meta name="apple-mobile-web-app-status-bar-style" content="black-translucent">
+<meta name="apple-mobile-web-app-title" content="Pine Court">
+<title>שכונת השקט · The Quiet Neighborhood</title>
+<!-- This game shares an origin with the FitAI apps and with backrooms, so
+     their stored data is only as safe as the weakest page on it. It draws
+     everything itself and talks to nobody: script-src is 'self' with no inline
+     anything, and connect-src is 'none'. frame-ancestors is omitted — it is
+     ignored in a meta tag. -->
+<meta http-equiv="Content-Security-Policy" content="default-src 'none'; script-src 'self'; style-src 'self'; img-src 'self' data:; font-src 'self' data:; connect-src 'none'; media-src 'none'; frame-src 'none'; worker-src 'none'; object-src 'none'; base-uri 'none'; form-action 'none'">
+<link rel="stylesheet" href="src/styles/game.css">
+<link rel="icon" href="data:image/svg+xml,<svg xmlns='http://www.w3.org/2000/svg' viewBox='0 0 32 32'><rect width='32' height='32' fill='%230b1018'/><path d='M8 27V5' stroke='%23cfd6df' stroke-width='2'/><path d='M9 6h15l-4 5 4 5H9z' fill='%23c0261f'/></svg>">
+</head>
+<body>
+
+<canvas id="view"></canvas>
+
+<div id="ui">
+
+  <!-- ---------------------------------------------------------- HUD -->
+  <div id="hud" hidden>
+    <div id="crosshair"></div>
+
+    <!-- The clock is the whole game. It is the first thing on the screen and
+         the only number that is always true. -->
+    <div id="hud-clock">
+      <span id="clock">3:30:00</span>
+      <span id="hud-night">לילה 1 מתוך 7</span>
+      <div id="whistle-bar"><i></i></div>
+    </div>
+
+    <!-- How much of her attention you currently have. It grows with noise and
+         with light, and it is the only warning that is not a scream. -->
+    <div id="susp" hidden>
+      <svg viewBox="0 0 40 40" aria-hidden="true">
+        <circle class="track" cx="20" cy="20" r="16"></circle>
+        <circle class="fill" cx="20" cy="20" r="16"></circle>
+      </svg>
+      <span id="susp-label">חשד</span>
+    </div>
+
+    <div id="hud-log"></div>
+
+    <!-- Points at the flag once you know where it is, and at your own front
+         door once you are carrying it. -->
+    <div id="guide" hidden>
+      <div id="guide-arrow"><svg viewBox="0 0 24 24" aria-hidden="true"><path d="M12 2 L20 20 L12 15 L4 20 Z"/></svg></div>
+      <div id="guide-text"><b id="guide-dist"></b><span id="guide-label">הדגל</span></div>
+    </div>
+
+    <div id="hud-prompt" hidden></div>
+    <div id="subtitle" hidden></div>
+
+    <div id="hud-bottom">
+      <div class="meter" id="m-breath"><i></i><span>נשימה</span></div>
+      <div id="hud-items">
+        <span id="it-flags">🚩 0/7</span>
+        <span id="it-torch">🔦 כבוי</span>
+        <span id="it-found">📓 0</span>
+      </div>
+    </div>
+    <div id="hud-hide" hidden><i></i><span>מסתתר</span></div>
+    <div id="hud-stats"></div>
+  </div>
+
+  <!-- --------------------------------------------- touch controls -->
+  <!-- Every one of these presses the same key its keyboard equivalent does,
+       so nothing downstream has a mobile code path. Without them the game is
+       walk-and-look only: no doors, no puzzles, no flag. -->
+  <div id="touch" hidden>
+    <div id="stick"><i></i></div>
+    <button class="tbtn" id="t-use" data-key="KeyE" data-mode="tap">E</button>
+    <button class="tbtn small" id="t-torch" data-key="KeyF" data-mode="tap">🔦</button>
+    <button class="tbtn small" id="t-run" data-key="ShiftLeft" data-mode="hold">רץ</button>
+    <button class="tbtn small" id="t-crouch" data-key="KeyC" data-mode="hold">כפוף</button>
+    <button class="tbtn small" id="t-map" data-key="KeyM" data-mode="tap">מפה</button>
+    <button class="tbtn tiny" id="t-pause">❚❚</button>
+  </div>
+
+  <!-- Advisory, not a gate: pointer-events is off on the banner itself so it
+       can never swallow the touch a player is using to start walking. -->
+  <div id="rotate" hidden>
+    <span>מומלץ לסובב לרוחב</span>
+    <button id="rotate-ok" type="button">הבנתי</button>
+  </div>
+
+  <!-- ------------------------------------------------------ loading -->
+  <section id="screen-loading" class="screen" hidden>
+    <div class="loader">
+      <div class="eyebrow">שכונת האורנים</div>
+      <h2 id="load-title">לילה 1</h2>
+      <div id="load-bar"><i></i></div>
+      <p id="load-note">בונה חומרים…</p>
+    </div>
+  </section>
+
+  <!-- --------------------------------------------------------- menu -->
+  <section id="screen-menu" class="screen">
+    <div class="menu-wrap">
+      <div class="eyebrow">3:30 לפנות בוקר</div>
+      <h1 class="title">שכונת&nbsp;השקט</h1>
+      <p class="sub">
+        ביום זו השכונה הכי שקטה שראית. בשלוש וחצי מתחילה שריקה,
+        בשלוש ושלושים ואחת מופיע דגל אדום איפשהו בין הבתים,
+        ובשלוש שלושים וחמש הכל מתחיל מהתחלה. <b>שבעה לילות.</b>
+      </p>
+      <div class="menu-buttons">
+        <button id="btn-continue" class="btn primary" hidden>המשך</button>
+        <button id="btn-start" class="btn primary">לילה ראשון</button>
+        <button id="btn-nights" class="btn">הלילות</button>
+        <button id="btn-archive" class="btn">מה שנמצא</button>
+        <button id="btn-settings" class="btn">הגדרות</button>
+      </div>
+      <div class="hint">
+        <b>WASD</b> תנועה · <b>עכבר</b> מבט · <b>Shift</b> ריצה · <b>C</b> כפיפה ·
+        <b>רווח</b> קפיצה · <b>F</b> פנס · <b>E</b> אינטראקציה · <b>M</b> מפה · <b>Esc</b> תפריט
+      </div>
+      <div class="credits" id="menu-credits"></div>
+    </div>
+  </section>
+
+  <!-- ------------------------------------------------------- nights -->
+  <section id="screen-nights" class="screen" hidden>
+    <div class="panel">
+      <header class="panel-head">
+        <h2>שבעה לילות</h2>
+        <div class="head-tools">
+          <button id="btn-nights-back" class="btn small">חזרה</button>
+        </div>
+      </header>
+      <div id="night-grid"></div>
+      <footer class="panel-foot" id="nights-foot"></footer>
+    </div>
+  </section>
+
+  <!-- ------------------------------------------------------ archive -->
+  <section id="screen-archive" class="screen" hidden>
+    <div class="panel">
+      <header class="panel-head">
+        <h2>מה שנמצא</h2>
+        <div class="head-tools">
+          <button id="btn-archive-back" class="btn small">חזרה</button>
+        </div>
+      </header>
+      <div id="archive-list"></div>
+      <footer class="panel-foot" id="archive-foot"></footer>
+    </div>
+  </section>
+
+  <!-- ----------------------------------------------------- settings -->
+  <section id="screen-settings" class="screen" hidden>
+    <div class="panel narrow">
+      <header class="panel-head">
+        <h2>הגדרות</h2>
+        <button id="btn-settings-back" class="btn small">חזרה</button>
+      </header>
+      <div class="settings">
+        <label class="row">
+          <span>רגישות עכבר</span>
+          <input id="set-sens" type="range" min="0.4" max="3" step="0.05">
+          <output id="out-sens"></output>
+        </label>
+        <label class="row">
+          <span>רזולוציית רינדור</span>
+          <input id="set-scale" type="range" min="0.5" max="1" step="0.05">
+          <output id="out-scale"></output>
+        </label>
+        <label class="row">
+          <span>איכות טקסטורות</span>
+          <select id="set-tex">
+            <option value="128">נמוכה</option>
+            <option value="256">בינונית</option>
+            <option value="512">גבוהה</option>
+          </select>
+        </label>
+        <label class="row">
+          <span>צללים</span>
+          <select id="set-shadow">
+            <option value="0">כבוי</option>
+            <option value="1">ירח בלבד</option>
+            <option value="2">ירח ומנורה</option>
+            <option value="3">ירח ושתי מנורות</option>
+          </select>
+        </label>
+        <label class="row check"><input id="set-bloom" type="checkbox"><span>זוהר (Bloom)</span></label>
+        <label class="row check"><input id="set-invert" type="checkbox"><span>היפוך ציר Y</span></label>
+        <label class="row check"><input id="set-mute" type="checkbox"><span>השתקה</span></label>
+        <label class="row check"><input id="set-guide" type="checkbox"><span>חץ מכוון לדגל</span></label>
+        <label class="row check"><input id="set-scares" type="checkbox"><span>קפיצות בהלה</span></label>
+        <div class="row buttons">
+          <button id="btn-reset" class="btn small danger">איפוס התקדמות</button>
+        </div>
+      </div>
+    </div>
+  </section>
+
+  <!-- -------------------------------------------------------- pause -->
+  <section id="screen-pause" class="screen" hidden>
+    <div class="menu-wrap small">
+      <div class="eyebrow" id="pause-where"></div>
+      <h2>עצירה</h2>
+      <div class="menu-buttons">
+        <button id="btn-resume" class="btn primary">המשך</button>
+        <button id="btn-pause-nights" class="btn">הלילות</button>
+        <button id="btn-pause-archive" class="btn">מה שנמצא</button>
+        <button id="btn-pause-settings" class="btn">הגדרות</button>
+        <button id="btn-quit" class="btn">תפריט ראשי</button>
+      </div>
+    </div>
+  </section>
+
+  <!-- ---------------------------------------------------- night end -->
+  <!-- One screen for both outcomes, because it is the same moment from two
+       sides: the night is over either way and the clock goes back to 3:30. -->
+  <section id="screen-night" class="screen" hidden>
+    <div class="menu-wrap small">
+      <div class="eyebrow" id="night-eyebrow">היא ראתה אותך</div>
+      <h2 id="night-title">הלילה מתחיל מחדש</h2>
+      <p class="sub" id="night-note"></p>
+      <div class="menu-buttons">
+        <button id="btn-again" class="btn primary">שוב</button>
+        <button id="btn-night-menu" class="btn">תפריט ראשי</button>
+      </div>
+    </div>
+  </section>
+
+  <!-- ------------------------------------------------------ reading -->
+  <!-- Journals, tapes and photographs. The story is all in here; the game
+       itself never explains anything. -->
+  <section id="screen-read" class="screen" hidden>
+    <div class="panel narrow paper">
+      <header class="panel-head">
+        <h2 id="read-title"></h2>
+        <button id="btn-read-back" class="btn small">סגור</button>
+      </header>
+      <div id="read-body"></div>
+      <footer class="panel-foot" id="read-foot"></footer>
+    </div>
+  </section>
+
+  <!-- ------------------------------------------------------- puzzle -->
+  <!-- The in-world object is real geometry; this is the panel you get when
+       you press E on it. Keeping it in the DOM is what makes a keypad
+       readable on a phone and reachable by a keyboard. -->
+  <div id="puzzle" hidden>
+    <div class="puzzle-box">
+      <div class="puzzle-head">
+        <span id="puzzle-title"></span>
+        <button id="puzzle-close" class="btn tiny">✕</button>
+      </div>
+      <p id="puzzle-note"></p>
+      <div id="puzzle-body"></div>
+      <div id="puzzle-status"></div>
+    </div>
+  </div>
+
+  <!-- ---------------------------------------------------------- map -->
+  <!-- Drawn from the same layout the world is built from, so it cannot lie. -->
+  <div id="map" hidden>
+    <canvas id="map-canvas" width="520" height="520"></canvas>
+    <div id="map-legend"></div>
+  </div>
+
+  <div id="fade"></div>
+  <div id="flash"></div>
+  <div id="toast" hidden></div>
+</div>
+
+<noscript>
+  <p class="noscript-note">
+    המשחק דורש JavaScript ו-WebGL2.
+  </p>
+</noscript>
+
+<script type="module" src="src/main.js"></script>
+</body>
+</html>

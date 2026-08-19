@@ -1,0 +1,1519 @@
+/*
+ * game.css — the shell around the canvas.
+ *
+ * Everything here sits over a full-screen WebGL view at half past three in the
+ * morning, and that sets the two rules the whole file obeys. Nothing may steal
+ * a pointer event unless it is genuinely a control: the player is holding a
+ * joystick with one thumb and reaching for E with the other, and a banner that
+ * eats the first touch costs them a night. And nothing may be bright. The
+ * night palette is a cold near-black blue (#070a10) with bone text on it,
+ * because the game asks the player to see a red flag at fifty metres through
+ * fog, and a HUD that has already blown out their eyes makes that impossible.
+ *
+ * There are exactly two saturated colours in the interface. Sodium amber
+ * (#e8a33c) is the street lamps and the clock — the light that is on your
+ * side. Flag red (#c0261f) is the flag, and it is used for nothing that is not
+ * actually urgent: under a minute on the clock, a suspicion gauge at the top
+ * of its range, a wrong answer with her three houses away. If red starts
+ * appearing for ordinary events it stops meaning anything, and the one moment
+ * it has to work is the moment it will not.
+ *
+ * The clock is the most important element on the screen and is laid out first.
+ * Everything else is arranged around not covering it — in particular the touch
+ * cluster, which owns the whole bottom of a landscape phone.
+ *
+ * No @import, no url() to anything but data:. The page ships a real
+ * Content-Security-Policy with style-src 'self', so a webfont is not merely
+ * discouraged here, it would silently fail to load.
+ */
+
+:root {
+  --bg: #070a10;
+  --panel: rgba(10, 14, 21, 0.93);
+  --line: rgba(150, 176, 200, 0.16);
+  --line-lit: rgba(232, 163, 60, 0.42);
+
+  /* Bone, not white. Pure #fff on this ground is a small lamp on the player's
+   * face; every text colour here tops out around 86% luminance. */
+  --ink: #d9dde0;
+  --dim: #7a8794;
+  --faint: #4d5763;
+
+  --amber: #e8a33c;
+  --amber-lit: #ffc978;
+  --amber-dim: #8f6c2c;
+  --red: #c0261f;
+  --red-lit: #ff5b4d;
+
+  /* The one hue that is neither amber nor red, spent on exactly one thing: a
+   * solved puzzle. Red-for-wrong and red-for-right would be the same colour
+   * at 3:34 with her whistling in the next garden. */
+  --ok: #74a884;
+
+  --paper: #cdc3ad;
+  --paper-ink: #23211c;
+  --paper-dim: #5d564a;
+
+  --radius: 4px;
+
+  /* system-ui resolves to Segoe UI on Windows and San Francisco on Apple, both
+   * of which carry Hebrew, so the common cases need no help. The named faces
+   * after it are for Linux and for Android skins where system-ui is a Latin
+   * face and Hebrew would otherwise land on whatever the browser picks last.
+   * Naming a font that is not installed costs nothing — there is no request. */
+  --font: system-ui, -apple-system, 'Segoe UI', Rubik, Assistant,
+          'Noto Sans Hebrew', 'Arial Hebrew', Arial, 'Helvetica Neue', sans-serif;
+
+  /* Digits, distances and the clock only. Hebrew inside a monospace stack
+   * falls back per glyph and comes out a different size mid-word, so nothing
+   * in Hebrew is ever set in this. */
+  --mono: ui-monospace, SFMono-Regular, Menlo, Consolas, 'Courier New', monospace;
+
+  /* Georgia has no Hebrew at all, which is the point: Latin picks it up, every
+   * Hebrew glyph falls through to the first serif face that has it. Mixing two
+   * families inside one paragraph is normally a mistake and here it is the
+   * only way to get a serif journal page without shipping a font. */
+  --serif: Georgia, 'Times New Roman', 'Frank Ruehl CLM', 'David Libre',
+           'Noto Serif Hebrew', serif;
+}
+
+* { box-sizing: border-box; }
+
+html, body {
+  margin: 0;
+  height: 100%;
+  overflow: hidden;
+  background: var(--bg);
+  color: var(--ink);
+  font-family: var(--font);
+  -webkit-font-smoothing: antialiased;
+  overscroll-behavior: none;
+}
+
+/*
+ * touch-action does not inherit, so putting it on <body> does nothing for the
+ * canvas: the browser claims the gesture as a scroll, the touch events arrive
+ * with cancelable=false, preventDefault is ignored and the joystick is dead.
+ * It has to be declared on the elements that actually receive the touches.
+ *
+ * It equally must not go on <body>, or the settings panel and the archive stop
+ * scrolling on the one device where scrolling them is the only way to read.
+ */
+#view {
+  position: fixed;
+  inset: 0;
+  width: 100%;
+  height: 100%;
+  display: block;
+  background: #000;
+  cursor: default;
+  touch-action: none;
+  z-index: 0;
+}
+#view.playing { cursor: none; }
+
+/*
+ * The stack, in one place, because half of these are siblings in the DOM and
+ * the natural order is wrong: #puzzle comes after every <section class=screen>
+ * in the markup, and without this a pause menu opened over an open keypad
+ * would render behind it.
+ *
+ *   hud 1 · touch 2 · puzzle/map 20 · rotate 24 · screens 30
+ *   fade 40 · flash 45 · toast 50
+ */
+#ui { position: fixed; inset: 0; pointer-events: none; z-index: 10; }
+
+/* ------------------------------------------------------------------ *
+ * Screens
+ * ------------------------------------------------------------------ */
+
+.screen {
+  position: absolute;
+  inset: 0;
+  z-index: 30;
+  pointer-events: auto;
+  display: flex;
+  /* `safe center` where it exists: a centred flex child taller than the
+   * viewport overflows off both ends at once and the top of it becomes
+   * unreachable no matter how you scroll. The settings panel on a landscape
+   * phone is exactly that child. */
+  align-items: center;
+  align-items: safe center;
+  justify-content: center;
+  padding:
+    max(16px, env(safe-area-inset-top)) max(16px, env(safe-area-inset-right))
+    max(16px, env(safe-area-inset-bottom)) max(16px, env(safe-area-inset-left));
+  /* The low red moon sits under every menu. It is the same light the street is
+   * lit by, and it is the whole reason the menus do not read as a different
+   * piece of software bolted onto the front of the game. */
+  background:
+    radial-gradient(140% 100% at 50% 108%, rgba(192, 38, 31, 0.10), transparent 60%),
+    radial-gradient(100% 70% at 50% 0%, rgba(232, 163, 60, 0.06), transparent 64%),
+    rgba(4, 6, 10, 0.88);
+  backdrop-filter: blur(10px) saturate(0.6);
+  -webkit-backdrop-filter: blur(10px) saturate(0.6);
+  animation: fade-in 0.3s ease both;
+  touch-action: pan-y;
+  overflow-y: auto;
+}
+.screen[hidden] { display: none; }
+
+@keyframes fade-in { from { opacity: 0; } to { opacity: 1; } }
+
+.menu-wrap { width: min(760px, 100%); text-align: center; }
+.menu-wrap.small { width: min(460px, 100%); }
+
+.eyebrow {
+  font-family: var(--mono);
+  font-size: 11px;
+  letter-spacing: 0.26em;
+  color: var(--amber);
+  opacity: 0.85;
+  margin-bottom: 14px;
+}
+
+.title {
+  font-size: clamp(36px, 8.4vw, 82px);
+  line-height: 0.98;
+  margin: 0 0 18px;
+  font-weight: 800;
+  letter-spacing: 0.01em;
+  color: #eef1f2;
+  /* Two shadows: a wide cold halo for the fog, and a hard black offset so the
+   * letters keep an edge where the halo washes over the moon gradient. */
+  text-shadow:
+    0 0 46px rgba(140, 190, 210, 0.28),
+    0 2px 0 rgba(0, 0, 0, 0.7);
+}
+
+h2 { font-size: clamp(20px, 3.4vw, 30px); margin: 0 0 10px; font-weight: 700; }
+
+.sub {
+  color: var(--dim);
+  font-size: 15px;
+  line-height: 1.85;
+  max-width: 56ch;
+  margin: 0 auto 26px;
+}
+.sub b { color: var(--ink); font-weight: 600; }
+
+.menu-buttons {
+  display: flex;
+  flex-direction: column;
+  gap: 10px;
+  width: min(320px, 100%);
+  margin: 0 auto;
+}
+
+.btn {
+  pointer-events: auto;
+  font: inherit;
+  font-size: 15px;
+  font-weight: 600;
+  color: var(--ink);
+  background: rgba(190, 214, 230, 0.05);
+  border: 1px solid var(--line);
+  border-radius: var(--radius);
+  padding: 13px 18px;
+  cursor: pointer;
+  transition: background 0.14s, border-color 0.14s, color 0.14s, transform 0.08s;
+}
+.btn:hover { background: rgba(232, 163, 60, 0.11); border-color: var(--line-lit); }
+.btn:active { transform: translateY(1px); }
+.btn:focus-visible { outline: 2px solid var(--amber); outline-offset: 2px; }
+.btn.primary {
+  background: rgba(232, 163, 60, 0.14);
+  border-color: rgba(232, 163, 60, 0.5);
+  color: var(--amber-lit);
+}
+.btn.small { padding: 7px 13px; font-size: 13px; }
+.btn.tiny { padding: 4px 9px; font-size: 12px; line-height: 1; }
+.btn.danger { color: var(--red-lit); border-color: rgba(192, 38, 31, 0.45); }
+.btn.danger:hover { background: rgba(192, 38, 31, 0.16); border-color: var(--red); }
+.btn[disabled] { opacity: 0.38; cursor: default; pointer-events: none; }
+
+.hint { margin-top: 26px; font-size: 12px; color: var(--dim); line-height: 2.1; }
+.hint b {
+  font-family: var(--mono);
+  color: var(--amber);
+  background: rgba(232, 163, 60, 0.09);
+  border: 1px solid var(--line);
+  border-radius: 3px;
+  padding: 1px 5px;
+  font-weight: 600;
+}
+.credits {
+  margin-top: 22px;
+  font-size: 11px;
+  color: var(--faint);
+  line-height: 1.85;
+  max-width: 62ch;
+  margin-inline: auto;
+}
+
+/* ------------------------------------------------------------------ *
+ * Panels: the nights, the archive, settings, a journal page
+ * ------------------------------------------------------------------ */
+
+.panel {
+  width: min(1000px, 100%);
+  max-height: min(86vh, 900px);
+  background: var(--panel);
+  border: 1px solid var(--line);
+  border-radius: 8px;
+  display: flex;
+  flex-direction: column;
+  overflow: hidden;
+}
+.panel.narrow { width: min(560px, 100%); }
+
+.panel-head {
+  display: flex;
+  align-items: center;
+  justify-content: space-between;
+  gap: 12px;
+  padding: 14px 18px;
+  border-bottom: 1px solid var(--line);
+  flex-wrap: wrap;
+}
+.panel-head h2 { margin: 0; }
+.head-tools { display: flex; gap: 8px; align-items: center; }
+
+.panel-foot {
+  padding: 10px 18px;
+  border-top: 1px solid var(--line);
+  font-size: 11px;
+  color: var(--faint);
+  line-height: 1.75;
+}
+
+/* ------------------------------------------------------------------ *
+ * The seven nights
+ *
+ * Seven cards, and a locked one shows its number and nothing else. The titles
+ * are the only place the story leaks before you have played it, and a grid
+ * that lists all seven up front tells the player on night one that there is a
+ * night seven and roughly what happens in it.
+ * ------------------------------------------------------------------ */
+
+#night-grid {
+  overflow-y: auto;
+  touch-action: pan-y;
+  -webkit-overflow-scrolling: touch;
+  padding: 14px;
+  display: grid;
+  grid-template-columns: repeat(auto-fill, minmax(168px, 1fr));
+  gap: 8px;
+}
+
+.night-card {
+  pointer-events: auto;
+  text-align: start;
+  background: rgba(190, 214, 230, 0.035);
+  border: 1px solid var(--line);
+  border-inline-start: 3px solid var(--amber-dim);
+  border-radius: var(--radius);
+  padding: 10px 12px;
+  cursor: pointer;
+  font: inherit;
+  color: var(--ink);
+  display: grid;
+  gap: 3px;
+  transition: background 0.12s, border-color 0.12s, transform 0.08s;
+}
+.night-card:hover { background: rgba(232, 163, 60, 0.10); }
+.night-card:active { transform: translateY(1px); }
+.night-card .n {
+  font-family: var(--mono);
+  font-size: 10px;
+  letter-spacing: 0.18em;
+  color: var(--amber);
+  display: flex;
+  justify-content: space-between;
+  align-items: center;
+}
+.night-card .name { font-size: 14px; font-weight: 700; }
+.night-card .note { font-size: 11px; color: var(--dim); line-height: 1.5; }
+.night-card .best { font-family: var(--mono); font-size: 10px; color: var(--faint); }
+
+.night-card.now { border-inline-start-color: var(--amber-lit); }
+.night-card.done { border-inline-start-color: var(--ok); }
+.night-card.done .n { color: var(--ok); }
+.night-card.locked {
+  color: var(--faint);
+  border-inline-start-color: rgba(150, 176, 200, 0.2);
+  cursor: default;
+  pointer-events: none;
+}
+.night-card.locked .name,
+.night-card.locked .note { color: var(--faint); }
+
+/* ------------------------------------------------------------------ *
+ * The archive — everything the player has picked up and read
+ * ------------------------------------------------------------------ */
+
+#archive-list {
+  overflow-y: auto;
+  touch-action: pan-y;
+  -webkit-overflow-scrolling: touch;
+  padding: 12px 14px;
+  display: grid;
+  gap: 6px;
+  align-content: start;
+}
+
+.arch-item {
+  pointer-events: auto;
+  font: inherit;
+  color: var(--ink);
+  text-align: start;
+  background: rgba(190, 214, 230, 0.035);
+  border: 1px solid var(--line);
+  border-radius: var(--radius);
+  padding: 9px 12px;
+  cursor: pointer;
+  display: grid;
+  gap: 2px;
+  transition: background 0.12s;
+}
+.arch-item:hover { background: rgba(232, 163, 60, 0.10); }
+.arch-item .t { font-size: 14px; font-weight: 600; }
+.arch-item .m { font-size: 11px; color: var(--dim); font-family: var(--mono); }
+/* Amber, not red. A note you have not opened yet is interesting, not urgent. */
+.arch-item.unread .t::after {
+  content: '';
+  display: inline-block;
+  width: 6px;
+  height: 6px;
+  border-radius: 50%;
+  background: var(--amber);
+  margin-inline-start: 7px;
+  vertical-align: 0.1em;
+}
+.arch-item.empty { color: var(--faint); pointer-events: none; background: none; }
+
+/* ------------------------------------------------------------------ *
+ * Settings
+ * ------------------------------------------------------------------ */
+
+.settings {
+  padding: 16px 18px;
+  display: grid;
+  gap: 14px;
+  overflow-y: auto;
+  touch-action: pan-y;
+}
+.settings .row {
+  display: grid;
+  grid-template-columns: 1fr 158px 46px;
+  gap: 12px;
+  align-items: center;
+  font-size: 14px;
+}
+.settings .row.check { grid-template-columns: 22px 1fr; }
+.settings .row.buttons { grid-template-columns: 1fr; }
+.settings output { font-family: var(--mono); font-size: 12px; color: var(--amber); }
+.settings select,
+.settings input[type=range] { width: 100%; accent-color: var(--amber); }
+.settings select {
+  font: inherit;
+  font-size: 13px;
+  color: var(--ink);
+  background: rgba(0, 0, 0, 0.42);
+  border: 1px solid var(--line);
+  border-radius: var(--radius);
+  padding: 6px 8px;
+}
+.settings input[type=checkbox] { width: 18px; height: 18px; accent-color: var(--amber); }
+.settings .row:focus-within > span { color: var(--amber-lit); }
+
+/* ------------------------------------------------------------------ *
+ * Loading
+ * ------------------------------------------------------------------ */
+
+.loader { width: min(460px, 100%); text-align: center; }
+.loader h2 { color: var(--amber-lit); }
+#load-bar {
+  height: 3px;
+  background: rgba(190, 214, 230, 0.09);
+  border-radius: 2px;
+  overflow: hidden;
+  margin: 18px 0 10px;
+}
+#load-bar i {
+  display: block;
+  height: 100%;
+  width: 0;
+  background: var(--amber);
+  transition: width 0.2s ease;
+}
+#load-note { font-size: 12px; color: var(--dim); margin: 0; font-family: var(--mono); }
+
+/* ------------------------------------------------------------------ *
+ * The journal page
+ *
+ * Real paper, held up in the dark. A full-brightness white page at half three
+ * is a flash grenade — the player closes it and cannot see the street for the
+ * next thirty seconds, which is a third of the time they have. So the paper is
+ * printed at about 80% and pulled warm, and the ink is dark grey rather than
+ * black so the contrast inside the card stays under about 9:1.
+ * ------------------------------------------------------------------ */
+
+.paper {
+  background: var(--paper);
+  border-color: rgba(60, 52, 38, 0.5);
+  color: var(--paper-ink);
+  box-shadow: 0 24px 60px rgba(0, 0, 0, 0.6);
+}
+.paper .panel-head {
+  border-bottom-color: rgba(60, 52, 38, 0.28);
+  background: rgba(0, 0, 0, 0.05);
+}
+.paper .panel-head h2 { color: #17150f; font-family: var(--serif); font-weight: 700; }
+.paper .panel-foot {
+  border-top-color: rgba(60, 52, 38, 0.28);
+  color: var(--paper-dim);
+  font-family: var(--mono);
+}
+.paper .btn {
+  color: #2c281f;
+  background: rgba(0, 0, 0, 0.06);
+  border-color: rgba(60, 52, 38, 0.35);
+}
+.paper .btn:hover {
+  background: rgba(0, 0, 0, 0.12);
+  border-color: rgba(60, 52, 38, 0.6);
+}
+
+#read-body {
+  overflow-y: auto;
+  touch-action: pan-y;
+  -webkit-overflow-scrolling: touch;
+  padding: 20px 22px 24px;
+  font-family: var(--serif);
+  font-size: clamp(15px, 2.4vw, 17px);
+  line-height: 1.85;
+  /* 34em of a serif at this size is roughly 62 Hebrew characters a line, which
+   * is where a reader stops losing the start of the next line. Wider and the
+   * page reads like a licence agreement. */
+  max-width: 34em;
+  margin-inline: auto;
+  text-align: start;
+}
+#read-body p { margin: 0 0 1.05em; }
+#read-body p:last-child { margin-bottom: 0; }
+#read-body h3 {
+  font-size: 1.05em;
+  margin: 1.6em 0 0.5em;
+  color: #17150f;
+  letter-spacing: 0.01em;
+}
+#read-body b, #read-body strong { color: #17150f; }
+#read-body em { font-style: italic; color: #3a352a; }
+#read-body hr { border: 0; border-top: 1px solid rgba(60, 52, 38, 0.3); margin: 1.6em 0; }
+/* A date or a name in Latin inside a Hebrew paragraph reorders itself the
+ * obvious way and comes out with the year on the wrong end of the line.
+ * `plaintext` lets each block take its direction from its own first strong
+ * character, which is what a scanned page of two languages actually does. */
+#read-body .en, #read-body time { unicode-bidi: plaintext; }
+#read-body .sig { margin-top: 1.8em; font-style: italic; color: var(--paper-dim); }
+/* Struck-out lines, of which there are a lot in her handwriting. */
+#read-body s { color: rgba(35, 33, 28, 0.55); }
+
+/* ------------------------------------------------------------------ *
+ * HUD
+ *
+ * What the game toggles from JS on the shell and the HUD, in one list. The
+ * modifiers that belong to a single panel (.picked, .locked, .unread) are
+ * declared beside the panel that owns them instead.
+ *
+ *   #view.playing         pointer is locked, hide the cursor
+ *   body.touch            coarse pointer, the thumb cluster is up
+ *   #hud-clock.urgent     under sixty seconds
+ *   #susp --v (0..1)      suspicion, plus .high for the ring pulse
+ *   #guide.faint/.close   the arrow, far away and nearly there
+ *   #guide.carry          you have the flag, it points at your own door
+ *   #hud-hide.low         the hiding place is about to stop working
+ *   #m-breath.low         out of breath
+ *   #it-torch.on          the torch is lit, #it-flags.has once you carry one
+ *   #hud-log .hot         a line of the log that matters
+ *   #toast.hot            a toast that matters
+ *   #flash.white/.red     one frame of her face, and the reset glitch
+ *   #ui.shake             the scream
+ * ------------------------------------------------------------------ */
+
+#hud { position: absolute; inset: 0; pointer-events: none; z-index: 1; }
+#hud[hidden] { display: none; }
+
+#crosshair {
+  position: absolute;
+  left: 50%;
+  top: 50%;
+  width: 3px;
+  height: 3px;
+  margin: -1.5px 0 0 -1.5px;
+  border-radius: 50%;
+  background: rgba(230, 240, 245, 0.5);
+  box-shadow: 0 0 3px rgba(0, 0, 0, 0.9);
+}
+
+/* ------------------------------------------------------------------ *
+ * The clock
+ *
+ * It is the whole game: five minutes, and the only number on the screen that
+ * is always true. It is centred physically rather than logically because it
+ * has to be centred over the crosshair, and it is set in tabular figures so
+ * that 3:31:11 and 3:33:00 are the same width — proportional digits make the
+ * last minute visibly twitch, which reads as a bug and not as tension.
+ * ------------------------------------------------------------------ */
+
+#hud-clock {
+  position: absolute;
+  left: 50%;
+  top: max(10px, env(safe-area-inset-top));
+  transform: translateX(-50%);
+  display: grid;
+  justify-items: center;
+  gap: 2px;
+  text-align: center;
+  text-shadow: 0 2px 10px rgba(0, 0, 0, 0.9);
+}
+
+#clock {
+  /* Pinned LTR. The digits alone would bidi out correctly, but the moment a
+   * night ends and this holds 3:35 · 00 it does not. */
+  direction: ltr;
+  font-family: var(--mono);
+  font-variant-numeric: tabular-nums;
+  font-feature-settings: 'tnum' 1;
+  font-size: clamp(30px, 6.6vw, 58px);
+  font-weight: 700;
+  line-height: 1;
+  letter-spacing: 0.01em;
+  color: var(--amber);
+  transition: color 0.3s;
+}
+
+#hud-night { font-size: 11px; letter-spacing: 0.12em; color: var(--dim); }
+
+/*
+ * The five minutes, as a bar. It drains left to right: the fill is pinned to
+ * the physical right edge and JS shrinks its width, so the boundary travels
+ * across the bar in the same direction the clock reads. Pinning it logically
+ * puts it on the other side in this RTL document and the bar then drains
+ * backwards, which nobody notices consciously and everybody finds confusing.
+ */
+#whistle-bar {
+  position: relative;
+  width: clamp(140px, 30vw, 260px);
+  height: 3px;
+  margin-top: 5px;
+  background: rgba(190, 214, 230, 0.14);
+  border-radius: 2px;
+  overflow: hidden;
+}
+#whistle-bar i {
+  position: absolute;
+  top: 0;
+  bottom: 0;
+  right: 0;
+  width: 100%;
+  border-radius: 2px;
+  background: linear-gradient(90deg, var(--amber-dim), var(--amber));
+  transition: width 0.25s linear, background 0.4s;
+}
+
+/*
+ * Under a minute. The pulse is opacity and glow only — no font-size, no
+ * margin, no scale. An earlier version animated letter-spacing, which moves
+ * the right-hand digit by a pixel and a half every half second and makes the
+ * clock look like it is being read off a shaking camera rather than counting.
+ */
+#hud-clock.urgent #clock {
+  color: var(--red-lit);
+  animation: clock-pulse 1s ease-in-out infinite;
+}
+#hud-clock.urgent #hud-night { color: rgba(255, 91, 77, 0.75); }
+#hud-clock.urgent #whistle-bar i {
+  background: linear-gradient(90deg, #7a1a15, var(--red-lit));
+}
+@keyframes clock-pulse {
+  0%, 100% { opacity: 1; text-shadow: 0 0 16px rgba(192, 38, 31, 0.5), 0 2px 8px #000; }
+  50% { opacity: 0.74; text-shadow: 0 0 34px rgba(255, 91, 77, 0.85), 0 2px 8px #000; }
+}
+
+/* ------------------------------------------------------------------ *
+ * Suspicion
+ *
+ * Two circles, one over the other. The fill is driven entirely from --v, a
+ * plain number in 0..1 that JS writes on #susp; the dash length is
+ * calc(--v * C) where C is the circumference of r=16, which is 100.53. Getting
+ * that constant wrong the obvious way — using 2*pi*r for the SVG's *rendered*
+ * size instead of its user units — gives 115.6, and the ring then reads full
+ * at 0.87 and never moves again. It looks like the gauge is broken rather
+ * than the number, which is the worst way for a warning to fail.
+ *
+ * The rotation is the other thing worth doing properly: an SVG arc starts at
+ * three o'clock, so without the -90deg the gauge fills from the side and
+ * reads as a slice rather than a dial.
+ * ------------------------------------------------------------------ */
+
+#susp {
+  position: absolute;
+  top: max(12px, env(safe-area-inset-top));
+  inset-inline-start: max(14px, env(safe-area-inset-left), env(safe-area-inset-right));
+  --v: 0;
+  display: grid;
+  justify-items: center;
+  gap: 3px;
+  transition: opacity 0.3s;
+}
+#susp[hidden] { display: none; }
+#susp svg { width: 46px; height: 46px; display: block; overflow: visible; }
+
+#susp .track { fill: none; stroke: rgba(190, 214, 230, 0.16); stroke-width: 3; }
+#susp .fill {
+  fill: none;
+  stroke: var(--amber);
+  stroke-width: 3;
+  /* Butt caps, deliberately. A round cap on a zero-length dash is not nothing,
+   * it is a dot — that is how dotted strokes are drawn — so at --v: 0 the
+   * gauge would sit there with a 3px amber pip at twelve o'clock telling the
+   * player she has noticed them when she has not. */
+  stroke-linecap: butt;
+  /* 100.531 = 2*pi*16, in the same user units the viewBox is in. The second
+   * number only has to exceed the first for the gap to swallow the remainder. */
+  stroke-dasharray: calc(var(--v) * 100.531px) 200px;
+  /* view-box, so that the 20px below is read in the coordinates the viewBox is
+   * written in and the origin is the centre of the dial by construction. With
+   * fill-box the same two numbers mean 20 units into a 32-unit bounding box
+   * and the ring rotates about a point off its own centre. */
+  transform-box: view-box;
+  transform-origin: 20px 20px;
+  transform: rotate(-90deg);
+  transition: stroke-dasharray 0.2s linear, stroke 0.4s;
+}
+
+/* The ramp is done in colour space rather than by class so the gauge is never
+ * out of step with the number: amber at rest, flag red at the top. */
+@supports (color: color-mix(in oklab, red, blue)) {
+  #susp .fill {
+    stroke: color-mix(in oklab, var(--red) calc(var(--v) * 100%), var(--amber));
+  }
+}
+
+#susp-label {
+  font-size: 9px;
+  letter-spacing: 0.14em;
+  color: var(--dim);
+  text-shadow: 0 1px 3px #000;
+}
+#susp.high .fill { stroke: var(--red-lit); }
+#susp.high { animation: susp-pulse 0.9s ease-in-out infinite; }
+#susp.high #susp-label { color: var(--red-lit); }
+@keyframes susp-pulse {
+  0%, 100% { opacity: 1; }
+  50% { opacity: 0.6; }
+}
+
+/* ------------------------------------------------------------------ *
+ * Log, guide, prompt, subtitle
+ * ------------------------------------------------------------------ */
+
+/*
+ * The log lives in the top corner and the clock lives in the top centre, and
+ * below laptop widths those two want the same pixels. At the 44vw this started
+ * at, the box reaches x=194 on a 360px screen while the whistle bar starts at
+ * 110 — so the first line of the log lands straight across the digits, which
+ * is the one thing the whole layout is arranged not to do. 30vw keeps the box
+ * clear of the bar down to about 430px; below 560 it gives up the corner
+ * entirely, in the narrow-screen block at the bottom of the file.
+ */
+#hud-log {
+  position: absolute;
+  top: max(12px, env(safe-area-inset-top));
+  inset-inline-end: max(14px, env(safe-area-inset-left), env(safe-area-inset-right));
+  width: min(240px, 30vw);
+  display: grid;
+  gap: 4px;
+  justify-items: end;
+  text-align: end;
+  font-size: 12px;
+  color: var(--dim);
+  text-shadow: 0 1px 4px rgba(0, 0, 0, 0.9);
+}
+#hud-log div { animation: log-in 5s ease forwards; }
+@keyframes log-in {
+  0% { opacity: 0; transform: translateY(-4px); }
+  10%, 72% { opacity: 1; transform: none; }
+  100% { opacity: 0; }
+}
+#hud-log .hot { color: var(--amber-lit); }
+
+/*
+ * The guide is a needle, not a map: which way and how far, and nothing else.
+ * It sits under the clock rather than beside it because on a 360px screen
+ * beside it means on top of it.
+ */
+#guide {
+  position: absolute;
+  left: 50%;
+  top: calc(max(10px, env(safe-area-inset-top)) + 82px);
+  transform: translateX(-50%);
+  display: flex;
+  align-items: center;
+  gap: 8px;
+  padding: 4px 12px 4px 8px;
+  border-radius: 999px;
+  background: rgba(7, 10, 16, 0.55);
+  border: 1px solid rgba(232, 163, 60, 0.26);
+  pointer-events: none;
+  transition: opacity 0.3s, border-color 0.3s;
+}
+#guide[hidden] { display: none; }
+#guide.faint { opacity: 0.4; }
+#guide.close {
+  border-color: rgba(255, 201, 120, 0.85);
+  background: rgba(30, 20, 6, 0.7);
+}
+
+#guide-arrow { width: 20px; height: 20px; }
+#guide-arrow svg { width: 100%; height: 100%; display: block; }
+#guide-arrow path { fill: var(--amber-lit); }
+#guide.close #guide-arrow path { fill: #fff0cf; }
+/* Carrying the flag home: the needle points at your own front door, and that
+ * is the one navigation state that is genuinely urgent. */
+#guide.carry { border-color: rgba(192, 38, 31, 0.7); }
+#guide.carry #guide-arrow path { fill: var(--red-lit); }
+
+#guide-text {
+  direction: ltr;
+  font-family: var(--mono);
+  font-size: 12px;
+  color: var(--ink);
+  display: flex;
+  gap: 6px;
+  align-items: baseline;
+  text-shadow: 0 1px 3px #000;
+}
+#guide-text b { color: var(--amber-lit); font-weight: 700; }
+#guide-text span { font-family: var(--font); font-size: 11px; color: var(--dim); }
+
+#hud-prompt {
+  position: absolute;
+  left: 50%;
+  top: 57%;
+  transform: translateX(-50%);
+  font-size: 13px;
+  color: var(--ink);
+  background: rgba(0, 0, 0, 0.5);
+  border: 1px solid var(--line);
+  border-radius: 3px;
+  padding: 6px 12px;
+  white-space: nowrap;
+  text-shadow: 0 1px 3px #000;
+}
+#hud-prompt[hidden] { display: none; }
+#hud-prompt b { font-family: var(--mono); color: var(--amber); margin-inline-end: 5px; }
+
+/*
+ * One line of dialogue, above the meters. It wraps rather than truncates: a
+ * clipped line of what the neighbour says is worse than two lines of it, and
+ * the lines are short enough that two is the worst case.
+ */
+#subtitle {
+  position: absolute;
+  left: 50%;
+  bottom: calc(96px + env(safe-area-inset-bottom));
+  transform: translateX(-50%);
+  width: max-content;
+  max-width: min(42em, 86vw);
+  text-align: center;
+  font-size: clamp(14px, 2.1vw, 17px);
+  line-height: 1.5;
+  color: #eef1f2;
+  text-shadow: 0 1px 3px #000, 0 0 18px rgba(0, 0, 0, 0.95);
+  transition: opacity 0.25s;
+}
+#subtitle[hidden] { display: none; }
+#subtitle b { color: var(--amber-lit); font-weight: 600; }
+
+/* ------------------------------------------------------------------ *
+ * Meters, items, hiding
+ *
+ * All of this is pinned physically left. `inset-inline-start` in an RTL
+ * document is the right edge, and the right edge is where the thumb cluster
+ * lives — so the logical property, which is the correct one everywhere else in
+ * this file, is exactly the wrong one here.
+ * ------------------------------------------------------------------ */
+
+#hud-bottom {
+  position: absolute;
+  bottom: calc(14px + env(safe-area-inset-bottom));
+  left: calc(16px + env(safe-area-inset-left));
+  display: grid;
+  gap: 6px;
+  width: min(200px, 40vw);
+}
+.meter {
+  position: relative;
+  height: 4px;
+  margin-bottom: 9px;
+  background: rgba(190, 214, 230, 0.12);
+  border-radius: 2px;
+}
+.meter i {
+  display: block;
+  height: 100%;
+  width: 100%;
+  border-radius: 2px;
+  background: var(--amber);
+  transition: width 0.12s linear, background 0.3s;
+}
+.meter span {
+  position: absolute;
+  inset-inline-start: 0;
+  top: 6px;
+  font-size: 9px;
+  letter-spacing: 0.1em;
+  color: var(--faint);
+}
+#m-breath i { background: #8fb7c4; }
+/* Out of breath is not an emergency by itself — she hears you long before you
+ * pass out — so this goes amber, and only amber. */
+#m-breath.low i { background: var(--amber); }
+
+/* Latin numerals inside an RTL line reorder: "0/7" next to an emoji comes out
+ * as "7/0" on the wrong side of the flag. These three are pure data and are
+ * pinned LTR. */
+#hud-items {
+  display: flex;
+  gap: 12px;
+  direction: ltr;
+  font-family: var(--mono);
+  font-size: 12px;
+  color: var(--dim);
+  text-shadow: 0 1px 3px #000;
+}
+#it-torch.on { color: var(--amber-lit); }
+#it-flags.has { color: var(--red-lit); }
+
+/*
+ * "You are hidden", with the wardrobe's patience draining underneath it. It is
+ * centred at the bottom because both bottom corners are already spoken for and
+ * because the player is staring through a slatted door at the time, not
+ * reading the corner of the screen.
+ */
+#hud-hide {
+  position: absolute;
+  left: 50%;
+  bottom: calc(18px + env(safe-area-inset-bottom));
+  transform: translateX(-50%);
+  width: min(180px, 46vw);
+  display: grid;
+  justify-items: center;
+  gap: 4px;
+}
+#hud-hide[hidden] { display: none; }
+#hud-hide i {
+  display: block;
+  width: 100%;
+  height: 3px;
+  border-radius: 2px;
+  background: var(--ink);
+  transition: width 0.15s linear, background 0.3s;
+}
+#hud-hide span {
+  font-size: 10px;
+  letter-spacing: 0.18em;
+  color: var(--dim);
+  text-shadow: 0 1px 3px #000;
+}
+#hud-hide.low i { background: var(--red-lit); }
+#hud-hide.low span { color: var(--red-lit); }
+
+/* Physically right, and gone the moment there is a thumb cluster there. */
+#hud-stats {
+  position: absolute;
+  bottom: calc(14px + env(safe-area-inset-bottom));
+  right: calc(16px + env(safe-area-inset-right));
+  direction: ltr;
+  font-family: var(--mono);
+  font-size: 10px;
+  color: var(--faint);
+  text-align: right;
+  white-space: pre;
+}
+
+/* ------------------------------------------------------------------ *
+ * The puzzle panel
+ *
+ * The thing you are actually solving is real geometry out in the world — a
+ * keypad on a shed door, four paint tins on a shelf. This is the panel you get
+ * when you press E on it, and it exists in the DOM rather than in the scene
+ * for two reasons: a keypad rendered into a 512px texture is unreadable on a
+ * phone, and a keyboard user can tab through this one.
+ *
+ * JS builds one of three bodies into #puzzle-body — a .keypad, a row of
+ * .choice buttons, or an .order list — and all three are styled here.
+ * ------------------------------------------------------------------ */
+
+#puzzle {
+  position: absolute;
+  inset: 0;
+  z-index: 20;
+  pointer-events: auto;
+  display: flex;
+  align-items: center;
+  align-items: safe center;
+  justify-content: center;
+  padding:
+    max(14px, env(safe-area-inset-top)) max(14px, env(safe-area-inset-right))
+    max(14px, env(safe-area-inset-bottom)) max(14px, env(safe-area-inset-left));
+  background: rgba(4, 6, 10, 0.72);
+  backdrop-filter: blur(6px);
+  -webkit-backdrop-filter: blur(6px);
+  overflow-y: auto;
+  touch-action: pan-y;
+  animation: fade-in 0.16s ease both;
+}
+#puzzle[hidden] { display: none; }
+
+.puzzle-box {
+  width: min(420px, 100%);
+  background: var(--panel);
+  border: 1px solid var(--line);
+  border-radius: 8px;
+  box-shadow: 0 30px 70px rgba(0, 0, 0, 0.7);
+  padding: 14px 16px 16px;
+}
+.puzzle-head {
+  display: flex;
+  align-items: center;
+  justify-content: space-between;
+  gap: 10px;
+  margin-bottom: 8px;
+}
+#puzzle-title { font-size: 15px; font-weight: 700; color: var(--amber-lit); }
+#puzzle-note { margin: 0 0 14px; font-size: 13px; line-height: 1.7; color: var(--dim); }
+#puzzle-note b { color: var(--ink); }
+
+/* Each of the three bodies lays itself out, so this only has to be a row for
+ * the case where the loose `.choice` buttons below are the body. Anything that
+ * is a container rather than a control takes the whole width. */
+#puzzle-body { display: flex; flex-wrap: wrap; gap: 8px; }
+#puzzle-body > .readout,
+#puzzle-body > .keypad,
+#puzzle-body > .order,
+#puzzle-body > .choice:not(button) { flex: 1 1 100%; }
+
+/* The digits you have entered so far. A keypad without one is a guessing game:
+ * you cannot tell a missed press from a wrong code. */
+.readout {
+  direction: ltr;
+  font-family: var(--mono);
+  font-variant-numeric: tabular-nums;
+  font-size: 24px;
+  letter-spacing: 0.32em;
+  text-align: center;
+  color: var(--amber-lit);
+  background: rgba(0, 0, 0, 0.45);
+  border: 1px solid var(--line);
+  border-radius: var(--radius);
+  padding: 10px 12px;
+  min-height: 46px;
+}
+
+.keypad { display: grid; grid-template-columns: repeat(3, 1fr); gap: 8px; }
+.key {
+  pointer-events: auto;
+  font: inherit;
+  font-family: var(--mono);
+  font-size: 20px;
+  font-weight: 600;
+  /* 56 is the floor. Below it a thumb aiming at 7 gets 4 often enough to lose
+   * a night, and losing a night to a fat-finger is the least frightening thing
+   * that can happen in this game. */
+  min-height: 56px;
+  color: var(--ink);
+  background: rgba(190, 214, 230, 0.06);
+  border: 1px solid var(--line);
+  border-radius: var(--radius);
+  cursor: pointer;
+  user-select: none;
+  -webkit-user-select: none;
+  -webkit-tap-highlight-color: transparent;
+  transition: background 0.1s, transform 0.06s;
+}
+.key:hover { background: rgba(232, 163, 60, 0.12); }
+.key:active { background: rgba(232, 163, 60, 0.24); transform: translateY(1px); }
+.key.wide { grid-column: span 2; }
+.key.go { color: var(--amber-lit); border-color: rgba(232, 163, 60, 0.5); }
+.key.clear { color: var(--dim); }
+
+/*
+ * The brief names one class for this body — `.choice` — and reading it as the
+ * row or as the buttons in the row are both defensible. Written both ways,
+ * because the failure is not symmetric: guess wrong about the row and the
+ * choices lose their gaps, guess wrong about the buttons and they arrive as
+ * bare UA buttons, 20px tall, on a 360px screen, at 3:34.
+ */
+.choice { display: flex; flex-wrap: wrap; gap: 8px; }
+.choice button,
+button.choice {
+  pointer-events: auto;
+  flex: 1 1 40%;
+  font: inherit;
+  font-size: 14px;
+  min-height: 56px;
+  padding: 10px 14px;
+  /* Flex rather than the default, so a label that wraps to two lines stays
+   * centred against the 56px floor instead of sitting on the baseline. */
+  display: flex;
+  align-items: center;
+  justify-content: center;
+  text-align: center;
+  color: var(--ink);
+  background: rgba(190, 214, 230, 0.06);
+  border: 1px solid var(--line);
+  border-radius: var(--radius);
+  cursor: pointer;
+  transition: background 0.12s, border-color 0.12s;
+}
+.choice button:hover,
+button.choice:hover {
+  background: rgba(232, 163, 60, 0.12);
+  border-color: var(--line-lit);
+}
+.choice button.picked,
+button.choice.picked {
+  border-color: var(--amber);
+  background: rgba(232, 163, 60, 0.18);
+  color: var(--amber-lit);
+}
+
+/*
+ * The ordering puzzle. It looks draggable and is not: HTML5 drag and drop does
+ * not exist on touch, and a pointer-events reimplementation of it inside a
+ * scrolling list fights the scroll on every device. The grip is there because
+ * it tells you the rows move; the arrows are what actually moves them.
+ */
+.order { display: grid; gap: 6px; }
+.order-item {
+  display: grid;
+  grid-template-columns: 14px 1fr auto;
+  align-items: center;
+  gap: 10px;
+  min-height: 56px;
+  padding: 8px 10px;
+  font-size: 14px;
+  color: var(--ink);
+  background: rgba(190, 214, 230, 0.05);
+  border: 1px solid var(--line);
+  border-radius: var(--radius);
+  cursor: grab;
+  transition: background 0.12s, border-color 0.12s, transform 0.1s;
+}
+.order-item::before {
+  /* Six dots in one glyph, so the grip costs neither an image nor a node. */
+  content: '⠿';
+  color: var(--faint);
+  font-size: 15px;
+  line-height: 1;
+}
+.order-item.picked { border-color: var(--amber); background: rgba(232, 163, 60, 0.14); }
+.order-item .idx {
+  font-family: var(--mono);
+  font-size: 11px;
+  color: var(--amber);
+  margin-inline-end: 6px;
+}
+.order-moves { display: flex; gap: 4px; }
+/*
+ * 40px, one of the two controls in the game under 56 — the other is the pause
+ * button. Two 56px buttons plus a label do not fit on a 360px row, and the row
+ * itself is 56 tall, so the target is short in one axis only, which is the
+ * axis a thumb is most accurate in when it is resting against the side of the
+ * phone.
+ */
+.move {
+  pointer-events: auto;
+  width: 40px;
+  height: 40px;
+  font: inherit;
+  font-size: 14px;
+  color: var(--dim);
+  background: rgba(0, 0, 0, 0.3);
+  border: 1px solid var(--line);
+  border-radius: var(--radius);
+  cursor: pointer;
+  -webkit-tap-highlight-color: transparent;
+}
+.move:hover { color: var(--amber-lit); border-color: var(--line-lit); }
+.move[disabled] { opacity: 0.3; pointer-events: none; }
+
+/* Both, because the markup gives this an id and the brief names it by class,
+ * and a status line that misses its rule reads as no answer at all. */
+#puzzle-status, .puzzle-status {
+  margin-top: 12px;
+  min-height: 18px;
+  font-size: 13px;
+  color: var(--dim);
+  text-align: center;
+  transition: color 0.2s;
+}
+#puzzle-status.ok, .puzzle-status.ok { color: var(--ok); }
+#puzzle-status.bad, .puzzle-status.bad { color: var(--red-lit); }
+
+/* ------------------------------------------------------------------ *
+ * The map
+ *
+ * Drawn from the same layout the street is built from, so it cannot lie about
+ * where a house is. The canvas has a fixed 520x520 backing store and the box
+ * is capped square: a map that goes 4:3 puts the park in the wrong corner and
+ * the player runs the wrong way with ninety seconds left.
+ * ------------------------------------------------------------------ */
+
+#map {
+  position: absolute;
+  inset: 0;
+  z-index: 20;
+  pointer-events: auto;
+  display: flex;
+  flex-direction: column;
+  align-items: center;
+  justify-content: center;
+  gap: 10px;
+  padding:
+    max(12px, env(safe-area-inset-top)) max(12px, env(safe-area-inset-right))
+    max(12px, env(safe-area-inset-bottom)) max(12px, env(safe-area-inset-left));
+  background: rgba(4, 6, 10, 0.9);
+  backdrop-filter: blur(4px);
+  -webkit-backdrop-filter: blur(4px);
+  animation: fade-in 0.14s ease both;
+}
+#map[hidden] { display: none; }
+
+#map-canvas {
+  /* The plain cap first, for anything without svh. */
+  width: min(90vw, 90vh);
+  height: min(90vw, 90vh);
+  /* And then the real one. min(90vw, 90vh) alone is a square exactly as tall
+   * as the space there is, and the legend underneath it ends up off the bottom
+   * of every landscape phone. 96px is the legend at its two-line worst. */
+  width: min(90vw, 90vh, calc(100svh - 96px));
+  /* Height comes from the ratio and from nothing else. Capping both and then
+   * clamping the width with max-width — which the safe-area padding on a
+   * notched phone held sideways does — gives a map 692 wide and 702 tall, and
+   * a map that is not square puts the park in the wrong corner. */
+  max-width: 100%;
+  aspect-ratio: 1;
+  display: block;
+  border: 1px solid var(--line);
+  border-radius: 6px;
+  background: #060910;
+  touch-action: none;
+}
+
+#map-legend {
+  display: flex;
+  flex-wrap: wrap;
+  justify-content: center;
+  gap: 6px 14px;
+  max-width: min(90vw, 560px);
+  font-size: 11px;
+  color: var(--dim);
+  line-height: 1.6;
+}
+#map-legend span { display: inline-flex; align-items: center; gap: 5px; }
+/* The swatch takes its colour from --c on the item, so the legend is written
+ * once and the map palette stays in the drawing code where it belongs. */
+#map-legend i {
+  width: 9px;
+  height: 9px;
+  border-radius: 2px;
+  background: var(--c, var(--dim));
+  flex: none;
+}
+
+/* ------------------------------------------------------------------ *
+ * Touch controls
+ *
+ * Only up on a coarse pointer. Everything you press under pressure is 56px or
+ * larger, everything sits inside the safe-area insets, and the whole cluster
+ * is in the bottom half —
+ * the clock is at the top centre and no button may ever be within reach of it,
+ * because on a 900x400 phone in landscape those two are about 200px apart and
+ * a button drawn one row too high covers the only number that matters.
+ * ------------------------------------------------------------------ */
+
+#touch {
+  position: absolute;
+  inset: 0;
+  z-index: 2;
+  pointer-events: none;
+  touch-action: none;
+}
+#touch[hidden] { display: none; }
+
+#stick {
+  position: absolute;
+  left: 0;
+  top: 0;
+  width: 116px;
+  height: 116px;
+  margin: -58px 0 0 -58px;
+  border: 2px solid rgba(190, 214, 230, 0.26);
+  border-radius: 50%;
+  background: rgba(0, 0, 0, 0.22);
+  opacity: 0;
+  transition: opacity 0.15s;
+  pointer-events: none;
+}
+#stick.on { opacity: 1; }
+#stick i {
+  position: absolute;
+  left: 50%;
+  top: 50%;
+  width: 48px;
+  height: 48px;
+  margin: -24px 0 0 -24px;
+  border-radius: 50%;
+  background: rgba(232, 163, 60, 0.3);
+  border: 1px solid rgba(255, 201, 120, 0.5);
+}
+
+.tbtn {
+  position: absolute;
+  pointer-events: auto;
+  width: 72px;
+  height: 72px;
+  border-radius: 50%;
+  border: 1px solid rgba(232, 163, 60, 0.36);
+  background: rgba(7, 10, 16, 0.55);
+  color: var(--amber-lit);
+  font: 600 15px/1 var(--font);
+  display: grid;
+  place-items: center;
+  user-select: none;
+  -webkit-user-select: none;
+  -webkit-tap-highlight-color: transparent;
+  touch-action: none;
+}
+.tbtn.small { width: 58px; height: 58px; font-size: 13px; }
+.tbtn.tiny { width: 44px; height: 44px; font-size: 12px; }
+.tbtn:active, .tbtn.on {
+  background: rgba(232, 163, 60, 0.28);
+  border-color: rgba(255, 201, 120, 0.8);
+}
+
+/* The right-hand cluster. The thumb rests on E and everything else is a short
+ * reach from it: E is how you open a door, take the flag and get back inside,
+ * and it is the only control you will use under real pressure. */
+#t-use    { right: calc(20px + env(safe-area-inset-right)); bottom: calc(24px + env(safe-area-inset-bottom)); }
+#t-torch  { right: calc(28px + env(safe-area-inset-right)); bottom: calc(106px + env(safe-area-inset-bottom)); }
+#t-run    { right: calc(98px + env(safe-area-inset-right)); bottom: calc(96px + env(safe-area-inset-bottom)); }
+#t-crouch { right: calc(102px + env(safe-area-inset-right)); bottom: calc(28px + env(safe-area-inset-bottom)); }
+#t-map    { right: calc(166px + env(safe-area-inset-right)); bottom: calc(104px + env(safe-area-inset-bottom)); }
+#t-pause  { left: calc(12px + env(safe-area-inset-left)); top: calc(12px + env(safe-area-inset-top)); }
+
+body.touch #hud-stats { display: none; }
+/* Out from under the pause button, which owns the top-left corner and which
+ * `inset-inline-end` in this RTL document puts the log directly behind. */
+body.touch #hud-log { top: calc(66px + env(safe-area-inset-top)); }
+body.touch #crosshair { opacity: 0.5; }
+body.touch #hud-bottom { width: min(168px, 38vw); }
+/* Clear of the thumb cluster, which is 170px tall at its highest button. */
+body.touch #subtitle { bottom: calc(184px + env(safe-area-inset-bottom)); }
+body.touch #hud-hide { bottom: calc(150px + env(safe-area-inset-bottom)); }
+
+/*
+ * A banner, not a gate. This started life as an inset:0 overlay with
+ * pointer-events: auto, which meant the first touch after a night loaded
+ * dismissed the banner instead of reaching the joystick under it: the player's
+ * first attempt to walk did nothing at all and only their second worked. It is
+ * now a strip, and only its own button takes a pointer.
+ */
+#rotate {
+  position: absolute;
+  left: 50%;
+  /* Below the clock block, which is the tallest thing at the top centre:
+   * ~58px of digits, the night line and the bar come to about 92px on the
+   * largest phone this ships to. env(safe-area-inset-top) is additive to both,
+   * so it does not change which one is on top. */
+  top: calc(100px + env(safe-area-inset-top));
+  transform: translateX(-50%);
+  z-index: 24;
+  display: flex;
+  align-items: center;
+  gap: 10px;
+  max-width: min(320px, 72vw);
+  padding: 7px 7px 7px 13px;
+  border-radius: 999px;
+  background: rgba(7, 10, 16, 0.9);
+  border: 1px solid var(--line);
+  color: var(--amber);
+  font-size: 11px;
+  pointer-events: none;
+}
+#rotate[hidden] { display: none; }
+#rotate span { white-space: nowrap; overflow: hidden; text-overflow: ellipsis; }
+#rotate-ok {
+  pointer-events: auto;
+  touch-action: none;
+  flex: none;
+  font: inherit;
+  font-weight: 700;
+  color: var(--bg);
+  background: var(--amber);
+  border: none;
+  border-radius: 999px;
+  padding: 5px 12px;
+  cursor: pointer;
+}
+
+/* ------------------------------------------------------------------ *
+ * Fade, flash, toast
+ * ------------------------------------------------------------------ */
+
+#fade {
+  position: absolute;
+  inset: 0;
+  z-index: 40;
+  background: #000;
+  opacity: 0;
+  pointer-events: none;
+  transition: opacity 0.5s ease;
+}
+#fade.on { opacity: 1; }
+
+/*
+ * One frame. #flash is how the jump scare and the reset glitch reach the DOM,
+ * and its transition is 60ms because anything longer turns the scare into a
+ * dissolve — the whole effect is that it is over before you can look at it.
+ * pointer-events is off permanently: a flash is fired at the exact moment the
+ * player is mashing E, and a full-screen element that swallowed that press
+ * would cost them the door.
+ */
+#flash {
+  position: absolute;
+  inset: 0;
+  z-index: 45;
+  opacity: 0;
+  pointer-events: none;
+  background: #fff;
+  transition: opacity 0.06s linear;
+}
+#flash.white { opacity: 0.92; background: #fff; }
+/* Not pure flag red: at full screen #c0261f is dark enough to read as a filter
+ * rather than a hit, so the glitch uses the lit variant over a black page. */
+#flash.red { opacity: 0.8; background: var(--red-lit); }
+
+/* The scream, on the DOM layer only — the camera shake itself belongs to the
+ * renderer, and doing it in both places double-shakes and looks cheap. */
+#ui.shake { animation: shake 0.4s linear; }
+@keyframes shake {
+  0%, 100% { transform: none; }
+  20% { transform: translate3d(-4px, 2px, 0); }
+  40% { transform: translate3d(3px, -3px, 0); }
+  60% { transform: translate3d(-3px, -1px, 0); }
+  80% { transform: translate3d(2px, 3px, 0); }
+}
+
+#toast {
+  position: absolute;
+  left: 50%;
+  bottom: 15%;
+  transform: translateX(-50%);
+  z-index: 50;
+  background: rgba(7, 10, 16, 0.93);
+  border: 1px solid var(--line);
+  border-radius: var(--radius);
+  padding: 9px 16px;
+  font-size: 13px;
+  color: var(--ink);
+  max-width: min(520px, 88vw);
+  text-align: center;
+  line-height: 1.6;
+}
+#toast[hidden] { display: none; }
+#toast.hot { border-color: rgba(192, 38, 31, 0.5); color: #ffd9d5; }
+
+/* ------------------------------------------------------------------ *
+ * Small screens
+ * ------------------------------------------------------------------ */
+
+@media (max-width: 560px) {
+  #night-grid { grid-template-columns: repeat(auto-fill, minmax(140px, 1fr)); }
+  .settings .row { grid-template-columns: 1fr 104px 40px; }
+  #hud-stats { display: none; }
+  .choice button, button.choice { flex: 1 1 100%; }
+  /* By 560 the gutter beside the whistle bar is down to about 170px and it
+   * shrinks twice as fast as the bar does, so rather than let the two cross at
+   * 430 and put a log line through the digits, the log leaves the corner here
+   * and goes under the whole clock stack. 120 is the guide's bottom edge
+   * measured from the same base offset the guide is placed against. */
+  #hud-log,
+  body.touch #hud-log {
+    top: calc(max(10px, env(safe-area-inset-top)) + 120px);
+    width: min(240px, 62vw);
+    font-size: 11px;
+  }
+}
+
+/*
+ * Landscape on a phone: 400px of height, and the clock, the guide, the
+ * subtitle and the thumb cluster all want a piece of it. The clock shrinks
+ * first because it is legible at 30px and the rest of the HUD is not legible
+ * at all if it has to overlap.
+ */
+@media (max-height: 460px) and (orientation: landscape) {
+  #clock { font-size: clamp(26px, 5.2vh, 34px); }
+  #whistle-bar { width: clamp(120px, 22vw, 200px); }
+  #hud-night { font-size: 10px; }
+  #guide { top: calc(max(8px, env(safe-area-inset-top)) + 62px); }
+  #susp svg { width: 38px; height: 38px; }
+  #subtitle { bottom: calc(88px + env(safe-area-inset-bottom)); font-size: 14px; }
+  body.touch #subtitle { bottom: calc(176px + env(safe-area-inset-bottom)); }
+  .screen { padding-block: 10px; }
+  .panel { max-height: 92vh; }
+  #rotate { display: none; }
+}
+
+/* A screen this wide is usually further away than a laptop one. The clock has
+ * already hit the top of its clamp and stops growing on its own; the log is
+ * still held to a corner-sized box, and 12px of it across a television is a
+ * rumour rather than a message. */
+@media (min-width: 1600px) {
+  #hud-log { width: 320px; font-size: 13px; }
+}
+
+/* ------------------------------------------------------------------ *
+ * Reduced motion
+ *
+ * Every pulse, every shake, every screen fade. The clock still turns red under
+ * a minute and the gauge still fills — the information survives, only the
+ * movement goes. Motion sickness and a first-person horror game are already a
+ * bad combination without the interface joining in.
+ * ------------------------------------------------------------------ */
+
+@media (prefers-reduced-motion: reduce) {
+  .screen,
+  #puzzle,
+  #map,
+  #hud-log div,
+  #hud-clock.urgent #clock,
+  #susp.high,
+  #ui.shake { animation: none; }
+  #hud-clock.urgent #clock {
+    text-shadow: 0 0 16px rgba(192, 38, 31, 0.5), 0 2px 8px #000;
+  }
+  #fade { transition: none; }
+  #flash { transition: none; }
+  .btn, .key, .choice button, .order-item, .move { transition: none; }
+  #whistle-bar i, .meter i, #hud-hide i, #load-bar i, #susp .fill { transition: none; }
+}
+
+/* The <noscript> message, out of a style attribute so the page can keep a
+   Content-Security-Policy with no 'unsafe-inline'. */
+.noscript-note { padding: 40px; color: var(--amber); font: 16px/1.7 system-ui; }
