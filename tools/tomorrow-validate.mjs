@@ -90,8 +90,18 @@ for (const rel of sources) {
   // the seam. It must still guard every touch so the module imports in Node,
   // which the import check below proves.
   const isAdapter = rel.endsWith('storage/adapter.js');
+  /*
+   * migrate() is the one place a clock read is honest. A document being created
+   * for the first time has no other source for its own creation time — there is
+   * nothing in the input to read it from. It takes nowIso and only falls back to
+   * the system clock when a caller does not pass one, which is why the validator
+   * and demo mode can both stay deterministic while the app still stamps a real
+   * date on a real first run.
+   */
+  const isMigrate = rel.endsWith('storage/migrate.js');
   for (const [re, name] of BANNED) {
     if (isAdapter && (name === 'localStorage' || name === 'document')) continue;
+    if (isMigrate && name === 'new Date() with no argument') continue;
     // Strip comments and string literals before matching, so prose about
     // Math.random() does not fail the file that explains why it is banned.
     const code = src
@@ -290,6 +300,11 @@ if (migrate) {
     } catch (e) { err(`migrate: migrate(${JSON.stringify(c)}) threw — ${e.message}`); }
   }
   check(fine === cases.length, 'migrate: never throws, always lands on a valid Root');
+  const stamped = migrate.migrate(null, NOW_ISO);
+  check(stamped.user.createdAt === NOW_ISO,
+    'migrate: an injected clock is used, so the storage layer can be made deterministic');
+  check(fingerprint(migrate.migrate(null, NOW_ISO)) === fingerprint(stamped),
+    'migrate: with the clock injected it is deterministic');
 }
 
 const catalog = await load('src/data/catalog.js');

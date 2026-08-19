@@ -332,8 +332,13 @@ the evening ritual they are about to lose.
 
 ```js
 export const SCHEMA_VERSION = 1
-export function migrate(raw) -> Root         // never throws; unreadable input -> fresh Root
+export function migrate(raw, nowIso) -> Root  // never throws; unreadable input -> fresh Root
 ```
+
+`nowIso` is optional and exists so the storage layer can be made deterministic
+for the validator. A first-run document has no other source for its own creation
+time, so this is the single place in `src/storage/` allowed to read the system
+clock, and only when a caller does not supply one.
 
 Stored data that is corrupt, from the future, or not a TomorrowAI document at
 all returns a fresh `Root` rather than crashing the app.
