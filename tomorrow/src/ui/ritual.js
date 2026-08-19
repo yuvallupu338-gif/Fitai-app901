@@ -42,7 +42,12 @@ const STAGES = [
 export function runRitual(ctx, date, onDone) {
   const plan = dayPlan(date);
   const draft = {
-    bedtime: plan.nextBedtime,
+    /*
+     * The ritual runs tonight and plans tomorrow, so the sleep it asks about is
+     * the night that ends on the forecast date — plan.bedtime. That is the one
+     * the energy model runs on and the one "sleep earlier" can still change.
+     */
+    bedtime: plan.bedtime,
     state: plan.eveningState || { energy: 3, mood: 3, stress: 3 },
     top: plan.topPriorities.slice(0, 3),
   };
@@ -102,7 +107,7 @@ export function runRitual(ctx, date, onDone) {
  */
 function commitStep(ctx, date, draft) {
   putDayPlan(date, {
-    nextBedtime: draft.bedtime,
+    bedtime: draft.bedtime,
     eveningState: draft.state,
     topPriorities: draft.top,
   });

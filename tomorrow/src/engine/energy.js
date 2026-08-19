@@ -254,8 +254,8 @@ function sleepTerm(sinceWake, effect) {
  * ten-point vertical drop between two neighbouring points, and the chart draws
  * it as a broken axis. Accumulating the cost across the item's own duration
  * puts the same total in the same place with no step in it, and is closer to
- * what happens anyway: a two-hour meeting does not cost anything until it is
- * over and then cost everything at once.
+ * what happens anyway: a two-hour meeting is not free for two hours and then
+ * suddenly expensive.
  *
  * The second is that rest becomes a real thing with a rate instead of a bonus
  * with a size. A gap recovers energy for as long as it lasts, an explicitly
@@ -391,8 +391,8 @@ function fatigueSeries(ctx, items, minutes) {
  * warm-up, for two reasons. It is closer to what happens — the tired part of a
  * long run is the end of it — and it bounds how fast the curve can move: the
  * whole cost is spread over the whole session however long that is, so a short
- * intense block cannot put a cliff in the chart. DIP_FLOOR keeps a fifteen
- * minute session from spending its entire cost in one sample.
+ * intense block cannot put a cliff in the chart. The floor on that span keeps a
+ * fifteen-minute session from spending its whole cost inside one sample.
  *
  * The ordering is the whole reason this is its own layer instead of a heavier
  * entry in the load balance. Someone reading the curve should be able to see
@@ -442,8 +442,9 @@ function workoutEffect(minute, workouts) {
  * §6.1 names energy and stress, and mood is deliberately left out even though
  * the ritual collects it: it is the field of the three that says the least
  * about tomorrow's capacity, and three small shifts stacked on one another
- * would let a bad evening move the curve further than the evidence supports.
- * Mood is used by risk.js and by the copy instead.
+ * would let a bad evening move the curve further than one tap of evidence
+ * supports. Mood is left to the copy, which can say something true about it
+ * without moving a number.
  */
 const EVENING_ENERGY_SHIFT = 2.5;
 const EVENING_STRESS_SHIFT = 2;
@@ -617,8 +618,8 @@ function correctionAt(minute, anchors) {
  * Two things raise it. Evidence: a morning check-in, or the evening state, or a
  * learned level for that part of the day, each reaching a few hours either side
  * of where it sits — wide enough that the band between two anchors sags by a
- * few points rather than by ten. And the personal weight, which is how much of the curve
- * came from this user at all rather than from a population average.
+ * few points rather than by ten. And the personal weight, which is how much of
+ * the curve came from this user at all rather than from a population average.
  *
  * One thing lowers it: distance into the day. The late evening depends on
  * everything that happens before it — whether the afternoon ran over, whether

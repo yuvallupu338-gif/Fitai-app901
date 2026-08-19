@@ -221,9 +221,17 @@ DayPlan = {
 }
 ```
 
-`bedtime` + `wake` feed `sleepWindow()` and give the night's length.
-`nextBedtime` is what the "sleep 45 minutes earlier" recommendation moves and
-what closes the day's timeline.
+`bedtime` + `wake` feed `sleepWindow()` and give the night's length — the night
+that **ends** on `date`. This is the one the energy model runs on, and therefore
+the one the "sleep 45 minutes earlier" recommendation moves: the sleep that
+improves tomorrow is tonight's, not tomorrow night's. The evening ritual's "when
+do you plan to sleep?" sets exactly this field.
+
+`nextBedtime` closes the day's timeline and bounds the awake window, so it
+decides free time and how late anything may be scheduled. It feeds the *next*
+day's `bedtime`, and a scenario that moves it is asking a different question —
+"what if I stop earlier tomorrow evening" — which the sandbox exposes as its own
+mutation kind.
 
 ### 3.4 DayRecord — what actually happened
 

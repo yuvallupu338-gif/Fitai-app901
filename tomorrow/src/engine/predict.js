@@ -101,7 +101,16 @@ function peakOf(curve) {
 }
 
 function dipOf(curve, wake) {
-  const inAfternoon = curve.points.filter((p) => p.minute >= wake + 240 && p.minute <= wake + 660);
+  /*
+   * Bounded to the afternoon on purpose — four to nine hours after waking.
+   *
+   * Without the upper bound the lowest energy of any day is the last sample
+   * before bed, which is true, useless, and not what "when will I flag" means
+   * to somebody planning an afternoon. The evening decline is a fact about
+   * bedtime; the post-lunch trough is a fact about the day, and it is the one
+   * worth marking on a timeline.
+   */
+  const inAfternoon = curve.points.filter((p) => p.minute >= wake + 240 && p.minute <= wake + 540);
   const pool = inAfternoon.length ? inAfternoon : curve.points;
   return pool.reduce((low, p) => (p.value < low.value ? p : low), pool[0]);
 }

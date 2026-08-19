@@ -123,7 +123,7 @@ function showChange(body, ctx, beforeScore, beforeWindow, after, close, onDone) 
  */
 function relearn() {
   const root = get();
-  setLearning(updateLearning(root.learning, recentRecords(120), Object.values(root.items), {}));
+  setLearning(updateLearning(root.learning, recentRecords(120), Object.values(root.items), { at: new Date().toISOString() }));
 }
 
 function slider(label, labels, value, onChange) {

@@ -20,7 +20,7 @@
 import { forecast } from './predict.js';
 import { freeSlots } from './scheduler.js';
 import { estimateDuration } from './learning.js';
-import { fromMinutes } from '../core/time.js';
+import { fromMinutes, bedtimeAbs } from '../core/time.js';
 import { duration as fmtDuration } from '../core/fmt.js';
 
 const STEP = 15;
@@ -66,23 +66,39 @@ function scoreOf(input, items, plan) {
  * — it is the change with the fewest side effects on the rest of the day.
  * ------------------------------------------------------------------ */
 
+/*
+ * Going to bed earlier tonight.
+ *
+ * `plan.bedtime` is the night that ends on the forecast date, so this is the
+ * change that actually reaches tomorrow's energy curve — moving `nextBedtime`
+ * would shorten tomorrow evening and improve the day after, which is not what
+ * anybody means by "sleep 45 minutes earlier" while looking at tomorrow.
+ *
+ * Bounded at both ends. Earlier than about nine in the evening is not a
+ * suggestion anybody will take, and past roughly eleven hours the sleep factor
+ * starts penalising it anyway, so proposing it would be the optimiser chasing
+ * its own curve.
+ */
 function bedtimeCandidates(input) {
   const out = [];
   const plan = input.plan;
+  const current = bedtimeAbs(plan.bedtime);
+
   for (const earlier of [15, 30, 45, 60]) {
-    const next = plan.nextBedtime - earlier;
-    // Pulling the bedtime before the last thing on the calendar is not a plan,
-    // it is a contradiction. Leave twenty minutes to actually get to bed.
-    const lastEnd = input.items.reduce((m, i) => (i.start === null ? m : Math.max(m, i.start + i.duration)), 0);
-    if (next < lastEnd + 20) continue;
-    if (next < 20 * 60) continue;
+    // Expressed on this day's number line, so the previous evening is negative:
+    // -300 is 19:00 the night before, which is as early as this will ever propose.
+    const nextAbs = current - earlier;
+    if (nextAbs < -300) continue;
+    const night = plan.wake - nextAbs;
+    if (night > 11 * 60) continue;                      // past the point it helps
+    const clock = ((nextAbs % 1440) + 1440) % 1440;
     out.push({
       change: {
-        kind: 'bedtime', itemId: null, from: plan.nextBedtime, to: next,
-        label: `שינה ב-${fromMinutes(next)} במקום ב-${fromMinutes(plan.nextBedtime)}`,
+        kind: 'bedtime', itemId: null, from: plan.bedtime, to: clock,
+        label: `שינה ב-${fromMinutes(clock)} במקום ב-${fromMinutes(plan.bedtime)}`,
       },
       items: input.items,
-      plan: Object.assign({}, plan, { nextBedtime: next }),
+      plan: Object.assign({}, plan, { bedtime: clock }),
     });
   }
   return out;

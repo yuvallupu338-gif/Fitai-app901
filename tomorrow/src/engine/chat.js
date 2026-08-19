@@ -205,8 +205,8 @@ function answerSleep(c) {
   const f = c.forecast;
   const night = fmtDuration(f.totals.sleepMinutes);
   const sleepFactor = f.factors.find((x) => x.key === 'sleep');
-  const bed = fromMinutes(c.plan.nextBedtime);
-  const parts = [`מחר אתה מתוכנן על ${night} שינה, והשעה שסימנת לכיבוי אורות היא ${bed}.`];
+  const bed = fromMinutes(c.plan.bedtime);
+  const parts = [`מחר אתה מתוכנן על ${night} שינה, לפי כיבוי אורות ב-${bed} הלילה.`];
   if (sleepFactor) parts.push(`זה נותן לגורם השינה ${sleepFactor.score} מתוך 100.`);
   const rec = f.recommendation;
   if (rec && rec.key === 'bedtime') parts.push(`${rec.title} היה משפר את התחזית ל-${rec.to}.`);

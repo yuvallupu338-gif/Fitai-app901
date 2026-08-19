@@ -339,9 +339,9 @@ function mkItem(over) {
 
 const FIX_ITEMS = [
   mkItem({ kind: 'event', type: 'event', title: 'בית ספר', start: 480, duration: 300, locked: true, priority: 'high', category: 'study' }),
-  mkItem({ kind: 'event', type: 'workout', title: 'אימון', start: 1020, duration: 60, locked: true, category: 'fitness', energyRequirement: 'high' }),
-  mkItem({ title: 'שיעורי בית במתמטיקה', start: 900, duration: 60, focusRequirement: 'high', energyRequirement: 'medium', priority: 'high', isTop: true }),
-  mkItem({ title: 'עבודה על הפרויקט', start: 960, duration: 90, focusRequirement: 'high', energyRequirement: 'high', priority: 'critical', isTop: true, deadline: '2026-09-05' }),
+  mkItem({ title: 'שיעורי בית במתמטיקה', start: 870, duration: 60, focusRequirement: 'high', energyRequirement: 'medium', priority: 'high', isTop: true }),
+  mkItem({ title: 'עבודה על הפרויקט', start: 945, duration: 90, focusRequirement: 'high', energyRequirement: 'high', priority: 'critical', isTop: true, deadline: '2026-09-05' }),
+  mkItem({ kind: 'event', type: 'workout', title: 'אימון', start: 1080, duration: 60, locked: true, category: 'fitness', energyRequirement: 'high' }),
   mkItem({ title: 'לסדר את החדר', start: null, duration: 30, focusRequirement: 'low', energyRequirement: 'low', priority: 'low', category: 'personal' }),
 ];
 
@@ -357,9 +357,9 @@ function fixProfile(over) {
 
 function fixPlan(over) {
   return Object.assign({
-    date: TOMORROW, wake: 450, bedtime: 1395, nextBedtime: 1395,
+    date: TOMORROW, wake: 420, bedtime: 1410, nextBedtime: 1410,
     eveningState: { energy: 3, mood: 3, stress: 3 },
-    topPriorities: [FIX_ITEMS[2].id, FIX_ITEMS[3].id],
+    topPriorities: [FIX_ITEMS[1].id, FIX_ITEMS[2].id],
     preparedAt: NOW_ISO, appliedPlanId: null,
   }, over);
 }
@@ -444,22 +444,40 @@ if (base) {
   }
 
   /* Sleep is monotone: a shorter night is never a better day, anywhere. */
-  const short = predict.forecast(fixInput({ plan: fixPlan({ bedtime: 120 }) }));   // 02:00 -> 07:30
-  const long = predict.forecast(fixInput({ plan: fixPlan({ bedtime: 1320 }) }));   // 22:00 -> 07:30
+  const short = predict.forecast(fixInput({ plan: fixPlan({ bedtime: 120 }) }));    // 02:00 -> 07:00
+  const long = predict.forecast(fixInput({ plan: fixPlan({ bedtime: 1350 }) }));   // 22:30 -> 07:00
   check(short.score < long.score,
-    `forecast: five hours of sleep scores below nine and a half (${short.score} vs ${long.score})`);
+    `forecast: five hours of sleep scores below eight and a half (${short.score} vs ${long.score})`);
   if (short.energy && long.energy && short.energy.points.length === long.energy.points.length) {
     const everywhere = short.energy.points.every((p, i) => p.value <= long.energy.points[i].value + 0.001);
     check(everywhere, 'forecast: a shorter night never raises the energy curve at any point in the day');
   }
 
-  /* The afternoon trough the brief asks for, 6.5-7.5h after waking. */
-  const wake = 450;
-  const trough = base.energy.points
-    .filter((p) => p.minute > wake + 240 && p.minute < wake + 660)
+  /*
+   * The afternoon trough the brief asks for, 6.5-7.5h after waking.
+   *
+   * Measured on a bare day. On a real one the deepest point is often the hour
+   * after a workout, which is correct behaviour and a different claim — this is
+   * about the circadian shape underneath, so the confounders come out.
+   */
+  const wake = 420;
+  const bareDay = predict.forecast(fixInput({ items: [], plan: fixPlan({ topPriorities: [] }) }));
+  const troughIn = (f) => f.energy.points
+    .filter((p) => p.minute > wake + 120 && p.minute < wake + 720)
     .reduce((a, b) => (b.value < a.value ? b : a));
-  check(trough.minute >= wake + 330 && trough.minute <= wake + 540,
-    `forecast: the afternoon dip lands where the model says it should (${trough.minute - wake} min after waking)`);
+  const trough = troughIn(bareDay);
+  check(trough.minute >= wake + 330 && trough.minute <= wake + 480,
+    `forecast: the post-lunch dip lands 6.5-7.5h after waking (got ${((trough.minute - wake) / 60).toFixed(1)}h)`);
+
+  /* And it is deeper on a short night, which is the claim that makes the dip
+   * worth modelling rather than drawing. */
+  const troughShort = troughIn(predict.forecast(fixInput({ items: [], plan: fixPlan({ bedtime: 120, topPriorities: [] }) })));
+  check(troughShort.value < trough.value - 8,
+    `forecast: the dip deepens on a short night (${trough.value.toFixed(1)} rested vs ${troughShort.value.toFixed(1)} tired)`);
+
+  /* The reported dip is the afternoon one, not the last sample before bed. */
+  check(base.energyDip.minute >= wake + 180 && base.energyDip.minute <= wake + 660,
+    `forecast: the reported dip sits in the day rather than at bedtime (${base.energyDip.minute - wake} min after waking)`);
 
   /* Focus windows */
   check(Array.isArray(base.focusWindows) && base.focusWindows.length <= 3,
@@ -467,7 +485,7 @@ if (base) {
   for (const w of base.focusWindows || []) {
     check(w.end > w.start, 'forecast: a focus window ends after it starts');
     check(w.end - w.start >= 45, `forecast: a focus window is at least 45 minutes (got ${w.end - w.start})`);
-    check(w.start >= 450 && w.end <= 1440 + 120, 'forecast: a focus window sits inside the waking day');
+    check(w.start >= 420 && w.end <= 1440 + 120, 'forecast: a focus window sits inside the waking day');
   }
   const ws = (base.focusWindows || []).slice().sort((a, b) => a.start - b.start);
   check(ws.every((w, i) => i === 0 || w.start >= ws[i - 1].end),
@@ -530,7 +548,7 @@ if (base) {
   check(heavy.score < base.score, 'forecast: packing the day lowers the score');
 
   /* Two items on top of each other is a conflict, always. */
-  const clash = clone(FIX_ITEMS).concat([mkItem({ title: 'התנגשות', start: 1030, duration: 60 })]);
+  const clash = clone(FIX_ITEMS).concat([mkItem({ title: 'התנגשות', start: 1090, duration: 60 })]);
   check((predict.forecast(fixInput({ items: clash })).risks || []).some((r) => r.key === 'conflict'),
     'forecast: overlapping items raise a conflict risk');
 
@@ -556,7 +574,7 @@ if (base) {
   /* Totals */
   const t = base.totals;
   check(t && t.loadMinutes > 0 && t.freeMinutes >= 0, 'forecast: totals count load and free time');
-  check(t && t.sleepMinutes === 495, `forecast: totals report the night correctly (got ${t && t.sleepMinutes})`);
+  check(t && t.sleepMinutes === 450, `forecast: totals report the night correctly (got ${t && t.sleepMinutes})`);
   check(t && t.awakeMinutes > 0 && t.freeMinutes <= t.awakeMinutes,
     'forecast: free time cannot exceed the waking day');
 
@@ -585,15 +603,15 @@ if (sched && base) {
     check(Array.isArray(slots), 'scheduler: freeSlots returns a list');
     check(slots.every((s) => s.end > s.start && s.minutes === s.end - s.start),
       'scheduler: every free slot is internally consistent');
-    check(slots.every((s) => s.start >= 450 + 20), 'scheduler: rule 6 — nothing before wake + 20');
-    check(slots.every((s) => s.end <= 1395), 'scheduler: rule 6 — nothing inside the sleep window');
+    check(slots.every((s) => s.start >= 420 + 20), 'scheduler: rule 6 — nothing before wake + 20');
+    check(slots.every((s) => s.end <= 1410), 'scheduler: rule 6 — nothing inside the sleep window');
     const scheduled = FIX_ITEMS.filter((i) => i.start !== null);
     const clashes = slots.filter((s) => scheduled.some((i) => s.start < i.start + i.duration && i.start < s.end));
     check(clashes.length === 0, 'scheduler: rule 1 — a free slot never sits on top of a scheduled item');
   }
 
   if (typeof sched.conflicts === 'function') {
-    const pair = clone(FIX_ITEMS).concat([mkItem({ title: 'חופף', start: 1030, duration: 60 })]);
+    const pair = clone(FIX_ITEMS).concat([mkItem({ title: 'חופף', start: 1090, duration: 60 })]);
     const found = sched.conflicts(pair);
     check(found.length >= 1, 'scheduler: conflicts finds an overlapping pair');
     check(found.every((c) => c.minutes > 0), 'scheduler: a conflict reports how many minutes overlap');
@@ -618,17 +636,30 @@ if (sched && base) {
         : (i.start >= s.start + hard.duration ? i.start - (s.start + hard.duration) : 0)));
       check(gaps.every((g) => g === 0 || g >= 10),
         `scheduler: rule 2 — a suggestion leaves at least a 10-minute buffer (gaps ${gaps.join(',')})`);
-      check(s.start >= 470 && s.start + hard.duration <= 1395,
+      check(s.start >= 440 && s.start + hard.duration <= 1410,
         'scheduler: rule 6 — a suggestion stays inside the waking day');
-      /* Rule 3: a high-focus task goes to a high-focus window when one is free. */
-      if ((base.focusWindows || []).length) {
-        const inWindow = base.focusWindows.some((w) => s.start >= w.start - 30 && s.start < w.end);
-        if (!inWindow) warn(`scheduler: rule 3 — the high-focus suggestion at ${s.start} sits outside every focus window`);
-        else ok('scheduler: rule 3 — a high-focus task is offered a high-focus window');
+      /*
+       * Rule 3 is conditional: a high-focus task goes in a high-focus window
+       * *when one is free*. On the fixture day school covers the morning, so
+       * the test has to establish that a window was actually available before
+       * it can call an afternoon slot a violation.
+       */
+      const busy = clone(FIX_ITEMS).filter((i) => i.start !== null);
+      const freeWindow = (base.focusWindows || []).find((w) => {
+        for (let t = w.start; t + hard.duration <= w.end; t += 15) {
+          if (!busy.some((i) => t < i.start + i.duration && i.start < t + hard.duration)) return true;
+        }
+        return false;
+      });
+      if (freeWindow) {
+        check(s.start >= freeWindow.start - 30 && s.start < freeWindow.end,
+          `scheduler: rule 3 — a free focus window was available and the suggestion used it (slot ${s.start}, window ${freeWindow.start}-${freeWindow.end})`);
+      } else {
+        ok('scheduler: rule 3 — no focus window was free, so the fallback slot is correct');
       }
     }
     /* A day with no room must say so rather than inventing a slot. */
-    const full = [mkItem({ kind: 'event', title: 'כל היום', start: 470, duration: 920, locked: true })];
+    const full = [mkItem({ kind: 'event', title: 'כל היום', start: 445, duration: 940, locked: true })];
     const none = sched.suggestSlot(mkItem({ duration: 90, start: null }),
       Object.assign({}, ctx, { items: full }));
     check(none === null, 'scheduler: a full day returns null rather than a bad slot');
@@ -892,7 +923,7 @@ const sim = await load('src/engine/simulate.js');
 if (sim && typeof sim.simulate === 'function') {
   const input = fixInput();
   const snapshot = fingerprint(input);
-  const sc = sim.simulate(input, [{ kind: 'bedtime', minutes: 1305 }]);   // 45 minutes earlier
+  const sc = sim.simulate(input, [{ kind: 'bedtime', minutes: 1365 }]);   // 45 minutes earlier
 
   check(fingerprint(input) === snapshot,
     'what-if: simulating leaves every byte of the real day alone');
@@ -910,7 +941,7 @@ if (sim && typeof sim.simulate === 'function') {
     'what-if: removing a task removes it from the alternative day only');
   check(fingerprint(input) === snapshot, 'what-if: and still nothing real moved');
 
-  const twice = sim.simulate(fixInput(), [{ kind: 'bedtime', minutes: 1305 }]);
+  const twice = sim.simulate(fixInput(), [{ kind: 'bedtime', minutes: 1365 }]);
   check(fingerprint(twice.next.score) === fingerprint(sc.next.score),
     'what-if: the same scenario gives the same answer every time');
 

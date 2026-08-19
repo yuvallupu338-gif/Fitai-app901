@@ -28,7 +28,6 @@ import { personalWeight } from './learning.js';
 
 const STEP = 15;
 const DAY = 1440;
-const NOON = 720;
 
 /*
  * How much of the energy curve survives into focus, and what is left when none

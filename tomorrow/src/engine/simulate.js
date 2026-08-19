@@ -24,6 +24,12 @@ function clone(v) {
   return JSON.parse(JSON.stringify(v));
 }
 
+/* Move a clock reading by some minutes, wrapping at midnight in both
+ * directions. 00:15 minus half an hour is 23:45, not minus fifteen. */
+function shiftClock(minutes, delta) {
+  return ((minutes + delta) % 1440 + 1440) % 1440;
+}
+
 /*
  * Apply one edit to a cloned day.
  *
@@ -34,7 +40,17 @@ function clone(v) {
  */
 function apply(day, mutation) {
   switch (mutation.kind) {
+    /*
+     * `bedtime` is the night that ends on this date — the one that feeds the
+     * day's energy curve, and therefore the one "what if I slept earlier"
+     * means while looking at tomorrow. `endOfDay` moves the other end, which
+     * changes how much of tomorrow evening is available rather than how
+     * rested tomorrow starts.
+     */
     case 'bedtime':
+      day.plan.bedtime = mutation.minutes;
+      return true;
+    case 'endOfDay':
       day.plan.nextBedtime = mutation.minutes;
       return true;
     case 'wake':
@@ -78,11 +94,6 @@ function apply(day, mutation) {
 
 /**
  * The day as it is, the day as it would be, and the difference between them.
- *
- * `bedtime` on the plan is the night that has already happened by the time this
- * day starts; `nextBedtime` is the one the user can still change. A scenario
- * that moves bedtime moves the second, which is why "sleep an hour earlier"
- * improves tomorrow rather than rewriting last night.
  */
 export function simulate(input, mutations) {
   const muts = Array.isArray(mutations) ? mutations : [];
@@ -154,12 +165,12 @@ export const SCENARIO_CHIPS = [
   {
     key: 'sleep30',
     label: 'לישון חצי שעה מוקדם יותר',
-    apply: (input) => [{ kind: 'bedtime', minutes: input.plan.nextBedtime - 30 }],
+    apply: (input) => [{ kind: 'bedtime', minutes: shiftClock(input.plan.bedtime, -30) }],
   },
   {
     key: 'sleep60',
     label: 'לישון שעה מוקדם יותר',
-    apply: (input) => [{ kind: 'bedtime', minutes: input.plan.nextBedtime - 60 }],
+    apply: (input) => [{ kind: 'bedtime', minutes: shiftClock(input.plan.bedtime, -60) }],
   },
   {
     key: 'earlier',
@@ -231,7 +242,8 @@ export function describe(mutation, items) {
     return it ? `"${it.title}"` : 'המשימה';
   };
   switch (mutation.kind) {
-    case 'bedtime': return `שינה ב-${fromMinutes(mutation.minutes)}`;
+    case 'bedtime': return `שינה הלילה ב-${fromMinutes(mutation.minutes)}`;
+    case 'endOfDay': return `סיום היום ב-${fromMinutes(mutation.minutes)}`;
     case 'wake': return `קימה ב-${fromMinutes(mutation.minutes)}`;
     case 'move': return `${named(mutation.itemId)} ל-${fromMinutes(mutation.start)}`;
     case 'duration': return `${named(mutation.itemId)} — ${fmtDuration(mutation.minutes)}`;

@@ -133,7 +133,7 @@ export function runReview(ctx, date, onDone) {
           pushFeedback('day_review', { date: day, tags: Array.from(chosen), dayScore });
 
           const root = get();
-          setLearning(updateLearning(root.learning, recentRecords(120), Object.values(root.items), {}));
+          setLearning(updateLearning(root.learning, recentRecords(120), Object.values(root.items), { at: new Date().toISOString() }));
           invalidate();
           close();
           if (onDone) onDone();

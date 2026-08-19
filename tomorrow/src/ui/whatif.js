@@ -156,7 +156,8 @@ function chips(ctx, chosen, onChange) {
 
 function manual(ctx, mutations, onChange) {
   const plan = ctx.plan;
-  const currentBed = valueOf(mutations, 'bedtime', plan.nextBedtime);
+  const currentBed = valueOf(mutations, 'bedtime', plan.bedtime);
+  const currentEnd = valueOf(mutations, 'endOfDay', plan.nextBedtime);
   const currentWake = valueOf(mutations, 'wake', plan.wake);
 
   const replace = (kind, minutes) => onChange(
@@ -166,12 +167,23 @@ function manual(ctx, mutations, onChange) {
     h('h2.card-title', { text: 'לשנות בעצמך' }),
 
     h('label.field', null,
-      h('span.label', { text: 'שעת שינה' }),
+      h('span.label', { text: 'שעת שינה הלילה' }),
       h('input.time-input', {
         type: 'time', 'data-t': 'bedtime', value: fromMinutes(currentBed),
         onchange: (e) => {
           const m = toMinutes(e.target.value);
           if (m !== null) replace('bedtime', m);
+        },
+      }),
+      h('span.field-hint', { text: 'הלילה שלפני היום הזה — זה מה שמזין את עקומת האנרגיה.' })),
+
+    h('label.field', null,
+      h('span.label', { text: 'סיום היום' }),
+      h('input.time-input', {
+        type: 'time', value: fromMinutes(currentEnd),
+        onchange: (e) => {
+          const m = toMinutes(e.target.value);
+          if (m !== null) replace('endOfDay', m);
         },
       })),
 
