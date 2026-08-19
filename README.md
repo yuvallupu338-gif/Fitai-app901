@@ -319,12 +319,15 @@ src/
   ui/        wizard, quickstart, plan, exercise cards, nutrition, guide, scan
   styles/    design tokens and components
 tools/
-  validate.js       cross-checks the data and engine layers
-  vision-audit.mjs  proves a photo scan cannot break the engine's rules
-  ai-audit.mjs      provider request shapes, and that a filled form stays legal
-  smoke.mjs         drives the real app in Chromium
-  build-single.js   bundles everything into dist/fitai.html
-  fetch-fonts.js    regenerates the embedded font subsets
+  validate.js           cross-checks the data and engine layers
+  vision-audit.mjs      proves a photo scan cannot break the engine's rules
+  ai-audit.mjs          provider request shapes, and that a filled form stays legal
+  smoke.mjs             drives the real app in Chromium
+  csp-check.mjs         every page on this origin, against its own policy
+  build-single.js       bundles everything into dist/fitai.html
+  fetch-fonts.js        regenerates the embedded font subsets
+  tomorrow-validate.mjs TomorrowAI's engine, against tomorrow/CONTRACTS.md
+  tomorrow-smoke.mjs    drives TomorrowAI in Chromium
 docs/
   CONTRACTS.md      the binding module spec
 ```
@@ -336,7 +339,10 @@ node tools/validate.js                                  # data + engine contract
 node tools/vision-audit.mjs                             # photo-scan containment
 node tools/ai-audit.mjs                                 # providers + intake containment
 node tools/build-single.js                              # single-file bundle
+node tools/tomorrow-validate.mjs                        # TomorrowAI's engine
 NODE_PATH=/opt/node22/lib/node_modules node tools/smoke.mjs --shots
+NODE_PATH=/opt/node22/lib/node_modules node tools/tomorrow-smoke.mjs
+NODE_PATH=/opt/node22/lib/node_modules node tools/csp-check.mjs
 ```
 
 `validate.js` verifies exercise ids, equipment tokens, injury tags and warm-up
@@ -357,6 +363,16 @@ confirm the two agree — delete `jumping_jack` from `demands.js` and the drill
 reappears in a ninety-year-old's warm-up while a table-driven check reports
 everything is fine. Every one of them has been watched fail on a deliberate
 mutation before being trusted; several caught bugs in their own fix.
+
+`tomorrow-validate.mjs` and `tomorrow-smoke.mjs` do the same two jobs for
+TomorrowAI, and were both written against `tomorrow/CONTRACTS.md` before its
+modules existed — so they test what that app promised rather than what it
+happened to do. The validator refuses a prediction engine that is not
+deterministic, a what-if scenario that mutates real data, an "improvement" whose
+listed changes do not reproduce the score it advertised, an insight claimed from
+too few samples, confidence that rises on day count alone, and demo data whose
+headline numbers disagree with the history underneath them. The first thing it
+ever caught was a leap-year assertion of its own.
 
 `vision-audit.mjs` drives the photo-scan normaliser with garbage, hostile values
 and injection attempts, then asserts that the most aggressive read the schema
