@@ -35,7 +35,11 @@ function icon(path) {
   const s = document.createElementNS(ns, 'svg');
   s.setAttribute('viewBox', '0 0 24 24');
   s.setAttribute('aria-hidden', 'true');
-  s.setAttribute('class', 'nav-ico');
+  s.setAttribute('fill', 'none');
+  s.setAttribute('stroke', 'currentColor');
+  s.setAttribute('stroke-width', '1.7');
+  s.setAttribute('stroke-linecap', 'round');
+  s.setAttribute('stroke-linejoin', 'round');
   const p = document.createElementNS(ns, 'path');
   p.setAttribute('d', path);
   s.appendChild(p);
@@ -51,16 +55,16 @@ function icon(path) {
 export function build(host, registry, onNavigate) {
   views = registry;
 
-  const nav = h('nav.nav', { 'aria-label': 'ניווט ראשי' },
-    DESTINATIONS.map((d) => h('button.nav-item', {
+  const nav = h('nav.shell-nav', { 'aria-label': 'ניווט ראשי' },
+    DESTINATIONS.map((d) => h('button.nav-btn', {
       type: 'button',
       'data-t': `nav-${d.key}`,
       'data-key': d.key,
       'aria-label': d.label,
       onclick: () => onNavigate(d.key),
-    }, icon(d.glyph), h('span.nav-label', { text: d.label }))));
+    }, icon(d.glyph), h('span', { text: d.label }))));
 
-  mount = h('main.view-host', { id: 'view-host', tabindex: '-1' });
+  mount = h('main.shell-main', { id: 'view-host', tabindex: '-1' });
   toastHost = h('div.toasts', { 'aria-live': 'polite', 'aria-atomic': 'false' });
   navBar = nav;
 
@@ -76,7 +80,7 @@ export function show(key, ctx) {
   const same = current === key;
   current = key;
 
-  for (const b of navBar.querySelectorAll('.nav-item')) {
+  for (const b of navBar.querySelectorAll('.nav-btn')) {
     const on = b.dataset.key === key;
     b.classList.toggle('on', on);
     b.setAttribute('aria-current', on ? 'page' : 'false');

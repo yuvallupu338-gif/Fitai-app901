@@ -13,6 +13,7 @@ import { h } from './core/dom.js';
 import { get, subscribe, setUi, record, dayPlan } from './core/store.js';
 import { forecastFor, inputFor, invalidate } from './core/forecast.js';
 import { todayKey, addDays, nowMinutes } from './core/time.js';
+import { watch as watchMotion } from './core/motion.js';
 import { build, show, refresh, toast, flow, currentView } from './ui/shell.js';
 
 import * as home from './ui/home.js';
@@ -181,7 +182,7 @@ function start() {
 
   const root = get();
   document.documentElement.setAttribute('data-theme', root.profile.theme || 'dark');
-  if (root.profile.reduceMotion) document.documentElement.setAttribute('data-motion', 'reduce');
+  watchMotion();
 
   build(host, VIEWS, go);
 

@@ -21,6 +21,11 @@
  */
 
 :root {
+  /* Tells the browser which way round its own furniture goes: the scrollbars,
+     the native form controls, the spinner inside a number field. Without it a
+     dark page gets a white scrollbar track on the side of it. */
+  color-scheme: dark;
+
   /* ---------------------------------------------------------------- *
    * Surfaces — four steps, and no more.
    *
@@ -197,7 +202,8 @@
  *   --risk     #B3312A       5.8:1         6.2:1             5.1:1
  *
  *   --primary-ink #FFFFFF on --grad: 6.3:1 at the indigo end, 5.0:1 at the
- *   worst point of the ramp, 5.2:1 at the violet end.
+ *   worst point of the ramp, 5.2:1 at the violet end. On the light theme's
+ *   deeper ramp the same white never drops below 5.7:1.
  *
  * Every one of these clears 4.5:1, the small-text threshold, so nothing in the
  * app depends on a size or a weight to be readable — including --text-mute,
@@ -211,6 +217,8 @@
  */
 
 :root[data-theme="light"] {
+  color-scheme: light;
+
   --bg: #F4F7FC;
   --surface: #FFFFFF;
   --surface-2: #EAF0F8;

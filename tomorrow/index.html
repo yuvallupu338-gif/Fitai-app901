@@ -1,0 +1,78 @@
+<!DOCTYPE html>
+<html lang="he" dir="rtl">
+<head>
+<meta charset="utf-8">
+<!-- viewport-fit=cover lets the layout reach under the notch and the home
+     indicator; base.css pays for it back with env(safe-area-inset-*) padding
+     on everything that touches an edge. user-scalable=no is deliberately not
+     here — Contracts §16.8 asks for WCAG AA, and blocking pinch zoom fails
+     1.4.4 for exactly the people who need to read a small time label. -->
+<meta name="viewport" content="width=device-width, initial-scale=1, viewport-fit=cover">
+<!-- The dark surface colour. app.js rewrites this when the profile's theme
+     switch flips, otherwise a light-theme user keeps a black status bar. -->
+<meta name="theme-color" content="#080B12">
+<meta name="description" content="TomorrowAI לומד איך היום שלך באמת עובד, מנתח את מחר לפני שהוא מתחיל, וממליץ על שינוי אחד שיכול לשפר אותו. הכול נשאר במכשיר.">
+<!-- On iOS these give a real fullscreen shell when the app is added to the
+     home screen, which is where an app opened every evening ends up.
+     black-translucent is what makes viewport-fit=cover mean anything. -->
+<meta name="apple-mobile-web-app-capable" content="yes">
+<meta name="mobile-web-app-capable" content="yes">
+<meta name="apple-mobile-web-app-status-bar-style" content="black-translucent">
+<meta name="apple-mobile-web-app-title" content="TomorrowAI">
+<title>TomorrowAI · מחר, לפני שהוא מתחיל</title>
+
+<!--
+  connect-src is 'none' because this app talks to nobody. Every forecast,
+  score and recommendation is computed in src/engine/ from data that never
+  leaves the device, and the chat answers from the same local engine rather
+  than a model API (Contracts §15). So there is no request for the policy to
+  allow, and saying so out loud is worth more than it costs: this page shares
+  an origin with the other apps in this repository, which means their stored
+  data is only as safe as the weakest page here. If something ever did manage
+  to run inside this document, 'none' is the difference between a bug and a
+  year of somebody's sleep, mood and calendar leaving the machine.
+
+  script-src and style-src are 'self' and nothing beside it: no inline
+  <script>, no inline style attribute, anywhere on the page. That is why
+  src/core/dom.js writes styles through the CSSOM rather than through
+  setAttribute('style', …) — a style attribute set that way is dropped by this
+  policy, silently, with nothing in the console pointing at the line.
+
+  font-src and img-src allow data: because ../src/styles/fonts.css carries the
+  three faces as embedded woff2 and the favicon below is an inline SVG.
+
+  frame-ancestors is not here. It is ignored in a meta tag — it only counts as
+  a real HTTP header, and GitHub Pages does not let this repository set one.
+  Leaving it in would read as clickjacking protection that does not exist.
+-->
+<meta http-equiv="Content-Security-Policy" content="default-src 'none'; script-src 'self'; style-src 'self'; img-src 'self' data:; font-src 'self' data:; connect-src 'none'; media-src 'none'; frame-src 'none'; worker-src 'none'; object-src 'none'; base-uri 'none'; form-action 'none'">
+
+<!-- fonts.css is the repository's shared, generated set of embedded faces and
+     is linked first so the families exist before tokens.css names them. The
+     three files after it are load-bearing in that order: tokens defines every
+     variable, base and components only ever read them. -->
+<link rel="stylesheet" href="../src/styles/fonts.css">
+<link rel="stylesheet" href="src/styles/tokens.css">
+<link rel="stylesheet" href="src/styles/base.css">
+<link rel="stylesheet" href="src/styles/components.css">
+
+<!-- A score arc with tomorrow's point rising over it, at 32px. -->
+<link rel="icon" href="data:image/svg+xml,<svg xmlns='http://www.w3.org/2000/svg' viewBox='0 0 32 32'><rect width='32' height='32' rx='8' fill='%23080B12'/><path d='M6 22a10 10 0 0 1 20 0' fill='none' stroke='%235046E5' stroke-width='3.2' stroke-linecap='round'/><circle cx='16' cy='11' r='3' fill='%237D93FF'/></svg>">
+</head>
+<body>
+
+<!-- The one mount point. app.js renders the nav and the views into it; the
+     shell class is already here so the layout is correct from the first
+     frame it paints, without app.js having to know the stylesheet's names. -->
+<div id="app" class="shell"></div>
+
+<noscript>
+  <p class="noscript-note">
+    TomorrowAI רץ במלואו בדפדפן ודורש JavaScript.
+    אין שרת ואין חשבון — כל הניתוח נעשה במכשיר שלך.
+  </p>
+</noscript>
+
+<script type="module" src="src/app.js"></script>
+</body>
+</html>
