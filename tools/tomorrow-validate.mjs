@@ -518,6 +518,43 @@ if (base) {
   check((base.factors || []).every((f) => f.direction === 'flat'),
     'forecast: with no history, no factor claims a direction');
 
+  /*
+   * A factor may not describe itself in terms its own number contradicts.
+   *
+   * Balance scored 47 while its detail read "the load is nicely spread", and
+   * because reasonsFrom() sorts by how far a factor sits from the middle, that
+   * cheerful sentence was then printed under a downward arrow in the one place
+   * the app explains its reasoning. Swept over a range of day shapes rather
+   * than checked on one, since the mismatch only appears in certain corners.
+   */
+  {
+    const HAPPY = ['מפוזר יפה', 'יושבת בשעות הטובות', 'לא זיהיתי סיכון'];
+    const shapes = [
+      { label: 'one long block', items: [mkItem({ title: 'בלוק', start: 600, duration: 200, focusRequirement: 'high', energyRequirement: 'high' })] },
+      { label: 'stacked afternoon', items: [
+        mkItem({ title: 'א', start: 780, duration: 70, energyRequirement: 'high', focusRequirement: 'high' }),
+        mkItem({ title: 'ב', start: 860, duration: 70, energyRequirement: 'high', focusRequirement: 'high' }),
+        mkItem({ title: 'ג', start: 940, duration: 70, energyRequirement: 'high', focusRequirement: 'high' })] },
+      { label: 'late evening only', items: [mkItem({ title: 'מאוחר', start: 1290, duration: 90, focusRequirement: 'high' })] },
+      { label: 'empty', items: [] },
+      { label: 'fixture', items: clone(FIX_ITEMS) },
+    ];
+    let bad = 0;
+    for (const shape of shapes) {
+      const f = predict.forecast(fixInput({ items: shape.items }));
+      for (const factor of f.factors) {
+        if (factor.score >= 60) continue;
+        for (const phrase of HAPPY) {
+          if (factor.detail.includes(phrase)) {
+            err(`scoring: factor "${factor.key}" scores ${factor.score} on the ${shape.label} day but says "${factor.detail}"`);
+            bad++;
+          }
+        }
+      }
+    }
+    check(bad === 0, 'scoring: no factor contradicts its own score in words');
+  }
+
   check(Array.isArray(base.reasons.up) && Array.isArray(base.reasons.down),
     'forecast: reasons has both directions');
   check(base.reasons.up.length + base.reasons.down.length >= 2,

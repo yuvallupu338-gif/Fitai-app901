@@ -178,12 +178,26 @@ function balanceFactor(input) {
   const longRun = longestRun(input.items);
   if (!hasBreak && longRun > 180) score -= 12 * ramp(longRun, 180, 330);
 
+  /*
+   * The wording is keyed off the score, not off the item count.
+   *
+   * Reading them independently let a factor scoring 47 describe itself as
+   * nicely spread, and reasonsFrom() then printed that sentence under a
+   * downward arrow — the app disagreeing with itself in the one place it is
+   * explaining its own reasoning. Whatever a factor says has to be true of the
+   * number beside it.
+   */
+  const final = Math.round(clamp(score, 0, 100));
   const count = worst.items.filter((i) => demandOf(i) >= 1).length;
-  const detail = count >= 2
-    ? `${count} משימות תובעניות סביב ${fmtTime(worst.start % 1440, input.profile.timeFormat)}`
-    : 'העומס מפוזר יפה על היום';
+  const detail = final >= 70
+    ? 'העומס מפוזר יפה על היום'
+    : count >= 2
+      ? `${count} משימות תובעניות סביב ${fmtTime(worst.start % 1440, input.profile.timeFormat)}`
+      : longRun > 150
+        ? `רצף עבודה של ${fmtDuration(longRun)} בלי הפסקה`
+        : 'העבודה מרוכזת בבלוק אחד במקום להתפזר';
 
-  return { score: Math.round(clamp(score, 0, 100)), detail };
+  return { score: final, detail };
 }
 
 /* The longest stretch with no gap of at least ten minutes in it. */
@@ -252,11 +266,14 @@ function focusFactor(input) {
    */
   const score = 100 * ramp(mean, 34, 88);
 
-  const detail = worst && worst.mean < 55
-    ? `"${worst.item.title}" יושבת בשעה חלשה יחסית`
-    : 'העבודה החשובה יושבת בשעות הטובות שלך';
+  const final = Math.round(clamp(score, 0, 100));
+  const detail = final >= 70
+    ? 'העבודה החשובה יושבת בשעות הטובות שלך'
+    : worst
+      ? `"${worst.item.title}" יושבת בשעה חלשה יחסית`
+      : 'העבודה התובענית לא יושבת בשעות החזקות שלך';
 
-  return { score: Math.round(clamp(score, 0, 100)), detail };
+  return { score: final, detail };
 }
 
 function meanOver(curve, from, to) {
@@ -317,14 +334,16 @@ function goalsFactor(input) {
     sum += clamp(s, 0, 100);
   }
 
-  const score = sum / pool.length;
+  const final = Math.round(clamp(sum / pool.length, 0, 100));
   const detail = unscheduled
     ? `${unscheduled} מהדברים החשובים עדיין בלי שעה`
     : late
       ? 'הדברים החשובים דחוסים לסוף היום'
-      : `${pool.length} דברים חשובים מתוכננים`;
+      : final >= 70
+        ? `${pool.length} דברים חשובים מתוכננים`
+        : 'הדברים החשובים מתוכננים, אבל לא בשעות הטובות של היום';
 
-  return { score: Math.round(clamp(score, 0, 100)), detail };
+  return { score: final, detail };
 }
 
 /* ------------------------------------------------------------------ *
