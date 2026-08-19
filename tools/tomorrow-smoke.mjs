@@ -258,6 +258,59 @@ async function run() {
 
     /* --------------------------------------------------- evening ritual */
     if (await has(page, 'ritual')) {
+      /*
+       * Step one first, properly.
+       *
+       * This walk used to press "next" four times and call the ritual covered,
+       * which is how "add something" shipped opening the item editor
+       * *underneath* the ritual — present in the DOM, focused, keyboard-operable
+       * and invisible, because the flow was z-index 70 and the sheet was 60. A
+       * test that only ever moves forward never finds a control that goes
+       * sideways.
+       */
+      const rowsBefore = (await page.$$('[data-t="ritual"] .list-row')).length;
+      if (await clickIf(page, 'ritual-add')) {
+        await page.waitForTimeout(400);
+
+        const reachable = await page.evaluate(() => {
+          const sheet = document.querySelector('.sheet-back');
+          if (!sheet) return { open: false };
+          const r = sheet.getBoundingClientRect();
+          const at = document.elementFromPoint(r.left + r.width / 2, r.top + r.height / 2);
+          return { open: true, onTop: !!(at && sheet.contains(at)) };
+        });
+        check(reachable.open, 'ritual: "add something" opens the editor');
+        check(reachable.onTop, 'ritual: and the editor is on top of the ritual, not behind it');
+
+        const nl = await page.$(t('quickadd-nl'));
+        if (nl) {
+          await nl.fill('מחר ב-17:00 אימון של שעה');
+          await nl.dispatchEvent('change');
+          await page.waitForTimeout(400);
+        }
+        if (await clickIf(page, 'quickadd-save')) {
+          await page.waitForTimeout(600);
+          const rowsAfter = (await page.$$('[data-t="ritual"] .list-row')).length;
+          check(rowsAfter > rowsBefore,
+            `ritual: the added item appears in the ritual's own list (${rowsBefore} -> ${rowsAfter})`);
+          check(await has(page, 'ritual'), 'ritual: saving does not close the ritual');
+        }
+
+        /* Escape must close the sheet and leave the ritual standing — both
+         * handlers sit on the document, so one press used to take out both. */
+        if (await clickIf(page, 'ritual-add')) {
+          await page.waitForTimeout(350);
+          await page.keyboard.press('Escape');
+          await page.waitForTimeout(350);
+          const layers = await page.evaluate(() => ({
+            sheets: document.querySelectorAll('.sheet-back').length,
+            ritual: !!document.querySelector('[data-t="ritual"]'),
+          }));
+          check(layers.sheets === 0, 'ritual: Escape closes the editor');
+          check(layers.ritual, 'ritual: and leaves the ritual open behind it');
+        }
+      }
+
       let steps = 0;
       while (await has(page, 'ritual') && steps < 10) {
         for (const inp of await page.$$('[data-t="ritual"] input[type="time"]'))
@@ -366,24 +419,37 @@ async function run() {
         check(a !== null, 'what-if: shows the day as it stands');
 
         /*
-         * Try every chip rather than only the first. A scenario that does not
-         * move the number is a legitimate answer — half an hour more sleep on
-         * an already-good night really is worth almost nothing — but if none of
-         * them moves it, the sandbox is inert and that is a bug.
+         * Every chip is either usable or visibly disabled — that is the
+         * invariant worth checking here, and it holds on any day.
+         *
+         * Whether a scenario moves the number is a property of the day, not of
+         * the sandbox. A brand new user's tomorrow can be one workout and
+         * sixteen empty hours, and on that day half an hour more sleep really
+         * is worth nothing; asserting otherwise here tested the fixture rather
+         * than the feature. The demo day, which has a real schedule on it, is
+         * where the score has room to move, and that check lives down there.
          */
+        let usable = 0;
         const moved = [];
         for (let i = 0; i < chips.length; i++) {
           const chip = (await page.$$(t('whatif-chip')))[i];
-          if (!chip || await chip.isDisabled()) continue;
+          if (!chip) continue;
+          const label = (await chip.innerText()).trim();
+          if (await chip.isDisabled()) {
+            const why = await chip.getAttribute('title');
+            check(!!why, `what-if: the disabled chip "${label}" says why it is disabled`);
+            continue;
+          }
+          usable += 1;
           await chip.click().catch(() => {});
           await page.waitForTimeout(450);
           const next = await textOf(page, 'whatif-score-next');
-          if (next !== null && next !== a) moved.push(`${await chip.innerText()} → ${next}`);
-          await chip.click().catch(() => {});   // toggle back off
-          await page.waitForTimeout(250);
+          check(next !== null, `what-if: "${label}" produces a comparison`);
+          if (next !== null && next !== a) moved.push(`${label} → ${next}`);
+          const again = (await page.$$(t('whatif-chip')))[i];
+          if (again) { await again.click().catch(() => {}); await page.waitForTimeout(250); }
         }
-        check(moved.length > 0,
-          `what-if: at least one quick scenario actually moves the forecast (${moved.length} of ${chips.length} did)`);
+        check(usable > 0, `what-if: at least one scenario is available (${usable} of ${chips.length})`);
         for (const m of moved.slice(0, 3)) note(`what-if ${a} ${m.replace(/\s+/g, ' ')}`);
 
         // Leave one applied so Cancel has something to discard.
@@ -574,6 +640,39 @@ async function run() {
       check(await has(page, 'score') || await has(page, 'view-tomorrow'),
         'demo: the demo opens into a full day');
       await shot(page, '10-demo');
+
+      /*
+       * The sandbox, exercised on a day with a real schedule on it. This is
+       * where "does what-if actually do anything" is a fair question — on a
+       * near-empty tomorrow, "nothing changes" is the correct answer and tells
+       * you nothing about the feature.
+       */
+      const demoBase = await textOf(page, 'score');
+      if (await clickIf(page, 'whatif')) {
+        await page.waitForTimeout(500);
+        const base = await textOf(page, 'whatif-score-base');
+        const demoChips = await page.$$(t('whatif-chip'));
+        const demoMoved = [];
+        for (let i = 0; i < demoChips.length; i++) {
+          const chip = (await page.$$(t('whatif-chip')))[i];
+          if (!chip || await chip.isDisabled()) continue;
+          const label = (await chip.innerText()).trim();
+          await chip.click().catch(() => {});
+          await page.waitForTimeout(450);
+          const next = await textOf(page, 'whatif-score-next');
+          if (next !== null && next !== base) demoMoved.push(`${label} → ${next}`);
+          const again = (await page.$$(t('whatif-chip')))[i];
+          if (again) { await again.click().catch(() => {}); await page.waitForTimeout(250); }
+        }
+        check(demoMoved.length > 0,
+          `what-if: on a day with a real schedule, scenarios move the forecast (${demoMoved.length} of ${demoChips.length})`);
+        for (const m of demoMoved.slice(0, 3)) note(`what-if(demo) ${base} ${m.replace(/\s+/g, ' ')}`);
+        await clickIf(page, 'whatif-cancel');
+        await page.waitForTimeout(400);
+        check(await textOf(page, 'score') === demoBase,
+          'what-if: cancelling on the demo day leaves it untouched');
+      }
+      await dismissOverlays(page);
     } else {
       note('demo: no demo entry point found on the first screen');
     }

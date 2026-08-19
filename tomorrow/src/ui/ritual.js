@@ -73,7 +73,7 @@ export function runRitual(ctx, date, onDone) {
       const screen = h('div', { 'data-t': `ritual-step-${step}` });
       body.appendChild(screen);
 
-      if (step === 1) screenSchedule(screen, ctx, date);
+      if (step === 1) screenSchedule(screen, ctx, date, paint);
       else if (step === 2) screenFeel(screen, draft);
       else if (step === 3) screenSleep(screen, draft, ctx);
       else if (step === 4) screenPriorities(screen, ctx, date, draft);
@@ -118,9 +118,20 @@ function commitStep(ctx, date, draft) {
  * 1 — what is on tomorrow
  * ------------------------------------------------------------------ */
 
-function screenSchedule(root, ctx, date) {
+/*
+ * `repaint` is the ritual's own paint(), handed down so the editor can redraw
+ * this screen when it saves.
+ *
+ * The list is read once per paint, and the quick-add sheet's ctx.refresh()
+ * repaints the *view behind the flow* — which is the right thing everywhere
+ * else and useless here. Adding something from inside the ritual left the list
+ * exactly as it was, so the button looked like it had done nothing at all.
+ */
+function screenSchedule(root, ctx, date, repaint) {
   const items = itemsOn(date);
   const fmt = ctx.profile.timeFormat;
+  /* Same context, except that "refresh what is on screen" means this screen. */
+  const inner = Object.assign({}, ctx, { refresh: repaint });
 
   root.appendChild(h('h1.flow-title', { text: 'מה יש לך מחר?' }));
   root.appendChild(h('p.sub', { text: 'אפשר להוסיף, לשנות או להוריד. ככל שזה מדויק יותר, התחזית שווה יותר.' }));
@@ -140,12 +151,13 @@ function screenSchedule(root, ctx, date) {
       h('span.list-meta', { text: fmtDuration(item.duration) })),
     h('button.btn.icon', {
       type: 'button', 'data-t': 'item-edit', 'aria-label': `עריכת ${item.title}`,
-      onclick: () => openItemEditor(ctx, item.id),
+      onclick: () => openItemEditor(inner, item.id),
     }, icon(ICONS.edit))))));
   }
 
   root.appendChild(h('button.btn.block', {
-    type: 'button', onclick: () => openQuickAdd(ctx, { date }),
+    type: 'button', 'data-t': 'ritual-add',
+    onclick: () => openQuickAdd(inner, { date }),
   }, icon(ICONS.plus), 'להוסיף משהו'));
 }
 

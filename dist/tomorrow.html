@@ -45,7 +45,7 @@
   a real HTTP header, and GitHub Pages does not let this repository set one.
   Leaving it in would read as clickjacking protection that does not exist.
 -->
-<meta http-equiv="Content-Security-Policy" content="default-src 'none'; script-src 'sha256-4Ou9MJltREgCVar0CYi4t7ScaSG+9OneYRgZqJPYD4s='; style-src 'sha256-9XvGG9FiqR5B6vyDwjkEOxZldTD0MKmfdHvENLMJVtk='; img-src 'self' data:; font-src 'self' data:; connect-src 'none'; media-src 'none'; frame-src 'none'; worker-src 'none'; object-src 'none'; base-uri 'none'; form-action 'none'">
+<meta http-equiv="Content-Security-Policy" content="default-src 'none'; script-src 'sha256-EfbfakndUznppKpG2Zbgs4DRKOrXSBlKwRuySpCYPDA='; style-src 'sha256-9XvGG9FiqR5B6vyDwjkEOxZldTD0MKmfdHvENLMJVtk='; img-src 'self' data:; font-src 'self' data:; connect-src 'none'; media-src 'none'; frame-src 'none'; worker-src 'none'; object-src 'none'; base-uri 'none'; form-action 'none'">
 
 <!-- fonts.css is the repository's shared, generated set of embedded faces and
      is linked first so the families exist before tokens.css names them. The
@@ -9969,6 +9969,60 @@ function svg(spec, attrs, ...children) {
 let openOverlays = 0;
 
 /*
+ * Every layer sits above the one that opened it.
+ *
+ * The z-indexes used to live in the stylesheet as fixed numbers, and they were
+ * in the wrong order: a full-screen flow was 70 and a sheet was 60, so the
+ * evening ritual's "add something" button opened the item editor *underneath*
+ * the ritual. The sheet was there in the DOM, focused, keyboard-operable and
+ * completely invisible — which is the worst kind of dead button, because
+ * nothing about it looks broken.
+ *
+ * A stack fixes it for good rather than for now. Whatever opens last is on top,
+ * so a sheet over a flow works, a confirm modal over that sheet works, and
+ * nobody has to remember a number when they add the next kind of overlay.
+ *
+ * Escape reads the same stack, and only the topmost layer answers to it. Both
+ * handlers used to be on the document at once, so one press closed the sheet
+ * *and* the ritual behind it.
+ */
+const LAYER_BASE = 70;
+const LAYER_STEP = 10;
+const layers = [];
+
+function pushLayer(node) {
+  const entry = { node };
+  layers.push(entry);
+  node.style.zIndex = String(LAYER_BASE + layers.length * LAYER_STEP);
+  return entry;
+}
+
+function popLayer(entry) {
+  const at = layers.indexOf(entry);
+  if (at >= 0) layers.splice(at, 1);
+}
+
+/** True when this layer is the one the user is actually looking at. */
+function isTopLayer(entry) {
+  return layers.length > 0 && layers[layers.length - 1] === entry;
+}
+
+/** Register a full-screen flow in the same stack the sheets use. */
+function openLayer(node) {
+  const entry = pushLayer(node);
+  openOverlays += 1;
+  document.body.style.overflow = 'hidden';
+  return entry;
+}
+
+/** Release a layer. The scroll lock lifts only when the last one goes. */
+function closeLayer(entry) {
+  popLayer(entry);
+  openOverlays = Math.max(0, openOverlays - 1);
+  if (openOverlays === 0) document.body.style.overflow = '';
+}
+
+/*
  * The shared body of modal() and sheet(): trap Tab inside the box, close on
  * Escape or a click on the backdrop itself, restore the focus that was there
  * before, and hand back a close() the caller can also call directly.
@@ -9982,8 +10036,12 @@ function overlay(kind, box, opts) {
   const o = opts || {};
   const back = h(`div.${kind}-back`, { onclick: (e) => { if (e.target === back) close(); } }, box);
   const prev = document.activeElement;
+  let entry = null;
 
   function onKey(e) {
+    // Only the topmost layer answers the keyboard. Without this, Escape inside
+    // a sheet opened from a flow closed both of them at once.
+    if (!isTopLayer(entry)) return;
     if (e.key === 'Escape') { close(); return; }
     if (e.key !== 'Tab') return;
     const f = qsa('button,[href],input,select,textarea,[tabindex]:not([tabindex="-1"])', box)
@@ -10002,16 +10060,14 @@ function overlay(kind, box, opts) {
     if (!back.isConnected) return;
     document.removeEventListener('keydown', onKey);
     back.remove();
-    openOverlays = Math.max(0, openOverlays - 1);
-    if (openOverlays === 0) document.body.style.overflow = '';
+    closeLayer(entry);
     if (prev && prev.focus) prev.focus();
     if (o.onClose) o.onClose();
   }
 
   document.addEventListener('keydown', onKey);
   document.body.appendChild(back);
-  openOverlays += 1;
-  document.body.style.overflow = 'hidden';
+  entry = openLayer(back);
   const target = qs('button,input,select,textarea', box);
   if (target) {
     target.focus();
@@ -10145,6 +10201,9 @@ function announce(msg) {
     "qs": qs,
     "qsa": qsa,
     "svg": svg,
+    "isTopLayer": isTopLayer,
+    "openLayer": openLayer,
+    "closeLayer": closeLayer,
     "modal": modal,
     "sheet": sheet,
     "signedNum": signedNum,
@@ -10247,7 +10306,7 @@ __m["tomorrow/src/ui/shell.js"] = (function () {
  * like a page reload.
  */
 
-const { h, clear, qs, announce, reduceMotion } = __m["tomorrow/src/core/dom.js"];
+const { h, clear, qs, announce, reduceMotion, openLayer, closeLayer, isTopLayer } = __m["tomorrow/src/core/dom.js"];
 
 const DESTINATIONS = [
   { key: 'tomorrow', label: 'מחר', glyph: 'M12 3v2M12 19v2M3 12h2M19 12h2M6 6l1.5 1.5M16.5 16.5 18 18M18 6l-1.5 1.5M7.5 16.5 6 18M12 8a4 4 0 1 0 0 8 4 4 0 0 0 0-8z' },
@@ -10387,16 +10446,26 @@ function flow(render, opts) {
   const host = h('div.flow', { 'data-t': o.testId || null, role: 'dialog', 'aria-modal': 'true',
     'aria-label': o.label || '' });
   const prev = document.activeElement;
+  let entry = null;
 
   function close() {
+    if (!host.isConnected) return;
     document.removeEventListener('keydown', onKey);
     host.remove();
+    closeLayer(entry);
     document.body.classList.remove('flow-open');
     if (prev && prev.focus) prev.focus();
     if (o.onClose) o.onClose();
   }
 
   function onKey(e) {
+    /*
+     * A flow can have a sheet open on top of it — the ritual's "add something"
+     * opens the item editor — and only the top layer may answer the keyboard.
+     * Both handlers sit on the document, so without this one Escape closed the
+     * editor and the whole ritual with it.
+     */
+    if (!isTopLayer(entry)) return;
     if (e.key === 'Escape' && o.dismissible !== false) { close(); return; }
     if (e.key !== 'Tab') return;
     const f = Array.from(host.querySelectorAll('button,[href],input,select,textarea,[tabindex]:not([tabindex="-1"])'))
@@ -10411,6 +10480,7 @@ function flow(render, opts) {
   document.addEventListener('keydown', onKey);
   document.body.classList.add('flow-open');
   document.body.appendChild(host);
+  entry = openLayer(host);
   render(host, close);
 
   const target = qs('input,button,select,textarea', host);
@@ -15249,7 +15319,7 @@ function runRitual(ctx, date, onDone) {
       const screen = h('div', { 'data-t': `ritual-step-${step}` });
       body.appendChild(screen);
 
-      if (step === 1) screenSchedule(screen, ctx, date);
+      if (step === 1) screenSchedule(screen, ctx, date, paint);
       else if (step === 2) screenFeel(screen, draft);
       else if (step === 3) screenSleep(screen, draft, ctx);
       else if (step === 4) screenPriorities(screen, ctx, date, draft);
@@ -15294,9 +15364,20 @@ function commitStep(ctx, date, draft) {
  * 1 — what is on tomorrow
  * ------------------------------------------------------------------ */
 
-function screenSchedule(root, ctx, date) {
+/*
+ * `repaint` is the ritual's own paint(), handed down so the editor can redraw
+ * this screen when it saves.
+ *
+ * The list is read once per paint, and the quick-add sheet's ctx.refresh()
+ * repaints the *view behind the flow* — which is the right thing everywhere
+ * else and useless here. Adding something from inside the ritual left the list
+ * exactly as it was, so the button looked like it had done nothing at all.
+ */
+function screenSchedule(root, ctx, date, repaint) {
   const items = itemsOn(date);
   const fmt = ctx.profile.timeFormat;
+  /* Same context, except that "refresh what is on screen" means this screen. */
+  const inner = Object.assign({}, ctx, { refresh: repaint });
 
   root.appendChild(h('h1.flow-title', { text: 'מה יש לך מחר?' }));
   root.appendChild(h('p.sub', { text: 'אפשר להוסיף, לשנות או להוריד. ככל שזה מדויק יותר, התחזית שווה יותר.' }));
@@ -15316,12 +15397,13 @@ function screenSchedule(root, ctx, date) {
       h('span.list-meta', { text: fmtDuration(item.duration) })),
     h('button.btn.icon', {
       type: 'button', 'data-t': 'item-edit', 'aria-label': `עריכת ${item.title}`,
-      onclick: () => openItemEditor(ctx, item.id),
+      onclick: () => openItemEditor(inner, item.id),
     }, icon(ICONS.edit))))));
   }
 
   root.appendChild(h('button.btn.block', {
-    type: 'button', onclick: () => openQuickAdd(ctx, { date }),
+    type: 'button', 'data-t': 'ritual-add',
+    onclick: () => openQuickAdd(inner, { date }),
   }, icon(ICONS.plus), 'להוסיף משהו'));
 }
 

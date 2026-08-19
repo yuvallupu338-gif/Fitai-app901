@@ -14,7 +14,9 @@
  * like a page reload.
  */
 
-import { h, clear, qs, announce, reduceMotion } from '../core/dom.js';
+import {
+  h, clear, qs, announce, reduceMotion, openLayer, closeLayer, isTopLayer,
+} from '../core/dom.js';
 
 export const DESTINATIONS = [
   { key: 'tomorrow', label: 'מחר', glyph: 'M12 3v2M12 19v2M3 12h2M19 12h2M6 6l1.5 1.5M16.5 16.5 18 18M18 6l-1.5 1.5M7.5 16.5 6 18M12 8a4 4 0 1 0 0 8 4 4 0 0 0 0-8z' },
@@ -154,16 +156,26 @@ export function flow(render, opts) {
   const host = h('div.flow', { 'data-t': o.testId || null, role: 'dialog', 'aria-modal': 'true',
     'aria-label': o.label || '' });
   const prev = document.activeElement;
+  let entry = null;
 
   function close() {
+    if (!host.isConnected) return;
     document.removeEventListener('keydown', onKey);
     host.remove();
+    closeLayer(entry);
     document.body.classList.remove('flow-open');
     if (prev && prev.focus) prev.focus();
     if (o.onClose) o.onClose();
   }
 
   function onKey(e) {
+    /*
+     * A flow can have a sheet open on top of it — the ritual's "add something"
+     * opens the item editor — and only the top layer may answer the keyboard.
+     * Both handlers sit on the document, so without this one Escape closed the
+     * editor and the whole ritual with it.
+     */
+    if (!isTopLayer(entry)) return;
     if (e.key === 'Escape' && o.dismissible !== false) { close(); return; }
     if (e.key !== 'Tab') return;
     const f = Array.from(host.querySelectorAll('button,[href],input,select,textarea,[tabindex]:not([tabindex="-1"])'))
@@ -178,6 +190,7 @@ export function flow(render, opts) {
   document.addEventListener('keydown', onKey);
   document.body.classList.add('flow-open');
   document.body.appendChild(host);
+  entry = openLayer(host);
   render(host, close);
 
   const target = qs('input,button,select,textarea', host);

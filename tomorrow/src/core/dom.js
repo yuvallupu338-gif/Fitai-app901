@@ -153,6 +153,60 @@ export function svg(spec, attrs, ...children) {
 let openOverlays = 0;
 
 /*
+ * Every layer sits above the one that opened it.
+ *
+ * The z-indexes used to live in the stylesheet as fixed numbers, and they were
+ * in the wrong order: a full-screen flow was 70 and a sheet was 60, so the
+ * evening ritual's "add something" button opened the item editor *underneath*
+ * the ritual. The sheet was there in the DOM, focused, keyboard-operable and
+ * completely invisible — which is the worst kind of dead button, because
+ * nothing about it looks broken.
+ *
+ * A stack fixes it for good rather than for now. Whatever opens last is on top,
+ * so a sheet over a flow works, a confirm modal over that sheet works, and
+ * nobody has to remember a number when they add the next kind of overlay.
+ *
+ * Escape reads the same stack, and only the topmost layer answers to it. Both
+ * handlers used to be on the document at once, so one press closed the sheet
+ * *and* the ritual behind it.
+ */
+const LAYER_BASE = 70;
+const LAYER_STEP = 10;
+const layers = [];
+
+function pushLayer(node) {
+  const entry = { node };
+  layers.push(entry);
+  node.style.zIndex = String(LAYER_BASE + layers.length * LAYER_STEP);
+  return entry;
+}
+
+function popLayer(entry) {
+  const at = layers.indexOf(entry);
+  if (at >= 0) layers.splice(at, 1);
+}
+
+/** True when this layer is the one the user is actually looking at. */
+export function isTopLayer(entry) {
+  return layers.length > 0 && layers[layers.length - 1] === entry;
+}
+
+/** Register a full-screen flow in the same stack the sheets use. */
+export function openLayer(node) {
+  const entry = pushLayer(node);
+  openOverlays += 1;
+  document.body.style.overflow = 'hidden';
+  return entry;
+}
+
+/** Release a layer. The scroll lock lifts only when the last one goes. */
+export function closeLayer(entry) {
+  popLayer(entry);
+  openOverlays = Math.max(0, openOverlays - 1);
+  if (openOverlays === 0) document.body.style.overflow = '';
+}
+
+/*
  * The shared body of modal() and sheet(): trap Tab inside the box, close on
  * Escape or a click on the backdrop itself, restore the focus that was there
  * before, and hand back a close() the caller can also call directly.
@@ -166,8 +220,12 @@ function overlay(kind, box, opts) {
   const o = opts || {};
   const back = h(`div.${kind}-back`, { onclick: (e) => { if (e.target === back) close(); } }, box);
   const prev = document.activeElement;
+  let entry = null;
 
   function onKey(e) {
+    // Only the topmost layer answers the keyboard. Without this, Escape inside
+    // a sheet opened from a flow closed both of them at once.
+    if (!isTopLayer(entry)) return;
     if (e.key === 'Escape') { close(); return; }
     if (e.key !== 'Tab') return;
     const f = qsa('button,[href],input,select,textarea,[tabindex]:not([tabindex="-1"])', box)
@@ -186,16 +244,14 @@ function overlay(kind, box, opts) {
     if (!back.isConnected) return;
     document.removeEventListener('keydown', onKey);
     back.remove();
-    openOverlays = Math.max(0, openOverlays - 1);
-    if (openOverlays === 0) document.body.style.overflow = '';
+    closeLayer(entry);
     if (prev && prev.focus) prev.focus();
     if (o.onClose) o.onClose();
   }
 
   document.addEventListener('keydown', onKey);
   document.body.appendChild(back);
-  openOverlays += 1;
-  document.body.style.overflow = 'hidden';
+  entry = openLayer(back);
   const target = qs('button,input,select,textarea', box);
   if (target) {
     target.focus();
