@@ -17,7 +17,7 @@
 import { h } from '../core/dom.js';
 import { persists } from '../core/store.js';
 import { time as fmtTime, duration as fmtDuration, range as fmtRange } from '../core/fmt.js';
-import { lineChart, legend } from './chart.js';
+import { lineChart } from './chart.js';
 import { timeline } from './timeline.js';
 import { hero } from './score.js';
 import { card, empty, stat, riskCard, insightCard, icon, ICONS, delta } from './parts.js';
@@ -138,44 +138,57 @@ function recommendation(ctx) {
  * Energy and focus
  * ------------------------------------------------------------------ */
 
+/*
+ * Two charts, not one with two lines.
+ *
+ * The brief is explicit that focus gets its own graph, and it is right for a
+ * reason worth stating: overlaying them makes a handsome picture in which the
+ * two curves are constantly compared, and the comparison is not the point. The
+ * question energy answers is "will I have anything left at four"; the question
+ * focus answers is "when is my head actually clear". Stacked, each gets read on
+ * its own terms, each gets its own peak marked, and the focus chart gets the
+ * best window shaded under it — which is the thing the user is here for.
+ */
 function preview(ctx, fmt) {
   const f = ctx.forecast;
   const win = f.focusWindows[0] || null;
   const nowMin = ctx.isTomorrow ? null : (ctx.now.getHours() * 60 + ctx.now.getMinutes());
+  const span = { from: f.energy.from, to: f.energy.to, timeFormat: fmt, now: nowMin };
 
   return card({ title: 'אנרגיה וריכוז', testId: 'preview' },
-    lineChart({
-      id: 'preview',
-      testId: 'energy-chart',
-      series: [
-        { points: f.energy.points, variant: 'energy' },
-        { points: f.focus.points, variant: 'focus', fill: false },
-      ],
-      from: f.energy.from,
-      to: f.energy.to,
-      windows: f.focusWindows,
-      markers: [
-        { minute: f.energyPeak.minute, value: f.energyPeak.value, variant: 'energy' },
-        { minute: f.focusPeak.minute, value: f.focusPeak.value, variant: 'focus' },
-      ],
-      now: nowMin,
-      timeFormat: fmt,
-      ariaLabel: `תחזית אנרגיה וריכוז. שיא אנרגיה ב-${fmtTime(f.energyPeak.minute % 1440, fmt)}, שיא ריכוז ב-${fmtTime(f.focusPeak.minute % 1440, fmt)}`,
-    }),
-    // The second chart the contract's test hooks expect is the focus line, which
-    // is drawn on these same axes on purpose — the gap between the two curves is
-    // the entire point of having both. The hook goes on the container.
-    h('div', { 'data-t': 'focus-chart', class: 'sr-only',
-      text: `ריכוז: שיא ב-${fmtTime(f.focusPeak.minute % 1440, fmt)}` }),
-    legend([
-      { variant: 'energy', label: 'אנרגיה' },
-      { variant: 'focus', label: 'ריכוז' },
-    ]),
+    h('div.curve', null,
+      h('div.curve-head', null,
+        h('span.legend-item', null,
+          h('i.legend-dot.energy', { 'aria-hidden': 'true' }),
+          h('span', { text: 'אנרגיה' })),
+        h('span.meta', { text: `שיא סביב ${fmtTime(f.energyPeak.minute % 1440, fmt)}` })),
+      lineChart(Object.assign({
+        id: 'energy', testId: 'energy-chart',
+        series: [{ points: f.energy.points, variant: 'energy' }],
+        markers: [{ minute: f.energyPeak.minute, value: f.energyPeak.value, variant: 'energy' }],
+        ariaLabel: `תחזית אנרגיה למחר. השיא צפוי סביב ${fmtTime(f.energyPeak.minute % 1440, fmt)}, והירידה סביב ${fmtTime(f.energyDip.minute % 1440, fmt)}`,
+      }, span))),
+
+    h('div.curve', null,
+      h('div.curve-head', null,
+        h('span.legend-item', null,
+          h('i.legend-dot.focus', { 'aria-hidden': 'true' }),
+          h('span', { text: 'ריכוז' })),
+        h('span.meta', { text: `שיא סביב ${fmtTime(f.focusPeak.minute % 1440, fmt)}` })),
+      lineChart(Object.assign({
+        id: 'focus', testId: 'focus-chart',
+        series: [{ points: f.focus.points, variant: 'focus' }],
+        windows: f.focusWindows,
+        markers: [{ minute: f.focusPeak.minute, value: f.focusPeak.value, variant: 'focus' }],
+        ariaLabel: `תחזית ריכוז למחר. החלון החזק ביותר ${win ? fmtRange(win.start, win.end - win.start, fmt) : 'לא נמצא'}`,
+      }, span))),
+
     win
       ? h('p.focus-window', { 'data-t': 'focus-window' },
         h('b', { text: fmtRange(win.start, win.end - win.start, fmt) }),
         h('span', { text: ` — חלון הריכוז החזק ביותר, ברמת ביטחון ${Math.round(win.confidence)}%` }))
-      : h('p.meta', { 'data-t': 'focus-window', text: 'לא נמצא מחר חלון ריכוז ארוך מספיק להמליץ עליו.' }),
+      : h('p.meta', { 'data-t': 'focus-window', text: 'לא נמצא מחר חלון ריכוז ארוך מספיק כדי להמליץ עליו.' }),
+
     h('div.row.stats', null,
       stat('שינה', fmtDuration(f.totals.sleepMinutes)),
       stat('תפוס', fmtDuration(f.totals.loadMinutes)),

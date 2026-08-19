@@ -613,3 +613,14 @@ body.flow-open { overflow: hidden; }
     .view-tomorrow { display: flex; flex-direction: column; }
   }
 }
+
+/* The two curves on the home screen, each with its own heading row. */
+.curve { display: flex; flex-direction: column; gap: var(--s-1); }
+.curve + .curve { margin-block-start: var(--s-4); }
+.curve-head {
+  display: flex;
+  align-items: baseline;
+  justify-content: space-between;
+  gap: var(--s-3);
+  flex-wrap: wrap;
+}
