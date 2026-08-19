@@ -17,10 +17,9 @@ import { h } from '../core/dom.js';
 import { patchItem, removeItem, putItem, putDayPlan } from '../core/store.js';
 import { invalidate } from '../core/forecast.js';
 import { fromMinutes, toMinutes } from '../core/time.js';
-import { time as fmtTime, duration as fmtDuration } from '../core/fmt.js';
 import { simulate, SCENARIO_CHIPS, describe } from '../engine/simulate.js';
 import { lineChart, legend } from './chart.js';
-import { icon, ICONS, delta, empty } from './parts.js';
+import { icon, ICONS, delta } from './parts.js';
 
 export function openWhatIf(ctx) {
   /*

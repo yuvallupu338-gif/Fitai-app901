@@ -13,10 +13,10 @@
  */
 
 import { h } from '../core/dom.js';
-import { putRecord, record, setLearning, get, recentRecords, itemsOn } from '../core/store.js';
+import { putRecord, setLearning, get, recentRecords } from '../core/store.js';
 import { invalidate, forecastFor } from '../core/forecast.js';
 import { todayKey } from '../core/time.js';
-import { time as fmtTime, range as fmtRange, signed } from '../core/fmt.js';
+import { time as fmtTime, range as fmtRange } from '../core/fmt.js';
 import { updateLearning } from '../engine/learning.js';
 import { icon, ICONS, delta } from './parts.js';
 

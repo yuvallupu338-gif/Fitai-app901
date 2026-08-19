@@ -15,15 +15,13 @@
 
 import { h, sheet } from '../core/dom.js';
 import {
-  get, setProfile, reset, exportJson, importJson, replace, persists, recentRecords,
+  get, setProfile, reset, exportJson, importJson, persists, recentRecords,
 } from '../core/store.js';
 import { invalidate } from '../core/forecast.js';
 import { fromMinutes, toMinutes } from '../core/time.js';
-import { duration as fmtDuration } from '../core/fmt.js';
-import { demoRoot } from '../data/demo.js';
 import { SCHEMA_VERSION } from '../storage/migrate.js';
 import { PRIORITY_AREAS, PREFERRED_TIMES } from '../data/catalog.js';
-import { card, empty, icon, ICONS, stat } from './parts.js';
+import { card, icon, ICONS, stat } from './parts.js';
 
 export function render(root, ctx) {
   const p = ctx.profile;

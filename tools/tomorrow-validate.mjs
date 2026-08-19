@@ -1070,6 +1070,65 @@ if (demo && typeof demo.demoRoot === 'function') {
  * 16. UI surface — the parts a browser test cannot reach cheaply
  * ------------------------------------------------------------------ */
 
+/* ------------------------------------------------------------------ *
+ * 15b. The import graph
+ *
+ * Every relative import must point at a file that exists and name something
+ * that file actually exports. Node only finds these when the module is loaded,
+ * so a typo in a screen nobody opened during the browser test would otherwise
+ * ship. This walks every file instead.
+ * ------------------------------------------------------------------ */
+
+function walkJs(dir) {
+  const out = [];
+  if (!existsSync(dir)) return out;
+  for (const name of readdirSync(dir)) {
+    const full = resolve(dir, name);
+    try {
+      if (readdirSync(full).length >= 0) { out.push(...walkJs(full)); continue; }
+    } catch (e) { /* not a directory */ }
+    if (name.endsWith('.js')) out.push(full);
+  }
+  return out;
+}
+
+function exportsOf(file) {
+  const src = readFileSync(file, 'utf8');
+  const out = new Set();
+  for (const m of src.matchAll(/export\s+(?:async\s+)?function\s+([A-Za-z0-9_$]+)/g)) out.add(m[1]);
+  for (const m of src.matchAll(/export\s+(?:const|let|var|class)\s+([A-Za-z0-9_$]+)/g)) out.add(m[1]);
+  for (const m of src.matchAll(/export\s*\{([^}]+)\}/g)) {
+    for (const n of m[1].split(',')) out.add(n.trim().split(/\s+as\s+/).pop());
+  }
+  return out;
+}
+
+{
+  const files = walkJs(resolve(APP, 'src'));
+  check(files.length > 20, `imports: found the app's modules to walk (${files.length})`);
+  let broken = 0;
+  for (const file of files) {
+    const src = readFileSync(file, 'utf8');
+    const rel = relative(APP, file);
+    for (const m of src.matchAll(/import\s*(?:\*\s*as\s*[A-Za-z0-9_$]+|\{([^}]*)\})\s*from\s*['"]([^'"]+)['"]/g)) {
+      const spec = m[2];
+      if (!spec.startsWith('.')) continue;
+      const target = resolve(file, '..', spec);
+      if (!existsSync(target)) { err(`imports: ${rel} imports "${spec}", which does not exist`); broken++; continue; }
+      if (!m[1]) continue;
+      const ex = exportsOf(target);
+      for (const raw of m[1].split(',')) {
+        const n = raw.trim().split(/\s+as\s+/)[0].trim();
+        if (n && !ex.has(n)) {
+          err(`imports: ${relative(APP, target)} does not export "${n}" (wanted by ${rel})`);
+          broken++;
+        }
+      }
+    }
+  }
+  check(broken === 0, 'imports: every relative import resolves to a real export');
+}
+
 const UI_DIR = resolve(APP, 'src/ui');
 if (existsSync(UI_DIR)) {
   const files = readdirSync(UI_DIR).filter((f) => f.endsWith('.js'));

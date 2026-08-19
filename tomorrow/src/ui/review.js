@@ -21,7 +21,7 @@ import { dateLabel, pct, duration as fmtDuration } from '../core/fmt.js';
 import { scoreActualDay, compare } from '../engine/accuracy.js';
 import { updateLearning } from '../engine/learning.js';
 import { REVIEW_TAGS } from '../data/catalog.js';
-import { icon, ICONS, delta } from './parts.js';
+import { icon, ICONS } from './parts.js';
 
 export function runReview(ctx, date, onDone) {
   const day = date || ctx.today;

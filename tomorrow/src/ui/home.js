@@ -16,7 +16,7 @@
 
 import { h } from '../core/dom.js';
 import { persists } from '../core/store.js';
-import { time as fmtTime, duration as fmtDuration, range as fmtRange, dateLabel } from '../core/fmt.js';
+import { time as fmtTime, duration as fmtDuration, range as fmtRange } from '../core/fmt.js';
 import { lineChart, legend } from './chart.js';
 import { timeline } from './timeline.js';
 import { hero } from './score.js';

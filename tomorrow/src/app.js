@@ -9,7 +9,6 @@
  * check-in, the end-of-day review — is due.
  */
 
-import { h } from './core/dom.js';
 import { get, subscribe, setUi, record, dayPlan } from './core/store.js';
 import { forecastFor, inputFor, invalidate } from './core/forecast.js';
 import { todayKey, addDays, nowMinutes, isValidKey } from './core/time.js';

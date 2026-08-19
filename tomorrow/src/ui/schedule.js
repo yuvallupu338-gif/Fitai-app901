@@ -18,7 +18,7 @@
 import { h } from '../core/dom.js';
 import { itemsOn, patchItem, setUi } from '../core/store.js';
 import { weekForecast, invalidate } from '../core/forecast.js';
-import { addDays, weekKeys, dayOfWeek } from '../core/time.js';
+import { addDays, weekKeys } from '../core/time.js';
 import {
   time as fmtTime, duration as fmtDuration, dateLabel, dayShort, range as fmtRange,
 } from '../core/fmt.js';

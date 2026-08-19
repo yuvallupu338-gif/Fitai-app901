@@ -14,7 +14,7 @@
  * at render time rather than baked in.
  */
 
-import { h, qs } from '../core/dom.js';
+import { h } from '../core/dom.js';
 import { get, pushChat } from '../core/store.js';
 import { answer, SUGGESTIONS, mode, hasAdapter } from '../engine/chat.js';
 import { card, icon, ICONS } from './parts.js';

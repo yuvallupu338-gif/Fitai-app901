@@ -19,7 +19,7 @@
  */
 
 import { h, announce } from '../core/dom.js';
-import { itemsOn, putDayPlan, patchItem, dayPlan } from '../core/store.js';
+import { itemsOn, putDayPlan, dayPlan } from '../core/store.js';
 import { invalidate, inputFor } from '../core/forecast.js';
 import { forecast } from '../engine/predict.js';
 import { fromMinutes, toMinutes } from '../core/time.js';
