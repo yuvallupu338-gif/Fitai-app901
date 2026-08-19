@@ -67,10 +67,19 @@ function renderInsights(root, ctx) {
         h('span.label', { text: 'כמה אני כבר מכיר אותך' }),
         h('p.card-note', { text: conf.reasons[0] || '' })),
       confidenceBadge(conf)),
+    /*
+     * A part with no evidence renders as a dash and an empty bar, never as
+     * zero. Math.round(null) is 0, and a flat zero next to "past accuracy"
+     * reads as "this app has been wrong every time" rather than "nobody has
+     * checked yet" — which is the difference the whole engine is careful about.
+     */
     h('div.bars', null,
-      Object.entries(conf.parts).map(([key, value]) => barRow({
-        label: PART_LABEL[key] || key, value: Math.round(value),
-      })))));
+      Object.entries(conf.parts).map(([key, value]) => (value === null
+        ? h('div.bar-row', null,
+          h('span.bar-label', { text: PART_LABEL[key] || key }),
+          h('span.bar-track', { 'aria-hidden': 'true' }),
+          h('span.bar-value.dim', { text: '—', title: 'אין עדיין מה למדוד' }))
+        : barRow({ label: PART_LABEL[key] || key, value: Math.round(value) }))))));
 
   if (!insights.length) {
     root.appendChild(empty({

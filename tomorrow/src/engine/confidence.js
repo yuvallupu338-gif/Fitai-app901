@@ -94,6 +94,13 @@ function recencyPart(records, date) {
   let newest = null;
   for (const r of records) {
     if (!r || !isValidKey(r.date)) continue;
+    /*
+     * Only days that were actually lived. store.record() creates an empty
+     * DayRecord the moment any screen asks about a date, so tomorrow always has
+     * one — and counting it made a brand new profile score full marks for
+     * freshness on the strength of a placeholder it had just created itself.
+     */
+    if (!r.actual && !r.morning && !r.review) continue;
     if (newest === null || r.date > newest) newest = r.date;
   }
   if (newest === null) return 0;

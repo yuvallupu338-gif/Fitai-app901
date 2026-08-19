@@ -13,7 +13,6 @@
  * confidence badge, all of which are now guesses as far as the user knows.
  */
 
-import { duration as fmtDuration } from '../core/fmt.js';
 
 function isNum(v) {
   return typeof v === 'number' && Number.isFinite(v);

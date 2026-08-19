@@ -103,7 +103,9 @@ function comparison(ctx, scenario) {
 
     h('ul.diff-list', null, scenario.summary.map((line) => h('li', { text: line }))),
 
-    changed ? h('div.row.wrap.diff-stats', null,
+    /* Four tracks rather than a wrapping row, for the same reason as the home
+     * screen's stats: a wrapped value leaves its label behind. */
+    changed ? h('div.statgrid.four', null,
       diffStat('אנרגיה', diff.energy),
       diffStat('ריכוז', diff.focus),
       diffStat('זמן פנוי', diff.free, 'דק׳'),

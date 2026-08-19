@@ -183,6 +183,10 @@ body.flow-open { overflow: hidden; }
 
 .home-greet { min-width: 0; flex: 1 1 14ch; }
 
+/* On a phone the two wrappers are just blocks, and the gap between them has to
+   match the gap between the cards inside them or the seam shows. */
+.view-tomorrow { gap: var(--s-4); }
+
 .hero-top {
   display: flex;
   align-items: center;
@@ -575,27 +579,34 @@ body.flow-open { overflow: hidden; }
  * reads correctly to a screen reader and on a narrow window.
  */
 @media (min-width: 1024px) {
+  /*
+   * The reading cap in base.css is right for a column of prose and wrong for
+   * this screen. Two columns inside 860px gives a 380px aside and a 440px main,
+   * which is narrower than the phone layout's own cards — the timeline and both
+   * charts end up cramped on the widest screen the app runs on. A dashboard is
+   * not a paragraph, so this view takes the room it needs and no more.
+   */
   .view-tomorrow {
+    max-width: 1180px;
     display: grid;
-    grid-template-columns: minmax(0, 340px) minmax(0, 1fr);
+    grid-template-columns: minmax(0, 380px) minmax(0, 1fr);
     grid-template-areas:
       'head head'
-      'hero timeline'
-      'rec  timeline'
-      'preview timeline'
-      'risks improve'
-      'risks insights';
+      'aside main';
     align-items: start;
     gap: var(--s-5);
   }
 
   .view-tomorrow > .home-head { grid-area: head; }
-  .view-tomorrow > .card.hero { grid-area: hero; }
-  .view-tomorrow > [data-t='recommendation'] { grid-area: rec; }
-  .view-tomorrow > [data-t='preview'] { grid-area: preview; }
-  .view-tomorrow > .stack:has([data-t='risk']) { grid-area: risks; }
-  .view-tomorrow > .card:has(.timeline) { grid-area: timeline; }
-  .view-tomorrow > .stack:has([data-t='insight']) { grid-area: insights; }
+  .home-aside { grid-area: aside; }
+  .home-main { grid-area: main; }
+
+  /*
+   * The score follows you down the page. It is the one number the whole screen
+   * is about, and losing it behind a scroll while reading the timeline is
+   * losing the thing the timeline is being read against.
+   */
+  .home-aside { position: sticky; top: var(--s-5); }
 
   .flow { padding-block: var(--s-7); }
   .chat-thread { max-width: 720px; }
@@ -608,10 +619,29 @@ body.flow-open { overflow: hidden; }
  * simply do not match and every child falls back to a single column, which is
  * the phone layout on a wide screen: plain, correct, and not broken.
  */
-@supports not selector(:has(*)) {
-  @media (min-width: 1024px) {
-    .view-tomorrow { display: flex; flex-direction: column; }
-  }
+/*
+ * The two columns are ordinary blocks below 1024px, which is the phone layout
+ * and needs no rules at all beyond the gap between their cards.
+ */
+.home-aside,
+.home-main {
+  display: flex;
+  flex-direction: column;
+  gap: var(--s-4);
+  min-width: 0;
+}
+
+.statgrid {
+  display: grid;
+  grid-template-columns: repeat(3, minmax(0, 1fr));
+  gap: var(--s-3);
+  margin-block-start: var(--s-4);
+}
+
+.statgrid .stat-value {
+  font-size: var(--fs-lg);
+  direction: ltr;
+  text-align: start;
 }
 
 /* The two curves on the home screen, each with its own heading row. */
@@ -624,3 +654,7 @@ body.flow-open { overflow: hidden; }
   gap: var(--s-3);
   flex-wrap: wrap;
 }
+
+/* The what-if comparison shows four deltas rather than three. */
+.statgrid.four { grid-template-columns: repeat(4, minmax(0, 1fr)); }
+.statgrid.four .stat-value { font-size: var(--fs-md); }

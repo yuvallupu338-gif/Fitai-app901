@@ -755,6 +755,23 @@ if (conf && typeof conf.assess === 'function' && schema) {
     `confidence: twenty inconsistent days beat twenty steady ones on nothing (${noisy.overall} vs ${steady.overall})`);
   check(noisy.overall < 55,
     `confidence: it does NOT rise on day count alone — that is the rule (got ${noisy.overall})`);
+  /*
+   * A placeholder record is not evidence. store.record() mints an empty
+   * DayRecord the moment any screen asks about a date, so tomorrow always has
+   * one — and freshness counted it, giving a brand new profile full marks on
+   * the strength of a row it had just created itself.
+   */
+  const placeholderOnly = conf.assess(fixLearning(), [
+    { date: TOMORROW, forecast: null, morning: null, checkpoints: [], actual: null, review: null, accuracy: null },
+  ], fixInput());
+  check(placeholderOnly.parts.recency === 0,
+    `confidence: a day nobody has lived does not count as fresh evidence (got ${placeholderOnly.parts.recency})`);
+
+  /* And a part with nothing behind it is null, so the UI can print a dash
+   * rather than a zero that reads as a bad score. */
+  check(placeholderOnly.parts.accuracy === null,
+    'confidence: an unmeasured part is null, not zero');
+
   const fresh = conf.assess(fixLearning(), [], fixInput());
   check(fresh.learningMode === true, 'confidence: a new user is in learning mode');
   check(fresh.overall < steady.overall, 'confidence: a new user is less certain than a settled one');
@@ -1201,6 +1218,13 @@ if (existsSync(UI_DIR)) {
     if (/\.innerHTML\s*=/.test(src) && !/innerHTML\s*=\s*''/.test(src))
       warn(`ui/${f}: assigns innerHTML — use h() unless it is provably a constant`);
     if (/export\s+default/.test(src)) err(`ui/${f}: default export`);
+    /*
+     * Math.round() over a value the engine documents as nullable turns "not
+     * measured" into 0, which reads as a bad score rather than as no score.
+     * accuracy, and the confidence parts, are the values this actually bit.
+     */
+    if (/Math\.round\(\s*(?:[a-zA-Z_$][\w$]*\.)*accuracy\b/.test(src))
+      err(`ui/${f}: rounds a nullable accuracy — null must render as a dash, not 0`);
     /* A Hebrew string is the tell for user-facing copy; a file full of it that
        never imports the DOM helper is building markup some other way. */
     if (/[֐-׿]/.test(src) && !/from '\.\.\/core\/dom\.js'/.test(src) && !/catalog\.js/.test(src))

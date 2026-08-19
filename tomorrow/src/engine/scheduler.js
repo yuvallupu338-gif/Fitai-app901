@@ -20,7 +20,6 @@
 
 import { estimateDuration } from './learning.js';
 import { bedtimeAbs } from '../core/time.js';
-import { time as fmtTime } from '../core/fmt.js';
 
 /* Rule 2: nothing starts on top of the thing before it. */
 const BUFFER = 10;

@@ -16,7 +16,7 @@
 
 import { h } from '../core/dom.js';
 import { persists } from '../core/store.js';
-import { time as fmtTime, duration as fmtDuration, range as fmtRange } from '../core/fmt.js';
+import { time as fmtTime, durationShort, range as fmtRange } from '../core/fmt.js';
 import { lineChart } from './chart.js';
 import { timeline } from './timeline.js';
 import { hero } from './score.js';
@@ -60,17 +60,32 @@ export function render(root, ctx) {
     return;
   }
 
-  root.appendChild(hero(ctx, {
+  /*
+   * Two columns on a desktop, one on a phone, from one DOM order.
+   *
+   * A flat list of cards in a CSS grid row-aligns them, so the shorter column
+   * gets a hole in it — the timeline finished half a screen above the cards
+   * beside it and left a visible dead zone. Two wrappers let each column find
+   * its own height, and because the aside comes first and holds exactly the two
+   * cards that lead the phone layout, the reading order the contract fixes is
+   * unchanged: header, score, recommendation, then the rest.
+   */
+  const aside = h('div.home-aside');
+  const main = h('div.home-main');
+  root.appendChild(aside);
+  root.appendChild(main);
+
+  aside.appendChild(hero(ctx, {
     animateFrom: from,
     onImprove: () => openImprove(ctx),
   }));
+  aside.appendChild(recommendation(ctx));
 
-  root.appendChild(recommendation(ctx));
-  root.appendChild(preview(ctx, fmt));
-  if (f.risks.length) root.appendChild(risks(ctx));
-  root.appendChild(dayTimeline(ctx, fmt));
-  root.appendChild(improveCard(ctx));
-  if (f.insights.length) root.appendChild(insights(ctx));
+  main.appendChild(preview(ctx, fmt));
+  if (f.risks.length) main.appendChild(risks(ctx));
+  main.appendChild(dayTimeline(ctx, fmt));
+  main.appendChild(improveCard(ctx));
+  if (f.insights.length) main.appendChild(insights(ctx));
   root.appendChild(fab(ctx));
 }
 
@@ -189,10 +204,16 @@ function preview(ctx, fmt) {
         h('span', { text: ` — חלון הריכוז החזק ביותר, ברמת ביטחון ${Math.round(win.confidence)}%` }))
       : h('p.meta', { 'data-t': 'focus-window', text: 'לא נמצא מחר חלון ריכוז ארוך מספיק כדי להמליץ עליו.' }),
 
-    h('div.row.stats', null,
-      stat('שינה', fmtDuration(f.totals.sleepMinutes)),
-      stat('תפוס', fmtDuration(f.totals.loadMinutes)),
-      stat('פנוי', fmtDuration(f.totals.freeMinutes))));
+    /*
+     * Three figures, three tracks. As a wrapping flex row the widest of them —
+     * "7 שעות 40 דק׳" — pushed the third onto its own line and left every label
+     * sitting under the wrong number. A grid keeps them in step, and the short
+     * 7:40 form keeps them narrow enough that they never have to wrap at all.
+     */
+    h('div.statgrid', null,
+      stat('שינה', durationShort(f.totals.sleepMinutes)),
+      stat('תפוס', durationShort(f.totals.loadMinutes)),
+      stat('פנוי', durationShort(f.totals.freeMinutes))));
 }
 
 /* ------------------------------------------------------------------ *

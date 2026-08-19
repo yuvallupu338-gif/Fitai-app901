@@ -136,8 +136,14 @@ function summarize(base, next, diff) {
   if (diff.score !== 0) out.push(`ציון מחר ${base.score} ← ${next.score}`);
   if (Math.abs(diff.energy) >= 2) out.push(`אנרגיה ממוצעת ${signed(diff.energy)}`);
   if (Math.abs(diff.focus) >= 2) out.push(`ריכוז ממוצע ${signed(diff.focus)}`);
-  if (Math.abs(diff.free) >= 15) out.push(`זמן פנוי ${signed(Math.round(diff.free))} דק׳`);
-  if (Math.abs(diff.sleep) >= 15) out.push(`שינה ${signed(Math.round(diff.sleep))} דק׳`);
+  // Read as a length of time, not as a count of minutes. "+2 שעות 45 דק׳" is
+  // something somebody can picture; "+165 דק׳" is arithmetic homework.
+  if (Math.abs(diff.free) >= 15) {
+    out.push(`זמן פנוי ${diff.free > 0 ? '+' : '−'}${fmtDuration(Math.abs(Math.round(diff.free)))}`);
+  }
+  if (Math.abs(diff.sleep) >= 15) {
+    out.push(`שינה ${diff.sleep > 0 ? '+' : '−'}${fmtDuration(Math.abs(Math.round(diff.sleep)))}`);
+  }
 
   const wasOverload = base.risks.find((r) => r.key === 'overload');
   const isOverload = next.risks.find((r) => r.key === 'overload');

@@ -20,7 +20,8 @@ import { itemsOn, patchItem, setUi } from '../core/store.js';
 import { weekForecast, forecastFor, invalidate } from '../core/forecast.js';
 import { addDays, weekKeys } from '../core/time.js';
 import {
-  time as fmtTime, duration as fmtDuration, dateLabel, dayShort, range as fmtRange,
+  time as fmtTime, duration as fmtDuration, durationShort, dateLabel, dayShort,
+  range as fmtRange,
 } from '../core/fmt.js';
 import { conflicts } from '../engine/scheduler.js';
 import { card, empty, stat, icon, ICONS } from './parts.js';
@@ -63,20 +64,27 @@ function renderDay(root, ctx) {
   const clashes = conflicts(items);
   const fmt = ctx.profile.timeFormat;
 
+  /*
+   * The arrows point the way the reader travels, which in Hebrew is the
+   * opposite of the way the buttons sit. "Previous" is the first control and
+   * therefore the rightmost one, and going back means going right — so it gets
+   * the unflipped chevron and "next", on the left, gets the flipped one. Both
+   * were inverted, which made them point at each other and mean nothing.
+   */
   root.appendChild(h('div.day-nav', null,
     h('button.btn.quiet', {
       type: 'button', 'aria-label': 'היום הקודם',
       onclick: () => hop(ctx, -1),
-    }, icon(ICONS.chevron, { class: 'flip' })),
+    }, icon(ICONS.chevron)),
     h('span.day-nav-label', { text: dateLabel(ctx.date, ctx.now) }),
     h('button.btn.quiet', {
       type: 'button', 'aria-label': 'היום הבא',
       onclick: () => hop(ctx, 1),
-    }, icon(ICONS.chevron))));
+    }, icon(ICONS.chevron, { class: 'flip' }))));
 
-  root.appendChild(h('div.row.stats.day-stats', null,
-    stat('תפוס', fmtDuration(ctx.forecast.totals.loadMinutes)),
-    stat('פנוי', fmtDuration(ctx.forecast.totals.freeMinutes)),
+  root.appendChild(h('div.statgrid', null,
+    stat('תפוס', durationShort(ctx.forecast.totals.loadMinutes)),
+    stat('פנוי', durationShort(ctx.forecast.totals.freeMinutes)),
     stat('פריטים', String(items.length))));
 
   /*
@@ -113,9 +121,9 @@ function renderDay(root, ctx) {
 
   root.appendChild(card({ variant: 'tight' },
     h('div.row.wrap', null,
-      h('span.grow', null,
-        h('span.label', { text: 'שעת שינה' }),
-        h('b.num', { text: fmtTime(ctx.plan.nextBedtime, fmt) })),
+      h('div.stat.grow', null,
+        h('span.stat-value', { text: fmtTime(ctx.plan.nextBedtime, fmt) }),
+        h('span.stat-label', { text: 'סוף היום' })),
       h('button.btn', {
         type: 'button', onclick: () => openBedtime(ctx, ctx.date, () => ctx.refresh()),
       }, icon(ICONS.moon), 'שינוי'))));

@@ -26,7 +26,7 @@
  * arguments.
  */
 
-import { dayOfWeek, sleepWindow } from '../core/time.js';
+import { dayOfWeek } from '../core/time.js';
 
 /*
  * How fast old observations stop mattering.

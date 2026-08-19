@@ -688,7 +688,9 @@ input[type="radio"] {
   text-align: start;
 }
 
-.list-body { min-width: 0; }
+/* A column, not an inline run. Both children are spans, so without this the
+   title and its meta line sit side by side and touch: "ללמוד למבחןשעתיים". */
+.list-body { display: flex; flex-direction: column; gap: 2px; min-width: 0; }
 .list-title { font-size: var(--fs-md); font-weight: 600; line-height: var(--lh-snug); }
 .list-meta { font-size: var(--fs-xs); color: var(--text-mute); }
 .list-actions { display: flex; align-items: center; gap: var(--s-1); }
