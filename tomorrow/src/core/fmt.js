@@ -36,6 +36,19 @@ function pad2(n) {
   return n < 10 ? `0${n}` : String(n);
 }
 
+/*
+ * Reads a number the way this app means one, where null is a word and not a
+ * zero: no observation yet, no personal signal, nothing measured. Number()
+ * turns null and '' into 0, which is exactly the confusion the contract keeps
+ * warning about — a confidence that was never computed would print as 0% and
+ * read like a finding. Anything that is not a real number arrives here as NaN
+ * and leaves the caller showing a dash.
+ */
+function value(n) {
+  if (n === null || n === undefined || n === '') return NaN;
+  return Number(n);
+}
+
 /* ------------------------------------------------------------------ *
  * Clock
  * ------------------------------------------------------------------ */
@@ -192,7 +205,7 @@ export function relDay(key, now) {
 
 /** A percentage that is already 0..100, not a 0..1 fraction: 84 → '84%'. */
 export function pct(n) {
-  const v = Number(n);
+  const v = value(n);
   if (!Number.isFinite(v)) return UNKNOWN;
   return `${Math.round(v)}%`;
 }
@@ -213,7 +226,7 @@ export function pct(n) {
  * fix for it.
  */
 export function signed(n) {
-  const v = Math.round(Number(n));
+  const v = Math.round(value(n));
   if (!Number.isFinite(v)) return UNKNOWN;
   if (v > 0) return `+${v}`;
   if (v < 0) return `${MINUS}${-v}`;
@@ -231,7 +244,7 @@ export function signed(n) {
  * identical everywhere.
  */
 export function num(n) {
-  const v = Number(n);
+  const v = value(n);
   if (!Number.isFinite(v)) return UNKNOWN;
   const r = Math.round(v);
   const digits = String(Math.abs(r)).replace(/\B(?=(\d{3})+(?!\d))/g, ',');
@@ -244,7 +257,7 @@ export function num(n) {
  * disagree between the ring and the history row.
  */
 export function scoreLabel(score) {
-  const v = Number(score);
+  const v = value(score);
   if (!Number.isFinite(v)) return UNKNOWN;
   if (v < 55) return 'יום מאתגר';
   if (v < 70) return 'יום סביר';

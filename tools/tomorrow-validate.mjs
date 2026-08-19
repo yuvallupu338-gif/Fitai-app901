@@ -142,7 +142,8 @@ if (time) {
       'time: sleepWindow.minutes is always positive');
   }
   if (time.addDays && time.diffDays) {
-    check(time.addDays('2026-02-28', 1) === '2026-02-29', 'time: addDays crosses into a leap day');
+    check(time.addDays('2028-02-28', 1) === '2028-02-29', 'time: addDays crosses into a leap day');
+    check(time.addDays('2026-02-28', 1) === '2026-03-01', 'time: addDays knows 2026 is not a leap year');
     check(time.addDays('2026-12-31', 1) === '2027-01-01', 'time: addDays crosses a year');
     check(time.diffDays('2026-03-30', '2026-03-27') === 3, 'time: diffDays across a DST boundary');
     check(time.addDays('2026-03-28', 1) === '2026-03-29', 'time: addDays across a DST boundary');
