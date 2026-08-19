@@ -17,7 +17,7 @@
 
 import { h } from '../core/dom.js';
 import { itemsOn, patchItem, setUi } from '../core/store.js';
-import { weekForecast, invalidate } from '../core/forecast.js';
+import { weekForecast, forecastFor, invalidate } from '../core/forecast.js';
 import { addDays, weekKeys } from '../core/time.js';
 import {
   time as fmtTime, duration as fmtDuration, dateLabel, dayShort, range as fmtRange,
@@ -164,10 +164,26 @@ function row(ctx, item, fmt) {
  */
 function toggleDone(ctx, item) {
   const done = item.status === 'done';
+  const before = ctx.forecast.score;
+
   patchItem(item.id, done
     ? { status: 'planned', completedAt: null, actualDuration: null }
     : { status: 'done', completedAt: new Date().toISOString(), actualDuration: item.actualDuration || item.duration });
   invalidate();
+
+  /*
+   * Live adaptation, in the smallest form that is honest.
+   *
+   * Finishing something changes the shape of the rest of the day, so the
+   * forecast really is different now — but only say so when the number actually
+   * moved, and only for a day that is still happening. Announcing "forecast
+   * updated" on every tick trains people to ignore it, and announcing it about
+   * next Tuesday is meaningless.
+   */
+  const after = forecastFor(ctx.date, ctx.now).score;
+  if (!ctx.isTomorrow && after !== before) {
+    ctx.toast(`התחזית עודכנה · ${before} ← ${after}`);
+  }
   ctx.refresh();
 }
 

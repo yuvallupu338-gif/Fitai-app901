@@ -15,7 +15,7 @@
  * if a call can leave a mark.
  */
 
-import { sleepWindow } from '../core/time.js';
+import { sleepWindow, bedtimeAbs } from '../core/time.js';
 import { personalWeight } from './learning.js';
 import { energyCurve } from './energy.js';
 import { focusCurve, bestWindows } from './focus.js';
@@ -27,17 +27,6 @@ import { primaryRecommendation } from './optimize.js';
 
 const NOON = 720;
 const DAY = 1440;
-
-/*
- * A bedtime as a position on this day's number line rather than a clock
- * reading. 23:15 is 1395 and stays 1395; 00:30 belongs to the small hours of
- * the following morning and becomes 1470. The split is noon, the same place
- * sleepWindow() splits, because those two disagreeing is how a day ends up
- * with a timeline that stops before it started.
- */
-export function bedtimeAbs(minutes) {
-  return minutes >= NOON ? minutes : minutes + DAY;
-}
 
 /** The stretch of the day the user is awake for, in absolute minutes. */
 function awakeWindow(plan) {

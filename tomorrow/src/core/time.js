@@ -279,6 +279,23 @@ function normalizeClock(m) {
 }
 
 /**
+ * A clock reading turned into a point on one day's number line.
+ *
+ * 23:00 stays 1380; 00:30 becomes 1470, because it belongs to the small hours
+ * after this date rather than the morning before it. The split is noon — the
+ * same place sleepWindow() splits a night, and it has to stay the same place:
+ * a timeline that ended before it started was what happened the first time two
+ * modules disagreed about which day 00:30 was on.
+ *
+ * It lives here rather than in the engine because three modules need it and
+ * core/time.js is the only one of them nothing else imports, so this is the one
+ * home for it that closes no cycle.
+ */
+export function bedtimeAbs(minutes) {
+  return minutes >= NOON ? minutes : minutes + MINUTES_PER_DAY;
+}
+
+/**
  * The night that ENDS on the forecast date, expressed against that date's
  * midnight: { start, end, minutes }.
  *

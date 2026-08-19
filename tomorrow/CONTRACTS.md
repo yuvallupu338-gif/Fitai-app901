@@ -86,6 +86,7 @@ export function fromMinutes(m) -> 'HH:MM'         // wraps at 24h, always 2-digi
 export function snap(m, step) -> Number           // round to nearest `step` minutes
 export function overlaps(aStart, aDur, bStart, bDur) -> Boolean
 export function weekKeys(key, weekStart) -> [DateKey]   // the 7 days of that week
+export function bedtimeAbs(m) -> Number           // a clock reading as a point on this day's line
 ```
 
 ### Sleep spans midnight — one function decides

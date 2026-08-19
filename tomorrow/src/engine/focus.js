@@ -23,7 +23,7 @@
  * the JSON byte for byte, and both curves go into it.
  */
 
-import { diffDays, isValidKey } from '../core/time.js';
+import { diffDays, isValidKey, bedtimeAbs } from '../core/time.js';
 import { personalWeight } from './learning.js';
 
 const STEP = 15;
@@ -249,16 +249,6 @@ function clamp(n, lo, hi) {
  */
 function round1(n) {
   return Math.round(n * 10) / 10;
-}
-
-/*
- * A bedtime as a point on this day's number line rather than a clock reading.
- * predict.js has the same three lines and they must agree, but focus.js cannot
- * import predict.js — predict.js imports this file, and a cycle between the
- * forecast and one of its models is not worth a saved function.
- */
-function bedtimeAbs(minutes) {
-  return minutes >= NOON ? minutes : minutes + DAY;
 }
 
 /*

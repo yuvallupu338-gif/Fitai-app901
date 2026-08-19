@@ -26,7 +26,7 @@
  * and compares the JSON byte for byte.
  */
 
-import { sleepWindow } from '../core/time.js';
+import { sleepWindow, bedtimeAbs } from '../core/time.js';
 import { personalWeight } from './learning.js';
 
 /* The contract fixes the published sample spacing at 15 minutes (§6). */
@@ -102,21 +102,6 @@ function learned(value) {
   const v = Number(value);
   if (value === null || value === undefined || !Number.isFinite(v)) return null;
   return v;
-}
-
-/*
- * The end of the day as a point on this day's number line rather than a clock
- * reading: 23:00 stays 1380, and 00:30 becomes 1470 because it belongs to the
- * small hours after this date, not to the morning before it. The split is noon,
- * the same place sleepWindow() splits a night.
- *
- * predict.js exports exactly this function, and importing it from here would
- * close a cycle — predict.js imports energyCurve. Two copies of a two-line rule
- * is the smaller problem, as long as it is written down that the rule lives in
- * three places now: sleepWindow(), predict.bedtimeAbs() and here.
- */
-function bedtimeAbs(minutes) {
-  return minutes >= NOON ? minutes : minutes + DAY;
 }
 
 /* ------------------------------------------------------------------ *
@@ -633,8 +618,9 @@ function correctionAt(minute, anchors) {
  * How much the model believes its own number at each point.
  *
  * Two things raise it. Evidence: a morning check-in, or the evening state, or a
- * learned level for that part of the day, each with a reach of a couple of
- * hours either side. And the personal weight, which is how much of the curve
+ * learned level for that part of the day, each reaching a few hours either side
+ * of where it sits — wide enough that the band between two anchors sags by a
+ * few points rather than by ten. And the personal weight, which is how much of the curve
  * came from this user at all rather than from a population average.
  *
  * One thing lowers it: distance into the day. The late evening depends on
@@ -650,7 +636,7 @@ const CONF_EVIDENCE = 52;
 const CONF_PERSONAL = 22;
 const CONF_HORIZON = 10;
 const CONF_MAX = 95;
-const EVIDENCE_REACH = 150;
+const EVIDENCE_REACH = 240;
 
 function evidenceAnchors(ctx, weight, anchors) {
   const out = [];
@@ -666,14 +652,22 @@ function evidenceAnchors(ctx, weight, anchors) {
   return out;
 }
 
+/*
+ * Anchors combine rather than compete: each one removes some of what is unknown
+ * at this minute, and what is left over is the product. Taking the nearest
+ * anchor instead — the obvious reading of "how far is this from evidence" — put
+ * a sawtooth in the band, dipping between every pair of anchors and rising
+ * again at each one, which on a chart looks like the model doubting itself
+ * every couple of hours for no reason a reader could name.
+ */
 function confidenceAt(minute, wake, span, weight, evidence) {
-  let best = 0;
+  let unknown = 1;
   for (const anchor of evidence) {
-    const near = anchor.strength * Math.exp(-Math.abs(minute - anchor.minute) / EVIDENCE_REACH);
-    if (near > best) best = near;
+    unknown *= 1 - anchor.strength * Math.exp(-Math.abs(minute - anchor.minute) / EVIDENCE_REACH);
   }
   const horizon = CONF_HORIZON * ((minute - wake) / span);
-  return Math.round(clamp(CONF_BASE + CONF_EVIDENCE * best + CONF_PERSONAL * weight - horizon, 0, CONF_MAX));
+  return Math.round(clamp(
+    CONF_BASE + CONF_EVIDENCE * (1 - unknown) + CONF_PERSONAL * weight - horizon, 0, CONF_MAX));
 }
 
 /* ------------------------------------------------------------------ *
