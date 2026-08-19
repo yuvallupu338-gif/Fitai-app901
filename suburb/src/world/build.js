@@ -646,7 +646,7 @@ function props(sec, col, lights, interact, layout, rng) {
       case 'bench': bench(sec, col, p); break;
       case 'sign': sign(sec, col, p); break;
       case 'shelter': shelter(sec, col, p); break;
-      case 'homeMark': break;   /* the goal is a trigger, not a thing        */
+      case 'homeMark': homeMark(sec, col, interact, p); break;
       default: break;
     }
   }
@@ -841,6 +841,25 @@ function fountain(sec, col, interact, p) {
   col.add(p.x - 0.35, 0, p.z - 0.35, p.x + 0.35, 2.1, p.z + 0.35, { tag: 'fountain' });
   interact.push({
     kind: 'fountain', x: p.x, y: 0.5, z: p.z + p.r * 0.75, radius: 2.0, label: 'המזרקה',
+  });
+}
+
+/*
+ * Where the night ends: a doormat outside your own front door.
+ *
+ * The goal was a trigger volume and nothing else, which is fine until 3:34:40
+ * with her behind you and a red flag in your hand — at which point "somewhere
+ * near my front door" is not a place. A mat is a place, it is lit by your own
+ * porch light, and it is the only one in the street.
+ */
+function homeMark(sec, col, interact, p) {
+  const mb = sec.at(p.x, p.z, 1.2, 1.2, 0.3);
+  addGround(mb, p.x - 0.6, p.z - 0.4, p.x + 0.6, p.z + 0.4, 0.44, MAT.CLOTH,
+    { sub: 2, ao: () => 0.75 });
+  void col;
+  interact.push({
+    kind: 'home', houseId: p.houseId, x: p.x, y: 0.6, z: p.z, radius: 1.8,
+    label: 'הדלת שלך',
   });
 }
 

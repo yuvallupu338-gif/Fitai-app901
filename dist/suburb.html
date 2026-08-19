@@ -18,7 +18,7 @@
      everything itself and talks to nobody: script-src is 'self' with no inline
      anything, and connect-src is 'none'. frame-ancestors is omitted — it is
      ignored in a meta tag. -->
-<meta http-equiv="Content-Security-Policy" content="default-src 'none'; script-src 'sha256-4eFSIuj+P2egTtj+0/D7A8cE1FGyOTMDhTWcmz8aMvE='; style-src 'sha256-gdUDtSmekqOcBn8CCc22rsE0V7gD+72c9SCTvZ46ncA='; img-src 'self' data:; font-src 'self' data:; connect-src 'none'; media-src 'none'; frame-src 'none'; worker-src 'none'; object-src 'none'; base-uri 'none'; form-action 'none'">
+<meta http-equiv="Content-Security-Policy" content="default-src 'none'; script-src 'sha256-UwI4dHuWmbwhicigVDtd3wuJ0gYWXp/V89i+CG3LNw4='; style-src 'sha256-gdUDtSmekqOcBn8CCc22rsE0V7gD+72c9SCTvZ46ncA='; img-src 'self' data:; font-src 'self' data:; connect-src 'none'; media-src 'none'; frame-src 'none'; worker-src 'none'; object-src 'none'; base-uri 'none'; form-action 'none'">
 <link rel="icon" href="data:image/svg+xml,<svg xmlns='http://www.w3.org/2000/svg' viewBox='0 0 32 32'><rect width='32' height='32' fill='%230b1018'/><path d='M8 27V5' stroke='%23cfd6df' stroke-width='2'/><path d='M9 6h15l-4 5 4 5H9z' fill='%23c0261f'/></svg>">
 <style>
 /*
@@ -1545,13 +1545,13 @@ body.touch #hud-hide { bottom: calc(150px + env(safe-area-inset-bottom)); }
 </head>
 <body>
 
-<canvas id="view"></canvas>
+<canvas id="view" aria-label="שכונת האורנים, מבט בגוף ראשון"></canvas>
 
 <div id="ui">
 
   <!-- ---------------------------------------------------------- HUD -->
   <div id="hud" hidden>
-    <div id="crosshair"></div>
+    <div id="crosshair" aria-hidden="true"></div>
 
     <!-- The clock is the whole game. It is the first thing on the screen and
          the only number that is always true. -->
@@ -1571,7 +1571,7 @@ body.touch #hud-hide { bottom: calc(150px + env(safe-area-inset-bottom)); }
       <span id="susp-label">חשד</span>
     </div>
 
-    <div id="hud-log"></div>
+    <div id="hud-log" aria-live="polite" aria-atomic="false"></div>
 
     <!-- Points at the flag once you know where it is, and at your own front
          door once you are carrying it. -->
@@ -1581,7 +1581,7 @@ body.touch #hud-hide { bottom: calc(150px + env(safe-area-inset-bottom)); }
     </div>
 
     <div id="hud-prompt" hidden></div>
-    <div id="subtitle" hidden></div>
+    <div id="subtitle" aria-live="polite" hidden></div>
 
     <div id="hud-bottom">
       <div class="meter" id="m-breath"><i></i><span>נשימה</span></div>
@@ -1601,12 +1601,12 @@ body.touch #hud-hide { bottom: calc(150px + env(safe-area-inset-bottom)); }
        walk-and-look only: no doors, no puzzles, no flag. -->
   <div id="touch" hidden>
     <div id="stick"><i></i></div>
-    <button class="tbtn" id="t-use" data-key="KeyE" data-mode="tap">E</button>
-    <button class="tbtn small" id="t-torch" data-key="KeyF" data-mode="tap">🔦</button>
-    <button class="tbtn small" id="t-run" data-key="ShiftLeft" data-mode="hold">רץ</button>
-    <button class="tbtn small" id="t-crouch" data-key="KeyC" data-mode="hold">כפוף</button>
-    <button class="tbtn small" id="t-map" data-key="KeyM" data-mode="tap">מפה</button>
-    <button class="tbtn tiny" id="t-pause">❚❚</button>
+    <button class="tbtn" id="t-use" aria-label="פעולה" data-key="KeyE" data-mode="tap">E</button>
+    <button class="tbtn small" id="t-torch" aria-label="פנס" data-key="KeyF" data-mode="tap">🔦</button>
+    <button class="tbtn small" id="t-run" aria-label="ריצה" data-key="ShiftLeft" data-mode="hold">רץ</button>
+    <button class="tbtn small" id="t-crouch" aria-label="כפיפה" data-key="KeyC" data-mode="hold">כפוף</button>
+    <button class="tbtn small" id="t-map" aria-label="מפה" data-key="KeyM" data-mode="tap">מפה</button>
+    <button class="tbtn tiny" id="t-pause" aria-label="תפריט">❚❚</button>
   </div>
 
   <!-- Advisory, not a gate: pointer-events is off on the banner itself so it
@@ -1774,11 +1774,11 @@ body.touch #hud-hide { bottom: calc(150px + env(safe-area-inset-bottom)); }
   <!-- The in-world object is real geometry; this is the panel you get when
        you press E on it. Keeping it in the DOM is what makes a keypad
        readable on a phone and reachable by a keyboard. -->
-  <div id="puzzle" hidden>
+  <div id="puzzle" role="dialog" aria-modal="true" aria-labelledby="puzzle-title" hidden>
     <div class="puzzle-box">
       <div class="puzzle-head">
         <span id="puzzle-title"></span>
-        <button id="puzzle-close" class="btn tiny">✕</button>
+        <button id="puzzle-close" class="btn tiny" aria-label="סגירה">✕</button>
       </div>
       <p id="puzzle-note"></p>
       <div id="puzzle-body"></div>
@@ -1788,13 +1788,13 @@ body.touch #hud-hide { bottom: calc(150px + env(safe-area-inset-bottom)); }
 
   <!-- ---------------------------------------------------------- map -->
   <!-- Drawn from the same layout the world is built from, so it cannot lie. -->
-  <div id="map" hidden>
+  <div id="map" role="dialog" aria-label="מפת השכונה" hidden>
     <canvas id="map-canvas" width="520" height="520"></canvas>
     <div id="map-legend"></div>
   </div>
 
-  <div id="fade"></div>
-  <div id="flash"></div>
+  <div id="fade" aria-hidden="true"></div>
+  <div id="flash" aria-hidden="true"></div>
   <div id="toast" hidden></div>
 </div>
 
@@ -9336,6 +9336,7 @@ class Whistler {
     this.dist = 999;
     this.events = [];
     this.hunted = 0;         /* how long this hunt has been going on        */
+    this.didCatch = false;
     this.heard = 0;          /* decays; drives the "she is listening" cue   */
   }
 
@@ -9540,6 +9541,23 @@ class Whistler {
     return this.events;
   }
 
+  /*
+   * Drifting is not a random walk.
+   *
+   * The first version stepped to a random neighbouring node each time it
+   * arrived, with a small bias against doubling back — and simulating whole
+   * nights showed what that actually produces: on night one she covered 175
+   * metres in five minutes and never left one corner of the neighbourhood,
+   * visiting six of the sixty ten-metre squares in it. A player could walk the
+   * entire street, twice, past her own house, and never be noticed. A random
+   * walk on a graph does not explore, it loiters.
+   *
+   * So she picks somewhere to be — a node at least thirty-five metres off,
+   * never the one she came from — paths to it, and walks the whole way, with
+   * the odd stop to turn and look. That reads as searching, and it means the
+   * far end of the street is never safe just because she started at the other
+   * one.
+   */
   drift(dt, world) {
     if (this.pause > 0) {
       this.pause -= dt;
@@ -9549,23 +9567,34 @@ class Whistler {
       return;
     }
     if (!this.path.length) {
-      const options = this.graph.adj[this.node];
-      const next = options.length
-        ? options[Math.floor(this.rng() * options.length)] : this.node;
-      /* Coming back the way she came is allowed but unlikely, so she covers
-       * ground instead of pacing one junction. */
-      const pick = (next === this.prevNode && options.length > 1)
-        ? options[(options.indexOf(next) + 1) % options.length] : next;
-      this.prevNode = this.node;
-      this.node = pick;
-      const n = this.graph.nodes[pick];
-      this.path = [{ x: n.x, z: n.z }];
-      if (this.rng.chance(0.22)) {
-        this.pause = this.rng.range(1.2, 3.0);
+      this.node = this.nearestNode(this.pos.x, this.pos.z);
+      const target = this.pickRoam();
+      this.path = this.pathTo(target.x, target.z);
+      /* A pause between legs, not between steps: stopping every twelve metres
+       * is a patrol, stopping every two is a stutter. */
+      if (this.rng.chance(0.45)) {
+        this.pause = this.rng.range(1.0, 2.6);
         this.turnDir = this.rng.chance(0.5) ? 1 : -1;
       }
     }
     this.step(dt, world, this.cfg.speed);
+  }
+
+  /* Somewhere worth walking to: far enough to be a journey, and weighted
+   * towards the roads and the gardens rather than dead ends. */
+  pickRoam() {
+    const nodes = this.graph.nodes;
+    const far = [];
+    for (const n of nodes) {
+      const d = Math.hypot(n.x - this.pos.x, n.z - this.pos.z);
+      if (d < 35) continue;
+      /* Front gardens and back gardens count twice: the road is how she gets
+       * around, but the gardens are where a person hiding would be. */
+      far.push(n);
+      if (n.kind === 'front' || n.kind === 'back') far.push(n);
+    }
+    if (!far.length) return nodes[this.rng.int(nodes.length)];
+    return far[this.rng.int(far.length)];
   }
 
   listen(dt, world) {
@@ -9613,7 +9642,13 @@ class Whistler {
         this.pos.z = nz;
         this.yaw = approachAngle(this.yaw, Math.atan2(-dx, -dz), dt * 5);
       }
-      if (d < CATCH) this.events.push({ type: 'caught' });
+      /* Once. The event ends the night, and a night can only end once — but
+       * anything else listening (a sound, a screen shake) would otherwise fire
+       * thirty times a second for as long as she stood on top of you. */
+      if (d < CATCH && !this.didCatch) {
+        this.didCatch = true;
+        this.events.push({ type: 'caught' });
+      }
     } else {
       this.lostFor += dt;
       if (!this.path.length && this.lastSeen) {

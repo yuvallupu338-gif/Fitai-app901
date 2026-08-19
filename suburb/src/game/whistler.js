@@ -117,17 +117,19 @@ export class Whistler {
    * than speed, speed is worse than posture.
    */
   noticeRate(player, world, lit) {
+    /* Distance first, always. It drives the heartbeat and the audio mix, and
+     * returning early without it freezes both — so hiding in a wardrobe made
+     * the room go calm while she walked up to it, which is precisely backwards. */
+    this.dist = Math.hypot(player.pos.x - this.pos.x, player.pos.z - this.pos.z);
     if (player.hidden) {
       /* Hiding works, until the night she opens wardrobes. */
       if (!this.cfg.entersHouses) return 0;
-      const d = Math.hypot(player.pos.x - this.pos.x, player.pos.z - this.pos.z);
-      return d < 2.2 ? 1.8 : 0;
+      return this.dist < 2.2 ? 1.8 : 0;
     }
     const px = player.pos.x, pz = player.pos.z;
     const py = player.pos.y + player.eye;
     const dx = px - this.pos.x, dz = pz - this.pos.z;
-    const d = Math.hypot(dx, dz);
-    this.dist = d;
+    const d = this.dist;
     if (d > this.cfg.sight) return 0;
 
     /* Her forward is -Z rotated by yaw, matching the camera convention. */
@@ -217,24 +219,72 @@ export class Whistler {
     }
     const nx = this.pos.x + (dx / d) * speed * dt;
     const nz = this.pos.z + (dz / d) * speed * dt;
-    if (this.blocked(nx, nz, world)) {
-      this.path = this.pathTo(t.x, t.z);
-      /* One nudge sideways, so a re-path that returns the same route does not
-       * leave her vibrating against a wall. */
-      this.pos.x += (-dz / d) * speed * dt * 0.5;
-      this.pos.z += (dx / d) * speed * dt * 0.5;
-    } else {
+    if (!this.blocked(nx, nz, world)) {
       this.pos.x = nx;
       this.pos.z = nz;
+      this.stuck = 0;
+    } else {
+      /*
+       * Something is in the way. Three answers, in order, and all three are
+       * needed — the first version applied a blind sideways nudge, which
+       * unwedged her by walking through the corner of the house it had just
+       * refused to let her walk through, and the second version applied the
+       * nudge only when it was clear, which left her standing against a shut
+       * front door for two thirds of a night.
+       */
+      const lx = -dz / d, lz = dx / d;
+      let slid = false;
+      /* 1. Slide along whatever it is, either way round. */
+      for (const sgn of [this.slideDir || 1, -(this.slideDir || 1)]) {
+        const sx = this.pos.x + lx * sgn * speed * dt;
+        const sz = this.pos.z + lz * sgn * speed * dt;
+        if (!this.blocked(sx, sz, world)) {
+          this.pos.x = sx;
+          this.pos.z = sz;
+          this.slideDir = sgn;
+          slid = true;
+          break;
+        }
+      }
+      this.stuck = (this.stuck || 0) + dt;
+      /* 2. Still going nowhere after a second: this waypoint is not worth it. */
+      if (!slid && this.stuck > 1.0) {
+        this.path.shift();
+        if (!this.path.length) {
+          const roam = this.pickRoam();
+          this.path = this.pathTo(roam.x, roam.z);
+        }
+        this.slideDir = -(this.slideDir || 1);
+      }
+      /* 3. Four seconds boxed in cannot happen and would be unrecoverable if
+       * it did, so it is allowed to end the only way it can: she is not
+       * entirely a person, and she goes through. */
+      if (this.stuck > 4) {
+        this.pos.x = nx;
+        this.pos.z = nz;
+        this.stuck = 0;
+      }
     }
     this.yaw = approachAngle(this.yaw, Math.atan2(-dx, -dz), dt * 2.6);
   }
 
+  /*
+   * What she will not cross. Fences, hedges, cars and bins are nothing to her;
+   * the shell of a house is, until the night she starts coming inside.
+   *
+   * A closed front door counts as part of the shell, and leaving it out was
+   * not a small omission: the door is its own box rather than part of the
+   * wall, so she walked through every shut front door in the street on every
+   * night of the game — which quietly deleted the difference night six is
+   * built around. An open door is a hole, and its box goes non-solid when it
+   * swings, so the same test covers both.
+   */
   blocked(x, z, world) {
     const list = world.near(x - 0.4, z - 0.4, x + 0.4, z + 0.4, this._tmp || (this._tmp = []));
     for (const b of list) {
-      if (b.tag !== 'house' && b.tag !== 'garage' && b.tag !== 'wall'
-        && b.tag !== 'boundary') continue;
+      const shell = b.tag === 'house' || b.tag === 'garage' || b.tag === 'wall'
+        || (b.tag === 'door' && b.solid);
+      if (!shell && b.tag !== 'boundary') continue;
       if (this.cfg.entersHouses && b.tag !== 'boundary') continue;
       if (x + 0.3 > b.x0 && x - 0.3 < b.x1 && z + 0.3 > b.z0 && z - 0.3 < b.z1
         && b.y1 > 1.0) return true;
@@ -361,8 +411,17 @@ export class Whistler {
 
   hunt(dt, player, world) {
     this.hunted += dt;
+    const near = Math.hypot(player.pos.x - this.pos.x, player.pos.z - this.pos.z) < 4;
+    /*
+     * The close-range clause exists so that a hunt does not end because the
+     * player stepped behind her — at four metres she has you whether or not
+     * you are in the cone. It still has to respect a wall: without the sight
+     * test she keeps "seeing" you through the front of your own house, walks
+     * at the wall, and catches you through it.
+     */
     const seen = this.noticeRate(player, world, 1) > 0
-      || Math.hypot(player.pos.x - this.pos.x, player.pos.z - this.pos.z) < 4;
+      || (near && world.lineOfSight(this.pos.x, EYE, this.pos.z,
+        player.pos.x, player.pos.y + player.eye, player.pos.z));
     if (seen) {
       this.lastSeen = { x: player.pos.x, z: player.pos.z };
       this.lostFor = 0;
@@ -382,10 +441,13 @@ export class Whistler {
         this.pos.z = nz;
         this.yaw = approachAngle(this.yaw, Math.atan2(-dx, -dz), dt * 5);
       }
-      /* Once. The event ends the night, and a night can only end once — but
-       * anything else listening (a sound, a screen shake) would otherwise fire
-       * thirty times a second for as long as she stood on top of you. */
-      if (d < CATCH && !this.didCatch) {
+      /* Once, and not through a wall. The event ends the night, and a night can
+       * only end once — but anything else listening (a sound, a screen shake)
+       * would otherwise fire thirty times a second for as long as she stood on
+       * top of you. */
+      const reach = d < CATCH && world.lineOfSight(this.pos.x, 1.2, this.pos.z,
+        player.pos.x, player.pos.y + 1.2, player.pos.z);
+      if (reach && !this.didCatch) {
         this.didCatch = true;
         this.events.push({ type: 'caught' });
       }

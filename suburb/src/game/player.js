@@ -71,6 +71,8 @@ export class Player {
     this.surface = 'grass';
     this.indoors = false;
     this.frozenOut = 0;        /* cooldown after leaving a hiding place     */
+    this.hideCooldown = 0;     /* and how long until you can get back in    */
+    this.from = null;          /* where you were standing before you hid    */
   }
 
   get cameraY() { return this.pos.y + this.eye + this.bob; }
@@ -85,8 +87,16 @@ export class Player {
 
   /* Being inside something is a hard state: no movement, no look, and the
    * camera sits where the wardrobe is rather than where the body was. */
+  /*
+   * Into a wardrobe. Where the body was is remembered, because that is where
+   * it has to come back out: the hiding place itself is a solid box, and
+   * leaving the player standing in the middle of it hands them to the
+   * collision pass, which pushes them out along whichever axis is cheapest —
+   * sometimes through the bedroom wall and onto the lawn.
+   */
   hide(spot, seconds) {
     this.hidden = { x: spot.x, z: spot.z, until: seconds };
+    this.from = { x: this.pos.x, y: this.pos.y, z: this.pos.z };
     this.pos.x = spot.x;
     this.pos.z = spot.z;
     this.vel.x = this.vel.z = 0;
@@ -96,7 +106,16 @@ export class Player {
   unhide() {
     if (!this.hidden) return;
     this.hidden = null;
+    if (this.from) {
+      this.pos.x = this.from.x;
+      this.pos.y = this.from.y;
+      this.pos.z = this.from.z;
+      this.from = null;
+    }
     this.frozenOut = 0.4;
+    /* You cannot climb straight back in. Without this, two taps of E is an
+     * unlimited hiding place and the wardrobe timer means nothing. */
+    this.hideCooldown = 6;
     this.events.push({ type: 'hide', on: false });
   }
 
@@ -249,6 +268,7 @@ export class Player {
 
     /* ---- stillness ---- */
     this.frozenOut = Math.max(0, this.frozenOut - dt);
+    this.hideCooldown = Math.max(0, (this.hideCooldown || 0) - dt);
     if (planar < 0.12 && input.idle > 0 && this.frozenOut <= 0) this.still += dt;
     else this.still = 0;
   }

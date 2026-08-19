@@ -24,13 +24,13 @@
 </head>
 <body>
 
-<canvas id="view"></canvas>
+<canvas id="view" aria-label="שכונת האורנים, מבט בגוף ראשון"></canvas>
 
 <div id="ui">
 
   <!-- ---------------------------------------------------------- HUD -->
   <div id="hud" hidden>
-    <div id="crosshair"></div>
+    <div id="crosshair" aria-hidden="true"></div>
 
     <!-- The clock is the whole game. It is the first thing on the screen and
          the only number that is always true. -->
@@ -50,7 +50,7 @@
       <span id="susp-label">חשד</span>
     </div>
 
-    <div id="hud-log"></div>
+    <div id="hud-log" aria-live="polite" aria-atomic="false"></div>
 
     <!-- Points at the flag once you know where it is, and at your own front
          door once you are carrying it. -->
@@ -60,7 +60,7 @@
     </div>
 
     <div id="hud-prompt" hidden></div>
-    <div id="subtitle" hidden></div>
+    <div id="subtitle" aria-live="polite" hidden></div>
 
     <div id="hud-bottom">
       <div class="meter" id="m-breath"><i></i><span>נשימה</span></div>
@@ -80,12 +80,12 @@
        walk-and-look only: no doors, no puzzles, no flag. -->
   <div id="touch" hidden>
     <div id="stick"><i></i></div>
-    <button class="tbtn" id="t-use" data-key="KeyE" data-mode="tap">E</button>
-    <button class="tbtn small" id="t-torch" data-key="KeyF" data-mode="tap">🔦</button>
-    <button class="tbtn small" id="t-run" data-key="ShiftLeft" data-mode="hold">רץ</button>
-    <button class="tbtn small" id="t-crouch" data-key="KeyC" data-mode="hold">כפוף</button>
-    <button class="tbtn small" id="t-map" data-key="KeyM" data-mode="tap">מפה</button>
-    <button class="tbtn tiny" id="t-pause">❚❚</button>
+    <button class="tbtn" id="t-use" aria-label="פעולה" data-key="KeyE" data-mode="tap">E</button>
+    <button class="tbtn small" id="t-torch" aria-label="פנס" data-key="KeyF" data-mode="tap">🔦</button>
+    <button class="tbtn small" id="t-run" aria-label="ריצה" data-key="ShiftLeft" data-mode="hold">רץ</button>
+    <button class="tbtn small" id="t-crouch" aria-label="כפיפה" data-key="KeyC" data-mode="hold">כפוף</button>
+    <button class="tbtn small" id="t-map" aria-label="מפה" data-key="KeyM" data-mode="tap">מפה</button>
+    <button class="tbtn tiny" id="t-pause" aria-label="תפריט">❚❚</button>
   </div>
 
   <!-- Advisory, not a gate: pointer-events is off on the banner itself so it
@@ -253,11 +253,11 @@
   <!-- The in-world object is real geometry; this is the panel you get when
        you press E on it. Keeping it in the DOM is what makes a keypad
        readable on a phone and reachable by a keyboard. -->
-  <div id="puzzle" hidden>
+  <div id="puzzle" role="dialog" aria-modal="true" aria-labelledby="puzzle-title" hidden>
     <div class="puzzle-box">
       <div class="puzzle-head">
         <span id="puzzle-title"></span>
-        <button id="puzzle-close" class="btn tiny">✕</button>
+        <button id="puzzle-close" class="btn tiny" aria-label="סגירה">✕</button>
       </div>
       <p id="puzzle-note"></p>
       <div id="puzzle-body"></div>
@@ -267,13 +267,13 @@
 
   <!-- ---------------------------------------------------------- map -->
   <!-- Drawn from the same layout the world is built from, so it cannot lie. -->
-  <div id="map" hidden>
+  <div id="map" role="dialog" aria-label="מפת השכונה" hidden>
     <canvas id="map-canvas" width="520" height="520"></canvas>
     <div id="map-legend"></div>
   </div>
 
-  <div id="fade"></div>
-  <div id="flash"></div>
+  <div id="fade" aria-hidden="true"></div>
+  <div id="flash" aria-hidden="true"></div>
   <div id="toast" hidden></div>
 </div>
 

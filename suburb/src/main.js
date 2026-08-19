@@ -133,10 +133,11 @@ class Game {
     const st = store.load();
     this.ui.markProgress(st);
     const btn = document.querySelector('#btn-continue');
-    if (st.night > 1 || st.cleared.length) {
-      btn.hidden = false;
-      btn.textContent = `המשך · לילה ${st.night}`;
-    }
+    /* Both ways round. Only ever un-hiding it left "continue · night 5" on the
+     * menu of a save that had just been wiped. */
+    const started = st.night > 1 || st.cleared.length > 0;
+    btn.hidden = !started;
+    if (started) btn.textContent = `המשך · לילה ${st.night}`;
   }
 
   /* ---------------------------------------------------------------- *
@@ -553,6 +554,13 @@ class Game {
   resume() {
     if (!this.layout) return;
     this.state = 'play';
+    /* The context is suspended when the tab goes away, and the visibility
+     * handler only resumes it if the game was still playing — which it never
+     * is, because losing the tab pauses it. Without this line, one alt-tab
+     * makes the rest of the session silent. */
+    if (this.audio.ctx && this.audio.ctx.state === 'suspended') {
+      this.audio.ctx.resume().catch(() => {});
+    }
     this.ui.show(null);
     if (!this.touchMode) this.input.requestLock();
     this.keepAwake();
@@ -618,8 +626,12 @@ class Game {
      */
     input.enabled = !this.puzzle.open;
     if (this.puzzle.open) {
-      /* Standing at a keypad is standing still, and she treats it that way. */
+      /* Standing at a keypad is standing still, and she treats it that way —
+       * including the running penalty, which would otherwise be applied to
+       * whatever speed the player happened to be carrying when they pressed E. */
       player.still += dt;
+      player.speed = 0;
+      player.vel.x = player.vel.z = 0;
       if (this.clock) this.tickNight(dt, this.lightAt(player.pos.x, player.cameraY,
         player.pos.z));
       return;
@@ -871,6 +883,8 @@ class Game {
       case 'doghouse': return 'לבדוק במלונה';
       case 'fountain': return 'להסתכל מתחת למזרקה';
       case 'number': return null;
+      case 'home':
+        return this.flag && this.flag.state === FLAG.CARRIED ? null : 'הבית שלך';
       case 'flagpole': return 'הדגל של הבית הזה';
       case 'story': return 'להסתכל';
       case 'garageDoor': return 'דלת המוסך נעולה';
@@ -938,16 +952,25 @@ class Game {
         break;
       }
       case 'bed':
-        if (this.scene === 'day') {
+        if (this.scene === 'day' && !this.sleeping) {
+          /* The fade is half a second long and E repeats, so without the guard
+           * a second press starts a second night on top of the first: two
+           * whistlers, two clocks, and the older one still updating. */
+          this.sleeping = true;
           this.ui.fade(true).then(() => {
             this.startNight();
+            this.sleeping = false;
             this.ui.fade(false);
           });
-        } else ui.log('לא עכשיו.');
+        } else if (this.scene !== 'day') ui.log('לא עכשיו.');
         break;
       case 'talk': this.talk(it.person); break;
       case 'hide': {
         if (this.scene !== 'night') { ui.log('אין סיבה.'); return; }
+        if (player.hideCooldown > 0) {
+          ui.log('לא עכשיו. תן לזה רגע.');
+          return;
+        }
         player.hide(it.spot, this.cfg.hideTime);
         ui.log(this.cfg.entersHouses
           ? 'בארון. הלילה זה כבר לא בטוח.' : 'בארון. תשמע אותה מבחוץ.');
@@ -995,6 +1018,11 @@ class Game {
         break;
       case 'number':
         ui.subtitle(`מספר ${it.number}.`, 2600);
+        break;
+      case 'home':
+        ui.subtitle(this.scene === 'night'
+          ? 'הבית שלך. לכאן צריך להביא את הדגל.'
+          : 'הבית שלך.', 3200);
         break;
       case 'flagpole':
         ui.subtitle(this.night >= TOTAL_NIGHTS
