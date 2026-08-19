@@ -279,12 +279,17 @@ function taskChains(items) {
  * How long a break has to be before the head is genuinely clear again.
  *
  * learning.breakEffectiveness is the observed answer, 0..1, and it scales this
- * directly: somebody whose breaks work needs half an hour, somebody whose
- * breaks are really just a different screen needs two. The default of 0.7 sits
- * where the population does, and the floor stops a learned zero from producing
- * a recovery time longer than a day.
+ * directly: somebody whose breaks work is back after three quarters of an hour,
+ * somebody whose breaks are really just a different screen needs three. The
+ * default of 0.7 puts a full clear at a little over an hour, which is what a
+ * lunch away from the desk looks like, and the floor stops a learned zero from
+ * producing a recovery time longer than the day.
+ *
+ * An earlier version cleared in half an hour and let the model claim that
+ * thirty minutes off wiped out five unbroken hours. Breaks help, and this file
+ * exists partly to prove they do, but not that much.
  */
-const RECOVERY_BASE = 30;
+const RECOVERY_BASE = 45;
 const DEFAULT_BREAK_EFFECT = 0.7;
 const MIN_BREAK_EFFECT = 0.25;
 

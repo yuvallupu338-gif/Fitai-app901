@@ -17,7 +17,7 @@
 import { h, sheet, qs } from '../core/dom.js';
 import { putItem, patchItem, removeItem, itemById, dayPlan, putDayPlan } from '../core/store.js';
 import { invalidate } from '../core/forecast.js';
-import { fromMinutes, toMinutes, todayKey, addDays } from '../core/time.js';
+import { fromMinutes, toMinutes, addDays } from '../core/time.js';
 import { dateLabel, duration as fmtDuration } from '../core/fmt.js';
 import { validateItem } from '../storage/schema.js';
 import { parseQuickAdd } from '../engine/nlp.js';

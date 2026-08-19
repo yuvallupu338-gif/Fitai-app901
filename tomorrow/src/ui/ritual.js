@@ -30,8 +30,6 @@ import { reduced } from '../core/motion.js';
 import { icon, ICONS, empty } from './parts.js';
 import { openQuickAdd, openItemEditor } from './quickadd.js';
 
-const STEPS = 5;
-
 const STAGES = [
   'קורא את הלוח שלך',
   'מעריך אנרגיה',
