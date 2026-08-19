@@ -558,6 +558,87 @@ async function main() {
       `the cycle repeats at the right rate (${grab.grabs} grabs in 20s)`);
   }
 
+  /*
+   * And letting go has to be worth something.
+   *
+   * The five second window in which nothing can grab is not by itself an
+   * escape, and the arithmetic is what says so: a hound runs at 3.6 against a
+   * 4.7 sprint, so the player gains 1.1m/s, and sprinting costs 0.16 stamina a
+   * second from a bar of 1. Six and a quarter seconds of run, seven metres of
+   * lead, the whole bar gone — and then a walk at 2.85 with a 3.6 behind it.
+   * The window expires and it takes hold again.
+   *
+   * So the thing that let go stands there for four seconds. Tested by putting
+   * the player out of reach the moment it releases and watching whether the
+   * distance closes: it must not while it is spent, and it must once it is
+   * not. The second half matters as much as the first — a pause that never
+   * ends is not a monster.
+   *
+   * Stepped at a fixed dt for the same reason as the block above: under
+   * software rendering the sim runs at two or three frames a second, which
+   * cannot resolve a four second window.
+   */
+  {
+    const spent = await page.evaluate(() => {
+      const g = window.backrooms;
+      const p = g.player;
+      const DT = 0.05;
+      g.entities.spec = { kind: 'hound', density: 1 };
+      g.entities.max = 1;
+      g.entities.list.length = 0;
+      g.entities.list.push({
+        x: p.pos.x + 0.4, y: p.pos.y, z: p.pos.z,
+        rot: 0, cooldown: 0, alerted: true, frozen: false,
+        moving: false, bob: 0, cue: 99, seed: 1, phase: 0, swing: 0, headYaw: 0,
+        path: null, pathI: 0, repath: 0, mesh: 'biped',
+      });
+      p.held = 0; p.grabRest = 0; p.heldBy = null;
+
+      const gap = () => {
+        const e = g.entities.list[0];
+        return Math.hypot(e.x - p.pos.x, e.z - p.pos.z);
+      };
+      let t = 0, released = -1;
+      const marks = [];
+      /* Hold it on the player until it grabs, so the grab happens promptly. */
+      for (let i = 0; i < 500; i++) {
+        p.health = 1;
+        const e = g.entities.list[0];
+        if (!e) break;
+        if (released < 0) { e.x = p.pos.x + 0.4; e.z = p.pos.z; e.y = p.pos.y; }
+        g.entities.update(DT, p, g.world, t);
+        g.entities.events.length = 0;
+        if (released < 0 && (p.held || 0) === 0 && p.grabRest > 0) {
+          /* It just let go. Step out of reach and stop interfering. */
+          released = t;
+          e.x = p.pos.x + 5; e.z = p.pos.z;
+        }
+        if (released >= 0) {
+          const dt2 = t - released;
+          marks.push({ dt: +dt2.toFixed(2), gap: +gap().toFixed(2), spent: +(e.spent || 0).toFixed(2) });
+          if (dt2 > 8) break;
+        }
+        t += DT;
+      }
+      const at = (lo, hi) => {
+        const m = marks.filter((r) => r.dt >= lo && r.dt <= hi);
+        return m.length ? m[m.length - 1].gap : null;
+      };
+      return { released, start: at(0, 0.12), atPause: at(3.2, 3.5), atEnd: at(6.5, 7.0) };
+    });
+
+    check(spent.released >= 0, 'the hold ends and the player is put out of reach');
+    if (spent.released >= 0 && spent.start !== null) {
+      /* Half a metre of tolerance: it is allowed to settle, not to travel. */
+      const closed = spent.start - spent.atPause;
+      check(closed < 0.5,
+        `it stays where it is while it is spent (closed ${closed.toFixed(2)}m in 3.4s)`);
+      const closedLater = spent.start - spent.atEnd;
+      check(closedLater > 1.0,
+        `and it comes after you again once it is not (closed ${closedLater.toFixed(2)}m by 7s)`);
+    }
+  }
+
   /* ------------------------------------------------------------------ *
    * The new kinds, each tested on the one claim that makes it worth
    * having. A monster whose distinguishing rule is not asserted anywhere
@@ -1042,7 +1123,14 @@ async function main() {
     else {
       await captureSubject('leech');
       await page.evaluate(() => { window.backrooms.entities.list[0].alerted = true; });
-      await waitFrames(page, 26);
+      /*
+       * Enough frames for the walk, with room to spare. It is placed 5m out
+       * and latches at 0.9m, so it has 4.1m to cover at 4.0m/s — 1.03s. At one
+       * clamped 0.05s step per frame, the 26 frames this used to get were
+       * 1.3s: a 25% margin on a journey, which is not a margin at all once
+       * anything makes it turn a corner. It failed exactly that way.
+       */
+      await waitFrames(page, 70);
       const on = await page.evaluate(() => {
         const g = window.backrooms, e = g.entities.list[0], p = g.player;
         return e ? { rider: !!e.rider, grabbed: p.grabbed || 0,

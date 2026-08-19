@@ -6489,6 +6489,10 @@ const CROWD = { swarm: 7, smiler: 3, titan: 1, lurker: 2, twin: 1, leech: 3, dro
  */
 const GRAB_HOLD = 3.0;
 const GRAB_REST = 5.0;
+/* How long the thing that let go of you stands there rather than coming
+ * straight back. Slightly shorter than the window it cannot grab in, so the
+ * last second of that window is spent with it already moving again. */
+const GRAB_SPENT = 4.0;
 const GRAB_BITE_EVERY = 1.35;
 const GRAB_BITE_SCALE = 0.4;
 
@@ -6567,7 +6571,27 @@ class Entities {
     player.held = Math.max(0, wasHeld - dt);
     player.grabRest = Math.max(0, (player.grabRest || 0) - dt);
     if (wasHeld > 0 && player.held === 0) {
-      for (const other of this.list) other.holding = false;
+      /*
+       * Whatever had hold of you is spent for a moment when it lets go.
+       *
+       * Without this the five second window is worth nothing, and the
+       * arithmetic says so rather than the feel: a hound runs at 3.6 and a
+       * sprinting player at 4.7, so the margin is 1.1m/s — but sprinting burns
+       * stamina at 0.16 a second, which is six and a quarter seconds of run
+       * from full. That is seven metres of lead, bought with the whole stamina
+       * bar, and then you are walking at 2.85 with a 3.6 behind you. It closes
+       * and takes hold again, and the grab that was meant to be survivable is
+       * a death sentence delivered slowly.
+       *
+       * So the thing that just had you in its mouth stops for GRAB_SPENT
+       * seconds. Combined with the window, that is a real head start rather
+       * than an arithmetic one — and it reads as the animal it is, which is
+       * the other reason to do it here rather than by nerfing its speed.
+       */
+      for (const other of this.list) {
+        if (other.holding) other.spent = GRAB_SPENT;
+        other.holding = false;
+      }
       player.heldBy = null;
       player.grabRest = GRAB_REST;
       this.events.push({ type: 'released' });
@@ -6608,6 +6632,10 @@ class Entities {
        */
       let move = false;
       let mode = 'chase';
+      /* Counted down here so it runs for every kind, whatever the per-kind
+       * rules below decide. It is applied after them, at the end of the block,
+       * so nothing can accidentally override it. */
+      if (e.spent > 0) e.spent = Math.max(0, e.spent - dt);
       /* Where `chase` is heading. Almost always the player; a blind one heads
        * for a remembered noise instead, which is the only reason this is a
        * variable rather than `player.pos`. */
@@ -6803,6 +6831,18 @@ class Entities {
        * finish the three seconds before it retreats.
        */
       if (e.holding) {
+        move = false;
+        e.moving = false;
+        e.rot = Math.atan2(-toX, -toZ) + Math.PI;
+      } else if (e.spent > 0) {
+        /*
+         * And for a few seconds after it lets go it stays put, watching. Same
+         * placement and the same reason as the branch above: applied after
+         * every per-kind rule so none of them can start it moving again. It
+         * keeps facing you, because a thing that has stopped looking at you is
+         * a thing you stop being frightened of, and the point of the pause is
+         * the running, not the safety.
+         */
         move = false;
         e.moving = false;
         e.rot = Math.atan2(-toX, -toZ) + Math.PI;
