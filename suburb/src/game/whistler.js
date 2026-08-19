@@ -76,6 +76,7 @@ export class Whistler {
     this.dist = 999;
     this.events = [];
     this.hunted = 0;         /* how long this hunt has been going on        */
+    this.didCatch = false;
     this.heard = 0;          /* decays; drives the "she is listening" cue   */
   }
 
@@ -280,6 +281,23 @@ export class Whistler {
     return this.events;
   }
 
+  /*
+   * Drifting is not a random walk.
+   *
+   * The first version stepped to a random neighbouring node each time it
+   * arrived, with a small bias against doubling back — and simulating whole
+   * nights showed what that actually produces: on night one she covered 175
+   * metres in five minutes and never left one corner of the neighbourhood,
+   * visiting six of the sixty ten-metre squares in it. A player could walk the
+   * entire street, twice, past her own house, and never be noticed. A random
+   * walk on a graph does not explore, it loiters.
+   *
+   * So she picks somewhere to be — a node at least thirty-five metres off,
+   * never the one she came from — paths to it, and walks the whole way, with
+   * the odd stop to turn and look. That reads as searching, and it means the
+   * far end of the street is never safe just because she started at the other
+   * one.
+   */
   drift(dt, world) {
     if (this.pause > 0) {
       this.pause -= dt;
@@ -289,23 +307,34 @@ export class Whistler {
       return;
     }
     if (!this.path.length) {
-      const options = this.graph.adj[this.node];
-      const next = options.length
-        ? options[Math.floor(this.rng() * options.length)] : this.node;
-      /* Coming back the way she came is allowed but unlikely, so she covers
-       * ground instead of pacing one junction. */
-      const pick = (next === this.prevNode && options.length > 1)
-        ? options[(options.indexOf(next) + 1) % options.length] : next;
-      this.prevNode = this.node;
-      this.node = pick;
-      const n = this.graph.nodes[pick];
-      this.path = [{ x: n.x, z: n.z }];
-      if (this.rng.chance(0.22)) {
-        this.pause = this.rng.range(1.2, 3.0);
+      this.node = this.nearestNode(this.pos.x, this.pos.z);
+      const target = this.pickRoam();
+      this.path = this.pathTo(target.x, target.z);
+      /* A pause between legs, not between steps: stopping every twelve metres
+       * is a patrol, stopping every two is a stutter. */
+      if (this.rng.chance(0.45)) {
+        this.pause = this.rng.range(1.0, 2.6);
         this.turnDir = this.rng.chance(0.5) ? 1 : -1;
       }
     }
     this.step(dt, world, this.cfg.speed);
+  }
+
+  /* Somewhere worth walking to: far enough to be a journey, and weighted
+   * towards the roads and the gardens rather than dead ends. */
+  pickRoam() {
+    const nodes = this.graph.nodes;
+    const far = [];
+    for (const n of nodes) {
+      const d = Math.hypot(n.x - this.pos.x, n.z - this.pos.z);
+      if (d < 35) continue;
+      /* Front gardens and back gardens count twice: the road is how she gets
+       * around, but the gardens are where a person hiding would be. */
+      far.push(n);
+      if (n.kind === 'front' || n.kind === 'back') far.push(n);
+    }
+    if (!far.length) return nodes[this.rng.int(nodes.length)];
+    return far[this.rng.int(far.length)];
   }
 
   listen(dt, world) {
@@ -353,7 +382,13 @@ export class Whistler {
         this.pos.z = nz;
         this.yaw = approachAngle(this.yaw, Math.atan2(-dx, -dz), dt * 5);
       }
-      if (d < CATCH) this.events.push({ type: 'caught' });
+      /* Once. The event ends the night, and a night can only end once — but
+       * anything else listening (a sound, a screen shake) would otherwise fire
+       * thirty times a second for as long as she stood on top of you. */
+      if (d < CATCH && !this.didCatch) {
+        this.didCatch = true;
+        this.events.push({ type: 'caught' });
+      }
     } else {
       this.lostFor += dt;
       if (!this.path.length && this.lastSeen) {

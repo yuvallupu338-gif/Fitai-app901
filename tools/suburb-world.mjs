@@ -37,6 +37,8 @@ const arg = (name, dflt) => {
 const SEEDS = Array.from({ length: Number(arg('--seeds', 3)) },
   (_, i) => 1000 + i * 7919);
 
+const layout0 = buildLayout(1, SEEDS[0]);
+
 let checks = 0;
 const failures = [];
 const check = (cond, msg) => {
@@ -311,6 +313,99 @@ for (const seed of SEEDS) {
   /* Seven nights should not be the same three places. */
   check(usedSites.size >= 5,
     `seed ${seed}: only ${usedSites.size} distinct flag sites across seven nights`);
+}
+
+/* ------------------------------------------------------------------ *
+ * Five minutes of her
+ *
+ * Everything above is static: the street, the sites, the numbers. This runs an
+ * actual night at thirty frames a second with a scripted player and watches
+ * what she does with it, because the one thing that cannot be read off the
+ * layout is whether her patrol goes anywhere.
+ *
+ * It exists because the first version did not. She stepped to a random
+ * neighbouring node whenever she arrived at one, which sounds like wandering
+ * and is actually loitering: 175 metres in five minutes, six of the sixty
+ * ten-metre squares in the neighbourhood, and a player could walk the whole
+ * street twice without being noticed. Nothing in the code looked wrong. The
+ * numbers below are what "she is out there somewhere" has to mean.
+ * ------------------------------------------------------------------ */
+
+function walkNight(night, seed, mode) {
+  const layout = buildLayout(night, seed);
+  const world = buildWorld(layout);
+  for (const d of world.doors) { d.box.solid = false; d.box.opaque = false; }
+  world.collision.build();
+  const cfg = nightConfig(night);
+  const w = new Whistler(layout, cfg, seed);
+  const home = layout.home;
+  const player = {
+    pos: { x: home.x, y: 0, z: home.frontZ - home.sign * 6 },
+    eye: 1.66, crouch: false, speed: 0, torchOn: false, carrying: false,
+    hidden: null, frozen: mode === 'still',
+  };
+  /* A lap of the neighbourhood, at a walk, for the moving case. */
+  const route = [[0, 0], [60, 0], [60, 20], [0, 20], [0, -30], [-60, -10]];
+  let leg = 0;
+
+  const dt = 1 / 30;
+  const steps = Math.round((cfg.end - cfg.start) / dt);
+  const cells = new Set();
+  let moved = 0, stuck = 0, caught = 0;
+  let prev = { x: w.pos.x, z: w.pos.z };
+
+  for (let i = 0; i < steps; i++) {
+    if (mode === 'walk') {
+      const t = route[leg];
+      const dx = t[0] - player.pos.x, dz = t[1] - player.pos.z;
+      const d = Math.hypot(dx, dz);
+      if (d < 1.5) leg = (leg + 1) % route.length;
+      else {
+        player.pos.x += (dx / d) * 2.7 * dt;
+        player.pos.z += (dz / d) * 2.7 * dt;
+        player.speed = 2.7;
+      }
+      if (i % 15 === 0) w.hear(player.pos.x, player.pos.z, 0.45, world.collision);
+    }
+    w.update(dt, player, world.collision, 0.25);
+    for (const e of w.events) if (e.type === 'caught') caught++;
+    const step = Math.hypot(w.pos.x - prev.x, w.pos.z - prev.z);
+    moved += step;
+    if (step < 0.002 && w.pause <= 0 && w.state !== 'hunt') stuck++;
+    prev = { x: w.pos.x, z: w.pos.z };
+    cells.add(`${Math.round(w.pos.x / 10)},${Math.round(w.pos.z / 10)}`);
+    if (!Number.isFinite(w.pos.x) || !Number.isFinite(w.pos.z)) break;
+  }
+  return { moved, cells: cells.size, stuck: stuck / steps, caught, state: w.state, w };
+}
+
+for (const seed of SEEDS.slice(0, 2)) {
+  for (const night of [1, 4, 7]) {
+    for (const mode of ['still', 'walk']) {
+      const r = walkNight(night, seed, mode);
+      const cfg = nightConfig(night);
+      /* Half the ground she could cover if she never stopped. She stops a lot,
+       * which is the point of her, so half is the floor rather than the aim. */
+      const could = cfg.speed * (cfg.end - cfg.start);
+      check(r.moved > could * 0.45,
+        `seed ${seed} night ${night} (${mode}): she covered `
+        + `${Math.round(r.moved)}m of a possible ${Math.round(could)}m — she is loitering`);
+      check(r.cells >= 8,
+        `seed ${seed} night ${night} (${mode}): she visited ${r.cells} squares of the `
+        + 'neighbourhood in a whole night');
+      check(r.stuck < 0.08,
+        `seed ${seed} night ${night} (${mode}): she was stuck against something for `
+        + `${Math.round(r.stuck * 100)}% of the night`);
+      check(r.caught <= 1,
+        `seed ${seed} night ${night} (${mode}): the catch fired ${r.caught} times`);
+      check(Number.isFinite(r.w.pos.x) && Number.isFinite(r.w.pos.z),
+        `seed ${seed} night ${night} (${mode}): she ended up at a non-finite position`);
+      const b = layout0.bounds;
+      check(r.w.pos.x >= b.x0 - 5 && r.w.pos.x <= b.x1 + 5
+        && r.w.pos.z >= b.z0 - 5 && r.w.pos.z <= b.z1 + 5,
+        `seed ${seed} night ${night} (${mode}): she left the neighbourhood`);
+    }
+  }
 }
 
 /* ------------------------------------------------------------------ *

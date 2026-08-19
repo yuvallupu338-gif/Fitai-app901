@@ -157,7 +157,7 @@ node --experimental-default-type=module tools/suburb-world.mjs
 node --experimental-default-type=module tools/suburb-world.mjs --seeds 8
 ```
 
-Around 1100 headless checks per neighbourhood, over all seven nights. The one
+Around 1150 headless checks per neighbourhood, over all seven nights. The one
 that earns its keep is reachability: it flood-fills the whole neighbourhood
 from the player's own bed using the player controller's own rules — 62cm step
 up, 34cm of clearance — and asserts that every night's flag can be reached from
@@ -174,6 +174,19 @@ of a mouth that is actually in a garden that afternoon, that the gnome clue
 lists the ages in the order it claims to, that the walk graph is connected,
 that she starts far enough away, and that the round trip fits in the window
 with a minute to spare.
+
+And it runs whole nights. Five minutes at thirty frames a second with a
+scripted player — once standing still, once walking a lap of the street — and
+then asks what she did with it: how far she got, how many ten-metre squares of
+the neighbourhood she stood in, whether she spent any of it wedged against
+something. That check exists because the first version of her patrol failed it
+badly and nothing about the code looked wrong: she stepped to a random
+neighbouring node whenever she arrived at one, which sounds like wandering and
+is in fact loitering — 175 metres in five minutes, six squares out of sixty,
+and a player could walk the whole street twice, past their own front door,
+without ever being noticed. She now picks somewhere thirty-five metres off and
+walks the whole way to it. Reverting that change fails the check, which is the
+only reason to trust it.
 
 ```bash
 NODE_PATH=/opt/node22/lib/node_modules node tools/suburb-smoke.mjs

@@ -90,8 +90,15 @@ async function frameStats(page) {
  * assert" becomes a coin toss. */
 async function frames(page, n = 4) {
   const from = await page.evaluate(() => window.suburb.renderer.frames);
+  /*
+   * Three minutes for four frames sounds absurd and is not: this runs under
+   * SwiftShader, and on a machine that is also building the rest of the world
+   * a frame can take several seconds. A tighter timeout here does not catch
+   * anything — a genuinely stuck renderer never produces another frame at all
+   * — it only makes the test fail on a busy machine.
+   */
   await page.waitForFunction((f) => window.suburb.renderer.frames >= f,
-    from + n, { timeout: 60000 });
+    from + n, { timeout: 180000 });
 }
 
 async function press(page, code, n = 3) {
