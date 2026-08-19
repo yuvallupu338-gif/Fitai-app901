@@ -903,7 +903,15 @@ async function main() {
           if (g.entities.noise) g.entities.noise.at = g.time;
         }, 50);
       });
-      await waitFrames(page, 26);
+      /*
+       * 26 frames was not enough ground to stand a 1m threshold on. Every
+       * frame here is one clamped 0.05s step, so 26 of them is 1.3s of game
+       * time and a walk of about a metre and a half at best — the check was
+       * being asked to resolve a difference the same size as its own noise,
+       * and it duly came back at 0.3m one run in several. 90 frames is four
+       * and a half seconds, which is a walk of several metres.
+       */
+      await waitFrames(page, 90);
       const now = await page.evaluate(([nx, nz]) => {
         const g = window.backrooms, e = g.entities.list[0], p = g.player;
         clearInterval(g._noiseHold);
@@ -915,6 +923,22 @@ async function main() {
       check(now && now.toNoise < away.was - 1.0,
         `blind: walks towards a noise it heard `
         + `(${away.was.toFixed(1)}m → ${now && now.toNoise.toFixed(1)}m from the sound)`);
+      /*
+       * There was briefly a second check here asserting it ends up nearer the
+       * sound than the player. It is not a valid claim and it failed on
+       * correct behaviour: the sound is planted only eight metres from the
+       * player, so something walking to it from twelve metres out passes
+       * close by us on the way, and its distance to the player shrinks for
+       * entirely innocent reasons. Measured 5.0m from the sound against 3.9m
+       * from the player while doing exactly the right thing.
+       *
+       * The behaviour is already isolated without it: the check above this
+       * block proves it does not move towards a player it cannot hear, and
+       * the one above proves it moves towards a sound it can. A hound passes
+       * neither.
+       */
+      notes.push(`blind: ended ${now && now.toNoise.toFixed(1)}m from the sound, `
+        + `${now && now.toPlayer.toFixed(1)}m from the player`);
     }
   }
 
@@ -1058,6 +1082,22 @@ async function main() {
     const setup = await page.evaluate(() => {
       const g = window.backrooms;
       const p = g.player;
+      /*
+       * How thoroughly the wall has to be in the way, measured the same way
+       * the probe below will measure it. Two consecutive blocked samples, not
+       * one: a diagonal ray can clip the corner of a wall cell, and a corner
+       * that one sampling catches and another misses is exactly how this used
+       * to hand back a spot with no wall across it.
+       */
+      const between = (ax, az) => {
+        let run = 0;
+        for (let i = 1; i < 120; i++) {
+          const t = i / 120;
+          const [bx, bz] = g.world.cellOf(ax + (p.pos.x - ax) * t, az + (p.pos.z - az) * t);
+          if (g.world.wallAt(bx, bz) > 0.6) { if (++run >= 2) return true; } else run = 0;
+        }
+        return false;
+      };
       for (let t = 0; t < 32; t++) {
         const yaw = (t / 32) * Math.PI * 2;
         const dx = -Math.sin(yaw), dz = -Math.cos(yaw);
@@ -1069,6 +1109,20 @@ async function main() {
           if (!crossed) continue;
           const y = g.world.groundAt(x, z, 0.3);
           if (y < -900 || g.world.blocked(x, z, y, 0.35, 0.5)) continue;
+          /*
+           * Only accept a spot the wall is *verifiably* between, and verify it
+           * here, in the same evaluate that would place the hound. Asking
+           * afterwards is too late twice over: the hound spawns already
+           * alerted and covers a metre or so in the round trip, so a separate
+           * probe tests a position it has already left.
+           *
+           * Candidates that do not qualify are skipped rather than placed, so
+           * the search either hands back a genuinely wall-separated spot or
+           * hands back nothing and the test says it skipped. It used to place
+           * the first candidate and then assert the precondition, which turned
+           * "the geometry here did not offer a clean spot" into a failure.
+           */
+          if (!between(x, z)) continue;
           g.entities.spec = { kind: 'hound', density: 1 };
           g.entities.max = 1;
           g.entities.list.length = 0;
@@ -1077,21 +1131,7 @@ async function main() {
             moving: true, bob: 0, cue: 99, seed: 1, phase: 0, swing: 1,
             headYaw: 0, path: null, pathI: 0, repath: 0, mesh: 'biped',
           });
-          /*
-           * Confirm the wall is between them *here*, in the same evaluate
-           * that placed it. Asking again afterwards is too late twice over:
-           * the hound spawns already alerted and covers a metre or so in the
-           * round trip, and a separate probe therefore tests a position it
-           * has already left. What is being asserted is that the test set up
-           * the situation it claims to, so it has to be measured at set-up.
-           */
-          let blocked = false;
-          for (let i = 1; i < 60; i++) {
-            const t = i / 60;
-            const [bx, bz] = g.world.cellOf(x + (p.pos.x - x) * t, z + (p.pos.z - z) * t);
-            if (g.world.wallAt(bx, bz) > 0.6) { blocked = true; break; }
-          }
-          return { ok: true, blocked, dist: Math.hypot(x - p.pos.x, z - p.pos.z) };
+          return { ok: true, dist: Math.hypot(x - p.pos.x, z - p.pos.z) };
         }
       }
       return { ok: false };
@@ -1118,7 +1158,14 @@ async function main() {
         };
       });
 
-      check(setup.blocked, 'the test actually put a wall between them');
+      /*
+       * No "did the setup work" assertion here any more. The search above only
+       * returns a spot it has already verified the wall is between, so such a
+       * check could only ever restate its exit condition — and as a check it
+       * was worse than useless: it reported a level whose geometry happened
+       * not to offer a clean spot as a failure of the game.
+       */
+      notes.push(`wall-separated spot found at ${setup.dist.toFixed(1)}m`);
 
       /* The route itself can only be read after the entity has had a frame to
        * plan one — `path` is null until its first update. */
