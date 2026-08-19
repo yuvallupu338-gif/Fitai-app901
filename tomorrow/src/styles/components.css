@@ -177,10 +177,19 @@
  * Score ring and factor bars
  * ================================================================== */
 
+/*
+ * The score dial: an SVG behind, the number and its band label stacked in
+ * front of it. align-content is the load-bearing line — a grid with two auto
+ * rows and spare height stretches those rows by default, which pushed the
+ * band label most of the way down to the ring stroke and moved it again every
+ * time the number changed width. Packed at the centre, the pair reads as one
+ * label in the middle of a dial.
+ */
 .ring-wrap {
   position: relative;
   display: grid;
   place-items: center;
+  align-content: center;
   width: clamp(168px, 46vw, 216px);
   aspect-ratio: 1;
   margin-inline: auto;
