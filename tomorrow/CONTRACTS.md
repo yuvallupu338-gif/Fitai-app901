@@ -962,3 +962,53 @@ has something true to say on first open.
 the evening ritual, Improve → Apply → Undo, What-If → Cancel/Apply, quick add,
 morning check-in, end-of-day review, every view, a reload with data intact, and
 the six viewport widths asserting no horizontal scroll and no clipped text.
+
+---
+
+## 20. Test hooks
+
+The browser test drives the real app, so it needs stable handles that survive a
+redesign. Every UI module tags its load-bearing elements with `data-t="<name>"`.
+These are part of the contract: renaming one breaks `tools/tomorrow-smoke.mjs`.
+
+| `data-t` | what it must be |
+|---|---|
+| `nav-tomorrow` `nav-schedule` `nav-chat` `nav-insights` `nav-profile` | the five navigation buttons |
+| `view-<name>` | the mounted root of each view, same five names |
+| `score` | the element whose text is the Tomorrow Score number |
+| `score-label` | the band label next to it |
+| `score-why` | the control that opens the score breakdown |
+| `factor-<key>` | one row per score factor, key from §5 |
+| `recommendation` | the primary recommendation card |
+| `energy-chart` `focus-chart` | the two curve charts |
+| `focus-window` | the best-focus-window readout |
+| `risk` | each risk card |
+| `timeline` | the timeline container; `timeline-entry` for each row |
+| `improve` | the Improve Tomorrow CTA |
+| `improve-apply` `improve-keep` `improve-undo` | the three outcomes |
+| `whatif` | the What-If entry point |
+| `whatif-chip` | each quick scenario chip |
+| `whatif-apply` `whatif-cancel` | the two outcomes |
+| `whatif-score-base` `whatif-score-next` | the two scores in the comparison |
+| `ritual` | the evening ritual container; `ritual-next` `ritual-back` to move |
+| `ritual-step-<n>` | the five ritual screens, 1-indexed |
+| `bedtime` | the bedtime input in the ritual and in the profile |
+| `quickadd` | the floating add button |
+| `quickadd-nl` | the natural-language input |
+| `quickadd-parsed` | where the parse result is shown for confirmation |
+| `quickadd-save` | saves the new item |
+| `item` | each schedule row; `item-edit` `item-delete` inside it |
+| `item-title` `item-start` `item-duration` | the editor's fields |
+| `morning` `morning-submit` `morning-skip` | the morning check-in |
+| `review` `review-submit` | the end-of-day review |
+| `insight` | each insight card |
+| `history-range` | the 7/30/90/365 selector |
+| `week-day` | each day in the week forecast |
+| `chat-input` `chat-send` `chat-message` | the chat |
+| `onboarding` `onboarding-next` | the onboarding flow |
+| `demo-start` | the "try the demo" entry |
+| `empty` | any empty state |
+| `toast` | the transient confirmation |
+
+Buttons must be real `<button>` elements so a click test and a keyboard user
+reach the same thing.
