@@ -29,9 +29,10 @@
 const SPEAKERS = {
   bob: 'בוב',
   adam: 'אדם',
-  /* Not her name. Her name is the last thing the game gives up — a diary page
-   * in a house that is locked on most nights — and a label over her first line
-   * would hand it to everyone in the third minute of night one. */
+  /* Not her name. Her name is the last thing the game gives up — a photograph
+   * of a low stone at the end of the street, in a house that is locked on most
+   * nights — and a label over her first line would hand it to everyone in the
+   * third minute of night one. */
   evelyn: 'האישה',
 };
 
@@ -52,9 +53,12 @@ const HINT_MS = 5600;
  * How long a sequence that ended on black holds the black before letting go of
  * it by itself. `opts.black` means the caller is taking the screen from here —
  * swap the world behind it, then fade in — so the black has to survive the
- * promise resolving. This is the timer that stops a caller which threw on the
- * way from leaving the player looking at nothing at all: long enough to build
- * a night, short enough that nobody decides the game has crashed.
+ * promise resolving. Normally the next sequence is what takes it off again
+ * (the dream at midnight ends black and 3:29 starts over the bedroom), and a
+ * caller with nothing more to say ends it with an empty play(). This is only
+ * the backstop for the caller that threw on the way, and it is what stops that
+ * leaving the player looking at nothing at all: long enough to build a night,
+ * short enough that nobody decides the game has crashed.
  */
 const BLACK_HOLD_MS = 6000;
 
@@ -96,6 +100,7 @@ export class Scene {
     this._skipped = false;
     this._skippable = true;
     this._hinted = false;
+    this._dead = false;        /* disposed, and a run may still be unwinding  */
     this._deafUntil = 0;
     this._timer = 0;
     this._hintT = 0;
@@ -144,7 +149,15 @@ export class Scene {
     const previous = this._run;
     if (previous) this.skip();
     const token = ++this._token;
-    const run = (async () => {
+    /*
+     * A microtask late, and it has to be. An async function runs as far as its
+     * first await synchronously, which put the first beat on the screen and
+     * handed it to onBeat before play() had got as far as assigning
+     * `this._run`: inside that one callback `playing` was false and skip() did
+     * nothing whatsoever, so a cue that wanted the scene cut short on its
+     * opening line was ignored and the whole thing played out.
+     */
+    const run = Promise.resolve().then(async () => {
       /* Whatever happened to the run before this one, it has already put the
        * screen back; there is nothing to do here about it but start. */
       if (previous) {
@@ -154,7 +167,7 @@ export class Scene {
        * and must not have it torn down underneath it. */
       if (this._token !== token) return false;
       return this._sequence(beats, opts);
-    })().finally(() => {
+    }).finally(() => {
       if (this._token === token) this._run = null;
     });
     this._run = run;
@@ -170,33 +183,45 @@ export class Scene {
   }
 
   async _sequence(beats, opts) {
-    /* A script that builds its list with a conditional leaves a `false` in it
-     * on the nights the beat does not apply. */
-    const list = (Array.isArray(beats) ? beats : []).filter(Boolean);
-    const dark = !!opts.black;
-    this._skippable = opts.skippable !== false;
-    this._skipped = false;
-    this._deafUntil = Date.now() + DEAF_MS;
-
-    clearTimeout(this._blackT);
-    clearTimeout(this._hideT);
-    this.el.hidden = false;
-    /* A sequence that starts black cuts to black rather than wiping the world
-     * out over a quarter of a second, and it has to: the veil is what the
-     * caller is handing the screen over to, and a twenty-second dream is not
-     * the only length of sequence — a two-hundred-millisecond one would
-     * otherwise resolve with the world still three-quarters visible through
-     * it. Beats that turn the black on and off mid-sequence still crossfade. */
-    if (dark) {
-      this.el.classList.add('cut', 'black');
-      void this.el.offsetWidth;
-      this.el.classList.remove('cut');
-    } else {
-      this.el.classList.remove('black');
-    }
-    if (this._skippable && list.length) this._hint();
+    /* `opts = {}` on play() covers the caller that leaves it out; a caller
+     * that passes an explicit null is asking for the same thing. It is
+     * normalised here rather than trusted, because these first lines are the
+     * only ones the finally below cannot undo: a throw above the try leaves
+     * whatever black was already up on the screen and rejects on the way out,
+     * which is the one failure this class is not allowed to have. */
+    const o = opts || {};
+    const dark = !!o.black;
+    /* Disposed while an earlier run was still unwinding. There is no element
+     * left to play into and nothing to clean up afterwards. */
+    if (this._dead) return false;
 
     try {
+      /* A script that builds its list with a conditional leaves a `false` in
+       * it on the nights the beat does not apply. */
+      const list = (Array.isArray(beats) ? beats : []).filter(Boolean);
+      this._skippable = o.skippable !== false;
+      this._skipped = false;
+      this._deafUntil = Date.now() + DEAF_MS;
+
+      clearTimeout(this._blackT);
+      clearTimeout(this._hideT);
+      this.el.hidden = false;
+      /* A sequence that starts black cuts to black rather than wiping the
+       * world out over a quarter of a second, and it has to: the veil is what
+       * the caller is handing the screen over to, and a twenty-second dream is
+       * not the only length of sequence — a two-hundred-millisecond one would
+       * otherwise resolve with the world still three-quarters visible through
+       * it. Beats that turn the black on and off mid-sequence still
+       * crossfade. */
+      if (dark) {
+        this.el.classList.add('cut', 'black');
+        void this.el.offsetWidth;
+        this.el.classList.remove('cut');
+      } else {
+        this.el.classList.remove('black');
+      }
+      if (this._skippable && list.length) this._hint();
+
       for (let i = 0; i < list.length; i++) {
         if (this._skipped) break;
         const beat = list[i];
@@ -205,11 +230,11 @@ export class Scene {
         this.el.classList.toggle('black',
           beat.black === undefined ? dark : !!beat.black);
         this._draw(beat);
-        if (opts.onBeat) {
+        if (o.onBeat) {
           /* The callback is where the laugh, the car horn and the door go. It
            * is somebody else's code and it is allowed to be broken; the scene
            * is not allowed to stop because of it. */
-          try { opts.onBeat(beat, i); } catch { /* keep the scene running */ }
+          try { o.onBeat(beat, i); } catch { /* keep the scene running */ }
         }
         await this._beat(beat);
       }
@@ -252,7 +277,13 @@ export class Scene {
       };
       this._advance = go;
       this._holding = !!beat.hold;
-      if (!beat.hold) this._timer = setTimeout(go, Math.max(0, ms));
+      /* The skip can already have happened: onBeat runs between the line
+       * going up and the timer going on, and a cue that decides the scene is
+       * over used to leave this beat sitting out its full `ms` first, because
+       * the loop only tests `_skipped` on its way into a beat. Four seconds
+       * of a line nobody is waiting for any more. */
+      if (this._skipped) go();
+      else if (!beat.hold) this._timer = setTimeout(go, Math.max(0, ms));
     });
   }
 
@@ -284,10 +315,13 @@ export class Scene {
     const line = document.createElement('div');
     /* Speaker or not is the whole typographic split: a named line is speech,
      * an unnamed one is Adam noticing something, and the second is set in the
-     * journal's face because it is the same voice as the diary pages. */
-    line.className = beat.speaker ? 'scene-line' : 'scene-line think';
-
+     * journal's face because it is the same voice as the diary pages. The
+     * name decides it rather than the key, so a beat that names somebody this
+     * table has never heard of reads as description instead of as speech with
+     * the label silently missing. */
     const name = SPEAKERS[beat.speaker];
+    line.className = name ? 'scene-line' : 'scene-line think';
+
     if (name) {
       const who = document.createElement('span');
       who.className = 'who';
@@ -350,14 +384,12 @@ export class Scene {
       this.hintEl.appendChild(document.createTextNode('נגיעה במסך מדלגת'));
     } else {
       this.hintEl.appendChild(document.createTextNode('לדילוג: '));
-      for (const code of ['Esc', 'E']) {
-        if (this.hintEl.childNodes.length > 1) {
-          this.hintEl.appendChild(document.createTextNode(' '));
-        }
+      ['Esc', 'E'].forEach((code, i) => {
+        if (i) this.hintEl.appendChild(document.createTextNode(' '));
         const b = document.createElement('b');
         b.textContent = code;
         this.hintEl.appendChild(b);
-      }
+      });
     }
     this.hintEl.hidden = false;
     clearTimeout(this._hintT);
@@ -373,6 +405,11 @@ export class Scene {
     this.textEl.textContent = '';
     this.textEl.classList.remove('shake');
     this.hintEl.hidden = true;
+    /* dispose() lands in the middle of a run more often than not — it is what
+     * a night teardown does — and the run gets here a beat later, with the
+     * element already out of the document. Arming the black watchdog now would
+     * leave a six-second timer behind with nobody left to cancel it. */
+    if (this._dead) return;
     /* A skipped black sequence still ends black: dropping to the bedroom for
      * one frame and then blacking out again is a flicker, not a skip. */
     if (dark) {
@@ -398,6 +435,10 @@ export class Scene {
   }
 
   dispose() {
+    /* First, before the skip: the run it ends carries on unwinding for a
+     * microtask or two after this returns, and _end() has to know by then that
+     * there is no longer anything to put back. */
+    this._dead = true;
     this.skip();
     window.removeEventListener('keydown', this._onKey, true);
     window.removeEventListener('pointerdown', this._onPointer, true);

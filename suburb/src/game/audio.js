@@ -1072,7 +1072,21 @@ export class GameAudio {
     const memory = kind !== 'night';
     /* The intake has to live somewhere in front of the first note. */
     const lead = 0.6;
-    const total = lead + LOOP;
+    /*
+     * How much of the phrase to play. The car radio at 13 plays four notes and
+     * the four are E G B A — the first four of the memory version, which is
+     * why it is this method and not a table of its own — but it plays them
+     * every time the player leans into the car, and handing a keypad twelve
+     * seconds with three laughs in it would be handing them the dream by
+     * accident. Everything else takes the phrase entire.
+     */
+    const to = clamp(Math.round(num(o.notes, MELODY.length)), 1, MELODY.length);
+    const part = to < MELODY.length;
+    /* A partial phrase ends half a second after its last note rather than
+     * running out the closing silence, which is the one part of the loop that
+     * belongs to her rather than to the tune. */
+    const span = part ? MELODY[to - 1].at + MELODY[to - 1].dur + 0.5 : LOOP;
+    const total = lead + span;
     if (!this.ready || this.muted) return total;
 
     const t0 = this.ctx.currentTime + lead;
@@ -1090,9 +1104,9 @@ export class GameAudio {
     /* Stated, not measured: 0.3 is the fourth note exactly as the design
      * writes it — fifteen cents, which out on the street would be her at about
      * twenty metres. In here she is not anywhere. */
-    this.schedulePhrase(t0, w, { memory, prox: 0.3, tempo: 1 });
+    this.schedulePhrase(t0, w, { memory, prox: 0.3, tempo: 1, to });
 
-    if (memory) {
+    if (memory && !part) {
       /* Three of them, in the gaps and never on a note, and further off than
        * anything else in the game. A child laughing over the tune is a horror
        * cue; a child laughing behind it is a garden in 2001. The last one is

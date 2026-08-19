@@ -153,7 +153,24 @@ export class PuzzlePanel {
       const b = document.createElement('button');
       b.className = 'choice';
       b.type = 'button';
-      b.textContent = (extra.labels && extra.labels[i]) || `תיבה ${i + 1}`;
+      const label = (extra.labels && extra.labels[i]) || `תיבה ${i + 1}`;
+      b.textContent = label;
+      /*
+       * The strip of red tape on one of the four switches. It marks the
+       * answer, and it is supposed to: the lock at the fountain is not four
+       * odds, it is standing at the edge of the park with the pump off while
+       * she is somewhere in it. The tape is the same mark as the one in the
+       * photograph from 21's hall, which is the only thing in the game that
+       * says where it came from, and a screen reader has to be told about it
+       * — a red rectangle is the whole content of this button.
+       */
+      if (opt && opt.tape) {
+        const tape = document.createElement('span');
+        tape.className = 'tape';
+        tape.setAttribute('aria-hidden', 'true');
+        b.appendChild(tape);
+        b.setAttribute('aria-label', `${label} — עליו סרט אדום`);
+      }
       b.addEventListener('click', () => {
         if (extra.onPreview) extra.onPreview(i, opt);
         /*

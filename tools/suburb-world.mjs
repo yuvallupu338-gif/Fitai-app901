@@ -207,8 +207,12 @@ for (const seed of SEEDS) {
     const day = new Neighbours(layout, cfg, seed, 'day');
     const spoken = new Set(day.people.map((p) => p.houseId));
     const clueHouse = {
-      code: 14, hedges: 12, radio: 13, dolls: 13, sound: 16, bins: 18, bone: 15,
-      mirror: 16, ladder: 16, panel: 18,
+      /* Who actually says it, checked against story.js rather than against
+       * where the thing stands: the dolls are in 13's garden but their ages
+       * are on 11's tongue, the ladder lies in the park and belongs to 12,
+       * and the writing on 17's window is read out by the couple at 18. */
+      code: 14, hedges: 12, radio: 13, dolls: 11, sound: 16, bins: 18, bone: 15,
+      mirror: 18, ladder: 12, panel: 18,
     }[s.lock];
     if (clueHouse) {
       const h = layout.houses.find((x) => x.number === clueHouse);
@@ -219,6 +223,18 @@ for (const seed of SEEDS) {
       const lines = neighbourLines(h, layout, n);
       check(lines.length >= 2,
         `seed ${seed} night ${n}: number ${clueHouse} has nothing to say`);
+      /* And the clue is in there, not merely the house that is supposed to
+       * hold it. The map above is written by hand and drifted once already —
+       * three of the ten locks pointed at a neighbour who had never heard of
+       * them, which nothing caught, because everybody has something to say. */
+      const word = {
+        code: 'התיבה', hedges: 'משוכות', radio: 'הרדיו', dolls: 'לפי גיל',
+        sound: 'תיבות נגינה', bins: 'הפחים', bone: 'עצם', mirror: 'מראה',
+        ladder: 'הסולם', panel: 'מפסקים',
+      }[s.lock];
+      check(lines.some((l) => l.includes(word)),
+        `seed ${seed} night ${n}: number ${clueHouse} never says "${word}", `
+        + `so the clue for "${s.lock}" is not in anybody's mouth`);
     }
     if (s.lock === 'code') {
       /* The arithmetic is on the box itself, so it is readable at 3:33 with

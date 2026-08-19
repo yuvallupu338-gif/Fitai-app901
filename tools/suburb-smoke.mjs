@@ -195,8 +195,32 @@ async function sleep(page) {
   }, bed);
   await frames(page, 2);
   await press(page, 'KeyE', 6);
-  await page.waitForFunction(() => window.suburb.scene === 'night', null, { timeout: 20000 });
+  /*
+   * The first night goes to bed through three scenes — the photograph on the
+   * kitchen table, twenty seconds of dream, and waking at 3:29 — which is why
+   * this is a loop and not one waitForFunction: Escape ends the sequence that
+   * is on screen and the next one starts behind it. Every night after the
+   * first goes straight from the bed to the street, and the loop falls through
+   * on its first pass. Returns whether any of it played, so the caller can
+   * assert that it did on night one.
+   */
+  const until = Date.now() + 90000;
+  let dreamt = false;
+  for (;;) {
+    const st = await page.evaluate(() => ({
+      scene: window.suburb.scene,
+      playing: !!window.suburb.cutscene && window.suburb.cutscene.playing,
+    }));
+    if (st.scene === 'night' && !st.playing) break;
+    if (Date.now() > until) throw new Error('the night never started');
+    if (st.playing) {
+      dreamt = true;
+      await page.keyboard.press('Escape');
+    }
+    await frames(page, 2);
+  }
   await frames(page, 4);
+  return dreamt;
 }
 
 async function main() {
@@ -251,6 +275,36 @@ async function main() {
     check(dayPix.contrast > 60, `the day frame has ${Math.round(dayPix.contrast)} contrast`);
     await shot('day');
 
+    /*
+     * The first afternoon opens on a script — Bob over the fence, the boxes
+     * still in the hall — and two things about it are load-bearing. It has to
+     * be on the screen with words in it, and Escape has to end it: everything
+     * below this point in the file is a keyboard driving the game, and so is
+     * the eleventh replay by a player who already knows what Bob says.
+     */
+    const opening = await page.evaluate(() => {
+      const el = document.querySelector('#scene');
+      return {
+        playing: !!(window.suburb.cutscene && window.suburb.cutscene.playing),
+        up: !!el && !el.hidden,
+        text: el ? el.textContent.trim() : '',
+      };
+    });
+    check(opening.playing && opening.up,
+      'the first afternoon opens with a cutscene');
+    check(opening.text.length > 8,
+      `the cutscene has a line on screen (got "${opening.text.slice(0, 40)}")`);
+    check(await page.evaluate(() => !window.suburb.input.enabled),
+      'the game does not take the keyboard while a scene is playing');
+    await page.keyboard.press('Escape');
+    const skipped = await page.waitForFunction(
+      () => !window.suburb.cutscene.playing, null, { timeout: 10000},
+    ).then(() => true).catch(() => false);
+    check(skipped, 'Escape skips it');
+    await frames(page, 3);
+    check(await page.evaluate(() => window.suburb.input.enabled),
+      'the keyboard comes back afterwards');
+
     /* Talking to a neighbour is how every puzzle answer is learned. Stand
      * between them and the road — their own house is behind them, and half the
      * street faces the other way. */
@@ -291,7 +345,8 @@ async function main() {
     await press(page, 'KeyM', 2);
 
     /* ---- the night ---- */
-    await sleep(page);
+    const dreamt = await sleep(page);
+    check(dreamt, 'the first night goes to bed through the dream');
     const night = await page.evaluate(() => {
       const g = window.suburb;
       return {
@@ -411,6 +466,21 @@ async function main() {
     const goal = await page.evaluate(() => window.suburb.layout.goal);
     await teleport(page, goal.x, goal.z);
     await page.waitForFunction(() => window.suburb.state === 'over', null, { timeout: 20000 });
+    /* The first night ends on one more scene — seven in the morning, Bob at
+     * the fence again — and the card comes up behind it. Skip it the way a
+     * player would, then wait for what it was covering. */
+    check(await page.evaluate(() => window.suburb.cutscene.playing),
+      'the first night ends on the morning scene');
+    await page.keyboard.press('Escape');
+    await page.waitForFunction(() => window.suburb.ui.current === 'night',
+      null, { timeout: 20000 });
+    /* And the black comes off with it: #scene sits over the screens, so a veil
+     * left up here is a card nobody can read. */
+    await frames(page, 6);
+    check(await page.evaluate(() => {
+      const el = document.querySelector('#scene');
+      return el.hidden || !el.classList.contains('black');
+    }), 'the black comes off the night-over card');
     const won = await page.evaluate(() => ({
       screen: window.suburb.ui.current,
       cleared: JSON.parse(localStorage.getItem('suburb.v1')).cleared,
@@ -520,6 +590,33 @@ async function main() {
       }));
       check(lifted.solved, `and then the board comes up (prompt: "${lifted.prompt}")`);
     }
+
+    /*
+     * The fuse cabinet. The README's table says four switches and one strip of
+     * red tape, so the tape has to be on exactly one of them and it has to be
+     * the one the panel accepts — the lock at the fountain is standing in the
+     * open park with the pump off, not a one-in-four guess with a buzzer.
+     */
+    await page.evaluate(() => window.suburb.openPuzzle('panel'));
+    await frames(page, 3);
+    const tape = await page.evaluate(() => {
+      const bs = [...document.querySelectorAll('#puzzle-body .choice button')];
+      return {
+        count: bs.length,
+        taped: bs.map((b, i) => (b.querySelector('.tape') ? i : -1))
+          .filter((i) => i >= 0),
+        answer: window.suburb.layout.puzzles.panel.answer,
+        labelled: bs.some((b) => (b.getAttribute('aria-label') || '')
+          .includes('סרט אדום')),
+      };
+    });
+    check(tape.count === 4, `the cabinet has ${tape.count} switches in it`);
+    check(tape.taped.length === 1 && tape.taped[0] === tape.answer,
+      `the red tape is on switch ${tape.taped[0] + 1}, which is the one that `
+      + `works (answer ${tape.answer + 1})`);
+    check(tape.labelled, 'and a screen reader is told about the tape');
+    await page.evaluate(() => window.suburb.puzzle.close());
+    await frames(page, 2);
 
     /* ---- the last night ---- */
     await page.evaluate(() => {

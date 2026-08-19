@@ -71,7 +71,38 @@ afternoon — which is what the afternoon is for.
 
 She drifts along the street on a walk graph — up a drive, round the side of a
 house, along the back fence, out again — whistling an eight-note lullaby on a
-twelve-second loop. Four things decide whether tonight ends badly:
+twelve-second loop. The tune is a table, not a mood:
+
+| | note | starts | holds | |
+| --- | --- | --- | --- | --- |
+| 1 | E | 0.0 | 0.8 | clean |
+| 2 | G | 1.2 | 0.8 | clean |
+| 3 | B | 2.4 | 1.4 | trembling |
+| 4 | **A#** | 4.2 | 1.4 | wrong, and it is the whole game |
+| 5 | E | 6.0 | 0.8 | weaker |
+| 6 | F | 7.2 | 0.8 | |
+| 7 | E | 8.4 | 2.0 | choked off |
+| 8 | — | 10.4 | 1.6 | silence |
+
+The fourth note is the instrument. It is A# where the ear is waiting for A, and
+the closer she is the more it goes: fifteen cents of beat at about twenty
+metres, and inside that the slide into it lengthens, the breath under it comes
+up, and she leans on it up to three tenths of a second longer. Nothing else
+feeds that number — not suspicion, not whether she is hunting — because the
+player is being taught to read one distance off one note, and a cue that
+answers two questions answers neither.
+
+Which ear it is in matters too. She is panned by where she actually is, so a
+whistle that swaps sides between one phrase and the next is her having walked
+round behind you, and it is the only warning you get.
+
+You hear the tune the way it really was exactly once, in the dream on the first
+night: same eight notes, same table, fourth note back to A. Everything from
+3:30 onwards is that, remembered by somebody who blames himself. The three
+music boxes in Bob's garden are the same joke made playable — two have the
+fourth tine bent, one does not.
+
+Four things decide whether tonight ends badly:
 
 - **She hears.** Every footstep is an event with a loudness. Tarmac is a
   quarter louder than a lawn, running is twice walking, crouching is nearly
@@ -94,6 +125,22 @@ twelve-second loop. Four things decide whether tonight ends badly:
 Carrying the flag makes all of it worse. It is red, it catches every lamp on
 the street, and it is the hardest part of the night rather than the victory
 lap.
+
+## The first night
+
+Night one is scripted, and it is the only one that is. Six moments, in order,
+each of them skippable with `Esc` from the first press:
+
+| | |
+| --- | --- |
+| 19:00 | Bob is watering a lawn that is already wet. There is a small red flag on a stick on his porch. *"What is that flag?"* — two seconds, the same smile — *"Decoration."* |
+| 22:30 | An old photograph is on the kitchen table that was not there in the morning. A woman holding a child, her face rubbed away in the paper itself. Under it, in a child's handwriting: *bring the flag home.* |
+| 00:00 | Twenty seconds of dream over black. A child laughing, close. The lullaby, warm, in the right order. A car horn. Seven seconds of silence, and the silence is meant to be too long. |
+| 03:29 | You are awake. No alarm, no noise, no reason. |
+| 03:32 | The first time she is on the screen. She does nothing at all: the shoulders do not move, the dress does not move, the light on the dress does not move. Only the head turns. |
+| 07:00 | Sun, a sprinkler, and Bob over the fence saying the next one will be even better. |
+
+From night two the game hands you the afternoon and gets out of the way.
 
 ## The afternoon
 
@@ -164,10 +211,14 @@ is computed at runtime:
   garage on the same side, the same gnomes in the same garden, the same lamp
   failing. Only the lit windows, the unlocked doors and the codes change from
   night to night — which is what makes the daylight walk worth anything.
-- **Audio** — no sound files. The whistle is a sine through a bandpass with a
-  breath layer, portamento and vibrato, panned and filtered by where she is and
-  whether anything is between you; crickets that stop when she is close; a wind
-  bed, a distant dog, a clock tick under the last minute.
+- **Audio** — no sound files. The whistle is a pair of detuned sines through a
+  bandpass with a breath layer, portamento and vibrato, scheduled on the
+  AudioContext's own clock a phrase at a time and panned and filtered by where
+  she is and whether anything is between you. The fourth note is scheduled
+  separately and as late as the clock allows, so its dirt answers *how far away
+  is she now* rather than *how far away was she six seconds ago*. Around it:
+  crickets that stop when she is close, a wind bed, a distant dog, a clock tick
+  under the last minute, and one car horn that is only ever heard in a dream.
 
 ## Layout
 
@@ -180,7 +231,7 @@ suburb/
     render/             shaders, procedural materials, the renderer
     world/              the plan, the geometry, collision, materials
     game/               player, whistler, neighbours, flag, clock, nights, audio, story
-    ui/                 HUD, menus, the map, the puzzle panel, the save
+    ui/                 HUD, menus, the map, the puzzle panel, cutscenes, the save
 ```
 
 ## Testing it
@@ -192,7 +243,7 @@ node --experimental-default-type=module tools/suburb-world.mjs
 node --experimental-default-type=module tools/suburb-world.mjs --seeds 8
 ```
 
-Around 1100 headless checks per neighbourhood, over all seven nights. The one
+Around 1200 headless checks per neighbourhood, over all seven nights. The one
 that earns its keep is reachability: it flood-fills the whole neighbourhood
 from the player's own bed using the player controller's own rules — 62cm step
 up, 34cm of clearance — and asserts that every night's flag can be reached from
@@ -206,7 +257,9 @@ neighbour's garden behind a boarded fence.
 It also checks the things that are true or false rather than visible: that the
 street does not move between nights, that the clue for tonight's lock comes out
 of a mouth that is actually in a garden that afternoon, that the gnome clue
-lists the ages in the order it claims to, that the walk graph is connected,
+lists the ages in the order it claims to, that the neighbour who is supposed to
+hold tonight's clue actually says the word for it, that the walk graph is
+connected,
 that she starts far enough away, and that the round trip fits in the window
 with a minute to spare.
 
@@ -228,11 +281,13 @@ NODE_PATH=/opt/node22/lib/node_modules node tools/suburb-smoke.mjs
 NODE_PATH=/opt/node22/lib/node_modules node tools/suburb-smoke.mjs --shots
 ```
 
-The smoke test plays the game in a real browser: it walks the afternoon, talks
-to a neighbour, goes to bed, waits for 3:31, presses `E` on the flag, carries
-it home, then gets itself caught on the next night, then solves the mailbox
-keypad by clicking the keys — wrong code first — and takes the flag out of the
-box. It drives the game the way a player does rather than calling the
+The smoke test plays the game in a real browser: it skips the opening scene,
+walks the afternoon, talks to a neighbour, goes to bed, escapes out of the
+dream, waits for 3:31, solves the mailbox keypad by clicking the keys — wrong
+code first — takes the flag out of the box and carries it home, then gets
+itself caught on the next night, lifts the porch board at the empty house by
+way of the mirror, and opens the fuse cabinet to check that the strip of red
+tape is on the switch that actually works. It drives the game the way a player does rather than calling the
 functions, and it reads the framebuffer back, because a renderer that draws
 nothing passes every logic check ever written. `--shots` writes PNGs to
 `dist/shots/suburb`, which is the only way to review the things no assertion

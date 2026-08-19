@@ -95,7 +95,11 @@ export const HEDGE_PANELS = 47;
  * ------------------------------------------------------------------ */
 
 const OCCUPANTS = {
-  11: { name: 'מר קלמן', trait: 'הגדר האחורית שלו נשענת על הגן' },
+  /* Not "his back fence leans on the park": 11 is the western end of the
+   * south side at x=-62 and the park is at x∈[-12,12] behind the north
+   * houses. What is true of his fence is that it is the last thing on the
+   * road, which is also why the flag ends up on it. */
+  11: { name: 'מר קלמן', trait: 'הגדר האחורית שלו בקצה הרחוב' },
   12: { name: 'משפחת ורדי', trait: 'ארגזים ליד המוסך כבר שנתיים' },
   13: { name: 'גברת שוורץ', trait: 'הבובות בגינה היו כאן לפניה' },
   14: { name: 'גברת רוזנברג', trait: 'מתלוננת שכולם שוכחים את הקוד' },

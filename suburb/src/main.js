@@ -30,10 +30,13 @@ import { Neighbours, screamLoudness } from './game/neighbours.js';
 import { Flag, FLAG } from './game/flag.js';
 import { Clock, PHASE } from './game/clock.js';
 import { nightConfig, TOTAL_NIGHTS } from './game/nights.js';
-import { collectibleFor, neighbourLines, NIGHT_INTRO, CAUGHT_LINES, TIMEOUT_LINES,
-  REVEAL, ENDINGS } from './game/story.js';
+import {
+  collectibleFor, neighbourLines, NIGHT_INTRO, CAUGHT_LINES, TIMEOUT_LINES,
+  REVEAL, ENDINGS, OPENING, TABLE_NOTE, DREAM, WAKE, FIRST_SIGHT, MORNING,
+} from './game/story.js';
 import { UI } from './ui/ui.js';
 import { PuzzlePanel } from './ui/puzzle.js';
+import { Scene } from './ui/scene.js';
 import * as store from './ui/store.js';
 import { clamp, damp } from './core/math.js';
 
@@ -75,6 +78,7 @@ class Game {
     this.input = new Input(canvas);
     this.audio = new GameAudio();
     this.puzzle = new PuzzlePanel();
+    this.cutscene = new Scene();
     this.state = 'menu';
     this.scene = 'night';
     this.time = 0;
@@ -482,8 +486,17 @@ class Game {
     this.talkIndex.clear();
     this.ui.setSuspicion(0);
     this.ui.setHide(null);
-    this.ui.subtitle(`${this.cfg.title}. תסתובב בשכונה. כשתהיה מוכן — לך לישון.`, 6500);
     this.ui.log('אחר הצהריים. השכנים בחוץ.');
+    if (this.night === 1 && !this.openingShown) {
+      /* Only ever once per session: it is a first-week-in-the-street scene,
+       * and a player who has been caught eleven times has had that week. */
+      this.openingShown = true;
+      this.cutscene.play(OPENING).then(() => {
+        this.ui.subtitle('תסתובב בשכונה. כשתהיה מוכן — לך לישון.', 6000);
+      });
+    } else {
+      this.ui.subtitle(`${this.cfg.title}. תסתובב בשכונה. כשתהיה מוכן — לך לישון.`, 6500);
+    }
   }
 
   /* Bed. The night begins the moment you lie down, which is why the prompt
@@ -502,6 +515,7 @@ class Game {
     this.awareShown = 0;
     this.fear = 0;
     this.flagKnown = false;
+    this.sighted = false;
     this.decided = false;
     this.ending = null;
     this.audio.startWhistle({ tempo: 1 + (this.night - 1) * 0.04 });
@@ -534,17 +548,23 @@ class Game {
     if (reason === 'home') {
       store.clearNight(this.night);
       this.refresh();
-      const last = this.night >= TOTAL_NIGHTS;
-      const end = last ? ENDINGS.take : null;
-      this.ui.nightOver({
-        eyebrow: last ? 'הלילה השביעי' : 'הדגל בבית',
-        title: last ? end.title : `לילה ${this.night} נגמר`,
-        note: last
-          ? `${REVEAL.join('<br><br>')}<br><br><b>${end.text}</b>`
-          : `הבאת את הדגל הביתה ב-${this.clock.text}. `
-            + `${store.load().cleared.length} מתוך ${TOTAL_NIGHTS}.`,
-        again: false,
-      });
+      /* The clock stops when the night does, so the time on the card has to
+       * be read before the morning plays over it. */
+      const at = this.clock.text;
+      if (this.night === 1) {
+        /* Seven in the morning, sun, a sprinkler, and Bob over the fence
+         * telling you the next one will be even better. */
+        this.cutscene.play(MORNING, { black: true }).then(() => {
+          this.showNightEnd(at);
+          /* And take the black off with it. #scene sits over the screens, so
+           * a sequence that ends black leaves the card it was covering for
+           * behind six seconds of nothing — which reads as a hang, on the one
+           * screen the player has been working towards all night. */
+          this.cutscene.play([]);
+        });
+        return;
+      }
+      this.showNightEnd(at);
       return;
     }
 
@@ -556,6 +576,22 @@ class Game {
       note: `${lines[(st.attempts + this.night) % lines.length]}<br>`
         + `<span class="dim">הדגל היה ${this.flag ? this.flag.site.label : 'איפשהו'}.</span>`,
       again: true,
+    });
+  }
+
+  /* The card that closes a night you won. Split out of endNight so the
+   * first night can put the morning cutscene in front of it. */
+  showNightEnd(at) {
+    const last = this.night >= TOTAL_NIGHTS;
+    const end = last ? ENDINGS.take : null;
+    this.ui.nightOver({
+      eyebrow: last ? 'הלילה השביעי' : 'הדגל בבית',
+      title: last ? end.title : `לילה ${this.night} נגמר`,
+      note: last
+        ? `${REVEAL.join('<br><br>')}<br><br><b>${end.text}</b>`
+        : `הבאת את הדגל הביתה ב-${at}. `
+          + `${store.load().cleared.length} מתוך ${TOTAL_NIGHTS}.`,
+      again: false,
     });
   }
 
@@ -647,7 +683,14 @@ class Game {
      * lock, and the reason the daylight walk is worth doing. Freezing her here
      * was the first version and it turned every puzzle into a safe room.
      */
-    input.enabled = !this.puzzle.open;
+    input.enabled = !this.puzzle.open && !this.cutscene.playing;
+    if (this.cutscene.playing && this.scene === 'day') {
+      /* The afternoon has no clock, so a scene simply stops the world. At
+       * night it does not: the two beats that play out there are one line
+       * long and the whistle does not wait for anybody. */
+      ui.prompt(null);
+      return;
+    }
     if (this.puzzle.open) {
       /* Standing at a keypad is standing still, and she treats it that way —
        * including the running penalty, which would otherwise be applied to
@@ -766,6 +809,19 @@ class Game {
     }
 
     const w = this.whistler;
+    /*
+     * The first time she is on screen, ever. One line, over the live game, and
+     * never again: it is the moment the player learns what they are looking
+     * at, and stopping the world for it would also stop the clock she is
+     * walking towards them on.
+     */
+    if (w && w.visible && !this.sighted && this.night === 1) {
+      this.sighted = true;
+      for (let i = 0; i < FIRST_SIGHT.length; i++) {
+        setTimeout(() => ui.subtitle(FIRST_SIGHT[i].text, FIRST_SIGHT[i].ms),
+          i * 3000);
+      }
+    }
     const near = w ? clamp(1 - w.dist / 26, 0, 1) : 0;
     this.awareShown = damp(this.awareShown, w ? w.awareness : 0, 9, dt);
     this.fear = damp(this.fear,
@@ -973,14 +1029,8 @@ class Game {
         break;
       }
       case 'bed':
-        if (this.scene === 'day' && !this.sleeping) {
-          this.sleeping = true;
-          this.ui.fade(true).then(() => {
-            this.startNight();
-            this.sleeping = false;
-            this.ui.fade(false);
-          });
-        } else if (this.scene !== 'day') ui.log('לא עכשיו.');
+        if (this.scene === 'day' && !this.sleeping) this.goToBed();
+        else if (this.scene !== 'day') ui.log('לא עכשיו.');
         break;
       case 'talk': this.talk(it.person); break;
       case 'hide': {
@@ -1001,8 +1051,10 @@ class Game {
       case 'car':
         if (it.radio && !P.radio.solved) {
           /* The radio plays the four notes as you lean in, every time, because
-           * the answer is a thing you hear rather than a thing you remember. */
-          audio.playLullaby('memory', { gain: 0.5 });
+           * the answer is a thing you hear rather than a thing you remember.
+           * Four, not the whole phrase: the puzzle note says four and the
+           * sticker on the visor turns four into four digits. */
+          audio.playLullaby('memory', { gain: 0.5, notes: P.radio.digits });
           this.openPuzzle('radio');
         } else ui.log('נעולה.');
         break;
@@ -1151,6 +1203,38 @@ class Game {
         if (it.label) ui.log(it.label);
         break;
     }
+  }
+
+  /*
+   * Lying down. On the first night this is the whole middle of the script —
+   * the photograph on the kitchen table that was not there in the morning, the
+   * dream, and waking at 3:29 for no reason — and on every night after it is
+   * one line, because the tenth time through a cutscene is not atmosphere, it
+   * is a wall between the player and the game.
+   */
+  async goToBed() {
+    this.sleeping = true;
+    await this.ui.fade(true);
+    const dream = this.night === 1 && !this.dreamShown;
+    if (dream) {
+      this.dreamShown = true;
+      await this.cutscene.play(TABLE_NOTE, { black: true });
+      /* The lullaby as she actually sang it, under the dream — the only time
+       * in the game the fourth note is the right one. */
+      this.audio.playLullaby('memory', { gain: 0.9 });
+      await this.cutscene.play(DREAM, { black: true, onBeat: (beat, i) => {
+        /* The third beat is the one word the whole game turns on. */
+        if (i === DREAM.length - 2) this.audio.carHorn();
+      } });
+      await this.cutscene.play(WAKE, { black: true });
+    }
+    this.startNight();
+    /* The dream ends black on purpose — the night is built behind it — and
+     * this is what hands the screen back, in step with the fade rather than
+     * on the scene player's own six-second backstop. */
+    if (dream) this.cutscene.play([]);
+    this.sleeping = false;
+    await this.ui.fade(false);
   }
 
   /* What a lock that has no panel is waiting for. */

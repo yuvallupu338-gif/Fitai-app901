@@ -73,6 +73,11 @@ appears somewhere between the houses, and at 3:35 the whistle stops — and if
 the flag is not through your own front door by then, the night starts again.
 Seven nights, each one different in exactly one way you can name.
 
+She whistles an eight-note lullaby, and its fourth note is a semitone wrong.
+How wrong is how close she is, which ear it is in is which side of you she is
+on, and the one time in the game you hear the tune the way it really was is a
+dream on the first night. The whole story is in that one note.
+
 Same rules as everything else here: a WebGL2 renderer written from scratch,
 every surface generated from noise, every sound synthesised, no libraries and
 no media files. It is served at `/suburb/`, keeps its own storage, and touches
