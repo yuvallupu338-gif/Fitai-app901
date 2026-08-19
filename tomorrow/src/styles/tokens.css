@@ -65,6 +65,13 @@
      blue at 52% is what keeps it electric instead of muddy. White clears 5.0:1
      against every point along it, checked below. */
   --grad: linear-gradient(135deg, #5046E5 0%, #2A66E8 52%, #7B4FE4 100%);
+  /* The same three stops as raw colours. An SVG <linearGradient> cannot read a
+     CSS gradient, and the score ring and the curve fills are SVG, so the stops
+     exist twice by necessity. They are next to each other so the day one of
+     them moves, the other is on the following line. */
+  --grad-1: #5046E5;
+  --grad-2: #2A66E8;
+  --grad-3: #7B4FE4;
   --grad-soft: linear-gradient(135deg, rgba(80, 70, 229, .18) 0%, rgba(42, 102, 232, .14) 52%, rgba(123, 79, 228, .18) 100%);
 
   /* Status. Muted on purpose: this app tells someone their evening may be
@@ -221,6 +228,15 @@
   --primary-ink: #FFFFFF;
   --primary-wash: rgba(58, 76, 212, .09);
   --primary-line: rgba(58, 76, 212, .26);
+
+  /* Deeper stops for the light theme. The dark ramp is tuned to glow against
+     a near-black page; on white the same three colours read as a highlighter,
+     and white text on them loses a point of contrast it cannot spare. */
+  --grad: linear-gradient(135deg, #4338CA 0%, #1D5FD8 52%, #6D45D6 100%);
+  --grad-1: #4338CA;
+  --grad-2: #1D5FD8;
+  --grad-3: #6D45D6;
+  --grad-soft: linear-gradient(135deg, rgba(67, 56, 202, .10) 0%, rgba(29, 95, 216, .08) 52%, rgba(109, 69, 214, .10) 100%);
 
   --good: #0D6A49;
   --good-wash: rgba(13, 106, 73, .10);
