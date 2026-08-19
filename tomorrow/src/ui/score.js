@@ -46,10 +46,18 @@ export function hero(ctx, opts) {
     });
   }
 
+  /*
+   * A day with nothing much in it gets told what its score is standing on
+   * rather than what would improve it. Offering to optimise a day that has one
+   * item on it is the app talking past the person: the useful next move is to
+   * tell it what is actually happening tomorrow.
+   */
   const rec = f.recommendation;
-  const subtext = rec
-    ? `שינוי אחד יכול להעלות את הציון ל-${rec.to}.`
-    : 'לא מצאתי שינוי אחד שישפר את מחר בצורה משמעותית.';
+  const subtext = !f.judged
+    ? 'עוד אין מספיק ביום הזה כדי לשפוט אותו — הציון מבוסס בעיקר על השינה.'
+    : rec
+      ? `שינוי אחד יכול להעלות את הציון ל-${rec.to}.`
+      : 'לא מצאתי שינוי אחד שישפר את מחר בצורה משמעותית.';
 
   return card({ variant: 'hero', testId: 'score-hero' },
     h('div.hero-top', null,

@@ -555,6 +555,46 @@ if (base) {
     check(bad === 0, 'scoring: no factor contradicts its own score in words');
   }
 
+  /*
+   * A day with nothing in it is not graded.
+   *
+   * Four of the six factors are vacuous on an almost-empty day, so the score
+   * came out at 87 and called it "יום טוב מאוד" — a grade awarded for an absence
+   * of things to grade. The number is allowed to stay high; the label is not
+   * allowed to be a verdict.
+   */
+  {
+    const lightDays = [
+      { label: 'nothing at all', items: [] },
+      { label: 'one low-focus workout', items: [mkItem({
+        kind: 'task', type: 'workout', title: 'אימון', start: 1020, duration: 60,
+        focusRequirement: 'low', energyRequirement: 'high', priority: 'medium' })] },
+      { label: 'three low-priority errands', items: [
+        mkItem({ title: 'א', start: 600, duration: 40, focusRequirement: 'low', priority: 'low' }),
+        mkItem({ title: 'ב', start: 700, duration: 40, focusRequirement: 'low', priority: 'low' }),
+        mkItem({ title: 'ג', start: 800, duration: 40, focusRequirement: 'low', priority: 'low' })] },
+    ];
+    for (const day of lightDays) {
+      const f = predict.forecast(fixInput({ items: day.items, plan: fixPlan({ topPriorities: [] }) }));
+      check(f.judged === false, `scoring: "${day.label}" is not a day the score can grade`);
+      check(f.band === 'light' && f.label === 'יום קל',
+        `scoring: "${day.label}" is called a light day, not "${f.label}"`);
+      check(!/טוב מאוד|מאתגר/.test(f.label),
+        `scoring: "${day.label}" is not handed a verdict`);
+    }
+
+    /* One genuinely demanding task is enough to have something to judge. */
+    const real = predict.forecast(fixInput({
+      items: [mkItem({ title: 'ללמוד למבחן', start: 600, duration: 120, focusRequirement: 'high', priority: 'high' })],
+      plan: fixPlan({ topPriorities: [] }),
+    }));
+    check(real.judged === true, 'scoring: one demanding task is enough to judge a day');
+    check(real.band !== 'light', `scoring: and it gets a real band (got ${real.band})`);
+
+    /* The fixture day is a full one and must be graded normally. */
+    check(base.judged === true, 'scoring: a full day is judged');
+  }
+
   check(Array.isArray(base.reasons.up) && Array.isArray(base.reasons.down),
     'forecast: reasons has both directions');
   check(base.reasons.up.length + base.reasons.down.length >= 2,
@@ -1165,6 +1205,10 @@ if (explain && base) {
     check(d.split(/[.!?]/).filter((s) => s.trim()).length <= 3,
       `explain: the summary stays to two or three sentences (got "${d}")`);
     check(!/!/.test(d), 'explain: no exclamation marks — the register is calm');
+    /* The openers are clause fragments with no full stop of their own, so they
+     * used to run straight into the next sentence. */
+    check(!/[\u0590-\u05FF]\s+[\u0590-\u05FF]+\s+[\u0590-\u05FF]+\s+צפוי בין/.test(d) || /[.!?]\s/.test(d),
+      `explain: the summary's sentences are separated (got "${d}")`);
   }
   if (explain.explainScore) {
     const lines = explain.explainScore(base);

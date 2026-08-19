@@ -254,6 +254,9 @@ export function forecast(input) {
     score: scored.score,
     label: scored.label,
     band: scored.band,
+    /* False when the day has too little in it for the score to be a verdict on
+     * anything — see scoring.js. The hero says so instead of grading it. */
+    judged: scored.judged,
     factors: scored.factors,
     reasons: scored.reasons,
     energy,
@@ -302,6 +305,7 @@ export function snapshot(f) {
     score: f.score,
     label: f.label,
     band: f.band,
+    judged: f.judged,
     factors: f.factors.map((x) => ({ key: x.key, score: x.score })),
     energy: { hourly: f.energy.hourly },
     focus: { hourly: f.focus.hourly },

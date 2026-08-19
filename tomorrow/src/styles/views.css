@@ -669,3 +669,8 @@ body.flow-open { overflow: hidden; }
 /* The what-if comparison shows four deltas rather than three. */
 .statgrid.four { grid-template-columns: repeat(4, minmax(0, 1fr)); }
 .statgrid.four .stat-value { font-size: var(--fs-md); }
+
+/* A day the score could not grade — see scoring.js — is drawn in the neutral
+   ink rather than in any of the verdict colours. It is not a good day or a bad
+   one; it is a day with too little in it to call either way. */
+.week-day.band-light .week-bar i { background: var(--text-dim); }

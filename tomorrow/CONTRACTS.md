@@ -440,6 +440,19 @@ ScoreResult = {
 Bands: `< 55` `'יום מאתגר'` (low), `55..69` `'יום סביר'` (fair),
 `70..84` `'יום טוב'` (good), `≥ 85` `'יום טוב מאוד'` (great).
 
+There is a fifth, which is not a grade. When **both** the `focus` and `goals`
+factors have nothing to measure — no scheduled task asks for concentration, and
+nothing is marked important or high priority — the score is not a verdict on a
+plan, because there is no plan. Four of the six factors are vacuous on such a
+day: the load is perfectly balanced because there is none, free time is
+maximal, and no risk can be found in nothing. `scoreDay` returns
+`judged: false`, `band: 'light'`, `label: 'יום קל'`, and the UI says which part
+of the day the number is standing on instead of grading it.
+
+The score itself is **not** lowered. There genuinely is no overload and no
+conflict, and somebody who wants a light day should not be marked down for
+planning one. What changes is what the number is called.
+
 The raw formula is never shown to the user. `reasons` is.
 
 Each factor score is a documented, monotonic function of the inputs. No

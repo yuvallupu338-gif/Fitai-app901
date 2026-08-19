@@ -350,6 +350,21 @@ async function run() {
     check(Number.isFinite(score) && score >= 0 && score <= 100,
       `home: the score is a real number 0..100 (read "${scoreText}")`);
     check(await has(page, 'score-label'), 'home: the score carries a band label');
+
+    /*
+     * The new-user day is one item and sixteen empty hours, and the app must not
+     * award it "יום טוב מאוד". A high number is fine — there really is no
+     * overload — but the label has to say the day was not graded.
+     */
+    const bandLabel = await textOf(page, 'score-label');
+    check(bandLabel === 'יום קל',
+      `home: this tomorrow holds one workout, so it is called a light day, not "${bandLabel}"`);
+    const heroSub = await page.evaluate(() => {
+      const el = document.querySelector('[data-t="score-hero"] .sub');
+      return el ? el.innerText.trim() : null;
+    });
+    check(!!heroSub && /לשפוט/.test(heroSub),
+      `home: and it says what the score is standing on (got "${heroSub}")`);
     check(await has(page, 'recommendation'), 'home: the primary recommendation is on the home screen');
     check(await has(page, 'energy-chart'), 'home: the energy chart renders');
     check(await has(page, 'focus-chart'), 'home: the focus chart renders');
@@ -639,6 +654,9 @@ async function run() {
       await page.waitForTimeout(900);
       check(await has(page, 'score') || await has(page, 'view-tomorrow'),
         'demo: the demo opens into a full day');
+      const demoLabel = await textOf(page, 'score-label');
+      check(demoLabel !== null && demoLabel !== 'יום קל',
+        `demo: a day with a real schedule is graded rather than called light (got "${demoLabel}")`);
       await shot(page, '10-demo');
 
       /*

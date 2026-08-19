@@ -42,6 +42,19 @@ function signed(n) {
  */
 export function explainDay(forecast) {
   const f = forecast;
+
+  /*
+   * A day the score could not grade gets described, not summarised. "The load
+   * is nicely spread across the day" is true of a day with one thing on it and
+   * says nothing to anybody.
+   */
+  if (f.judged === false) {
+    const win = f.focusWindows[0];
+    return win
+      ? `מחר כמעט ריק, אז אין הרבה מה לשפוט. אם תוסיף משהו, החלון החזק ביותר צפוי בין ${fmtRange(win.start, win.end - win.start, '24h')}.`
+      : 'מחר כמעט ריק, אז אין הרבה מה לשפוט. ככל שתספר לי יותר על היום, התחזית שווה יותר.';
+  }
+
   const factors = f.factors.slice().sort((a, b) => b.score - a.score);
   const best = factors[0];
   const worst = factors[factors.length - 1];
@@ -61,7 +74,13 @@ export function explainDay(forecast) {
       ? `החלון החזק ביותר שלך צפוי בין ${fmtRange(win.start, win.end - win.start, fmt)}.`
       : '';
 
-  return [opening, closing].filter(Boolean).join(' ');
+  /*
+   * The openers are clause fragments, so they carry no full stop of their own —
+   * joined with a space they ran straight into the next sentence: "…מתוכננות
+   * החלון החזק ביותר…". One is added here rather than in six template strings.
+   */
+  const first = /[.!?]$/.test(opening) ? opening : `${opening}.`;
+  return [first, closing].filter(Boolean).join(' ');
 }
 
 const OPENERS = {

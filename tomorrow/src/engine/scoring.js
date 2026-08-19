@@ -44,6 +44,24 @@ const BANDS = [
   { at: 0, band: 'low', label: 'יום מאתגר' },
 ];
 
+/*
+ * The band for a day the score cannot really grade.
+ *
+ * Four of the six factors are vacuous on an almost-empty day: the load is
+ * perfectly balanced because there is none, the free time is maximal, no risk
+ * can be found in nothing, and neither the focus nor the goals factor has
+ * anything to look at. What comes out is 89 and "יום טוב מאוד" for a tomorrow
+ * with one workout in it and sixteen hours of nothing — a grade awarded for an
+ * absence of things to grade.
+ *
+ * The number stays. Lowering it would be dishonest in the other direction:
+ * there is genuinely no overload and no conflict, and a person who wants a
+ * light day should not be marked down for planning one. What changes is what
+ * the number is *called*, and the subtext beside it says which part of the day
+ * the score is actually standing on.
+ */
+const LIGHT = { band: 'light', label: 'יום קל' };
+
 /* Eight hours, the default need when nothing personal is known yet. */
 const DEFAULT_SLEEP_NEED = 480;
 
@@ -435,12 +453,24 @@ export function scoreDay(input) {
 
   const total = factors.reduce((a, f) => a + f.weight * f.score, 0);
   const score = Math.round(clamp(total, 0, 100));
-  const band = BANDS.find((b) => score >= b.at) || BANDS[BANDS.length - 1];
+
+  /*
+   * Both of the factors that can have nothing to measure, having nothing to
+   * measure, is the signal — not an item count or a share of the day, which
+   * would need a threshold nobody can defend. focus is neutral when no
+   * scheduled task asks for any concentration; goals is neutral when nothing is
+   * marked important and nothing is high priority. When both are true at once,
+   * there is no plan here for the score to be a verdict on.
+   */
+  const judged = !(computed.focus.neutral && computed.goals.neutral);
+  const graded = BANDS.find((b) => score >= b.at) || BANDS[BANDS.length - 1];
+  const band = judged ? graded : LIGHT;
 
   return {
     score,
     label: band.label,
     band: band.band,
+    judged,
     factors,
     reasons: reasonsFrom(factors, input),
   };

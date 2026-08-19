@@ -45,7 +45,7 @@
   a real HTTP header, and GitHub Pages does not let this repository set one.
   Leaving it in would read as clickjacking protection that does not exist.
 -->
-<meta http-equiv="Content-Security-Policy" content="default-src 'none'; script-src 'sha256-EfbfakndUznppKpG2Zbgs4DRKOrXSBlKwRuySpCYPDA='; style-src 'sha256-9XvGG9FiqR5B6vyDwjkEOxZldTD0MKmfdHvENLMJVtk='; img-src 'self' data:; font-src 'self' data:; connect-src 'none'; media-src 'none'; frame-src 'none'; worker-src 'none'; object-src 'none'; base-uri 'none'; form-action 'none'">
+<meta http-equiv="Content-Security-Policy" content="default-src 'none'; script-src 'sha256-bHMryEFbt+CvvUklUokKq70+fxq+jL5zLtMUBF7FKwA='; style-src 'sha256-7UPzrM59FeDd0UbNPr3vhd6QvkYHaDra+7a0y1zqkmE='; img-src 'self' data:; font-src 'self' data:; connect-src 'none'; media-src 'none'; frame-src 'none'; worker-src 'none'; object-src 'none'; base-uri 'none'; form-action 'none'">
 
 <!-- fonts.css is the repository's shared, generated set of embedded faces and
      is linked first so the families exist before tokens.css names them. The
@@ -2518,6 +2518,11 @@ body.flow-open { overflow: hidden; }
 /* The what-if comparison shows four deltas rather than three. */
 .statgrid.four { grid-template-columns: repeat(4, minmax(0, 1fr)); }
 .statgrid.four .stat-value { font-size: var(--fs-md); }
+
+/* A day the score could not grade — see scoring.js — is drawn in the neutral
+   ink rather than in any of the verdict colours. It is not a good day or a bad
+   one; it is a day with too little in it to call either way. */
+.week-day.band-light .week-bar i { background: var(--text-dim); }
 
 </style>
 </head>
@@ -7378,6 +7383,24 @@ const BANDS = [
   { at: 0, band: 'low', label: 'יום מאתגר' },
 ];
 
+/*
+ * The band for a day the score cannot really grade.
+ *
+ * Four of the six factors are vacuous on an almost-empty day: the load is
+ * perfectly balanced because there is none, the free time is maximal, no risk
+ * can be found in nothing, and neither the focus nor the goals factor has
+ * anything to look at. What comes out is 89 and "יום טוב מאוד" for a tomorrow
+ * with one workout in it and sixteen hours of nothing — a grade awarded for an
+ * absence of things to grade.
+ *
+ * The number stays. Lowering it would be dishonest in the other direction:
+ * there is genuinely no overload and no conflict, and a person who wants a
+ * light day should not be marked down for planning one. What changes is what
+ * the number is *called*, and the subtext beside it says which part of the day
+ * the score is actually standing on.
+ */
+const LIGHT = { band: 'light', label: 'יום קל' };
+
 /* Eight hours, the default need when nothing personal is known yet. */
 const DEFAULT_SLEEP_NEED = 480;
 
@@ -7769,12 +7792,24 @@ function scoreDay(input) {
 
   const total = factors.reduce((a, f) => a + f.weight * f.score, 0);
   const score = Math.round(clamp(total, 0, 100));
-  const band = BANDS.find((b) => score >= b.at) || BANDS[BANDS.length - 1];
+
+  /*
+   * Both of the factors that can have nothing to measure, having nothing to
+   * measure, is the signal — not an item count or a share of the day, which
+   * would need a threshold nobody can defend. focus is neutral when no
+   * scheduled task asks for any concentration; goals is neutral when nothing is
+   * marked important and nothing is high priority. When both are true at once,
+   * there is no plan here for the score to be a verdict on.
+   */
+  const judged = !(computed.focus.neutral && computed.goals.neutral);
+  const graded = BANDS.find((b) => score >= b.at) || BANDS[BANDS.length - 1];
+  const band = judged ? graded : LIGHT;
 
   return {
     score,
     label: band.label,
     band: band.band,
+    judged,
     factors,
     reasons: reasonsFrom(factors, input),
   };
@@ -8753,6 +8788,9 @@ function forecast(input) {
     score: scored.score,
     label: scored.label,
     band: scored.band,
+    /* False when the day has too little in it for the score to be a verdict on
+     * anything — see scoring.js. The hero says so instead of grading it. */
+    judged: scored.judged,
     factors: scored.factors,
     reasons: scored.reasons,
     energy,
@@ -8801,6 +8839,7 @@ function snapshot(f) {
     score: f.score,
     label: f.label,
     band: f.band,
+    judged: f.judged,
     factors: f.factors.map((x) => ({ key: x.key, score: x.score })),
     energy: { hourly: f.energy.hourly },
     focus: { hourly: f.focus.hourly },
@@ -11060,6 +11099,19 @@ function signed(n) {
  */
 function explainDay(forecast) {
   const f = forecast;
+
+  /*
+   * A day the score could not grade gets described, not summarised. "The load
+   * is nicely spread across the day" is true of a day with one thing on it and
+   * says nothing to anybody.
+   */
+  if (f.judged === false) {
+    const win = f.focusWindows[0];
+    return win
+      ? `מחר כמעט ריק, אז אין הרבה מה לשפוט. אם תוסיף משהו, החלון החזק ביותר צפוי בין ${fmtRange(win.start, win.end - win.start, '24h')}.`
+      : 'מחר כמעט ריק, אז אין הרבה מה לשפוט. ככל שתספר לי יותר על היום, התחזית שווה יותר.';
+  }
+
   const factors = f.factors.slice().sort((a, b) => b.score - a.score);
   const best = factors[0];
   const worst = factors[factors.length - 1];
@@ -11079,7 +11131,13 @@ function explainDay(forecast) {
       ? `החלון החזק ביותר שלך צפוי בין ${fmtRange(win.start, win.end - win.start, fmt)}.`
       : '';
 
-  return [opening, closing].filter(Boolean).join(' ');
+  /*
+   * The openers are clause fragments, so they carry no full stop of their own —
+   * joined with a space they ran straight into the next sentence: "…מתוכננות
+   * החלון החזק ביותר…". One is added here rather than in six template strings.
+   */
+  const first = /[.!?]$/.test(opening) ? opening : `${opening}.`;
+  return [first, closing].filter(Boolean).join(' ');
 }
 
 const OPENERS = {
@@ -11280,10 +11338,18 @@ function hero(ctx, opts) {
     });
   }
 
+  /*
+   * A day with nothing much in it gets told what its score is standing on
+   * rather than what would improve it. Offering to optimise a day that has one
+   * item on it is the app talking past the person: the useful next move is to
+   * tell it what is actually happening tomorrow.
+   */
   const rec = f.recommendation;
-  const subtext = rec
-    ? `שינוי אחד יכול להעלות את הציון ל-${rec.to}.`
-    : 'לא מצאתי שינוי אחד שישפר את מחר בצורה משמעותית.';
+  const subtext = !f.judged
+    ? 'עוד אין מספיק ביום הזה כדי לשפוט אותו — הציון מבוסס בעיקר על השינה.'
+    : rec
+      ? `שינוי אחד יכול להעלות את הציון ל-${rec.to}.`
+      : 'לא מצאתי שינוי אחד שישפר את מחר בצורה משמעותית.';
 
   return card({ variant: 'hero', testId: 'score-hero' },
     h('div.hero-top', null,
