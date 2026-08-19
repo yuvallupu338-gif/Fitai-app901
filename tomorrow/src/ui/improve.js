@@ -17,7 +17,7 @@ import { invalidate } from '../core/forecast.js';
 import { addDays } from '../core/time.js';
 import { improve } from '../engine/optimize.js';
 import { empty, icon, ICONS, delta } from './parts.js';
-import { applyResult } from './home.js';
+import { animateFrom } from './scoreanim.js';
 
 /*
  * What the day looked like before Apply.
@@ -163,7 +163,7 @@ function apply(ctx, result) {
   });
 
   invalidate();
-  applyResult(result.before.score);
+  animateFrom(result.before.score);
   ctx.refresh();
   announce(`מחר עודכן. הציון עלה ל-${result.after.score}.`);
 }
@@ -180,7 +180,7 @@ function undo(ctx) {
   previous = null;
 
   invalidate();
-  applyResult(score);
+  animateFrom(score);
   ctx.refresh();
   ctx.toast('השינוי בוטל', 'good');
 }

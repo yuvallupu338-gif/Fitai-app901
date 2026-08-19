@@ -23,7 +23,6 @@ import { assessRisks } from './risk.js';
 import { scoreDay } from './scoring.js';
 import { assess } from './confidence.js';
 import { findInsights } from './insights.js';
-import { primaryRecommendation } from './optimize.js';
 
 const NOON = 720;
 const DAY = 1440;
@@ -202,12 +201,17 @@ function buildTimeline(ctx, energy, focus, focusWindows, risks, totals) {
 /**
  * Everything the app knows about one day.
  *
- * `input.withRecommendation` defaults to true and exists for one reason: the
- * highest-impact recommendation is found by scoring candidate days, and each
- * candidate is scored with this function. Left to itself that recurses without
- * end. The optimiser passes false, so the inner forecasts skip the step and the
- * search terminates. It is part of the input rather than a module-level flag so
- * the function stays a function of its arguments.
+ * It does NOT compute the highest-impact recommendation.
+ *
+ * That lives in optimize.js, which finds it by scoring candidate days — and
+ * scoring a day means calling this function. Importing it here made
+ * predict → optimize → predict, a cycle that real ES modules tolerate through
+ * hoisting and live bindings, so the served app never noticed. Flattened into
+ * one file it is fatal: whichever module the bundler emits second destructures
+ * from a registry entry that does not exist yet, and the whole app is a blank
+ * page. core/forecast.js composes the two instead, which is the right shape
+ * anyway — the prediction engine has no business depending on the thing that
+ * searches over its output.
  */
 export function forecast(input) {
   const ctx = {
@@ -279,9 +283,6 @@ export function forecast(input) {
     },
   };
 
-  if (input.withRecommendation !== false) {
-    out.recommendation = primaryRecommendation(input);
-  }
   return out;
 }
 

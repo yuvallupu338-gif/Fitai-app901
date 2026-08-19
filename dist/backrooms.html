@@ -17,7 +17,7 @@
      is only as safe as the weakest page on it. It draws everything itself and
      talks to nobody: script-src is 'self' with no inline anything, and
      connect-src is 'none'. frame-ancestors is omitted — ignored in a meta tag. -->
-<meta http-equiv="Content-Security-Policy" content="default-src 'none'; script-src 'sha256-2ZsDh241FtZmew//1F1OPI5cKq7EX5hfVoAH3cLBAew='; style-src 'sha256-jpOMZGD9uLRZltqHCAmbANjTiT1kJqBYWxJontQHWNE='; img-src 'self' data:; font-src 'self' data:; connect-src 'none'; media-src 'none'; frame-src 'none'; worker-src 'none'; object-src 'none'; base-uri 'none'; form-action 'none'">
+<meta http-equiv="Content-Security-Policy" content="default-src 'none'; script-src 'sha256-FfY06bpA/WlU2oeZiIyfMamelfvBEPvL5eHgYXOkN9c='; style-src 'sha256-jpOMZGD9uLRZltqHCAmbANjTiT1kJqBYWxJontQHWNE='; img-src 'self' data:; font-src 'self' data:; connect-src 'none'; media-src 'none'; frame-src 'none'; worker-src 'none'; object-src 'none'; base-uri 'none'; form-action 'none'">
 <link rel="icon" href="data:image/svg+xml,<svg xmlns='http://www.w3.org/2000/svg' viewBox='0 0 32 32'><rect width='32' height='32' fill='%23c9b24e'/><rect x='7' y='4' width='18' height='24' fill='%238d7a2c'/><rect x='12' y='12' width='8' height='16' fill='%23e6d68a'/></svg>">
 <style>
 /*
@@ -3373,12 +3373,12 @@ __m["backrooms/src/render/renderer.js"] = (function () {
  * which is where the look actually comes from.
  */
 
-const { createContext, createProgram, createArrayTexture, createTexture2D, createTarget, destroyTarget, createFullscreenVAO, createMeshVAO, destroyMesh, } = __m["backrooms/src/core/gl.js"];
-const { SCENE_VERT, SCENE_FRAG, SKY_VERT, SKY_FRAG, POST_VERT, BRIGHT_FRAG, BLUR_FRAG, COMPOSITE_FRAG, } = __m["backrooms/src/render/shaders.js"];
+const { createContext, createProgram, createArrayTexture, createTexture2D, createTarget, destroyTarget, createFullscreenVAO, createMeshVAO, destroyMesh } = __m["backrooms/src/core/gl.js"];
+const { SCENE_VERT, SCENE_FRAG, SKY_VERT, SKY_FRAG, POST_VERT, BRIGHT_FRAG, BLUR_FRAG, COMPOSITE_FRAG } = __m["backrooms/src/render/shaders.js"];
 const { bakeMaterial, parseColor } = __m["backrooms/src/render/textures.js"];
 const { MAT_COUNT, MAT } = __m["backrooms/src/world/grid.js"];
-const { MeshBuilder, addBox, addCylinder, addLimb, addSphere, addQuad, } = __m["backrooms/src/world/meshbuilder.js"];
-const { mat4, perspective, multiply, viewFromEuler, forwardFromEuler, frustumFromMatrix, aabbInFrustum, DEG, } = __m["backrooms/src/core/math.js"];
+const { MeshBuilder, addBox, addCylinder, addLimb, addSphere, addQuad } = __m["backrooms/src/world/meshbuilder.js"];
+const { mat4, perspective, multiply, viewFromEuler, forwardFromEuler, frustumFromMatrix, aabbInFrustum, DEG } = __m["backrooms/src/core/math.js"];
 
 const MAX_LIGHTS = 16;
 
@@ -4632,7 +4632,7 @@ __m["backrooms/src/world/chunk.js"] = (function () {
  *   features     no-clip points down to the next level, and things to pick up.
  */
 
-const { CHUNK, Chunk, MAT, WALL_UNIT, F_CEIL, F_LIGHT, F_WATER, F_NOFLOOR, F_EXIT, F_ITEM, F_NOLIGHT, } = __m["backrooms/src/world/grid.js"];
+const { CHUNK, Chunk, MAT, WALL_UNIT, F_CEIL, F_LIGHT, F_WATER, F_NOFLOOR, F_EXIT, F_ITEM, F_NOLIGHT } = __m["backrooms/src/world/grid.js"];
 const { ARCHETYPES, chunkRng } = __m["backrooms/src/world/archetypes.js"];
 const { hash2 } = __m["backrooms/src/core/rng.js"];
 

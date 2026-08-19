@@ -49,10 +49,30 @@ function key(abs) {
   return relative(ROOT, abs).split('\\').join('/');
 }
 
+const stack = [];
+
 function collect(abs) {
   const k = key(abs);
-  if (seen.has(k)) return;
+  /*
+   * null marks "being collected". Meeting one again is an import cycle, and a
+   * cycle is the one thing this bundler cannot flatten: it emits each module as
+   * an IIFE that destructures its dependencies out of the registry, so whichever
+   * half of the cycle is written first reads an entry that does not exist yet
+   * and the whole bundle dies on load.
+   *
+   * Real ES modules survive cycles through hoisting and live bindings, which is
+   * why one can sit in a served app for months looking perfectly healthy. This
+   * build is where it surfaces, so it is where it has to be reported — by name,
+   * with the loop spelled out, rather than as a blank page and a stack trace
+   * pointing at line 8922 of a generated file.
+   */
+  if (seen.has(k)) {
+    if (seen.get(k) !== null) return;      // already collected, nothing to do
+    const loop = stack.slice(stack.indexOf(k)).concat(k).join(' -> ');
+    throw new Error(`import cycle: ${loop}`);
+  }
   seen.set(k, null);
+  stack.push(k);
 
   const src = readFileSync(abs, 'utf8');
   reject(src, k);
@@ -67,11 +87,15 @@ function collect(abs) {
   while ((m = importRe.exec(src))) {
     const spec = m[4];
     if (!spec.startsWith('.')) throw new Error(`${k}: bare import "${spec}" — not bundleable`);
+    // m[1] is a default import. export default is rejected below, so one here
+    // is a mistake — and left unchecked it emitted `const { undefined } = …`.
+    if (m[1]) throw new Error(`${k}: default import of "${spec}" — this repo uses named exports only`);
     deps.push({ ns: m[2], named: m[3], spec, raw: m[0] });
   }
 
   for (const d of deps) collect(resolve(dirname(abs), d.spec));
 
+  stack.pop();
   seen.set(k, { abs, src, deps });
   order.push(k);
 }
@@ -83,6 +107,30 @@ function reject(src, k) {
   if (/\bimport\.meta\b/.test(src)) throw new Error(`${k}: import.meta is not supported`);
 }
 
+/*
+ * `import { a as b }` is not `const { a as b }`.
+ *
+ * Destructuring renames with a colon; `as` is import syntax and nothing else.
+ * Emitting it verbatim produces a file that parses right up to the first
+ * aliased import and then dies with "Unexpected identifier 'as'" — and because
+ * the bundle is one inline script, that one token takes the whole app down with
+ * a blank page. Every app in this repo before TomorrowAI imported each symbol
+ * under its own name, so this sat here working perfectly for two builds.
+ */
+function destructure(named) {
+  return named
+    .replace(/\s+/g, ' ')
+    .split(',')
+    .map((piece) => {
+      const t = piece.trim();
+      if (!t) return null;
+      const alias = /^([\w$]+)\s+as\s+([\w$]+)$/.exec(t);
+      return alias ? `${alias[1]}: ${alias[2]}` : t;
+    })
+    .filter(Boolean)
+    .join(', ');
+}
+
 function transform(k, mod) {
   let out = mod.src;
 
@@ -91,7 +139,7 @@ function transform(k, mod) {
     const target = key(resolve(dirname(mod.abs), d.spec));
     const line = d.ns
       ? `const ${d.ns} = __m[${JSON.stringify(target)}];`
-      : `const { ${d.named.replace(/\s+/g, ' ').trim()} } = __m[${JSON.stringify(target)}];`;
+      : `const { ${destructure(d.named)} } = __m[${JSON.stringify(target)}];`;
     out = out.replace(d.raw, line);
   }
 

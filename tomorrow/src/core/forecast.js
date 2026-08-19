@@ -16,6 +16,7 @@
  */
 
 import { forecast as predictForecast } from '../engine/predict.js';
+import { primaryRecommendation } from '../engine/optimize.js';
 import { get, itemsOn, dayPlan, record, recentRecords } from './store.js';
 
 const cache = new Map();
@@ -82,7 +83,20 @@ export function forecastFor(date, now, opts) {
   if (hit && hit.sig === sig) return hit.value;
 
   const input = inputFor(date, now);
-  const value = predictForecast(light ? Object.assign({}, input, { withRecommendation: false }) : input);
+  const value = predictForecast(input);
+
+  /*
+   * The recommendation is attached here rather than inside forecast(), because
+   * finding it means scoring candidate days and scoring a day means calling
+   * forecast() — so asking the engine for it would make predict and optimize
+   * import each other. This is the layer that legitimately knows both.
+   *
+   * The light variant skips it: the week view builds seven forecasts and the
+   * history screen scrolls through ninety, and each recommendation costs a
+   * small search over candidate days. Nothing on those screens shows one.
+   */
+  if (!light) value.recommendation = primaryRecommendation(input);
+
   cache.set(key, { sig, value, input });
 
   /*

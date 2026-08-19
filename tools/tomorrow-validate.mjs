@@ -814,7 +814,7 @@ if (learn && sched && predict && schema) {
     kind: 'event', title: 'בית ספר', date: TOMORROW, start: 480, duration: 300, locked: true,
   }, NOW_ISO)];
   const ctxFor = (learning) => {
-    const f = predict.forecast(fixInput({ items: bare, learning, history: pastRecords, withRecommendation: false }));
+    const f = predict.forecast(fixInput({ items: bare, learning, history: pastRecords }));
     return Object.assign(fixInput({ items: bare, learning, history: pastRecords }),
       { energy: f.energy, focus: f.focus, focusWindows: f.focusWindows });
   };

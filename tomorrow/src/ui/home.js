@@ -23,22 +23,14 @@ import { hero } from './score.js';
 import { card, empty, stat, riskCard, insightCard, icon, ICONS, delta } from './parts.js';
 import { explainDay } from '../engine/explain.js';
 import { openImprove } from './improve.js';
+import { takeAnimateFrom } from './scoreanim.js';
 import { openWhatIf } from './whatif.js';
 import { openQuickAdd, openItemEditor } from './quickadd.js';
-
-/* Set by improve.js through applyResult() so the next render counts the dial up
- * from where it was rather than snapping to the new number. */
-let animateFrom;
-
-export function applyResult(previousScore) {
-  animateFrom = previousScore;
-}
 
 export function render(root, ctx) {
   const f = ctx.forecast;
   const fmt = ctx.profile.timeFormat;
-  const from = animateFrom;
-  animateFrom = undefined;
+  const from = takeAnimateFrom();
 
   root.appendChild(header(ctx));
 

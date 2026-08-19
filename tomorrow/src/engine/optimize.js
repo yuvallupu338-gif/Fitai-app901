@@ -54,7 +54,7 @@ function hashOf(changes) {
 }
 
 function scoreOf(input, items, plan) {
-  return forecast(Object.assign({}, input, { items, plan, withRecommendation: false }));
+  return forecast(Object.assign({}, input, { items, plan }));
 }
 
 /* ------------------------------------------------------------------ *

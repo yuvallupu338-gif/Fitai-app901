@@ -14,7 +14,7 @@
      style attributes. connect-src names the two vendors this app actually
      talks to and nothing else, so a scripting bug could not beacon a key out.
      frame-ancestors is omitted on purpose — it is ignored in a meta tag. -->
-<meta http-equiv="Content-Security-Policy" content="default-src 'none'; script-src 'sha256-biy5QlSsF9k4OTCHYT/mqyAqd4seis5ZQq6ZkkwAH4Q='; style-src 'sha256-KqexG9RQypS/792d0kFTfYzk8SenX+HU4JXvQmWfdjE='; img-src 'self' data: blob:; font-src 'self' data:; connect-src 'self' https://api.anthropic.com https://api.deepseek.com; media-src 'none'; frame-src 'none'; worker-src 'none'; object-src 'none'; base-uri 'none'; form-action 'none'">
+<meta http-equiv="Content-Security-Policy" content="default-src 'none'; script-src 'sha256-hH4sNwE9UBqt+s6z+tAdplWLs+B1pK4q8Fh+Z9n1i6c='; style-src 'sha256-KqexG9RQypS/792d0kFTfYzk8SenX+HU4JXvQmWfdjE='; img-src 'self' data: blob:; font-src 'self' data:; connect-src 'self' https://api.anthropic.com https://api.deepseek.com; media-src 'none'; frame-src 'none'; worker-src 'none'; object-src 'none'; base-uri 'none'; form-action 'none'">
 
 <link rel="icon" href="data:image/svg+xml,<svg xmlns='http://www.w3.org/2000/svg' viewBox='0 0 32 32'><rect width='32' height='32' rx='7' fill='%230E1520'/><path d='M9 22V10h11M9 16h8' stroke='%23FFB13C' stroke-width='2.6' fill='none' stroke-linecap='round'/></svg>">
 <style>
@@ -7435,10 +7435,10 @@ __m["src/engine/generator.js"] = (function () {
  */
 
 const { demonstratedLevel, benchmarkNote } = __m["src/engine/benchmarks.js"];
-const { MIN_AGE, MAX_AGE, withholdsHeavyLoad, easesImpact, needsStandingOption, needsLongerWarmup, warmsFast, stretchHoldSeconds, } = __m["src/engine/age.js"];
+const { MIN_AGE, MAX_AGE, withholdsHeavyLoad, easesImpact, needsStandingOption, needsLongerWarmup, warmsFast, stretchHoldSeconds } = __m["src/engine/age.js"];
 const { asks } = __m["src/data/demands.js"];
 
-const { candidates, candidatesOrFallback, conflictsInjury, hashProfile, rotate, } = __m["src/data/exercises.index.js"];
+const { candidates, candidatesOrFallback, conflictsInjury, hashProfile, rotate } = __m["src/data/exercises.index.js"];
 const { weeklyVolume, splitFor, sessionBudget } = __m["src/engine/volume.js"];
 
 /* ------------------------------------------------------------------ *
@@ -11875,7 +11875,7 @@ __m["src/ui/aisettings.js"] = (function () {
  */
 
 const { h } = __m["src/core/dom.js"];
-const { loadKey, saveKey, keyLooksValid, saveChoice, providersFor, modelsFor, providerById, } = __m["src/ai/client.js"];
+const { loadKey, saveKey, keyLooksValid, saveChoice, providersFor, modelsFor, providerById } = __m["src/ai/client.js"];
 
 /**
  * The key field for one provider. Typing does NOT redraw — that would steal
@@ -12016,7 +12016,7 @@ const { analyze, VisionError, scanEligibility } = __m["src/vision/analyze.js"];
 const { hasKey, keyLooksValid, loadKey, choiceFor } = __m["src/ai/client.js"];
 const { hidesBodyReading } = __m["src/engine/age.js"];
 const { settingsRows } = __m["src/ui/aisettings.js"];
-const { emphasisFrom, emphasisSummary, bandHe, confidenceHe, buildHe, trainingAgeHe, patternHe, timelineGap, goalConflict, growthNote, } = __m["src/vision/apply.js"];
+const { emphasisFrom, emphasisSummary, bandHe, confidenceHe, buildHe, trainingAgeHe, patternHe, timelineGap, goalConflict, growthNote } = __m["src/vision/apply.js"];
 
 
 /* ------------------------------------------------------------------ *

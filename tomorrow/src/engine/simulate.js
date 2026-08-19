@@ -97,14 +97,14 @@ function apply(day, mutation) {
  */
 export function simulate(input, mutations) {
   const muts = Array.isArray(mutations) ? mutations : [];
-  const base = forecast(Object.assign({}, input, { withRecommendation: false }));
+  const base = forecast(Object.assign({}, input));
 
   const day = { items: clone(input.items), plan: clone(input.plan) };
   const understood = [];
   for (const m of muts) if (apply(day, m)) understood.push(m);
 
   const next = forecast(Object.assign({}, input, {
-    items: day.items, plan: day.plan, withRecommendation: false,
+    items: day.items, plan: day.plan,
   }));
 
   const diff = {

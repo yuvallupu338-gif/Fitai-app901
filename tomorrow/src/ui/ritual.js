@@ -302,7 +302,7 @@ function screenAnalysis(root, ctx, date, draft, close, onDone) {
      * result simply appearing.
      */
     const work = i === 1
-      ? () => forecast(Object.assign({}, inputFor(date, ctx.now), { withRecommendation: false }))
+      ? () => forecast(inputFor(date, ctx.now))
       : i === nodes.length - 1
         ? () => forecast(inputFor(date, ctx.now))
         : null;
