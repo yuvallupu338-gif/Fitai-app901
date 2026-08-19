@@ -75,7 +75,7 @@ const MELODY = [
  * and the thing that used to put him to sleep are one changed note apart.
  */
 const SOUR = 3;             /* the fourth note, by index                     */
-const KIND = 5;             /* A natural, where the night version has A#     */
+const MEMORY_NOTE = 5;      /* A natural, where the night version has A#     */
 
 const ROOT = 1318.5;        /* E6, for the reason in the table's comment     */
 const LOOP = 12;            /* the cycle, the closing silence included       */
@@ -114,15 +114,24 @@ const SURFACES = {
 };
 
 /*
- * A garden music box has a pentatonic comb, and this one is cut in her key:
- * the five tines are the opening of the lullaby, E G B A E. A pentatonic comb
- * has no tritone on it, so the fourth note of the night version is a note this
- * box does not physically have — which is the puzzle. The box that is hers
- * plays the phrase without bending anything; the two that are not have to be
- * pulled off their own tines to reach what they play, and a bent tine beats
- * against itself.
+ * A garden music box has a pentatonic comb, and all three of these are cut in
+ * her key: the five tines are the opening of the lullaby, E G B A E. A
+ * pentatonic comb has no tritone on it, so the fourth note of the night
+ * version is a note none of these boxes physically has — which is the puzzle.
+ * The one that is hers plays the phrase without bending anything; the two that
+ * are not have to have that tine pulled off its own pitch to reach what they
+ * play, and a bent tine beats against itself.
+ *
+ * Same key, same tune, same speed in all three. The fourth note is the only
+ * difference there is, because the fourth note is what the game tells the
+ * player to listen for, and a second difference is a second way to get it
+ * right without ever having listened to her.
  */
 const BOX_OPEN = [0, 3, 7, 5, 0];
+/* Except that they are three objects rather than one, and nothing with a comb
+ * in it stands outdoors for twenty years in tune. Cents, not semitones: enough
+ * that they are not the same recording, nowhere near enough to be a key. */
+const BOX_DRIFT = [0, -6, 7];
 /* E5, an octave under the whistle. A struck tine is its inharmonic partials
  * far more than its fundamental, and from here those land at 2.6 and 4.8 kHz,
  * where a comb sings; cut at the whistle's own octave they go up past 7 kHz
@@ -776,7 +785,7 @@ export class GameAudio {
       /* Every bit of dirt in the phrase is on this one note, and there is none
        * of it in the memory version at any distance. */
       const dirt = sour && !memory ? prox : 0;
-      const f = ROOT * Math.pow(2, (sour && memory ? KIND : n.semitone) / 12);
+      const f = ROOT * Math.pow(2, (sour && memory ? MEMORY_NOTE : n.semitone) / 12);
       /* She leans on it longer the closer she is. Capped at three tenths so
        * that some of the four tenths of air after the note survives: a phrase
        * with the gaps squeezed out of it is a siren, and it also means two
@@ -947,24 +956,26 @@ export class GameAudio {
 
     /* Smoothed, all of it. She moves fast enough that writing these straight
      * gives audible zipper noise on the pan and a chirp on the filter. */
-    if (w.hasPan && !flipped && t >= this.panHold) {
-      w.pan.pan.setTargetAtTime(this.lastPan, t, 0.09);
-    } else if (w.hasPan && flipped) {
-      /* 30 ms, not the usual 90 ms time constant: at 90 the image crawls
-       * across the head, which is exactly what somebody walking round you
-       * sounds like and exactly what this must not sound like. Not 0 either —
-       * a step on a running pan clicks on whatever note is sounding. And the
-       * frame after this one must keep its hands off the parameter, or its
-       * setTargetAtTime truncates the ramp and puts the crawl back. */
-      hold(w.pan.pan, t);
-      w.pan.pan.linearRampToValueAtTime(this.lastPan, t + 0.03);
-      this.panHold = t + 0.03;
-      /* A dip through the crossing. It covers the discontinuity and it is
-       * also what a head does: anything passing an ear goes quiet for a
-       * moment before it arrives on the other side. */
-      hold(w.flip.gain, t);
-      w.flip.gain.linearRampToValueAtTime(0.40, t + 0.018);
-      w.flip.gain.linearRampToValueAtTime(1, t + 0.11);
+    if (w.hasPan) {
+      if (flipped) {
+        /* 30 ms, and not the 90 ms above: at 90 the image crawls across the
+         * head, which is exactly what somebody walking round you sounds like
+         * and exactly what this must not sound like. Not 0 either — a step on
+         * a running pan clicks on whatever note is sounding. And the frames
+         * after this one have to keep their hands off the parameter, or the
+         * next setTargetAtTime truncates the ramp and puts the crawl back. */
+        hold(w.pan.pan, t);
+        w.pan.pan.linearRampToValueAtTime(this.lastPan, t + 0.03);
+        this.panHold = t + 0.03;
+        /* A dip through the crossing. It covers the discontinuity, and it is
+         * also what a head does: anything passing an ear goes quiet for a
+         * moment before it arrives on the other side. */
+        hold(w.flip.gain, t);
+        w.flip.gain.linearRampToValueAtTime(0.40, t + 0.018);
+        w.flip.gain.linearRampToValueAtTime(1, t + 0.11);
+      } else if (t >= this.panHold) {
+        w.pan.pan.setTargetAtTime(this.lastPan, t, 0.09);
+      }
     }
 
     let cut = 340 + 5200 * Math.pow(0.5, dist / 13);
@@ -1032,9 +1043,9 @@ export class GameAudio {
 
   /*
    * The phrase on its own, once, now. 'memory' is the lullaby as she sang it:
-   * the fourth note is the A the ear has been waiting eight bars for, there is
-   * no detune on it and nothing under it, and a child is laughing a long way
-   * behind her. 'night' is what is left of it.
+   * the fourth note is the A the ear has been waiting for since the third, it
+   * has no detune on it and nothing under it, and a child is laughing a long
+   * way behind her. 'night' is what is left of it.
    *
    * It builds its own mouth instead of borrowing the whistle's, because it has
    * to be able to play over the top of her, and because this is heard in a
@@ -1043,7 +1054,7 @@ export class GameAudio {
    * level is a person at arm's length.
    *
    * Returns how long the whole thing takes, the closing silence included, and
-   * returns it muted and returns it with no AudioContext at all — a cutscene
+   * returns it muted, and returns it with no AudioContext at all — a cutscene
    * that runs to a different length with the sound off is a bug that only ever
    * reproduces on the machine that has the sound off.
    */
@@ -1073,10 +1084,11 @@ export class GameAudio {
     this.schedulePhrase(t0, w, { memory, prox: 0.3, tempo: 1 });
 
     if (memory) {
-      /* Three of them, none starting on a note, all of them further off than
+      /* Three of them, in the gaps and never on a note, and further off than
        * anything else in the game. A child laughing over the tune is a horror
-       * cue; a child laughing behind it is a garden in 2001. */
-      for (const at of [1.05, 5.75, 9.9]) {
+       * cue; a child laughing behind it is a garden in 2001. The last one is
+       * in the closing silence, which is where he is. */
+      for (const at of [1.05, 5.75, 10.6]) {
         this.childLaugh(t0 + at, 0.020 * level, at > 6 ? 0.5 : -0.45);
       }
     }
@@ -1091,7 +1103,7 @@ export class GameAudio {
   }
 
   /*
-   * A child, at the distance where laughter is only its rhythm: five or six
+   * A child, at the distance where laughter is only its rhythm: four to six
    * voiced pulses falling in pitch, everything over 900 Hz taken off it by the
    * air in between, and nearly all of what is left arriving as reverb. Any
    * louder or any closer and it is a child in the room, which is a different
@@ -1354,11 +1366,11 @@ export class GameAudio {
   /*
    * The opening of the lullaby on a garden music box: five tines, E G B A E,
    * at about four times the speed she whistles it, for the reason on
-   * BOX_SPREAD. `note` moves the whole thing into another key, and `wrong`
-   * bends the fourth tine up to the tritone she actually whistles. Three of
-   * these stand in three gardens; the one that is hers is the one in her key
-   * with the note she meant in it, and the puzzle is that you have to have
-   * listened to her to know which that is.
+   * BOX_SPREAD. `wrong` bends the fourth tine up to the tritone she whistles
+   * now, so the box plays her instead of playing the tune. `note` says which
+   * of the three boxes this is and buys nothing but its own few cents of
+   * drift; the puzzle is that the only real difference is the fourth note, and
+   * you have to have listened to her to know which way round that is.
    *
    * `at` and `speed` are for flagTake, which needs the same box running slow
    * and unsteady.
@@ -1366,10 +1378,11 @@ export class GameAudio {
   musicBox(note, wrong, at = 0, speed = 1) {
     if (!this.ready || this.muted) return;
     const t = at || this.ctx.currentTime;
-    const shift = num(note, 0);
+    const n = BOX_DRIFT.length;
+    const drift = BOX_DRIFT[((num(note, 0) | 0) % n + n) % n] / 100;
     for (let i = 0; i < BOX_OPEN.length; i++) {
       this.boxTine(t + MELODY[i].at * BOX_SPREAD / speed,
-        shift + BOX_OPEN[i] + (wrong && i === SOUR ? 1 : 0), !!wrong, speed);
+        BOX_OPEN[i] + drift + (wrong && i === SOUR ? 1 : 0), !!wrong, speed);
     }
   }
 
@@ -1506,11 +1519,12 @@ export class GameAudio {
        * of them coming apart. */
       const span = Math.max(LOOP, END + 1.3) / this.tempo;
       while (this.whistleUntil < now + LOOKAHEAD) {
-        /* Cannot happen at any tempo the game asks for — a span is nine
-         * seconds at the very least and the lookahead is under two — but a
-         * dropped tail is four silent notes and a phrase that stops halfway,
-         * so it is not left to arithmetic. */
-        if (w.tail) this.scheduleTail(w);
+        /* A tail still waiting here means tick() has not run since before it
+         * was due, so the tab was in the background and that phrase happened
+         * to nobody. Drop it: laying it down now would put four notes of
+         * automation into the past, where the clock collapses all of it onto
+         * one instant directly in front of the phrase about to start. */
+        w.tail = null;
         this.schedulePhrase(this.whistleUntil, w,
           { tempo: this.tempo, to: SOUR });
         w.tail = {

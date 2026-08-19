@@ -488,28 +488,58 @@ export class Whistler {
     };
   }
 
-  /* Her body, as a list of dynamic draws. The hover is small and slow: too
-   * much and she reads as a balloon, none at all and the missing footsteps
-   * become obvious. */
-  dynamics(out) {
+  /*
+   * Her body, as a list of dynamic draws.
+   *
+   * The hover is 12cm and slow. Too much and she reads as a balloon; none at
+   * all and the missing footsteps become obvious. The head tilt is the
+   * suspicion state made visible — thirty degrees, which is enough to see
+   * across a street and not enough to look like an animation — and the jaw
+   * stays open for two seconds after the whistle stops, because that is the
+   * gap the player is listening into.
+   */
+  dynamics(out, dt = 0) {
     if (this.state === STATE.GONE) return;
-    const hover = 0.05 + Math.sin(this.bob * 1.1) * 0.035;
     const hunting = this.state === STATE.HUNT;
+    const hover = 0.12 + Math.sin(this.bob * 1.1) * 0.03;
     const sway = Math.sin(this.bob * (hunting ? 5.5 : 1.6)) * (hunting ? 0.5 : 0.13);
+
+    /* Suspicion tips the head over; a hunt straightens it. */
+    const wantTilt = hunting ? 0 : this.awareness * 0.52;
+    this.tilt = damp(this.tilt || 0, wantTilt, 3, dt || 0.016);
+    /* Open while she is whistling or screaming, and two seconds behind on the
+     * way back. */
+    const wantJaw = hunting ? 1 : 0.55;
+    this.jaw = this.jaw === undefined ? wantJaw
+      : damp(this.jaw, wantJaw, hunting ? 9 : 0.5, dt || 0.016);
+
     out.push({ mesh: 'wTorso', x: this.pos.x, y: hover, z: this.pos.z, rot: this.yaw });
+    const headY = hover + 2.15;
+    const headYaw = this.yaw + (hunting ? 0 : Math.sin(this.bob * 0.7) * 0.35);
+    out.push({ mesh: 'wHead', x: this.pos.x, y: headY, z: this.pos.z, rot: headYaw,
+      pitch: this.tilt });
     out.push({
-      mesh: 'wHead', x: this.pos.x, y: hover + 1.79, z: this.pos.z,
-      rot: this.yaw + (hunting ? 0 : Math.sin(this.bob * 0.7) * 0.35),
+      mesh: 'wJaw', x: this.pos.x, y: headY - 0.05, z: this.pos.z, rot: headYaw,
+      /* Hinged at the top, so this swings the whole jaw down and open. */
+      pitch: this.tilt - 0.35 - this.jaw * 0.75,
     });
+    out.push({
+      mesh: 'wHair', x: this.pos.x, y: headY, z: this.pos.z, rot: headYaw,
+      /* It lifts when she hunts. Not far — just enough that a face is nearly
+       * there for the last few metres. */
+      sy: hunting ? 0.72 : 1, sx: 1, sz: 1,
+      pitch: hunting ? -0.35 : 0,
+    });
+
     const c = Math.cos(this.yaw), s = Math.sin(this.yaw);
     for (const side of [-1, 1]) {
-      const ox = 0.19 * side;
+      const ox = 0.2 * side;
       out.push({
         mesh: 'wArm',
-        x: this.pos.x + ox * c, y: hover + 1.55, z: this.pos.z + ox * s,
+        x: this.pos.x + ox * c, y: hover + 1.88, z: this.pos.z + ox * s,
         rot: this.yaw,
         /* Hanging when she drifts; raised and reaching when she is not. */
-        pitch: hunting ? -1.15 + sway * 0.2 : sway * 0.35,
+        pitch: hunting ? -1.2 + sway * 0.2 : sway * 0.35,
       });
     }
   }

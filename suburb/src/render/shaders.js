@@ -133,7 +133,7 @@ uniform float uFogDensity;
 uniform float uFogHeight;          /* the fog lies in a layer this deep       */
 uniform float uFogFloor;           /* and starts at this height               */
 
-#define MAX_MATS 17
+#define MAX_MATS 18
 uniform vec4 uMatA[MAX_MATS];      /* uvScale, roughnessMul, emissive, specular */
 uniform vec4 uMatB[MAX_MATS];      /* water, normalStrength, alphaCut, unused   */
 

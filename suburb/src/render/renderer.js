@@ -192,37 +192,62 @@ export class Renderer {
     };
     const shade = (v) => () => v;
 
-    /* Her. The dress is one long taper from the shoulders to the ground, so
-     * she has no feet — which is what stops the walk cycle having to sell
-     * something that is not walking. */
+    /*
+     * Her. Two metres ten, which is nine inches taller than a tall man and is
+     * the single most effective thing in her design: at that height the
+     * silhouette is wrong before anything else about her registers, and the
+     * eye is looking up at a face it cannot see.
+     *
+     * The dress is one long taper from the shoulders to the ground, so she has
+     * no walk cycle to sell — she does not walk. Under it, two bare feet
+     * pointing down at nothing, which is the detail that says so.
+     */
     this.dyn.wTorso = make((mb) => {
-      addLimb(mb, 0, 1.62, 0, [0.17, 0.10], [0.30, 0.24], 1.62, MAT.CLOTH,
+      addLimb(mb, 0, 1.98, 0, [0.18, 0.11], [0.36, 0.29], 1.98, MAT.CLOTH,
         { ao: shade(0.7), sub: 2, capBottom: false });
-      addLimb(mb, 0, 1.70, 0, [0.045, 0.045], [0.055, 0.055], 0.10, MAT.SKIN,
+      addLimb(mb, 0, 2.06, 0, [0.05, 0.05], [0.06, 0.06], 0.11, MAT.SKIN,
         { ao: shade(0.55) });
-    }, 256);
+      for (const ex of [-0.07, 0.07]) {
+        addLimb(mb, ex, 0.16, 0, [0.045, 0.06], [0.035, 0.09], 0.16, MAT.SKIN,
+          { ao: shade(0.4) });
+      }
+    }, 512);
     this.dyn.wHead = make((mb) => {
-      addSphere(mb, 0, 0, 0, 0.108, 12, 9, MAT.SKIN,
+      addSphere(mb, 0, 0, 0, 0.112, 12, 9, MAT.SKIN,
         { ao: shade(0.7), scaleY: 1.24, scaleZ: 1.02 });
       /*
-       * The hair, as three crossed cut-out panes hanging past the jaw. It is
-       * what hides most of the face, and hiding most of the face is the whole
-       * design of this character: the moment you can read a whole face, she
-       * stops being a thing in the street and becomes a model.
+       * The jaw, hung well below where a jaw ends. It is a separate mesh so it
+       * can stay open after the whistle has stopped — two seconds of open
+       * mouth and no sound at all, which is the worst two seconds in the game.
        */
-      for (let i = 0; i < 3; i++) {
-        addCross(mb, 0, -0.42, 0.01, 0.30 - i * 0.04, 0.62 + i * 0.05,
-          i * 0.7, MAT.SKIN, { ao: shade(0.35) });
-      }
-      /* Local -Z is forward for this yaw convention. */
       for (const ex of [-0.042, 0.042]) {
-        addSphere(mb, ex, 0.018, -0.092, 0.020, 7, 5, MAT.GLOW, { ao: () => 1 });
+        addSphere(mb, ex, 0.018, -0.092, 0.021, 7, 5, MAT.EYE, { ao: () => 1 });
+      }
+    }, 512);
+    this.dyn.wJaw = make((mb) => {
+      addLimb(mb, 0, 0, -0.03, [0.055, 0.05], [0.045, 0.04], 0.17, MAT.SKIN,
+        { ao: shade(0.35) });
+      addQuad(mb, [-0.05, -0.02, -0.05], [0.05, -0.02, -0.05],
+        [0.05, -0.02, 0.02], [-0.05, -0.02, 0.02],
+        [0, 0], [0.1, 0], [0.1, 0.07], [0, 0.07], MAT.SKIN, { sub: 1, ao: () => 0.2 });
+    }, 128);
+    /*
+     * The hair, as three crossed cut-out panes hanging past the jaw. It hides
+     * most of the face, and hiding most of the face is the whole design of
+     * this character: the moment you can read a whole face she stops being a
+     * thing in the street and becomes a model. It is its own mesh because it
+     * lifts when she hunts.
+     */
+    this.dyn.wHair = make((mb) => {
+      for (let i = 0; i < 3; i++) {
+        addCross(mb, 0, -0.44, 0.01, 0.31 - i * 0.04, 0.66 + i * 0.05,
+          i * 0.7, MAT.SKIN, { ao: shade(0.3) });
       }
     }, 512);
     this.dyn.wArm = make((mb) => {
-      addLimb(mb, 0, 0, 0, [0.048, 0.048], [0.028, 0.028], 0.72, MAT.CLOTH,
+      addLimb(mb, 0, 0, 0, [0.05, 0.05], [0.028, 0.028], 0.82, MAT.CLOTH,
         { ao: shade(0.6) });
-      addLimb(mb, 0, -0.72, 0, [0.03, 0.03], [0.038, 0.03], 0.12, MAT.SKIN,
+      addLimb(mb, 0, -0.82, 0, [0.03, 0.03], [0.038, 0.03], 0.13, MAT.SKIN,
         { ao: shade(0.5) });
     }, 256);
 

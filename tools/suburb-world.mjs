@@ -63,7 +63,12 @@ function floodFill(layout, world) {
    * chain has come off a gate must not decide whether the geometry behind it
    * can be reached at all. */
   for (const d of world.doors) { d.box.solid = false; d.box.opaque = false; }
-  for (const b of col.boxes) if (b.tag === 'gate') { b.solid = false; b.opaque = false; }
+  for (const b of col.boxes) {
+    if (b.tag === 'gate') { b.solid = false; b.opaque = false; }
+    /* And the ladder is up: whether a puzzle has been solved yet must not
+     * decide whether the geometry behind it can be reached at all. */
+    if (b.tag === 'rung') b.platform = true;
+  }
   col.build();
 
   const b = layout.bounds;

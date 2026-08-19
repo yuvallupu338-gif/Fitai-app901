@@ -1109,6 +1109,12 @@ class Game {
           onDone: () => {
             P.ladder.solved = true;
             P.ladder.progress = 1;
+            /* The rungs only become somewhere to stand once the ladder is
+             * actually against the tree. */
+            for (const b of this.world.collision.boxes) {
+              if (b.tag === 'rung') b.platform = true;
+            }
+            this.world.collision.build();
             ui.log('הסולם נשען על העץ.', true);
           },
         });
@@ -1409,7 +1415,7 @@ class Game {
     const L = LIGHTING[this.scene];
 
     this.dynamics.length = 0;
-    if (this.whistler) this.whistler.dynamics(this.dynamics);
+    if (this.whistler) this.whistler.dynamics(this.dynamics, dt);
     if (this.neighbours) this.neighbours.dynamics(this.dynamics, this.time);
     if (this.flag) this.flag.dynamics(this.dynamics, cam, this.time);
     for (const d of this.world.doors) {

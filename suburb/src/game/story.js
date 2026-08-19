@@ -46,7 +46,7 @@ export const COLLECTIBLES = [
     id: 'j2', kind: 'journal', title: 'יומן — 2 במאי',
     text: 'הוא לא נרדם בלי השיר. המצאתי אותו בבית החולים כי לא זכרתי אף שיר '
       + 'ערש שלם, ומאז אין דרך חזרה. שמונה תווים. הוא כבר מזהה אותם כשאני רק '
-      + 'מתחילה, ואם אני מדלגת על השלישי הוא פוקח עיניים.',
+      + 'מתחילה, ואם אני מדלגת על הרביעי הוא פוקח עיניים.',
   },
   {
     id: 't1', kind: 'tape', title: 'קלטת VHS — "יום הולדת 6"',
@@ -117,7 +117,7 @@ export const COLLECTIBLES = [
   {
     id: 'j6', kind: 'journal', title: 'יומן — הדף האחרון',
     text: 'כתב יד אחר. עט אחר. אין תאריך. "אני עדיין שומע את השיר כל לילה, '
-      + 'וכל לילה הוא יוצא לי לא נכון — שמונה תווים ואני נתקע בשלישי. '
+      + 'וכל לילה הוא יוצא לי לא נכון — שמונה תווים ואני נתקע ברביעי. '
       + 'היא יוצאת ב-3:30 כי אז היא יצאה. כשאני עומד בלי לזוז היא לא רואה '
       + 'אותי, כי היא מחפשת מישהו שרץ. אני מצטער שרצתי."',
   },
@@ -209,8 +209,8 @@ export function neighbourLines(house, layout, night) {
         /* The radio plays the four notes over and over; the neighbour hands
          * over the way to turn notes into digits and nothing else, because
          * the notes themselves are audible from the driveway. */
-        `"הרדיו בפנים דולק כל היום, ${say(p.radio?.digits, 'ארבעה')} תווים `
-          + 'ועוד פעם אותם תווים. על מגן השמש יש מדבקה של פסנתר, '
+        `"הרדיו בפנים דולק כל היום ומנגן ${say(p.radio?.digits, 'ארבעה')} `
+          + 'תווים, ועוד פעם אותם תווים. על מגן השמש יש מדבקה של פסנתר, '
           + 'והקלידים הלבנים ממוספרים מ-C. משם מקבלים את הקוד."',
       ]);
     case 14: {
@@ -267,7 +267,10 @@ export function neighbourLines(house, layout, night) {
       return ['הבית הזה ריק. אין עם מי לדבר.'];
     case 18:
       return base.concat([
-        '"הפחים בסמטה, כן. אף אחד לא מוציא אותם ואף אחד לא ממלא אותם."',
+        '"הפחים בסמטה, כן. שלושה, קשורים זה לזה בשרשרת, '
+          + 'ואף אחד לא זוכר למה."',
+        '"הסדר שלהם? מה שקוראים, אחר כך מה ששותים, אחר כך מה שמצלצל. '
+          + 'ככה זה תמיד היה."',
         '"הבית ליד — 17 — אל תיכנס לשם בלילה. גם לא ביום, אם אפשר."',
         /* The mirror lock is a sentence written on the glass, not a code —
          * "the flag is under board 3 on the porch" — so the neighbour has to
@@ -342,7 +345,7 @@ export const TABLE_NOTE = [
  * 00:00, over black. Twenty seconds, and the four beats add up to exactly
  * twenty, because this is the only place in the entire game where the lullaby
  * is heard the way it really was — warm, in the right order, eight notes that
- * do not stumble on the third. Everything the player hears from 3:30 onwards
+ * do not stumble on the fourth. Everything the player hears from 3:30 onwards
  * is this, remembered by someone who blames himself.
  *
  * The silence at the end is seven seconds and it is meant to be too long.
@@ -499,8 +502,8 @@ export const CONNECTIONS = [
       + 'שאפשר לשרוד את הלילה הזה.',
   },
   {
-    thing: 'הבובות',
-    meaning: 'הצעצועים שלו מהתצלום. הוא סידר אותן לפי גיל כי ככה היא '
+    thing: 'ארבע הבובות בגינה',
+    meaning: 'הצעצועים שלו מהתצלום. הוא מסדר אותם לפי גיל כי ככה היא '
       + 'לימדה אותו לספור.',
   },
   {

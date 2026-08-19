@@ -1177,7 +1177,14 @@ function climbFurniture(sec, col, layout) {
       }
     }
     if (site.id === 'tree') {
-      /* Roots and a low fork, stepping up from the park bench. */
+      /*
+       * Roots and a low fork get you to 1.65m, and no further. The flag is on
+       * a branch at four metres, and the three rungs between the two are the
+       * ladder — which starts lying against the fence six metres away and is
+       * not standable until it has been dragged over, one loud half-phrase at
+       * a time. Without that the ladder would be scenery and the puzzle would
+       * be a decoration on a climb that already worked.
+       */
       const steps = [[0.55, 1.5], [1.1, 1.0], [1.65, 0.75]];
       for (const [y, r] of steps) {
         addBox(sec.at(site.x, site.z + 1.2, 2, 2, y + 0.5), site.x, y / 2, site.z + 1.2,
@@ -1185,10 +1192,15 @@ function climbFurniture(sec, col, layout) {
         col.add(site.x - r, 0, site.z + 1.2 - r / 2, site.x + r, y, site.z + 1.2 + r / 2,
           { tag: 'root' });
       }
+      for (let i = 0; i < 3; i++) {
+        const y = 2.25 + i * 0.6;
+        col.add(site.x - 0.5, y - 0.05, site.z + 1.0, site.x + 0.5, y, site.z + 1.5,
+          { tag: 'rung', platform: false, solid: false, opaque: false });
+      }
       /* The branch the flag is tied to. */
-      addBox(sec.at(site.x, site.z, 2, 2, 2.6), site.x, 2.1, site.z + 0.4, 3.2, 0.28, 0.3,
+      addBox(sec.at(site.x, site.z, 2, 2, 4.4), site.x, 3.75, site.z + 0.4, 3.2, 0.28, 0.3,
         0, MAT.BARK, { ao: aoWall });
-      col.add(site.x - 1.6, 1.96, site.z + 0.25, site.x + 1.6, 2.24, site.z + 0.55,
+      col.add(site.x - 1.6, 3.61, site.z + 0.25, site.x + 1.6, 3.89, site.z + 0.55,
         { tag: 'branch' });
     }
     if (site.id === 'pit') {

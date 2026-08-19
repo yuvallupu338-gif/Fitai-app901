@@ -40,9 +40,15 @@ export const MAT = {
   CLOTH: 14,
   SKIN: 15,
   GLOW: 16,
+  /*
+   * Her eyes, and nothing else in the game. They are not the flag's red: the
+   * design is milky and pupil-less, and sharing a slot with the flag would
+   * have made the one red thing in the neighbourhood into three.
+   */
+  EYE: 17,
 };
 
-export const MAT_COUNT = 17;
+export const MAT_COUNT = 18;
 
 /* The three house colours, in slot order, so the builder can pick a siding by
  * index and the map can colour a house to match what you will actually see. */
@@ -152,10 +158,19 @@ export function materialDefs(seed) {
       kind: 'skin', color: '#6d5c52', tile: 0.14, bump: 0.8, seed: s(15),
       specular: 0.14, roughMul: 1, normalStrength: 0.85,
     },
-    /* 16 GLOW — the flag, her eyes, the glass of a street lamp. */
+    /* 16 GLOW — the flag, and the glass of a street lamp. */
     {
       kind: 'glow', color: '#c0261f', tile: 1, bump: 0.1, seed: s(16),
       emissive: 1, specular: 0.3, roughMul: 0.5,
+    },
+    /*
+     * 17 EYE — milky, no pupil, and only just emissive. Bright enough to be
+     * the one thing that resolves at thirty metres in fog, dim enough that it
+     * reads as an eye catching the light rather than as a lamp.
+     */
+    {
+      kind: 'glow', color: '#d9d6cc', tile: 1, bump: 0.15, seed: s(17),
+      emissive: 0.5, specular: 0.6, roughMul: 0.4,
     },
   ];
 }
@@ -166,8 +181,8 @@ export function materialDefs(seed) {
  * emissive on is what makes a daytime build look like a video game.
  */
 export const EMISSIVE = {
-  day: { [MAT.GLASS_LIT]: 0, [MAT.GLOW]: 0.15 },
-  night: { [MAT.GLASS_LIT]: 1.35, [MAT.GLOW]: 1 },
+  day: { [MAT.GLASS_LIT]: 0, [MAT.GLOW]: 0.15, [MAT.EYE]: 0.1 },
+  night: { [MAT.GLASS_LIT]: 1.35, [MAT.GLOW]: 1, [MAT.EYE]: 0.5 },
 };
 
 /* What a footstep on this material sounds like. The audio module speaks in

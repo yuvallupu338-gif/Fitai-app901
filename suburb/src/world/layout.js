@@ -652,7 +652,7 @@ function flagSites(houses) {
   /* 5 — a branch of the big tree in the park, and a ladder that shrieks. */
   sites.push({
     id: 'tree', lock: 'ladder',
-    x: p.x0 + 3, y: 3.4, z: p.z0 + 5,
+    x: p.x0 + 3, y: 4.1, z: p.z0 + 5,
     climb: true,
     label: 'העץ הגבוה בגן',
     hint: 'על ענף גבוה בעץ הגדול שבגן. יש שם סולם.',
