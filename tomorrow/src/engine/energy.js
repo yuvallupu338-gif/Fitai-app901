@@ -399,30 +399,44 @@ function fatigueSeries(ctx, items, minutes) {
 /*
  * A workout costs first and pays later.
  *
- * The dip runs from the warm-up through about forty-five minutes after the last
- * set, and then a smaller lift takes over and fades across the rest of the
- * evening. Both are scaled by length, within reason — a twenty-minute walk is
- * not half a session and a three-hour ride is not three of them.
+ * The dip deepens across the session itself and is mostly gone within about
+ * forty-five minutes of the last set; a smaller lift then takes over and fades
+ * across the rest of the evening. Both scale with length, within reason — a
+ * twenty-minute walk is not half a session and a three-hour ride is not three
+ * of them.
+ *
+ * The dip builds over the session's own length rather than over a fixed
+ * warm-up, for two reasons. It is closer to what happens — the tired part of a
+ * long run is the end of it — and it bounds how fast the curve can move: the
+ * whole cost is spread over the whole session however long that is, so a short
+ * intense block cannot put a cliff in the chart. DIP_FLOOR keeps a fifteen
+ * minute session from spending its entire cost in one sample.
  *
  * The ordering is the whole reason this is its own layer instead of a heavier
- * entry in the load balance. Someone looking at the curve should be able to see
+ * entry in the load balance. Someone reading the curve should be able to see
  * that the hour after training is a bad place for the hardest task of the day
- * and the two hours after that are a good one, and a monotonically decaying
- * fatigue term cannot say that.
+ * and that the two hours after that are a good one, and a fatigue term that
+ * only ever decays cannot say that.
+ *
+ * The sum is capped because two overlapping workouts is a thing the data
+ * permits — a conflict risk.js will report — and three of them should not be
+ * allowed to drive an afternoon to the floor between two samples.
  */
 const WORKOUT_DIP = 8;
-const WORKOUT_DIP_IN = 30;
-const WORKOUT_DIP_OUT = 45;
+const WORKOUT_DIP_FLOOR = 30;
+const WORKOUT_DIP_OUT = 60;
 const WORKOUT_LIFT = 3;
 const WORKOUT_LIFT_IN = 60;
 const WORKOUT_LIFT_FADE = 240;
+const WORKOUT_TOTAL_DIP = 14;
+const WORKOUT_TOTAL_LIFT = 6;
 
 function workoutEffect(minute, workouts) {
   let total = 0;
   for (const w of workouts) {
     const end = w.start + w.duration;
-    const scale = clamp(w.duration / 60, 0.5, 1.5);
-    const rampIn = smoothstep((minute - w.start) / WORKOUT_DIP_IN);
+    const scale = clamp(w.duration / 60, 0.6, 1.2);
+    const rampIn = smoothstep((minute - w.start) / Math.max(WORKOUT_DIP_FLOOR, w.duration));
     const rampOut = minute <= end ? 1 : 1 - smoothstep((minute - end) / WORKOUT_DIP_OUT);
     total -= WORKOUT_DIP * scale * rampIn * rampOut;
     if (minute > end) {
@@ -430,7 +444,7 @@ function workoutEffect(minute, workouts) {
       total += WORKOUT_LIFT * scale * smoothstep((minute - end) / WORKOUT_LIFT_IN) * fade;
     }
   }
-  return total;
+  return clamp(total, -WORKOUT_TOTAL_DIP, WORKOUT_TOTAL_LIFT);
 }
 
 /* ------------------------------------------------------------------ *
@@ -480,8 +494,8 @@ function eveningShift(plan) {
  * afternoon. A morning that started badly still counts at 17:00, but by then
  * the day's own shape has more to say about it than the tap did.
  */
-const MORNING_ENERGY_STEP = 8;
-const MORNING_QUALITY_STEP = 3;
+const MORNING_ENERGY_STEP = 7;
+const MORNING_QUALITY_STEP = 2.5;
 const MORNING_FLOOR = 0.3;
 const MORNING_FADE = 240;
 
@@ -504,29 +518,37 @@ function morningWeight(sinceWake) {
  * What the app has learned about this person specifically, mixed in by
  * personalWeight (§8) — roughly a tenth on day one, about half after a week.
  *
- * The learned levels are three numbers, one for each part of the day, so they
- * are applied as a correction at three clock times rather than as a curve of
- * their own. At each anchor the value moves a `weight` fraction of the way from
- * the default shape to the learned level, and between anchors the correction is
- * interpolated. What that preserves is everything the three numbers do not
- * know: the grogginess on waking, the afternoon dip, the wind-down before bed.
- * Replacing the shape with three points would flatten all of it and hand back a
+ * The learned levels are three numbers — morning, afternoon, evening — and each
+ * one is an average over its whole part of the day, not a reading at any
+ * particular minute. So each is compared against the default shape's own
+ * average over the same stretch, and the difference, times `weight`, becomes a
+ * correction held flat across that block and interpolated between block
+ * centres. Comparing against a single instant instead was the first version and
+ * it over-corrected badly at the edges: an anchor placed at 09:30, where the
+ * default shape is near its peak, produced a correction that then got applied
+ * unchanged at 07:30, where the shape is thirty points lower, and a user whose
+ * learned morning level was 55 came out at 43 an hour after waking.
+ *
+ * What the block form preserves is everything the three numbers do not know:
+ * the grogginess on waking, the afternoon dip, the wind-down before bed.
+ * Replacing the shape with three levels would flatten all of it and hand back a
  * curve that is smoother, more personal and much less useful.
  *
  * The correction is measured against the default shape and not against the
- * finished curve, so a learned afternoon level cannot end up quietly cancelling
- * out the sleep debt, the day's load or a workout — all of which are about
- * tomorrow in particular, and none of which the learned averages know about.
+ * finished curve, so a learned afternoon level cannot quietly cancel out the
+ * sleep debt, the day's load or a workout — all of which are about tomorrow in
+ * particular, and none of which a long-run average knows anything about.
  *
- * A learned energyPeakHour shifts the shape in time instead of in level, capped
- * at forty-five minutes. The cap is a real constraint and not caution: the
- * contract requires the afternoon trough to land 6.5–7.5h after waking, and an
- * uncapped shift towards a peak hour learned from a handful of check-ins could
- * walk the dip out of the afternoon entirely.
+ * Both the level correction and the shift are capped. Neither cap is caution
+ * for its own sake: §6.1 asks for the afternoon trough to land 6.5–7.5h after
+ * waking, and an uncapped blend towards levels learned from a couple of weeks
+ * of check-ins can move the low point of the day out of the afternoon
+ * altogether. Twelve points and forty-five minutes are enough for the curve to
+ * visibly become this person's, and little enough that it stays a day.
  */
-const ANCHOR_MORNING = 570;
-const ANCHOR_AFTERNOON = 900;
-const ANCHOR_EVENING = 1260;
+const BLOCK_MORNING_END = 720;
+const BLOCK_AFTERNOON_END = 1020;
+const CORRECTION_MAX = 12;
 const PEAK_SHIFT_MAX = 45;
 
 /*
@@ -551,27 +573,42 @@ function peakShift(ctx, weight, wake) {
   return clamp(wanted, -PEAK_SHIFT_MAX, PEAK_SHIFT_MAX) * weight;
 }
 
-function anchorDeltas(ctx, weight, wake, shift) {
+/* One block's correction, or null when the day does not reach into that block
+ * or nothing has been learned about it. A day that starts at 18:00 has no
+ * morning for a learned morning level to describe. */
+function blockDelta(level, weight, from, to, wake, shift) {
+  if (level === null || to <= from) return null;
+  let sum = 0;
+  let n = 0;
+  for (let m = from; m <= to; m += STEP) {
+    sum += circadianBase(m - wake - shift, TROUGH_DEPTH);
+    n += 1;
+  }
+  const delta = weight * (clamp(level, 0, 100) - sum / n);
+  return { minute: (from + to) / 2, delta: clamp(delta, -CORRECTION_MAX, CORRECTION_MAX) };
+}
+
+function anchorDeltas(ctx, weight, wake, shift, end) {
   const learning = ctx.learning || {};
-  const wanted = [
-    { minute: ANCHOR_MORNING, level: learned(learning.morningEnergy) },
-    { minute: ANCHOR_AFTERNOON, level: learned(learning.afternoonEnergy) },
-    { minute: ANCHOR_EVENING, level: learned(learning.eveningEnergy) },
+  const blocks = [
+    [learned(learning.morningEnergy), wake, Math.min(end, BLOCK_MORNING_END)],
+    [learned(learning.afternoonEnergy), Math.max(wake, BLOCK_MORNING_END), Math.min(end, BLOCK_AFTERNOON_END)],
+    [learned(learning.eveningEnergy), Math.max(wake, BLOCK_AFTERNOON_END), end],
   ];
   const out = [];
-  for (const anchor of wanted) {
-    if (anchor.level === null) continue;
-    const shape = circadianBase(anchor.minute - wake - shift, TROUGH_DEPTH);
-    out.push({ minute: anchor.minute, delta: weight * (clamp(anchor.level, 0, 100) - shape) });
+  for (const [level, from, to] of blocks) {
+    const anchor = blockDelta(level, weight, from, to, wake, shift);
+    if (anchor) out.push(anchor);
   }
   return out;
 }
 
 /*
- * Outside the outermost anchors the correction holds flat rather than falling
- * back to zero. A learned evening level should still mean something at 23:00,
- * and letting the correction decay to nothing after 21:00 would put a slope in
- * the curve that describes the anchor spacing rather than the user.
+ * Outside the outermost block centres the correction holds flat rather than
+ * falling back to zero. A learned evening level should still mean something at
+ * 23:00, and letting the correction fade out after the middle of the evening
+ * would put a slope in the curve that describes where the blocks were cut
+ * rather than anything about the user.
  */
 function correctionAt(minute, anchors) {
   if (!anchors.length) return 0;
@@ -708,7 +745,7 @@ export function energyCurve(ctx) {
   const weight = weightOf(ctx);
   const shift = peakShift(ctx, weight, from);
   const sleep = sleepEffect(ctx);
-  const anchors = anchorDeltas(ctx, weight, from, shift);
+  const anchors = anchorDeltas(ctx, weight, from, shift, to);
   const evidence = evidenceAnchors(ctx, weight, anchors);
   const items = scheduledItems(ctx);
   const workouts = items.filter((i) => i.type === 'workout');

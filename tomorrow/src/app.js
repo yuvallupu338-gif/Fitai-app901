@@ -114,34 +114,54 @@ function makeCtx() {
   };
 }
 
+let painting = false;
+let scheduled = false;
+
+/*
+ * Repaint the mounted view, once, however many writes asked for it.
+ *
+ * A single gesture usually writes to the store more than once — a view patches
+ * an item and then asks for a refresh, and the store's own subscription would
+ * have repainted anyway. Rendering three times for one tap is not just waste:
+ * each render rebuilds the DOM, so an input the user is typing into loses focus
+ * and a half-open sheet flickers. Collapsing them onto a microtask means the
+ * writes all land first and the screen is drawn once, from the settled state.
+ *
+ * The re-entry guard is separate and checked at schedule time, so a view that
+ * writes to the store during its own render cannot recurse through the
+ * subscription. That would be a bug worth finding, but a blank screen is a poor
+ * way to report it.
+ */
+function repaint() {
+  if (painting || scheduled) return;
+  scheduled = true;
+  Promise.resolve().then(() => {
+    scheduled = false;
+    painting = true;
+    try {
+      refresh(makeCtx());
+    } finally {
+      painting = false;
+    }
+  });
+}
+
+/*
+ * Navigation renders synchronously rather than waiting for the microtask,
+ * because a tap on the nav bar should move the screen now. Holding the guard
+ * across the write keeps the subscription from queueing a second render of the
+ * view being left.
+ */
 function go(view) {
-  setUi({ view });
+  painting = true;
+  try { setUi({ view }); } finally { painting = false; }
   show(view, makeCtx());
 }
 
 function setFocus(which) {
-  setUi({ focus: which, focusDate: null });
-  repaint();
-}
-
-let painting = false;
-
-/*
- * Repaint the mounted view.
- *
- * Guarded against re-entry because a view that writes to the store during its
- * own render would otherwise recurse through the subscription below. That is a
- * bug worth catching rather than tolerating, but a blank screen is a bad way to
- * report it.
- */
-function repaint() {
-  if (painting) return;
   painting = true;
-  try {
-    refresh(makeCtx());
-  } finally {
-    painting = false;
-  }
+  try { setUi({ focus: which, focusDate: null }); } finally { painting = false; }
+  show(currentView() || 'tomorrow', makeCtx());
 }
 
 /* ------------------------------------------------------------------ *
