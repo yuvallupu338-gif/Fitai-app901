@@ -157,7 +157,7 @@ node --experimental-default-type=module tools/suburb-world.mjs
 node --experimental-default-type=module tools/suburb-world.mjs --seeds 8
 ```
 
-Around 1150 headless checks per neighbourhood, over all seven nights. The one
+Around 1100 headless checks per neighbourhood, over all seven nights. The one
 that earns its keep is reachability: it flood-fills the whole neighbourhood
 from the player's own bed using the player controller's own rules — 62cm step
 up, 34cm of clearance — and asserts that every night's flag can be reached from

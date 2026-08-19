@@ -18,7 +18,7 @@
      everything itself and talks to nobody: script-src is 'self' with no inline
      anything, and connect-src is 'none'. frame-ancestors is omitted — it is
      ignored in a meta tag. -->
-<meta http-equiv="Content-Security-Policy" content="default-src 'none'; script-src 'sha256-UwI4dHuWmbwhicigVDtd3wuJ0gYWXp/V89i+CG3LNw4='; style-src 'sha256-gdUDtSmekqOcBn8CCc22rsE0V7gD+72c9SCTvZ46ncA='; img-src 'self' data:; font-src 'self' data:; connect-src 'none'; media-src 'none'; frame-src 'none'; worker-src 'none'; object-src 'none'; base-uri 'none'; form-action 'none'">
+<meta http-equiv="Content-Security-Policy" content="default-src 'none'; script-src 'sha256-zsQpWxNAD0nz130I2CEUQTer2XXtbS/pSJ9tVLwTZI0='; style-src 'sha256-gdUDtSmekqOcBn8CCc22rsE0V7gD+72c9SCTvZ46ncA='; img-src 'self' data:; font-src 'self' data:; connect-src 'none'; media-src 'none'; frame-src 'none'; worker-src 'none'; object-src 'none'; base-uri 'none'; form-action 'none'">
 <link rel="icon" href="data:image/svg+xml,<svg xmlns='http://www.w3.org/2000/svg' viewBox='0 0 32 32'><rect width='32' height='32' fill='%230b1018'/><path d='M8 27V5' stroke='%23cfd6df' stroke-width='2'/><path d='M9 6h15l-4 5 4 5H9z' fill='%23c0261f'/></svg>">
 <style>
 /*
@@ -5866,7 +5866,15 @@ function flagSites(houses) {
   const pitHouse = byNumber(10);
   sites.push({
     id: 'pit', lock: null, houseId: pitHouse.id,
-    x: pitHouse.x + 3.4, y: -0.9, z: pitHouse.sign * (PLAN.frontZ - 6.4),
+    /*
+     * On the side away from the garage. Somebody dug a hole in the lawn; a
+     * hole through the middle of their own concrete drive is a different
+     * story, and worse, the drive is a slab in the collision world — it lies
+     * across the hole and fills it in, which leaves the flag under solid
+     * ground with no way to reach it.
+     */
+    x: pitHouse.x - pitHouse.garageSide * 3.4, y: -0.9,
+    z: pitHouse.sign * (PLAN.frontZ - 6.4),
     crouch: true,
     label: 'הבור בדשא',
     hint: 'בבור שמישהו חפר בדשא הקדמי ולא כיסה.',
@@ -6743,9 +6751,18 @@ function strip(sec, col, x0, z0, x1, z1, y, mat, tag) {
   addGround(sec.at(cx, cz, Math.abs(x1 - x0) / 2, Math.abs(z1 - z0) / 2, y + 0.2),
     Math.min(x0, x1), Math.min(z0, z1), Math.max(x0, x1), Math.max(z0, z1), y, mat,
     { sub: Math.max(1, Math.round(Math.max(Math.abs(x1 - x0), Math.abs(z1 - z0)) / 6)) });
-  if (y > 0.05) {
-    col.add(x0, 0, z0, x1, y, z1, { tag, opaque: false, solid: false, platform: true });
-  }
+  /*
+   * Always, even for the road, which is two centimetres proud of the lawn.
+   *
+   * This box is not there to be stood on — it is there to be *named*: the
+   * footstep sound and how far that footstep carries both come from the tag of
+   * whatever you are standing on, and without a box the tarmac reports itself
+   * as grass. Running down the middle of the road was the quietest way to
+   * cross the neighbourhood, which is the exact opposite of the intended
+   * trade, and nothing on screen said so.
+   */
+  col.add(x0, 0, z0, x1, Math.max(y, 0.02), z1,
+    { tag, opaque: false, solid: false, platform: true });
 }
 
 /* ------------------------------------------------------------------ *
@@ -7137,7 +7154,7 @@ function props(sec, col, lights, interact, layout, rng) {
       case 'bench': bench(sec, col, p); break;
       case 'sign': sign(sec, col, p); break;
       case 'shelter': shelter(sec, col, p); break;
-      case 'homeMark': break;   /* the goal is a trigger, not a thing        */
+      case 'homeMark': homeMark(sec, col, interact, p); break;
       default: break;
     }
   }
@@ -7238,7 +7255,15 @@ function hedgeRow(sec, col, p, rng) {
     addCross(mb, p.x + rng.range(-0.12, 0.12), 0, z, 1.5, 1.9 + rng.range(-0.15, 0.2),
       rng.range(0, Math.PI), MAT.LEAF, { ao: (s, t) => 0.5 + 0.5 * t });
   }
-  col.add(p.x - 0.5, 0, z0, p.x + 0.5, 1.45, z1, { tag: 'hedge', soft: false, opaque: true });
+  /*
+   * 1.75, not 1.45. The drawn hedge is 1.9m of leaf, and the box is what
+   * decides whether she can see through it — at 1.45 a standing player was
+   * visible over a hedge that fills the screen in front of them, which is the
+   * worst kind of unfair: the picture says you are hidden and the rules say
+   * you are not. It is now just tall enough to cover someone standing right
+   * against it, and a picket fence at 1.15 still only covers a crouch.
+   */
+  col.add(p.x - 0.5, 0, z0, p.x + 0.5, 1.75, z1, { tag: 'hedge', opaque: true });
 }
 
 function tree(sec, col, p, rng) {
@@ -7332,6 +7357,25 @@ function fountain(sec, col, interact, p) {
   col.add(p.x - 0.35, 0, p.z - 0.35, p.x + 0.35, 2.1, p.z + 0.35, { tag: 'fountain' });
   interact.push({
     kind: 'fountain', x: p.x, y: 0.5, z: p.z + p.r * 0.75, radius: 2.0, label: 'המזרקה',
+  });
+}
+
+/*
+ * Where the night ends: a doormat outside your own front door.
+ *
+ * The goal was a trigger volume and nothing else, which is fine until 3:34:40
+ * with her behind you and a red flag in your hand — at which point "somewhere
+ * near my front door" is not a place. A mat is a place, it is lit by your own
+ * porch light, and it is the only one in the street.
+ */
+function homeMark(sec, col, interact, p) {
+  const mb = sec.at(p.x, p.z, 1.2, 1.2, 0.3);
+  addGround(mb, p.x - 0.6, p.z - 0.4, p.x + 0.6, p.z + 0.4, 0.44, MAT.CLOTH,
+    { sub: 2, ao: () => 0.75 });
+  void col;
+  interact.push({
+    kind: 'home', houseId: p.houseId, x: p.x, y: 0.6, z: p.z, radius: 1.8,
+    label: 'הדלת שלך',
   });
 }
 
@@ -7620,6 +7664,8 @@ class Player {
     this.surface = 'grass';
     this.indoors = false;
     this.frozenOut = 0;        /* cooldown after leaving a hiding place     */
+    this.hideCooldown = 0;     /* and how long until you can get back in    */
+    this.from = null;          /* where you were standing before you hid    */
   }
 
   get cameraY() { return this.pos.y + this.eye + this.bob; }
@@ -7634,8 +7680,16 @@ class Player {
 
   /* Being inside something is a hard state: no movement, no look, and the
    * camera sits where the wardrobe is rather than where the body was. */
+  /*
+   * Into a wardrobe. Where the body was is remembered, because that is where
+   * it has to come back out: the hiding place itself is a solid box, and
+   * leaving the player standing in the middle of it hands them to the
+   * collision pass, which pushes them out along whichever axis is cheapest —
+   * sometimes through the bedroom wall and onto the lawn.
+   */
   hide(spot, seconds) {
     this.hidden = { x: spot.x, z: spot.z, until: seconds };
+    this.from = { x: this.pos.x, y: this.pos.y, z: this.pos.z };
     this.pos.x = spot.x;
     this.pos.z = spot.z;
     this.vel.x = this.vel.z = 0;
@@ -7645,7 +7699,16 @@ class Player {
   unhide() {
     if (!this.hidden) return;
     this.hidden = null;
+    if (this.from) {
+      this.pos.x = this.from.x;
+      this.pos.y = this.from.y;
+      this.pos.z = this.from.z;
+      this.from = null;
+    }
     this.frozenOut = 0.4;
+    /* You cannot climb straight back in. Without this, two taps of E is an
+     * unlimited hiding place and the wardrobe timer means nothing. */
+    this.hideCooldown = 6;
     this.events.push({ type: 'hide', on: false });
   }
 
@@ -7798,6 +7861,7 @@ class Player {
 
     /* ---- stillness ---- */
     this.frozenOut = Math.max(0, this.frozenOut - dt);
+    this.hideCooldown = Math.max(0, (this.hideCooldown || 0) - dt);
     if (planar < 0.12 && input.idle > 0 && this.frozenOut <= 0) this.still += dt;
     else this.still = 0;
   }
@@ -9377,17 +9441,19 @@ class Whistler {
    * than speed, speed is worse than posture.
    */
   noticeRate(player, world, lit) {
+    /* Distance first, always. It drives the heartbeat and the audio mix, and
+     * returning early without it freezes both — so hiding in a wardrobe made
+     * the room go calm while she walked up to it, which is precisely backwards. */
+    this.dist = Math.hypot(player.pos.x - this.pos.x, player.pos.z - this.pos.z);
     if (player.hidden) {
       /* Hiding works, until the night she opens wardrobes. */
       if (!this.cfg.entersHouses) return 0;
-      const d = Math.hypot(player.pos.x - this.pos.x, player.pos.z - this.pos.z);
-      return d < 2.2 ? 1.8 : 0;
+      return this.dist < 2.2 ? 1.8 : 0;
     }
     const px = player.pos.x, pz = player.pos.z;
     const py = player.pos.y + player.eye;
     const dx = px - this.pos.x, dz = pz - this.pos.z;
-    const d = Math.hypot(dx, dz);
-    this.dist = d;
+    const d = this.dist;
     if (d > this.cfg.sight) return 0;
 
     /* Her forward is -Z rotated by yaw, matching the camera convention. */
@@ -9477,24 +9543,72 @@ class Whistler {
     }
     const nx = this.pos.x + (dx / d) * speed * dt;
     const nz = this.pos.z + (dz / d) * speed * dt;
-    if (this.blocked(nx, nz, world)) {
-      this.path = this.pathTo(t.x, t.z);
-      /* One nudge sideways, so a re-path that returns the same route does not
-       * leave her vibrating against a wall. */
-      this.pos.x += (-dz / d) * speed * dt * 0.5;
-      this.pos.z += (dx / d) * speed * dt * 0.5;
-    } else {
+    if (!this.blocked(nx, nz, world)) {
       this.pos.x = nx;
       this.pos.z = nz;
+      this.stuck = 0;
+    } else {
+      /*
+       * Something is in the way. Three answers, in order, and all three are
+       * needed — the first version applied a blind sideways nudge, which
+       * unwedged her by walking through the corner of the house it had just
+       * refused to let her walk through, and the second version applied the
+       * nudge only when it was clear, which left her standing against a shut
+       * front door for two thirds of a night.
+       */
+      const lx = -dz / d, lz = dx / d;
+      let slid = false;
+      /* 1. Slide along whatever it is, either way round. */
+      for (const sgn of [this.slideDir || 1, -(this.slideDir || 1)]) {
+        const sx = this.pos.x + lx * sgn * speed * dt;
+        const sz = this.pos.z + lz * sgn * speed * dt;
+        if (!this.blocked(sx, sz, world)) {
+          this.pos.x = sx;
+          this.pos.z = sz;
+          this.slideDir = sgn;
+          slid = true;
+          break;
+        }
+      }
+      this.stuck = (this.stuck || 0) + dt;
+      /* 2. Still going nowhere after a second: this waypoint is not worth it. */
+      if (!slid && this.stuck > 1.0) {
+        this.path.shift();
+        if (!this.path.length) {
+          const roam = this.pickRoam();
+          this.path = this.pathTo(roam.x, roam.z);
+        }
+        this.slideDir = -(this.slideDir || 1);
+      }
+      /* 3. Four seconds boxed in cannot happen and would be unrecoverable if
+       * it did, so it is allowed to end the only way it can: she is not
+       * entirely a person, and she goes through. */
+      if (this.stuck > 4) {
+        this.pos.x = nx;
+        this.pos.z = nz;
+        this.stuck = 0;
+      }
     }
     this.yaw = approachAngle(this.yaw, Math.atan2(-dx, -dz), dt * 2.6);
   }
 
+  /*
+   * What she will not cross. Fences, hedges, cars and bins are nothing to her;
+   * the shell of a house is, until the night she starts coming inside.
+   *
+   * A closed front door counts as part of the shell, and leaving it out was
+   * not a small omission: the door is its own box rather than part of the
+   * wall, so she walked through every shut front door in the street on every
+   * night of the game — which quietly deleted the difference night six is
+   * built around. An open door is a hole, and its box goes non-solid when it
+   * swings, so the same test covers both.
+   */
   blocked(x, z, world) {
     const list = world.near(x - 0.4, z - 0.4, x + 0.4, z + 0.4, this._tmp || (this._tmp = []));
     for (const b of list) {
-      if (b.tag !== 'house' && b.tag !== 'garage' && b.tag !== 'wall'
-        && b.tag !== 'boundary') continue;
+      const shell = b.tag === 'house' || b.tag === 'garage' || b.tag === 'wall'
+        || (b.tag === 'door' && b.solid);
+      if (!shell && b.tag !== 'boundary') continue;
       if (this.cfg.entersHouses && b.tag !== 'boundary') continue;
       if (x + 0.3 > b.x0 && x - 0.3 < b.x1 && z + 0.3 > b.z0 && z - 0.3 < b.z1
         && b.y1 > 1.0) return true;
@@ -9621,8 +9735,17 @@ class Whistler {
 
   hunt(dt, player, world) {
     this.hunted += dt;
+    const near = Math.hypot(player.pos.x - this.pos.x, player.pos.z - this.pos.z) < 4;
+    /*
+     * The close-range clause exists so that a hunt does not end because the
+     * player stepped behind her — at four metres she has you whether or not
+     * you are in the cone. It still has to respect a wall: without the sight
+     * test she keeps "seeing" you through the front of your own house, walks
+     * at the wall, and catches you through it.
+     */
     const seen = this.noticeRate(player, world, 1) > 0
-      || Math.hypot(player.pos.x - this.pos.x, player.pos.z - this.pos.z) < 4;
+      || (near && world.lineOfSight(this.pos.x, EYE, this.pos.z,
+        player.pos.x, player.pos.y + player.eye, player.pos.z));
     if (seen) {
       this.lastSeen = { x: player.pos.x, z: player.pos.z };
       this.lostFor = 0;
@@ -9642,10 +9765,13 @@ class Whistler {
         this.pos.z = nz;
         this.yaw = approachAngle(this.yaw, Math.atan2(-dx, -dz), dt * 5);
       }
-      /* Once. The event ends the night, and a night can only end once — but
-       * anything else listening (a sound, a screen shake) would otherwise fire
-       * thirty times a second for as long as she stood on top of you. */
-      if (d < CATCH && !this.didCatch) {
+      /* Once, and not through a wall. The event ends the night, and a night can
+       * only end once — but anything else listening (a sound, a screen shake)
+       * would otherwise fire thirty times a second for as long as she stood on
+       * top of you. */
+      const reach = d < CATCH && world.lineOfSight(this.pos.x, 1.2, this.pos.z,
+        player.pos.x, player.pos.y + 1.2, player.pos.z);
+      if (reach && !this.didCatch) {
         this.didCatch = true;
         this.events.push({ type: 'caught' });
       }
@@ -11414,10 +11540,11 @@ class Game {
     const st = store.load();
     this.ui.markProgress(st);
     const btn = document.querySelector('#btn-continue');
-    if (st.night > 1 || st.cleared.length) {
-      btn.hidden = false;
-      btn.textContent = `המשך · לילה ${st.night}`;
-    }
+    /* Both ways round. Only ever un-hiding it left "continue · night 5" on the
+     * menu of a save that had just been wiped. */
+    const started = st.night > 1 || st.cleared.length > 0;
+    btn.hidden = !started;
+    if (started) btn.textContent = `המשך · לילה ${st.night}`;
   }
 
   /* ---------------------------------------------------------------- *
@@ -11834,6 +11961,13 @@ class Game {
   resume() {
     if (!this.layout) return;
     this.state = 'play';
+    /* The context is suspended when the tab goes away, and the visibility
+     * handler only resumes it if the game was still playing — which it never
+     * is, because losing the tab pauses it. Without this line, one alt-tab
+     * makes the rest of the session silent. */
+    if (this.audio.ctx && this.audio.ctx.state === 'suspended') {
+      this.audio.ctx.resume().catch(() => {});
+    }
     this.ui.show(null);
     if (!this.touchMode) this.input.requestLock();
     this.keepAwake();
@@ -11899,8 +12033,12 @@ class Game {
      */
     input.enabled = !this.puzzle.open;
     if (this.puzzle.open) {
-      /* Standing at a keypad is standing still, and she treats it that way. */
+      /* Standing at a keypad is standing still, and she treats it that way —
+       * including the running penalty, which would otherwise be applied to
+       * whatever speed the player happened to be carrying when they pressed E. */
       player.still += dt;
+      player.speed = 0;
+      player.vel.x = player.vel.z = 0;
       if (this.clock) this.tickNight(dt, this.lightAt(player.pos.x, player.cameraY,
         player.pos.z));
       return;
@@ -12152,6 +12290,8 @@ class Game {
       case 'doghouse': return 'לבדוק במלונה';
       case 'fountain': return 'להסתכל מתחת למזרקה';
       case 'number': return null;
+      case 'home':
+        return this.flag && this.flag.state === FLAG.CARRIED ? null : 'הבית שלך';
       case 'flagpole': return 'הדגל של הבית הזה';
       case 'story': return 'להסתכל';
       case 'garageDoor': return 'דלת המוסך נעולה';
@@ -12219,16 +12359,25 @@ class Game {
         break;
       }
       case 'bed':
-        if (this.scene === 'day') {
+        if (this.scene === 'day' && !this.sleeping) {
+          /* The fade is half a second long and E repeats, so without the guard
+           * a second press starts a second night on top of the first: two
+           * whistlers, two clocks, and the older one still updating. */
+          this.sleeping = true;
           this.ui.fade(true).then(() => {
             this.startNight();
+            this.sleeping = false;
             this.ui.fade(false);
           });
-        } else ui.log('לא עכשיו.');
+        } else if (this.scene !== 'day') ui.log('לא עכשיו.');
         break;
       case 'talk': this.talk(it.person); break;
       case 'hide': {
         if (this.scene !== 'night') { ui.log('אין סיבה.'); return; }
+        if (player.hideCooldown > 0) {
+          ui.log('לא עכשיו. תן לזה רגע.');
+          return;
+        }
         player.hide(it.spot, this.cfg.hideTime);
         ui.log(this.cfg.entersHouses
           ? 'בארון. הלילה זה כבר לא בטוח.' : 'בארון. תשמע אותה מבחוץ.');
@@ -12276,6 +12425,11 @@ class Game {
         break;
       case 'number':
         ui.subtitle(`מספר ${it.number}.`, 2600);
+        break;
+      case 'home':
+        ui.subtitle(this.scene === 'night'
+          ? 'הבית שלך. לכאן צריך להביא את הדגל.'
+          : 'הבית שלך.', 3200);
         break;
       case 'flagpole':
         ui.subtitle(this.night >= TOTAL_NIGHTS
