@@ -97,7 +97,12 @@ async function clickIf(page, name, opts) {
   const el = await page.$(t(name));
   if (!el) return false;
   try {
-    await el.click({ timeout: o.timeout || 4000 });
+    // Bring it into view instantly first. Playwright will scroll for itself,
+    // but the stylesheet's smooth scrolling makes the target a moving object
+    // and the actionability check waits for it to settle.
+    await el.evaluate((n) => n.scrollIntoView({ block: 'center', behavior: 'instant' }));
+    await page.waitForTimeout(60);
+    await el.click({ timeout: o.timeout || 6000 });
   } catch (e) {
     if (!o.quiet) note(`could not click ${name}: ${String(e.message).split('\n')[0]}`);
     return false;
@@ -159,6 +164,29 @@ async function layoutProblems(page) {
     const de = document.documentElement;
     if (de.scrollWidth > de.clientWidth + 1)
       out.push(`horizontal scroll: ${de.scrollWidth} > ${de.clientWidth}`);
+
+    /*
+     * And the other direction: a page taller than the window has to actually
+     * scroll. Checking only for horizontal overflow gives a clean bill of health
+     * to a page whose whole lower half is unreachable.
+     *
+     * scroll-behavior is forced off first. The stylesheet sets it to smooth, so
+     * assigning scrollTop starts an animation and reading it back on the next
+     * line returns the old value — which reads exactly like a page that cannot
+     * scroll. That false positive cost an afternoon and a CSS "fix" to a rule
+     * that was correct, so it is worth the four extra lines.
+     */
+    const el = document.scrollingElement || de;
+    if (el.scrollHeight > el.clientHeight + 8) {
+      const prev = el.style.scrollBehavior;
+      el.style.scrollBehavior = 'auto';
+      const before = el.scrollTop;
+      el.scrollTop = before + 200;
+      const moved = el.scrollTop !== before;
+      el.scrollTop = before;
+      el.style.scrollBehavior = prev;
+      if (!moved) out.push(`page cannot scroll vertically: ${el.scrollHeight}px of content in ${el.clientHeight}px`);
+    }
     const seen = new Set();
     for (const el of document.querySelectorAll('body *')) {
       const cs = getComputedStyle(el);
@@ -323,6 +351,10 @@ async function run() {
       }
     }
 
+    /* Whatever branch Improve took, its sheet must close on Escape before the
+     * next section can reach the page behind it. */
+    check(await dismissOverlays(page), 'improve: the panel closes when dismissed');
+
     /* --------------------------------------------------------- what-if */
     if (await clickIf(page, 'whatif')) {
       await page.waitForTimeout(400);
@@ -330,15 +362,37 @@ async function run() {
       const chips = await page.$$(t('whatif-chip'));
       check(chips.length >= 3, `what-if: offers quick scenarios (${chips.length})`);
       if (chips.length) {
-        await chips[0].click();
-        await page.waitForTimeout(600);
         const a = await textOf(page, 'whatif-score-base');
-        const b = await textOf(page, 'whatif-score-next');
-        check(a !== null && b !== null, 'what-if: shows the original and the alternative side by side');
-        note(`what-if: ${a} -> ${b}`);
+        check(a !== null, 'what-if: shows the day as it stands');
+
+        /*
+         * Try every chip rather than only the first. A scenario that does not
+         * move the number is a legitimate answer — half an hour more sleep on
+         * an already-good night really is worth almost nothing — but if none of
+         * them moves it, the sandbox is inert and that is a bug.
+         */
+        const moved = [];
+        for (let i = 0; i < chips.length; i++) {
+          const chip = (await page.$$(t('whatif-chip')))[i];
+          if (!chip || await chip.isDisabled()) continue;
+          await chip.click().catch(() => {});
+          await page.waitForTimeout(450);
+          const next = await textOf(page, 'whatif-score-next');
+          if (next !== null && next !== a) moved.push(`${await chip.innerText()} → ${next}`);
+          await chip.click().catch(() => {});   // toggle back off
+          await page.waitForTimeout(250);
+        }
+        check(moved.length > 0,
+          `what-if: at least one quick scenario actually moves the forecast (${moved.length} of ${chips.length} did)`);
+        for (const m of moved.slice(0, 3)) note(`what-if ${a} ${m.replace(/\s+/g, ' ')}`);
+
+        // Leave one applied so Cancel has something to discard.
+        const first = (await page.$$(t('whatif-chip')))[0];
+        if (first && !(await first.isDisabled())) { await first.click().catch(() => {}); await page.waitForTimeout(400); }
         await shot(page, '07-whatif');
+
         if (await clickIf(page, 'whatif-cancel')) {
-          await page.waitForTimeout(400);
+          await page.waitForTimeout(500);
           const homeAfter = await textOf(page, 'score');
           check(homeAfter === homeBefore,
             `what-if: cancelling changes nothing real (${homeBefore} vs ${homeAfter})`);

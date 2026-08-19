@@ -145,5 +145,5 @@ for (const p of PAGES) {
 }
 
 await browser.close();
-console.log(failures ? `\n✗ ${failures} check(s) failed` : '\n✓ all three pages carry a policy and none of them will run injected code');
+console.log(failures ? `\n✗ ${failures} check(s) failed` : '\n✓ all four pages carry a policy and none of them will run injected code');
 process.exit(failures ? 1 : 0);
