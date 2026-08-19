@@ -772,6 +772,58 @@ if (learn) {
   }
 }
 
+/*
+ * The brief's own acceptance test for learning, end to end.
+ *
+ * Three days where a thirty-minute estimate really took about fifty, and then
+ * the two things that have to follow: the next estimate moves, and the schedule
+ * books the honest length. The second is the one that matters — an estimate the
+ * calendar ignores has not taught the app anything.
+ */
+if (learn && sched && predict && schema) {
+  const ACTUALS = [50, 46, 48];
+  const past = [];
+  const pastRecords = [];
+  ACTUALS.forEach((actual, i) => {
+    const date = `2026-08-${String(28 + i).padStart(2, '0')}`;
+    past.push(Object.assign(schema.makeItem({
+      title: 'שיעורי בית', date, start: 900, duration: 30, category: 'study',
+      focusRequirement: 'high', energyRequirement: 'medium',
+    }, NOW_ISO), { status: 'done', actualDuration: actual, completedAt: NOW_ISO }));
+    pastRecords.push({
+      date, forecast: { score: 70 },
+      morning: { energy: 3, mood: 3, sleepQuality: 3, at: NOW_ISO },
+      checkpoints: [],
+      actual: { dayScore: 70, completed: 1, planned: 1, focusMinutes: actual, sleepMinutes: 470 },
+      review: null, accuracy: null,
+    });
+  });
+
+  const naive = schema.emptyLearning();
+  const taught = learn.updateLearning(naive, pastRecords.slice().reverse(), past, { at: NOW_ISO });
+  const probe = schema.makeItem({
+    title: 'שיעורי בית', date: TOMORROW, start: null, duration: 30, category: 'study',
+    focusRequirement: 'high', energyRequirement: 'medium',
+  }, NOW_ISO);
+
+  const learned = learn.estimateDuration(probe, taught);
+  check(learned.minutes >= 44 && learned.basis === 'category',
+    `learning §74: three ~48-minute sessions move a 30-minute estimate to ${learned.minutes}`);
+
+  const bare = [schema.makeItem({
+    kind: 'event', title: 'בית ספר', date: TOMORROW, start: 480, duration: 300, locked: true,
+  }, NOW_ISO)];
+  const ctxFor = (learning) => {
+    const f = predict.forecast(fixInput({ items: bare, learning, history: pastRecords, withRecommendation: false }));
+    return Object.assign(fixInput({ items: bare, learning, history: pastRecords }),
+      { energy: f.energy, focus: f.focus, focusWindows: f.focusWindows });
+  };
+  const slotNaive = sched.suggestSlot(probe, ctxFor(naive));
+  const slotTaught = sched.suggestSlot(probe, ctxFor(taught));
+  check(slotNaive && slotTaught && slotTaught.minutes > slotNaive.minutes,
+    `learning §74: and the schedule books the honest length (${slotNaive && slotNaive.minutes} -> ${slotTaught && slotTaught.minutes} min)`);
+}
+
 const conf = await load('src/engine/confidence.js');
 if (conf && typeof conf.assess === 'function' && schema) {
   const mkRecords = (n, spread) => Array.from({ length: n }, (_, i) => ({
