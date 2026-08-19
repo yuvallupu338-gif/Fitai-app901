@@ -1556,3 +1556,156 @@ body.touch #hud-hide { bottom: calc(150px + env(safe-area-inset-bottom)); }
 #hud-action.wait i { background: var(--faint); }
 #hud-action.wait #hud-action-label { color: var(--amber-dim); }
 body.touch #hud-action { bottom: calc(190px + env(safe-area-inset-bottom)); }
+
+
+/* ------------------------------------------------------------------ *
+ * Cutscenes
+ *
+ * The scripted beats: Bob over the fence at seven, the photograph at half past
+ * ten, the dream at midnight, 3:29, the first sight of her, and the morning.
+ * ui/scene.js builds every node in here and owns #scene entirely — index.html
+ * has never heard of it.
+ *
+ * It sits over the menus and over #fade and under #flash, and it takes no
+ * pointer events at any point, including while it is black: the beat at 3:32
+ * plays over the live game and a phone player is holding the stick through it.
+ *
+ *   #scene.black          the veil is up, and the line moves to the middle
+ *   .scene-line.think     no speaker: description, or Adam thinking
+ *   #scene-text.shake     one beat that arrives badly
+ * ------------------------------------------------------------------ */
+
+#scene {
+  position: absolute;
+  inset: 0;
+  z-index: 42;
+  pointer-events: none;
+}
+#scene[hidden] { display: none; }
+
+#scene-veil {
+  position: absolute;
+  inset: 0;
+  background: #000;
+  opacity: 0;
+  /* The one transition in this section a player can see, and it is short
+   * enough to read as a cut against a four-second beat. Nothing in the timing
+   * waits for it — the beats are timed in JS. */
+  transition: opacity 0.28s ease;
+}
+#scene.black #scene-veil { opacity: 1; }
+/* One frame, at the start of a sequence that is black from its first beat: the
+ * black is the thing the caller is taking the screen over with, and it may not
+ * arrive a quarter of a second late. scene.js adds this and takes it off
+ * again in the same tick. */
+#scene.cut #scene-veil { transition: none; }
+
+/*
+ * Where the line sits. Over the live game it goes exactly where the subtitles
+ * go, because that is where the player has already learned to look and it is
+ * the one band of the screen that covers neither the clock nor the street.
+ * Over black there is nothing else on the screen, so it goes in the middle.
+ */
+#scene-text {
+  position: absolute;
+  inset: 0;
+  display: flex;
+  flex-direction: column;
+  align-items: center;
+  justify-content: flex-end;
+  padding: 0 5vw calc(96px + env(safe-area-inset-bottom));
+}
+#scene.black #scene-text {
+  justify-content: center;
+  padding-bottom: 5vh;
+}
+
+.scene-line {
+  max-width: min(46ch, 88vw);
+  text-align: center;
+  animation: scene-in 0.28s ease both;
+}
+@keyframes scene-in {
+  from { opacity: 0; transform: translateY(5px); }
+  to { opacity: 1; transform: none; }
+}
+
+.scene-line .who {
+  display: block;
+  margin-bottom: 7px;
+  font-size: 0.72em;
+  letter-spacing: 0.16em;
+  color: var(--amber);
+}
+
+.scene-line .say {
+  margin: 0;
+  font-size: clamp(15px, 2.2vw, 18px);
+  line-height: 1.75;
+  color: #eef1f2;
+  text-shadow: 0 1px 3px #000, 0 0 18px rgba(0, 0, 0, 0.95);
+}
+
+/* Nobody is speaking, so nothing is named — and it is set in the journal's
+ * face rather than in italics, which Hebrew does not have and which the
+ * browser would fake by leaning the glyphs over. Same face as the diary pages
+ * on purpose: a description in this game is Adam remembering something. */
+.scene-line.think .say {
+  font-family: var(--serif);
+  color: #c9d0d6;
+}
+
+/* Over black the line is the entire screen and can afford the size. */
+#scene.black .scene-line .say { font-size: clamp(17px, 2.7vw, 23px); }
+
+.scene-more {
+  display: block;
+  margin-top: 12px;
+  font-size: 11px;
+  letter-spacing: 0.08em;
+  color: var(--amber-dim);
+}
+.scene-more b {
+  font-family: var(--mono);
+  color: var(--amber);
+  background: rgba(232, 163, 60, 0.09);
+  border: 1px solid var(--line);
+  border-radius: 3px;
+  padding: 1px 5px;
+  font-weight: 600;
+}
+
+/* Said once per session and then never again. It is the size it is because a
+ * player who has seen the scene before is looking for it, and a player who has
+ * not should be reading the line above it instead. */
+#scene-skip {
+  position: absolute;
+  left: 0;
+  right: 0;
+  bottom: calc(14px + env(safe-area-inset-bottom));
+  text-align: center;
+  font-size: 11px;
+  letter-spacing: 0.04em;
+  color: var(--faint);
+  text-shadow: 0 1px 3px #000;
+}
+#scene-skip[hidden] { display: none; }
+#scene-skip b {
+  font-family: var(--mono);
+  color: var(--amber-dim);
+  border: 1px solid var(--line);
+  border-radius: 3px;
+  padding: 1px 5px;
+  font-weight: 600;
+}
+
+#scene-text.shake { animation: shake 0.4s linear; }
+
+/* This section carries its own, rather than joining the block above: it was
+ * appended whole and its motion is its own keyframes. The text still arrives
+ * and still holds for exactly as long — only the movement goes. */
+@media (prefers-reduced-motion: reduce) {
+  .scene-line,
+  #scene-text.shake { animation: none; }
+  #scene-veil { transition: none; }
+}

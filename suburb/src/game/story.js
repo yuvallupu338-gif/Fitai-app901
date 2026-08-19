@@ -151,15 +151,31 @@ function say(value, fallback) {
  * makes the clues worth pressing for. Houses with two things to give end on
  * the one that is harder to find out any other way.
  *
+ * One press is one subtitle and main.js gives a subtitle six seconds, so a
+ * line that carries two facts is written as two lines. Six seconds is about
+ * twenty words of Hebrew; the half of a sentence that does not fit is a clue
+ * the player was told and never got to read.
+ *
  * These people are empty faces keeping a routine going. They are friendly,
  * they are helpful, and every one of them is a beat away from noticing that
  * they do not know why they are doing any of it.
  */
 export function neighbourLines(house, layout, night) {
   const p = layout?.puzzles || {};
-  const who = house.occupant?.name || 'השכן';
-  const base = [`${who}: "בוקר טוב. ${house.occupant?.trait || 'יום יפה'}."`];
-  switch (house.number) {
+  const who = house?.occupant?.name || 'השכן';
+  /*
+   * The trait is layout.js's one-line sketch of the person and it is written
+   * about them, not by them — "waters his lawn at odd hours and smiles", "his
+   * back fence leans on the park". Inside the quotation marks it came out as
+   * a man introducing himself in the third person, so it stands outside them,
+   * as the line of description it always was.
+   */
+  const trait = house?.occupant?.trait;
+  const base = [`${who}: "בוקר טוב."${trait ? ` ${trait}.` : ''}`];
+  /* `house` itself is optional for the same reason case 17 exists: a bad
+   * houseId reaching this far should cost a line of dialogue, not the
+   * afternoon. An unknown number falls through to the default branch. */
+  switch (house?.number) {
     case 11: {
       /*
        * The order is a fact about the toys' ages and the ages are not written
@@ -168,21 +184,29 @@ export function neighbourLines(house, layout, night) {
        * owned them recites the plaques from memory, word for word, and a
        * player who did the afternoon walk never has to read them at 3:33.
        *
-       * The clue strings already carry their own quotation marks, so they are
-       * appended as their own sentences rather than quoted again.
+       * The clue strings already carry their own quotation marks, so they go
+       * in as they are rather than being quoted again — and one per press,
+       * not all three in one line. A subtitle is on screen for six seconds
+       * and three plaques joined into one sentence ran off the end of it,
+       * which loses the ages, which is the only thing this house is for.
        */
       const dolls = p.dolls || {};
-      const plaques = Array.isArray(dolls.clues) ? dolls.clues.join(' ') : '';
+      const plaques = Array.isArray(dolls.clues) ? dolls.clues : [];
       return base.concat([
-        '"הגדר האחורית שלי נשענת על הגן. מה שנתלה עליה בלילה נשאר שם עד '
-          + 'הבוקר, ואף אחד לא מוריד."',
+        /* His trait is already on the line above, in the third person, so he
+         * does not open by saying it again in the first. */
+        '"מה שנתלה על הגדר האחורית שלי בלילה נשאר שם עד הבוקר, '
+          + 'ואף אחד לא מוריד."',
         '"הצעצועים בגינה של 13 היו של הבת שלי. אני חושב שהייתה לי בת."',
-        '"מי שרוצה לפתוח שם את השער צריך להעמיד אותם לפי גיל, מהמבוגר לצעיר. '
-          + 'לא לפי גובה. לפי גיל."',
-        plaques
-          ? `"מה שכתוב על הלוחיות אני יודע בעל פה." ${plaques}`
+        /* The dolls stand at 13 but the lock they open is the flag on this
+         * man's own back fence — there is no gate at 13 to speak of, and the
+         * line used to say there was. */
+        '"אם משהו נתקע לי על הגדר ואי אפשר להוריד אותו — תעמיד אותם לפי גיל, '
+          + 'מהמבוגר לצעיר. לא לפי גובה. לפי גיל."',
+        plaques.length
+          ? '"מה שכתוב על הלוחיות אני יודע בעל פה."'
           : '"מה שכתוב על הלוחיות בגינה עדיין קריא, אם מתכופפים."',
-      ]);
+      ], plaques);
     }
     case 12: {
       /*
@@ -201,7 +225,16 @@ export function neighbourLines(house, layout, night) {
           + `${panels}. צבעתי אותן לבד וספרתי פעמיים."`,
       ]);
     }
-    case 13:
+    case 13: {
+      /*
+       * How many notes the radio is playing is the layout's number, and a
+       * person says it as a word rather than as a digit. It is only said at
+       * all while it is still four: a neighbour who counts them out loud and
+       * gets it wrong is worse than a neighbour who does not count.
+       */
+      const heard = p.radio?.notes?.length || p.radio?.digits;
+      const count = heard === 4 ? 'ארבעה תווים, ועוד פעם אותם תווים'
+        : 'את אותם תווים שוב ושוב';
       return base.concat([
         '"הצעצועים על הדשא לא שלי. הם היו כאן לפני, בדיוק ככה. '
           + 'תשאל ב-11, הוא זוכר עליהם דברים."',
@@ -209,36 +242,47 @@ export function neighbourLines(house, layout, night) {
         /* The radio plays the four notes over and over; the neighbour hands
          * over the way to turn notes into digits and nothing else, because
          * the notes themselves are audible from the driveway. */
-        `"הרדיו בפנים דולק כל היום ומנגן ${say(p.radio?.digits, 'ארבעה')} `
-          + 'תווים, ועוד פעם אותם תווים. על מגן השמש יש מדבקה של פסנתר, '
-          + 'והקלידים הלבנים ממוספרים מ-C. משם מקבלים את הקוד."',
+        `"הרדיו בפנים דולק כל היום ומנגן ${count}."`,
+        '"על מגן השמש יש מדבקה של פסנתר, והקלידים הלבנים ממוספרים מ-C. '
+          + 'משם מקבלים את הקוד."',
       ]);
+    }
     case 14: {
       /*
        * The arithmetic belongs to the layout, because the layout is what the
        * lock actually checks. If it changes the rule it can put the new
-       * sentence on `puzzles.code.rule` and this line says that instead —
-       * a neighbour reciting a rule the keypad no longer uses is the worst
+       * sentence on `puzzles.code.rule` and this line says that instead — a
+       * neighbour reciting a rule the keypad no longer uses is the worst
        * failure this file has, since it looks like the player is bad at
        * arithmetic.
+       *
+       * Today there is no such field, so the sentence below is the fallback
+       * and the fallback is house minus three times two, written out. That is
+       * exactly the thing that goes stale without anybody noticing, so it is
+       * tried against the answer the keypad is actually holding before it is
+       * said out loud, and when the two disagree she stops reciting and points
+       * at the engraving, which is on the lid and cannot be out of date.
        */
       const code = p.code || {};
-      const rule = say(code.rule, 'מספר הבית שלי, פחות שלוש, כפול שתיים');
+      const fits = String((code.houseNumber - 3) * 2) === String(code.answer);
+      const rule = say(code.rule, fits ? 'מספר הבית שלי, פחות שלוש, כפול שתיים' : '');
       return base.concat([
         '"התיבה נעולה, כן. הבן שלי שם את הקוד כשהיה בן עשר."',
         /* "That is engraved on the box", not "the number is engraved on the
          * box": the layout is allowed to replace the rule with one that is
          * not about the house number at all. */
-        `"הוא אמר: ${rule}. זה חרוט על התיבה, אם לא שכחת לקרוא."`,
+        rule
+          ? `"הוא אמר: ${rule}. זה חרוט על התיבה, אם לא שכחת לקרוא."`
+          : '"מה שהוא אמר חרוט על המכסה עצמו. אני כבר לא זוכרת את זה בעל פה."',
       ]);
     }
     case 15:
       return base.concat([
         '"הכלב נובח על כל דבר, סליחה מראש. הוא לא היה ככה פעם."',
         '"מאז הערפל ההוא הוא לא מפסיק. כמה שנים זה כבר?"',
-        '"אם אתה חייב להיכנס לחצר האחורית — יש לו עצם. '
-          + 'הבעלים הקודמים של 13 קברו אותה מתחת למרפסת שלהם, והוא לא שכח '
-          + 'איפה. כלב לא שוכח דברים כאלה."',
+        '"אם אתה חייב להיכנס לחצר האחורית — יש לו עצם."',
+        '"הבעלים הקודמים של 13 קברו אותה מתחת למרפסת שלהם, והוא לא שכח איפה. '
+          + 'כלב לא שוכח דברים כאלה."',
       ]);
     case 16:
       /* Bob. He is the only one who says the night out loud, in daylight, in
@@ -246,7 +290,9 @@ export function neighbourLines(house, layout, night) {
       return base.concat([
         night >= 4
           ? '"אתה נראה עייף. זה עובר. לכולם זה עובר."'
-          : '"שבוע שני כבר? אמרתי לך שתתרגל."',
+          /* Not "second week already?": the opening is his first week in the
+           * street and the first night is the night after it. */
+          : '"נו? אמרתי לך שתתרגל."',
         '"החור בדשא — אני חפרתי אותו. אני לא זוכר בשביל מה, אבל אני חפרתי."',
         '"שלוש תיבות נגינה של אמא שלי. שתיים מהן מנגנות את השיר לא נכון, '
           + 'בתו הרביעי."',
@@ -262,23 +308,45 @@ export function neighbourLines(house, layout, night) {
        * garden in the afternoon and this branch should never run. It is here
        * because a person with the wrong houseId did run it once, and a crash
        * in the middle of a conversation is worse than a line nobody hears.
-       * The clue for this house is in number 18's mouth, next door.
+       * The clue for this house is in number 18's mouth, across the road.
        */
       return ['הבית הזה ריק. אין עם מי לדבר.'];
-    case 18:
+    case 18: {
+      /*
+       * The fuse cabinet at the edge of the park, which is the one lock with
+       * nothing on it to read: the strip of red tape is in a photograph and
+       * the cabinet in the world is a closed metal box with four identical
+       * switches in it. Without this sentence that night is a one-in-four
+       * guess, and a wrong switch is a buzzer loud enough to bring her.
+       *
+       * The layout rewires the cabinet every night, so the number is read off
+       * the puzzle rather than written here, and a missing one leaves the
+       * couple saying only that somebody marked one of them once.
+       */
+      const sw = p.panel?.answer;
+      const which = Number.isInteger(sw) ? `מפסק ${sw + 1}` : '';
       return base.concat([
         '"הפחים בסמטה, כן. שלושה, קשורים זה לזה בשרשרת, '
           + 'ואף אחד לא זוכר למה."',
         '"הסדר שלהם? מה שקוראים, אחר כך מה ששותים, אחר כך מה שמצלצל. '
           + 'ככה זה תמיד היה."',
-        '"הבית ליד — 17 — אל תיכנס לשם בלילה. גם לא ביום, אם אפשר."',
+        /* 17 is on the other side of the road and two plots along, not next
+         * door — the numbers run opposite ways on the two sides. */
+        '"הבית הריק בצד השני של הכביש, 17 — אל תיכנס לשם בלילה. '
+          + 'גם לא ביום, אם אפשר."',
         /* The mirror lock is a sentence written on the glass, not a code —
          * "the flag is under board 3 on the porch" — so the neighbour has to
-         * describe writing rather than digits. */
-        '"מישהו כתב משפט שלם על חלון המטבח מבפנים, לפני הרבה שנים. '
-          + 'מהחצר זה נראה הפוך. יש מראה ישנה שעונה על הגדר האחורית — '
-          + 'משם קוראים אותו נכון."',
+         * describe writing rather than digits. These two follow the line
+         * about number 17 because both of them say "his" and mean it. */
+        '"מישהו כתב משפט שלם על חלון המטבח שלו מבפנים, לפני הרבה שנים. '
+          + 'מהחצר זה נראה הפוך."',
+        '"יש שם מראה ישנה שעונה על הגדר האחורית. משם קוראים אותו נכון."',
+        which
+          ? `"בארון החשמל בקצה הגן ארבעה מפסקים. המשאבה של המזרקה על ${which}."`
+          : '"בארון החשמל בקצה הגן ארבעה מפסקים, ואחד מהם מפעיל את המזרקה."',
+        '"מישהו הדביק עליו פעם סרט אדום. מי שהדביק אותו כבר לא גר כאן."',
       ]);
+    }
     case 21:
       /*
        * Adam's own house. He can press E on it in the afternoon like on
@@ -403,20 +471,30 @@ export const NIGHT_INTRO = [
     + 'והיא באה לאט.',
 ];
 
-/* What the screen says when the night resets. Deliberately short and never
- * jokey: this screen is the punishment and it should be over fast. Every one
- * of them names the thing the player did, because being caught has a reason
- * and the reason is always movement. */
+/*
+ * What the screen says when the night resets. Deliberately short and never
+ * jokey: this screen is the punishment and it should be over fast.
+ *
+ * main.js takes one of these by the attempt count rather than by what
+ * happened, so none of them may claim a fact the game has not checked. They
+ * used to: one said the dog had barked and one said the flag was in your hand,
+ * on nights with no dog and no flag. What is left is either always true — the
+ * whistle really is cut mid-note when she sees you, and nowhere else — or a
+ * rule of the world, which is true whichever of the five ways it went.
+ */
 export const CAUGHT_LINES = [
   'השריקה נפסקה באמצע תו.',
   'היא הסתובבה כי זזת. רק בגלל זה.',
-  'רצת. ילד שרץ זה הדבר היחיד שהיא רואה.',
-  'הדגל אדום, והוא היה גבוה מדי ביד שלך.',
-  'הכלב נבח, והיא באה למקום שממנו בא הרעש.',
+  'זזת, והדבר היחיד שהיא יודעת לראות זה ילד שרץ.',
+  'אדום נראה מרחוק. גם בלילה. במיוחד בלילה.',
+  'היא הולכת אל הרעש. כל רעש.',
 ];
 
+/* The other way to lose, and the whistle ends differently: at 3:35 it finishes
+ * the phrase and stops on its own, which is the whole difference between being
+ * too slow and being seen. */
 export const TIMEOUT_LINES = [
-  '3:35. השריקה נגמרה באמצע, והדגל לא בבית.',
+  '3:35. השריקה נגמרה לבד, והדגל לא בבית.',
   'השעה עברה. הרחוב שקט שוב, כאילו לא קרה כלום. ככה זה היה גם אז.',
 ];
 
@@ -433,8 +511,13 @@ export const TIMEOUT_LINES = [
  * one is the good one, because neither is.
  */
 export const REVEAL = [
-  'שבעה דגלים. שבעה לילות. השביעי לא היה על עמוד ולא בתיבה — הוא היה '
-    + 'על אבן קטנה בקצה הרחוב.',
+  /* Not "the seventh one was on a small stone at the end of the road": the
+   * seventh site is whichever of the ten the save drew, and it is as likely
+   * to be a bin in an alley as anything else. The stone is where the flag
+   * came from, which is a fact about all seven of them and stays true
+   * wherever the player happens to be standing when they read this. */
+  'שבעה דגלים, שבעה לילות, וכולם אותו דגל אחד: דגל נייר על מקל גלידה, '
+    + 'שמישהו השאיר פעם על אבן קטנה בקצה הרחוב.',
   'על האבן שם, אוולין מארלו, ושני תאריכים. השני מהם היה לפני עשרים שנה, '
     + 'והיא הייתה אז בת שלושים וארבע. היא עדיין בת שלושים וארבע.',
   'השכונה הזאת היא לילה אחד שחוזר על עצמו עשרים שנה, ואתה לא גר בה — '
@@ -455,7 +538,10 @@ export const REVEAL = [
 export const ENDINGS = {
   take: {
     title: 'לקחת את הדגל',
-    text: 'הרמת אותו מהאבן והוא היה נייר, וכבד בערך כמו שנייר כבד. '
+    /* "You picked it up", not "you picked it up off the stone": the last
+     * flag is wherever the save put it, and the ending is read standing
+     * there. */
+    text: 'הרמת אותו והוא היה נייר, וכבד בערך כמו שנייר כבד. '
       + 'השריקה לא נפסקה באמצע תו הפעם — היא הגיעה לתו השמיני וגמרה אותו. '
       + 'היא עמדה בקצה הרחוב בלי לזוז, ואז לא עמדה שם. '
       + 'בבוקר יש שמש, והדגלים בכל השכונה מורמים עד למעלה, '

@@ -872,7 +872,16 @@ export class GameAudio {
    * the last moment the lookahead allows. */
   scheduleTail(w) {
     const t0 = w.tail.t0;
+    const due = w.tail.at;
     w.tail = null;
+    /* Unless the clock has already gone past it. A gap of a few seconds in the
+     * frames — a backgrounded tab, a long load — is too short for the loop in
+     * tick() to have reached the next head and dropped this one, and quite
+     * long enough to leave the fourth note behind the clock, where its
+     * envelope opens and shuts on the same instant and what comes out is a
+     * click with a pitch jump behind it. Four notes of silence is the cheaper
+     * of the two, and it is the same trade the loop makes. */
+    if (due <= this.ctx.currentTime) return;
     this.schedulePhrase(t0, w, { tempo: this.tempo, from: SOUR });
   }
 
@@ -1366,37 +1375,40 @@ export class GameAudio {
   /*
    * The opening of the lullaby on a garden music box: five tines, E G B A E,
    * at about four times the speed she whistles it, for the reason on
-   * BOX_SPREAD. `wrong` bends the fourth tine up to the tritone she whistles
-   * now, so the box plays her instead of playing the tune. `note` says which
-   * of the three boxes this is and buys nothing but its own few cents of
-   * drift; the puzzle is that the only real difference is the fourth note, and
-   * you have to have listened to her to know which way round that is.
-   *
-   * `at` and `speed` are for flagTake, which needs the same box running slow
-   * and unsteady.
+   * BOX_SPREAD. `wrong` bends the fourth tine, and only the fourth, up to the
+   * tritone she whistles now, so the box plays her instead of playing the
+   * tune. Bending the whole comb is the obvious way to write that line and it
+   * gives the puzzle away: five tines all sixty cents flat is a box anyone can
+   * pick out of three without having heard her once, and the note it lands the
+   * fourth tine on is then neither of the two notes the puzzle is about.
+   * `note` says which of the three boxes this is and buys nothing but its own
+   * few cents of drift.
    */
-  musicBox(note, wrong, at = 0, speed = 1) {
+  musicBox(note, wrong) {
     if (!this.ready || this.muted) return;
-    const t = at || this.ctx.currentTime;
+    const t = this.ctx.currentTime;
     const n = BOX_DRIFT.length;
     const drift = BOX_DRIFT[((num(note, 0) | 0) % n + n) % n] / 100;
     for (let i = 0; i < BOX_OPEN.length; i++) {
-      this.boxTine(t + MELODY[i].at * BOX_SPREAD / speed,
-        BOX_OPEN[i] + drift + (wrong && i === SOUR ? 1 : 0), !!wrong, speed);
+      this.boxTine(t + MELODY[i].at * BOX_SPREAD, BOX_OPEN[i] + drift,
+        !!wrong && i === SOUR, 1);
     }
   }
 
   /*
    * One tine. Struck metal is inharmonic — its partials are not integer
    * multiples of anything — and a stack tuned to 2x and 3x gives an organ, not
-   * a comb. `wrong` drops it sixty cents and puts a second tine a few cents
-   * from the first, which beats; that beating is the sour part, not the
-   * flatness. Callers check ready and muted.
+   * a comb. `bent` is the tine that has been pulled up the semitone to the
+   * note the comb has not got, and it arrives eighteen cents under it, because
+   * a tine dragged that far never quite makes the pitch it was dragged to. The
+   * eighteen cents is only a box out of tune; what makes it sour is the second
+   * tine a few cents off the first, beating against it. Callers check ready
+   * and muted.
    */
-  boxTine(t, semitone, wrong, speed) {
+  boxTine(t, semitone, bent, speed) {
     const f = BOX_ROOT * Math.pow(2, num(semitone, 0) / 12) * speed
-      * (wrong ? Math.pow(2, -0.6 / 12) : 1);
-    const dur = (wrong ? 1.1 : 1.7) / speed;
+      * (bent ? Math.pow(2, 0.82 / 12) : 1);
+    const dur = (bent ? 1.1 : 1.7) / speed;
 
     const outG = this.gain(0);
     this.env(outG, t, 1, dur, 0.004);
@@ -1415,8 +1427,8 @@ export class GameAudio {
       wow = wg;
     }
 
-    const parts = wrong ? [[1, 1], [1.0035, 0.9], [3.94, 0.20], [7.1, 0.06]]
-                        : [[1, 1], [3.92, 0.16], [7.24, 0.05], [11.3, 0.02]];
+    const parts = bent ? [[1, 1], [1.0035, 0.9], [3.94, 0.20], [7.1, 0.06]]
+                       : [[1, 1], [3.92, 0.16], [7.24, 0.05], [11.3, 0.02]];
     for (const [mul, amp] of parts) {
       const o = this.osc('sine', f * mul);
       const g = this.gain(0.10 * amp);

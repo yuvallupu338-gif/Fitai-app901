@@ -498,22 +498,27 @@ async function main() {
         }, t);
         await frames(page, 2);
       };
-      /* The board does not come up until the mirror has been read. */
-      await teleport(page, world.board.x + 1.2, world.board.z + 1.2);
+      /* The board does not come up until the mirror has been read. Stand
+       * close: these prompts have a 1.6m radius and the diagonal of a 1.2m
+       * offset is 1.7. */
+      await teleport(page, world.board.x + 0.8, world.board.z + 0.8);
       await face(world.board);
       await press(page, 'KeyE', 4);
       check(!(await page.evaluate(() => window.suburb.layout.puzzles.mirror.solved)),
         'the board stays down until the writing has been read');
-      await teleport(page, world.mirror.x + 1.2, world.mirror.z + 1.2);
+      await teleport(page, world.mirror.x + 0.9, world.mirror.z + 0.9);
       await face(world.mirror);
       await press(page, 'KeyE', 4);
       check(await page.evaluate(() => window.suburb.layout.puzzles.mirror.read),
         'the mirror reads the writing the right way round');
-      await teleport(page, world.board.x + 1.2, world.board.z + 1.2);
+      await teleport(page, world.board.x + 0.8, world.board.z + 0.8);
       await face(world.board);
       await press(page, 'KeyE', 4);
-      check(await page.evaluate(() => window.suburb.layout.puzzles.mirror.solved),
-        'and then the board comes up');
+      const lifted = await page.evaluate(() => ({
+        solved: window.suburb.layout.puzzles.mirror.solved,
+        prompt: document.querySelector('#hud-prompt').textContent,
+      }));
+      check(lifted.solved, `and then the board comes up (prompt: "${lifted.prompt}")`);
     }
 
     /* ---- the last night ---- */
