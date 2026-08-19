@@ -63,8 +63,22 @@ no libraries and no media files, same as everything else here. It is served at
 `/backrooms/`, and its code touches neither the questionnaire, the plan, nor
 any of FitAI's storage. See [`backrooms/README.md`](backrooms/README.md).
 
+### Also in this repo: `tomorrow/`
+
+`tomorrow/` is TomorrowAI, and it is a different kind of thing from the other
+two: not a generator and not a game, but a model of one person's day. It takes
+what is on tomorrow, how long you sleep and how you feel tonight, and predicts
+energy, focus, load and risk across the whole day — then finds the one change
+that would improve it and shows you the score move when you apply it. It learns
+how long tasks really take you, how much of your plan you actually finish, and
+when you are genuinely sharpest, and it weights its own predictions by how much
+of that it has earned the right to claim. Same stack as everything here: plain
+ES modules, no build step, no dependencies, and no network at all. Served at
+`/tomorrow/`, with its own storage key. See
+[`tomorrow/README.md`](tomorrow/README.md).
+
 Its *code* does not, which is not the same as saying it cannot — see
-[Security](#security) below. All three apps here share one browser origin, and
+[Security](#security) below. All four apps here share one browser origin, and
 localStorage is scoped per origin, not per path.
 
 ## Rest days and declared injuries
@@ -117,21 +131,23 @@ check.
 
 ## Security
 
-The three apps in this repo are served from one GitHub Pages origin —
-`/` , `/app/` and `/backrooms/` — and a browser origin is the security boundary,
-not a directory. They share one localStorage jar, and this app's share of it
-holds the vendor API keys under `fitai.key.*`. A scripting bug in any one of the
-three could read the other two's data, so hardening one of them alone would have
-been theatre.
+The four apps in this repo are served from one GitHub Pages origin —
+`/`, `/app/`, `/backrooms/` and `/tomorrow/` — and a browser origin is the
+security boundary, not a directory. They share one localStorage jar, and this
+app's share of it holds the vendor API keys under `fitai.key.*` while
+TomorrowAI's holds every day of somebody's life under `tomorrowai.v1`. A
+scripting bug in any one of the four could read the other three's data, so
+hardening one of them alone would have been theatre.
 
-All three now carry a Content-Security-Policy with **`script-src 'self'` and no
+All four now carry a Content-Security-Policy with **`script-src 'self'` and no
 `'unsafe-inline'`**, which is the directive that decides whether HTML that
-reaches the DOM is markup or code. This app and the game needed nothing but the
-policy — no generated event handlers, no `eval`, and exactly one inline `style`
-attribute each (in their `<noscript>` blocks, now a CSS class), so both also run
-`style-src 'self'` with no inline styles at all. `connect-src` names the two
-vendors this app actually calls and nothing else; the game's is `'none'`.
-`app/` needed a larger change and has [its own account](app/README.md#security).
+reaches the DOM is markup or code. This app, the game and TomorrowAI needed
+nothing but the policy — no generated event handlers, no `eval`, and exactly one
+inline `style` attribute each (in their `<noscript>` blocks, now a CSS class), so
+all three also run `style-src 'self'` with no inline styles at all. `connect-src`
+names the two vendors this app actually calls and nothing else; the game's and
+TomorrowAI's are `'none'`, because neither talks to anybody. `app/` needed a
+larger change and has [its own account](app/README.md#security).
 
 The single-file builds in `dist/` inline their script and stylesheet, so they
 cannot use `'self'` and must not use `'unsafe-inline'`. `tools/build-single.js`
@@ -142,10 +158,9 @@ which also works from `file://`, where `'self'` means nothing.
 node tools/csp-check.mjs
 ```
 
-drives all three pages, requires each to raise no violations of its own, and
+drives all four pages, requires each to raise no violations of its own, and
 then tries to execute code the way an injection would — an inline handler, a
 `javascript:` URL, `eval`, and a remote script — and requires all four to fail.
-Currently 24 of 24.
 
 Two things this deliberately does not claim:
 

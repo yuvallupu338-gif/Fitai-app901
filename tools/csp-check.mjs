@@ -1,13 +1,14 @@
 #!/usr/bin/env node
 /*
- * csp-check.mjs — the three pages on this origin, checked against their own
+ * csp-check.mjs — the four pages on this origin, checked against their own
  * Content-Security-Policy.
  *
  * localStorage is per-origin, not per-path. GitHub Pages serves the plan app at
- * /, this repo's larger FitAI at /app/ and the game at /backrooms/, and they
- * share one storage jar — which holds, among other things, the vendor API keys
- * this app keeps under `fitai.key.*`. A policy on one page secures nothing
- * while a neighbour has none, so all three are checked together.
+ * /, this repo's larger FitAI at /app/, the game at /backrooms/ and TomorrowAI
+ * at /tomorrow/, and they share one storage jar — which holds, among other
+ * things, the vendor API keys this app keeps under `fitai.key.*` and every day
+ * of somebody's life under `tomorrowai.v1`. A policy on one page secures
+ * nothing while a neighbour has none, so all four are checked together.
  *
  * For each page: drive it, collect every securitypolicyviolation the browser
  * raises, and then try to run code the way an injection would — an inline
@@ -46,6 +47,24 @@ const PAGES = [
       const start = page.locator('button', { hasText: /התחל|Start|שחק/ }).first();
       if (await start.count()) await start.click().catch(() => {});
       await page.waitForTimeout(2500);
+    } },
+  /*
+   * TomorrowAI draws its own SVG and sets element.style directly in a few
+   * places. Neither is an inline style in the sense style-src polices — the
+   * directive covers <style> blocks and style attributes parsed from markup,
+   * not the CSSOM — but that is exactly the kind of distinction worth having a
+   * machine confirm rather than remembering correctly.
+   */
+  { name: 'tomorrow   /tomorrow/',  url: `${BASE}/tomorrow/index.html`,
+    drive: async page => {
+      await page.waitForTimeout(1200);
+      const demo = page.locator('[data-t="demo-start"]').first();
+      if (await demo.count()) await demo.click().catch(() => {});
+      await page.waitForTimeout(1500);
+      for (const t of ['schedule', 'chat', 'insights', 'profile', 'tomorrow']) {
+        await page.click(`[data-t="nav-${t}"]`, { timeout: 4000 }).catch(() => {});
+        await page.waitForTimeout(350);
+      }
     } },
 ];
 

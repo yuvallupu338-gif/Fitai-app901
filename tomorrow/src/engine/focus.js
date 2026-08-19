@@ -238,6 +238,20 @@ function clamp(n, lo, hi) {
 }
 
 /*
+ * One decimal, the same precision energy.js keeps.
+ *
+ * Rounding to whole points looked tidier and cost something real: it puts a
+ * flat top on the curve, and predict.js finds the focus peak by scanning for
+ * the first highest sample. A day whose true peak is 15:00 would report 14:15
+ * simply because both rounded to 80, and the app would name a time it does not
+ * actually believe. A tenth of a point is still deterministic to the byte,
+ * which is all the validator asks.
+ */
+function round1(n) {
+  return Math.round(n * 10) / 10;
+}
+
+/*
  * A bedtime as a point on this day's number line rather than a clock reading.
  * predict.js has the same three lines and they must agree, but focus.js cannot
  * import predict.js — predict.js imports this file, and a cycle between the
@@ -421,10 +435,15 @@ function sampleGrid(energy, plan) {
     };
   }
   const from = plan && Number.isFinite(plan.wake) ? plan.wake : 420;
-  const to = plan && Number.isFinite(plan.nextBedtime) ? bedtimeAbs(plan.nextBedtime) : 1380;
+  const bed = plan && Number.isFinite(plan.nextBedtime) ? bedtimeAbs(plan.nextBedtime) : 1380;
+  // The same floor energy.js puts on a broken plan: a bedtime before the wake
+  // time is bad data, not a day of zero length, and an hour of curve keeps the
+  // chart and the peak search working on something.
+  const to = Math.max(from + 60, bed);
   const minutes = [];
-  for (let m = from; m <= to; m += STEP) minutes.push(m);
-  return { from, to, minutes: minutes.length ? minutes : [from] };
+  for (let m = from; m < to; m += STEP) minutes.push(m);
+  minutes.push(to);
+  return { from, to, minutes };
 }
 
 /** Nearest-sample lookup into the energy curve, for grids that do not line up. */
@@ -445,28 +464,30 @@ function energyReader(energy) {
 /*
  * The hourly summary, which is what a DayRecord keeps once the day is over.
  *
- * Each hour is the mean of the samples that fall in it rather than the sample
- * on the hour, so an hour containing a sharp dip reports the dip. Hours are
- * emitted in the order the day runs through them, which for a curve that
- * crosses midnight means 23 is followed by 0.
+ * Each hour is the mean of the samples inside it rather than the sample sitting
+ * on the hour, so an hour containing a sharp dip reports the dip. Buckets open
+ * in the order the samples arrive rather than by sorting on the hour number,
+ * which is how a day that ends after midnight reads 22, 23, 0 instead of 0, 22,
+ * 23. energy.js builds its summary the same way on purpose: the week strip
+ * draws the two side by side and a pair of arrays in different orders would put
+ * the evening of one against the morning of the other.
  */
 function hourlyOf(points) {
-  const order = [];
-  const sums = new Map();
+  const buckets = [];
+  let open = null;
   for (const p of points) {
-    const hour = Math.floor(p.minute / 60) % 24;
-    if (!sums.has(hour)) {
-      sums.set(hour, { total: 0, n: 0 });
-      order.push(hour);
+    const hour = Math.floor(p.minute / 60);
+    if (!open || open.hour !== hour) {
+      open = { hour, total: 0, n: 0 };
+      buckets.push(open);
     }
-    const bucket = sums.get(hour);
-    bucket.total += p.value;
-    bucket.n += 1;
+    open.total += p.value;
+    open.n += 1;
   }
-  return order.map((hour) => {
-    const bucket = sums.get(hour);
-    return { hour, value: Math.round(bucket.total / bucket.n) };
-  });
+  return buckets.map((b) => ({
+    hour: ((b.hour % 24) + 24) % 24,
+    value: Math.round(b.total / b.n),
+  }));
 }
 
 /**
@@ -522,7 +543,7 @@ export function focusCurve(ctx, energy) {
 
     return {
       minute,
-      value: Math.round(clamp(value, 0, 100)),
+      value: round1(clamp(value, 0, 100)),
       confidence: Math.round(clamp(certainty * trust, 0, 100)),
     };
   });
@@ -621,10 +642,17 @@ export function bestWindows(focus, opts) {
     ? o.threshold
     : mean + THRESHOLD_SHARE * (peak - mean);
 
+  /*
+   * Contiguity is "no further apart than a step", not "exactly a step". The
+   * grid runs to the planned bedtime whether or not the wake time sits on a
+   * quarter hour, so the last interval of the day can be short, and demanding
+   * an exact spacing would quietly amputate the end of an evening window for
+   * anybody who gets up at 07:07.
+   */
   const runs = [];
   let current = null;
   for (const p of usable) {
-    const contiguous = current && p.minute - current[current.length - 1].minute === step;
+    const contiguous = current && p.minute - current[current.length - 1].minute <= step;
     if (p.value >= threshold && contiguous) current.push(p);
     else if (p.value >= threshold) {
       current = [p];
@@ -654,13 +682,15 @@ export function bestWindows(focus, opts) {
   const size = Math.max(1, Math.floor(MAX_WINDOW / step));
   const candidates = merged
     .map((run) => trimToBest(run, size))
-    .filter((run) => run.length * step >= minMinutes)
     .map((run) => ({
       start: run[0].minute,
-      end: run[run.length - 1].minute + step,
+      end: Math.min(to, run[run.length - 1].minute + step),
       score: Math.round(meanOf(run, 'value')),
       confidence: Math.round(meanOf(run, 'confidence')),
     }))
+    // Measured on the clock rather than by counting samples, so a run that
+    // ends on a short final interval is judged by how long it actually is.
+    .filter((w) => w.end - w.start >= minMinutes)
     .sort((a, b) => (b.score - a.score) || (a.start - b.start));
 
   /*
