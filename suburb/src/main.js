@@ -28,7 +28,7 @@ import { GameAudio } from './game/audio.js';
 import { Whistler, STATE } from './game/whistler.js';
 import { Neighbours, screamLoudness } from './game/neighbours.js';
 import { Flag, FLAG } from './game/flag.js';
-import { Clock, PHASE } from './game/clock.js';
+import { Clock, DayClock, PHASE } from './game/clock.js';
 import { nightConfig, TOTAL_NIGHTS } from './game/nights.js';
 import {
   collectibleFor, neighbourLines, NIGHT_INTRO, CAUGHT_LINES, TIMEOUT_LINES,
@@ -491,7 +491,9 @@ class Game {
     this.talkIndex.clear();
     this.ui.setSuspicion(0);
     this.ui.setHide(null);
-    this.ui.log('אחר הצהריים. השכנים בחוץ.');
+    this.day = new DayClock();
+    this.day.start();
+    this.ui.log('אחר הצהריים. השכנים בחוץ עד שמונה.');
     if (this.night === 1 && !this.openingShown) {
       /* Only ever once per session: it is a first-week-in-the-street scene,
        * and a player who has been caught eleven times has had that week. */
@@ -741,6 +743,16 @@ class Game {
   }
 
   tickDay(dt) {
+    const wasIn = this.day ? this.day.insideYet : false;
+    if (this.day) this.day.update(dt);
+    this.neighbours.walk(dt, this.day);
+    /* Said once, at eight, and never again: the street emptying is the thing
+     * the player is supposed to notice, and a line every frame afterwards
+     * would be the game noticing it for them. */
+    if (this.day && this.day.insideYet && !wasIn) {
+      this.ui.log('שמונה. כולם נכנסים הביתה.', true);
+      this.ui.subtitle('הרחוב מתרוקן. מה שלא שאלת, לא תשאל הלילה.', 5000);
+    }
     for (const e of this.neighbours.update(dt, this.player)) void e;
     this.audio.tick(dt, {
       danger: 0, hunting: false, timeLeft: 999, suspicion: 0,
@@ -1455,7 +1467,11 @@ class Game {
       ui.setClock(this.clock.text, this.clock.progress, this.clock.timeLeft,
         this.clock.phase);
     } else {
-      ui.setClock('אחר הצהריים', 0, 999, 'day');
+      /* The afternoon reads as a clock too, because it is one now — and the
+       * bar under it runs down to eight rather than to 3:35. */
+      ui.setClock(this.day ? this.day.text : '16:00',
+        this.day ? 1 - this.day.leftReal / 240 : 0,
+        this.day ? this.day.leftReal : 999, 'day');
     }
     ui.setNight(this.night, st.cleared.length);
     ui.setSuspicion(this.scene === 'night' ? this.awareShown : 0);

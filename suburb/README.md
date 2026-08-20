@@ -133,7 +133,7 @@ each of them skippable with `Esc` from the first press:
 
 | | |
 | --- | --- |
-| 19:00 | Bob is watering a lawn that is already wet. There is a small red flag on a stick on his porch. *"What is that flag?"* — two seconds, the same smile — *"Decoration."* |
+| 16:00 | Bob is watering a lawn that is already wet. There is a small red flag on a stick on his porch. *"What is that flag?"* — two seconds, the same smile — *"Decoration."* |
 | 22:30 | An old photograph is on the kitchen table that was not there in the morning. A woman holding a child, her face rubbed away in the paper itself. Under it, in a child's handwriting: *bring the flag home.* |
 | 00:00 | Twenty seconds of dream over black. A child laughing, close. The lullaby, warm, in the right order. A car horn. Seven seconds of silence, and the silence is meant to be too long. |
 | 03:29 | You are awake. No alarm, no noise, no reason. |
@@ -156,6 +156,24 @@ there is a mirror on its back fence.
 
 You can skip all of it and still play the night. You will just be solving it
 blind, which is the trade the design is about.
+
+## The afternoon has a clock now
+
+The evening runs at **an hour a minute**: four real minutes from four in the
+afternoon to eight, and at eight the street goes indoors and stays there. The
+neighbours mill about their own front gardens until then — walk a few metres,
+stand for a few seconds, walk somewhere else — and at eight they all turn for
+their own front doors at once and are gone inside within a minute.
+
+Nothing announces it twice. Everything tonight's lock needs is in those four
+minutes and in nobody's mouth afterwards, so the daylight walk is no longer
+free: you can talk to all ten neighbours or none, and now that choice costs
+something.
+
+The compression is why the two clocks run at different rates and it is the only
+place in the game that happens. An hour a minute is a summary of an afternoon.
+The night is one real second to one game second — 3:30 to 3:35 is five real
+minutes — because the player has to be able to feel what a minute of it costs.
 
 ## The way round the back
 

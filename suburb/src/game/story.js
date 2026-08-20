@@ -378,10 +378,11 @@ export function neighbourLines(house, layout, night) {
  * to actually last two seconds.
  * ------------------------------------------------------------------ */
 
-/* 19:00, the first evening. Nothing happens in it. That is the point: every
+/* Four in the afternoon, the first day. Nothing happens in it. That is the
+ * point: every
  * strange thing in the scene is a thing a friendly man says over a fence. */
 export const OPENING = [
-  { speaker: null, text: '19:00. שבוע ראשון באורנים 21. מעבר לגדר מישהו משקה '
+  { speaker: null, text: '16:00. שבוע ראשון באורנים 21. מעבר לגדר מישהו משקה '
     + 'דשא שכבר רטוב.', ms: 4200 },
   { speaker: 'bob', text: 'ערב טוב, אדם! שבוע ראשון בשכונה, איך מרגיש?',
     ms: 3600 },

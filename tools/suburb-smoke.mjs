@@ -320,6 +320,16 @@ async function main() {
     check(await page.evaluate(() => window.suburb.input.enabled),
       'the keyboard comes back afterwards');
 
+    /*
+     * The afternoon is four real minutes long and everybody goes indoors at
+     * the end of it. Under software rendering this test can easily spend that
+     * long on the loading screen alone, so the clock goes back to four o'clock
+     * here — otherwise the street is empty by the time the conversation checks
+     * run and they fail for a reason that has nothing to do with them.
+     */
+    await page.evaluate(() => { window.suburb.day.t = 0; });
+    await frames(page, 2);
+
     /* Talking to a neighbour is how every puzzle answer is learned. Stand
      * between them and the road — their own house is behind them, and half the
      * street faces the other way. */
@@ -351,6 +361,47 @@ async function main() {
     }, null, { timeout: 8000 }).then((h) => h.jsonValue()).catch(() => '');
     check(said.includes(person.name) || said.length > 10,
       `pressing E on ${person.name} says something (got "${String(said).slice(0, 40)}")`);
+
+    /*
+     * Eight o'clock. The afternoon is the only place tonight's answers exist,
+     * so the street emptying is a real deadline and has to actually happen —
+     * and once it has, there must be nobody left to ask.
+     */
+    const evening = await page.evaluate(async () => {
+      const g = window.suburb;
+      const N = g.neighbours;
+      const before = {
+        clock: g.day.text,
+        walking: N.people.filter((p) => p.moving).length,
+        outside: N.people.filter((p) => !p.inside).length,
+      };
+      /* Six minutes of afternoon at a fixed step, without waiting for six
+       * minutes of software-rendered frames. */
+      for (let i = 0; i < 30 * 360; i++) { g.day.update(1 / 30); N.walk(1 / 30, g.day); }
+      const p0 = N.people[0];
+      return {
+        before,
+        after: {
+          clock: g.day.text,
+          outside: N.people.filter((p) => !p.inside).length,
+          canTalk: !!N.nearest({ pos: { x: p0.x, z: p0.z } }, 3),
+        },
+      };
+    });
+    check(evening.before.clock.startsWith('16:'),
+      `the afternoon starts at four (clock reads ${evening.before.clock})`);
+    check(evening.after.outside === 0,
+      `by ${evening.after.clock} all ${evening.before.outside} neighbours are indoors `
+      + `(${evening.after.outside} left outside)`);
+    check(!evening.after.canTalk, 'and there is nobody left to ask');
+    /* Put the afternoon back so the rest of the run has a street. */
+    await page.evaluate(() => {
+      window.suburb.day.t = 0;
+      window.suburb.neighbours = new window.suburb.neighbours.constructor(
+        window.suburb.layout, window.suburb.cfg,
+        JSON.parse(localStorage.getItem('suburb.v1')).seed, 'day');
+    });
+    await frames(page, 2);
 
     /* The map is drawn from the layout, so it cannot disagree with the world. */
     await press(page, 'KeyM', 3);

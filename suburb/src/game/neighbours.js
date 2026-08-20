@@ -67,16 +67,38 @@ export class Neighbours {
        * post in their hand, being pleased to see you. */
       for (const h of houses) {
         const s = h.sign;
+        const x = h.x + this.rng.range(-2.5, 2.5);
+        const z = s * (PLAN.frontZ - this.rng.range(4.5, 7.5));
         this.people.push({
           houseId: h.id,
           name: h.occupant.name,
-          x: h.x + this.rng.range(-2.5, 2.5),
-          z: s * (PLAN.frontZ - this.rng.range(4.5, 7.5)),
+          x,
+          z,
           yaw: s > 0 ? 0 : Math.PI,
           awake: true,
           sleeper: false,
           phase: this.rng.range(0, 6.28),
           talkedTo: false,
+          /*
+           * The patch of their own front garden they mill about in. Kept off
+           * the path and well short of the kerb: a neighbour who wanders into
+           * the road is a neighbour the player expects to be able to run over,
+           * and this game has no answer to that.
+           */
+          plot: {
+            x0: h.x - h.w / 2 - 1.2, x1: h.x + h.w / 2 + 1.2,
+            z0: Math.min(s * (PLAN.frontZ - 8.5), s * (PLAN.frontZ - 2.6)),
+            z1: Math.max(s * (PLAN.frontZ - 8.5), s * (PLAN.frontZ - 2.6)),
+          },
+          /* Where they go at eight: their own front door. */
+          door: { x: h.x, z: h.frontZ - s * 1.1 },
+          tx: x, tz: z,
+          wait: this.rng.range(0.4, 3.0),
+          speed: this.rng.range(0.62, 0.92),
+          stride: this.rng.range(0, 6.28),
+          moving: false,
+          goingIn: false,
+          inside: false,
           ...this.look(),
         });
       }
@@ -125,6 +147,69 @@ export class Neighbours {
    * garden at half past three brings her from wherever she is, and the player
    * gets exactly as much warning as the gasp before it.
    */
+  /*
+   * The afternoon, walking.
+   *
+   * They pick a spot in their own front garden, walk to it, stand for a few
+   * seconds and pick another — which is not a simulation of anything, and does
+   * not need to be. What it buys is that the street is alive when the player
+   * arrives and empty when they come back, and that the person who has the
+   * clue is somewhere in a garden rather than nailed to a mark on the lawn.
+   *
+   * At eight they all go in at once. There is no announcement: the player
+   * either notices the street emptying or finds out at 3:33 that they never
+   * asked anybody about the fuse box.
+   */
+  walk(dt, day) {
+    if (!day) return;
+    const inside = day.insideYet;
+    for (const p of this.people) {
+      if (p.sleeper || p.inside) continue;
+      if (inside && !p.goingIn) {
+        p.goingIn = true;
+        p.tx = p.door.x;
+        p.tz = p.door.z;
+        p.wait = 0;
+      }
+      if (p.wait > 0) {
+        p.wait -= dt;
+        p.moving = false;
+        continue;
+      }
+      const dx = p.tx - p.x, dz = p.tz - p.z;
+      const d = Math.hypot(dx, dz);
+      if (d < 0.22) {
+        if (p.goingIn) {
+          /* Through their own front door, and that is the last of them until
+           * tomorrow afternoon. */
+          p.inside = true;
+          p.moving = false;
+          continue;
+        }
+        p.moving = false;
+        p.wait = 1.6 + this.rng.range(0, 4.5);
+        p.tx = this.rng.range(p.plot.x0, p.plot.x1);
+        p.tz = this.rng.range(p.plot.z0, p.plot.z1);
+        continue;
+      }
+      /* Hurrying, once it is eight: nobody strolls to their own door when the
+       * light has gone. */
+      const v = p.speed * (p.goingIn ? 1.7 : 1);
+      const step = Math.min(d, v * dt);
+      p.x += (dx / d) * step;
+      p.z += (dz / d) * step;
+      p.stride += step * 3.1;
+      p.moving = true;
+      /* Turning takes a moment, so they lean into a corner instead of
+       * snapping round it. */
+      const want = Math.atan2(-dx, -dz);
+      let turn = want - p.yaw;
+      while (turn > Math.PI) turn -= Math.PI * 2;
+      while (turn < -Math.PI) turn += Math.PI * 2;
+      p.yaw += turn * Math.min(1, dt * 6);
+    }
+  }
+
   update(dt, player) {
     this.events.length = 0;
     for (const p of this.people) {
@@ -165,7 +250,7 @@ export class Neighbours {
   nearest(player, radius = 2.6) {
     let best = null, bd = radius;
     for (const p of this.people) {
-      if (!p.awake || p.sleeper) continue;
+      if (!p.awake || p.sleeper || p.inside) continue;
       const d = Math.hypot(player.pos.x - p.x, player.pos.z - p.z);
       if (d < bd) { bd = d; best = p; }
     }
@@ -174,6 +259,9 @@ export class Neighbours {
 
   dynamics(out, time) {
     for (const p of this.people) {
+      /* Gone in for the evening: nothing to draw, and the game has to stop
+       * offering to talk to somebody who is not there. */
+      if (p.inside) continue;
       /*
        * Standing figures, with a walk cycle that never walks: the legs swing a
        * few degrees on a slow sine so they are not statues, and the sleepers
@@ -192,14 +280,22 @@ export class Neighbours {
        * head that grows with the body is how a figure becomes a doll, and
        * because real heads vary far less than real heights do.
        */
+      /*
+       * The gait, driven by distance covered rather than by the clock, so a
+       * person who has stopped has their feet on the ground instead of
+       * marching on the spot — which is the single thing that most gives away
+       * a walk cycle bolted onto a position.
+       */
+      const gait = p.moving ? Math.sin(p.stride) : 0;
+      const swing = p.moving ? Math.cos(p.stride) * 0.06 : 0;
       const h = p.tall, w = p.wide;
       const look = p.look;
       out.push({
-        mesh: 'nTorso' + look, x: p.x, y: SHOULDER * h, z: p.z,
+        mesh: 'nTorso' + look, x: p.x, y: SHOULDER * h + Math.abs(swing) * 0.5, z: p.z,
         rot: p.yaw + sway, sy: h, sx: w, sz: w,
       });
       out.push({
-        mesh: 'nHead', x: p.x, y: CROWN * h + scream, z: p.z,
+        mesh: 'nHead', x: p.x, y: CROWN * h + scream + Math.abs(swing) * 0.5, z: p.z,
         rot: p.yaw + sway * 2,
         pitch: p.sleeper ? 0.22 : 0,
       });
@@ -209,13 +305,16 @@ export class Neighbours {
         out.push({
           mesh: 'nArm' + look, x: p.x + ox * c, y: SHOULDER * h - 0.055,
           z: p.z + ox * s,
-          rot: p.yaw, pitch: sway * (p.screaming ? 8 : 1.5) * side,
+          /* Arms opposite the legs, which is the half of a walk cycle that
+           * costs nothing and that the eye checks first. */
+          rot: p.yaw,
+          pitch: sway * (p.screaming ? 8 : 1.5) * side - gait * 0.42 * side,
           sy: h, sx: w, sz: w,
         });
         const lx = 0.082 * side * w;
         out.push({
           mesh: 'nLeg' + look, x: p.x + lx * c, y: HIP * h, z: p.z + lx * s,
-          rot: p.yaw, pitch: sway * 0.6 * side,
+          rot: p.yaw, pitch: sway * 0.6 * side + gait * 0.52 * side,
           sy: h, sx: w, sz: w,
         });
       }

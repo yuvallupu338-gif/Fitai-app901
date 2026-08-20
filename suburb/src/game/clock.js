@@ -20,6 +20,54 @@ export const PHASE = {
   OVER: 'over',        /* 3:35, and you did not                              */
 };
 
+/*
+ * The evening before it, at a minute an hour.
+ *
+ * The afternoon used to have no clock at all: the player wandered until they
+ * pressed E on a bed. That made the daylight walk free, and a free walk is one
+ * with nothing at stake — you could talk to all ten neighbours, or none, and
+ * the night was the same either way.
+ *
+ * So it runs, and it runs fast: one real minute is one game hour. Four real
+ * minutes from four in the afternoon to eight in the evening, and at eight the
+ * street goes indoors and stays there. Everything tonight's lock needs is in
+ * those four minutes and in nobody's mouth afterwards.
+ *
+ * The compression is the whole point of the two clocks being different. An
+ * hour a minute is a summary of an afternoon; the night is one real second to
+ * one game second because the player has to be able to feel what a minute of
+ * it costs. Nothing else in the game runs at any other rate.
+ */
+export const DAY_START_H = 16;      /* four in the afternoon                 */
+export const DAY_INSIDE_H = 20;     /* and everybody is indoors by eight     */
+
+export class DayClock {
+  constructor() {
+    this.t = 0;                     /* real seconds since the afternoon began */
+    this.running = false;
+  }
+
+  start() { this.t = 0; this.running = true; }
+  stop() { this.running = false; }
+  update(dt) { if (this.running) this.t += dt; }
+
+  /* One real second is one game minute, which is the same statement as one
+   * real minute being one game hour and is the form the arithmetic wants. */
+  get minutes() { return DAY_START_H * 60 + this.t; }
+  get hour() { return this.minutes / 60; }
+  get insideYet() { return this.hour >= DAY_INSIDE_H; }
+  /* How much of the afternoon is left, in real seconds, for the HUD bar. */
+  get leftReal() { return Math.max(0, (DAY_INSIDE_H - DAY_START_H) * 60 - this.t); }
+
+  /* "18:24". No seconds: a clock ticking sixty times a minute in a scene that
+   * lasts four of them is a stopwatch, and this is meant to read as an
+   * afternoon going by. */
+  get text() {
+    const m = Math.floor(this.minutes);
+    return `${Math.floor(m / 60) % 24}:${String(m % 60).padStart(2, '0')}`;
+  }
+}
+
 export class Clock {
   constructor(night) {
     this.cfg = nightConfig(night);

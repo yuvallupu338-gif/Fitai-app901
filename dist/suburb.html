@@ -18,7 +18,7 @@
      everything itself and talks to nobody: script-src is 'self' with no inline
      anything, and connect-src is 'none'. frame-ancestors is omitted — it is
      ignored in a meta tag. -->
-<meta http-equiv="Content-Security-Policy" content="default-src 'none'; script-src 'sha256-Cxzy9hbny/1T5GXbe+pa+5uSMEW5bHKi8xcScuOvVvY='; style-src 'sha256-mZEYVez5b3eXnFo3vrG9wqbW8kaMXTZ0ej34Kvsr5So='; img-src 'self' data:; font-src 'self' data:; connect-src 'none'; media-src 'none'; frame-src 'none'; worker-src 'none'; object-src 'none'; base-uri 'none'; form-action 'none'">
+<meta http-equiv="Content-Security-Policy" content="default-src 'none'; script-src 'sha256-7qdhSR5Xf7EBVGynM9CPZXABs364IyNt7aANph83T8Y='; style-src 'sha256-mZEYVez5b3eXnFo3vrG9wqbW8kaMXTZ0ej34Kvsr5So='; img-src 'self' data:; font-src 'self' data:; connect-src 'none'; media-src 'none'; frame-src 'none'; worker-src 'none'; object-src 'none'; base-uri 'none'; form-action 'none'">
 <link rel="icon" href="data:image/svg+xml,<svg xmlns='http://www.w3.org/2000/svg' viewBox='0 0 32 32'><rect width='32' height='32' fill='%230b1018'/><path d='M8 27V5' stroke='%23cfd6df' stroke-width='2'/><path d='M9 6h15l-4 5 4 5H9z' fill='%23c0261f'/></svg>">
 <style>
 /*
@@ -11401,16 +11401,38 @@ class Neighbours {
        * post in their hand, being pleased to see you. */
       for (const h of houses) {
         const s = h.sign;
+        const x = h.x + this.rng.range(-2.5, 2.5);
+        const z = s * (PLAN.frontZ - this.rng.range(4.5, 7.5));
         this.people.push({
           houseId: h.id,
           name: h.occupant.name,
-          x: h.x + this.rng.range(-2.5, 2.5),
-          z: s * (PLAN.frontZ - this.rng.range(4.5, 7.5)),
+          x,
+          z,
           yaw: s > 0 ? 0 : Math.PI,
           awake: true,
           sleeper: false,
           phase: this.rng.range(0, 6.28),
           talkedTo: false,
+          /*
+           * The patch of their own front garden they mill about in. Kept off
+           * the path and well short of the kerb: a neighbour who wanders into
+           * the road is a neighbour the player expects to be able to run over,
+           * and this game has no answer to that.
+           */
+          plot: {
+            x0: h.x - h.w / 2 - 1.2, x1: h.x + h.w / 2 + 1.2,
+            z0: Math.min(s * (PLAN.frontZ - 8.5), s * (PLAN.frontZ - 2.6)),
+            z1: Math.max(s * (PLAN.frontZ - 8.5), s * (PLAN.frontZ - 2.6)),
+          },
+          /* Where they go at eight: their own front door. */
+          door: { x: h.x, z: h.frontZ - s * 1.1 },
+          tx: x, tz: z,
+          wait: this.rng.range(0.4, 3.0),
+          speed: this.rng.range(0.62, 0.92),
+          stride: this.rng.range(0, 6.28),
+          moving: false,
+          goingIn: false,
+          inside: false,
           ...this.look(),
         });
       }
@@ -11459,6 +11481,69 @@ class Neighbours {
    * garden at half past three brings her from wherever she is, and the player
    * gets exactly as much warning as the gasp before it.
    */
+  /*
+   * The afternoon, walking.
+   *
+   * They pick a spot in their own front garden, walk to it, stand for a few
+   * seconds and pick another — which is not a simulation of anything, and does
+   * not need to be. What it buys is that the street is alive when the player
+   * arrives and empty when they come back, and that the person who has the
+   * clue is somewhere in a garden rather than nailed to a mark on the lawn.
+   *
+   * At eight they all go in at once. There is no announcement: the player
+   * either notices the street emptying or finds out at 3:33 that they never
+   * asked anybody about the fuse box.
+   */
+  walk(dt, day) {
+    if (!day) return;
+    const inside = day.insideYet;
+    for (const p of this.people) {
+      if (p.sleeper || p.inside) continue;
+      if (inside && !p.goingIn) {
+        p.goingIn = true;
+        p.tx = p.door.x;
+        p.tz = p.door.z;
+        p.wait = 0;
+      }
+      if (p.wait > 0) {
+        p.wait -= dt;
+        p.moving = false;
+        continue;
+      }
+      const dx = p.tx - p.x, dz = p.tz - p.z;
+      const d = Math.hypot(dx, dz);
+      if (d < 0.22) {
+        if (p.goingIn) {
+          /* Through their own front door, and that is the last of them until
+           * tomorrow afternoon. */
+          p.inside = true;
+          p.moving = false;
+          continue;
+        }
+        p.moving = false;
+        p.wait = 1.6 + this.rng.range(0, 4.5);
+        p.tx = this.rng.range(p.plot.x0, p.plot.x1);
+        p.tz = this.rng.range(p.plot.z0, p.plot.z1);
+        continue;
+      }
+      /* Hurrying, once it is eight: nobody strolls to their own door when the
+       * light has gone. */
+      const v = p.speed * (p.goingIn ? 1.7 : 1);
+      const step = Math.min(d, v * dt);
+      p.x += (dx / d) * step;
+      p.z += (dz / d) * step;
+      p.stride += step * 3.1;
+      p.moving = true;
+      /* Turning takes a moment, so they lean into a corner instead of
+       * snapping round it. */
+      const want = Math.atan2(-dx, -dz);
+      let turn = want - p.yaw;
+      while (turn > Math.PI) turn -= Math.PI * 2;
+      while (turn < -Math.PI) turn += Math.PI * 2;
+      p.yaw += turn * Math.min(1, dt * 6);
+    }
+  }
+
   update(dt, player) {
     this.events.length = 0;
     for (const p of this.people) {
@@ -11499,7 +11584,7 @@ class Neighbours {
   nearest(player, radius = 2.6) {
     let best = null, bd = radius;
     for (const p of this.people) {
-      if (!p.awake || p.sleeper) continue;
+      if (!p.awake || p.sleeper || p.inside) continue;
       const d = Math.hypot(player.pos.x - p.x, player.pos.z - p.z);
       if (d < bd) { bd = d; best = p; }
     }
@@ -11508,6 +11593,9 @@ class Neighbours {
 
   dynamics(out, time) {
     for (const p of this.people) {
+      /* Gone in for the evening: nothing to draw, and the game has to stop
+       * offering to talk to somebody who is not there. */
+      if (p.inside) continue;
       /*
        * Standing figures, with a walk cycle that never walks: the legs swing a
        * few degrees on a slow sine so they are not statues, and the sleepers
@@ -11526,14 +11614,22 @@ class Neighbours {
        * head that grows with the body is how a figure becomes a doll, and
        * because real heads vary far less than real heights do.
        */
+      /*
+       * The gait, driven by distance covered rather than by the clock, so a
+       * person who has stopped has their feet on the ground instead of
+       * marching on the spot — which is the single thing that most gives away
+       * a walk cycle bolted onto a position.
+       */
+      const gait = p.moving ? Math.sin(p.stride) : 0;
+      const swing = p.moving ? Math.cos(p.stride) * 0.06 : 0;
       const h = p.tall, w = p.wide;
       const look = p.look;
       out.push({
-        mesh: 'nTorso' + look, x: p.x, y: SHOULDER * h, z: p.z,
+        mesh: 'nTorso' + look, x: p.x, y: SHOULDER * h + Math.abs(swing) * 0.5, z: p.z,
         rot: p.yaw + sway, sy: h, sx: w, sz: w,
       });
       out.push({
-        mesh: 'nHead', x: p.x, y: CROWN * h + scream, z: p.z,
+        mesh: 'nHead', x: p.x, y: CROWN * h + scream + Math.abs(swing) * 0.5, z: p.z,
         rot: p.yaw + sway * 2,
         pitch: p.sleeper ? 0.22 : 0,
       });
@@ -11543,13 +11639,16 @@ class Neighbours {
         out.push({
           mesh: 'nArm' + look, x: p.x + ox * c, y: SHOULDER * h - 0.055,
           z: p.z + ox * s,
-          rot: p.yaw, pitch: sway * (p.screaming ? 8 : 1.5) * side,
+          /* Arms opposite the legs, which is the half of a walk cycle that
+           * costs nothing and that the eye checks first. */
+          rot: p.yaw,
+          pitch: sway * (p.screaming ? 8 : 1.5) * side - gait * 0.42 * side,
           sy: h, sx: w, sz: w,
         });
         const lx = 0.082 * side * w;
         out.push({
           mesh: 'nLeg' + look, x: p.x + lx * c, y: HIP * h, z: p.z + lx * s,
-          rot: p.yaw, pitch: sway * 0.6 * side,
+          rot: p.yaw, pitch: sway * 0.6 * side + gait * 0.52 * side,
           sy: h, sx: w, sz: w,
         });
       }
@@ -11749,6 +11848,54 @@ const PHASE = {
   OVER: 'over',        /* 3:35, and you did not                              */
 };
 
+/*
+ * The evening before it, at a minute an hour.
+ *
+ * The afternoon used to have no clock at all: the player wandered until they
+ * pressed E on a bed. That made the daylight walk free, and a free walk is one
+ * with nothing at stake — you could talk to all ten neighbours, or none, and
+ * the night was the same either way.
+ *
+ * So it runs, and it runs fast: one real minute is one game hour. Four real
+ * minutes from four in the afternoon to eight in the evening, and at eight the
+ * street goes indoors and stays there. Everything tonight's lock needs is in
+ * those four minutes and in nobody's mouth afterwards.
+ *
+ * The compression is the whole point of the two clocks being different. An
+ * hour a minute is a summary of an afternoon; the night is one real second to
+ * one game second because the player has to be able to feel what a minute of
+ * it costs. Nothing else in the game runs at any other rate.
+ */
+const DAY_START_H = 16;      /* four in the afternoon                 */
+const DAY_INSIDE_H = 20;     /* and everybody is indoors by eight     */
+
+class DayClock {
+  constructor() {
+    this.t = 0;                     /* real seconds since the afternoon began */
+    this.running = false;
+  }
+
+  start() { this.t = 0; this.running = true; }
+  stop() { this.running = false; }
+  update(dt) { if (this.running) this.t += dt; }
+
+  /* One real second is one game minute, which is the same statement as one
+   * real minute being one game hour and is the form the arithmetic wants. */
+  get minutes() { return DAY_START_H * 60 + this.t; }
+  get hour() { return this.minutes / 60; }
+  get insideYet() { return this.hour >= DAY_INSIDE_H; }
+  /* How much of the afternoon is left, in real seconds, for the HUD bar. */
+  get leftReal() { return Math.max(0, (DAY_INSIDE_H - DAY_START_H) * 60 - this.t); }
+
+  /* "18:24". No seconds: a clock ticking sixty times a minute in a scene that
+   * lasts four of them is a stopwatch, and this is meant to read as an
+   * afternoon going by. */
+  get text() {
+    const m = Math.floor(this.minutes);
+    return `${Math.floor(m / 60) % 24}:${String(m % 60).padStart(2, '0')}`;
+  }
+}
+
 class Clock {
   constructor(night) {
     this.cfg = nightConfig(night);
@@ -11801,6 +11948,9 @@ class Clock {
 
   return {
     "PHASE": PHASE,
+    "DAY_START_H": DAY_START_H,
+    "DAY_INSIDE_H": DAY_INSIDE_H,
+    "DayClock": DayClock,
     "Clock": Clock,
   };
 })();
@@ -12186,10 +12336,11 @@ function neighbourLines(house, layout, night) {
  * to actually last two seconds.
  * ------------------------------------------------------------------ */
 
-/* 19:00, the first evening. Nothing happens in it. That is the point: every
+/* Four in the afternoon, the first day. Nothing happens in it. That is the
+ * point: every
  * strange thing in the scene is a thing a friendly man says over a fence. */
 const OPENING = [
-  { speaker: null, text: '19:00. שבוע ראשון באורנים 21. מעבר לגדר מישהו משקה '
+  { speaker: null, text: '16:00. שבוע ראשון באורנים 21. מעבר לגדר מישהו משקה '
     + 'דשא שכבר רטוב.', ms: 4200 },
   { speaker: 'bob', text: 'ערב טוב, אדם! שבוע ראשון בשכונה, איך מרגיש?',
     ms: 3600 },
@@ -13761,7 +13912,7 @@ const { GameAudio } = __m["suburb/src/game/audio.js"];
 const { Whistler, STATE } = __m["suburb/src/game/whistler.js"];
 const { Neighbours, screamLoudness } = __m["suburb/src/game/neighbours.js"];
 const { Flag, FLAG } = __m["suburb/src/game/flag.js"];
-const { Clock, PHASE } = __m["suburb/src/game/clock.js"];
+const { Clock, DayClock, PHASE } = __m["suburb/src/game/clock.js"];
 const { nightConfig, TOTAL_NIGHTS } = __m["suburb/src/game/nights.js"];
 const { collectibleFor, neighbourLines, NIGHT_INTRO, CAUGHT_LINES, TIMEOUT_LINES, REVEAL, ENDINGS, OPENING, TABLE_NOTE, DREAM, WAKE, FIRST_SIGHT, MORNING, } = __m["suburb/src/game/story.js"];
 const { UI } = __m["suburb/src/ui/ui.js"];
@@ -14221,7 +14372,9 @@ class Game {
     this.talkIndex.clear();
     this.ui.setSuspicion(0);
     this.ui.setHide(null);
-    this.ui.log('אחר הצהריים. השכנים בחוץ.');
+    this.day = new DayClock();
+    this.day.start();
+    this.ui.log('אחר הצהריים. השכנים בחוץ עד שמונה.');
     if (this.night === 1 && !this.openingShown) {
       /* Only ever once per session: it is a first-week-in-the-street scene,
        * and a player who has been caught eleven times has had that week. */
@@ -14471,6 +14624,16 @@ class Game {
   }
 
   tickDay(dt) {
+    const wasIn = this.day ? this.day.insideYet : false;
+    if (this.day) this.day.update(dt);
+    this.neighbours.walk(dt, this.day);
+    /* Said once, at eight, and never again: the street emptying is the thing
+     * the player is supposed to notice, and a line every frame afterwards
+     * would be the game noticing it for them. */
+    if (this.day && this.day.insideYet && !wasIn) {
+      this.ui.log('שמונה. כולם נכנסים הביתה.', true);
+      this.ui.subtitle('הרחוב מתרוקן. מה שלא שאלת, לא תשאל הלילה.', 5000);
+    }
     for (const e of this.neighbours.update(dt, this.player)) void e;
     this.audio.tick(dt, {
       danger: 0, hunting: false, timeLeft: 999, suspicion: 0,
@@ -15185,7 +15348,11 @@ class Game {
       ui.setClock(this.clock.text, this.clock.progress, this.clock.timeLeft,
         this.clock.phase);
     } else {
-      ui.setClock('אחר הצהריים', 0, 999, 'day');
+      /* The afternoon reads as a clock too, because it is one now — and the
+       * bar under it runs down to eight rather than to 3:35. */
+      ui.setClock(this.day ? this.day.text : '16:00',
+        this.day ? 1 - this.day.leftReal / 240 : 0,
+        this.day ? this.day.leftReal : 999, 'day');
     }
     ui.setNight(this.night, st.cleared.length);
     ui.setSuspicion(this.scene === 'night' ? this.awareShown : 0);
