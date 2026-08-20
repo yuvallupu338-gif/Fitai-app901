@@ -27,9 +27,15 @@
 <div id="app">
 
   <!-- ------------------------------------------------------ the game -->
-  <div class="game" id="game" hidden>
-    <div class="stage" id="stage"></div>
-    <div id="hud-slot"></div>
+  <canvas id="view"></canvas>
+  <div id="hud-slot"></div>
+
+  <!-- The floor plan, over the top. The same SVG the 2D build used as its
+       whole interface is the in-game map here: one key, and you can see what
+       you cannot see from inside a dark room. -->
+  <div class="mapover" id="mapover" hidden>
+    <div class="mapover-inner"><div class="stage" id="stage"></div></div>
+    <div class="mapover-hint">מפת הווילה · Tab</div>
   </div>
 
   <!-- the same game, as a prompt -->
@@ -37,10 +43,21 @@
 
   <div class="controls" id="controls" hidden>
     <button type="button" id="btn-speed" title="מהירות המשחק">1×</button>
+    <button type="button" id="btn-map">מפה</button>
     <button type="button" id="btn-mode">מצב טקסט</button>
     <button type="button" id="btn-mute">השתקה</button>
     <button type="button" id="btn-pause">❚❚</button>
   </div>
+
+  <!-- ------------------------------------------------------- loading -->
+  <section class="screen" id="screen-loading" hidden>
+    <div class="card">
+      <div class="eyebrow">נכנס לוילה</div>
+      <h2 class="title">רגע</h2>
+      <p class="sub" id="load-note">בונה חומרים…</p>
+      <div class="load-bar"><i id="load-fill"></i></div>
+    </div>
+  </section>
 
   <!-- --------------------------------------------------------- menu -->
   <section class="screen" id="screen-menu">
@@ -56,6 +73,10 @@
         <button class="btn" id="btn-continue" type="button" hidden>המשך משחק שמור</button>
         <button class="btn" id="btn-how" type="button">איך משחקים</button>
       </div>
+      <div class="hint">
+        <b>WASD</b> תנועה · <b>עכבר</b> מבט · <b>E</b> פעולה · <b>1–4</b> חסימה ·
+        <b>רווח</b> ירי · <b>F</b> פנס · <b>Tab</b> מפה · <b>Esc</b> תפריט
+      </div>
       <div class="hint" id="menu-best"></div>
     </div>
   </section>
@@ -70,6 +91,8 @@
         במגירה שבחדר השינה, וחוסם פתחים. בלילה הם מגיעים.
       </p>
       <div class="night-note">
+        <b>E</b> ליד פתח פותח את הפעולות. <b>1</b> סקוץ׳, <b>2</b> קרש,
+        <b>3</b> תיקון, <b>4</b> ירי.<br><br>
         <b>סקוץ׳ טייפ</b> מהיר וחלש — מאט פריצה ונקרע.<br>
         <b>קרש</b> איטי וחזק — דורש פטיש ושני מסמרים. <b>מסמרים הם המשאב שנגמר.</b><br>
         <b>תיקון</b> דוחף פתח בחזרה בלי חומרים — משתלם רק על פתח שכבר חסום.<br>

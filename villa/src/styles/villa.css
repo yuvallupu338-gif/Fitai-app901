@@ -227,7 +227,60 @@ button:focus-visible, input:focus-visible {
 .hint b { color: var(--ink-2); font-weight: 600; }
 
 /* ================================================================== *
- * Game layout
+ * The 3D view
+ * ================================================================== */
+
+#view {
+  position: absolute;
+  inset: 0;
+  width: 100%;
+  height: 100%;
+  display: block;
+  background: #04060a;
+  touch-action: none;
+  cursor: crosshair;
+}
+
+.load-bar {
+  width: min(320px, 80%);
+  height: 3px;
+  margin: 1.4rem auto 0;
+  background: rgba(0,0,0,0.6);
+  border-radius: 99px;
+  overflow: hidden;
+}
+.load-bar i {
+  display: block; height: 100%; width: 0;
+  background: linear-gradient(90deg, var(--amber), #ffdca8);
+  transition: width .2s linear;
+}
+
+/* ---------------------------------------------------- the map overlay */
+
+.mapover {
+  position: absolute;
+  inset: 0;
+  z-index: 35;
+  display: grid;
+  place-items: center;
+  background: rgba(4, 6, 10, 0.86);
+  backdrop-filter: blur(2px);
+  animation: fade .18s ease both;
+}
+.mapover-inner {
+  width: min(900px, 92vw);
+  height: min(70vh, 620px);
+}
+.mapover-hint {
+  position: absolute;
+  bottom: 1.4rem;
+  font-size: 0.78rem;
+  letter-spacing: 0.16em;
+  color: var(--dim);
+}
+
+/* ================================================================== *
+ * Game layout (2D map mode)
  * ================================================================== */
 
 .game {
@@ -479,6 +532,140 @@ button:focus-visible, input:focus-visible {
 .alert.warn { border-inline-start-color: var(--warn); color: #f0c98d; }
 .alert.bad { border-inline-start-color: var(--bad); color: #ffb9ae; font-weight: 600; }
 .alert.good { border-inline-start-color: var(--good); color: #a9dcc0; }
+
+/* ================================================================== *
+ * First-person HUD
+ * ================================================================== */
+
+.hud3 {
+  position: absolute;
+  inset: 0;
+  z-index: 25;
+  pointer-events: none;
+  font-family: var(--font);
+}
+.hud3[hidden] { display: none !important; }
+
+.h3-top {
+  position: absolute;
+  top: 0.9rem;
+  inset-inline-end: 1.1rem;
+  text-align: end;
+}
+.h3-topline { display: flex; gap: 0.7rem; align-items: baseline; justify-content: flex-end; }
+.h3-night { font-size: 0.86rem; font-weight: 700; color: #ffdca8; letter-spacing: 0.05em; }
+.h3-clock { font-family: var(--mono); font-size: 1.15rem; color: var(--ink); }
+.h3-danger {
+  width: 132px; height: 4px; margin-top: 0.4rem;
+  background: rgba(0,0,0,0.55);
+  border-radius: 99px; overflow: hidden;
+  box-shadow: 0 0 0 1px rgba(150,172,204,0.18);
+}
+.h3-danger i {
+  display: block; height: 100%; width: 0;
+  background: linear-gradient(90deg, var(--good), var(--warn));
+  transition: width .3s linear;
+}
+.h3-danger.high i { background: linear-gradient(90deg, var(--warn), var(--bad)); }
+.h3-danger.max i { background: var(--bad); animation: markpulse .5s infinite; }
+
+/* A crosshair that is a dot until there is something to act on, because a
+   permanent reticle in a game with no aiming is just clutter. */
+.h3-cross {
+  position: absolute;
+  left: 50%; top: 50%;
+  width: 5px; height: 5px;
+  margin: -2.5px 0 0 -2.5px;
+  border-radius: 50%;
+  background: rgba(232, 236, 244, 0.34);
+  transition: width .16s, height .16s, margin .16s, background .16s, box-shadow .16s;
+}
+.h3-cross.on {
+  width: 12px; height: 12px; margin: -6px 0 0 -6px;
+  background: transparent;
+  box-shadow: inset 0 0 0 1.5px rgba(255, 220, 168, 0.95);
+}
+
+.h3-prompt {
+  position: absolute;
+  left: 50%;
+  top: 56%;
+  transform: translateX(-50%);
+  min-width: 260px;
+  max-width: min(440px, 86vw);
+  padding: 0.7rem 0.9rem;
+  background: rgba(6, 9, 14, 0.86);
+  border: 1px solid var(--line);
+  border-radius: var(--radius);
+  text-align: center;
+  animation: fade .14s ease both;
+}
+.h3-prompt[hidden] { display: none !important; }
+.h3-name { font-weight: 700; color: #ffdca8; margin-bottom: 0.25rem; }
+.h3-state { font-size: 0.76rem; color: var(--ink-2); display: flex; gap: 0.4rem; justify-content: center; flex-wrap: wrap; }
+.h3-state .sep { color: var(--dim); }
+.h3-actions { display: flex; gap: 0.4rem; justify-content: center; flex-wrap: wrap; margin-top: 0.6rem; }
+.h3-act {
+  display: flex; align-items: center; gap: 0.3rem;
+  padding: 0.24rem 0.5rem;
+  border: 1px solid var(--line-2);
+  border-radius: var(--radius);
+  font-size: 0.78rem;
+  background: rgba(255,255,255,0.03);
+}
+.h3-act kbd {
+  font-family: var(--mono); font-size: 0.72rem;
+  padding: 0 0.25rem; border-radius: 2px;
+  background: var(--amber-dim); color: #ffdca8;
+}
+.h3-act.off { opacity: 0.34; }
+.h3-act em { font-style: normal; font-size: 0.68rem; color: var(--dim); }
+
+.h3-bottom {
+  position: absolute;
+  bottom: 1.1rem;
+  inset-inline-start: 1.1rem;
+}
+.h3-kit { display: flex; gap: 0.5rem; }
+.h3-chip {
+  display: flex; align-items: baseline; gap: 0.28rem;
+  padding: 0.26rem 0.5rem;
+  background: rgba(6, 9, 14, 0.72);
+  border: 1px solid var(--line);
+  border-radius: var(--radius);
+}
+.h3-icon { font-size: 0.8rem; color: var(--dim); }
+.h3-value { font-family: var(--mono); font-size: 0.92rem; color: var(--ink); }
+.h3-chip.dim .h3-value { color: var(--dim); }
+.h3-chip.bad .h3-value { color: var(--bad); }
+
+.h3-torch { margin-top: 0.45rem; font-size: 0.7rem; color: var(--dim); letter-spacing: 0.08em; }
+.h3-torch.off { color: var(--bad); }
+
+.h3-busy { margin-bottom: 0.5rem; max-width: 260px; }
+.h3-busy[hidden] { display: none !important; }
+.h3-busy-label { display: block; font-size: 0.76rem; color: var(--ink-2); margin-bottom: 0.25rem; }
+.h3-busy-bar { height: 4px; background: rgba(0,0,0,0.6); border-radius: 99px; overflow: hidden; }
+.h3-busy-bar i { display: block; height: 100%; width: 0; background: var(--amber); }
+
+.h3-alerts {
+  position: absolute;
+  bottom: 1.1rem;
+  inset-inline-end: 1.1rem;
+  list-style: none; margin: 0; padding: 0;
+  max-width: min(340px, 50vw);
+  text-align: end;
+}
+.h3-alert {
+  font-size: 0.82rem; line-height: 1.5;
+  padding: 0.18rem 0;
+  color: var(--ink-2);
+  text-shadow: 0 1px 3px rgba(0,0,0,0.9);
+  animation: rise .25s ease both;
+}
+.h3-alert.warn { color: #f0c98d; }
+.h3-alert.bad { color: #ffb9ae; font-weight: 600; }
+.h3-alert.good { color: #a9dcc0; }
 
 /* ================================================================== *
  * Text mode

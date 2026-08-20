@@ -12,6 +12,20 @@
  * game that never asks it for more than "which of these eight, and when".
  */
 
+/*
+ * One round of a 32-bit integer avalanche (the murmur3 finaliser). Not for the
+ * simulation — for the procedural materials, which need a *hash* rather than a
+ * stream: a texture recipe asks "what value belongs at lattice cell (x, y)"
+ * thousands of times in no particular order, and has to get the same answer
+ * every time or the noise will not tile.
+ */
+export function hash1(x) {
+  x |= 0;
+  x = Math.imul(x ^ (x >>> 16), 0x85ebca6b);
+  x = Math.imul(x ^ (x >>> 13), 0xc2b2ae35);
+  return (x ^ (x >>> 16)) >>> 0;
+}
+
 export function makeRng(seed) {
   let a = (seed >>> 0) || 1;
   const rng = () => {

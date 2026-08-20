@@ -18,7 +18,7 @@
      and connect-src is 'none'. frame-ancestors is omitted on purpose, because
      it is ignored in a meta tag and writing it in would only look like
      clickjacking had been handled. -->
-<meta http-equiv="Content-Security-Policy" content="default-src 'none'; script-src 'sha256-yAY/5Q0YXBS584x09ChG2gKQ/UaslRIZJtMWwAr3UtA='; style-src 'sha256-GxWC/WmJq7kaA1n/976AzRULe5o7Hp6nSs58j/829v0='; img-src 'self' data:; font-src 'self' data:; connect-src 'none'; media-src 'none'; frame-src 'none'; worker-src 'none'; object-src 'none'; base-uri 'none'; form-action 'none'">
+<meta http-equiv="Content-Security-Policy" content="default-src 'none'; script-src 'sha256-ueVYkH1j5gf3pFWCS4biMhZF8h5cnzDIUmH764SCdXE='; style-src 'sha256-ccz9fwRQzrpOORu3eXGYjQUuuXciRnTYlZcQWlfwTng='; img-src 'self' data:; font-src 'self' data:; connect-src 'none'; media-src 'none'; frame-src 'none'; worker-src 'none'; object-src 'none'; base-uri 'none'; form-action 'none'">
 <link rel="icon" href="data:image/svg+xml,<svg xmlns='http://www.w3.org/2000/svg' viewBox='0 0 32 32'><rect width='32' height='32' fill='%2306080c'/><path d='M4 14 L16 5 L28 14 L28 28 L4 28 Z' fill='none' stroke='%23e8a33d' stroke-width='2'/><rect x='13' y='19' width='6' height='9' fill='%23ffb457'/></svg>">
 <style>
 /*
@@ -250,7 +250,60 @@ button:focus-visible, input:focus-visible {
 .hint b { color: var(--ink-2); font-weight: 600; }
 
 /* ================================================================== *
- * Game layout
+ * The 3D view
+ * ================================================================== */
+
+#view {
+  position: absolute;
+  inset: 0;
+  width: 100%;
+  height: 100%;
+  display: block;
+  background: #04060a;
+  touch-action: none;
+  cursor: crosshair;
+}
+
+.load-bar {
+  width: min(320px, 80%);
+  height: 3px;
+  margin: 1.4rem auto 0;
+  background: rgba(0,0,0,0.6);
+  border-radius: 99px;
+  overflow: hidden;
+}
+.load-bar i {
+  display: block; height: 100%; width: 0;
+  background: linear-gradient(90deg, var(--amber), #ffdca8);
+  transition: width .2s linear;
+}
+
+/* ---------------------------------------------------- the map overlay */
+
+.mapover {
+  position: absolute;
+  inset: 0;
+  z-index: 35;
+  display: grid;
+  place-items: center;
+  background: rgba(4, 6, 10, 0.86);
+  backdrop-filter: blur(2px);
+  animation: fade .18s ease both;
+}
+.mapover-inner {
+  width: min(900px, 92vw);
+  height: min(70vh, 620px);
+}
+.mapover-hint {
+  position: absolute;
+  bottom: 1.4rem;
+  font-size: 0.78rem;
+  letter-spacing: 0.16em;
+  color: var(--dim);
+}
+
+/* ================================================================== *
+ * Game layout (2D map mode)
  * ================================================================== */
 
 .game {
@@ -504,6 +557,140 @@ button:focus-visible, input:focus-visible {
 .alert.good { border-inline-start-color: var(--good); color: #a9dcc0; }
 
 /* ================================================================== *
+ * First-person HUD
+ * ================================================================== */
+
+.hud3 {
+  position: absolute;
+  inset: 0;
+  z-index: 25;
+  pointer-events: none;
+  font-family: var(--font);
+}
+.hud3[hidden] { display: none !important; }
+
+.h3-top {
+  position: absolute;
+  top: 0.9rem;
+  inset-inline-end: 1.1rem;
+  text-align: end;
+}
+.h3-topline { display: flex; gap: 0.7rem; align-items: baseline; justify-content: flex-end; }
+.h3-night { font-size: 0.86rem; font-weight: 700; color: #ffdca8; letter-spacing: 0.05em; }
+.h3-clock { font-family: var(--mono); font-size: 1.15rem; color: var(--ink); }
+.h3-danger {
+  width: 132px; height: 4px; margin-top: 0.4rem;
+  background: rgba(0,0,0,0.55);
+  border-radius: 99px; overflow: hidden;
+  box-shadow: 0 0 0 1px rgba(150,172,204,0.18);
+}
+.h3-danger i {
+  display: block; height: 100%; width: 0;
+  background: linear-gradient(90deg, var(--good), var(--warn));
+  transition: width .3s linear;
+}
+.h3-danger.high i { background: linear-gradient(90deg, var(--warn), var(--bad)); }
+.h3-danger.max i { background: var(--bad); animation: markpulse .5s infinite; }
+
+/* A crosshair that is a dot until there is something to act on, because a
+   permanent reticle in a game with no aiming is just clutter. */
+.h3-cross {
+  position: absolute;
+  left: 50%; top: 50%;
+  width: 5px; height: 5px;
+  margin: -2.5px 0 0 -2.5px;
+  border-radius: 50%;
+  background: rgba(232, 236, 244, 0.34);
+  transition: width .16s, height .16s, margin .16s, background .16s, box-shadow .16s;
+}
+.h3-cross.on {
+  width: 12px; height: 12px; margin: -6px 0 0 -6px;
+  background: transparent;
+  box-shadow: inset 0 0 0 1.5px rgba(255, 220, 168, 0.95);
+}
+
+.h3-prompt {
+  position: absolute;
+  left: 50%;
+  top: 56%;
+  transform: translateX(-50%);
+  min-width: 260px;
+  max-width: min(440px, 86vw);
+  padding: 0.7rem 0.9rem;
+  background: rgba(6, 9, 14, 0.86);
+  border: 1px solid var(--line);
+  border-radius: var(--radius);
+  text-align: center;
+  animation: fade .14s ease both;
+}
+.h3-prompt[hidden] { display: none !important; }
+.h3-name { font-weight: 700; color: #ffdca8; margin-bottom: 0.25rem; }
+.h3-state { font-size: 0.76rem; color: var(--ink-2); display: flex; gap: 0.4rem; justify-content: center; flex-wrap: wrap; }
+.h3-state .sep { color: var(--dim); }
+.h3-actions { display: flex; gap: 0.4rem; justify-content: center; flex-wrap: wrap; margin-top: 0.6rem; }
+.h3-act {
+  display: flex; align-items: center; gap: 0.3rem;
+  padding: 0.24rem 0.5rem;
+  border: 1px solid var(--line-2);
+  border-radius: var(--radius);
+  font-size: 0.78rem;
+  background: rgba(255,255,255,0.03);
+}
+.h3-act kbd {
+  font-family: var(--mono); font-size: 0.72rem;
+  padding: 0 0.25rem; border-radius: 2px;
+  background: var(--amber-dim); color: #ffdca8;
+}
+.h3-act.off { opacity: 0.34; }
+.h3-act em { font-style: normal; font-size: 0.68rem; color: var(--dim); }
+
+.h3-bottom {
+  position: absolute;
+  bottom: 1.1rem;
+  inset-inline-start: 1.1rem;
+}
+.h3-kit { display: flex; gap: 0.5rem; }
+.h3-chip {
+  display: flex; align-items: baseline; gap: 0.28rem;
+  padding: 0.26rem 0.5rem;
+  background: rgba(6, 9, 14, 0.72);
+  border: 1px solid var(--line);
+  border-radius: var(--radius);
+}
+.h3-icon { font-size: 0.8rem; color: var(--dim); }
+.h3-value { font-family: var(--mono); font-size: 0.92rem; color: var(--ink); }
+.h3-chip.dim .h3-value { color: var(--dim); }
+.h3-chip.bad .h3-value { color: var(--bad); }
+
+.h3-torch { margin-top: 0.45rem; font-size: 0.7rem; color: var(--dim); letter-spacing: 0.08em; }
+.h3-torch.off { color: var(--bad); }
+
+.h3-busy { margin-bottom: 0.5rem; max-width: 260px; }
+.h3-busy[hidden] { display: none !important; }
+.h3-busy-label { display: block; font-size: 0.76rem; color: var(--ink-2); margin-bottom: 0.25rem; }
+.h3-busy-bar { height: 4px; background: rgba(0,0,0,0.6); border-radius: 99px; overflow: hidden; }
+.h3-busy-bar i { display: block; height: 100%; width: 0; background: var(--amber); }
+
+.h3-alerts {
+  position: absolute;
+  bottom: 1.1rem;
+  inset-inline-end: 1.1rem;
+  list-style: none; margin: 0; padding: 0;
+  max-width: min(340px, 50vw);
+  text-align: end;
+}
+.h3-alert {
+  font-size: 0.82rem; line-height: 1.5;
+  padding: 0.18rem 0;
+  color: var(--ink-2);
+  text-shadow: 0 1px 3px rgba(0,0,0,0.9);
+  animation: rise .25s ease both;
+}
+.h3-alert.warn { color: #f0c98d; }
+.h3-alert.bad { color: #ffb9ae; font-weight: 600; }
+.h3-alert.good { color: #a9dcc0; }
+
+/* ================================================================== *
  * Text mode
  * ================================================================== */
 
@@ -636,9 +823,15 @@ button:focus-visible, input:focus-visible {
 <div id="app">
 
   <!-- ------------------------------------------------------ the game -->
-  <div class="game" id="game" hidden>
-    <div class="stage" id="stage"></div>
-    <div id="hud-slot"></div>
+  <canvas id="view"></canvas>
+  <div id="hud-slot"></div>
+
+  <!-- The floor plan, over the top. The same SVG the 2D build used as its
+       whole interface is the in-game map here: one key, and you can see what
+       you cannot see from inside a dark room. -->
+  <div class="mapover" id="mapover" hidden>
+    <div class="mapover-inner"><div class="stage" id="stage"></div></div>
+    <div class="mapover-hint">מפת הווילה · Tab</div>
   </div>
 
   <!-- the same game, as a prompt -->
@@ -646,10 +839,21 @@ button:focus-visible, input:focus-visible {
 
   <div class="controls" id="controls" hidden>
     <button type="button" id="btn-speed" title="מהירות המשחק">1×</button>
+    <button type="button" id="btn-map">מפה</button>
     <button type="button" id="btn-mode">מצב טקסט</button>
     <button type="button" id="btn-mute">השתקה</button>
     <button type="button" id="btn-pause">❚❚</button>
   </div>
+
+  <!-- ------------------------------------------------------- loading -->
+  <section class="screen" id="screen-loading" hidden>
+    <div class="card">
+      <div class="eyebrow">נכנס לוילה</div>
+      <h2 class="title">רגע</h2>
+      <p class="sub" id="load-note">בונה חומרים…</p>
+      <div class="load-bar"><i id="load-fill"></i></div>
+    </div>
+  </section>
 
   <!-- --------------------------------------------------------- menu -->
   <section class="screen" id="screen-menu">
@@ -665,6 +869,10 @@ button:focus-visible, input:focus-visible {
         <button class="btn" id="btn-continue" type="button" hidden>המשך משחק שמור</button>
         <button class="btn" id="btn-how" type="button">איך משחקים</button>
       </div>
+      <div class="hint">
+        <b>WASD</b> תנועה · <b>עכבר</b> מבט · <b>E</b> פעולה · <b>1–4</b> חסימה ·
+        <b>רווח</b> ירי · <b>F</b> פנס · <b>Tab</b> מפה · <b>Esc</b> תפריט
+      </div>
       <div class="hint" id="menu-best"></div>
     </div>
   </section>
@@ -679,6 +887,8 @@ button:focus-visible, input:focus-visible {
         במגירה שבחדר השינה, וחוסם פתחים. בלילה הם מגיעים.
       </p>
       <div class="night-note">
+        <b>E</b> ליד פתח פותח את הפעולות. <b>1</b> סקוץ׳, <b>2</b> קרש,
+        <b>3</b> תיקון, <b>4</b> ירי.<br><br>
         <b>סקוץ׳ טייפ</b> מהיר וחלש — מאט פריצה ונקרע.<br>
         <b>קרש</b> איטי וחזק — דורש פטיש ושני מסמרים. <b>מסמרים הם המשאב שנגמר.</b><br>
         <b>תיקון</b> דוחף פתח בחזרה בלי חומרים — משתלם רק על פתח שכבר חסום.<br>
@@ -1745,6 +1955,20 @@ __m["villa/src/core/rng.js"] = (function () {
  * game that never asks it for more than "which of these eight, and when".
  */
 
+/*
+ * One round of a 32-bit integer avalanche (the murmur3 finaliser). Not for the
+ * simulation — for the procedural materials, which need a *hash* rather than a
+ * stream: a texture recipe asks "what value belongs at lattice cell (x, y)"
+ * thousands of times in no particular order, and has to get the same answer
+ * every time or the noise will not tile.
+ */
+function hash1(x) {
+  x |= 0;
+  x = Math.imul(x ^ (x >>> 16), 0x85ebca6b);
+  x = Math.imul(x ^ (x >>> 13), 0xc2b2ae35);
+  return (x ^ (x >>> 16)) >>> 0;
+}
+
 function makeRng(seed) {
   let a = (seed >>> 0) || 1;
   const rng = () => {
@@ -1796,6 +2020,7 @@ function seedFrom(text) {
 }
 
   return {
+    "hash1": hash1,
     "makeRng": makeRng,
     "randInt": randInt,
     "randRange": randRange,
@@ -3668,6 +3893,3476 @@ function snapshot(state) {
   };
 })();
 
+__m["villa/src/core/gl.js"] = (function () {
+/*
+ * gl.js — context, programs, textures, render targets and vertex arrays.
+ *
+ * A sibling of backrooms/src/core/gl.js, for the reason given in math.js, with
+ * one deliberate difference: VERTEX_LAYOUT carries `aFlick`.
+ *
+ * The Backrooms build declares `in float aFlick` in its scene vertex shader
+ * but leaves it out of the layout, so the attribute is never bound and every
+ * `vertex()` call writes fifteen floats into a fourteen-float stride — the
+ * fifteenth lands in the next vertex's position slot and is overwritten by the
+ * next call, which is why nothing visibly breaks and why nobody noticed. Here
+ * the field exists, is bound, and is used: a villa lit by failing bulbs wants
+ * per-vertex flicker much more than an office does.
+ */
+
+function createContext(canvas) {
+  const gl = canvas.getContext('webgl2', {
+    alpha: false,
+    antialias: false,          /* we resolve our own AA in the post chain */
+    depth: true,
+    stencil: false,
+    powerPreference: 'high-performance',
+    preserveDrawingBuffer: false,
+    /* No `desynchronized`. It shaves a frame of latency on desktop and has a
+     * history of producing a blank canvas on mobile Safari, which is not a
+     * trade worth making for a game meant to be played on a phone. */
+  });
+  if (!gl) return null;
+
+  /* Float render targets carry the bloom. Without them we fall back to 8-bit
+   * and lose the blown-out fluorescent highlight, which is most of the look —
+   * so the renderer asks, and adapts if the answer is no. */
+  const caps = {
+    colorFloat: !!gl.getExtension('EXT_color_buffer_float'),
+    floatLinear: !!gl.getExtension('OES_texture_float_linear'),
+    aniso: gl.getExtension('EXT_texture_filter_anisotropic'),
+    maxAniso: 1,
+    maxTexSize: gl.getParameter(gl.MAX_TEXTURE_SIZE),
+    maxLayers: gl.getParameter(gl.MAX_ARRAY_TEXTURE_LAYERS),
+  };
+  if (caps.aniso) {
+    caps.maxAniso = gl.getParameter(caps.aniso.MAX_TEXTURE_MAX_ANISOTROPY_EXT);
+  }
+  return { gl, caps };
+}
+
+function compile(gl, type, src, label) {
+  const sh = gl.createShader(type);
+  gl.shaderSource(sh, src);
+  gl.compileShader(sh);
+  if (!gl.getShaderParameter(sh, gl.COMPILE_STATUS)) {
+    const log = gl.getShaderInfoLog(sh) || '';
+    /* Number the source so the driver's "ERROR: 0:214" is findable. */
+    const numbered = src.split('\n')
+      .map((l, i) => String(i + 1).padStart(4, ' ') + ' | ' + l).join('\n');
+    gl.deleteShader(sh);
+    throw new Error(`shader compile failed (${label}):\n${log}\n${numbered}`);
+  }
+  return sh;
+}
+
+function createProgram(gl, vsSrc, fsSrc, label = 'program') {
+  const vs = compile(gl, gl.VERTEX_SHADER, vsSrc, label + '.vert');
+  const fs = compile(gl, gl.FRAGMENT_SHADER, fsSrc, label + '.frag');
+  const prog = gl.createProgram();
+  gl.attachShader(prog, vs);
+  gl.attachShader(prog, fs);
+  gl.linkProgram(prog);
+  gl.deleteShader(vs);
+  gl.deleteShader(fs);
+  if (!gl.getProgramParameter(prog, gl.LINK_STATUS)) {
+    const log = gl.getProgramInfoLog(prog);
+    gl.deleteProgram(prog);
+    throw new Error(`program link failed (${label}): ${log}`);
+  }
+
+  const u = Object.create(null);
+  const n = gl.getProgramParameter(prog, gl.ACTIVE_UNIFORMS);
+  for (let i = 0; i < n; i++) {
+    const info = gl.getActiveUniform(prog, i);
+    if (!info) continue;
+    /* Arrays come back as "uLights[0]"; store under the bare name too so a
+     * call site can pass the whole array in one uniform4fv. */
+    const bare = info.name.replace(/\[0\]$/, '');
+    u[bare] = gl.getUniformLocation(prog, info.name);
+  }
+
+  const a = Object.create(null);
+  const an = gl.getProgramParameter(prog, gl.ACTIVE_ATTRIBUTES);
+  for (let i = 0; i < an; i++) {
+    const info = gl.getActiveAttrib(prog, i);
+    if (!info) continue;
+    a[info.name] = gl.getAttribLocation(prog, info.name);
+  }
+
+  return { prog, u, a, use: () => gl.useProgram(prog) };
+}
+
+/* ------------------------------------------------------------------ *
+ * Textures
+ * ------------------------------------------------------------------ */
+
+/*
+ * A 2D array texture holding every material of the current level, one per
+ * layer. This is the reason the whole world draws in a handful of calls: the
+ * material index rides along in the vertex data, so floor, wallpaper, ceiling
+ * tile and light panel all come out of one buffer with one bind.
+ */
+function createArrayTexture(gl, caps, width, height, layers, pixelsPerLayer, opts = {}) {
+  const tex = gl.createTexture();
+  gl.bindTexture(gl.TEXTURE_2D_ARRAY, tex);
+  const levels = opts.mips === false ? 1 : Math.floor(Math.log2(Math.max(width, height))) + 1;
+  const internal = opts.srgb ? gl.SRGB8_ALPHA8 : gl.RGBA8;
+  gl.texStorage3D(gl.TEXTURE_2D_ARRAY, levels, internal, width, height, layers);
+  for (let i = 0; i < layers; i++) {
+    const px = pixelsPerLayer[i];
+    if (!px) continue;
+    gl.texSubImage3D(gl.TEXTURE_2D_ARRAY, 0, 0, 0, i, width, height, 1,
+      gl.RGBA, gl.UNSIGNED_BYTE, px);
+  }
+  if (levels > 1) gl.generateMipmap(gl.TEXTURE_2D_ARRAY);
+  gl.texParameteri(gl.TEXTURE_2D_ARRAY, gl.TEXTURE_MIN_FILTER,
+    levels > 1 ? gl.LINEAR_MIPMAP_LINEAR : gl.LINEAR);
+  gl.texParameteri(gl.TEXTURE_2D_ARRAY, gl.TEXTURE_MAG_FILTER, gl.LINEAR);
+  gl.texParameteri(gl.TEXTURE_2D_ARRAY, gl.TEXTURE_WRAP_S, gl.REPEAT);
+  gl.texParameteri(gl.TEXTURE_2D_ARRAY, gl.TEXTURE_WRAP_T, gl.REPEAT);
+  if (caps.aniso) {
+    gl.texParameterf(gl.TEXTURE_2D_ARRAY, caps.aniso.TEXTURE_MAX_ANISOTROPY_EXT,
+      Math.min(8, caps.maxAniso));
+  }
+  gl.bindTexture(gl.TEXTURE_2D_ARRAY, null);
+  return tex;
+}
+
+function createTexture2D(gl, width, height, pixels, opts = {}) {
+  const tex = gl.createTexture();
+  gl.bindTexture(gl.TEXTURE_2D, tex);
+  gl.texImage2D(gl.TEXTURE_2D, 0, opts.srgb ? gl.SRGB8_ALPHA8 : gl.RGBA8,
+    width, height, 0, gl.RGBA, gl.UNSIGNED_BYTE, pixels || null);
+  const filter = opts.nearest ? gl.NEAREST : gl.LINEAR;
+  gl.texParameteri(gl.TEXTURE_2D, gl.TEXTURE_MIN_FILTER, filter);
+  gl.texParameteri(gl.TEXTURE_2D, gl.TEXTURE_MAG_FILTER, filter);
+  gl.texParameteri(gl.TEXTURE_2D, gl.TEXTURE_WRAP_S, opts.clamp ? gl.CLAMP_TO_EDGE : gl.REPEAT);
+  gl.texParameteri(gl.TEXTURE_2D, gl.TEXTURE_WRAP_T, opts.clamp ? gl.CLAMP_TO_EDGE : gl.REPEAT);
+  gl.bindTexture(gl.TEXTURE_2D, null);
+  return tex;
+}
+
+/* ------------------------------------------------------------------ *
+ * Render targets
+ * ------------------------------------------------------------------ */
+
+function createTarget(gl, caps, width, height, opts = {}) {
+  const float = opts.float !== false && caps.colorFloat;
+  const fb = gl.createFramebuffer();
+  gl.bindFramebuffer(gl.FRAMEBUFFER, fb);
+
+  const color = gl.createTexture();
+  gl.bindTexture(gl.TEXTURE_2D, color);
+  gl.texImage2D(gl.TEXTURE_2D, 0, float ? gl.RGBA16F : gl.RGBA8,
+    width, height, 0, gl.RGBA, float ? gl.HALF_FLOAT : gl.UNSIGNED_BYTE, null);
+  gl.texParameteri(gl.TEXTURE_2D, gl.TEXTURE_MIN_FILTER, gl.LINEAR);
+  gl.texParameteri(gl.TEXTURE_2D, gl.TEXTURE_MAG_FILTER, gl.LINEAR);
+  gl.texParameteri(gl.TEXTURE_2D, gl.TEXTURE_WRAP_S, gl.CLAMP_TO_EDGE);
+  gl.texParameteri(gl.TEXTURE_2D, gl.TEXTURE_WRAP_T, gl.CLAMP_TO_EDGE);
+  gl.framebufferTexture2D(gl.FRAMEBUFFER, gl.COLOR_ATTACHMENT0, gl.TEXTURE_2D, color, 0);
+
+  let depth = null;
+  if (opts.depth) {
+    depth = gl.createRenderbuffer();
+    gl.bindRenderbuffer(gl.RENDERBUFFER, depth);
+    gl.renderbufferStorage(gl.RENDERBUFFER, gl.DEPTH_COMPONENT24, width, height);
+    gl.framebufferRenderbuffer(gl.FRAMEBUFFER, gl.DEPTH_ATTACHMENT, gl.RENDERBUFFER, depth);
+  }
+
+  const status = gl.checkFramebufferStatus(gl.FRAMEBUFFER);
+  gl.bindFramebuffer(gl.FRAMEBUFFER, null);
+  if (status !== gl.FRAMEBUFFER_COMPLETE) {
+    throw new Error('framebuffer incomplete: 0x' + status.toString(16));
+  }
+  return { fb, color, depth, width, height, float };
+}
+
+function destroyTarget(gl, t) {
+  if (!t) return;
+  gl.deleteFramebuffer(t.fb);
+  gl.deleteTexture(t.color);
+  if (t.depth) gl.deleteRenderbuffer(t.depth);
+}
+
+/* ------------------------------------------------------------------ *
+ * Geometry
+ * ------------------------------------------------------------------ */
+
+/*
+ * One oversized triangle instead of a quad for full-screen passes: no diagonal
+ * seam, one fewer vertex, and the fragment shader gets its UV from gl_VertexID
+ * so there is no vertex buffer to bind at all.
+ */
+function createFullscreenVAO(gl) {
+  const vao = gl.createVertexArray();
+  gl.bindVertexArray(vao);
+  gl.bindVertexArray(null);
+  return vao;
+}
+
+/* Vertex layout is described once, here, and shared by the mesher and the
+ * renderer so the two cannot drift apart. Sizes are in floats. */
+const VERTEX_LAYOUT = [
+  { name: 'aPos',  size: 3 },
+  { name: 'aNrm',  size: 3 },
+  { name: 'aUV',   size: 2 },
+  { name: 'aTan',  size: 4 },   /* xyz tangent, w = bitangent sign */
+  { name: 'aAO',   size: 1 },
+  { name: 'aMat',  size: 1 },
+  { name: 'aFlick', size: 1 },  /* which flicker group this surface belongs to */
+];
+const VERTEX_FLOATS = VERTEX_LAYOUT.reduce((n, f) => n + f.size, 0);
+
+function createMeshVAO(gl, prog, vertices, indices) {
+  const vao = gl.createVertexArray();
+  gl.bindVertexArray(vao);
+
+  const vbo = gl.createBuffer();
+  gl.bindBuffer(gl.ARRAY_BUFFER, vbo);
+  gl.bufferData(gl.ARRAY_BUFFER, vertices, gl.STATIC_DRAW);
+
+  const stride = VERTEX_FLOATS * 4;
+  let offset = 0;
+  for (const f of VERTEX_LAYOUT) {
+    const loc = prog.a[f.name];
+    if (loc !== undefined && loc >= 0) {
+      gl.enableVertexAttribArray(loc);
+      gl.vertexAttribPointer(loc, f.size, gl.FLOAT, false, stride, offset);
+    }
+    offset += f.size * 4;
+  }
+
+  const ibo = gl.createBuffer();
+  gl.bindBuffer(gl.ELEMENT_ARRAY_BUFFER, ibo);
+  gl.bufferData(gl.ELEMENT_ARRAY_BUFFER, indices, gl.STATIC_DRAW);
+
+  gl.bindVertexArray(null);
+  return { vao, vbo, ibo, count: indices.length };
+}
+
+function destroyMesh(gl, m) {
+  if (!m) return;
+  gl.deleteVertexArray(m.vao);
+  gl.deleteBuffer(m.vbo);
+  gl.deleteBuffer(m.ibo);
+}
+
+  return {
+    "createContext": createContext,
+    "createProgram": createProgram,
+    "createArrayTexture": createArrayTexture,
+    "createTexture2D": createTexture2D,
+    "createTarget": createTarget,
+    "destroyTarget": destroyTarget,
+    "createFullscreenVAO": createFullscreenVAO,
+    "VERTEX_LAYOUT": VERTEX_LAYOUT,
+    "VERTEX_FLOATS": VERTEX_FLOATS,
+    "createMeshVAO": createMeshVAO,
+    "destroyMesh": destroyMesh,
+  };
+})();
+
+__m["villa/src/render/shaders.js"] = (function () {
+/*
+ * shaders.js — the villa's lighting, and the lens it is seen through.
+ *
+ * Four programs and no more:
+ *
+ *   scene       every surface, lit by up to sixteen point lights and the
+ *               torch, into a half-float target;
+ *   bright      threshold for bloom;
+ *   blur        separable gaussian, run a few times;
+ *   composite   bloom back in, ACES, vignette, aberration, grain, dither.
+ *
+ * There is no shadow map and no deferred pass. In a house this small the
+ * budget is better spent on the lighting itself: real inverse-square falloff,
+ * per-vertex ambient occlusion baked at mesh time, normal maps that agree with
+ * the albedo because both come out of the same height field, and a torch cone
+ * with a soft edge. The dark line where a wall meets the floor is doing more
+ * work than any shadow map would.
+ *
+ * The one thing this does that a brighter game would not bother with: every
+ * surface carries a *flicker group*. A villa where one bulb is failing is
+ * worth more than a villa with perfect lighting, and grouping it per-vertex
+ * means the kitchen tube can stutter while the hall lamp holds steady, at no
+ * cost beyond a float already in the vertex.
+ */
+
+const MAX_LIGHTS = 16;
+
+/* ------------------------------------------------------------------ *
+ * Scene
+ * ------------------------------------------------------------------ */
+
+const SCENE_VERT = `#version 300 es
+precision highp float;
+
+in vec3 aPos;
+in vec3 aNrm;
+in vec2 aUV;
+in vec4 aTan;
+in float aAO;
+in float aMat;
+in float aFlick;
+
+uniform mat4 uViewProj;
+
+out vec3 vPos;
+out vec3 vNrm;
+out vec2 vUV;
+out vec3 vTan;
+out vec3 vBit;
+out float vAO;
+out float vFlick;
+flat out int vMat;
+
+void main() {
+  vPos = aPos;
+  vNrm = aNrm;
+  vUV = aUV;
+  vTan = aTan.xyz;
+  vBit = cross(aNrm, aTan.xyz) * aTan.w;
+  vAO = aAO;
+  vFlick = aFlick;
+  vMat = int(aMat + 0.5);
+  gl_Position = uViewProj * vec4(aPos, 1.0);
+}`;
+
+const SCENE_FRAG = `#version 300 es
+precision highp float;
+precision highp sampler2DArray;
+
+in vec3 vPos;
+in vec3 vNrm;
+in vec2 vUV;
+in vec3 vTan;
+in vec3 vBit;
+in float vAO;
+in float vFlick;
+flat in int vMat;
+
+uniform sampler2DArray uAlbedo;
+uniform sampler2DArray uNormal;
+
+uniform vec3 uEye;
+uniform vec3 uAmbient;
+
+uniform int  uLightCount;
+uniform vec3 uLightPos[${MAX_LIGHTS}];
+uniform vec3 uLightColor[${MAX_LIGHTS}];
+uniform float uLightRange[${MAX_LIGHTS}];
+
+/* The torch. A cone with a soft edge and its own falloff, because it is the
+ * player's only reliable light and it has to feel like it is in their hands. */
+uniform vec3 uTorchPos;
+uniform vec3 uTorchDir;
+uniform float uTorchInner;
+uniform float uTorchOuter;
+uniform float uTorchRange;
+uniform float uTorchLevel;
+
+uniform vec3 uFogColor;
+uniform float uFogDensity;
+
+/* Per-group flicker, computed once on the CPU and handed in. Index 0 is
+ * always 1.0 — surfaces that do not flicker. */
+uniform float uFlicker[8];
+
+uniform float uCutout;
+
+out vec4 fragColor;
+
+void main() {
+  vec4 alb = texture(uAlbedo, vec3(vUV, float(vMat)));
+  vec4 nsm = texture(uNormal, vec3(vUV, float(vMat)));
+
+  /* Cut-out materials (the tape, chiefly) put coverage in the normal map's
+   * blue channel. Discarding rather than blending keeps them out of the depth
+   * buffer's way and avoids sorting an alpha pass. */
+  if (uCutout > 0.0 && nsm.b < uCutout) discard;
+
+  vec3 nT = vec3(nsm.rg * 2.0 - 1.0, 0.0);
+  nT.z = sqrt(max(0.0, 1.0 - dot(nT.xy, nT.xy)));
+  vec3 N = normalize(vTan * nT.x + vBit * nT.y + vNrm * nT.z);
+
+  vec3 V = normalize(uEye - vPos);
+  float rough = clamp(alb.a, 0.05, 1.0);
+  float shine = mix(90.0, 4.0, rough);
+  float specK = mix(0.35, 0.02, rough);
+
+  int group = int(clamp(vFlick, 0.0, 7.0) + 0.5);
+  float flick = uFlicker[group];
+
+  vec3 lit = uAmbient * vAO;
+
+  for (int i = 0; i < ${MAX_LIGHTS}; i++) {
+    if (i >= uLightCount) break;
+    vec3 d = uLightPos[i] - vPos;
+    float dist = length(d);
+    if (dist > uLightRange[i]) continue;
+    vec3 L = d / max(dist, 0.0001);
+    float ndl = max(dot(N, L), 0.0);
+    if (ndl <= 0.0) continue;
+
+    /* Real inverse square, windowed so it reaches zero at the range rather
+     * than being clipped there — a light that stops abruptly draws a visible
+     * circle on the floor. */
+    float t = dist / uLightRange[i];
+    float win = clamp(1.0 - t * t * t * t, 0.0, 1.0);
+    float atten = win * win / (1.0 + dist * dist);
+
+    vec3 H = normalize(L + V);
+    float spec = pow(max(dot(N, H), 0.0), shine) * specK;
+    lit += uLightColor[i] * atten * (ndl + spec) * mix(1.0, flick, 0.85);
+  }
+
+  if (uTorchLevel > 0.0) {
+    vec3 d = uTorchPos - vPos;
+    float dist = length(d);
+    vec3 L = d / max(dist, 0.0001);
+    float cone = dot(-L, uTorchDir);
+    float edge = smoothstep(uTorchOuter, uTorchInner, cone);
+    if (edge > 0.0 && dist < uTorchRange) {
+      float ndl = max(dot(N, L), 0.0);
+      float t = dist / uTorchRange;
+      float win = clamp(1.0 - t * t * t * t, 0.0, 1.0);
+      float atten = win * win / (1.0 + dist * dist * 0.6);
+      vec3 H = normalize(L + V);
+      float spec = pow(max(dot(N, H), 0.0), shine) * specK;
+      lit += vec3(1.0, 0.94, 0.84) * uTorchLevel * edge * atten * (ndl + spec) * 3.2;
+    }
+  }
+
+  vec3 color = alb.rgb * lit;
+  color += alb.rgb * nsm.a * 2.4;          /* emissive rides in normal.a */
+
+  /* Exponential-squared fog. In a house it is not weather — it is the reason
+   * the far end of the hall goes to nothing. */
+  float dist = length(uEye - vPos);
+  float f = 1.0 - exp(-pow(dist * uFogDensity, 2.0));
+  color = mix(color, uFogColor, clamp(f, 0.0, 1.0));
+
+  fragColor = vec4(color, 1.0);
+}`;
+
+/* ------------------------------------------------------------------ *
+ * Post
+ * ------------------------------------------------------------------ */
+
+/*
+ * One oversized triangle, with no vertex buffer at all: the position comes out
+ * of gl_VertexID. A quad would need two triangles and put a diagonal seam
+ * down the middle of every full-screen pass, which the blur finds.
+ */
+const POST_VERT = `#version 300 es
+precision highp float;
+out vec2 vUV;
+void main() {
+  vec2 p = vec2(float((gl_VertexID << 1) & 2), float(gl_VertexID & 2));
+  vUV = p;
+  gl_Position = vec4(p * 2.0 - 1.0, 0.0, 1.0);
+}`;
+
+const BRIGHT_FRAG = `#version 300 es
+precision highp float;
+in vec2 vUV;
+uniform sampler2D uTex;
+uniform float uThreshold;
+out vec4 fragColor;
+void main() {
+  vec3 c = texture(uTex, vUV).rgb;
+  float l = dot(c, vec3(0.2126, 0.7152, 0.0722));
+  float k = max(0.0, l - uThreshold) / max(l, 0.0001);
+  fragColor = vec4(c * k, 1.0);
+}`;
+
+const BLUR_FRAG = `#version 300 es
+precision highp float;
+in vec2 vUV;
+uniform sampler2D uTex;
+uniform vec2 uDir;
+out vec4 fragColor;
+void main() {
+  /* Nine taps, five samples, using the hardware's bilinear filter to get two
+   * taps for the price of one. */
+  vec3 c = texture(uTex, vUV).rgb * 0.2270270270;
+  c += texture(uTex, vUV + uDir * 1.3846153846).rgb * 0.3162162162;
+  c += texture(uTex, vUV - uDir * 1.3846153846).rgb * 0.3162162162;
+  c += texture(uTex, vUV + uDir * 3.2307692308).rgb * 0.0702702703;
+  c += texture(uTex, vUV - uDir * 3.2307692308).rgb * 0.0702702703;
+  fragColor = vec4(c, 1.0);
+}`;
+
+const COMPOSITE_FRAG = `#version 300 es
+precision highp float;
+in vec2 vUV;
+uniform sampler2D uScene;
+uniform sampler2D uBloom;
+uniform float uBloomAmount;
+uniform float uExposure;
+uniform float uTime;
+uniform float uGrain;
+uniform float uVignette;
+uniform float uAberration;
+/* Rises with the danger meter: the edges close in and the grain comes up.
+ * The cheapest way to make a player feel something is to make the room feel
+ * it first. */
+uniform float uStress;
+out vec4 fragColor;
+
+vec3 aces(vec3 x) {
+  const float a = 2.51, b = 0.03, c = 2.43, d = 0.59, e = 0.14;
+  return clamp((x * (a * x + b)) / (x * (c * x + d) + e), 0.0, 1.0);
+}
+
+float hash(vec2 p) {
+  return fract(sin(dot(p, vec2(127.1, 311.7))) * 43758.5453);
+}
+
+void main() {
+  vec2 uv = vUV;
+  vec2 fromCentre = uv - 0.5;
+
+  float ab = uAberration * (1.0 + uStress * 3.0);
+  vec3 col;
+  col.r = texture(uScene, uv + fromCentre * ab).r;
+  col.g = texture(uScene, uv).g;
+  col.b = texture(uScene, uv - fromCentre * ab).b;
+
+  col += texture(uBloom, uv).rgb * uBloomAmount;
+  col = aces(col * uExposure);
+
+  float d = length(fromCentre * vec2(1.0, 0.86));
+  float vig = smoothstep(0.86, 0.28, d);
+  col *= mix(1.0, vig, uVignette * (1.0 + uStress * 0.5));
+
+  float g = hash(uv * 1024.0 + fract(uTime) * 91.7) - 0.5;
+  col += g * (uGrain + uStress * 0.05);
+
+  /* Ordered dither, so a very dark room does not band. Almost the whole game
+   * happens below 0.1 luminance, where eight bits is not many. */
+  float dither = hash(uv * 512.0 + 7.0) / 255.0;
+  fragColor = vec4(col + dither, 1.0);
+}`;
+
+  return {
+    "MAX_LIGHTS": MAX_LIGHTS,
+    "SCENE_VERT": SCENE_VERT,
+    "SCENE_FRAG": SCENE_FRAG,
+    "POST_VERT": POST_VERT,
+    "BRIGHT_FRAG": BRIGHT_FRAG,
+    "BLUR_FRAG": BLUR_FRAG,
+    "COMPOSITE_FRAG": COMPOSITE_FRAG,
+  };
+})();
+
+__m["villa/src/render/textures.js"] = (function () {
+/*
+ * textures.js — every surface in the villa, generated from noise.
+ *
+ * There are no image files anywhere in this game. A room asks for "oak boards,
+ * this shade, fairly worn" and gets back an albedo map, a normal map derived
+ * from a real height field, and a roughness channel. Two rules hold
+ * throughout, and both are load-bearing:
+ *
+ * 1. Everything tiles. All the noise is lattice-wrapped at the texture edge,
+ *    so a floor that repeats eight times across a room has no seam. A seam is
+ *    visible from the far wall and instantly reads as "game".
+ *
+ * 2. Normals come from height, never authored directly. Each recipe writes a
+ *    height field as it goes and the normal map is Sobel-differenced out of it
+ *    at the end, so the bump always agrees with what you can see.
+ *
+ * The noise and baking machinery is shared in spirit with
+ * backrooms/src/render/textures.js — the same lattice-wrapped value noise,
+ * Worley and ridged fBm, and the same Sobel pass. The recipes are not: an
+ * office and a house are made of different things, and the one that matters
+ * most here is `timber`, because a boarded-up window is what the player spends
+ * the game looking at.
+ *
+ * Colours are authored in sRGB because the albedo array is uploaded as
+ * SRGB8_ALPHA8 and converted by the sampler. Roughness rides in the albedo
+ * alpha, which stays linear.
+ */
+
+const { hash1 } = __m["villa/src/core/rng.js"];
+
+/* ------------------------------------------------------------------ *
+ * Tileable noise
+ * ------------------------------------------------------------------ */
+
+function wrap(v, p) { return ((v % p) + p) % p; }
+
+function lhash(x, y, per, seed) {
+  return hash1(Math.imul(wrap(x, per), 0x27d4eb2d)
+             ^ Math.imul(wrap(y, per), 0x165667b1) ^ seed) / 4294967296;
+}
+
+function fade(t) { return t * t * t * (t * (t * 6 - 15) + 10); }
+
+/* Value noise whose lattice repeats every `per` cells. Call it with
+ * (u * per, v * per, per) and the result tiles across the texture. */
+function tnoise(x, y, per, seed) {
+  const xi = Math.floor(x), yi = Math.floor(y);
+  const u = fade(x - xi), v = fade(y - yi);
+  const a = lhash(xi, yi, per, seed);
+  const b = lhash(xi + 1, yi, per, seed);
+  const c = lhash(xi, yi + 1, per, seed);
+  const d = lhash(xi + 1, yi + 1, per, seed);
+  return (a * (1 - u) + b * u) * (1 - v) + (c * (1 - u) + d * u) * v;
+}
+
+function tfbm(u, v, base, seed, oct = 4, gain = 0.5) {
+  let f = base, a = 1, sum = 0, norm = 0;
+  for (let i = 0; i < oct; i++) {
+    sum += a * tnoise(u * f, v * f, f, seed + i * 1013);
+    norm += a;
+    f *= 2;
+    a *= gain;
+  }
+  return sum / norm;
+}
+
+/* Cellular noise, lattice-wrapped. Returns distance to the nearest feature
+ * point in [0,1] — tiles, pores, pebbles, carpet loops. */
+function tworley(u, v, per, seed) {
+  const x = u * per, y = v * per;
+  const xi = Math.floor(x), yi = Math.floor(y);
+  let best = 8;
+  for (let j = -1; j <= 1; j++) {
+    for (let i = -1; i <= 1; i++) {
+      const cx = xi + i, cy = yi + j;
+      const px = cx + lhash(cx, cy, per, seed);
+      const py = cy + lhash(cx, cy, per, seed ^ 0x9e37);
+      const d = (px - x) * (px - x) + (py - y) * (py - y);
+      if (d < best) best = d;
+    }
+  }
+  return Math.min(1, Math.sqrt(best));
+}
+
+function tridged(u, v, base, seed, oct = 4) {
+  let f = base, a = 1, sum = 0, norm = 0;
+  for (let i = 0; i < oct; i++) {
+    const n = Math.abs(tnoise(u * f, v * f, f, seed + i * 311) * 2 - 1);
+    sum += a * (1 - n);
+    norm += a;
+    f *= 2;
+    a *= 0.5;
+  }
+  return sum / norm;
+}
+
+const sstep = (e0, e1, x) => {
+  const t = Math.min(1, Math.max(0, (x - e0) / (e1 - e0)));
+  return t * t * (3 - 2 * t);
+};
+const clamp01 = (x) => (x < 0 ? 0 : x > 1 ? 1 : x);
+const mix = (a, b, t) => a + (b - a) * t;
+
+/* Distance to the nearest line of a grid with `n` cells across, in cell units.
+ * The building block of every tiled, planked, panelled or bricked surface. */
+function gridLine(t, n) {
+  const s = t * n;
+  return Math.abs(s - Math.round(s));
+}
+
+function parseColor(c) {
+  if (Array.isArray(c)) return c;
+  const h = c.replace('#', '');
+  const n = h.length === 3
+    ? h.split('').map((d) => parseInt(d + d, 16))
+    : [parseInt(h.slice(0, 2), 16), parseInt(h.slice(2, 4), 16), parseInt(h.slice(4, 6), 16)];
+  return [n[0] / 255, n[1] / 255, n[2] / 255];
+}
+
+/* ------------------------------------------------------------------ *
+ * Recipes
+ *
+ * Each writes into `o`: rgb (sRGB 0..1), rough, h (height 0..1), em (emissive),
+ * and optionally mask (0 = cut away, for foliage and wire mesh).
+ * ------------------------------------------------------------------ */
+
+const KINDS = {
+
+  /* Painted plaster. Nearly flat: the orange peel a roller leaves, a filled
+   * patch here and there, and scuffing where furniture has been dragged past.
+   * Most of the villa is this, so it has to be quiet — a wall you notice is a
+   * wall that is wrong. */
+  plaster(u, v, o, P, S) {
+    const c = P.color;
+    const peel = tfbm(u, v, 24, S, 3);
+    const patch = sstep(0.62, 0.80, tfbm(u, v, 4, S + 5, 3));
+    const scuff = sstep(0.74, 0.96, tfbm(u * 3, v * 0.4, 8, S + 71, 3)) * 0.5;
+    const age = sstep(0.55, 0.85, tfbm(u * 0.8, v * 0.6, 2, S + 23, 4)) * (P.age ?? 0.25);
+    const t = 0.93 + 0.09 * peel - 0.05 * patch - 0.12 * age;
+    o.r = c[0] * t * (1 - scuff * 0.22);
+    o.g = c[1] * t * (1 - scuff * 0.22);
+    o.b = c[2] * t * (1 - scuff * 0.20);
+    o.rough = 0.90 - 0.08 * patch;
+    o.h = 0.5 + 0.16 * peel + 0.05 * patch;
+  },
+
+  /* Oak boards. The grain is ridged noise stretched hard along the board, the
+   * boards are offset row to row so the end joints never line up, and the gap
+   * between them is a real groove in the height field — that groove catching
+   * the lamp is most of what makes a floor read as wood rather than as a
+   * brown wall lying down. */
+  oak(u, v, o, P, S) {
+    const c = P.color;
+    const nBoards = P.boards || 7;
+    const rowH = 1 / nBoards;
+    const row = Math.floor(v / rowH);
+    /* Every row shifted by its own amount, so end joints stagger. */
+    const shift = lhash(row, 7, nBoards, S) * 0.87;
+    const uu = (u + shift) % 1;
+    const nLen = P.lengths || 3;
+    const board = Math.floor(uu * nLen);
+
+    const seed = S + row * 131 + board * 17;
+    const along = (uu * nLen) % 1;
+    const across = (v / rowH) % 1;
+
+    /* Grain runs the length of the board. Squashing v hard is what turns
+     * isotropic noise into something that looks sawn. */
+    const grain = tridged(along * 0.9, across * 0.06, 5, seed, 4);
+    const fine = tfbm(along * 2, across * 0.25, 22, seed + 3, 2);
+    const knot = sstep(0.88, 0.99, tfbm(along, across, 3, seed + 44, 3));
+
+    const shade = 0.80 + 0.34 * grain + 0.10 * fine
+      + (lhash(board, row, nLen, S + 9) - 0.5) * 0.22;   /* board-to-board tone */
+
+    let r = c[0] * shade, g = c[1] * shade, b = c[2] * shade;
+    r = mix(r, r * 0.42, knot); g = mix(g, g * 0.38, knot); b = mix(b, b * 0.34, knot);
+
+    /* The groove between boards, in both directions. */
+    const gapAcross = 1 - sstep(0, 0.045, Math.min(across, 1 - across));
+    const gapAlong = 1 - sstep(0, 0.012, Math.min(along, 1 - along));
+    const gap = Math.max(gapAcross, gapAlong);
+    const wear = sstep(0.5, 0.9, tfbm(u * 1.2, v * 1.2, 3, S + 61, 3)) * (P.wear ?? 0.3);
+
+    o.r = mix(r, r * 0.30, gap) * (1 - wear * 0.12);
+    o.g = mix(g, g * 0.28, gap) * (1 - wear * 0.12);
+    o.b = mix(b, b * 0.26, gap) * (1 - wear * 0.10);
+    o.rough = mix(P.gloss ? 0.34 : 0.62, 0.85, wear) + 0.10 * grain;
+    o.h = 0.62 + 0.16 * grain + 0.06 * fine - 0.62 * gap;
+  },
+
+  /* Glazed floor tile with a grout line. The grout is darker, much rougher and
+   * genuinely recessed; the tile face is nearly smooth with a slow mottle so
+   * the specular from a moving lamp crawls over it. */
+  tile(u, v, o, P, S) {
+    const c = P.color;
+    const n = P.tiles || 6;
+    const gu = gridLine(u, n), gv = gridLine(v, n);
+    const line = Math.min(gu, gv);
+    const grout = 1 - sstep(0.010, 0.030, line);
+
+    const cell = Math.floor(u * n) + Math.floor(v * n) * n;
+    const tone = 0.94 + (lhash(cell, 3, n * n, S) - 0.5) * 0.13;
+    const mott = tfbm(u * 2, v * 2, 9, S + 12, 4);
+    const t = tone * (0.93 + 0.14 * mott);
+
+    const gc = P.grout || [0.30, 0.29, 0.27];
+    const dirt = sstep(0.4, 0.9, tfbm(u, v, 5, S + 88, 3));
+
+    o.r = mix(c[0] * t, gc[0] * (0.8 + 0.3 * dirt), grout);
+    o.g = mix(c[1] * t, gc[1] * (0.8 + 0.3 * dirt), grout);
+    o.b = mix(c[2] * t, gc[2] * (0.8 + 0.3 * dirt), grout);
+    o.rough = mix(0.22 + 0.12 * mott, 0.94, grout);
+    o.h = mix(0.72, 0.18, grout);
+  },
+
+  /* Hung wallpaper: a seam every strip, a pebbled emboss, and a vertical
+   * stripe if the room wants one. There is deliberately no term in `v` alone —
+   * a texture that darkens towards its own bottom edge lays a hard horizontal
+   * line across the wall once per repeat. */
+  wallpaper(u, v, o, P, S) {
+    const c = P.color;
+    const mott = tfbm(u, v, 3, S, 5);
+    const fine = tfbm(u, v, 44, S + 91, 2);
+    let tint = 0.86 + 0.24 * mott + 0.07 * fine;
+
+    const seam = gridLine(u, P.strips || 3);
+    tint *= 1 - 0.13 * (1 - sstep(0, 0.009, seam));
+
+    /* Optional damask stripe. Two frequencies so it does not read as a bar
+     * code, and low contrast so it survives being tiled. */
+    let stripe = 0;
+    if (P.stripe) {
+      const sN = P.stripe;
+      const t1 = Math.cos(u * Math.PI * 2 * sN) * 0.5 + 0.5;
+      const t2 = Math.cos(u * Math.PI * 2 * sN * 3 + 1.2) * 0.5 + 0.5;
+      /* Low contrast on purpose. A wallpaper stripe strong enough to read as
+       * a pattern in a screenshot reads as corduroy across a whole wall. */
+      stripe = (t1 * 0.7 + t2 * 0.3) * 0.075;
+    }
+
+    const damp = sstep(0.60, 0.86, tfbm(u * 0.7, v * 0.5, 2, S + 17, 4)) * (P.damp || 0);
+
+    let r = c[0] * (tint - stripe), g = c[1] * (tint - stripe), b = c[2] * (tint - stripe);
+    r = mix(r, r * 0.70 + 0.05, damp);
+    g = mix(g, g * 0.66 + 0.04, damp);
+    b = mix(b, b * 0.58 + 0.02, damp);
+
+    o.r = r; o.g = g; o.b = b;
+    o.rough = 0.84 - 0.12 * fine + 0.10 * damp;
+    o.h = 0.5 + 0.26 * fine + 0.09 * mott - 0.5 * (1 - sstep(0, 0.011, seam)) + stripe * 1.4;
+  },
+
+  /*
+   * Rough sawn pine — the barricade timber, and the single most important
+   * material in the game. It is what the player has spent their afternoon on
+   * and what they stare at while something works on the other side of it, so
+   * it gets saw marks across the grain, split ends, and a much stronger height
+   * field than anything else in the villa. It should look nailed on in a
+   * hurry, because it was.
+   */
+  timber(u, v, o, P, S) {
+    const c = P.color;
+    const grain = tridged(u * 1.1, v * 0.05, 6, S, 4);
+    const fine = tfbm(u * 3, v * 0.2, 30, S + 7, 2);
+    /* Saw marks: a fast ripple across the board, not along it. */
+    const saw = (Math.sin(u * Math.PI * 2 * 34 + tfbm(u, v, 5, S + 2, 2) * 6) * 0.5 + 0.5);
+    const knot = sstep(0.84, 0.98, tfbm(u * 1.5, v * 0.5, 4, S + 44, 3));
+    const split = sstep(0.90, 1.0, tridged(u * 0.6, v * 0.1, 3, S + 71, 3));
+
+    const shade = 0.78 + 0.32 * grain + 0.12 * fine + 0.06 * saw;
+    let r = c[0] * shade, g = c[1] * shade, b = c[2] * shade;
+    r = mix(r, r * 0.40, knot); g = mix(g, g * 0.36, knot); b = mix(b, b * 0.32, knot);
+    r = mix(r, r * 0.25, split); g = mix(g, g * 0.24, split); b = mix(b, b * 0.22, split);
+
+    o.r = r; o.g = g; o.b = b;
+    o.rough = 0.90 + 0.06 * grain;
+    o.h = 0.5 + 0.30 * grain + 0.14 * fine + 0.10 * saw - 0.45 * split - 0.25 * knot;
+  },
+
+  /* Packing tape. Nearly clear, quite glossy, and creased — the creases are
+   * the whole point, because a flat translucent quad reads as a bug and a
+   * creased one reads as tape. Cut out along the strip edges so it can be laid
+   * across an opening as a single quad. */
+  tape(u, v, o, P, S) {
+    const c = P.color || [0.78, 0.74, 0.62];
+    const crease = tridged(u * 0.4, v * 2.2, 7, S, 3);
+    const bubble = sstep(0.62, 0.86, tfbm(u * 2, v * 6, 12, S + 5, 3));
+    const t = 0.88 + 0.22 * crease + 0.14 * bubble;
+    o.r = c[0] * t; o.g = c[1] * t; o.b = c[2] * t;
+    o.rough = 0.18 + 0.24 * crease;
+    o.h = 0.5 + 0.34 * crease + 0.10 * bubble;
+    /* The strip runs along u; feather the long edges so it is not a hard
+     * rectangle of plastic. */
+    const edge = sstep(0, 0.06, Math.min(v, 1 - v));
+    o.mask = edge;
+  },
+
+  /* A painted panelled door: two sunk panels with a moulded edge. The panels
+   * are cut in the height field, so the lamp finds them. */
+  door(u, v, o, P, S) {
+    const c = P.color;
+    const peel = tfbm(u, v, 20, S, 3);
+    /* Two panels stacked in v, inset from the stiles and rails. */
+    const inU = sstep(0.16, 0.20, u) * (1 - sstep(0.80, 0.84, u));
+    const panelV = (v < 0.5)
+      ? sstep(0.10, 0.14, v) * (1 - sstep(0.40, 0.44, v))
+      : sstep(0.56, 0.60, v) * (1 - sstep(0.86, 0.90, v));
+    const panel = inU * panelV;
+    const grime = sstep(0.6, 0.95, tfbm(u * 2, v, 6, S + 31, 3)) * 0.4;
+
+    const t = (0.94 + 0.08 * peel) * (1 - panel * 0.10) * (1 - grime * 0.18);
+    o.r = c[0] * t; o.g = c[1] * t; o.b = c[2] * t;
+    o.rough = 0.52 - 0.10 * panel + 0.2 * grime;
+    o.h = 0.62 - 0.34 * panel + 0.08 * peel;
+  },
+
+  /* Window glass. Almost nothing — a little unevenness so the reflection is
+   * not a mirror, and grime at the edges. Emissive is left at zero; whatever
+   * is on the other side is drawn, not faked. */
+  glass(u, v, o, P, S) {
+    const c = P.color || [0.06, 0.08, 0.10];
+    const ripple = tfbm(u, v, 6, S, 3);
+    const grime = sstep(0.55, 0.95, tfbm(u * 1.4, v * 1.4, 4, S + 12, 3));
+    const edge = 1 - sstep(0.02, 0.12, Math.min(Math.min(u, 1 - u), Math.min(v, 1 - v)));
+    const dirt = Math.max(grime * 0.5, edge * 0.7);
+    o.r = mix(c[0], 0.19, dirt); o.g = mix(c[1], 0.19, dirt); o.b = mix(c[2], 0.18, dirt);
+    o.rough = mix(0.05, 0.55, dirt) + 0.05 * ripple;
+    o.h = 0.5 + 0.05 * ripple;
+  },
+
+  /* Brick, seen through a broken opening. Stretcher bond: every other course
+   * offset by half a brick. */
+  brick(u, v, o, P, S) {
+    const c = P.color;
+    const rows = P.rows || 9;
+    const cols = P.cols || 4;
+    const row = Math.floor(v * rows);
+    const uu = (u + (row % 2) * 0.5 / cols) % 1;
+    const gu = gridLine(uu, cols), gv = gridLine(v, rows);
+    const mortar = Math.max(1 - sstep(0.012, 0.030, gu), 1 - sstep(0.010, 0.026, gv));
+
+    const cell = Math.floor(uu * cols) + row * cols;
+    const tone = 0.82 + (lhash(cell, 5, cols * rows, S) - 0.5) * 0.34;
+    const pit = tfbm(u * 4, v * 4, 26, S + 3, 3);
+    const t = tone * (0.90 + 0.18 * pit);
+
+    const mc = P.mortar || [0.52, 0.50, 0.46];
+    o.r = mix(c[0] * t, mc[0], mortar);
+    o.g = mix(c[1] * t, mc[1], mortar);
+    o.b = mix(c[2] * t, mc[2], mortar);
+    o.rough = mix(0.88 - 0.08 * pit, 0.96, mortar);
+    o.h = mix(0.68 + 0.18 * pit, 0.22, mortar);
+  },
+
+  /* Upholstery and bedding. Woven at two scales so it does not moiré. */
+  fabric(u, v, o, P, S) {
+    const c = P.color;
+    const warp = Math.sin(u * Math.PI * 2 * (P.weave || 120)) * 0.5 + 0.5;
+    const weft = Math.sin(v * Math.PI * 2 * (P.weave || 120)) * 0.5 + 0.5;
+    const cloth = (warp * weft) * 0.6 + 0.4;
+    const fuzz = tfbm(u, v, 90, S, 2);
+    const fold = tfbm(u * 0.6, v * 0.6, 3, S + 8, 4);
+    const t = 0.74 + 0.24 * cloth + 0.14 * fuzz + 0.16 * fold;
+    o.r = c[0] * t; o.g = c[1] * t; o.b = c[2] * t;
+    o.rough = 0.94 - 0.05 * cloth;
+    o.h = 0.45 + 0.30 * cloth + 0.20 * fuzz;
+  },
+
+  /* Painted or bare metal: hinges, the stove, the rifle, the nail heads. */
+  metal(u, v, o, P, S) {
+    const c = P.color;
+    const brush = tfbm(u * 12, v * 0.3, 40, S, 2);
+    const pit = sstep(0.80, 0.97, tfbm(u * 3, v * 3, 18, S + 6, 3));
+    const rust = sstep(0.66, 0.94, tfbm(u, v, 5, S + 33, 3)) * (P.rust ?? 0.15);
+    let t = 0.88 + 0.16 * brush;
+    let r = c[0] * t, g = c[1] * t, b = c[2] * t;
+    r = mix(r, 0.36, rust); g = mix(g, 0.20, rust); b = mix(b, 0.11, rust);
+    o.r = r * (1 - pit * 0.3); o.g = g * (1 - pit * 0.3); o.b = b * (1 - pit * 0.3);
+    o.rough = mix(P.gloss ?? 0.35, 0.92, Math.max(rust, pit * 0.6)) + 0.06 * brush;
+    o.h = 0.6 + 0.10 * brush - 0.4 * pit;
+  },
+
+  /* Artexed ceiling — the stippled swirl every house of this age has. */
+  ceiling(u, v, o, P, S) {
+    const c = P.color;
+    const stipple = tworley(u, v, P.density || 70, S);
+    const swirl = tridged(u, v, 4, S + 2, 3);
+    const stain = sstep(0.72, 0.95, tfbm(u * 0.8, v * 0.8, 3, S + 40, 4)) * (P.stain ?? 0.3);
+    const t = 0.92 + 0.14 * stipple + 0.06 * swirl;
+    o.r = mix(c[0] * t, 0.44, stain * 0.5);
+    o.g = mix(c[1] * t, 0.40, stain * 0.5);
+    o.b = mix(c[2] * t, 0.33, stain * 0.5);
+    o.rough = 0.95;
+    o.h = 0.42 + 0.42 * stipple + 0.12 * swirl;
+  },
+
+  /* Bare screed, in the equipment room, where nobody laid anything nicer. */
+  concrete(u, v, o, P, S) {
+    const c = P.color;
+    const agg = tworley(u, v, 40, S);
+    const wash = tfbm(u, v, 5, S + 1, 5);
+    const crack = sstep(0.93, 1.0, tridged(u * 0.7, v * 0.7, 3, S + 55, 4));
+    const t = 0.86 + 0.20 * wash + 0.10 * agg;
+    o.r = c[0] * t * (1 - crack * 0.5);
+    o.g = c[1] * t * (1 - crack * 0.5);
+    o.b = c[2] * t * (1 - crack * 0.5);
+    o.rough = 0.93 - 0.06 * agg;
+    o.h = 0.5 + 0.16 * agg + 0.12 * wash - 0.6 * crack;
+  },
+
+  /*
+   * What is outside. Not a skybox — a material for the quad that seals each
+   * window and door, so an opening reads as "there is something out there and
+   * you cannot see it" rather than as a hole into the void. Almost black, with
+   * the faintest cold gradient and a slow crawl to it.
+   */
+  night(u, v, o, P, S) {
+    const c = P.color || [0.020, 0.028, 0.042];
+    const drift = tfbm(u * 0.5, v * 0.5, 2, S, 4);
+    const fog = tfbm(u, v, 6, S + 3, 3);
+    const t = 0.7 + 0.7 * drift + 0.2 * fog;
+    o.r = c[0] * t; o.g = c[1] * t; o.b = c[2] * t;
+    o.rough = 1.0;
+    o.h = 0.5;
+  },
+};
+const MATERIAL_KINDS = Object.keys(KINDS);
+
+/* ------------------------------------------------------------------ *
+ * Baking
+ * ------------------------------------------------------------------ */
+
+/*
+ * Run one recipe over a size×size grid, then Sobel the height field into a
+ * normal map. Output is two RGBA byte arrays ready for texSubImage3D:
+ *
+ *   albedo:  rgb = colour (sRGB), a = roughness
+ *   normal:  rg  = tangent-space normal xy, b = height or cut-out mask,
+ *            a   = emissive
+ */
+function bakeMaterial(def, size) {
+  const S = (def.seed ?? 0) | 0;
+  const kind = KINDS[def.kind] || KINDS.concrete;
+  const P = Object.assign({}, def);
+  P.color = parseColor(def.color || '#808080');
+
+  const alb = new Uint8Array(size * size * 4);
+  const nrm = new Uint8Array(size * size * 4);
+  const height = new Float32Array(size * size);
+  const emis = new Float32Array(size * size);
+  const mask = new Float32Array(size * size);
+
+  const o = { r: 0, g: 0, b: 0, rough: 0.8, h: 0.5, em: 0, mask: 1 };
+  for (let y = 0; y < size; y++) {
+    const v = (y + 0.5) / size;
+    for (let x = 0; x < size; x++) {
+      const u = (x + 0.5) / size;
+      o.r = o.g = o.b = 0; o.rough = 0.8; o.h = 0.5; o.em = 0; o.mask = 1;
+      kind(u, v, o, P, S);
+      const i = y * size + x;
+      alb[i * 4]     = clamp01(o.r) * 255;
+      alb[i * 4 + 1] = clamp01(o.g) * 255;
+      alb[i * 4 + 2] = clamp01(o.b) * 255;
+      alb[i * 4 + 3] = clamp01(o.rough) * 255;
+      height[i] = o.h;
+      emis[i] = o.em;
+      mask[i] = o.mask;
+    }
+  }
+
+  /* Sobel, wrapping at the edges so the normal map tiles exactly like the
+   * albedo does. `bumpScale` is per-material: carpet wants ten times what
+   * painted plaster wants. */
+  const bump = (def.bump ?? 1) * size / 128;
+  for (let y = 0; y < size; y++) {
+    const ym = ((y - 1) + size) % size, yp = (y + 1) % size;
+    for (let x = 0; x < size; x++) {
+      const xm = ((x - 1) + size) % size, xp = (x + 1) % size;
+      const h = (ix, iy) => height[iy * size + ix];
+      const dx = (h(xp, ym) + 2 * h(xp, y) + h(xp, yp))
+               - (h(xm, ym) + 2 * h(xm, y) + h(xm, yp));
+      const dy = (h(xm, yp) + 2 * h(x, yp) + h(xp, yp))
+               - (h(xm, ym) + 2 * h(x, ym) + h(xp, ym));
+      let nx = -dx * bump, ny = -dy * bump, nz = 1;
+      const len = Math.hypot(nx, ny, nz);
+      nx /= len; ny /= len;
+      const i = y * size + x;
+      nrm[i * 4]     = (nx * 0.5 + 0.5) * 255;
+      nrm[i * 4 + 1] = (ny * 0.5 + 0.5) * 255;
+      /* Cut-out materials put coverage here; everything else puts height,
+       * which the shader ignores unless a cut-out threshold is set. */
+      nrm[i * 4 + 2] = clamp01(def.cutout ? mask[i] : height[i]) * 255;
+      nrm[i * 4 + 3] = clamp01(emis[i]) * 255;
+    }
+  }
+
+  return { albedo: alb, normal: nrm };
+}
+
+  return {
+    "parseColor": parseColor,
+    "MATERIAL_KINDS": MATERIAL_KINDS,
+    "bakeMaterial": bakeMaterial,
+  };
+})();
+
+__m["villa/src/core/math.js"] = (function () {
+/*
+ * math.js — vectors, matrices and the frustum test.
+ *
+ * A sibling of backrooms/src/core/math.js rather than an import of it. Every
+ * app on this origin is self-contained on purpose: one of them can be deleted
+ * or rewritten without the other three noticing, and a shared engine module
+ * between two games that are balanced and shipped separately is a coupling
+ * that only ever costs. This file is generic linear algebra and there is
+ * nothing villa-specific to add to it.
+ */
+
+const DEG = Math.PI / 180;
+
+function clamp(v, lo, hi) { return v < lo ? lo : v > hi ? hi : v; }
+function lerp(a, b, t) { return a + (b - a) * t; }
+function smoothstep(e0, e1, x) {
+  const t = clamp((x - e0) / (e1 - e0), 0, 1);
+  return t * t * (3 - 2 * t);
+}
+/* Frame-rate independent exponential approach. `rate` is roughly "how much of
+ * the gap is closed per second"; dt scaling keeps a 30fps machine from feeling
+ * different to a 144fps one. */
+function damp(a, b, rate, dt) { return lerp(a, b, 1 - Math.exp(-rate * dt)); }
+
+function mat4() {
+  const m = new Float32Array(16);
+  m[0] = m[5] = m[10] = m[15] = 1;
+  return m;
+}
+
+function identity(m) {
+  m.fill(0);
+  m[0] = m[5] = m[10] = m[15] = 1;
+  return m;
+}
+
+function perspective(out, fovy, aspect, near, far) {
+  const f = 1 / Math.tan(fovy / 2);
+  out.fill(0);
+  out[0] = f / aspect;
+  out[5] = f;
+  out[11] = -1;
+  out[10] = (far + near) / (near - far);
+  out[14] = (2 * far * near) / (near - far);
+  return out;
+}
+
+function ortho(out, l, r, b, t, n, f) {
+  out.fill(0);
+  out[0] = 2 / (r - l);
+  out[5] = 2 / (t - b);
+  out[10] = -2 / (f - n);
+  out[12] = -(r + l) / (r - l);
+  out[13] = -(t + b) / (t - b);
+  out[14] = -(f + n) / (f - n);
+  out[15] = 1;
+  return out;
+}
+
+function multiply(out, a, b) {
+  for (let c = 0; c < 4; c++) {
+    const b0 = b[c * 4], b1 = b[c * 4 + 1], b2 = b[c * 4 + 2], b3 = b[c * 4 + 3];
+    out[c * 4]     = a[0] * b0 + a[4] * b1 + a[8]  * b2 + a[12] * b3;
+    out[c * 4 + 1] = a[1] * b0 + a[5] * b1 + a[9]  * b2 + a[13] * b3;
+    out[c * 4 + 2] = a[2] * b0 + a[6] * b1 + a[10] * b2 + a[14] * b3;
+    out[c * 4 + 3] = a[3] * b0 + a[7] * b1 + a[11] * b2 + a[15] * b3;
+  }
+  return out;
+}
+
+/*
+ * View matrix straight from an FPS camera: position plus yaw/pitch, no roll.
+ * This is the inverse of the camera transform, built directly rather than by
+ * composing and inverting — fewer ops and no chance of an inverse going
+ * singular on a degenerate up vector, which is the classic lookAt failure when
+ * you stare at the ceiling.
+ */
+function viewFromEuler(out, px, py, pz, yaw, pitch) {
+  const cy = Math.cos(yaw), sy = Math.sin(yaw);
+  const cp = Math.cos(pitch), sp = Math.sin(pitch);
+
+  /* Camera basis: right, up, forward(-z). */
+  const rx = cy,       ry = 0,   rz = -sy;
+  const ux = sy * sp,  uy = cp,  uz = cy * sp;
+  const fx = sy * cp,  fy = -sp, fz = cy * cp;
+
+  out[0] = rx; out[4] = ry; out[8]  = rz;  out[12] = -(rx * px + ry * py + rz * pz);
+  out[1] = ux; out[5] = uy; out[9]  = uz;  out[13] = -(ux * px + uy * py + uz * pz);
+  out[2] = fx; out[6] = fy; out[10] = fz;  out[14] = -(fx * px + fy * py + fz * pz);
+  out[3] = 0;  out[7] = 0;  out[11] = 0;   out[15] = 1;
+  return out;
+}
+
+/* Forward direction for the same yaw/pitch convention as viewFromEuler.
+ * yaw=0 looks down -Z; yaw grows counter-clockwise seen from above. */
+function forwardFromEuler(yaw, pitch, out) {
+  const cp = Math.cos(pitch);
+  out[0] = -Math.sin(yaw) * cp;
+  out[1] = Math.sin(pitch);
+  out[2] = -Math.cos(yaw) * cp;
+  return out;
+}
+
+function normalize3(v) {
+  const l = Math.hypot(v[0], v[1], v[2]) || 1;
+  v[0] /= l; v[1] /= l; v[2] /= l;
+  return v;
+}
+
+/*
+ * Six frustum planes pulled out of a view-projection matrix (Gribb/Hartmann).
+ * Planes come out as [a,b,c,d] with the normal pointing inwards, so a point is
+ * inside when a*x + b*y + c*z + d >= 0. Used to skip chunks, which matters far
+ * more here than it sounds: a chunk is a few thousand triangles and the fog
+ * hides most of them anyway.
+ */
+function frustumFromMatrix(m, out) {
+  const p = out || new Float32Array(24);
+  for (let i = 0; i < 3; i++) {
+    const s = i * 2;
+    /* row3 + rowI, then row3 - rowI */
+    p[s * 4]     = m[3]  + m[i];
+    p[s * 4 + 1] = m[7]  + m[4 + i];
+    p[s * 4 + 2] = m[11] + m[8 + i];
+    p[s * 4 + 3] = m[15] + m[12 + i];
+    p[(s + 1) * 4]     = m[3]  - m[i];
+    p[(s + 1) * 4 + 1] = m[7]  - m[4 + i];
+    p[(s + 1) * 4 + 2] = m[11] - m[8 + i];
+    p[(s + 1) * 4 + 3] = m[15] - m[12 + i];
+  }
+  for (let i = 0; i < 6; i++) {
+    const o = i * 4;
+    const l = Math.hypot(p[o], p[o + 1], p[o + 2]) || 1;
+    p[o] /= l; p[o + 1] /= l; p[o + 2] /= l; p[o + 3] /= l;
+  }
+  return p;
+}
+
+function aabbInFrustum(planes, minX, minY, minZ, maxX, maxY, maxZ) {
+  for (let i = 0; i < 6; i++) {
+    const o = i * 4;
+    const a = planes[o], b = planes[o + 1], c = planes[o + 2], d = planes[o + 3];
+    /* Positive vertex: the corner furthest along the plane normal. If even that
+     * one is behind the plane, the whole box is out. */
+    const x = a >= 0 ? maxX : minX;
+    const y = b >= 0 ? maxY : minY;
+    const z = c >= 0 ? maxZ : minZ;
+    if (a * x + b * y + c * z + d < 0) return false;
+  }
+  return true;
+}
+
+  return {
+    "DEG": DEG,
+    "clamp": clamp,
+    "lerp": lerp,
+    "smoothstep": smoothstep,
+    "damp": damp,
+    "mat4": mat4,
+    "identity": identity,
+    "perspective": perspective,
+    "ortho": ortho,
+    "multiply": multiply,
+    "viewFromEuler": viewFromEuler,
+    "forwardFromEuler": forwardFromEuler,
+    "normalize3": normalize3,
+    "frustumFromMatrix": frustumFromMatrix,
+    "aabbInFrustum": aabbInFrustum,
+  };
+})();
+
+__m["villa/src/render/renderer.js"] = (function () {
+/*
+ * renderer.js — one forward pass, then a lens.
+ *
+ * The villa is a small, fixed building, which changes what a renderer should
+ * spend its budget on. There is no streaming, no chunk culling and no shadow
+ * map: the whole house is a handful of static meshes plus a short list of
+ * dynamic ones, and it all fits comfortably in a few draw calls.
+ *
+ *   scene       every surface, up to sixteen point lights and the torch, into
+ *               a half-float target;
+ *   bright      threshold;
+ *   blur        separable gaussian, ping-ponged;
+ *   composite   bloom back in, ACES, vignette, aberration, grain, dither.
+ *
+ * Two passes over the geometry rather than one: opaque first with depth write
+ * on, then cut-out materials (the tape) with a discard threshold. Keeping the
+ * cut-outs separate means the opaque pass never pays for the discard, and the
+ * tape never has to be depth-sorted against itself.
+ *
+ * The renderer knows nothing about the game. It is handed a view — meshes,
+ * lights, a camera and a mood — and draws it.
+ */
+
+const { createContext, createProgram, createArrayTexture, createTarget, destroyTarget, createFullscreenVAO, createMeshVAO, destroyMesh, } = __m["villa/src/core/gl.js"];
+const { SCENE_VERT, SCENE_FRAG, POST_VERT, BRIGHT_FRAG, BLUR_FRAG, COMPOSITE_FRAG, MAX_LIGHTS, } = __m["villa/src/render/shaders.js"];
+const { bakeMaterial } = __m["villa/src/render/textures.js"];
+const { mat4, perspective, multiply, viewFromEuler } = __m["villa/src/core/math.js"];
+
+class Renderer {
+  constructor(canvas, quality = {}) {
+    const ctx = createContext(canvas);
+    if (!ctx) throw new Error('WebGL2 is required and this browser did not provide it.');
+    this.canvas = canvas;
+    this.gl = ctx.gl;
+    this.caps = ctx.caps;
+    this.quality = Object.assign({
+      renderScale: 1,
+      textureSize: 256,
+      bloom: true,
+      grain: 0.032,
+      exposure: 1.15,
+    }, quality);
+
+    const gl = this.gl;
+    this.pScene = createProgram(gl, SCENE_VERT, SCENE_FRAG, 'scene');
+    this.pBright = createProgram(gl, POST_VERT, BRIGHT_FRAG, 'bright');
+    this.pBlur = createProgram(gl, POST_VERT, BLUR_FRAG, 'blur');
+    this.pComposite = createProgram(gl, POST_VERT, COMPOSITE_FRAG, 'composite');
+    this.fsVAO = createFullscreenVAO(gl);
+
+    this.proj = mat4();
+    this.view = mat4();
+    this.viewProj = mat4();
+
+    /* Scratch, allocated once. A renderer that allocates per frame is a
+     * renderer that stutters every few seconds when the collector runs. */
+    this.lightPos = new Float32Array(MAX_LIGHTS * 3);
+    this.lightColor = new Float32Array(MAX_LIGHTS * 3);
+    this.lightRange = new Float32Array(MAX_LIGHTS);
+    this.flicker = new Float32Array(8);
+    this.flicker[0] = 1;
+
+    this.targets = null;
+    this.albedoTex = null;
+    this.normalTex = null;
+    this.materials = [];
+    this.resize();
+  }
+
+  /* ---------------------------------------------------------- materials */
+
+  /*
+   * Bake every material into one 2D array texture pair. This is why the whole
+   * villa draws in two calls: the material index rides in the vertex data, so
+   * plaster, oak, timber and glass all come out of one bind.
+   *
+   * Baking is the slowest thing this game does — a second or so at 256px —
+   * which is why it happens once, behind a loading screen, and never again.
+   */
+  setMaterials(defs) {
+    const gl = this.gl;
+    const size = this.quality.textureSize;
+    this.materials = defs;
+
+    const albedo = [];
+    const normal = [];
+    for (const def of defs) {
+      const baked = bakeMaterial(def, size);
+      albedo.push(baked.albedo);
+      normal.push(baked.normal);
+    }
+
+    if (this.albedoTex) gl.deleteTexture(this.albedoTex);
+    if (this.normalTex) gl.deleteTexture(this.normalTex);
+    /* Albedo is sRGB so the sampler converts it; the normal map must not be,
+     * because its channels are directions and a gamma curve is not something
+     * you can apply to a direction. */
+    this.albedoTex = createArrayTexture(gl, this.caps, size, size, defs.length, albedo, { srgb: true });
+    this.normalTex = createArrayTexture(gl, this.caps, size, size, defs.length, normal, { srgb: false });
+  }
+
+  materialIndex(name) {
+    const i = this.materials.findIndex((m) => m.name === name);
+    return i < 0 ? 0 : i;
+  }
+
+  /* ------------------------------------------------------------ meshes */
+
+  upload(data) {
+    if (!data || !data.indices || data.indices.length === 0) return null;
+    return createMeshVAO(this.gl, this.pScene, data.vertices, data.indices);
+  }
+
+  /*
+   * A mesh that changes every frame — the intruders, and whatever is standing
+   * on the other side of a window. Rebuilding a VAO sixty times a second means
+   * allocating and freeing GL buffers sixty times a second, which is how a
+   * renderer ends up stuttering on a schedule. This keeps the buffers and
+   * overwrites their contents, growing only when the geometry outgrows them.
+   */
+  uploadDynamic(handle, data) {
+    const gl = this.gl;
+    if (!data || !data.indices || data.indices.length === 0) {
+      if (handle) handle.count = 0;
+      return handle;
+    }
+    if (!handle || data.vertices.length > handle.vCap || data.indices.length > handle.iCap) {
+      if (handle) destroyMesh(gl, handle);
+      /* Half again, so a mesh that grows steadily does not reallocate on
+       * every single frame of the growth. */
+      const vCap = Math.ceil(data.vertices.length * 1.5);
+      const iCap = Math.ceil(data.indices.length * 1.5);
+      const next = createMeshVAO(gl, this.pScene,
+        new Float32Array(vCap), new Uint32Array(iCap));
+      next.vCap = vCap;
+      next.iCap = iCap;
+      handle = next;
+    }
+    gl.bindBuffer(gl.ARRAY_BUFFER, handle.vbo);
+    gl.bufferSubData(gl.ARRAY_BUFFER, 0, data.vertices);
+    gl.bindBuffer(gl.ELEMENT_ARRAY_BUFFER, handle.ibo);
+    gl.bufferSubData(gl.ELEMENT_ARRAY_BUFFER, 0, data.indices);
+    handle.count = data.indices.length;
+    return handle;
+  }
+
+  release(mesh) {
+    destroyMesh(this.gl, mesh);
+  }
+
+  /* ------------------------------------------------------------ resize */
+
+  resize() {
+    const gl = this.gl;
+    const dpr = Math.min(window.devicePixelRatio || 1, 2);
+    const scale = this.quality.renderScale;
+    const w = Math.max(320, Math.floor(this.canvas.clientWidth * dpr * scale));
+    const h = Math.max(240, Math.floor(this.canvas.clientHeight * dpr * scale));
+    if (this.targets && this.targets.w === w && this.targets.h === h) return;
+
+    this.canvas.width = w;
+    this.canvas.height = h;
+
+    if (this.targets) {
+      destroyTarget(gl, this.targets.scene);
+      destroyTarget(gl, this.targets.bloomA);
+      destroyTarget(gl, this.targets.bloomB);
+    }
+    const bw = Math.max(2, w >> 2);
+    const bh = Math.max(2, h >> 2);
+    this.targets = {
+      w, h,
+      scene: createTarget(gl, this.caps, w, h, { depth: true }),
+      bloomA: createTarget(gl, this.caps, bw, bh, {}),
+      bloomB: createTarget(gl, this.caps, bw, bh, {}),
+    };
+  }
+
+  /* ------------------------------------------------------------ render */
+
+  /*
+   * `view` is the whole frame:
+   *   camera   { x, y, z, yaw, pitch, fov }
+   *   meshes   [{ mesh, cutout }]
+   *   lights   [{ x, y, z, r, g, b, range, group }]
+   *   torch    { on, level, range, inner, outer }
+   *   ambient  [r, g, b]
+   *   fog      { color: [r,g,b], density }
+   *   stress   0..1, drives the lens
+   *   time     seconds, for grain and flicker
+   */
+  render(view) {
+    const gl = this.gl;
+    const t = this.targets;
+    const cam = view.camera;
+
+    perspective(this.proj, (cam.fov || 68) * Math.PI / 180, t.w / t.h, 0.04, 90);
+    viewFromEuler(this.view, cam.x, cam.y, cam.z, cam.yaw, cam.pitch);
+    multiply(this.viewProj, this.proj, this.view);
+
+    /* ---- scene ---- */
+    gl.bindFramebuffer(gl.FRAMEBUFFER, t.scene.fb);
+    gl.viewport(0, 0, t.w, t.h);
+    const fog = view.fog || { color: [0.01, 0.012, 0.02], density: 0.06 };
+    gl.clearColor(fog.color[0], fog.color[1], fog.color[2], 1);
+    gl.clear(gl.COLOR_BUFFER_BIT | gl.DEPTH_BUFFER_BIT);
+    gl.enable(gl.DEPTH_TEST);
+    gl.depthFunc(gl.LEQUAL);
+    gl.enable(gl.CULL_FACE);
+    gl.cullFace(gl.BACK);
+
+    const p = this.pScene;
+    p.use();
+    gl.uniformMatrix4fv(p.u.uViewProj, false, this.viewProj);
+    gl.uniform3f(p.u.uEye, cam.x, cam.y, cam.z);
+
+    const amb = view.ambient || [0.012, 0.014, 0.020];
+    gl.uniform3f(p.u.uAmbient, amb[0], amb[1], amb[2]);
+    gl.uniform3f(p.u.uFogColor, fog.color[0], fog.color[1], fog.color[2]);
+    gl.uniform1f(p.u.uFogDensity, fog.density);
+
+    /* Nearest sixteen. Sorting by distance rather than dropping the tail means
+     * walking into a room always lights that room, however many lamps are on
+     * elsewhere in the house. */
+    const lights = (view.lights || []).slice();
+    lights.sort((a, b) => dist2(a, cam) - dist2(b, cam));
+    const n = Math.min(lights.length, MAX_LIGHTS);
+    for (let i = 0; i < n; i++) {
+      const l = lights[i];
+      this.lightPos[i * 3] = l.x; this.lightPos[i * 3 + 1] = l.y; this.lightPos[i * 3 + 2] = l.z;
+      const f = (l.group ? this.flicker[l.group] : 1) * (l.intensity === undefined ? 1 : l.intensity);
+      this.lightColor[i * 3] = l.r * f;
+      this.lightColor[i * 3 + 1] = l.g * f;
+      this.lightColor[i * 3 + 2] = l.b * f;
+      this.lightRange[i] = l.range;
+    }
+    gl.uniform1i(p.u.uLightCount, n);
+    gl.uniform3fv(p.u.uLightPos, this.lightPos);
+    gl.uniform3fv(p.u.uLightColor, this.lightColor);
+    gl.uniform1fv(p.u.uLightRange, this.lightRange);
+    gl.uniform1fv(p.u.uFlicker, this.flicker);
+
+    const torch = view.torch || { on: false };
+    if (torch.on) {
+      const dir = forward(cam.yaw, cam.pitch);
+      gl.uniform3f(p.u.uTorchPos, cam.x, cam.y, cam.z);
+      gl.uniform3f(p.u.uTorchDir, dir[0], dir[1], dir[2]);
+      gl.uniform1f(p.u.uTorchInner, Math.cos((torch.inner || 16) * Math.PI / 180));
+      gl.uniform1f(p.u.uTorchOuter, Math.cos((torch.outer || 30) * Math.PI / 180));
+      gl.uniform1f(p.u.uTorchRange, torch.range || 16);
+      gl.uniform1f(p.u.uTorchLevel, torch.level === undefined ? 1 : torch.level);
+    } else {
+      gl.uniform1f(p.u.uTorchLevel, 0);
+    }
+
+    gl.activeTexture(gl.TEXTURE0);
+    gl.bindTexture(gl.TEXTURE_2D_ARRAY, this.albedoTex);
+    gl.uniform1i(p.u.uAlbedo, 0);
+    gl.activeTexture(gl.TEXTURE1);
+    gl.bindTexture(gl.TEXTURE_2D_ARRAY, this.normalTex);
+    gl.uniform1i(p.u.uNormal, 1);
+
+    /* Opaque first, then the cut-outs. Splitting them is what keeps the
+     * discard out of the hot path. */
+    gl.uniform1f(p.u.uCutout, 0);
+    for (const item of view.meshes) {
+      if (!item || !item.mesh || item.cutout) continue;
+      this.draw(item.mesh);
+    }
+    gl.uniform1f(p.u.uCutout, 0.5);
+    gl.disable(gl.CULL_FACE);
+    for (const item of view.meshes) {
+      if (!item || !item.mesh || !item.cutout) continue;
+      this.draw(item.mesh);
+    }
+    gl.enable(gl.CULL_FACE);
+
+    /* ---- bloom ---- */
+    gl.disable(gl.DEPTH_TEST);
+    gl.bindVertexArray(this.fsVAO);
+    let bloomTex = null;
+    if (this.quality.bloom) {
+      /* Without float targets the scene never exceeds 1.0, so a threshold of
+       * 1.0 would find nothing to bloom. Dropping it below one keeps the
+       * highlights glowing on hardware that cannot give us HDR. */
+      const threshold = t.scene.float ? 1.0 : 0.72;
+      this.pass(this.pBright, t.bloomA, (pr) => {
+        bindTex(gl, t.scene.color, 0);
+        gl.uniform1i(pr.u.uTex, 0);
+        gl.uniform1f(pr.u.uThreshold, threshold);
+      });
+      for (let i = 0; i < 3; i++) {
+        this.pass(this.pBlur, t.bloomB, (pr) => {
+          bindTex(gl, t.bloomA.color, 0);
+          gl.uniform1i(pr.u.uTex, 0);
+          gl.uniform2f(pr.u.uDir, 1 / t.bloomA.width, 0);
+        });
+        this.pass(this.pBlur, t.bloomA, (pr) => {
+          bindTex(gl, t.bloomB.color, 0);
+          gl.uniform1i(pr.u.uTex, 0);
+          gl.uniform2f(pr.u.uDir, 0, 1 / t.bloomB.height);
+        });
+      }
+      bloomTex = t.bloomA.color;
+    }
+
+    /* ---- composite ---- */
+    gl.bindFramebuffer(gl.FRAMEBUFFER, null);
+    gl.viewport(0, 0, t.w, t.h);
+    const c = this.pComposite;
+    c.use();
+    bindTex(gl, t.scene.color, 0);
+    gl.uniform1i(c.u.uScene, 0);
+    bindTex(gl, bloomTex || t.scene.color, 1);
+    gl.uniform1i(c.u.uBloom, 1);
+    gl.uniform1f(c.u.uBloomAmount, this.quality.bloom ? 0.55 : 0);
+    gl.uniform1f(c.u.uExposure, this.quality.exposure);
+    gl.uniform1f(c.u.uTime, view.time || 0);
+    gl.uniform1f(c.u.uGrain, this.quality.grain);
+    gl.uniform1f(c.u.uVignette, 0.85);
+    /* Kept small on purpose. Chromatic aberration displaces the red and blue
+     * channels by a fraction of the distance from the centre, so on
+     * high-frequency detail at the edge of frame — a stippled ceiling seen at
+     * a grazing angle is the worst case — it turns aliasing into rainbow
+     * speckle. At this strength it reads as a lens and not as a fault. */
+    gl.uniform1f(c.u.uAberration, 0.0007);
+    gl.uniform1f(c.u.uStress, view.stress || 0);
+    gl.drawArrays(gl.TRIANGLES, 0, 3);
+    gl.bindVertexArray(null);
+  }
+
+  draw(mesh) {
+    const gl = this.gl;
+    gl.bindVertexArray(mesh.vao);
+    gl.drawElements(gl.TRIANGLES, mesh.count, gl.UNSIGNED_INT, 0);
+    gl.bindVertexArray(null);
+  }
+
+  pass(prog, target, setup) {
+    const gl = this.gl;
+    gl.bindFramebuffer(gl.FRAMEBUFFER, target.fb);
+    gl.viewport(0, 0, target.width, target.height);
+    prog.use();
+    setup(prog);
+    gl.drawArrays(gl.TRIANGLES, 0, 3);
+  }
+
+  /*
+   * Flicker, computed on the CPU because it is eight numbers and the shader
+   * would have to recompute them per fragment. Group 0 never flickers. Each
+   * other group has its own rhythm: mostly steady, with an occasional
+   * stutter — a bulb that flickers constantly is a strobe, and a bulb that
+   * flickers once every few seconds is a house with something wrong with it.
+   */
+  updateFlicker(time) {
+    this.flicker[0] = 1;
+    for (let g = 1; g < 8; g++) {
+      const t = time * (0.7 + g * 0.31) + g * 17.3;
+      const base = Math.sin(t) * 0.5 + Math.sin(t * 3.7) * 0.3;
+      const stutter = Math.sin(t * 11.0) > 0.93 ? 0.45 : 1;
+      this.flicker[g] = Math.max(0.25, (0.90 + base * 0.10) * stutter);
+    }
+  }
+}
+
+function dist2(l, cam) {
+  const dx = l.x - cam.x, dy = l.y - cam.y, dz = l.z - cam.z;
+  return dx * dx + dy * dy + dz * dz;
+}
+
+/* Same convention as core/math.js forwardFromEuler and Player.forward. */
+function forward(yaw, pitch) {
+  const cp = Math.cos(pitch);
+  return [-Math.sin(yaw) * cp, Math.sin(pitch), -Math.cos(yaw) * cp];
+}
+
+function bindTex(gl, tex, unit) {
+  gl.activeTexture(gl.TEXTURE0 + unit);
+  gl.bindTexture(gl.TEXTURE_2D, tex);
+}
+
+  return {
+    "Renderer": Renderer,
+  };
+})();
+
+__m["villa/src/render/materials.js"] = (function () {
+/*
+ * materials.js — what every surface in the villa is made of.
+ *
+ * One flat table, in the order the array texture layers are uploaded, so a
+ * material's index *is* its layer. `buildVilla` and the prop builders look
+ * indices up by name through `MATERIAL_INDEX`, which means nothing anywhere
+ * hard-codes a number.
+ *
+ * The palette is doing deliberate work. Everything the house is finished in
+ * sits in a narrow band of warm greys and browns so that the three things the
+ * player has to find in a hurry — bare timber, tape, and whatever is coming
+ * through — read instantly against it. The rooms differ by warmth rather than
+ * by hue: the kitchen and the equipment room are cold and the living spaces
+ * are warm, which is enough to know which end of the house you are in from a
+ * glance at a wall.
+ */
+
+const MATERIALS = [
+  /* --- floors --- */
+  { name: 'oakLiving',  kind: 'oak',      color: '#6b4a30', bump: 1.5, boards: 8, lengths: 3, wear: 0.35, seed: 11 },
+  { name: 'oakHall',    kind: 'oak',      color: '#5f4229', bump: 1.6, boards: 5, lengths: 4, wear: 0.55, seed: 12 },
+  { name: 'oakBed',     kind: 'oak',      color: '#71523a', bump: 1.4, boards: 8, lengths: 3, wear: 0.22, seed: 13 },
+  { name: 'tileEntry',  kind: 'tile',     color: '#8d8579', bump: 1.1, tiles: 5, grout: [0.26, 0.25, 0.23], seed: 21 },
+  { name: 'tileKitchen', kind: 'tile',    color: '#a9a49a', bump: 1.1, tiles: 7, grout: [0.30, 0.30, 0.28], seed: 22 },
+  { name: 'concreteFloor', kind: 'concrete', color: '#6a6862', bump: 1.3, seed: 31 },
+
+  /* --- walls --- */
+  { name: 'plasterWarm', kind: 'plaster', color: '#a3907a', bump: 0.8, age: 0.35, seed: 41 },
+  { name: 'plasterCold', kind: 'plaster', color: '#8e9490', bump: 0.8, age: 0.30, seed: 42 },
+  { name: 'plasterBare', kind: 'plaster', color: '#7d7a72', bump: 1.0, age: 0.55, seed: 43 },
+  { name: 'wallpaperLiving', kind: 'wallpaper', color: '#7c7061', bump: 0.7, strips: 4, stripe: 4, damp: 0.18, seed: 51 },
+  { name: 'wallpaperBed',    kind: 'wallpaper', color: '#736659', bump: 0.7, strips: 3, stripe: 3, damp: 0.10, seed: 52 },
+
+  /* --- ceiling --- */
+  /* Low bump and a coarse stipple. A ceiling is nearly always seen at a
+   * grazing angle, where a fine high-contrast height field aliases into
+   * sparkle no amount of mip filtering removes. */
+  { name: 'ceilingWhite', kind: 'ceiling', color: '#b9b4a8', bump: 0.55, density: 34, stain: 0.35, seed: 61 },
+
+  /* --- the things that matter --- */
+  /* Raw pine against every finished surface in the house. It is meant to look
+   * wrong, because a boarded window is wrong. */
+  { name: 'timberPlank', kind: 'timber',  color: '#c39a63', bump: 2.4, seed: 71 },
+  { name: 'tapeStrip',   kind: 'tape',    color: '#cfc4a4', bump: 1.2, cutout: true, seed: 72 },
+
+  /* --- fittings --- */
+  { name: 'doorPaint',  kind: 'door',     color: '#6e6a60', bump: 1.2, seed: 81 },
+  { name: 'glass',      kind: 'glass',    color: '#0b1016', bump: 0.5, seed: 82 },
+  { name: 'night',      kind: 'night',    color: '#05070c', bump: 0.2, seed: 83 },
+  { name: 'brickOuter', kind: 'brick',    color: '#6d4a3c', bump: 2.0, seed: 84 },
+  { name: 'metalDark',  kind: 'metal',    color: '#5a5d61', bump: 1.0, gloss: 0.30, rust: 0.22, seed: 85 },
+  { name: 'metalPale',  kind: 'metal',    color: '#9aa0a4', bump: 0.8, gloss: 0.22, rust: 0.05, seed: 86 },
+  { name: 'lampShade',  kind: 'metal',    color: '#d8c49a', bump: 0.6, gloss: 0.5, rust: 0, seed: 87 },
+
+  /* --- furniture --- */
+  { name: 'woodDark',   kind: 'oak',      color: '#4a3527', bump: 1.2, boards: 3, lengths: 2, wear: 0.2, gloss: true, seed: 91 },
+  { name: 'woodPale',   kind: 'oak',      color: '#8a7050', bump: 1.2, boards: 4, lengths: 2, wear: 0.3, seed: 92 },
+  { name: 'fabricSofa', kind: 'fabric',   color: '#5c4a3e', bump: 1.6, weave: 140, seed: 93 },
+  { name: 'fabricBed',  kind: 'fabric',   color: '#8f8778', bump: 1.4, weave: 110, seed: 94 },
+];
+
+const MATERIAL_INDEX = Object.fromEntries(MATERIALS.map((m, i) => [m.name, i]));
+
+/* Which materials are drawn in the cut-out pass. Only the tape, which needs to
+ * be a strip with feathered edges rather than a rectangle of plastic. */
+const CUTOUT_MATERIALS = new Set(['tapeStrip']);
+
+  return {
+    "MATERIALS": MATERIALS,
+    "MATERIAL_INDEX": MATERIAL_INDEX,
+    "CUTOUT_MATERIALS": CUTOUT_MATERIALS,
+  };
+})();
+
+__m["villa/src/render/meshbuilder.js"] = (function () {
+/*
+ * meshbuilder.js — turning quads into vertex buffers.
+ *
+ * Everything drawn in this game is quads: floors, ceilings, wall faces, panes,
+ * and the boxes and cylinders that make up the furniture and the barricades.
+ * So there is exactly one quad routine, and it does the three things that are
+ * easy to get subtly wrong and impossible to notice until the lighting looks
+ * cheap:
+ *
+ *   - it derives the tangent frame from the actual UV gradient rather than
+ *     from a hand-written table, so normal maps are never mirrored or rotated;
+ *   - it subdivides, so per-vertex ambient occlusion has somewhere to live;
+ *   - it interpolates AO bilinearly across the subdivision, which is what
+ *     gives soft dark corners instead of a hard band at the skirting.
+ *
+ * Adapted from backrooms/src/world/meshbuilder.js. The fifteenth float each
+ * vertex writes — the flicker group — now has a slot in the layout to land in;
+ * see the note in core/gl.js.
+ */
+
+const { VERTEX_FLOATS } = __m["villa/src/core/gl.js"];
+
+class MeshBuilder {
+  constructor(estVerts = 8192) {
+    this.v = new Float32Array(estVerts * VERTEX_FLOATS);
+    this.i = new Uint32Array(estVerts * 2);
+    this.vn = 0;   /* vertices written */
+    this.in = 0;   /* indices written  */
+  }
+
+  _growV(needVerts) {
+    const need = (this.vn + needVerts) * VERTEX_FLOATS;
+    if (need <= this.v.length) return;
+    let cap = this.v.length || VERTEX_FLOATS;
+    while (cap < need) cap *= 2;
+    const next = new Float32Array(cap);
+    next.set(this.v);
+    this.v = next;
+  }
+
+  _growI(needIdx) {
+    const need = this.in + needIdx;
+    if (need <= this.i.length) return;
+    let cap = this.i.length || 16;
+    while (cap < need) cap *= 2;
+    const next = new Uint32Array(cap);
+    next.set(this.i);
+    this.i = next;
+  }
+
+  vertex(px, py, pz, nx, ny, nz, u, vv, tx, ty, tz, tw, ao, mat, flick) {
+    this._growV(1);
+    let o = this.vn * VERTEX_FLOATS;
+    const a = this.v;
+    a[o++] = px; a[o++] = py; a[o++] = pz;
+    a[o++] = nx; a[o++] = ny; a[o++] = nz;
+    a[o++] = u;  a[o++] = vv;
+    a[o++] = tx; a[o++] = ty; a[o++] = tz; a[o++] = tw;
+    a[o++] = ao; a[o++] = mat; a[o++] = flick;
+    return this.vn++;
+  }
+
+  tri(a, b, c) {
+    this._growI(3);
+    this.i[this.in++] = a;
+    this.i[this.in++] = b;
+    this.i[this.in++] = c;
+  }
+
+  quadIdx(a, b, c, d) { this.tri(a, b, c); this.tri(a, c, d); }
+
+  get empty() { return this.in === 0; }
+
+  finish() {
+    return {
+      vertices: this.v.subarray(0, this.vn * VERTEX_FLOATS),
+      indices: this.i.subarray(0, this.in),
+      vertexCount: this.vn,
+    };
+  }
+}
+
+const AO_FLAT = () => 1;
+
+/*
+ * One quad, wound p0→p1→p2→p3 counter-clockwise seen from the front.
+ *
+ * opts:
+ *   sub   subdivisions per axis (1 = plain quad, 2 = 2×2, …)
+ *   ao    (s,t) → occlusion in [0,1], sampled at every subdivided vertex
+ *   mat   material layer index
+ *   flick fixture phase for emissive surfaces, or -1 for "does not flicker"
+ */
+function addQuad(mb, p0, p1, p2, p3, uv0, uv1, uv2, uv3, mat, opts = {}) {
+  const sub = Math.max(1, opts.sub || 1);
+  const ao = opts.ao || AO_FLAT;
+  const flick = opts.flick === undefined ? -1 : opts.flick;
+
+  /* Face normal from the winding. */
+  const e1x = p1[0] - p0[0], e1y = p1[1] - p0[1], e1z = p1[2] - p0[2];
+  const e2x = p3[0] - p0[0], e2y = p3[1] - p0[1], e2z = p3[2] - p0[2];
+  let nx = e1y * e2z - e1z * e2y;
+  let ny = e1z * e2x - e1x * e2z;
+  let nz = e1x * e2y - e1y * e2x;
+  const nl = Math.hypot(nx, ny, nz) || 1;
+  nx /= nl; ny /= nl; nz /= nl;
+
+  /* Tangent frame from the UV gradient. */
+  const du1 = uv1[0] - uv0[0], dv1 = uv1[1] - uv0[1];
+  const du2 = uv3[0] - uv0[0], dv2 = uv3[1] - uv0[1];
+  const det = du1 * dv2 - du2 * dv1;
+  let tx, ty, tz, bx, by, bz;
+  if (Math.abs(det) < 1e-9) {
+    tx = e1x; ty = e1y; tz = e1z;
+    bx = e2x; by = e2y; bz = e2z;
+  } else {
+    const r = 1 / det;
+    tx = (e1x * dv2 - e2x * dv1) * r;
+    ty = (e1y * dv2 - e2y * dv1) * r;
+    tz = (e1z * dv2 - e2z * dv1) * r;
+    bx = (e2x * du1 - e1x * du2) * r;
+    by = (e2y * du1 - e1y * du2) * r;
+    bz = (e2z * du1 - e1z * du2) * r;
+  }
+  const tl = Math.hypot(tx, ty, tz) || 1;
+  tx /= tl; ty /= tl; tz /= tl;
+  /* Handedness: does N×T point along B, or against it? */
+  const cx = ny * tz - nz * ty;
+  const cy = nz * tx - nx * tz;
+  const cz = nx * ty - ny * tx;
+  const tw = (cx * bx + cy * by + cz * bz) < 0 ? -1 : 1;
+
+  const base = mb.vn;
+  const n1 = sub + 1;
+  for (let j = 0; j < n1; j++) {
+    const t = j / sub;
+    for (let i = 0; i < n1; i++) {
+      const s = i / sub;
+      /* Bilinear across the quad: p0 + s along the p0→p1 edge, t along p0→p3. */
+      const a = (1 - s) * (1 - t), b = s * (1 - t), c = s * t, d = (1 - s) * t;
+      const px = p0[0] * a + p1[0] * b + p2[0] * c + p3[0] * d;
+      const py = p0[1] * a + p1[1] * b + p2[1] * c + p3[1] * d;
+      const pz = p0[2] * a + p1[2] * b + p2[2] * c + p3[2] * d;
+      const u  = uv0[0] * a + uv1[0] * b + uv2[0] * c + uv3[0] * d;
+      const v  = uv0[1] * a + uv1[1] * b + uv2[1] * c + uv3[1] * d;
+      mb.vertex(px, py, pz, nx, ny, nz, u, v, tx, ty, tz, tw, ao(s, t), mat, flick);
+    }
+  }
+  for (let j = 0; j < sub; j++) {
+    for (let i = 0; i < sub; i++) {
+      const a = base + j * n1 + i;
+      mb.quadIdx(a, a + 1, a + n1 + 1, a + n1);
+    }
+  }
+}
+
+/* ------------------------------------------------------------------ *
+ * Primitives, for props
+ * ------------------------------------------------------------------ */
+
+/* Axis-aligned box, optionally yawed. UVs are in metres so a big crate and a
+ * small crate show the same grain size. */
+function addBox(mb, cx, cy, cz, sx, sy, sz, rot, mat, opts = {}) {
+  const hx = sx / 2, hy = sy / 2, hz = sz / 2;
+  const cr = Math.cos(rot || 0), sr = Math.sin(rot || 0);
+  const P = (x, y, z) => [cx + x * cr - z * sr, cy + y, cz + x * sr + z * cr];
+  const ao = opts.ao;
+  const o = { mat, ao, sub: opts.sub || 1 };
+
+  const A = P(-hx, -hy, -hz), B = P(hx, -hy, -hz), C = P(hx, hy, -hz), D = P(-hx, hy, -hz);
+  const E = P(-hx, -hy, hz), F = P(hx, -hy, hz), G = P(hx, hy, hz), H = P(-hx, hy, hz);
+  const uvW = [[0, 0], [sx, 0], [sx, sy], [0, sy]];
+  const uvD = [[0, 0], [sz, 0], [sz, sy], [0, sy]];
+  const uvT = [[0, 0], [sx, 0], [sx, sz], [0, sz]];
+
+  /*
+   * Winding matters and was wrong here for a long time: every one of these six
+   * faces used to be wound the other way, so with back-face culling on, each
+   * box drew its own interior and every normal pointed away from the lights.
+   * Crates, barrels, pipes, cars, lamp posts, desks and doors were all
+   * inside-out. It is not obvious on a small dark prop, which is exactly why
+   * it survived — verify with cross(p1-p0, p3-p0) rather than by eye.
+   */
+  addQuad(mb, F, G, H, E, ...uvW, mat, o);   /* +Z */
+  addQuad(mb, A, D, C, B, ...uvW, mat, o);   /* -Z */
+  addQuad(mb, B, C, G, F, ...uvD, mat, o);   /* +X */
+  addQuad(mb, E, H, D, A, ...uvD, mat, o);   /* -X */
+  addQuad(mb, D, H, G, C, ...uvT, mat, o);   /* +Y */
+  if (opts.bottom !== false) addQuad(mb, E, A, B, F, ...uvT, mat, o); /* -Y */
+}
+
+function addCylinder(mb, cx, cy, cz, radius, height, segments, mat, opts = {}) {
+  const seg = Math.max(3, segments | 0);
+  const ao = opts.ao || AO_FLAT;
+  const base = mb.vn;
+  const circ = 2 * Math.PI * radius;
+  for (let i = 0; i <= seg; i++) {
+    const a = (i / seg) * Math.PI * 2;
+    const nx = Math.cos(a), nz = Math.sin(a);
+    const px = cx + nx * radius, pz = cz + nz * radius;
+    const u = (i / seg) * circ;
+    /* Tangent runs around the circumference; bitangent is straight up. */
+    const tx = -nz, tz = nx;
+    mb.vertex(px, cy, pz, nx, 0, nz, u, 0, tx, 0, tz, 1, ao(0, 0), mat, -1);
+    mb.vertex(px, cy + height, pz, nx, 0, nz, u, height, tx, 0, tz, 1, ao(0, 1), mat, -1);
+  }
+  for (let i = 0; i < seg; i++) {
+    /* Same inversion as the box had: (a, a+2, a+3, a+1) faces inward. */
+    const a = base + i * 2;
+    mb.quadIdx(a, a + 1, a + 3, a + 2);
+  }
+  if (opts.cap !== false) {
+    const top = mb.vn;
+    const cIdx = mb.vertex(cx, cy + height, cz, 0, 1, 0, 0, 0, 1, 0, 0, 1, ao(0, 1), mat, -1);
+    for (let i = 0; i <= seg; i++) {
+      const a = (i / seg) * Math.PI * 2;
+      mb.vertex(cx + Math.cos(a) * radius, cy + height, cz + Math.sin(a) * radius,
+        0, 1, 0, Math.cos(a) * radius, Math.sin(a) * radius, 1, 0, 0, 1, ao(0, 1), mat, -1);
+    }
+    for (let i = 0; i < seg; i++) mb.tri(cIdx, top + 1 + i + 1, top + 1 + i);
+  }
+}
+
+/*
+ * A tapered prism hanging from a joint. Built downward from (x, yTop, z) so
+ * that rotating the model matrix swings it from the shoulder or the hip rather
+ * than around its own middle — which is the whole difference between a limb
+ * and a floating box.
+ *
+ * Taper matters more than it sounds: a limb of constant thickness reads as a
+ * plank, and the eye picks that out of a silhouette at fog distance long
+ * before it can see any surface detail.
+ */
+function addLimb(mb, x, yTop, z, top, bot, len, mat, opts = {}) {
+  const [tw, td] = top;
+  const [bw, bd] = bot;
+  const yBot = yTop - len;
+  const A = [x - tw, yTop, z - td], B = [x + tw, yTop, z - td];
+  const C = [x + tw, yTop, z + td], D = [x - tw, yTop, z + td];
+  const E = [x - bw, yBot, z - bd], F = [x + bw, yBot, z - bd];
+  const G = [x + bw, yBot, z + bd], H = [x - bw, yBot, z + bd];
+  const o = { mat, ao: opts.ao, sub: opts.sub || 1 };
+  const uvSide = [[0, 0], [tw * 2, 0], [bw * 2, len], [0, len]];
+  const uvEnd = [[0, 0], [td * 2, 0], [bd * 2, len], [0, len]];
+
+  /* Wound so each normal points out of the limb — see the note in addBox. */
+  addQuad(mb, G, C, D, H, ...uvSide, mat, o);   /* +Z */
+  addQuad(mb, E, A, B, F, ...uvSide, mat, o);   /* -Z */
+  addQuad(mb, F, B, C, G, ...uvEnd, mat, o);    /* +X */
+  addQuad(mb, H, D, A, E, ...uvEnd, mat, o);    /* -X */
+  addQuad(mb, A, D, C, B, [0, 0], [0, td * 2], [tw * 2, td * 2], [tw * 2, 0], mat, o);
+  if (opts.capBottom !== false) {
+    addQuad(mb, E, F, G, H, [0, 0], [bw * 2, 0], [bw * 2, bd * 2], [0, bd * 2], mat, o);
+  }
+}
+
+/* A UV sphere. Twelve by eight is enough for a head at any distance this game
+ * ever shows one at, and a head is the one part of a silhouette a person
+ * recognises instantly — a cube there is what made these read as furniture. */
+function addSphere(mb, cx, cy, cz, radius, segU, segV, mat, opts = {}) {
+  const su = Math.max(4, segU | 0), sv = Math.max(3, segV | 0);
+  const ao = opts.ao || AO_FLAT;
+  const sx = opts.scaleX ?? 1, sy = opts.scaleY ?? 1, sz = opts.scaleZ ?? 1;
+  const base = mb.vn;
+  for (let j = 0; j <= sv; j++) {
+    const v = j / sv;
+    const phi = v * Math.PI;
+    const sp = Math.sin(phi), cp = Math.cos(phi);
+    for (let i = 0; i <= su; i++) {
+      const u = i / su;
+      const th = u * Math.PI * 2;
+      const st = Math.sin(th), ct = Math.cos(th);
+      const nx = sp * ct, ny = cp, nz = sp * st;
+      /* Tangent runs along the parallel, which keeps normal maps upright. */
+      mb.vertex(
+        cx + nx * radius * sx, cy + ny * radius * sy, cz + nz * radius * sz,
+        nx, ny, nz,
+        u * radius * 3, v * radius * 3,
+        -st, 0, ct, 1,
+        ao(u, v), mat, -1);
+    }
+  }
+  for (let j = 0; j < sv; j++) {
+    for (let i = 0; i < su; i++) {
+      const a = base + j * (su + 1) + i;
+      const b = a + su + 1;
+      mb.quadIdx(a, a + 1, b + 1, b);
+    }
+  }
+}
+
+/* Two quads crossed at ninety degrees — the cheapest convincing plant, and
+ * with an alpha-cut material it is what a wheat field is made of. */
+function addCross(mb, cx, cy, cz, width, height, rot, mat) {
+  const w = width / 2;
+  for (let k = 0; k < 2; k++) {
+    const a = (rot || 0) + k * Math.PI / 2;
+    const dx = Math.cos(a) * w, dz = Math.sin(a) * w;
+    const p0 = [cx - dx, cy, cz - dz];
+    const p1 = [cx + dx, cy, cz + dz];
+    const p2 = [cx + dx, cy + height, cz + dz];
+    const p3 = [cx - dx, cy + height, cz - dz];
+    /* Emitted twice with opposite winding: foliage has no back face and a
+     * one-sided blade of grass vanishing as you walk round it is worse than
+     * the extra triangles. */
+    addQuad(mb, p0, p1, p2, p3, [0, 0], [1, 0], [1, 1], [0, 1], mat, { sub: 1 });
+    addQuad(mb, p1, p0, p3, p2, [1, 0], [0, 0], [0, 1], [1, 1], mat, { sub: 1 });
+  }
+}
+
+  return {
+    "MeshBuilder": MeshBuilder,
+    "addQuad": addQuad,
+    "addBox": addBox,
+    "addCylinder": addCylinder,
+    "addLimb": addLimb,
+    "addSphere": addSphere,
+    "addCross": addCross,
+  };
+})();
+
+__m["villa/src/world/build.js"] = (function () {
+/*
+ * build.js — the villa, as geometry.
+ *
+ * The floor plan in data/rooms.js is the single source of truth for the shape
+ * of the house: the same six rectangles that the 2D map draws are extruded
+ * here into walls, floors, ceilings, doorways and window reveals. Nothing
+ * about the building is authored twice, so moving a room moves it in both
+ * views and in the simulation's adjacency at once.
+ *
+ * Three things are worth knowing before reading this.
+ *
+ * **Walls have thickness.** Each room's wall planes are inset half a wall from
+ * its plan rectangle, which leaves a real gap between adjoining rooms. That
+ * gap is what a doorway is cut through, and it is why a doorway has jambs and
+ * a lintel you can see the edge of rather than being a hole in a sheet of
+ * paper. Floors and ceilings are *not* inset, so they run under and over the
+ * walls and there is never a crack of void at a skirting board.
+ *
+ * **Openings are holes, not decals.** A window is genuinely missing from the
+ * wall mesh, with reveals around the gap, glass in the plane, and a quad of
+ * `night` sealing the far end. That is what makes boarding one up mean
+ * something: the boards go across an actual hole.
+ *
+ * **Winding is checked, not eyeballed.** Every quad's normal is
+ * `cross(p1-p0, p3-p0)`, and an inside-out wall in a dark game looks like a
+ * lighting bug rather than a geometry bug, which is a bad afternoon. Each
+ * emitter below states which way its normal points and the maths that gets it
+ * there.
+ */
+
+const { ROOMS, ROOM_BY_ID, sharedWall } = __m["villa/src/data/rooms.js"];
+const { REGULAR_OPENINGS, HIDDEN_OPENINGS } = __m["villa/src/data/openings.js"];
+const { MeshBuilder, addQuad, addBox } = __m["villa/src/render/meshbuilder.js"];
+
+/* Plan units are the 100 x 70 grid the 2D map uses. At 0.18 m each the living
+ * room comes out just under eight metres across, which is a villa. */
+const SCALE = 0.18;
+const WALL_H = 2.7;
+const WALL_T = 0.14;
+const DOOR_W = 1.05;
+const DOOR_H = 2.06;
+const WINDOW_W = 1.35;
+const WINDOW_SILL = 0.95;
+const WINDOW_TOP = 2.10;
+const EYE_H = 1.68;
+
+/* Which material each room is finished in. */
+const ROOM_FINISH = {
+  entrance: { floor: 'tileEntry', wall: 'plasterWarm', ceil: 'ceilingWhite' },
+  hall:     { floor: 'oakHall',   wall: 'plasterCold', ceil: 'ceilingWhite' },
+  living:   { floor: 'oakLiving', wall: 'wallpaperLiving', ceil: 'ceilingWhite' },
+  kitchen:  { floor: 'tileKitchen', wall: 'plasterCold', ceil: 'ceilingWhite' },
+  bedroom:  { floor: 'oakBed',    wall: 'wallpaperBed', ceil: 'ceilingWhite' },
+  supply:   { floor: 'concreteFloor', wall: 'plasterBare', ceil: 'ceilingWhite' },
+};
+
+/*
+ * Ceiling fixtures. `group` is the flicker group from the shader — 0 is
+ * steady, and the kitchen and the equipment room are not.
+ *
+ * `intensity` is not decoration. The shader's falloff is a real inverse
+ * square, `1 / (1 + d*d)`, which at three metres is already down to a tenth —
+ * so a fixture whose colour is around 1.0 and has no intensity term lights
+ * nothing at all past its own shade, and the house comes out black with a
+ * torch pool in it. A bulb is a few hundred candela; these numbers are what
+ * put a room's worth of light on a room.
+ */
+const ROOM_LIGHT = {
+  entrance: { r: 1.00, g: 0.72, b: 0.42, range: 6.5, intensity: 7.5, group: 0 },
+  hall:     { r: 0.92, g: 0.68, b: 0.44, range: 8.0, intensity: 8.5, group: 2 },
+  living:   { r: 1.00, g: 0.74, b: 0.46, range: 8.0, intensity: 9.0, group: 0 },
+  kitchen:  { r: 0.82, g: 0.86, b: 0.90, range: 6.5, intensity: 8.0, group: 1 },
+  bedroom:  { r: 0.98, g: 0.66, b: 0.38, range: 6.0, intensity: 6.5, group: 0 },
+  supply:   { r: 0.78, g: 0.80, b: 0.76, range: 5.5, intensity: 6.0, group: 3 },
+};
+
+const px = (v) => v * SCALE;
+
+/* ------------------------------------------------------------------ *
+ * Room rectangles
+ * ------------------------------------------------------------------ */
+
+/* The full plan rectangle in world units — what the floor and ceiling cover. */
+function roomRect(r) {
+  return { x0: px(r.x), z0: px(r.y), x1: px(r.x + r.w), z1: px(r.y + r.h) };
+}
+
+/* The wall planes, inset by half a wall so adjoining rooms leave a real gap
+ * between them for the doorway to be cut through. */
+function roomInner(r) {
+  const t = WALL_T / 2;
+  const f = roomRect(r);
+  return { x0: f.x0 + t, z0: f.z0 + t, x1: f.x1 - t, z1: f.z1 - t };
+}
+
+/*
+ * The four wall runs of a room, each as a start and an end laid out so that
+ * `cross(edgeDir, up)` points *into* the room. Getting this table wrong turns
+ * the house inside out, so each line records the normal it produces.
+ */
+function edgesOf(r) {
+  const b = roomInner(r);
+  return [
+    /* dir +x  ->  normal (0,0,+1)  into the room */
+    { side: 'north', ax: b.x0, az: b.z0, bx: b.x1, bz: b.z0 },
+    /* dir -x  ->  normal (0,0,-1) */
+    { side: 'south', ax: b.x1, az: b.z1, bx: b.x0, bz: b.z1 },
+    /* dir -z  ->  normal (+1,0,0) */
+    { side: 'west',  ax: b.x0, az: b.z1, bx: b.x0, bz: b.z0 },
+    /* dir +z  ->  normal (-1,0,0) */
+    { side: 'east',  ax: b.x1, az: b.z0, bx: b.x1, bz: b.z1 },
+  ];
+}
+
+function edgeLength(e) {
+  return Math.hypot(e.bx - e.ax, e.bz - e.az);
+}
+
+/* Position along an edge, 0 at its start. */
+function pointAt(e, t) {
+  return [e.ax + (e.bx - e.ax) * t, e.az + (e.bz - e.az) * t];
+}
+
+/* ------------------------------------------------------------------ *
+ * Holes
+ * ------------------------------------------------------------------ */
+
+/*
+ * Where a doorway to `other` falls on this room's edges. The shared wall is
+ * computed in plan coordinates by data/rooms.js — the same function the 2D map
+ * uses to draw its doorways — and mapped onto the inset edge here.
+ */
+function doorwayHoles(r, edges) {
+  const out = [];
+  for (const link of r.links) {
+    const wall = sharedWall(r.id, link);
+    if (!wall) continue;
+    const mid = wall.vertical
+      ? { x: px(wall.x1), z: px((wall.y1 + wall.y2) / 2) }
+      : { x: px((wall.x1 + wall.x2) / 2), z: px(wall.y1) };
+
+    /* Whichever edge of this room the shared wall lies on. */
+    let best = null;
+    let bestD = Infinity;
+    for (const e of edges) {
+      const d = pointLineDistance(mid.x, mid.z, e);
+      if (d < bestD) { bestD = d; best = e; }
+    }
+    if (!best || bestD > WALL_T * 2) continue;
+
+    const len = edgeLength(best);
+    const t = projectT(mid.x, mid.z, best);
+    const half = (DOOR_W / 2) / len;
+    out.push({
+      edge: best.side, t0: clamp01(t - half), t1: clamp01(t + half),
+      y0: 0, y1: DOOR_H, kind: 'doorway', to: link,
+    });
+  }
+  return out;
+}
+
+/*
+ * Where the villa's own doors and windows fall. `side` and `at` come straight
+ * from data/openings.js, so the thing the 2D map draws a mark for and the
+ * thing the 3D build cuts a hole for are the same record.
+ */
+function openingHoles(r, edges, defs) {
+  const out = [];
+  for (const def of defs) {
+    if (def.room !== r.id) continue;
+    const e = edges.find((x) => x.side === def.side);
+    if (!e) continue;
+    const len = edgeLength(e);
+    const isDoor = def.kind === 'door';
+    const w = isDoor ? DOOR_W : WINDOW_W;
+    const half = (w / 2) / len;
+    /* Keep the hole clear of the corners, or the reveal has nothing to sit in. */
+    const t = Math.min(Math.max(def.at, half + 0.04), 1 - half - 0.04);
+    out.push({
+      edge: def.side, t0: t - half, t1: t + half,
+      y0: isDoor ? 0 : WINDOW_SILL,
+      y1: isDoor ? DOOR_H : WINDOW_TOP,
+      kind: 'opening', id: def.id, isDoor,
+    });
+  }
+  return out;
+}
+
+/* ------------------------------------------------------------------ *
+ * Emitters
+ * ------------------------------------------------------------------ */
+
+/*
+ * A wall panel between two points along an edge, between two heights.
+ * Winding: p0 bottom-start, p1 bottom-end, p2 top-end, p3 top-start, which
+ * gives cross(p1-p0, p3-p0) = (-dz, 0, dx) — the inward normal from the table
+ * in edgesOf.
+ */
+function wallPanel(mb, e, t0, t1, y0, y1, mat, ao) {
+  if (t1 - t0 < 1e-4 || y1 - y0 < 1e-4) return;
+  const a = pointAt(e, t0);
+  const b = pointAt(e, t1);
+  const len = edgeLength(e) * (t1 - t0);
+  addQuad(mb,
+    [a[0], y0, a[1]], [b[0], y0, b[1]], [b[0], y1, b[1]], [a[0], y1, a[1]],
+    [0, 0], [len, 0], [len, y1 - y0], [0, y1 - y0],
+    mat, { sub: Math.max(1, Math.round(Math.max(len, y1 - y0) * 1.4)), ao });
+}
+
+/*
+ * The four faces of a hole's thickness: two jambs, a lintel, and a sill. The
+ * outward offset is the inward normal negated, so these run from the wall
+ * plane away from the room by one wall thickness.
+ */
+function holeReveal(mb, e, hole, mat, ao) {
+  const len = edgeLength(e);
+  const dx = (e.bx - e.ax) / len, dz = (e.bz - e.az) / len;
+  const ox = dz * WALL_T, oz = -dx * WALL_T;      /* -normal * WALL_T */
+  const a = pointAt(e, hole.t0);
+  const b = pointAt(e, hole.t1);
+  const { y0, y1 } = hole;
+  const w = len * (hole.t1 - hole.t0);
+  const uvT = [[0, 0], [WALL_T, 0], [WALL_T, y1 - y0], [0, y1 - y0]];
+
+  /* start jamb — normal +d */
+  addQuad(mb,
+    [a[0], y0, a[1]], [a[0] + ox, y0, a[1] + oz],
+    [a[0] + ox, y1, a[1] + oz], [a[0], y1, a[1]],
+    ...uvT, mat, { ao });
+  /* end jamb — normal -d */
+  addQuad(mb,
+    [b[0], y0, b[1]], [b[0], y1, b[1]],
+    [b[0] + ox, y1, b[1] + oz], [b[0] + ox, y0, b[1] + oz],
+    ...uvT, mat, { ao });
+  /* lintel — normal (0,-1,0) */
+  addQuad(mb,
+    [a[0], y1, a[1]], [a[0] + ox, y1, a[1] + oz],
+    [b[0] + ox, y1, b[1] + oz], [b[0], y1, b[1]],
+    [0, 0], [WALL_T, 0], [WALL_T, w], [0, w], mat, { ao });
+  /* sill — normal (0,+1,0); a doorway starting at the floor has none */
+  if (y0 > 0.001) {
+    addQuad(mb,
+      [a[0], y0, a[1]], [b[0], y0, b[1]],
+      [b[0] + ox, y0, b[1] + oz], [a[0] + ox, y0, a[1] + oz],
+      [0, 0], [w, 0], [w, WALL_T], [0, WALL_T], mat, { ao });
+  }
+}
+
+/* A pane filling the hole, at some fraction of the way through the reveal.
+ * Normal points into the room. */
+function holePlane(mb, e, hole, mat, depth, opts) {
+  const len = edgeLength(e);
+  const dx = (e.bx - e.ax) / len, dz = (e.bz - e.az) / len;
+  const ox = dz * WALL_T * depth, oz = -dx * WALL_T * depth;
+  const a = pointAt(e, hole.t0);
+  const b = pointAt(e, hole.t1);
+  const { y0, y1 } = hole;
+  const w = len * (hole.t1 - hole.t0);
+  addQuad(mb,
+    [a[0] + ox, y0, a[1] + oz], [b[0] + ox, y0, b[1] + oz],
+    [b[0] + ox, y1, b[1] + oz], [a[0] + ox, y1, a[1] + oz],
+    [0, 0], [w, 0], [w, y1 - y0], [0, y1 - y0], mat, opts || {});
+}
+
+/* ------------------------------------------------------------------ *
+ * Ambient occlusion
+ * ------------------------------------------------------------------ */
+
+/*
+ * Per-vertex, and it is doing more for the look than any other single thing
+ * here: the soft darkening where a wall meets the floor and the ceiling is
+ * what stops a room reading as a lit box. `t` runs 0 at the floor to 1 at the
+ * ceiling on a wall panel.
+ */
+function wallAO(y0, y1) {
+  return (s, t) => {
+    const y = y0 + (y1 - y0) * t;
+    const fromFloor = Math.min(1, y / 0.55);
+    const fromCeil = Math.min(1, (WALL_H - y) / 0.45);
+    const corner = Math.min(1, Math.min(s, 1 - s) / 0.06 + 0.35);
+    return 0.30 + 0.70 * Math.min(fromFloor, fromCeil) * Math.min(1, corner);
+  };
+}
+
+function floorAO(rect) {
+  const w = rect.x1 - rect.x0, d = rect.z1 - rect.z0;
+  return (s, t) => {
+    const ex = Math.min(s, 1 - s) * w;
+    const ez = Math.min(t, 1 - t) * d;
+    const e = Math.min(ex, ez);
+    return 0.34 + 0.66 * Math.min(1, e / 0.7);
+  };
+}
+
+/* ------------------------------------------------------------------ *
+ * The build
+ * ------------------------------------------------------------------ */
+
+/*
+ * Returns everything the game needs to render and walk around the house:
+ *
+ *   mesh       the whole static building, one buffer
+ *   glass      the panes, drawn in the cut-out pass
+ *   anchors    per opening id: where it is in the world, which way it faces,
+ *              and how big the hole is — used to hang barricades on it, to
+ *              aim at it, and to stand something outside it
+ *   lights     ceiling fixtures
+ *   areas      walkable rectangles, for collision
+ */
+function buildVilla(mat) {
+  const mb = new MeshBuilder(30000);
+  const glassMb = new MeshBuilder(2000);
+  const anchors = {};
+  const lights = [];
+  const areas = [];
+
+  const hiddenByRoom = {};
+  for (const d of HIDDEN_OPENINGS) {
+    (hiddenByRoom[d.room] = hiddenByRoom[d.room] || []).push(d);
+  }
+
+  for (const r of ROOMS) {
+    const finish = ROOM_FINISH[r.id];
+    const rect = roomRect(r);
+    const inner = roomInner(r);
+    const edges = edgesOf(r);
+
+    /* ---- floor and ceiling, over the full rectangle so they run under the
+     * walls and leave no gap at the skirting ---- */
+    const fw = rect.x1 - rect.x0, fd = rect.z1 - rect.z0;
+    addQuad(mb,
+      [rect.x0, 0, rect.z0], [rect.x0, 0, rect.z1], [rect.x1, 0, rect.z1], [rect.x1, 0, rect.z0],
+      [0, 0], [0, fd], [fw, fd], [fw, 0],
+      mat[finish.floor], { sub: Math.max(2, Math.round(Math.max(fw, fd) * 1.1)), ao: floorAO(rect) });
+    addQuad(mb,
+      [rect.x0, WALL_H, rect.z0], [rect.x1, WALL_H, rect.z0], [rect.x1, WALL_H, rect.z1], [rect.x0, WALL_H, rect.z1],
+      [0, 0], [fw, 0], [fw, fd], [0, fd],
+      mat[finish.ceil], { sub: Math.max(2, Math.round(Math.max(fw, fd) * 0.8)), ao: floorAO(rect) });
+
+    /* ---- walls, cut around every hole on each run ---- */
+    const holes = doorwayHoles(r, edges)
+      .concat(openingHoles(r, edges, REGULAR_OPENINGS));
+
+    for (const e of edges) {
+      const mine = holes.filter((h) => h.edge === e.side).sort((a, b) => a.t0 - b.t0);
+      const ao = wallAO(0, WALL_H);
+      let cursor = 0;
+      for (const h of mine) {
+        if (h.t0 > cursor) wallPanel(mb, e, cursor, h.t0, 0, WALL_H, mat[finish.wall], ao);
+        if (h.y0 > 0.001) wallPanel(mb, e, h.t0, h.t1, 0, h.y0, mat[finish.wall], ao);
+        if (h.y1 < WALL_H - 0.001) wallPanel(mb, e, h.t0, h.t1, h.y1, WALL_H, mat[finish.wall], ao);
+        holeReveal(mb, e, h, mat[finish.wall], ao);
+        cursor = Math.max(cursor, h.t1);
+
+        if (h.kind === 'opening') {
+          /* Seal the far end so an opening looks out at the night rather than
+           * into nothing, and record where it is for everything else. */
+          holePlane(mb, e, h, mat.night, 1.0, {});
+          if (!h.isDoor) holePlane(glassMb, e, h, mat.glass, 0.35, {});
+          anchors[h.id] = anchorFor(e, h, r.id);
+        }
+      }
+      if (cursor < 1) wallPanel(mb, e, cursor, 1, 0, WALL_H, mat[finish.wall], ao);
+    }
+
+    /* ---- hidden openings: no hole is cut until one is actually found, so
+     * their anchors are recorded against a spot on the floor, a wall or the
+     * ceiling and the geometry is added at runtime ---- */
+    for (const d of hiddenByRoom[r.id] || []) {
+      anchors[d.id] = hiddenAnchor(d, inner);
+    }
+
+    /* ---- light and walkable area ---- */
+    const L = ROOM_LIGHT[r.id];
+    lights.push({
+      x: (rect.x0 + rect.x1) / 2, y: WALL_H - 0.22, z: (rect.z0 + rect.z1) / 2,
+      r: L.r, g: L.g, b: L.b, intensity: L.intensity,
+      range: L.range, group: L.group, room: r.id,
+    });
+    /* A small fixture body, so the light has something to come from. */
+    addBox(mb, (rect.x0 + rect.x1) / 2, WALL_H - 0.10, (rect.z0 + rect.z1) / 2,
+      0.34, 0.10, 0.34, 0, mat.lampShade, { bottom: true });
+
+    areas.push({ x0: inner.x0, z0: inner.z0, x1: inner.x1, z1: inner.z1, room: r.id });
+  }
+
+  /* Doorway gaps as walkable rectangles, so the player can cross between
+   * rooms without the collision solver having to know what a door is. */
+  const done = new Set();
+  for (const r of ROOMS) {
+    for (const link of r.links) {
+      const key = [r.id, link].sort().join('|');
+      if (done.has(key)) continue;
+      done.add(key);
+      const wall = sharedWall(r.id, link);
+      if (!wall) continue;
+      const pad = DOOR_W / 2 - 0.06;
+      if (wall.vertical) {
+        const x = px(wall.x1), z = px((wall.y1 + wall.y2) / 2);
+        areas.push({ x0: x - WALL_T, z0: z - pad, x1: x + WALL_T, z1: z + pad, door: key });
+      } else {
+        const x = px((wall.x1 + wall.x2) / 2), z = px(wall.y1);
+        areas.push({ x0: x - pad, z0: z - WALL_T, x1: x + pad, z1: z + WALL_T, door: key });
+      }
+    }
+  }
+
+  return {
+    mesh: mb.finish(),
+    glass: glassMb.finish(),
+    anchors, lights, areas,
+  };
+}
+
+/*
+ * Where an opening is, which way it faces, and how big it is. `nx`/`nz` point
+ * into the room, so a barricade laid at `depth` along the negative normal sits
+ * in the reveal, and something standing at a positive offset is inside with
+ * you.
+ */
+function anchorFor(e, hole, roomId) {
+  const len = edgeLength(e);
+  const dx = (e.bx - e.ax) / len, dz = (e.bz - e.az) / len;
+  const a = pointAt(e, hole.t0);
+  const b = pointAt(e, hole.t1);
+  return {
+    id: hole.id,
+    room: roomId,
+    x: (a[0] + b[0]) / 2, z: (a[1] + b[1]) / 2,
+    y: (hole.y0 + hole.y1) / 2,
+    y0: hole.y0, y1: hole.y1,
+    width: len * (hole.t1 - hole.t0),
+    dx, dz,                    /* along the wall */
+    nx: -dz, nz: dx,           /* into the room  */
+    kind: hole.isDoor ? 'door' : 'window',
+    hidden: false,
+  };
+}
+
+/* A hole that is not in a wall. Floor and ceiling ones face up and down; the
+ * rest are put against the nearest wall. */
+function hiddenAnchor(def, inner) {
+  const cx = inner.x0 + (inner.x1 - inner.x0) * (0.22 + def.at * 0.56);
+  const cz = inner.z0 + (inner.z1 - inner.z0) * (0.3 + ((def.at * 1.7) % 1) * 0.4);
+  const base = {
+    id: def.id, room: def.room, width: 0.8, hidden: true, where: def.where,
+    kind: 'hidden', dx: 1, dz: 0,
+  };
+  if (def.where === 'floor') {
+    return Object.assign(base, { x: cx, z: cz, y: 0.02, y0: 0, y1: 0.04, nx: 0, nz: 0, ny: 1 });
+  }
+  if (def.where === 'ceiling') {
+    return Object.assign(base, {
+      x: cx, z: cz, y: WALL_H - 0.02, y0: WALL_H - 0.04, y1: WALL_H, nx: 0, nz: 0, ny: -1,
+    });
+  }
+  /* Against whichever wall is nearest, at chest height. */
+  const dLeft = cx - inner.x0, dRight = inner.x1 - cx;
+  const dNear = cz - inner.z0, dFar = inner.z1 - cz;
+  const m = Math.min(dLeft, dRight, dNear, dFar);
+  let x = cx, z = cz, nx = 0, nz = 0;
+  if (m === dLeft) { x = inner.x0 + 0.02; nx = 1; }
+  else if (m === dRight) { x = inner.x1 - 0.02; nx = -1; }
+  else if (m === dNear) { z = inner.z0 + 0.02; nz = 1; }
+  else { z = inner.z1 - 0.02; nz = -1; }
+  return Object.assign(base, {
+    x, z, y: 1.15, y0: 0.7, y1: 1.6, nx, nz, ny: 0,
+    dx: nz === 0 ? 0 : 1, dz: nz === 0 ? 1 : 0,
+  });
+}
+
+/* ------------------------------------------------------------------ *
+ * Small geometry helpers
+ * ------------------------------------------------------------------ */
+
+function clamp01(v) { return v < 0 ? 0 : v > 1 ? 1 : v; }
+
+function projectT(x, z, e) {
+  const ex = e.bx - e.ax, ez = e.bz - e.az;
+  const len2 = ex * ex + ez * ez;
+  if (len2 < 1e-9) return 0;
+  return clamp01(((x - e.ax) * ex + (z - e.az) * ez) / len2);
+}
+
+function pointLineDistance(x, z, e) {
+  const t = projectT(x, z, e);
+  const p = pointAt(e, t);
+  return Math.hypot(x - p[0], z - p[1]);
+}
+
+  return {
+    "SCALE": SCALE,
+    "WALL_H": WALL_H,
+    "WALL_T": WALL_T,
+    "DOOR_W": DOOR_W,
+    "DOOR_H": DOOR_H,
+    "WINDOW_W": WINDOW_W,
+    "WINDOW_SILL": WINDOW_SILL,
+    "WINDOW_TOP": WINDOW_TOP,
+    "EYE_H": EYE_H,
+    "ROOM_FINISH": ROOM_FINISH,
+    "ROOM_LIGHT": ROOM_LIGHT,
+    "roomRect": roomRect,
+    "roomInner": roomInner,
+    "buildVilla": buildVilla,
+  };
+})();
+
+__m["villa/src/world/props.js"] = (function () {
+/*
+ * props.js — the furniture, and the three things in it that matter.
+ *
+ * Most of what is in here is set dressing: a sofa so the living room is a
+ * living room, a counter run so the kitchen is a kitchen. It is built out of
+ * boxes on purpose — in a house lit by one failing bulb per room, silhouette
+ * and material do all the work and geometry does almost none, so the budget
+ * goes on the normal maps rather than on bevels nobody will see.
+ *
+ * Three props are not dressing, and they are the reason this file returns
+ * anchors as well as a mesh:
+ *
+ *   the telephone   in the entrance, the only one in the villa
+ *   the drawer      in the bedroom, where the neighbour's number is
+ *   the supplies    in the equipment room, where the timber and nails are
+ *
+ * Those three are the spec's hard constraints made physical. You cannot call
+ * the neighbour from the kitchen because there is no telephone in the kitchen.
+ */
+
+const { addBox, addCylinder } = __m["villa/src/render/meshbuilder.js"];
+const { ROOM_BY_ID } = __m["villa/src/data/rooms.js"];
+const { roomRect } = __m["villa/src/world/build.js"];
+
+/* Anything with a footprint the player should not walk through. Collected as
+ * we build so the collision solver gets them for free. */
+function solid(list, x, z, sx, sz) {
+  list.push({ x0: x - sx / 2, z0: z - sz / 2, x1: x + sx / 2, z1: z + sz / 2 });
+}
+
+/* A slab on four legs — table, bench, console. */
+function table(mb, m, x, y, z, w, d, top, leg) {
+  addBox(mb, x, y, z, w, 0.06, d, 0, top);
+  const lx = w / 2 - 0.08, lz = d / 2 - 0.08;
+  for (const [ox, oz] of [[-lx, -lz], [lx, -lz], [lx, lz], [-lx, lz]]) {
+    addBox(mb, x + ox, y / 2, z + oz, 0.07, y, 0.07, 0, leg, { bottom: false });
+  }
+}
+
+function buildProps(mb, mat) {
+  const anchors = {};
+  const blockers = [];
+  const lights = [];
+  const R = (id) => roomRect(ROOM_BY_ID[id]);
+
+  /* ---------------------------------------------------------- living */
+  {
+    const r = R('living');
+    const cx = (r.x0 + r.x1) / 2, cz = (r.z0 + r.z1) / 2;
+
+    /* Sofa: seat, back, two arms. */
+    addBox(mb, cx + 1.2, 0.30, cz + 1.1, 2.30, 0.42, 0.92, 0, mat.fabricSofa);
+    addBox(mb, cx + 1.2, 0.62, cz + 1.52, 2.30, 0.68, 0.20, 0, mat.fabricSofa);
+    addBox(mb, cx + 0.00, 0.48, cz + 1.1, 0.22, 0.60, 0.92, 0, mat.fabricSofa);
+    addBox(mb, cx + 2.40, 0.48, cz + 1.1, 0.22, 0.60, 0.92, 0, mat.fabricSofa);
+    solid(blockers, cx + 1.2, cz + 1.15, 2.6, 1.1);
+
+    table(mb, mat, cx + 1.2, 0.42, cz - 0.35, 1.20, 0.62, mat.woodDark, mat.woodDark);
+    solid(blockers, cx + 1.2, cz - 0.35, 1.2, 0.65);
+
+    /* Sideboard against the inner wall, with a lamp on it that is a real
+     * light — a second source in the room the player spends most time in. */
+    addBox(mb, r.x0 + 1.5, 0.42, r.z1 - 0.42, 1.80, 0.84, 0.46, 0, mat.woodDark);
+    solid(blockers, r.x0 + 1.5, r.z1 - 0.42, 1.9, 0.5);
+    addCylinder(mb, r.x0 + 1.5, 0.94, r.z1 - 0.42, 0.09, 0.20, 10, mat.metalPale);
+    addCylinder(mb, r.x0 + 1.5, 1.16, r.z1 - 0.42, 0.20, 0.24, 12, mat.lampShade);
+    lights.push({
+      x: r.x0 + 1.5, y: 1.12, z: r.z1 - 0.42,
+      r: 1.0, g: 0.62, b: 0.30, intensity: 4.0, range: 4.0, group: 0, room: 'living',
+    });
+  }
+
+  /* --------------------------------------------------------- kitchen */
+  {
+    const r = R('kitchen');
+    const runZ = r.z1 - 0.34;
+    addBox(mb, (r.x0 + r.x1) / 2, 0.44, runZ, (r.x1 - r.x0) - 1.0, 0.88, 0.62, 0, mat.woodPale);
+    addBox(mb, (r.x0 + r.x1) / 2, 0.90, runZ, (r.x1 - r.x0) - 1.0, 0.05, 0.66, 0, mat.metalPale);
+    solid(blockers, (r.x0 + r.x1) / 2, runZ, (r.x1 - r.x0) - 1.0, 0.7);
+
+    addBox(mb, r.x0 + 1.1, 0.45, runZ, 0.62, 0.90, 0.62, 0, mat.metalDark);
+    addBox(mb, r.x1 - 0.62, 0.90, r.z0 + 0.55, 0.72, 1.80, 0.70, 0, mat.metalPale);
+    solid(blockers, r.x1 - 0.62, r.z0 + 0.55, 0.8, 0.8);
+
+    table(mb, mat, (r.x0 + r.x1) / 2, 0.74, (r.z0 + r.z1) / 2 - 0.2, 1.30, 0.85, mat.woodPale, mat.woodPale);
+    solid(blockers, (r.x0 + r.x1) / 2, (r.z0 + r.z1) / 2 - 0.2, 1.35, 0.9);
+  }
+
+  /* --------------------------------------------------------- bedroom */
+  {
+    const r = R('bedroom');
+    const bx = (r.x0 + r.x1) / 2 + 0.3, bz = r.z1 - 1.35;
+    addBox(mb, bx, 0.22, bz, 1.55, 0.34, 2.05, 0, mat.woodDark);
+    addBox(mb, bx, 0.46, bz, 1.50, 0.20, 2.00, 0, mat.fabricBed);
+    addBox(mb, bx, 0.62, bz - 0.86, 1.40, 0.14, 0.34, 0, mat.fabricBed);
+    addBox(mb, bx, 0.62, r.z1 - 0.18, 1.55, 0.80, 0.10, 0, mat.woodDark);
+    solid(blockers, bx, bz, 1.7, 2.2);
+
+    addBox(mb, r.x1 - 0.42, 1.02, r.z0 + 1.0, 0.66, 2.04, 0.62, 0, mat.woodDark);
+    solid(blockers, r.x1 - 0.42, r.z0 + 1.0, 0.75, 0.75);
+
+    /*
+     * The nightstand, and the drawer in it. The drawer front is a separate box
+     * pulled slightly proud of the carcass so it reads as a drawer at a
+     * glance and so there is something specific to look at when the game says
+     * to search it.
+     */
+    const nx = bx - 1.16, nz = bz - 0.55;
+    addBox(mb, nx, 0.28, nz, 0.50, 0.56, 0.44, 0, mat.woodDark);
+    addBox(mb, nx, 0.34, nz - 0.235, 0.44, 0.20, 0.03, 0, mat.woodPale);
+    addCylinder(mb, nx, 0.34, nz - 0.26, 0.022, 0.05, 8, mat.metalPale);
+    solid(blockers, nx, nz, 0.6, 0.55);
+    anchors.drawer = { x: nx, y: 0.42, z: nz - 0.26, nx: 0, nz: -1, label: 'המגירה' };
+  }
+
+  /* -------------------------------------------------------- entrance */
+  {
+    const r = R('entrance');
+    const tx = r.x0 + 1.25, tz = r.z1 - 0.55;
+    addBox(mb, tx, 0.40, tz, 1.10, 0.80, 0.42, 0, mat.woodDark);
+    solid(blockers, tx, tz, 1.2, 0.5);
+
+    /*
+     * The telephone. The whole neighbour mechanic hangs off this object being
+     * here and nowhere else, so it gets more geometry than its size deserves:
+     * a body, a handset across the cradle, and a dial.
+     */
+    addBox(mb, tx, 0.86, tz, 0.26, 0.11, 0.22, 0, mat.metalDark);
+    addBox(mb, tx, 0.945, tz - 0.02, 0.30, 0.07, 0.09, 0, mat.metalDark);
+    addCylinder(mb, tx, 0.925, tz + 0.06, 0.055, 0.02, 12, mat.metalPale);
+    anchors.phone = { x: tx, y: 0.92, z: tz, nx: 0, nz: -1, label: 'הטלפון' };
+
+    /* Coat hooks by the front door, because an empty entrance reads as a
+     * corridor and this one has to read as the way in. */
+    for (let i = 0; i < 3; i++) {
+      addCylinder(mb, r.x0 + 3.2 + i * 0.34, 1.62, r.z1 - 0.08, 0.02, 0.12, 6, mat.metalPale);
+    }
+  }
+
+  /* ---------------------------------------------------------- supply */
+  {
+    const r = R('supply');
+    const wx = (r.x0 + r.x1) / 2, wz = r.z1 - 0.45;
+    addBox(mb, wx, 0.42, wz, 2.40, 0.84, 0.72, 0, mat.woodPale);
+    addBox(mb, wx, 0.87, wz, 2.44, 0.06, 0.76, 0, mat.woodPale);
+    solid(blockers, wx, wz, 2.5, 0.8);
+
+    /*
+     * The timber, stacked. This is the stockpile the whole afternoon is spent
+     * carrying away, so it is worth showing as individual boards rather than
+     * as one crate — a stack that visibly has boards in it is a stack the
+     * player understands they are taking boards from.
+     */
+    for (let i = 0; i < 7; i++) {
+      addBox(mb, r.x0 + 1.1, 0.07 + i * 0.075, wz - 0.1 + (i % 2) * 0.04,
+        0.16, 0.06, 1.70, (i % 3) * 0.012, mat.timberPlank);
+    }
+    solid(blockers, r.x0 + 1.1, wz - 0.1, 0.4, 1.8);
+
+    /* Nail box and tape rolls on the bench. */
+    addBox(mb, wx - 0.7, 0.95, wz, 0.22, 0.12, 0.16, 0.2, mat.metalDark);
+    for (let i = 0; i < 3; i++) {
+      addCylinder(mb, wx + 0.25 + i * 0.16, 0.93, wz - 0.05, 0.055, 0.05, 12, mat.tapeStrip);
+    }
+    /* A hammer, because the rules keep mentioning it. */
+    addBox(mb, wx + 0.85, 0.92, wz + 0.05, 0.28, 0.03, 0.03, 0.4, mat.woodPale);
+    addBox(mb, wx + 0.98, 0.94, wz + 0.11, 0.05, 0.09, 0.10, 0.4, mat.metalDark);
+
+    anchors.supplies = { x: wx, y: 0.95, z: wz - 0.5, nx: 0, nz: -1, label: 'הציוד' };
+
+    /* Shelving on the far wall. */
+    for (let s = 0; s < 3; s++) {
+      addBox(mb, r.x1 - 0.28, 0.65 + s * 0.55, r.z0 + 1.4, 0.44, 0.04, 1.90, 0, mat.woodPale);
+    }
+  }
+
+  return { anchors, blockers, lights };
+}
+
+  return {
+    "buildProps": buildProps,
+  };
+})();
+
+__m["villa/src/world/barricade.js"] = (function () {
+/*
+ * barricade.js — boards and tape, across an actual hole.
+ *
+ * This is the picture the game is about. Everything else — the balance table,
+ * the supply budget, the neighbour's two calls — exists so that the player
+ * ends up standing in a dark room looking at these, wondering whether there
+ * are enough of them, while something works on the other side.
+ *
+ * So it is built to be *read*, from across a room, at a glance:
+ *
+ *   - Boards are individual, not a panel. Six boards over a window is
+ *     obviously more than two, and you can count them without stopping.
+ *   - Each board sits at its own slight angle, deterministically derived from
+ *     the opening's own name, so no two openings look stamped from the same
+ *     die and the same opening looks the same every time you walk back to it.
+ *   - They stand proud of the wall, catching the lamp on their top edge, which
+ *     is what separates "boarded" from "painted a different colour".
+ *   - Tape goes on as an X. It is the shape everyone already reads as "this is
+ *     a stopgap", and it distinguishes itself from timber at any distance and
+ *     in any light.
+ *
+ * Mesh geometry is rebuilt only when an opening's board or tape count actually
+ * changes — see the cache in game/world.js — because rebuilding fifteen of
+ * these every frame is a lot of arithmetic to arrive at the same buffer.
+ */
+
+const { MeshBuilder, addQuad } = __m["villa/src/render/meshbuilder.js"];
+const { hash1 } = __m["villa/src/core/rng.js"];
+
+/*
+ * A box in an arbitrary frame. addBox only yaws around Y, and a board nailed
+ * across a window at a hurried angle is exactly the case that needs more than
+ * that. `right`, `up` and `normal` must be a right-handed orthonormal set:
+ * right x up = normal. Every face below states the cross product that gives
+ * its outward normal, because a board that is inside out looks like a hole.
+ */
+function orientedBox(mb, c, right, up, normal, hw, hh, hd, mat, ao) {
+  const P = (sx, sy, sz) => [
+    c[0] + right[0] * hw * sx + up[0] * hh * sy + normal[0] * hd * sz,
+    c[1] + right[1] * hw * sx + up[1] * hh * sy + normal[1] * hd * sz,
+    c[2] + right[2] * hw * sx + up[2] * hh * sy + normal[2] * hd * sz,
+  ];
+  const A = P(-1, -1, 1), B = P(1, -1, 1), C = P(1, 1, 1), D = P(-1, 1, 1);
+  const E = P(-1, -1, -1), F = P(1, -1, -1), G = P(1, 1, -1), H = P(-1, 1, -1);
+  const uvFace = [[0, 0], [hw * 2, 0], [hw * 2, hh * 2], [0, hh * 2]];
+  const uvEnd = [[0, 0], [hd * 2, 0], [hd * 2, hh * 2], [0, hh * 2]];
+  const uvTop = [[0, 0], [hw * 2, 0], [hw * 2, hd * 2], [0, hd * 2]];
+  const o = { ao };
+
+  addQuad(mb, A, B, C, D, ...uvFace, mat, o);   /* +normal: right x up      */
+  addQuad(mb, F, E, H, G, ...uvFace, mat, o);   /* -normal: -right x up     */
+  addQuad(mb, B, F, G, C, ...uvEnd, mat, o);    /* +right:  -normal x up    */
+  addQuad(mb, E, A, D, H, ...uvEnd, mat, o);    /* -right:   normal x up    */
+  addQuad(mb, D, C, G, H, ...uvTop, mat, o);    /* +up:      right x -normal */
+  addQuad(mb, E, F, B, A, ...uvTop, mat, o);    /* -up:      right x normal  */
+}
+
+/* A deterministic wobble per board, so the same window always looks the same
+ * and no two windows look alike. */
+function jitter(id, i, spread) {
+  let h = 0;
+  for (let k = 0; k < id.length; k++) h = (Math.imul(h, 31) + id.charCodeAt(k)) | 0;
+  return ((hash1(h + i * 7919) / 4294967296) - 0.5) * 2 * spread;
+}
+
+/* The local frame of an opening: along it, up it, and out of it into the room.
+ * A gap in a floor or a ceiling has no wall to lie along, so it gets the world
+ * axes instead. */
+function frameOf(a) {
+  if (a.ny) {
+    const normal = [0, a.ny, 0];
+    const right = [1, 0, 0];
+    /* right x up = normal  =>  up = normal x right */
+    const up = [
+      normal[1] * right[2] - normal[2] * right[1],
+      normal[2] * right[0] - normal[0] * right[2],
+      normal[0] * right[1] - normal[1] * right[0],
+    ];
+    return { right, up, normal };
+  }
+  return { right: [a.dx, 0, a.dz], up: [0, 1, 0], normal: [a.nx, 0, a.nz] };
+}
+
+const BOARD_T = 0.022;      /* half-thickness */
+const BOARD_H = 0.075;      /* half-height    */
+
+/*
+ * Build the barricade on one opening. `planks` and `tape` are the counts from
+ * the simulation; nothing here decides anything, it only draws what the rules
+ * already say is there.
+ */
+function buildBarricade(mb, anchor, planks, tape, mat) {
+  const f = frameOf(anchor);
+  const span = anchor.y1 - anchor.y0;
+  const w = anchor.width;
+  const cx = anchor.x, cz = anchor.z;
+  const midY = anchor.ny ? anchor.y : (anchor.y0 + anchor.y1) / 2;
+
+  /* Two boards per plank the player nailed on. */
+  const boards = planks * 2;
+  for (let i = 0; i < boards; i++) {
+    const frac = (i + 0.5) / boards;
+    /* Along `up` from one edge of the opening to the other, with a nudge. */
+    const off = (frac - 0.5) * (span - BOARD_H * 2.6) + jitter(anchor.id, i, span * 0.035);
+    const tilt = jitter(anchor.id, i + 40, 0.075);
+    const depth = 0.028 + (i % 2) * 0.012;
+
+    /* Rotate right/up about the normal by `tilt`. */
+    const ct = Math.cos(tilt), st = Math.sin(tilt);
+    const right = [
+      f.right[0] * ct + f.up[0] * st,
+      f.right[1] * ct + f.up[1] * st,
+      f.right[2] * ct + f.up[2] * st,
+    ];
+    const up = [
+      f.up[0] * ct - f.right[0] * st,
+      f.up[1] * ct - f.right[1] * st,
+      f.up[2] * ct - f.right[2] * st,
+    ];
+
+    const c = [
+      cx + f.up[0] * off + f.normal[0] * depth,
+      midY + f.up[1] * off + f.normal[1] * depth,
+      cz + f.up[2] * off + f.normal[2] * depth,
+    ];
+    orientedBox(mb, c, right, up, f.normal,
+      w / 2 + 0.11, BOARD_H, BOARD_T, mat.timberPlank, () => 0.86);
+
+    /* Two nail heads per board, at the ends where they would actually be. */
+    for (const s of [-1, 1]) {
+      const nc = [
+        c[0] + right[0] * (w / 2 + 0.04) * s + f.normal[0] * (BOARD_T + 0.004),
+        c[1] + right[1] * (w / 2 + 0.04) * s + f.normal[1] * (BOARD_T + 0.004),
+        c[2] + right[2] * (w / 2 + 0.04) * s + f.normal[2] * (BOARD_T + 0.004),
+      ];
+      orientedBox(mb, nc, right, up, f.normal, 0.011, 0.011, 0.004, mat.metalPale, () => 1);
+    }
+  }
+  return boards;
+}
+
+/*
+ * Tape, as an X across the opening. Drawn into a separate builder because it
+ * is a cut-out material and the renderer keeps those in their own pass.
+ */
+function buildTape(mb, anchor, tape, mat) {
+  if (tape <= 0) return 0;
+  const f = frameOf(anchor);
+  const span = anchor.y1 - anchor.y0;
+  const w = anchor.width;
+  const midY = anchor.ny ? anchor.y : (anchor.y0 + anchor.y1) / 2;
+  const diag = Math.hypot(w, span) * 0.52;
+  const halfW = 0.030;
+
+  let count = 0;
+  for (let layer = 0; layer < tape; layer++) {
+    for (const dir of [1, -1]) {
+      /* The angle of the diagonal, plus a little so the second layer is not a
+       * perfect overlay of the first. */
+      const ang = Math.atan2(span * dir, w) + jitter(anchor.id, layer * 3 + dir, 0.09);
+      const ct = Math.cos(ang), st = Math.sin(ang);
+      const right = [
+        f.right[0] * ct + f.up[0] * st,
+        f.right[1] * ct + f.up[1] * st,
+        f.right[2] * ct + f.up[2] * st,
+      ];
+      const up = [
+        f.up[0] * ct - f.right[0] * st,
+        f.up[1] * ct - f.right[1] * st,
+        f.up[2] * ct - f.right[2] * st,
+      ];
+      const depth = 0.052 + layer * 0.010;
+      const c = [
+        anchor.x + f.normal[0] * depth,
+        midY + f.normal[1] * depth,
+        anchor.z + f.normal[2] * depth,
+      ];
+      /* A single quad rather than a box — tape has no thickness worth
+       * modelling, and the cut-out pass draws it from both sides. */
+      const P = (sx, sy) => [
+        c[0] + right[0] * diag * sx + up[0] * halfW * sy,
+        c[1] + right[1] * diag * sx + up[1] * halfW * sy,
+        c[2] + right[2] * diag * sx + up[2] * halfW * sy,
+      ];
+      addQuad(mb, P(-1, -1), P(1, -1), P(1, 1), P(-1, 1),
+        [0, 0], [diag * 2, 0], [diag * 2, 1], [0, 1],
+        mat.tapeStrip, { sub: 6, ao: () => 0.94 });
+      count++;
+    }
+  }
+  return count;
+}
+
+/*
+ * Every barricade in the house, as two meshes. Returns null for a builder that
+ * ended up empty, because uploading a zero-index buffer is a WebGL error
+ * rather than a no-op.
+ */
+function buildAllBarricades(openings, anchors, mat) {
+  const solidMb = new MeshBuilder(4000);
+  const tapeMb = new MeshBuilder(1000);
+  let solidCount = 0;
+  let tapeCount = 0;
+
+  for (const o of openings) {
+    if (!o.present || !o.revealed) continue;
+    const a = anchors[o.id];
+    if (!a) continue;
+    if (o.planks > 0) solidCount += buildBarricade(solidMb, a, o.planks, o.tape, mat);
+    if (o.tape > 0) tapeCount += buildTape(tapeMb, a, o.tape, mat);
+  }
+
+  return {
+    solid: solidCount ? solidMb.finish() : null,
+    tape: tapeCount ? tapeMb.finish() : null,
+  };
+}
+
+/* What the cache keys on: rebuild only when a board or a roll actually
+ * changed, not every frame. */
+function barricadeSignature(openings) {
+  let s = '';
+  for (const o of openings) {
+    if (!o.present || !o.revealed) continue;
+    s += `${o.id}:${o.planks}:${o.tape}:${o.breached ? 1 : 0}|`;
+  }
+  return s;
+}
+
+  return {
+    "buildBarricade": buildBarricade,
+    "buildTape": buildTape,
+    "buildAllBarricades": buildAllBarricades,
+    "barricadeSignature": barricadeSignature,
+  };
+})();
+
+__m["villa/src/game/input.js"] = (function () {
+/*
+ * input.js — keyboard, mouse and thumbs.
+ *
+ * Pointer lock for the mouse, a stick and buttons for a phone, and one shared
+ * key table so that every action has exactly one implementation regardless of
+ * which of the three it arrived from. The on-screen controls dispatch the same
+ * key codes the keyboard does; nothing downstream knows the difference.
+ *
+ * The awkward part of a first-person game on a touch screen is that the left
+ * thumb has to steer and the right thumb has to look, and neither of them can
+ * be given a fixed position on screen without being wrong for somebody's
+ * hands. So the stick appears wherever the left thumb lands.
+ */
+
+class Input {
+  constructor(canvas) {
+    this.canvas = canvas;
+    this.keys = Object.create(null);
+    this.mouseDX = 0;
+    this.mouseDY = 0;
+    this.locked = false;
+    this.sensitivity = 1;
+    this.invertY = false;
+
+    /* Touch: one finger steering, one looking, tracked by identifier because
+     * they arrive and leave independently. */
+    this.stick = { active: false, id: null, ox: 0, oy: 0, x: 0, y: 0 };
+    this.look = { active: false, id: null, x: 0, y: 0 };
+    this.taps = [];
+
+    this._bind();
+  }
+
+  _bind() {
+    const c = this.canvas;
+
+    window.addEventListener('keydown', (e) => {
+      if (e.repeat) return;
+      this.keys[e.code] = true;
+      /* Space scrolls a page and Tab leaves it; neither is wanted mid-night. */
+      if (e.code === 'Space' || e.code === 'Tab') e.preventDefault();
+    });
+    window.addEventListener('keyup', (e) => { this.keys[e.code] = false; });
+    window.addEventListener('blur', () => { this.keys = Object.create(null); });
+
+    document.addEventListener('pointerlockchange', () => {
+      this.locked = document.pointerLockElement === c;
+    });
+    c.addEventListener('mousemove', (e) => {
+      if (!this.locked) return;
+      this.mouseDX += e.movementX || 0;
+      this.mouseDY += e.movementY || 0;
+    });
+
+    c.addEventListener('pointerdown', (e) => {
+      if (e.pointerType !== 'touch') return;
+      const left = e.clientX < window.innerWidth * 0.45;
+      if (left && !this.stick.active) {
+        this.stick = { active: true, id: e.pointerId, ox: e.clientX, oy: e.clientY, x: 0, y: 0 };
+      } else if (!this.look.active) {
+        this.look = { active: true, id: e.pointerId, x: e.clientX, y: e.clientY, moved: 0 };
+      }
+    });
+    c.addEventListener('pointermove', (e) => {
+      if (e.pointerType !== 'touch') return;
+      if (this.stick.active && e.pointerId === this.stick.id) {
+        const dx = e.clientX - this.stick.ox;
+        const dy = e.clientY - this.stick.oy;
+        const len = Math.hypot(dx, dy) || 1;
+        const max = 56;
+        const k = Math.min(1, len / max) / len;
+        this.stick.x = dx * k;
+        this.stick.y = dy * k;
+      } else if (this.look.active && e.pointerId === this.look.id) {
+        this.mouseDX += (e.clientX - this.look.x) * 1.4;
+        this.mouseDY += (e.clientY - this.look.y) * 1.4;
+        this.look.moved += Math.abs(e.clientX - this.look.x) + Math.abs(e.clientY - this.look.y);
+        this.look.x = e.clientX;
+        this.look.y = e.clientY;
+      }
+    });
+    const end = (e) => {
+      if (this.stick.active && e.pointerId === this.stick.id) {
+        this.stick = { active: false, id: null, ox: 0, oy: 0, x: 0, y: 0 };
+      }
+      if (this.look.active && e.pointerId === this.look.id) {
+        /* A tap that never moved is an interact, not a look. */
+        if (this.look.moved < 12) this.taps.push('interact');
+        this.look = { active: false, id: null, x: 0, y: 0 };
+      }
+    };
+    c.addEventListener('pointerup', end);
+    c.addEventListener('pointercancel', end);
+  }
+
+  requestLock() {
+    if (this.canvas.requestPointerLock) this.canvas.requestPointerLock();
+  }
+
+  /* Called once per frame; returns the look delta in radians and clears it. */
+  takeLook() {
+    const s = 0.0022 * this.sensitivity;
+    const dx = this.mouseDX * s;
+    const dy = this.mouseDY * s * (this.invertY ? -1 : 1);
+    this.mouseDX = 0;
+    this.mouseDY = 0;
+    return { dx, dy };
+  }
+
+  /* -1..1 on each axis, from whichever of the three inputs is being used. */
+  move() {
+    let x = 0, z = 0;
+    if (this.keys.KeyW || this.keys.ArrowUp) z -= 1;
+    if (this.keys.KeyS || this.keys.ArrowDown) z += 1;
+    if (this.keys.KeyA || this.keys.ArrowLeft) x -= 1;
+    if (this.keys.KeyD || this.keys.ArrowRight) x += 1;
+    if (this.stick.active) {
+      x += this.stick.x / 56;
+      z += this.stick.y / 56;
+    }
+    const len = Math.hypot(x, z);
+    return len > 1 ? { x: x / len, z: z / len } : { x, z };
+  }
+
+  get running() { return !!(this.keys.ShiftLeft || this.keys.ShiftRight); }
+
+  /* One-shot presses, drained by the caller so a held key fires once. */
+  takeTaps() {
+    const out = this.taps;
+    this.taps = [];
+    return out;
+  }
+
+  press(code) { this.taps.push(code); }
+}
+
+  return {
+    "Input": Input,
+  };
+})();
+
+__m["villa/src/game/player.js"] = (function () {
+/*
+ * player.js — where you are, and what you can walk into.
+ *
+ * Collision is done against a list of walkable rectangles rather than against
+ * the wall geometry. In a fixed six-room house that is both simpler and more
+ * robust: the rooms and the doorways between them are already rectangles,
+ * `buildVilla` hands them over, and there is no chance of squeezing through a
+ * seam between two wall quads because the walls are not what is being tested.
+ *
+ * Movement resolves per axis. Trying the full move, then x alone, then z alone
+ * is what makes walking along a wall slide rather than stop dead, and it is
+ * three rectangle tests instead of a swept circle.
+ */
+
+const { EYE_H } = __m["villa/src/world/build.js"];
+
+const RADIUS = 0.26;
+const WALK = 2.05;
+const RUN = 3.15;
+const ACCEL = 14;
+
+class Player {
+  constructor(x, z, yaw) {
+    this.x = x;
+    this.y = EYE_H;
+    this.z = z;
+    this.yaw = yaw || 0;
+    this.pitch = 0;
+    this.vx = 0;
+    this.vz = 0;
+    this.bob = 0;
+    this.bobAmount = 0;
+    this.stepPhase = 0;
+    this.torch = true;
+    this.speedScale = 1;
+  }
+
+  /*
+   * `areas` are the walkable rectangles and `blockers` the furniture. A point
+   * is standing somewhere legal if it is inside at least one area and inside
+   * no blocker — and the four probes around it are what stop the player's
+   * shoulders passing through a door frame their centre fits through.
+   */
+  canStand(x, z, areas, blockers) {
+    for (const b of blockers) {
+      if (x > b.x0 - RADIUS && x < b.x1 + RADIUS
+        && z > b.z0 - RADIUS && z < b.z1 + RADIUS) return false;
+    }
+    const probes = [
+      [x, z], [x + RADIUS, z], [x - RADIUS, z], [x, z + RADIUS], [x, z - RADIUS],
+    ];
+    for (const [px, pz] of probes) {
+      let inside = false;
+      for (const a of areas) {
+        if (px >= a.x0 && px <= a.x1 && pz >= a.z0 && pz <= a.z1) { inside = true; break; }
+      }
+      if (!inside) return false;
+    }
+    return true;
+  }
+
+  update(dt, input, world, opts) {
+    const look = input.takeLook();
+    this.yaw += look.dx;
+    this.pitch = clamp(this.pitch - look.dy, -1.45, 1.45);
+
+    const m = input.move();
+    const speed = (input.running ? RUN : WALK) * this.speedScale * ((opts && opts.speed) || 1);
+
+    /*
+     * Movement is relative to where you are looking, on the floor plane, in
+     * the engine's convention: yaw 0 looks down -Z and the right vector is
+     * (cos yaw, 0, -sin yaw). Getting the sign of the Z term wrong here walks
+     * you backwards when you press forward, which is subtle enough in a dark
+     * corridor to be blamed on the level.
+     */
+    const sy = Math.sin(this.yaw), cy = Math.cos(this.yaw);
+    const wantX = (m.x * cy + m.z * sy) * speed;
+    const wantZ = (m.z * cy - m.x * sy) * speed;
+
+    const k = 1 - Math.exp(-ACCEL * dt);
+    this.vx += (wantX - this.vx) * k;
+    this.vz += (wantZ - this.vz) * k;
+
+    const nx = this.x + this.vx * dt;
+    const nz = this.z + this.vz * dt;
+    const { areas, blockers } = world;
+
+    if (this.canStand(nx, nz, areas, blockers)) {
+      this.x = nx; this.z = nz;
+    } else if (this.canStand(nx, this.z, areas, blockers)) {
+      this.x = nx; this.vz = 0;
+    } else if (this.canStand(this.x, nz, areas, blockers)) {
+      this.z = nz; this.vx = 0;
+    } else {
+      this.vx = 0; this.vz = 0;
+    }
+
+    /* Head bob, and the footstep that comes with it. Tied to distance rather
+     * than to time, so walking slowly does not sound like running. */
+    const moved = Math.hypot(this.vx, this.vz);
+    this.bobAmount += (Math.min(1, moved / WALK) - this.bobAmount) * (1 - Math.exp(-8 * dt));
+    const prev = this.stepPhase;
+    this.stepPhase += moved * dt * 1.9;
+    this.bob = Math.sin(this.stepPhase * Math.PI * 2) * 0.022 * this.bobAmount;
+    const stepped = Math.floor(this.stepPhase * 2) !== Math.floor(prev * 2) && moved > 0.4;
+
+    this.y = EYE_H + this.bob;
+    return { stepped };
+  }
+
+  /* Which room the player is standing in, by rectangle. Rooms come first in
+   * `areas`; a doorway rectangle has no `room` and falls through to whichever
+   * room also contains the point. */
+  roomAt(areas) {
+    for (const a of areas) {
+      if (!a.room) continue;
+      if (this.x >= a.x0 && this.x <= a.x1 && this.z >= a.z0 && this.z <= a.z1) return a.room;
+    }
+    let best = null;
+    let bestD = Infinity;
+    for (const a of areas) {
+      if (!a.room) continue;
+      const cx = Math.max(a.x0, Math.min(this.x, a.x1));
+      const cz = Math.max(a.z0, Math.min(this.z, a.z1));
+      const d = Math.hypot(this.x - cx, this.z - cz);
+      if (d < bestD) { bestD = d; best = a.room; }
+    }
+    return best;
+  }
+
+  /* Must agree with core/math.js forwardFromEuler, which is what the view
+   * matrix is built from — an X sign flipped here mirrors the torch and the
+   * interaction cone against the picture on screen. */
+  forward() {
+    const cp = Math.cos(this.pitch);
+    return [-Math.sin(this.yaw) * cp, Math.sin(this.pitch), -Math.cos(this.yaw) * cp];
+  }
+}
+
+function clamp(v, lo, hi) { return v < lo ? lo : v > hi ? hi : v; }
+
+  return {
+    "Player": Player,
+  };
+})();
+
+__m["villa/src/game/interact.js"] = (function () {
+/*
+ * interact.js — what you are looking at.
+ *
+ * A cone test rather than a ray cast. A ray demands that the player put the
+ * crosshair exactly on a thing, which in a dark house with a torch is
+ * unpleasant; a cone lets "looking at the kitchen window" mean what a person
+ * means by it. Candidates inside the cone are ranked by angle rather than by
+ * distance, so the thing you are most pointed at wins even if something else
+ * is closer to your feet.
+ *
+ * Nothing here decides whether an action is allowed — that is `canPerform` in
+ * the simulation, and asking it is what keeps the prompt and the rules from
+ * ever disagreeing.
+ */
+
+const { ROOM_BY_ID } = __m["villa/src/data/rooms.js"];
+
+const REACH = 2.9;
+const CONE = Math.cos(30 * Math.PI / 180);
+
+function look(player, target) {
+  const dx = target.x - player.x;
+  const dy = (target.y === undefined ? player.y : target.y) - player.y;
+  const dz = target.z - player.z;
+  const dist = Math.hypot(dx, dy, dz);
+  if (dist > REACH || dist < 0.001) return null;
+  const f = player.forward();
+  const dot = (dx * f[0] + dy * f[1] + dz * f[2]) / dist;
+  if (dot < CONE) return null;
+  return { dist, dot };
+}
+
+/*
+ * The best candidate in front of the player: an opening they could work on, or
+ * one of the three props the rules care about. Returns null when they are
+ * looking at a wall, which is most of the time.
+ */
+function findTarget(player, state, anchors, propAnchors) {
+  let best = null;
+  let bestDot = CONE;
+
+  for (const o of state.openings) {
+    if (!o.present || !o.revealed) continue;
+    const a = anchors[o.id];
+    if (!a || a.room !== player.room) continue;
+    const hit = look(player, a);
+    if (!hit || hit.dot <= bestDot) continue;
+    bestDot = hit.dot;
+    best = { kind: 'opening', id: o.id, opening: o, anchor: a, dist: hit.dist };
+  }
+
+  for (const [key, a] of Object.entries(propAnchors)) {
+    const room = PROP_ROOM[key];
+    if (room && room !== player.room) continue;
+    const hit = look(player, a);
+    if (!hit || hit.dot <= bestDot) continue;
+    bestDot = hit.dot;
+    best = { kind: key, id: key, anchor: a, label: a.label, dist: hit.dist };
+  }
+
+  return best;
+}
+
+const PROP_ROOM = { phone: 'entrance', drawer: 'bedroom', supplies: 'supply' };
+
+/*
+ * Which room the player is standing in, as far as the rules are concerned.
+ * The simulation tracks a room rather than a position — barricading needs to
+ * know you are in the living room, not that you are at (4.2, 1.6, 3.1) — so
+ * this is the one place the two representations meet.
+ */
+function syncRoom(state, roomId) {
+  if (roomId && state.player.room !== roomId) {
+    state.player.room = roomId;
+    return true;
+  }
+  return false;
+}
+
+function roomName(id) {
+  const r = ROOM_BY_ID[id];
+  return r ? r.name : '';
+}
+
+  return {
+    "findTarget": findTarget,
+    "syncRoom": syncRoom,
+    "roomName": roomName,
+  };
+})();
+
+__m["villa/src/game/entities.js"] = (function () {
+/*
+ * entities.js — what is out there, and what got in.
+ *
+ * Deliberately never described. The simulation calls them threats and
+ * intruders and this file draws them, and between the two there is no lore,
+ * no name and no face — a silhouette with the proportions slightly wrong is
+ * worse than any model, because the player finishes it themselves.
+ *
+ * Two kinds, and they are drawn very differently on purpose:
+ *
+ *   **Outside.** A threat working on an opening is drawn *through* it, beyond
+ *   the glass, mostly out of the torch's reach. You get a shape and a
+ *   suggestion of movement and no detail at all. It never comes closer.
+ *
+ *   **Inside.** An intruder that came through a breach is in the room with
+ *   you, lit by whatever you are lit by, and it walks. The moment the game
+ *   stops being about carpentry and starts being about the doorway behind you.
+ *
+ * Everything here is rebuilt each frame into one dynamic buffer. A figure is
+ * about sixty triangles and there are rarely more than six, so the whole cast
+ * is cheaper than a single piece of furniture.
+ */
+
+const { MeshBuilder, addBox } = __m["villa/src/render/meshbuilder.js"];
+
+/*
+ * A body. Not a humanoid rig — a stack of boxes with a long spine, narrow
+ * shoulders and arms that hang too low, animated by two sine waves. In the
+ * dark, at the far end of a torch beam, this reads as a person who is not
+ * quite one.
+ */
+function figure(mb, x, y, z, yaw, phase, mat, scale) {
+  const s = scale || 1;
+  const sway = Math.sin(phase) * 0.05;
+  const step = Math.sin(phase * 2) * 0.09;
+
+  /* torso */
+  addBox(mb, x, y + 1.02 * s, z, 0.36 * s, 0.68 * s, 0.22 * s, yaw + sway * 0.4, mat);
+  /* head, set slightly too far forward */
+  addBox(mb, x + Math.sin(yaw) * 0.05, y + 1.52 * s, z - Math.cos(yaw) * 0.05,
+    0.19 * s, 0.24 * s, 0.20 * s, yaw, mat);
+  /* shoulders */
+  addBox(mb, x, y + 1.32 * s, z, 0.46 * s, 0.10 * s, 0.20 * s, yaw + sway, mat);
+
+  /* arms, hanging past the knee */
+  const ax = Math.cos(yaw) * 0.25 * s, az = Math.sin(yaw) * 0.25 * s;
+  addBox(mb, x + ax, y + 0.86 * s + step * 0.2, z + az, 0.11 * s, 0.74 * s, 0.11 * s, yaw, mat);
+  addBox(mb, x - ax, y + 0.86 * s - step * 0.2, z - az, 0.11 * s, 0.74 * s, 0.11 * s, yaw, mat);
+
+  /* legs */
+  const lx = Math.cos(yaw) * 0.11 * s, lz = Math.sin(yaw) * 0.11 * s;
+  addBox(mb, x + lx, y + 0.34 * s + step * 0.5, z + lz, 0.14 * s, 0.68 * s, 0.14 * s, yaw, mat);
+  addBox(mb, x - lx, y + 0.34 * s - step * 0.5, z - lz, 0.14 * s, 0.68 * s, 0.14 * s, yaw, mat);
+}
+
+/*
+ * Everything visible this frame.
+ *
+ * `state` is the simulation, `anchors` the opening positions from buildVilla,
+ * and `roomCentre` a lookup for where to stand an intruder that has no better
+ * idea. Returns mesh data, or null when the house is empty — which on night
+ * one it usually is, and that is the point of night one.
+ */
+function buildEntities(state, anchors, roomCentres, mat, time) {
+  const mb = new MeshBuilder(2000);
+  let any = 0;
+
+  /* --- outside, working on an opening --- */
+  for (const o of state.openings) {
+    if (!o.present || o.attackers <= 0 || o.breached) continue;
+    const a = anchors[o.id];
+    if (!a) continue;
+    /* Hidden openings in a floor or a ceiling have nothing to stand behind. */
+    if (a.ny) continue;
+
+    for (let i = 0; i < Math.min(o.attackers, 2); i++) {
+      /* Beyond the wall: along the negative inward normal. */
+      const depth = 0.85 + i * 0.5;
+      const side = (i === 0 ? 0 : (i % 2 ? 1 : -1)) * 0.55;
+      const x = a.x - a.nx * depth + a.dx * side;
+      const z = a.z - a.nz * depth + a.dz * side;
+      const yaw = Math.atan2(a.nx, -a.nz);
+      /* Slower phase than an intruder: it is working, not walking. */
+      figure(mb, x, 0, z, yaw, time * 2.2 + i * 2.1, mat.night, 0.98);
+      any++;
+    }
+  }
+
+  /* --- inside --- */
+  for (const it of state.intruders) {
+    if (it.delay > 0) continue;
+    const c = roomCentres[it.room];
+    if (!c) continue;
+    /* Drift around the room centre rather than standing on it, so two in one
+     * room do not occupy the same spot. */
+    const seed = hashId(it.id);
+    const ox = Math.sin(time * 0.55 + seed) * 0.9;
+    const oz = Math.cos(time * 0.43 + seed * 1.7) * 0.9;
+    const yaw = time * 0.4 + seed;
+    figure(mb, c.x + ox, 0, c.z + oz, yaw, time * 4.4 + seed, mat.night, 1.04);
+    any++;
+  }
+
+  return any ? mb.finish() : null;
+}
+
+function hashId(id) {
+  let h = 0;
+  for (let i = 0; i < id.length; i++) h = (Math.imul(h, 31) + id.charCodeAt(i)) | 0;
+  return (h >>> 8) % 1000 / 100;
+}
+
+/* One point per room, for standing things in. */
+function roomCentres(areas) {
+  const out = {};
+  for (const a of areas) {
+    if (!a.room) continue;
+    out[a.room] = { x: (a.x0 + a.x1) / 2, z: (a.z0 + a.z1) / 2 };
+  }
+  return out;
+}
+
+  return {
+    "buildEntities": buildEntities,
+    "roomCentres": roomCentres,
+  };
+})();
+
 __m["villa/src/ui/map.js"] = (function () {
 /*
  * map.js — the villa, drawn as a floor plan.
@@ -4013,6 +7708,206 @@ function updateMap(refs, state, selectedId) {
     "positionOf": positionOf,
     "createMap": createMap,
     "updateMap": updateMap,
+  };
+})();
+
+__m["villa/src/ui/hud3d.js"] = (function () {
+/*
+ * hud3d.js — the overlay for the first-person game.
+ *
+ * Much less than the 2D build's panel, on purpose. In first person the room
+ * itself is the interface: how many boards are on that window is something you
+ * find out by looking at the window, not by reading a number. So this shows
+ * only what the room cannot say — the night, the clock, the danger, what is in
+ * your pack, and what the thing you are looking at can have done to it.
+ *
+ * The prompt is the important part. It never offers an action the rules would
+ * refuse, because it asks the rules: every line is `canPerform`. That is the
+ * same guarantee the 2D build makes and it matters more here, where a player
+ * with a torch in a dark room should not be finding out about the nail budget
+ * by pressing a key and having nothing happen.
+ */
+
+const { h, clear, clock } = __m["villa/src/ui/dom.js"];
+const { UI, PARSER } = __m["villa/src/data/strings.js"];
+const { GAME_CONFIG } = __m["villa/src/data/config.js"];
+const { canPerform } = __m["villa/src/sim/sim.js"];
+const { PHASE } = __m["villa/src/sim/state.js"];
+const { openingState, barricadeState } = __m["villa/src/sim/opening.js"];
+
+/* The actions an opening offers, in the order the number keys are bound. */
+const OPENING_ACTIONS = [
+  { key: '1', type: 'tape', label: UI.actionTape },
+  { key: '2', type: 'plank', label: UI.actionPlank },
+  { key: '3', type: 'repair', label: UI.actionRepair },
+  { key: '4', type: 'shoot', label: UI.actionShoot },
+];
+
+const PROP_ACTIONS = {
+  phone: { key: 'E', type: 'call', label: UI.actionPhone },
+  drawer: { key: 'E', type: 'drawer', label: UI.actionDrawer },
+  supplies: { key: 'E', type: 'gather', label: UI.actionGather },
+};
+
+function createHud3d() {
+  const el = {};
+  el.night = h('span.h3-night');
+  el.clock = h('span.h3-clock');
+  el.dangerFill = h('i');
+  el.danger = h('div.h3-danger', el.dangerFill);
+
+  el.top = h('div.h3-top',
+    h('div.h3-topline', el.night, el.clock),
+    el.danger);
+
+  el.crosshair = h('div.h3-cross');
+  el.prompt = h('div.h3-prompt', { hidden: true });
+  el.kit = h('div.h3-kit');
+  el.alerts = h('ul.h3-alerts');
+  el.busyFill = h('i');
+  el.busy = h('div.h3-busy', { hidden: true }, h('span.h3-busy-label'), h('div.h3-busy-bar', el.busyFill));
+  el.torch = h('div.h3-torch');
+
+  const root = h('div.hud3', el.top, el.crosshair, el.prompt,
+    h('div.h3-bottom', el.busy, el.kit, el.torch), el.alerts);
+
+  return { root, el, alerts: [], sig: '', promptSig: '' };
+}
+
+function updateHud3d(hud, state, ctx) {
+  const { el } = hud;
+  const day = state.phase === PHASE.DAY;
+
+  el.night.textContent = day
+    ? `${UI.dayPrep} · ${UI.night} ${state.night}`
+    : `${UI.night} ${state.night} / ${GAME_CONFIG.NIGHTS_TOTAL}`;
+  el.clock.textContent = clock(state.phaseLength - state.clock);
+
+  const d = state.danger / GAME_CONFIG.DANGER_MAX;
+  el.dangerFill.style.width = `${Math.round(d * 100)}%`;
+  el.danger.classList.toggle('high', d > 0.55);
+  el.danger.classList.toggle('max', d > 0.85);
+  hud.root.classList.toggle('is-day', day);
+
+  /* --- the pack --- */
+  const inv = state.inv;
+  const sig = [inv.ammo, inv.tape, inv.planks, inv.nails,
+    state.neighbor.callsLeft, state.numberFound].join('|');
+  if (sig !== hud.sig) {
+    hud.sig = sig;
+    clear(el.kit);
+    const chips = [
+      ['◈', inv.ammo, inv.ammo === 0 ? 'bad' : ''],
+      ['▤', inv.planks, inv.planks === 0 ? 'dim' : ''],
+      ['✚', inv.nails, inv.nails < GAME_CONFIG.NAILS_PER_PLANK ? 'bad' : ''],
+      ['▬', inv.tape, inv.tape === 0 ? 'dim' : ''],
+      ['☎', state.neighbor.callsLeft, state.neighbor.callsLeft === 0 ? 'dim' : ''],
+    ];
+    for (const [icon, value, mod] of chips) {
+      el.kit.appendChild(h(`div.h3-chip${mod ? '.' + mod : ''}`,
+        h('span.h3-icon', { text: icon }),
+        h('span.h3-value', { text: String(value) })));
+    }
+    if (!state.numberFound) {
+      el.kit.appendChild(h('div.h3-chip.dim', h('span.h3-icon', { text: '☎' }),
+        h('span.h3-value', { text: '?' })));
+    }
+  }
+
+  el.torch.textContent = ctx.torch ? 'פנס · F' : 'פנס כבוי · F';
+  el.torch.classList.toggle('off', !ctx.torch);
+
+  /* --- what you are looking at --- */
+  const t = ctx.target;
+  let psig = 'none';
+  if (t) psig = t.kind + ':' + t.id + ':' + (t.opening
+    ? `${t.opening.planks}:${t.opening.tape}:${Math.round(t.opening.integrity * 20)}:${t.opening.breached}`
+    : '') + ':' + sig;
+  if (psig !== hud.promptSig) {
+    hud.promptSig = psig;
+    clear(el.prompt);
+    if (!t) {
+      el.prompt.hidden = true;
+    } else {
+      el.prompt.hidden = false;
+      if (t.kind === 'opening') {
+        const o = t.opening;
+        el.prompt.appendChild(h('div.h3-name', { text: o.name }));
+        el.prompt.appendChild(h('div.h3-state',
+          h('span', { text: openingState(o).name }),
+          h('span.sep', { text: '·' }),
+          h('span', { text: barricadeState(o) }),
+          h('span.sep', { text: '·' }),
+          h('span', { text: `${o.planks} קרשים` }),
+          h('span.sep', { text: '·' }),
+          h('span', { text: `${o.tape} סקוץ׳` })));
+        const row = h('div.h3-actions');
+        for (const a of OPENING_ACTIONS) {
+          const why = canPerform(state, { type: a.type, id: o.id });
+          row.appendChild(h(`div.h3-act${why ? '.off' : ''}`,
+            h('kbd', { text: a.key }),
+            h('span', { text: a.label }),
+            why ? h('em', { text: PARSER[why] || '' }) : null));
+        }
+        el.prompt.appendChild(row);
+      } else {
+        const a = PROP_ACTIONS[t.kind];
+        el.prompt.appendChild(h('div.h3-name', { text: t.label || '' }));
+        if (a) {
+          const why = canPerform(state, { type: a.type });
+          el.prompt.appendChild(h('div.h3-actions',
+            h(`div.h3-act${why ? '.off' : ''}`,
+              h('kbd', { text: a.key }),
+              h('span', { text: a.label }),
+              why ? h('em', { text: PARSER[why] || '' }) : null)));
+        }
+      }
+    }
+  }
+
+  /* --- busy --- */
+  if (ctx.busy) {
+    el.busy.hidden = false;
+    el.busy.querySelector('.h3-busy-label').textContent = ctx.busy.label;
+    el.busyFill.style.width = `${Math.round((1 - ctx.busy.remaining / ctx.busy.total) * 100)}%`;
+  } else {
+    el.busy.hidden = true;
+  }
+
+  /* --- alerts --- */
+  let dirty = false;
+  for (const a of hud.alerts) {
+    a.life -= ctx.dt;
+    if (a.life <= 0) dirty = true;
+  }
+  if (dirty) {
+    hud.alerts = hud.alerts.filter((a) => a.life > 0);
+    renderAlerts(hud);
+  }
+
+  el.crosshair.classList.toggle('on', !!t);
+}
+
+function pushAlert3d(hud, text, tone) {
+  if (!text) return;
+  hud.alerts.unshift({ text, tone: tone || 'plain', life: tone === 'bad' ? 8 : 5.5 });
+  if (hud.alerts.length > 4) hud.alerts.length = 4;
+  renderAlerts(hud);
+}
+
+function renderAlerts(hud) {
+  clear(hud.el.alerts);
+  for (const a of hud.alerts) {
+    hud.el.alerts.appendChild(h(`li.h3-alert.${a.tone}`, { text: a.text }));
+  }
+}
+
+  return {
+    "OPENING_ACTIONS": OPENING_ACTIONS,
+    "PROP_ACTIONS": PROP_ACTIONS,
+    "createHud3d": createHud3d,
+    "updateHud3d": updateHud3d,
+    "pushAlert3d": pushAlert3d,
   };
 })();
 
@@ -4991,17 +8886,20 @@ __m["villa/src/main.js"] = (function () {
 /*
  * main.js — boot, the loop, and the two ways to play.
  *
- * The important thing here is what is *not* here: no rules. This file owns the
- * frame loop, which screen is showing, and turning a click or a typed line
- * into an action object. Everything that decides what happens lives in
- * villa/src/sim/, which has no idea any of this exists.
+ * What is deliberately *not* here: any rule. This file owns the frame loop,
+ * which screen is showing, and turning a keypress into an action object.
+ * Everything that decides what happens lives in villa/src/sim/, which has no
+ * idea a renderer exists — which is what let the same simulation be shipped
+ * first as a floor plan and then as a house you walk around in without a
+ * single balance number changing.
  *
- * The two modes differ in one respect and it is deliberate. On the map, time
- * runs on its own and an action holds your hands still for its duration — the
- * house keeps working while you are boarding a window. At the prompt, time
- * only moves when you act, and the cost is charged before the action lands.
- * Both go through the same fixed-timestep accumulator in sim.js, so a night
- * played either way unfolds identically.
+ * Two front-ends share it. First person is the game: the room is the
+ * interface, and how many boards are on a window is something you find out by
+ * looking at the window. The Hebrew prompt is the same night, turn by turn,
+ * where time only moves when you act. Both go through one fixed-timestep
+ * accumulator in sim.js, so a night played either way unfolds identically.
+ *
+ * The floor plan from the 2D build survives as the in-game map, on Tab.
  */
 
 const { h, qs, clear, clock } = __m["villa/src/ui/dom.js"];
@@ -5011,39 +8909,49 @@ const { nightData } = __m["villa/src/data/nights.js"];
 const { ROOM_BY_ID } = __m["villa/src/data/rooms.js"];
 const { drain } = __m["villa/src/core/events.js"];
 const { PHASE } = __m["villa/src/sim/state.js"];
-const { newRun, step, performTimed, perform, canPerform, actionCost, pause, resume, } = __m["villa/src/sim/sim.js"];
+const { newRun, step, performTimed, perform, canPerform, actionCost, pause, resume } = __m["villa/src/sim/sim.js"];
+
+const { Renderer } = __m["villa/src/render/renderer.js"];
+const { MATERIALS, MATERIAL_INDEX, CUTOUT_MATERIALS } = __m["villa/src/render/materials.js"];
+const { MeshBuilder } = __m["villa/src/render/meshbuilder.js"];
+const { buildVilla, EYE_H, WALL_H, roomRect } = __m["villa/src/world/build.js"];
+const { buildProps } = __m["villa/src/world/props.js"];
+const { buildAllBarricades, barricadeSignature } = __m["villa/src/world/barricade.js"];
+const { Input } = __m["villa/src/game/input.js"];
+const { Player } = __m["villa/src/game/player.js"];
+const { findTarget, syncRoom } = __m["villa/src/game/interact.js"];
+const { buildEntities, roomCentres } = __m["villa/src/game/entities.js"];
+
 const { createMap, updateMap } = __m["villa/src/ui/map.js"];
-const { createHud, updateHud, pushAlert, describeEvent } = __m["villa/src/ui/hud.js"];
-const { createConsole, print, clearConsole, parse, statusLines, openingReport, } = __m["villa/src/ui/text.js"];
+const { createHud3d, updateHud3d, pushAlert3d, OPENING_ACTIONS, PROP_ACTIONS } = __m["villa/src/ui/hud3d.js"];
+const { describeEvent } = __m["villa/src/ui/hud.js"];
+const { createConsole, print, clearConsole, parse, statusLines, openingReport } = __m["villa/src/ui/text.js"];
 const { Audio, EVENT_SOUND } = __m["villa/src/audio/audio.js"];
 const store = __m["villa/src/ui/store.js"];
 
 const audio = new Audio();
+const input = { ref: null };
 
+let renderer = null;
+let world = null;          /* geometry, anchors, lights, walkable areas   */
+let gpu = null;            /* uploaded meshes                             */
+let player = null;
 let state = null;
-let mapRefs = null;
+
 let hud = null;
+let mapRefs = null;
 let con = null;
+
 let busy = null;
-let selected = null;
-let mode = 'map';
+let mode = 'fp';
+let mapOpen = false;
 let running = false;
 let lastFrame = 0;
 let lastPhase = null;
 let lastNight = 0;
 let saveIn = 2;
+let clockTime = 0;
 
-/*
- * How fast the clock runs against real time. A night is between three and a
- * half and eight minutes of game time and there are seven of them with an
- * afternoon each, so a full week at 1x is a little over an hour — right for
- * someone settling in, far too long for someone who wants to see night five.
- * It multiplies the frame delta and nothing else: every rate, cost and timer
- * in the simulation is in game seconds and none of them know about it.
- *
- * The text mode ignores it entirely, because there time only moves when the
- * player does something.
- */
 const SPEEDS = [1, 2, 4];
 let speed = 1;
 
@@ -5051,30 +8959,106 @@ let speed = 1;
  * Screens
  * ------------------------------------------------------------------ */
 
-const SCREENS = ['menu', 'how', 'brief', 'pause', 'over', 'won'];
+const SCREENS = ['loading', 'menu', 'how', 'brief', 'pause', 'over', 'won'];
 
 function show(name) {
   for (const s of SCREENS) qs(`#screen-${s}`).hidden = (s !== name);
   const playing = !name;
-  qs('#game').hidden = !playing || mode !== 'map';
-  qs('#controls').hidden = !playing;
-  if (con) con.root.hidden = !playing || mode !== 'text';
   running = playing;
+  qs('#controls').hidden = !playing;
+  qs('#view').hidden = !playing || mode !== 'fp';
+  if (hud) hud.root.hidden = !playing || mode !== 'fp';
+  if (con) con.root.hidden = !playing || mode !== 'text';
+  qs('#mapover').hidden = !(playing && mode === 'fp' && mapOpen);
   if (playing) lastFrame = performance.now();
+  if (!playing && document.pointerLockElement) document.exitPointerLock();
 }
 
 /* ------------------------------------------------------------------ *
- * Starting and ending
+ * Building the villa — once, behind a loading screen
  * ------------------------------------------------------------------ */
 
-function startRun(resumed) {
-  /* Date.now() as the seed lives here rather than in the simulation, which
-   * never calls it — every roll inside a run comes from that one integer. */
+/*
+ * Baking twenty-five materials at 256px is a second or two of solid
+ * arithmetic, so it is done once, on the first run, with the loading screen
+ * already painted. Yielding a frame between each one is what lets the bar
+ * actually move rather than the whole thing freezing and then finishing.
+ */
+async function loadWorld() {
+  if (world) return;
+  show('loading');
+  const fill = qs('#load-fill');
+  const note = qs('#load-note');
+  await frameGap();
+
+  renderer.quality.textureSize = pickTextureSize();
+  note.textContent = 'בונה חומרים…';
+  const baked = [];
+  for (let i = 0; i < MATERIALS.length; i++) {
+    baked.push(MATERIALS[i]);
+    fill.style.width = `${Math.round((i + 1) / MATERIALS.length * 78)}%`;
+    if (i % 4 === 3) await frameGap();
+  }
+  renderer.setMaterials(baked);
+
+  note.textContent = 'בונה את הבית…';
+  fill.style.width = '86%';
+  await frameGap();
+
+  world = buildVilla(MATERIAL_INDEX);
+  const propMb = new MeshBuilder(20000);
+  const props = buildProps(propMb, MATERIAL_INDEX);
+  world.props = props;
+  world.blockers = props.blockers;
+  world.lights = world.lights.concat(props.lights);
+  world.anchors = Object.assign({}, world.anchors);
+  world.propAnchors = props.anchors;
+  world.centres = roomCentres(world.areas);
+
+  gpu = {
+    building: renderer.upload(world.mesh),
+    props: renderer.upload(propMb.finish()),
+    glass: renderer.upload(world.glass),
+    barricade: null,
+    tape: null,
+    entities: null,
+    sig: '',
+  };
+
+  fill.style.width = '100%';
+  await frameGap();
+}
+
+function frameGap() {
+  return new Promise((r) => requestAnimationFrame(() => requestAnimationFrame(r)));
+}
+
+/* A phone baking at 256px spends four seconds on it and then renders at a
+ * third of the resolution anyway. */
+function pickTextureSize() {
+  const coarse = window.matchMedia && window.matchMedia('(pointer: coarse)').matches;
+  const small = Math.min(window.innerWidth, window.innerHeight) < 560;
+  return (coarse || small) ? 128 : 256;
+}
+
+/* ------------------------------------------------------------------ *
+ * Runs
+ * ------------------------------------------------------------------ */
+
+async function startRun(resumed) {
+  await loadWorld();
   state = resumed || newRun(Date.now() >>> 0);
   busy = null;
-  selected = null;
   lastPhase = null;
   lastNight = 0;
+  clockTime = 0;
+
+  /* Standing at the front door, looking into the house. */
+  const e = roomRect(ROOM_BY_ID.entrance);
+  player = new Player((e.x0 + e.x1) / 2, e.z1 - 1.6, 0);
+  player.torch = true;
+  state.player.room = 'entrance';
+
   if (con) clearConsole(con);
   drain(state);
   if (mode === 'text') {
@@ -5083,36 +9067,27 @@ function startRun(resumed) {
   enterPhase();
 }
 
-/* Shown at the top of every day: what is coming, and what there is to do it
- * with. The one place the player is told the shape of the night in advance. */
 function enterPhase() {
+  if (state.phase !== PHASE.DAY) { show(null); return; }
   const n = nightData(state.night);
-  if (state.phase === PHASE.DAY) {
-    qs('#brief-eyebrow').textContent = state.night === 1 ? 'הלילה הראשון' : `לפנות בוקר · יום ${state.night}`;
-    qs('#brief-title').textContent = `${UI.night} ${state.night} ${UI.of} ${GAME_CONFIG.NIGHTS_TOTAL}`;
+  qs('#brief-eyebrow').textContent = state.night === 1
+    ? 'הלילה הראשון' : `לפנות בוקר · יום ${state.night}`;
+  qs('#brief-title').textContent = `${UI.night} ${state.night} ${UI.of} ${GAME_CONFIG.NIGHTS_TOTAL}`;
 
-    const tally = clear(qs('#brief-tally'));
-    for (let i = 1; i <= GAME_CONFIG.NIGHTS_TOTAL; i++) {
-      tally.appendChild(h(`i${i < state.night ? '.done' : i === state.night ? '.now' : ''}`));
-    }
-
-    qs('#brief-note').textContent = n.note;
-
-    const stats = clear(qs('#brief-stats'));
-    for (const [num, label] of [
-      [n.total, 'פתחים'],
-      [n.hidden, 'מסתוריים'],
-      [n.threats, 'איומים'],
-      [n.difficulty, 'קושי'],
-    ]) {
-      stats.appendChild(h('div.stat',
-        h('span.stat-num', { text: String(num) }),
-        h('span.stat-label', { text: label })));
-    }
-    show('brief');
-  } else {
-    show(null);
+  const tally = clear(qs('#brief-tally'));
+  for (let i = 1; i <= GAME_CONFIG.NIGHTS_TOTAL; i++) {
+    tally.appendChild(h(`i${i < state.night ? '.done' : i === state.night ? '.now' : ''}`));
   }
+  qs('#brief-note').textContent = n.note;
+  const stats = clear(qs('#brief-stats'));
+  for (const [num, label] of [
+    [n.total, 'פתחים'], [n.hidden, 'מסתוריים'], [n.threats, 'איומים'], [n.difficulty, 'קושי'],
+  ]) {
+    stats.appendChild(h('div.stat',
+      h('span.stat-num', { text: String(num) }),
+      h('span.stat-label', { text: label })));
+  }
+  show('brief');
 }
 
 function finish() {
@@ -5139,10 +9114,8 @@ function fillStats(node) {
   const s = state.stats;
   clear(node);
   for (const [num, label] of [
-    [s.nightsSurvived, 'לילות'],
-    [s.shotsFired, 'יריות'],
-    [s.planksUsed, 'קרשים'],
-    [s.breaches, 'פריצות'],
+    [s.nightsSurvived, 'לילות'], [s.shotsFired, 'יריות'],
+    [s.planksUsed, 'קרשים'], [s.breaches, 'פריצות'],
   ]) {
     node.appendChild(h('div.stat',
       h('span.stat-num', { text: String(num) }),
@@ -5151,21 +9124,20 @@ function fillStats(node) {
 }
 
 /* ------------------------------------------------------------------ *
- * Doing things
+ * Acting
  * ------------------------------------------------------------------ */
 
 /*
- * The map screen's order: check it is possible, then hold the player still for
- * the duration, then apply. Anything can happen to the house while your hands
- * are busy — including the window you were reaching for giving way — which is
- * correct, and is why the cost is spent before the effect and not after.
+ * The first-person order: check it is possible, hold the player's hands for
+ * the duration, then apply. The house keeps working while you are boarding a
+ * window — including, sometimes, the window you were boarding.
  */
 function doAction(action) {
-  if (!running || busy) return;
+  if (!running || busy || !state) return;
   audio.start();
   const why = canPerform(state, action);
   if (why) {
-    flash(PARSER[why] || 'אי אפשר.');
+    pushAlert3d(hud, PARSER[why] || 'אי אפשר.', 'warn');
     audio.play('click');
     return;
   }
@@ -5177,7 +9149,6 @@ function doAction(action) {
 function labelFor(action) {
   const o = action.id && state.openings.find((x) => x.id === action.id);
   switch (action.type) {
-    case 'move': return `הולך ${toRoom(ROOM_BY_ID[action.room].name)}…`;
     case 'tape': return `מדביק סקוץ׳ על ${o ? o.name : ''}…`;
     case 'plank': return `מקרש את ${o ? o.name : ''}…`;
     case 'repair': return `דוחף בחזרה את ${o ? o.name : ''}…`;
@@ -5190,12 +9161,192 @@ function labelFor(action) {
   }
 }
 
-/* A one-off line in the alert feed for things the simulation did not emit —
- * mostly "you cannot do that from here". */
-function flash(text) {
-  hud.alerts.unshift({ text, tone: 'warn', life: 3 });
-  if (hud.alerts.length > 5) hud.alerts.length = 5;
-  hud.sig = '';
+/* Events into Hebrew and into sound, for whichever front-end is showing. */
+function drainEvents() {
+  const lines = [];
+  for (const ev of drain(state)) {
+    const sound = EVENT_SOUND[ev.kind];
+    if (sound) audio.play(sound);
+    const line = describeEvent(ev);
+    if (!line) continue;
+    if (mode === 'fp') pushAlert3d(hud, line, TONE[ev.kind] || 'plain');
+    else lines.push(line);
+  }
+  return lines;
+}
+
+const TONE = {
+  breached: 'bad', critical: 'bad', intruder_near: 'bad', defenseless: 'bad',
+  intruder_in: 'warn', under_pressure: 'warn', noise: 'warn', hidden_appeared: 'warn',
+  tape_snapped: 'warn', plank_broke: 'warn', neighbor_leaving_soon: 'warn',
+  hidden_revealed: 'good', hidden_self_revealed: 'good', resecured: 'good',
+  drawer_found: 'good', neighbor_arrived: 'good', night_survived: 'good',
+  phone_dialing: 'good', shot_intruder_out: 'good',
+};
+
+/* ------------------------------------------------------------------ *
+ * The loop
+ * ------------------------------------------------------------------ */
+
+function frame(now) {
+  requestAnimationFrame(frame);
+  const dt = Math.min((now - lastFrame) / 1000, 0.25);
+  lastFrame = now;
+  if (!state || !world) return;
+  clockTime += dt;
+
+  if (running && mode === 'fp') {
+    const gdt = dt * speed;
+
+    /* --- the player --- */
+    const moved = player.update(dt, input.ref, world, {});
+    if (moved.stepped) audio.play('step');
+    syncRoom(state, player.roomAt(world.areas));
+
+    /* --- the world --- */
+    step(state, gdt);
+    if (busy) {
+      busy.remaining -= gdt;
+      if (busy.remaining <= 0) {
+        const action = busy.action;
+        busy = null;
+        if (state.phase === PHASE.DAY || state.phase === PHASE.NIGHT) {
+          const r = perform(state, action);
+          if (!r.ok) pushAlert3d(hud, PARSER[r.reason] || 'מאוחר מדי.', 'warn');
+        }
+      }
+    }
+    handleKeys();
+    drainEvents();
+
+    if (state.phase === PHASE.OVER || state.phase === PHASE.WON) { finish(); return; }
+    if (state.phase !== lastPhase || state.night !== lastNight) {
+      const wasNight = lastPhase === PHASE.NIGHT;
+      lastPhase = state.phase;
+      lastNight = state.night;
+      if (wasNight && state.phase === PHASE.DAY) { enterPhase(); return; }
+    }
+
+    /* --- draw --- */
+    const target = findTarget(
+      { x: player.x, y: player.y, z: player.z, room: state.player.room, forward: () => player.forward() },
+      state, world.anchors, world.propAnchors,
+    );
+    renderer.resize();
+    renderer.updateFlicker(clockTime);
+    renderer.render(buildView(target, dt));
+    updateHud3d(hud, state, { target, busy, dt, torch: player.torch });
+
+    if (mapOpen) updateMap(mapRefs, state, target && target.kind === 'opening' ? target.id : null);
+
+    saveIn -= dt;
+    if (saveIn <= 0) { saveIn = 2; store.saveRun(state); }
+  }
+
+  audio.update(state.danger / GAME_CONFIG.DANGER_MAX, dt);
+}
+
+/*
+ * Everything the renderer needs this frame. The barricades are rebuilt only
+ * when a board or a roll actually changed — fifteen openings' worth of
+ * oriented boxes is not something to redo sixty times a second to arrive at
+ * the same buffer.
+ */
+function buildView(target, dt) {
+  const sig = barricadeSignature(state.openings);
+  if (sig !== gpu.sig) {
+    gpu.sig = sig;
+    const built = buildAllBarricades(state.openings, world.anchors, MATERIAL_INDEX);
+    if (gpu.barricade) renderer.release(gpu.barricade);
+    if (gpu.tape) renderer.release(gpu.tape);
+    gpu.barricade = renderer.upload(built.solid);
+    gpu.tape = renderer.upload(built.tape);
+  }
+
+  const ent = buildEntities(state, world.anchors, world.centres, MATERIAL_INDEX, clockTime);
+  gpu.entities = renderer.uploadDynamic(gpu.entities, ent);
+
+  const meshes = [
+    { mesh: gpu.building }, { mesh: gpu.props }, { mesh: gpu.barricade },
+    { mesh: gpu.entities && gpu.entities.count ? gpu.entities : null },
+    { mesh: gpu.glass },
+    { mesh: gpu.tape, cutout: true },
+  ];
+
+  /*
+   * The lamps go out at dusk. Not for effect — it is the mechanic the whole
+   * game rests on. In daylight you can see the whole room and the work is
+   * bookkeeping; at night there is one failing bulb and a torch, and the same
+   * work becomes a decision about where not to be looking.
+   */
+  const night = state.phase !== PHASE.DAY;
+  const danger = state.danger / GAME_CONFIG.DANGER_MAX;
+  /* At dusk most of the house goes dark. One fixture per room stays on at a
+   * third, which is enough to navigate by and nowhere near enough to work by —
+   * that is what the torch is for, and what makes turning it off to listen a
+   * real decision rather than a setting. */
+  const lights = world.lights.map((l) => Object.assign({}, l, {
+    intensity: (l.intensity === undefined ? 1 : l.intensity) * (night ? 0.30 : 1),
+  }));
+
+  return {
+    camera: { x: player.x, y: player.y, z: player.z, yaw: player.yaw, pitch: player.pitch, fov: 70 },
+    meshes,
+    lights,
+    torch: {
+      on: player.torch, level: night ? 1 : 0.55,
+      range: 15, inner: 15, outer: 31,
+    },
+    ambient: night ? [0.010, 0.012, 0.020] : [0.16, 0.155, 0.145],
+    fog: { color: night ? [0.010, 0.012, 0.020] : [0.045, 0.046, 0.050], density: night ? 0.075 : 0.035 },
+    stress: danger,
+    time: clockTime,
+  };
+}
+
+/* ------------------------------------------------------------------ *
+ * Keys
+ * ------------------------------------------------------------------ */
+
+/*
+ * Read once per frame rather than on the event, so that holding a key does
+ * not queue fifty barricades and so that every action goes through the same
+ * "is anything in front of me" check.
+ */
+function handleKeys() {
+  const inp = input.ref;
+  const taps = inp.takeTaps();
+  if (!taps.length) return;
+
+  const target = findTarget(
+    { x: player.x, y: player.y, z: player.z, room: state.player.room, forward: () => player.forward() },
+    state, world.anchors, world.propAnchors,
+  );
+
+  for (const tap of taps) {
+    if (tap === 'torch') { player.torch = !player.torch; audio.play('click'); continue; }
+    if (tap === 'shoot') { doAction({ type: 'shoot' }); continue; }
+    if (tap === 'search') { doAction({ type: 'search' }); continue; }
+    if (tap === 'ready') { doAction({ type: 'ready' }); continue; }
+
+    if (tap === 'interact') {
+      if (!target) { doAction({ type: 'search' }); continue; }
+      if (target.kind === 'opening') {
+        /* The first thing that is actually possible, which is what a person
+         * reaching for a window would do. */
+        const a = OPENING_ACTIONS.find((x) => !canPerform(state, { type: x.type, id: target.id }));
+        if (a) doAction({ type: a.type, id: target.id });
+        else pushAlert3d(hud, 'אין מה לעשות כאן עכשיו.', 'warn');
+      } else {
+        const a = PROP_ACTIONS[target.kind];
+        if (a) doAction({ type: a.type });
+      }
+      continue;
+    }
+
+    const n = OPENING_ACTIONS.find((x) => x.key === tap);
+    if (n && target && target.kind === 'opening') doAction({ type: n.type, id: target.id });
+  }
 }
 
 /* ------------------------------------------------------------------ *
@@ -5225,7 +9376,6 @@ function onCommand(line) {
 
   const report = REPORTS[action.type];
   if (report) { print(con, report(state), 'event'); return; }
-
   if (action.type === 'look' || action.type === 'look_room') {
     print(con, describeTarget(action), 'event');
     return;
@@ -5237,15 +9387,12 @@ function onCommand(line) {
     print(con, [PARSER[result.reason] || 'לא עכשיו.'], 'bad');
     return;
   }
-
-  const lines = drainToLines();
+  const lines = drainEvents();
   if (result.reason === 'foundNothing') lines.push('חיפשת. לא מצאת כלום.');
   if (lines.length) print(con, lines, 'event');
 
   if (state.phase === PHASE.OVER || state.phase === PHASE.WON) { finish(); return; }
-  if (before === PHASE.DAY && state.phase === PHASE.NIGHT) {
-    print(con, ['השמש שקעה.'], 'bad');
-  }
+  if (before === PHASE.DAY && state.phase === PHASE.NIGHT) print(con, ['השמש שקעה.'], 'bad');
   print(con, statusLines(state), 'status');
 }
 
@@ -5259,132 +9406,108 @@ function describeTarget(action) {
   }
   const o = state.openings.find((x) => x.id === action.id);
   if (!o) return [PARSER.unknownTarget('')];
-  const pct = Math.round(o.integrity * 100);
   return [
     `${o.name} — ${inRoom(ROOM_BY_ID[o.room].name)}.`,
-    `נזק: ${pct}% · קרשים: ${o.planks} · סקוץ׳: ${o.tape}`
+    `נזק: ${Math.round(o.integrity * 100)}% · קרשים: ${o.planks} · סקוץ׳: ${o.tape}`
     + (o.canTape ? '' : ' · אי אפשר להדביק על זה סקוץ׳'),
     o.attackers > 0 ? 'משהו עובד עליו עכשיו.' : 'שקט מהצד השני.',
   ];
-}
-
-/* Events into Hebrew lines, and into sound. Shared by both modes, which is why
- * the map and the prompt describe the same thing with the same words. */
-function drainToLines() {
-  const out = [];
-  for (const ev of drain(state)) {
-    const sound = EVENT_SOUND[ev.kind];
-    if (sound) audio.play(sound);
-    if (mode === 'map') pushAlert(hud, ev);
-    else {
-      const line = describeEvent(ev);
-      if (line) out.push(line);
-    }
-  }
-  return out;
-}
-
-/* ------------------------------------------------------------------ *
- * The loop
- * ------------------------------------------------------------------ */
-
-function frame(now) {
-  requestAnimationFrame(frame);
-  const dt = Math.min((now - lastFrame) / 1000, 0.5);
-  lastFrame = now;
-  if (!state) return;
-
-  if (running && mode === 'map') {
-    const gdt = dt * speed;
-    step(state, gdt);
-
-    if (busy) {
-      busy.remaining -= gdt;
-      if (busy.remaining <= 0) {
-        const action = busy.action;
-        busy = null;
-        if (state.phase === PHASE.DAY || state.phase === PHASE.NIGHT) {
-          const r = perform(state, action);
-          if (!r.ok) flash(PARSER[r.reason] || 'מאוחר מדי.');
-        }
-      }
-    }
-    drainToLines();
-
-    /* A new day means a new briefing; the end of a run means a screen. */
-    if (state.phase === PHASE.OVER || state.phase === PHASE.WON) { finish(); return; }
-    if (state.phase !== lastPhase || state.night !== lastNight) {
-      const wasNight = lastPhase === PHASE.NIGHT;
-      lastPhase = state.phase;
-      lastNight = state.night;
-      if (wasNight && state.phase === PHASE.DAY) { enterPhase(); return; }
-    }
-
-    updateMap(mapRefs, state, selected);
-    updateHud(hud, state, busy);
-
-    /* Saving is a full JSON round-trip of the world. Once every couple of
-     * seconds is enough to survive a closed tab and cheap enough not to show
-     * up in a frame budget; sixty times a second was neither. */
-    saveIn -= dt;
-    if (saveIn <= 0) { saveIn = 2; store.saveRun(state); }
-  }
-
-  audio.update(state.danger / GAME_CONFIG.DANGER_MAX, dt);
 }
 
 /* ------------------------------------------------------------------ *
  * Wiring
  * ------------------------------------------------------------------ */
 
+/*
+ * The two front-ends track position differently — the prompt knows which room
+ * you are in, the first-person view knows where you are standing in it — so
+ * switching has to reconcile them or you walk out of the kitchen at the prompt
+ * and find yourself still in the living room in 3D.
+ */
+function placeInRoom(roomId) {
+  if (!player || !world) return;
+  const c = world.centres[roomId];
+  if (!c) return;
+  player.x = c.x;
+  player.z = c.z;
+  player.vx = 0;
+  player.vz = 0;
+}
+
 function setMode(next) {
+  const was = mode;
   mode = next;
+  if (was === 'text' && next === 'fp' && state) placeInRoom(state.player.room);
   store.setPrefs({ mode });
-  qs('#btn-mode').textContent = mode === 'map' ? UI.modeText : UI.modeHud;
-  qs('#game').hidden = !running || mode !== 'map';
+  qs('#btn-mode').textContent = mode === 'fp' ? UI.modeText : 'מצב תלת־ממד';
+  qs('#view').hidden = !running || mode !== 'fp';
+  hud.root.hidden = !running || mode !== 'fp';
   con.root.hidden = !running || mode !== 'text';
+  qs('#mapover').hidden = !(running && mode === 'fp' && mapOpen);
   if (mode === 'text' && state) {
+    if (document.pointerLockElement) document.exitPointerLock();
     print(con, statusLines(state), 'status');
     con.input.focus();
   }
-  if (mode === 'map' && state) { lastFrame = performance.now(); }
+  lastFrame = performance.now();
+}
+
+function toggleMap() {
+  mapOpen = !mapOpen;
+  qs('#mapover').hidden = !(running && mode === 'fp' && mapOpen);
+  if (mapOpen && document.pointerLockElement) document.exitPointerLock();
+}
+
+function doPause() {
+  if (!running || !state) return;
+  pause(state);
+  qs('#pause-where').textContent = `${UI.night} ${state.night} · ${ROOM_BY_ID[state.player.room].name}`;
+  show('pause');
 }
 
 function boot() {
-  const p = store.prefs();
-  mode = p.mode === 'text' ? 'text' : 'map';
+  const canvas = qs('#view');
+  try {
+    renderer = new Renderer(canvas, { renderScale: pickRenderScale() });
+  } catch (e) {
+    /* No WebGL2. The game still exists — it is the same simulation — so say so
+     * and drop straight into the prompt rather than showing a black page. */
+    qs('#screen-menu').hidden = false;
+    qs('#menu-best').textContent = 'הדפדפן הזה לא תומך ב-WebGL2. המשחק ירוץ במצב טקסט.';
+    mode = 'text';
+  }
 
-  mapRefs = createMap(
-    (roomId) => doAction({ type: 'move', room: roomId }),
-    (id) => { selected = (selected === id ? null : id); if (hud) hud.selected = selected; },
-  );
-  qs('#stage').appendChild(mapRefs.svg);
-
-  hud = createHud(doAction);
+  input.ref = new Input(canvas);
+  hud = createHud3d();
   qs('#hud-slot').appendChild(hud.root);
+
+  mapRefs = createMap(() => {}, () => {});
+  qs('#stage').appendChild(mapRefs.svg);
 
   con = createConsole(onCommand);
   qs('#console-slot').appendChild(con.root);
   con.root.hidden = true;
 
+  const p = store.prefs();
+  mode = (p.mode === 'text' || !renderer) ? 'text' : 'fp';
   speed = SPEEDS.indexOf(p.speed) === -1 ? 1 : p.speed;
   qs('#btn-speed').textContent = `${speed}×`;
+  qs('#btn-mode').textContent = mode === 'fp' ? UI.modeText : 'מצב תלת־ממד';
   audio.setMuted(!!p.muted);
   qs('#btn-mute').textContent = p.muted ? 'בטל השתקה' : 'השתקה';
-  qs('#btn-mode').textContent = mode === 'map' ? UI.modeText : UI.modeHud;
 
   const b = store.best();
-  qs('#menu-best').textContent = b.won
-    ? `שרדת את השבוע. השיא: ${b.nights} לילות.`
-    : (b.nights ? `הכי רחוק שהגעת: ${b.nights} לילות מתוך 7.` : '');
+  if (renderer) {
+    qs('#menu-best').textContent = b.won
+      ? `שרדת את השבוע. השיא: ${b.nights} לילות.`
+      : (b.nights ? `הכי רחוק שהגעת: ${b.nights} לילות מתוך 7.` : '');
+  }
   qs('#btn-continue').hidden = !store.hasRun();
 
-  /* menu */
   qs('#btn-start').addEventListener('click', () => { audio.start(); store.clearRun(); startRun(null); });
   qs('#btn-continue').addEventListener('click', () => {
     audio.start();
-    const saved = store.loadRun();
-    if (saved) startRun(saved); else startRun(null);
+    startRun(store.loadRun());
   });
   qs('#btn-how').addEventListener('click', () => show('how'));
   qs('#btn-how-back').addEventListener('click', () => show('menu'));
@@ -5393,16 +9516,17 @@ function boot() {
     lastPhase = state.phase;
     lastNight = state.night;
     show(null);
-    if (mode === 'text') print(con, statusLines(state), 'status');
+    if (mode === 'fp') input.ref.requestLock();
+    else print(con, statusLines(state), 'status');
   });
 
-  /* in-game controls */
   qs('#btn-speed').addEventListener('click', () => {
     speed = SPEEDS[(SPEEDS.indexOf(speed) + 1) % SPEEDS.length];
     store.setPrefs({ speed });
     qs('#btn-speed').textContent = `${speed}×`;
   });
-  qs('#btn-mode').addEventListener('click', () => setMode(mode === 'map' ? 'text' : 'map'));
+  qs('#btn-map').addEventListener('click', toggleMap);
+  qs('#btn-mode').addEventListener('click', () => setMode(mode === 'fp' ? 'text' : 'fp'));
   qs('#btn-mute').addEventListener('click', () => {
     const next = !audio.muted;
     audio.setMuted(next);
@@ -5410,37 +9534,52 @@ function boot() {
     qs('#btn-mute').textContent = next ? 'בטל השתקה' : 'השתקה';
   });
   qs('#btn-pause').addEventListener('click', doPause);
-  qs('#btn-resume').addEventListener('click', () => { resume(state); show(null); });
+  qs('#btn-resume').addEventListener('click', () => {
+    resume(state); show(null);
+    if (mode === 'fp') input.ref.requestLock();
+  });
   qs('#btn-pause-mode').addEventListener('click', () => {
-    setMode(mode === 'map' ? 'text' : 'map');
-    resume(state);
-    show(null);
+    setMode(mode === 'fp' ? 'text' : 'fp'); resume(state); show(null);
   });
   qs('#btn-quit').addEventListener('click', () => { resume(state); show('menu'); });
-
-  /* outcomes */
   qs('#btn-retry').addEventListener('click', () => startRun(null));
   qs('#btn-again').addEventListener('click', () => startRun(null));
   qs('#btn-over-menu').addEventListener('click', () => show('menu'));
   qs('#btn-won-menu').addEventListener('click', () => show('menu'));
 
-  document.addEventListener('keydown', (e) => {
-    if (e.key === 'Escape' && running) { doPause(); return; }
-    if (mode !== 'map' || !running || document.activeElement === con.input) return;
-    /* Space is the fire button, because in a game about being interrupted the
-     * one action that must never need aiming is the one you take by reflex. */
-    if (e.code === 'Space') { e.preventDefault(); doAction({ type: 'shoot' }); }
+  canvas.addEventListener('click', () => {
+    if (running && mode === 'fp' && !mapOpen) {
+      if (!input.ref.locked) input.ref.requestLock();
+      else input.ref.press('shoot');
+    }
   });
+
+  /*
+   * One key table. Everything routes through Input's tap queue so that the
+   * on-screen buttons on a phone and the keyboard hit the identical path.
+   */
+  document.addEventListener('keydown', (e) => {
+    if (e.code === 'Escape') { if (mapOpen) toggleMap(); else if (running) doPause(); return; }
+    if (!running || mode !== 'fp') return;
+    if (document.activeElement === con.input) return;
+    const map = {
+      KeyE: 'interact', KeyF: 'torch', Space: 'shoot', KeyQ: 'search',
+      Digit1: '1', Digit2: '2', Digit3: '3', Digit4: '4', KeyR: 'ready',
+    };
+    if (e.code === 'Tab') { e.preventDefault(); toggleMap(); return; }
+    const tap = map[e.code];
+    if (tap) { e.preventDefault(); input.ref.press(tap); }
+  });
+
+  window.addEventListener('resize', () => { if (renderer) renderer.resize(); });
 
   show('menu');
   requestAnimationFrame(frame);
 }
 
-function doPause() {
-  if (!running || !state) return;
-  pause(state);
-  qs('#pause-where').textContent = `${UI.night} ${state.night} · ${ROOM_BY_ID[state.player.room].name}`;
-  show('pause');
+function pickRenderScale() {
+  const coarse = window.matchMedia && window.matchMedia('(pointer: coarse)').matches;
+  return coarse ? 0.72 : 1;
 }
 
 boot();
