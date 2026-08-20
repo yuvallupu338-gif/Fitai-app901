@@ -1,0 +1,49 @@
+# Runs the repository's own checks on every push and pull request.
+#
+# The secret scan is first and is the reason this file exists. This repository
+# is public and GitHub Pages serves it, so a committed API key is published
+# twice over — readable in the source and shipped to every visitor's browser —
+# and taking it out later does not help, because it stays in the history. The
+# scan turns "somebody pasted a key in to try something" from a thing nobody
+# notices into a red build.
+#
+# The engine validators need nothing but Node. The browser tests need Playwright
+# and are deliberately not here: they take minutes and want a display, and the
+# checks that catch real breakage cheaply should not wait behind them.
+
+name: checks
+
+on:
+  push:
+    branches: ['**']
+  pull_request:
+
+jobs:
+  checks:
+    runs-on: ubuntu-latest
+    steps:
+      - uses: actions/checkout@v4
+        with:
+          # The scan reads tracked files, not history, but a shallow clone is
+          # still all it needs and is faster.
+          fetch-depth: 1
+
+      - uses: actions/setup-node@v4
+        with:
+          node-version: '22'
+
+      - name: No credentials committed
+        run: node tools/secret-scan.mjs
+
+      - name: Every module parses
+        run: |
+          set -e
+          find src app/src backrooms/src tomorrow/src tools -name '*.js' -o -name '*.mjs' \
+            | while read -r f; do node --check "$f" || exit 1; done
+          echo "all modules parse"
+
+      - name: FitAI matches its contracts
+        run: node tools/validate.js
+
+      - name: TomorrowAI matches its contract
+        run: node tools/tomorrow-validate.mjs
