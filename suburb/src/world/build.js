@@ -139,7 +139,15 @@ function reveal(mb, x0, z0, x1, z1, base, hole, thick, mat) {
   const u0 = hole.u - hole.w / 2, u1 = hole.u + hole.w / 2;
   const y0 = base + hole.y, y1 = base + hole.y + hole.h;
   const A = (u, y, t) => [x0 + ux * u + nx * t, y, z0 + uz * u + nz * t];
-  const t0 = -thick / 2, t1 = thick / 2;
+  /*
+   * Flush with the siding on the outside and reaching the full thickness in,
+   * because that is where the two faces actually are: the exterior panel is on
+   * the wall line and the plaster is `thick` inside it. Centred on the line —
+   * which is what this was — left the frame standing twelve centimetres proud
+   * of the siding and stopping twelve short of the room, so every window had a
+   * hairline of daylight around it from the inside.
+   */
+  const t0 = -thick, t1 = 0;
   const o = { sub: 1, ao: aoUnder };
   /* sill, head, and the two jambs */
   addQuad(mb, A(u0, y0, t0), A(u1, y0, t0), A(u1, y0, t1), A(u0, y0, t1),
@@ -150,6 +158,40 @@ function reveal(mb, x0, z0, x1, z1, base, hole, thick, mat) {
     [0, 0], [hole.h, 0], [hole.h, thick], [0, thick], mat, o);
   addQuad(mb, A(u1, y0, t0), A(u1, y1, t0), A(u1, y1, t1), A(u1, y0, t1),
     [0, 0], [hole.h, 0], [hole.h, thick], [0, thick], mat, o);
+}
+
+/*
+ * The same wall again, wound the other way and set half a thickness in.
+ *
+ * Without it a house is a stage set. A panel is one quad with one winding, and
+ * with back-face culling on it is simply not there from behind — so standing
+ * in your own bedroom you looked straight through the back wall at the garden,
+ * with the window frames left hanging in mid-air over the grass and sky
+ * showing above the walls. The panes were always drawn on both faces, which is
+ * why they were the only thing left. Every interior in the game was like that,
+ * and from the outside, which is where these were built and looked at, all
+ * twelve houses were perfect.
+ *
+ * Reversing the two endpoints is what flips it: a panel's normal is ninety
+ * degrees left of the direction it is built in, so building b-to-a instead of
+ * a-to-b turns it to face the room. Every hole then has to be measured from
+ * the other end, which is the `len - u` below and the only fiddly part of it.
+ */
+function wallInner(mb, x0, z0, x1, z1, base, height, holes, thick, mat) {
+  const len = Math.hypot(x1 - x0, z1 - z0);
+  if (len < 0.002) return;
+  const ux = (x1 - x0) / len, uz = (z1 - z0) / len;
+  /*
+   * A full thickness in, not half. layout.js insets the interior box by
+   * exactly 0.24 to build the floor and the ceiling on, so anything less
+   * leaves a gap between the top of this wall and the edge of the ceiling —
+   * and a gap at the top of an interior wall is a strip of open sky running
+   * round the room, which is precisely what the first version of this drew.
+   */
+  const ix = uz * thick, iz = -ux * thick;
+  const flipped = holes.map((o) => ({ u: len - o.u, w: o.w, y: o.y, h: o.h }));
+  wallWithHoles(mb, x1 + ix, z1 + iz, x0 + ix, z0 + iz, base, height, flipped, mat,
+    { sub: 2, ao: aoWall });
 }
 
 /* A pane of glass, drawn on both faces so it is still there from inside. */
@@ -340,6 +382,12 @@ function house(sec, col, lights, interact, doors, h, layout, rng) {
     /* Sides run front-to-back, so their length is the house depth; the
      * openings were authored in that same measure. */
     wallWithHoles(mb, w.ax, w.az, w.bx, w.bz, 0, top, w.holes, siding);
+    /* And the room's side of it. Only where somebody can stand: a sealed house
+     * is a solid box nobody is ever inside, so plastering it would be
+     * triangles spent on a room that does not exist. */
+    if (h.enterable) {
+      wallInner(mb, w.ax, w.az, w.bx, w.bz, 0, top, w.holes, thick, MAT.PLASTER);
+    }
     for (const hole of w.holes) {
       reveal(mb, w.ax, w.az, w.bx, w.bz, 0, hole, thick, MAT.WOOD);
       if (hole.win) {
@@ -508,13 +556,17 @@ function interior(mb, col, interact, h, layout, rng) {
     { tag: 'floor', id: h.id, solid: false, opaque: false, platform: true });
   /* Ceiling, wound downward so it is visible from underneath. */
   addQuad(mb, [x0, top, z0], [x1, top, z0], [x1, top, z1], [x0, top, z1],
-    [0, 0], [h.w, 0], [h.w, h.d], [0, h.d], MAT.PATH, { sub: 2, ao: aoUnder });
+    [0, 0], [h.w, 0], [h.w, h.d], [0, h.d], MAT.PLASTER, { sub: 2, ao: aoUnder });
 
   /* The wall between the rooms, with a doorway in it. */
   const midZ = IN.midZ;
   const innerDoorX = h.x - h.w / 2 + IN.doorU;
-  wallWithHoles(mb, x0, midZ, x1, midZ, FLOOR, top - FLOOR,
-    [{ u: IN.doorU - 0.24, w: 1.0, y: 0, h: 2.05 }], MAT.PATH, { sub: 1 });
+  /* Both sides of it. This one has a room on either hand, so the single-sided
+   * version was missing from whichever side the player was actually on. */
+  const midHoles = [{ u: IN.doorU - 0.24, w: 1.0, y: 0, h: 2.05 }];
+  wallWithHoles(mb, x0, midZ, x1, midZ, FLOOR, top - FLOOR, midHoles,
+    MAT.PLASTER, { sub: 1 });
+  wallInner(mb, x0, midZ, x1, midZ, FLOOR, top - FLOOR, midHoles, 0, MAT.PLASTER);
   col.add(x0, FLOOR, midZ - 0.09, innerDoorX - 0.55, top, midZ + 0.09,
     { tag: 'wall', id: h.id });
   col.add(innerDoorX + 0.55, FLOOR, midZ - 0.09, x1, top, midZ + 0.09,

@@ -1,13 +1,13 @@
 /*
  * materials.js — the material table, and what each slot is for.
  *
- * Every surface in the neighbourhood is one of seventeen materials, baked once
+ * Every surface in the neighbourhood is one of twenty-two materials, baked once
  * per night into a single array texture. The slot index rides along in the
  * vertex data, which is why the entire street — road, kerb, twelve houses,
  * their roofs, every fence picket and every window — draws in one call.
  *
- * Seventeen is more slots than the sibling app uses, and the extra ones are
- * all earning their place:
+ * That is more slots than the sibling app uses, and the extra ones are all
+ * earning their place:
  *
  *   - three sidings rather than one, because a row of identical houses reads
  *     as a corridor with a sky over it. Painting them by tint would not do it:
@@ -49,16 +49,24 @@ export const MAT = {
   /*
    * Two more dressing gowns. CLOTH stays hers alone — the whole design of her
    * silhouette is that it is not one of theirs — so the neighbours are dressed
-   * out of these three, three looks across ten people. Ten figures in one colour standing in ten gardens reads as one
-   * asset placed ten times, which is exactly what it is, and the eye says so
-   * before it has finished counting them.
+   * out of these three: three looks across ten people. Ten figures in one
+   * colour standing in ten gardens reads as one asset placed ten times, which
+   * is exactly what it is, and the eye says so before it has finished
+   * counting them.
    */
   CLOTH_B: 18,
   CLOTH_C: 19,
   CLOTH_D: 20,
+  /*
+   * Painted plaster, and it exists because the inside of a house was being
+   * built out of PATH — poured pavement concrete at a 2.8 m tile with slab
+   * joints in it — so every bedroom ceiling and every dividing wall was a
+   * grid of two-metre paving slabs.
+   */
+  PLASTER: 21,
 };
 
-export const MAT_COUNT = 21;
+export const MAT_COUNT = 22;
 
 /* The three house colours, in slot order, so the builder can pick a siding by
  * index and the map can colour a house to match what you will actually see. */
@@ -202,6 +210,18 @@ export function materialDefs(seed) {
     {
       kind: 'cloth', color: '#7d8272', tile: 0.35, bump: 1.1, seed: s(20),
       specular: 0.05, roughMul: 1, normalStrength: 0.9,
+    },
+    /*
+     * 21 PLASTER — the inside of every house. The concrete recipe with its
+     * grid turned off and its damp turned off, which is what plaster is:
+     * one flat colour that is not quite flat, and nothing else. The tile is
+     * large on purpose, so the mottle drifts across a whole wall instead of
+     * repeating four times across it and reading as wallpaper.
+     */
+    {
+      kind: 'concrete', color: '#b9b3a6', tile: 3.4, bump: 0.30, seed: s(21),
+      slabs: 1, joint: 0, cracks: 0, damp: 0, vary: 0.03,
+      specular: 0.05, roughMul: 1, normalStrength: 0.5,
     },
   ];
 }
