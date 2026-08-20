@@ -1374,7 +1374,24 @@ if (existsSync(html)) {
   check(/lang="he"/.test(src), 'html: the page declares Hebrew');
   check(/Content-Security-Policy/.test(src), 'html: carries a CSP');
   check(!/'unsafe-inline'/.test(src), 'html: the CSP has no unsafe-inline');
-  check(/connect-src 'none'/.test(src), 'html: this app talks to nobody, and says so');
+  /*
+   * The app can now reach model vendors, but only ones named here. A wildcard
+   * would let a scripting bug on this origin post the neighbouring app's API
+   * keys anywhere, so the list is enumerated and the test says so.
+   */
+  /*
+   * Read the policy out of the meta tag, not out of the file. The comment above
+   * it explains the policy and therefore contains the words "connect-src"; a
+   * loose match found the prose first and tested the documentation.
+   */
+  const policy = (/<meta http-equiv="Content-Security-Policy" content="([^"]*)"/.exec(src) || [])[1] || '';
+  check(policy.length > 0, 'html: the CSP is a real meta tag');
+  const connect = (/connect-src ([^;]*)/.exec(policy) || [])[1] || '';
+  check(connect.length > 0, 'html: the CSP constrains where the page may connect');
+  check(!/\*/.test(connect) && !/\bhttps:(?!\/\/)/.test(connect),
+    `html: connect-src enumerates hosts rather than allowing a wildcard (got "${connect}")`);
+  check(connect.split(/\s+/).filter(Boolean).every((h) => h === "'none'" || h.startsWith('https://')),
+    'html: every connect-src entry is an https host');
   check(!/(href|src)="\//.test(src), 'html: every path is relative, so Pages can serve it from a subpath');
   check(/<noscript/.test(src), 'html: says something without JavaScript');
   for (const m of src.match(/(?:href|src)="([^"]+)"/g) || []) {

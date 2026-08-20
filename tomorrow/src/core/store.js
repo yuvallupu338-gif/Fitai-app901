@@ -20,6 +20,9 @@ import { isValidKey } from './time.js';
 
 const KEY = 'tomorrowai.v1';
 
+/* Separate on purpose — see the API key section below. */
+const API_KEY = 'tomorrowai.key.v1';
+
 const adapter = pickAdapter();
 
 let state = migrate(adapter.read(KEY));
@@ -71,8 +74,44 @@ export function subscribe(fn) {
 export function reset() {
   state = migrate(null);
   adapter.remove(KEY);
+  adapter.remove(API_KEY);
   emit();
   return state;
+}
+
+/* ------------------------------------------------------------------ *
+ * The model API key
+ *
+ * Kept under its own storage key rather than inside the document, for one
+ * reason: exportJson() serialises the document. A person who backs up their
+ * data and mails it to themselves must not be mailing a live credential, and
+ * the safest way to guarantee that is for the exporter to have nothing to
+ * exclude. normalizeRoot() strips a key out of any imported file for the same
+ * reason.
+ *
+ * It is still plain text in localStorage, on an origin shared with the other
+ * apps in this repository. Anything that can run script on this origin can read
+ * it. The settings screen says so in as many words rather than leaving somebody
+ * to assume otherwise.
+ * ------------------------------------------------------------------ */
+
+/** The stored API key, or '' when there is none. */
+export function apiKey() {
+  const raw = adapter.read(API_KEY);
+  return raw && typeof raw.k === 'string' ? raw.k : '';
+}
+
+/** Store or clear the API key. Passing '' removes it. */
+export function setApiKey(value) {
+  const k = String(value || '').trim();
+  if (!k) {
+    adapter.remove(API_KEY);
+    emit();
+    return false;
+  }
+  const ok = adapter.write(API_KEY, { k });
+  emit();
+  return ok;
 }
 
 /** Replace the whole world — used by demo mode and by import. */
@@ -236,6 +275,10 @@ export function setLearning(learning) {
  * Backup
  * ------------------------------------------------------------------ */
 
+/*
+ * The backup. It cannot contain the API key, because the key was never in the
+ * document to begin with — see setApiKey() above.
+ */
 export function exportJson() {
   return JSON.stringify(state, null, 2);
 }

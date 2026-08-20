@@ -230,6 +230,24 @@ export function defaultProfile(nowIso) {
   };
 }
 
+/*
+ * The optional model connection. Off until somebody turns it on.
+ *
+ * `model` is free text on purpose. Vendors rename and retire model ids
+ * constantly, so a fixed menu is wrong within weeks and wrong in a way the user
+ * cannot work around; the registry offers suggestions and whatever is typed is
+ * what gets sent. The API key is deliberately NOT in here — see store.js.
+ */
+export function defaultAi() {
+  return {
+    enabled: false,
+    providerId: '',
+    model: '',
+    baseUrl: '',
+    share: 'summary',
+  };
+}
+
 export function emptyLearning() {
   return {
     samples: { days: 0, mornings: 0, durations: 0, completions: 0, reviews: 0 },
@@ -276,7 +294,7 @@ export function emptyRoot(nowIso) {
     learning: emptyLearning(),
     feedback: [],
     chat: [],
-    settings: { firstRun: true, lastSeenDate: null },
+    settings: { firstRun: true, lastSeenDate: null, ai: defaultAi() },
     ui: { view: 'tomorrow', historyRange: 7, scheduleMode: 'day', insightsMode: 'insights', focus: '', focusDate: null },
   };
 }
@@ -783,10 +801,26 @@ export function normalizeRoot(raw, nowIso) {
   root.chat = normalizeChat(raw.chat);
 
   const settings = isObject(raw.settings) ? raw.settings : {};
+  const ai = isObject(settings.ai) ? settings.ai : {};
   root.settings = {
     firstRun: bool(settings.firstRun, !root.user.onboarded),
     lastSeenDate: keyOr(settings.lastSeenDate, null),
+    ai: {
+      enabled: bool(ai.enabled, false),
+      providerId: str(ai.providerId, '').trim(),
+      model: str(ai.model, '').trim(),
+      baseUrl: str(ai.baseUrl, '').trim(),
+      share: ai.share === 'full' ? 'full' : 'summary',
+    },
   };
+
+  /*
+   * An imported backup must not be able to smuggle a key in. It is stored under
+   * its own localStorage key and never inside the document, so anything calling
+   * itself one here came from a hand-edited file.
+   */
+  delete root.settings.ai.key;
+  delete root.settings.ai.apiKey;
 
   const ui = isObject(raw.ui) ? raw.ui : {};
   root.ui = {

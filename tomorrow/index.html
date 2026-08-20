@@ -22,30 +22,37 @@
 <title>TomorrowAI · מחר, לפני שהוא מתחיל</title>
 
 <!--
-  connect-src is 'none' because this app talks to nobody. Every forecast,
-  score and recommendation is computed in src/engine/ from data that never
-  leaves the device, and the chat answers from the same local engine rather
-  than a model API (Contracts §15). So there is no request for the policy to
-  allow, and saying so out loud is worth more than it costs: this page shares
-  an origin with the other apps in this repository, which means their stored
-  data is only as safe as the weakest page here. If something ever did manage
-  to run inside this document, 'none' is the difference between a bug and a
-  year of somebody's sleep, mood and calendar leaving the machine.
+  connect-src names four model vendors and nothing else.
 
-  script-src and style-src are 'self' and nothing beside it: no inline
-  <script>, no inline style attribute, anywhere on the page. That is why
-  src/core/dom.js writes styles through the CSSOM rather than through
-  setAttribute('style', …) — a style attribute set that way is dropped by this
-  policy, silently, with nothing in the console pointing at the line.
+  Everything the app is actually for — the forecast, the score, the energy and
+  focus curves, the optimiser, the insights and the chat's own answers — is
+  computed in src/engine/ from data that never leaves the device, and that stays
+  true whether or not a model is connected (Contracts §15, §21.1). The only
+  requests this page can make are ones the user has switched on, to a vendor the
+  user chose, carrying the context the user selected in the settings screen.
 
-  font-src and img-src allow data: because ../src/styles/fonts.css carries the
-  three faces as embedded woff2 and the favicon below is an inline SVG.
+  The hosts are enumerated rather than allowed by wildcard. `https:` would let a
+  scripting bug anywhere on this origin post the FitAI API keys sitting in the
+  same localStorage jar to any server on the internet; this list means a bug can
+  only talk to four places that already have a key of the user's and no interest
+  in one. A custom base URL on a host outside this list is refused by the
+  browser, and the settings screen says so and names this line as the fix rather
+  than letting it fail as a mystery.
+
+  Both DashScope hosts are listed because an Alibaba account is served by the
+  international endpoint or the mainland one depending on where it was created,
+  and a user cannot be expected to know which before trying.
+
+  Everything else stays shut. default-src 'none' with script-src and style-src
+  at 'self' and nothing inline: no generated event handlers, no eval, no style
+  attributes. img-src and font-src allow data: because the fonts arrive as three
+  faces of embedded woff2 and the favicon below is an inline SVG.
 
   frame-ancestors is not here. It is ignored in a meta tag — it only counts as
   a real HTTP header, and GitHub Pages does not let this repository set one.
   Leaving it in would read as clickjacking protection that does not exist.
 -->
-<meta http-equiv="Content-Security-Policy" content="default-src 'none'; script-src 'self'; style-src 'self'; img-src 'self' data:; font-src 'self' data:; connect-src 'none'; media-src 'none'; frame-src 'none'; worker-src 'none'; object-src 'none'; base-uri 'none'; form-action 'none'">
+<meta http-equiv="Content-Security-Policy" content="default-src 'none'; script-src 'self'; style-src 'self'; img-src 'self' data:; font-src 'self' data:; connect-src https://dashscope.aliyuncs.com https://dashscope-intl.aliyuncs.com https://openrouter.ai https://api.deepseek.com https://api.anthropic.com; media-src 'none'; frame-src 'none'; worker-src 'none'; object-src 'none'; base-uri 'none'; form-action 'none'">
 
 <!-- fonts.css is the repository's shared, generated set of embedded faces and
      is linked first so the families exist before tokens.css names them. The

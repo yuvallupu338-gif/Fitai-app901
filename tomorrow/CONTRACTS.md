@@ -1042,3 +1042,107 @@ These are part of the contract: renaming one breaks `tools/tomorrow-smoke.mjs`.
 
 Buttons must be real `<button>` elements so a click test and a keyboard user
 reach the same thing.
+
+---
+
+## 21. Connecting a real model
+
+The chat answers from the local rule engine by default, and that stays true:
+§15 and brief §71 require the product to work with no API at all. This section
+describes the optional layer that lets it talk to a hosted model instead.
+
+### 21.1 What must remain true
+
+- **The app works with the layer switched off.** Every screen, the forecast, the
+  optimiser, the insights and the chat's own answers are local. A model adds
+  phrasing and open-ended questions; it is never load-bearing.
+- **The UI always says which one answered.** A badge names the live model, or
+  says the answers are local. A remote call that fails falls back to the local
+  engine and *says so in the reply* — it never presents a local answer as if a
+  model produced it.
+- **No fake latency, no fake streaming.** If it is not streaming, it does not
+  animate as though it were.
+
+### 21.2 The key is not part of the backup
+
+The API key lives under its own localStorage key, `tomorrowai.key.v1`, and never
+inside the Root document. `exportJson()` must not be able to emit it: a person
+who exports a backup and mails it to themselves must not be mailing a credential.
+`reset()` clears both.
+
+The key is stored in plain text in localStorage, on an origin shared with the
+other apps in this repository. That is a real exposure and the settings screen
+says so in as many words.
+
+### 21.3 Settings
+
+```js
+Root.settings.ai = {
+  enabled: Boolean,
+  providerId: String,     // see the registry; '' when unset
+  model: String,          // free text — the exact id the vendor expects
+  baseUrl: String,        // only for providerId 'custom'
+  share: 'summary'|'full' // how much of the day leaves the device
+}
+```
+
+`model` is deliberately free text rather than a menu. Vendors rename and retire
+model ids constantly, and a hard-coded list is wrong within weeks; the registry
+offers suggestions, and whatever the user types is what gets sent.
+
+### 21.4 Registry — `src/ai/providers.js`
+
+```js
+export const PROVIDERS = [ {
+  id, label, endpoint, docsHost, keyHint,
+  suggestions: [String],          // example model ids, not a whitelist
+  headers(key) -> Object,
+  body(req) -> Object,            // req: { model, system, messages, maxTokens, stream }
+  parseStream(chunk, state) -> { text, done },   // one SSE data line -> delta
+  parseWhole(data) -> String,     // non-streaming fallback
+} ]
+export function providerById(id) -> provider|null
+export function endpointFor(settings) -> String
+```
+
+Two request shapes, as in the repo's other app: Anthropic takes `system` as a
+top-level field, and the OpenAI-compatible vendors take it as the first message.
+
+### 21.5 Client — `src/ai/client.js`
+
+```js
+export function isConfigured(settings, key) -> Boolean
+export async function ask(req, onDelta) -> { text, model, streamed }
+export async function testConnection(settings, key) -> { ok, detail }
+export class ChatError extends Error   // carries .kind and a Hebrew .detail
+```
+
+`ask` streams when the vendor supports it, calling `onDelta(text)` per chunk. It
+throws a `ChatError` whose `kind` is one of `no_key`, `blocked_by_csp`,
+`unauthorized`, `rate_limited`, `bad_model`, `network`, `aborted`, `server` —
+each with a Hebrew explanation the chat can show. A wrong model id and an
+expired key must not produce the same message.
+
+### 21.6 Context — `src/ai/context.js`
+
+```js
+export function systemPrompt(ctx) -> String
+export function contextBlock(ctx, share) -> String
+```
+
+The system prompt carries the app's voice rules — short, calm, human, never
+dramatic, never judgemental, Hebrew, and every statement about the future
+hedged as an estimate — plus the real numbers from today's forecast. The model
+is told, explicitly, that the numbers are already computed and it must not
+invent new ones.
+
+`share: 'summary'` sends the score, the curves' peaks, the risks and the
+totals — no item titles. `share: 'full'` adds the schedule with titles. The
+settings screen shows exactly what each option sends before anything is sent.
+
+### 21.7 Content Security Policy
+
+`connect-src` names the vendor hosts and nothing else. A `custom` base URL on a
+host that is not listed **will be blocked by the browser**, and the settings
+screen says that plainly rather than letting the request fail as a mystery. The
+`blocked_by_csp` error names the file and line to change.
