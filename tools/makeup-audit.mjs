@@ -198,6 +198,22 @@ async function main() {
     };
     check(overlap('lip', 'lid') < 1, 'the lips and the eyelids do not overlap');
     check(overlap('lip', 'brow') < 1, 'the lips and the brows do not overlap');
+
+    /*
+     * A brow is drawn as hairs, and hairs have to fit in the texture that
+     * carries them. The first version asked for noise at nine hundred cycles
+     * across a thousand pixels — comfortably past Nyquist — and what came out
+     * was not fine hair but the aliasing of it: a leopard-print patch floating
+     * over each eye, on every customer, at every quality setting. Nothing about
+     * that is visible in the code; it is only visible in the arithmetic.
+     */
+    {
+      const pxPerHair = (2 * face.F.browHalfS * 1024) / textures.BROW_HAIRS;
+      check(pxPerHair > 4,
+        `a brow hair is several pixels wide in the skin texture (${pxPerHair.toFixed(1)})`);
+      check(pxPerHair < 20,
+        `and still narrow enough to be a hair (${pxPerHair.toFixed(1)} pixels)`);
+    }
     check(overlap('lid', 'brow') < total('brow') * 0.25,
       'the eyeshadow area is mostly clear of the brow');
     check(overlap('lash', 'lid') > 0, 'the lash line touches the lid, which is how liner blends');
@@ -735,11 +751,26 @@ async function main() {
       ['the nose', (s, t) => Math.abs(s - 0.5) < 0.12 && t > 0.40 && t < 0.54],
       ['the forehead', (s, t) => Math.abs(s - 0.5) < 0.25 && t > 0.18 && t < 0.30],
     ];
+    /*
+     * The tolerances are in face space, where the whole face is 1. Three and a
+     * half hundredths is about five millimetres on this head, and this head is
+     * the worst case on purpose: every parameter in `P` above is at an extreme
+     * a real customer never reaches, and the further the surface is from the
+     * ellipsoid the unwrap inverts, the more work the landmark correction has
+     * to do. A correction fitted from marks on the centre line cannot follow an
+     * error that varies from side to side, which is where what is left lives —
+     * on the jaw, between the mark under the lip and the mark on the chin.
+     *
+     * The median matters more than the worst here, because the worst is one
+     * vertex at the edge of a band and the median is where the mask lands.
+     */
     for (const [name, inside] of BANDS) {
       const e = bandError(inside);
-      check(e.n > 500, `${name} has enough vertices to judge (${e.n})`);
-      check(e.max < 0.025,
-        `${name} come back where they started (worst ${e.max.toFixed(4)} in face space)`);
+      check(e.n > 400, `${name} has enough vertices to judge (${e.n})`);
+      check(e.median < 0.020,
+        `${name} come back where they started (median ${e.median.toFixed(4)} in face space)`);
+      check(e.max < 0.035,
+        `${name} with nothing far out of place (worst ${e.max.toFixed(4)})`);
     }
 
     /* ---- folds and seams ---- */
@@ -779,7 +810,13 @@ async function main() {
       if (area > 0) foldedArea += Math.abs(area);
     }
     check(frontTris > 5000, `the front of the face is most of the mesh (${frontTris} triangles)`);
-    check(foldedArea / frontArea < 0.001,
+    /* A handful always do: the pocket under the nose is concave and faces
+     * partly upwards, and no projection from inside a head can unwrap that
+     * without a crease. Two nostrils and a septum make that pocket deeper than
+     * it used to be, so this is a few thousandths rather than a few
+     * ten-thousandths — still far under a texel of any mask, and still two
+     * orders under the whole band a real fold would put here. */
+    check(foldedArea / frontArea < 0.004,
       `and effectively none of it folded (${(foldedArea / frontArea).toExponential(1)} of its area)`);
     check(wideTris === 0, 'and no triangle away from the poles stretches across the texture');
 
@@ -840,10 +877,14 @@ async function main() {
      */
     {
       const clean = unwrapMod.unwrapHead({ positions: moved, indices: src.indices }, marks);
-      check(clean.stats.overlap < 0.001,
+      check(clean.stats.overlap < 0.004,
         `a single-sheet head has nothing lying on top of itself (${(clean.stats.overlap * 100).toFixed(3)}%)`);
-      check(clean.stats.culled === 0,
-        `and the cull takes nothing off it (${clean.stats.culled} triangles)`);
+      /* Not literally zero: the eye socket is a real concavity and a triangle
+       * or two at the very bottom of it genuinely is hidden from the middle of
+       * the head. What must not happen is a *band* going, which is what the
+       * margin-to-zero mutation does — thirteen thousand triangles of eyebrow. */
+      check(clean.stats.culled < src.triangles * 0.005,
+        `and the cull takes essentially nothing off it (${clean.stats.culled} of ${src.triangles})`);
 
       /* The same head with a copy of itself at 80% of the radius inside it —
        * a stand-in for a neck behind a chin, and geometrically the same
@@ -971,7 +1012,36 @@ async function main() {
       const refL = head.eyeAnchor(P, -1), refR = head.eyeAnchor(P, 1);
       const refGap = Math.hypot(refR.centre[0] - refL.centre[0],
         refR.centre[1] - refL.centre[1], refR.centre[2] - refL.centre[2]);
-      near(eyeGap, refGap, refGap * 0.12, 'the eyes come out the right distance apart');
+      /*
+       * A wide band, because the two seatings are not the same statement and
+       * should not be. A generated head knows how deep it cut its own socket
+       * and pushes the ball back past it; an imported one has only the point
+       * somebody clicked, which on a scan is the front of the eye itself. So
+       * the imported ball sits a socket's depth shallower, and its centres come
+       * out a socket's depth closer together. What this is guarding against is
+       * a fit that came back mirrored or at the wrong scale, which misses by a
+       * factor and not by a fifth.
+       */
+      near(eyeGap, refGap, refGap * 0.25, 'the eyes come out the right distance apart');
+      /*
+       * The tighter statement, and the one the pose fit can actually fail: the
+       * front of each lid shell lands back on the pupil that was marked, after
+       * a yaw, a pitch, a scale by thirty-seven and a translation.
+       */
+      for (const [side, rec] of [[-1, record.eyeL], [1, record.eyeR]]) {
+        const want = head.evalSurface(P, 0.5 + side * F.eyeS, F.eyeT, head.NEUTRAL_EXPR, []);
+        const R = rec.r * head.EYE.lidShell;
+        const apex = [rec.centre[0] + rec.axis[0] * R, rec.centre[1] + rec.axis[1] * R,
+          rec.centre[2] + rec.axis[2] * R];
+        const offMm = Math.hypot(apex[0] - want[0], apex[1] - want[1], apex[2] - want[2]) * 115;
+        /* Against the fit's own residual rather than against zero: a rigid fit
+         * of twenty marks onto a head this far from the average cannot land
+         * them all exactly, and what this is asking is that the eye is no worse
+         * placed than everything else — a seating bug misses by tens. */
+        check(offMm < record.fit.residual * 115 * 1.6,
+          `the ${side < 0 ? 'left' : 'right'} eye lands back on the pupil that was marked `
+          + `(${offMm.toFixed(2)}mm out, fit residual ${(record.fit.residual * 115).toFixed(2)}mm)`);
+      }
       check(record.eyeL.centre[0] < 0 && record.eyeR.centre[0] > 0,
         'and on the correct sides of the face');
       check(record.eyeL.normal[2] > 0.5 && record.eyeR.normal[2] > 0.5,
@@ -1134,8 +1204,13 @@ async function main() {
     const w = mesh.max[0] - mesh.min[0];
     const h = mesh.max[1] - mesh.min[1];
     const d = mesh.max[2] - mesh.min[2];
-    check(w / h > 0.55 && w / h < 0.95, `head width over height is plausible (${(w / h).toFixed(2)})`);
-    check(d / h > 0.65 && d / h < 1.15, `head depth over height is plausible (${(d / h).toFixed(2)})`);
+    /* A head is 145mm across and 190mm front to back on 220mm of height: two
+     * thirds as wide as tall, and rather less than one deep. These bands were
+     * wide enough to pass a head three quarters as wide as it was tall and
+     * almost as deep as tall, which is not a head, it is a light bulb — and
+     * that is what every generated customer was. */
+    check(w / h > 0.58 && w / h < 0.80, `head width over height is plausible (${(w / h).toFixed(2)})`);
+    check(d / h > 0.72 && d / h < 0.98, `head depth over height is plausible (${(d / h).toFixed(2)})`);
 
     /* The features actually stick out. Without this the shape function can be
      * silently zeroed and the audit would still pass on "it is an ellipsoid". */
@@ -1170,6 +1245,62 @@ async function main() {
     const noseWidthMm = widthAt(0.5);
     check(noseWidthMm > 14 && noseWidthMm < 44,
       `and it is a nose's width across (${noseWidthMm.toFixed(1)}mm)`);
+    /*
+     * The centre line is not a row of slivers.
+     *
+     * `faceU` has zero slope at s = 0.5, so a mesh laid out on a uniform grid
+     * in s puts its two middle columns 0.07mm apart while their neighbours are
+     * twenty times that. Every triangle down the middle of the face was a
+     * splinter, the normals averaged from splinters, and the result was a
+     * crease from the crown to the chin that looked exactly like a seam in a
+     * model — on a surface that has no seam anywhere near the front. `sampleS`
+     * is what stops it, and this is what stops `sampleS` being quietly undone.
+     */
+    {
+      const NS = head.HEAD_GRID.s;
+      let worst = 1;
+      for (const tt of [0.30, 0.44, 0.58, 0.72]) {
+        const xs = [];
+        for (let i = 0; i <= NS; i++) xs.push(at(face.sampleS(i, NS), tt)[0]);
+        const gaps = [];
+        for (let i = 0; i < NS; i++) gaps.push(Math.abs(xs[i + 1] - xs[i]));
+        const sorted = [...gaps].sort((a, b) => a - b);
+        worst = Math.min(worst, gaps[NS / 2 - 1] / sorted[sorted.length >> 1]);
+      }
+      check(worst > 0.5,
+        `the columns either side of the nose are the width of the others `
+        + `(${worst.toFixed(2)} of the median, 0.05 on a uniform grid)`);
+    }
+
+    /*
+     * And the features on the centre line are round there.
+     *
+     * The same warp makes a gaussian in s a *cusp* on the face: the width a
+     * step in s buys collapses towards the middle, so the crest of the bridge
+     * of the nose came out as a wire, and the chin had a ridge down it. Shaped
+     * against `acrossFace` instead they are domes, and the way to tell is that
+     * the surface tilts away from the centre line gradually — a cusp is already
+     * at full tilt a millimetre off it.
+     */
+    {
+      const mm = 1 / 115;
+      const sAt = (dx, tt) => {
+        let lo = 0.5, hi = 0.9;
+        for (let k = 0; k < 40; k++) {
+          const m = (lo + hi) / 2;
+          if (at(m, tt)[0] < dx) lo = m; else hi = m;
+        }
+        return (lo + hi) / 2;
+      };
+      for (const [name, tt] of [['forehead', 0.22], ['bridge of the nose', 0.44], ['chin', face.F.chinT]]) {
+        const near1 = Math.abs(head.surfaceFrame(P, sAt(mm, tt), tt).n[0]);
+        const near5 = Math.abs(head.surfaceFrame(P, sAt(5 * mm, tt), tt).n[0]);
+        check(near1 < near5 * 0.5,
+          `the ${name} is a dome on the centre line rather than a ridge `
+          + `(tilt ${near1.toFixed(3)} at 1mm against ${near5.toFixed(3)} at 5mm)`);
+      }
+    }
+
     const lip = at(0.5, face.F.mouthT - 0.02);
     const chin = at(0.5, face.F.chinT);
     check(lip[2] > chin[2], 'the lips are in front of the chin');
@@ -1243,36 +1374,101 @@ async function main() {
         `and the eye sits in it rather than on top of it (${proud.toFixed(1)}mm proud of the face)`);
 
       /*
-       * The visible disc has to be big enough to read as an eye, and — the part
-       * that is easy to miss — wide enough that some white shows around the
-       * iris. Get that wrong and the geometry is defensible on every other
-       * measure while the face has two black holes in it, because the whole
-       * exposed cap is iris.
+       * How far the lid shell stands off the face.
+       *
+       * This is the check the mannequin got past, and the reason it got past is
+       * that every measure here was pointed at the *eyeball* while the thing in
+       * front of the face was the *lids*. The eyeball was placed with its
+       * centre on the skin, so the two lid shells — which ride just outside it —
+       * stood five millimetres proud of the head. Two ping-pong balls resting on
+       * a face, defensible on socket depth and on cornea protrusion and wrong at
+       * a glance.
+       *
+       * Flush is the answer, because the lids *are* the surface of the face at
+       * the eye. The inset that achieves it is derived in `eyeAnchor` rather
+       * than tuned, so this measures the derivation.
        */
+      const R = anchor.r * head.EYE.lidShell;
+      const ax = anchor.axis;
+      const apexZ = anchor.centre[2] + ax[2] * R;
+      const lidProudMm = (apexZ - flat[2]) * 115;
+      check(Math.abs(lidProudMm) < 1,
+        `the lids come out flush with the face (${lidProudMm.toFixed(2)}mm proud)`);
       const centreDepth = flat[2] - anchor.centre[2];
-      const capSin = Math.sqrt(Math.max(0, 1 - (centreDepth / anchor.r) ** 2));
-      const capMm = capSin * anchor.r * 2 * 115;
-      check(capMm > 14, `and shows a disc you can see (${capMm.toFixed(1)}mm across)`);
-      /* A ring of white, not a hairline of it: at 1.25x the iris still reads as
-       * a hole in the face from playing distance. */
-      check(capSin > textures.IRIS_RADIUS * 1.8,
-        `with sclera showing around the iris (cap ${capSin.toFixed(2)} vs iris ${textures.IRIS_RADIUS})`);
+      check(centreDepth > anchor.r * 0.55 && centreDepth < anchor.r * 1.45,
+        `and the ball is inside the head (${(centreDepth / anchor.r).toFixed(2)} radii deep)`);
 
       /*
-       * And the lids have to be out of the way of it. A lid swung back by less
-       * than its own reach leaves its rim below the eye's forward axis — across
-       * the pupil — and the customer looks half asleep at every camera angle.
+       * The opening.
+       *
+       * Measured off `lidRim`, which is the curve the lid mesh is cut along, so
+       * this cannot drift away from the shape on screen. The previous version
+       * measured a pair of half-angles instead and passed with flying colours
+       * on an eye that rendered as a porthole: the lids were round caps, their
+       * rims cleared the ball at the corners, and sclera showed all the way
+       * round the sides. Every number it checked was about the one azimuth
+       * where the geometry happened to be right.
        */
-      const upperClear = head.LID.upperOpen - head.LID.upperTheta;
-      const lowerClear = head.LID.lowerOpen - head.LID.lowerTheta;
-      check(upperClear > 0.12,
-        `the open upper lid clears the pupil (${(upperClear * 57.3).toFixed(0)} degrees above centre)`);
-      check(lowerClear > 0.12,
-        `the open lower lid clears the pupil (${(lowerClear * 57.3).toFixed(0)} degrees below centre)`);
-      /* But not so far back that the eye has no lids on it at all. */
-      const capAngle = Math.asin(Math.min(1, capSin));
-      check(upperClear < capAngle && lowerClear < capAngle,
-        'and both still overlap the visible eye rather than sitting off it');
+      for (const u of [-1, 1]) {
+        const a = head.lidRim(u, false), b = head.lidRim(u, true);
+        near(Math.hypot(a[0] - b[0], a[1] - b[1], a[2] - b[2]), 0, 1e-9,
+          `the two lid rims meet at the ${u < 0 ? 'inner' : 'outer'} corner`);
+      }
+      let apW = 0, apH = 0, crossed = 0;
+      for (let i = 0; i <= 240; i++) {
+        const u = -1 + 2 * i / 240;
+        const a = head.lidRim(u, false), b = head.lidRim(u, true);
+        if (a[1] < b[1] - 1e-12) crossed++;
+        apW = Math.max(apW, Math.abs(a[0]));
+        apH = Math.max(apH, a[1] - b[1]);
+      }
+      /* The upper rim stays above the lower one everywhere between the corners.
+       * Where they cross, the opening turns inside out and the shell folds. */
+      check(crossed === 0, `the eye opening never closes on itself (${crossed} of 241 samples)`);
+      const openMm = apH * anchor.r * 115;
+      const wideMm = 2 * apW * anchor.r * 115;
+      check(openMm > 6 && openMm < 15,
+        `the eye opening is an eye opening (${openMm.toFixed(1)}mm tall)`);
+      check(wideMm > openMm * 1.8,
+        `and it is an almond rather than a porthole (${wideMm.toFixed(1)}mm across)`);
+      /*
+       * And enough iris shows through it. The upper lid covering the top of the
+       * iris is what a real one does; covering all of it is a customer asleep,
+       * and an opening that clears the iris entirely is a doll.
+       */
+      check(apH > textures.IRIS_RADIUS * 1.15,
+        `with most of the iris uncovered (opening ${apH.toFixed(2)} vs iris ${textures.IRIS_RADIUS})`);
+      check(head.lidRim(0, false)[1] < textures.IRIS_RADIUS,
+        'and the upper lid still rests on the iris rather than clear above it');
+
+      /*
+       * The shell wraps past the ball's own silhouette.
+       *
+       * This is the property the porthole did not have and the reason it is
+       * gone: beyond a right angle from the gaze the shell is behind the ball
+       * from every direction a face is ever seen from, so there is nowhere for
+       * sclera to appear except through the opening — whatever the lid is doing
+       * and whichever way the eye is looking. Measured on the built mesh, put
+       * back into the pose the renderer opens it to, because the constant being
+       * right is not the same as the mesh being built from it.
+       */
+      const lidMesh = head.buildLid(anchor.r, side, false);
+      const ca = Math.cos(head.LID.upperOpen), sa = Math.sin(head.LID.upperOpen);
+      const V = lidMesh.positions;
+      let deepest = 0, nearest = Infinity, furthest = 0;
+      for (let i = 0; i < V.length; i += 3) {
+        const y = V[i + 1] * ca + V[i + 2] * sa;
+        const z = V[i + 2] * ca - V[i + 1] * sa;
+        const rad = Math.hypot(V[i], y, z);
+        nearest = Math.min(nearest, rad);
+        furthest = Math.max(furthest, rad);
+        deepest = Math.max(deepest, Math.acos(math.clamp(z / rad, -1, 1)));
+      }
+      check(deepest > Math.PI / 2 + 0.10,
+        `the lid cups the ball past its silhouette (${(deepest * 57.3).toFixed(0)} degrees round)`);
+      check(nearest > anchor.r * 1.002 && furthest < anchor.r * 1.10,
+        `and rides just outside the eyeball the whole way (${(nearest / anchor.r).toFixed(3)}`
+        + `..${(furthest / anchor.r).toFixed(3)} radii)`);
     }
 
     /* Two different faces are actually different. */

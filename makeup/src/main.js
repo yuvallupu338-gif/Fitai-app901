@@ -481,7 +481,7 @@ function setView(name) {
     cam.dist = dist;
   };
   if (!f) { cam.dist = 0.7; return; }
-  if (name === 'eyes') to(f.eyes, 0.26);
+  if (name === 'eyes') to(f.eyes, 0.30);
   else if (name === 'lips') to(f.lips, 0.24);
   else to(f.face, 0.62);
   cam.yaw = 0;

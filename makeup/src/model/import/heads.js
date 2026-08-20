@@ -20,7 +20,7 @@
 
 import { HEADS as BUILT_IN } from '../../data/heads/index.js';
 import { F } from '../face.js';
-import { headAO } from '../head.js';
+import { headAO, EYE, evalSurface, NEUTRAL_EXPR } from '../head.js';
 
 /* The average face, only so the occlusion fields can be evaluated against it. */
 const AVERAGE = {
@@ -117,20 +117,44 @@ export function packHead(unwrapped, meta = {}) {
     return { on, half, normal };
   };
   const eL = eye(-1), eR = eye(1);
-  /* A human eyeball is about 24mm across — 0.10 in head units — and the
-   * generated head uses 0.092 for an average eye whose outer corner is
-   * `REFERENCE_HALF` from its pupil. Scaling by the marked half-width is what
-   * keeps a model with large stylised eyes from getting two marbles in it. */
-  const REFERENCE_HALF = 0.128;
-  const radius = 0.092 * clampTo(((eL.half + eR.half) / 2) / REFERENCE_HALF, 0.6, 1.7);
-  /* Sunk a hair below the surface, the same fraction of the radius the
-   * generated head uses: enough that the sliver of sclera sits flush with the
-   * lid edge, not so much that the eye disappears into a dark hole. */
-  const sink = (e) => [
-    e.on[0] - e.normal[0] * radius * 0.02,
-    e.on[1] - e.normal[1] * radius * 0.02,
-    e.on[2] - e.normal[2] * radius * 0.02,
+  /*
+   * A human eyeball is about 24mm across, and the generated head uses
+   * `EYE.radius` for an average one whose outer corner is `REFERENCE_HALF` away
+   * from its pupil. Scaling by the marked half-width is what keeps a model with
+   * large stylised eyes from getting two marbles in it.
+   *
+   * The reference is measured off the average head rather than written down,
+   * because it is a statement about where face space puts an eye — and when
+   * that moved, a constant here would have gone on quietly claiming the old
+   * distance and every imported head's eyes would have changed size.
+   */
+  const pupil = evalSurface(AVERAGE, 0.5 + F.eyeS, F.eyeT, NEUTRAL_EXPR, []);
+  const corner = evalSurface(AVERAGE, 0.5 + F.eyeS + F.eyeHalfS, F.eyeT, NEUTRAL_EXPR, []);
+  const REFERENCE_HALF = Math.hypot(
+    pupil[0] - corner[0], pupil[1] - corner[1], pupil[2] - corner[2]);
+  const radius = EYE.radius * clampTo(((eL.half + eR.half) / 2) / REFERENCE_HALF, 0.6, 1.7);
+  /*
+   * Seated exactly the way `eyeAnchor` seats a generated one: the lid shell
+   * rides at `radius * lidShell` around the ball's centre and its apex is the
+   * front of the face, so the centre goes that far back along the lid's axis
+   * from the point that was clicked.
+   *
+   * The axis is not the socket's normal. A scan's socket faces out to the side
+   * as much as a generated head's does, and hinging the lids on it puts the eye
+   * opening degrees away from where the eye is looking — see `EYE.lidTilt`.
+   */
+  const axisOf = (e) => {
+    const k = EYE.lidTilt;
+    const a = [e.normal[0] * k, e.normal[1] * k, e.normal[2] * k + (1 - k)];
+    const l = Math.hypot(a[0], a[1], a[2]) || 1;
+    return [a[0] / l, a[1] / l, a[2] / l];
+  };
+  const seat = (e, axis) => [
+    e.on[0] - axis[0] * radius * EYE.lidShell,
+    e.on[1] - axis[1] * radius * EYE.lidShell,
+    e.on[2] - axis[2] * radius * EYE.lidShell,
   ];
+  const axL = axisOf(eL), axR = axisOf(eR);
 
   const mouth = pose.toHead(meta.landmarks.mouthL);
   const mouthR = pose.toHead(meta.landmarks.mouthR);
@@ -152,8 +176,8 @@ export function packHead(unwrapped, meta = {}) {
     vertexCount: count,
     triangleCount: mesh.triangles,
     eyeRadius: radius,
-    eyeL: { centre: sink(eL), normal: eL.normal, r: radius, s: 0.5 - LEFT_EYE_S },
-    eyeR: { centre: sink(eR), normal: eR.normal, r: radius, s: 0.5 + LEFT_EYE_S },
+    eyeL: { centre: seat(eL, axL), normal: eL.normal, axis: axL, r: radius, s: 0.5 - LEFT_EYE_S },
+    eyeR: { centre: seat(eR, axR), normal: eR.normal, axis: axR, r: radius, s: 0.5 + LEFT_EYE_S },
     focus: {
       face: [0, -0.25, 0],
       eyes: [0, (eL.on[1] + eR.on[1]) / 2, 0.30],
@@ -257,10 +281,18 @@ export function buildImportedHead(record) {
     const o = i * 9;
     const x = positions[i * 3], y = positions[i * 3 + 1], z = positions[i * 3 + 2];
     vertices[o] = x; vertices[o + 1] = y; vertices[o + 2] = z;
-    const l = Math.hypot(n[i * 3], n[i * 3 + 1], n[i * 3 + 2]) || 1;
-    vertices[o + 3] = n[i * 3] / l;
-    vertices[o + 4] = n[i * 3 + 1] / l;
-    vertices[o + 5] = n[i * 3 + 2] / l;
+    let nx = n[i * 3], ny = n[i * 3 + 1], nz = n[i * 3 + 2];
+    let l = Math.hypot(nx, ny, nz);
+    if (l < 1e-12) {
+      /* A vertex no triangle uses — the cull left it behind. Never drawn, but
+       * a zero-length normal in a vertex buffer is a trap, so it points out of
+       * the middle of the head like everything around it. */
+      nx = x; ny = y; nz = z;
+      l = Math.hypot(nx, ny, nz) || 1;
+    }
+    vertices[o + 3] = nx / l;
+    vertices[o + 4] = ny / l;
+    vertices[o + 5] = nz / l;
     const s = (uv16[i * 2] / 65535) * UV_RANGE + UV_MIN;
     const t = (uv16[i * 2 + 1] / 65535) * UV_RANGE + UV_MIN;
     vertices[o + 6] = s;

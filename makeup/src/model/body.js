@@ -13,6 +13,7 @@
 
 import { MeshBuilder, sphere, lathe } from './mesh.js';
 import { surfaceFrame, NEUTRAL_EXPR } from './head.js';
+import { sampleS, F } from './face.js';
 import { clamp, smoothstep, compose, mat4 } from '../core/math.js';
 
 const TAU = Math.PI * 2;
@@ -171,6 +172,11 @@ export const HAIR_STYLES = {
 
 export const HAIR_STYLE_NAMES = Object.keys(HAIR_STYLES);
 
+/* How many locks the fall is broken into. Twelve or so is what a head of hair
+ * separates into on its own; the mesh has 108 columns, so each lock still gets
+ * eight of them to be a shape with. */
+export const LOCKS = 13;
+
 /*
  * Where the hairline sits, as a function of the angle round the head. Front is
  * high on the forehead, it drops fast past the temples, and at the back it is
@@ -179,12 +185,44 @@ export const HAIR_STYLE_NAMES = Object.keys(HAIR_STYLES);
 function hairEdge(style, s) {
   const a = Math.abs(s - 0.5);
   const base = 0.152 + (style.edge - 0.152 + 0.12) * Math.pow(smoothstep(0.045, 0.47, a), 1.05);
-  return base + style.peak * Math.exp(-((a / 0.055) ** 2));
+  return base + style.peak * Math.exp(-((a / 0.080) ** 2));
 }
 
-/* No hair falls over the front of the face; it starts past the temples. */
+/*
+ * No hair falls over the front of the face; it starts past the temples.
+ *
+ * Which is to say past the outer corner of the eye, and that is where it is
+ * measured from rather than from a constant of its own: when the eyes moved
+ * outward in face space the fall stayed where it was, and every customer
+ * arrived with her hair hanging over the corner of both eyes.
+ */
+const TEMPLE_S = F.eyeS + F.eyeHalfS + 0.010;
+
 function fallAmount(s) {
-  return smoothstep(0.135, 0.245, Math.abs(s - 0.5));
+  return smoothstep(TEMPLE_S, TEMPLE_S + 0.100, Math.abs(s - 0.5));
+}
+
+/*
+ * Locks.
+ *
+ * Hair does not hang as one sheet. It hangs in a dozen or so ropes that stand
+ * proud of each other, shadow each other and end at different heights. Without
+ * them the fall is a single ruled surface, and no texture put on a single ruled
+ * surface reads as hair — it reads as a curtain, which is exactly what every
+ * customer had on her head.
+ *
+ * Both numbers are smooth in `s`. A lock boundary that jumped would stretch the
+ * quads across it into long spikes rather than separating them, because the
+ * fall is one connected sheet and always will be.
+ */
+function hairLocks(s, wobble) {
+  const a = s * LOCKS + wobble * 0.11;
+  const f = a - Math.floor(a);
+  /* Standing proud in the middle of a lock, tucked in where two meet. */
+  const ridge = Math.pow(Math.sin(f * Math.PI), 1.4);
+  /* And a slower beat over the top so they do not all end level. */
+  const vary = 0.5 + 0.5 * Math.sin(a * 1.7 + wobble) * Math.sin(a * 0.63 + wobble * 1.7);
+  return { ridge, vary };
 }
 
 /*
@@ -203,14 +241,38 @@ export function buildHair(P, styleName, rng) {
   for (let k = 0; k <= NK; k++) {
     const kk = k / NK;
     const row = [];
+    /*
+     * t = 0 is the crown, and the crown is a pole: every column of the cap
+     * lands on the same point there. They were each given their own vertex with
+     * its own texture coordinate, so the strand texture fanned out from the top
+     * of the head like a pinwheel — visible on every customer with a parting.
+     * One vertex, shared, and the fan closes.
+     */
+    if (k === 0) {
+      const { p, n } = surfaceFrame(P, 0.5, 0, NEUTRAL_EXPR);
+      const off = style.volume * 0.30;
+      const apex = b.vert(p[0] + n[0] * off, p[1] + n[1] * off, p[2] + n[2] * off,
+        n[0], n[1], n[2], 0, 0, 1);
+      for (let i = 0; i <= NS; i++) row.push(apex);
+      capRows.push(row);
+      continue;
+    }
     for (let i = 0; i <= NS; i++) {
-      const s = i / NS;
+      const s = sampleS(i, NS);
       const tEdge = hairEdge(style, s);
       const t = tEdge * kk;
       const { p, n } = surfaceFrame(P, s, t, NEUTRAL_EXPR);
-      /* Thickest over the crown, thinning to nothing at the cut so the hairline
-       * is an edge rather than a step. */
-      const thick = style.volume * (0.30 + 0.70 * Math.sin(Math.PI * Math.pow(kk, 0.62)));
+      /*
+       * Thickest over the crown. It thins to nothing at the cut across the
+       * forehead, where the hair has to meet skin — but not at the sides and
+       * back, where the cut is not an edge at all, it is where the fall starts.
+       * Thinning there took the cap down to a third of its depth and the fall
+       * began at nine tenths of it, so there was a hard shoulder running right
+       * round the head and every style read as a cap with a brim on it.
+       */
+      const meet = 1 - fallAmount(s);
+      const shape = 1 - meet * (1 - Math.sin(Math.PI * Math.pow(kk, 0.62)));
+      const thick = style.volume * (0.30 + 0.70 * shape);
       const w = 1 + 0.10 * style.wave
         * Math.sin(s * 26 + wobble) * Math.sin(kk * 4.5 + wobble * 0.7);
       const off = thick * w;
@@ -222,7 +284,8 @@ export function buildHair(P, styleName, rng) {
   }
   for (let k = 0; k < NK; k++) {
     for (let i = 0; i < NS; i++) {
-      b.quad(capRows[k][i], capRows[k + 1][i], capRows[k + 1][i + 1], capRows[k][i + 1]);
+      if (k === 0) b.tri(capRows[0][0], capRows[1][i], capRows[1][i + 1]);
+      else b.quad(capRows[k][i], capRows[k + 1][i], capRows[k + 1][i + 1], capRows[k][i + 1]);
     }
   }
 
@@ -234,17 +297,31 @@ export function buildHair(P, styleName, rng) {
       const f = j / NF;
       const row = [];
       for (let i = 0; i <= NS; i++) {
-        const s = i / NS;
+        const s = sampleS(i, NS);
         const amt = fallAmount(s);
         const tEdge = hairEdge(style, s);
         const { p, n } = surfaceFrame(P, s, tEdge, NEUTRAL_EXPR);
-        const len = style.fall * amt;
+        const len = style.fall * amt * (0.74 + 0.42 * hairLocks(s, wobble).vary);
         /* Bow out at the shoulder then draw back in: hair is widest about
          * two-thirds of the way down, not at the ends. */
-        const bow = Math.sin(Math.PI * Math.min(1, f * 0.85)) * 0.16 * (0.4 + amt);
+        /* Hair is widest a little below the ear, but only a little: this used
+         * to bow out by twenty-five millimetres and the result was a mushroom
+         * with the face underneath it. */
+        const bow = Math.sin(Math.PI * Math.min(1, f * 0.85)) * 0.055 * (0.4 + amt);
         const taper = 1 - 0.30 * f * f;
         const wave = style.wave * 0.055 * Math.sin(f * 5.5 + s * 19 + wobble);
-        const off = style.volume * 0.9 * taper + bow;
+        const lock = hairLocks(s, wobble);
+        /* The locks separate as they fall: level with the scalp at the cut,
+         * standing well apart by the ends. */
+        /*
+         * Everything the fall does is scaled by how much fall there is, so
+         * where there is none — across the front of the face — the rows sit
+         * exactly on the cap's edge and collapse. Without that they stood off
+         * it by the fall's full depth while having no length at all, and each
+         * temple grew a flat triangular flap that stuck out sideways.
+         */
+        const off = style.volume * 0.30 + amt * (style.volume * (0.9 * taper - 0.30) + bow
+          + lock.ridge * style.volume * 0.85 * smoothstep(0, 0.55, f));
         row.push(b.vert(
           (p[0] + n[0] * off) * (1 + wave * 0.4),
           p[1] - len * f + wave * 0.3 * amt,

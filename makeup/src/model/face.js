@@ -50,6 +50,51 @@ export function faceU(s) {
 }
 
 /*
+ * How far off the centre line a point is, measured *across the face* rather
+ * than in s.
+ *
+ * s is not proportional to width — the longitude warp compresses hard towards
+ * the middle — so a feature centred on the nose and shaped by a gaussian in s
+ * is not a gaussian on the face. It is a cusp: the width that a given step in s
+ * buys collapses as you approach the centre line, and the crest of the bump
+ * turns into a knife edge. The bridge of the nose came out as a bright wire
+ * running from the brows to the tip, and no amount of smoothing the gaussian
+ * helped, because the sharpness was in the coordinate and not in the curve.
+ *
+ * Anything centred on the middle of the face and meant to be *round* there
+ * should be shaped against this instead. Off-centre features are fine as they
+ * are — the warp is nearly linear by the time you reach an eye.
+ */
+export function acrossFace(s) {
+  return faceU(s) - 0.5;
+}
+
+/*
+ * Where to *sample* s when a mesh is built.
+ *
+ * `faceU` deliberately has zero slope at the centre line — that is what buys
+ * the front of the face its extra texture resolution — but it means a mesh laid
+ * out on a uniform grid in s has its columns collapse onto each other there.
+ * The two either side of the nose came out 0.07mm apart while their neighbours
+ * were four times that, so every triangle down the middle of the face was a
+ * sliver, and normals averaged from slivers put a crease from the crown to the
+ * chin on every generated head. It read as a seam in the model. It was not one:
+ * there is no seam at the front of the face, and there never was.
+ *
+ * So meshes sample through this instead — still denser at the front, but with a
+ * slope that never reaches zero. The vertex carries its own `s` as its texture
+ * coordinate either way, so face space is untouched. This is only where the
+ * vertices are put, not what they mean.
+ */
+const SAMPLE_MIX = 0.70;
+
+export function sampleS(i, n) {
+  const d = 2 * (i / n - 0.5);
+  const even = Math.sign(d) * Math.pow(Math.abs(d), 1 / U_POWER);
+  return 0.5 + 0.5 * (d * (1 - SAMPLE_MIX) + even * SAMPLE_MIX);
+}
+
+/*
  * Latitude, as a monotone curve through control points. Slope below one means
  * that band is magnified in the texture; above one, compressed. The face band
  * runs at about 0.6, so it takes up a bit over half again the room it would
@@ -147,9 +192,21 @@ export const F = {
    * a 4mm nose, and it was completely invisible on the rendered head while
    * every check still passed.
    */
-  eyeS: 0.156,         /* offset from centre to eye centre */
+  /*
+   * The eyes.
+   *
+   * A face is about five eyes wide, which puts the pupils a little under half a
+   * head-width apart: 62mm on a head 145mm across. This was 0.156, which came
+   * out at 52mm on a 168mm head — a third of a head-width instead of well over
+   * two fifths. Nothing about it looked broken, which is exactly why it lasted:
+   * eyes set too close together read as "wrong somehow", never as a number.
+   *
+   * The brow follows the eye out, because a brow that stays put while the eye
+   * moves is the one thing worse than either being in the wrong place.
+   */
+  eyeS: 0.196,         /* offset from centre to eye centre */
   eyeHalfS: 0.045,
-  browS: 0.163,
+  browS: 0.203,
   browHalfS: 0.088,
   cheekS: 0.205,
   contourS: 0.290,
@@ -180,6 +237,11 @@ export function pair(s, t, ds, ct, rs, rt, soft = 0.25) {
     ellipse(s, t, 0.5 + ds, ct, rs, rt, soft));
 }
 
+/* The corner of the mouth, in `acrossFace` units. The mouth is close enough to
+ * the centre line that measuring it in s makes its middle a cusp — see the note
+ * on `acrossFace` — and a cusp in the middle of the upper lip is a beak. */
+const LIP_HALF_U = faceU(0.5 + F.lipHalfS) - 0.5;
+
 /* Horizontal profile of a mouth-shaped region: 1 at the centre, falling to 0
  * at the corners, with the squareness of a lip rather than a circle. */
 function lipProfile(x) {
@@ -194,7 +256,7 @@ function lipProfile(x) {
  * "lips" from any distance, and an ellipse reads as a bruise.
  */
 export function lipMask(s, t) {
-  const x = (s - 0.5) / F.lipHalfS;
+  const x = acrossFace(s) / LIP_HALF_U;
   const w = lipProfile(x);
   if (w <= 0) return 0;
 
@@ -215,15 +277,28 @@ export function lipLower(s, t) {
 /*
  * A brow: an arc, not an ellipse. It rises from the inner end, peaks about two
  * thirds of the way out and drops towards the tail.
+ *
+ * The field version is what the texture draws from, and it exists because a
+ * brow needs a *direction* as well as a density: `along` is where on the arch a
+ * point is, -1 at the head and +1 at the tail, and `across` is how far off the
+ * arch it is, -1 at the top edge and +1 at the bottom. Drawn from the density
+ * alone a brow is a smudge at every resolution, however good the noise is.
  */
-export function browMask(s, t) {
+export function browField(s, t) {
   const side = s < 0.5 ? -1 : 1;
   const x = (s - (0.5 + side * F.browS)) / F.browHalfS;
-  if (Math.abs(x) >= 1) return 0;
+  if (Math.abs(x) >= 1) return null;
   const along = side > 0 ? x : -x;                       /* -1 inner, +1 outer */
   const arch = F.browT - 0.020 * smoothstep(-1, 0.35, along) * (1 - smoothstep(0.35, 1, along) * 0.55);
   const thick = 0.016 * (1 - 0.45 * smoothstep(0.3, 1, along)) * lipProfile(x);
-  return 1 - smoothstep(thick * 0.55, thick, Math.abs(t - arch));
+  if (thick <= 0) return null;
+  const across = (t - arch) / thick;                     /* -1 top, +1 bottom */
+  return { side, along, across, thick, m: 1 - smoothstep(0.55, 1, Math.abs(across)) };
+}
+
+export function browMask(s, t) {
+  const g = browField(s, t);
+  return g ? g.m : 0;
 }
 
 /* The eye opening — the part of the face there is no skin on. Foundation, and

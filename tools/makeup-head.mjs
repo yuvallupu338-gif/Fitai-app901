@@ -36,10 +36,11 @@ import { createServer } from 'node:http';
 import { readFile, writeFile, unlink } from 'node:fs/promises';
 import { existsSync } from 'node:fs';
 import { resolve, dirname, extname, basename, join } from 'node:path';
-import { fileURLToPath } from 'node:url';
+import { fileURLToPath, pathToFileURL } from 'node:url';
 
 const ROOT = resolve(dirname(fileURLToPath(import.meta.url)), '..');
 const HEAD_DIR = resolve(ROOT, 'makeup/src/data/heads');
+const SRC = resolve(ROOT, 'makeup/src');
 const INDEX = join(HEAD_DIR, 'index.js');
 
 const MIME = {
@@ -704,17 +705,83 @@ saveBtn.onclick = async () => {
 }
 
 /* ------------------------------------------------------------------ *
+ * reimport — the same import again, with nobody clicking
+ * ------------------------------------------------------------------ */
+
+/*
+ * Face space is not frozen. Move where an eye sits in it, or how wide a head
+ * is, and every head already in `data/heads` is registered against the old
+ * arrangement: its texture coordinates say "this vertex is the pupil" and the
+ * masks now look for the pupil somewhere else. The eyeshadow lands beside the
+ * eye, and nothing about it is visible until somebody paints.
+ *
+ * The twenty marks do not go stale, though — they are points on the model, in
+ * the model's own coordinates, and they are kept in the module. So the fix is
+ * to run the import again from them. No browser, no clicking, no judgement:
+ * the same `unwrapHead` and the same `packHead` the marking page calls, against
+ * whatever face space now says.
+ *
+ * It needs the original file back, because what is stored is the *result* of
+ * importing it and there is no way to work backwards from that to the scan.
+ */
+async function reimport(id, modelPath) {
+  const file = join(HEAD_DIR, `${id}.js`);
+  if (!existsSync(file)) { console.error(`no head called "${id}"`); process.exit(1); }
+  const abs = resolve(process.cwd(), modelPath);
+  if (!existsSync(abs)) { console.error(`no such file: ${modelPath}`); process.exit(1); }
+
+  const mod = await import(pathToFileURL(file).href);
+  const old = Object.values(mod)[0];
+  if (!old || !old.landmarks) {
+    console.error(`${id} has no marks stored — it has to be marked again by hand`);
+    process.exit(1);
+  }
+
+  const { parseOBJ } = await import(pathToFileURL(join(SRC, 'model/import/obj.js')).href);
+  const { parseMesh } = await import(pathToFileURL(join(SRC, 'model/import/gltf.js')).href);
+  const { unwrapHead } = await import(pathToFileURL(join(SRC, 'model/import/unwrap.js')).href);
+  const { packHead } = await import(pathToFileURL(join(SRC, 'model/import/heads.js')).href);
+
+  const bytes = await readFile(abs);
+  const source = extname(abs).toLowerCase() === '.obj'
+    ? parseOBJ(bytes.toString('utf8'))
+    : parseMesh(bytes.buffer.slice(bytes.byteOffset, bytes.byteOffset + bytes.byteLength));
+
+  /* The same cut the page offers, taken if the stored head was cut: a head with
+   * fewer triangles than the file has was cut, and re-importing it without the
+   * cut would put the shoulders back. */
+  const cut = old.triangleCount < source.stats.triangles;
+  const unwrapped = unwrapHead(source, old.landmarks, cut ? { cutBelowY: -1.05 } : {});
+  const record = packHead(unwrapped, {
+    id: old.id, name: old.name, credit: old.credit, gender: old.gender,
+    skip: old.skip, landmarks: old.landmarks,
+  });
+  const before = { tris: old.triangleCount, residual: old.fit.residual };
+  await unlink(file);
+  const { ids } = await readIndex();
+  await writeIndex(ids.filter((x) => x !== old.id));
+  const saved = await save(record);
+  console.log(`${id}: ${before.tris} -> ${record.triangleCount} triangles, `
+    + `residual ${before.residual.toFixed(4)} -> ${record.fit.residual.toFixed(4)}, `
+    + `overlap ${(unwrapped.stats.overlap * 100).toFixed(2)}%, `
+    + `${unwrapped.stats.culled} culled, ${(saved.bytes / 1024).toFixed(0)}KB`);
+}
+
+/* ------------------------------------------------------------------ *
  * Entry
  * ------------------------------------------------------------------ */
 
-const [cmd, arg] = process.argv.slice(2);
+const [cmd, arg, arg2] = process.argv.slice(2);
 if (cmd === 'add' && arg) await add(arg);
 else if (cmd === 'list') await list();
 else if (cmd === 'remove' && arg) await remove(arg);
+else if (cmd === 'reimport' && arg && arg2) await reimport(arg, arg2);
 else {
   console.log('usage:');
   console.log('  node tools/makeup-head.mjs add <model.glb|.gltf|.obj>   mark a head and save it');
   console.log('  node tools/makeup-head.mjs list                        what the counter has');
   console.log('  node tools/makeup-head.mjs remove <id>                 take one out again');
+  console.log('  node tools/makeup-head.mjs reimport <id> <model>       run the import again');
+  console.log('     from the marks already stored — after face space has moved');
   process.exit(cmd === undefined ? 0 : 1);
 }

@@ -60,6 +60,33 @@ textures and no audio files at all.
   sockets out of an ellipsoid; the eyeballs, the lids and the lashes are hung off
   the same shape function the mesh is made of, so nothing floats. Two expression
   morph targets ride along as vertex deltas. `src/model/head.js`.
+
+  Two things about that ellipsoid are worth knowing before changing anything in
+  it, because both cost an afternoon to find. `faceU` has zero slope at the
+  centre line — that is what buys the front of the face its texture resolution —
+  so a mesh laid out on a uniform grid in `s` collapses its two middle columns
+  onto each other, and a feature shaped by a gaussian in `s` is a *cusp* on the
+  face rather than a dome. The first put a crease from the crown to the chin on
+  every head, and it looked exactly like a seam in a model that has no seam
+  there. The second made the bridge of the nose a wire. `sampleS` and
+  `acrossFace` in `src/model/face.js` are the answers, and the audit holds both.
+- **Eyes.** A lid is not a cap on the front of the eyeball, it is a *cup*: a
+  shell wrapped round the ball past its own silhouette with the opening cut out
+  of it. That distinction is the whole shape of an eye. A round cap has a round
+  rim, and a round rim cannot bound an almond — swung open it clears the ball at
+  the corners, sclera shows all the way round the sides, and the result reads as
+  a porthole with a small pink hat on it. Which is what shipped first, and it
+  passed every measurement, because every measurement was of the one azimuth
+  where the geometry happened to be right.
+
+  So the opening is written down once, as a curve — `lidRim` — and the mesh, the
+  lashes and the audit all read it. Past a right angle from the gaze the shell
+  is behind the ball from every direction a face is ever seen from, so there is
+  nowhere for sclera to appear except through the opening, whatever the lid is
+  doing. The lids hinge on an axis that is *not* the socket's normal: a head is
+  curved, the socket faces a quarter-turn out to the side, and an opening tilted
+  that far from the gaze puts the iris against the inner corner with a crescent
+  of white beside it.
 - **Makeup.** Not baked into the face texture — a separate pair of textures
   composited in the shader every frame: one holds colour and coverage, the other
   holds finish, shimmer and powder. That is why a clear gloss over a matte
@@ -178,6 +205,7 @@ Adding another:
 node tools/makeup-head.mjs add head.glb      # opens a page; click twenty points
 node tools/makeup-head.mjs list
 node tools/makeup-head.mjs remove <id>
+node tools/makeup-head.mjs reimport <id> head.glb    # again, from the stored marks
 ```
 
 The page reads .glb, .gltf and .obj, shows the model, and lets you turn it round
@@ -229,7 +257,21 @@ could ever see.
 What survives all that is a single sheet, which is what a texture wants. What
 gets written to `src/data/heads/` is not the file you imported — it is the
 result: positions already in head space, texture coordinates already in face
-space, packed as sixteen-bit arrays. Sixteen bits is fourteen microns on a face
+space, packed as sixteen-bit arrays.
+
+Which means an imported head is registered against face space *as it was on the
+day it was imported*. Move where an eye sits in it, or how wide a head is, and
+every stored head goes on claiming the old arrangement: its coordinates still
+say "this vertex is the pupil" and the masks now look somewhere else, so the
+eyeshadow lands beside the eye and nothing about it shows until somebody paints.
+The twenty marks do not go stale, though — they are points on the model, in the
+model's own coordinates, and they are kept in the module. So:
+
+    node tools/makeup-head.mjs reimport <id> <the original model file>
+
+runs the same import again from them, with no browser and nobody clicking. It
+needs the original file back, because what is stored is the result of importing
+it and there is no way to work backwards from that to the scan. Sixteen bits is fourteen microns on a face
 and a fortieth of a texel of the paint layer. The reading, the fitting and the
 unwrapping happen once, in the tool; the game decodes three arrays and computes
 normals.

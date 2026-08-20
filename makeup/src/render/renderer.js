@@ -635,9 +635,10 @@ export class Renderer {
        * not the gaze — a lid that followed the eyes would slide off the face
        * every time the customer looked sideways. */
       const lidM = mat4();
-      const bx = M[0] * anchor.normal[0] + M[4] * anchor.normal[1] + M[8] * anchor.normal[2];
-      const by = M[1] * anchor.normal[0] + M[5] * anchor.normal[1] + M[9] * anchor.normal[2];
-      const bz = M[2] * anchor.normal[0] + M[6] * anchor.normal[1] + M[10] * anchor.normal[2];
+      const ax = anchor.axis || anchor.normal;
+      const bx = M[0] * ax[0] + M[4] * ax[1] + M[8] * ax[2];
+      const by = M[1] * ax[0] + M[5] * ax[1] + M[9] * ax[2];
+      const bz = M[2] * ax[0] + M[6] * ax[1] + M[10] * ax[2];
       const bl = Math.hypot(bx, by, bz) || 1;
       const nfx = bx / bl, nfy = by / bl, nfz = bz / bl;
       /* The hinge axis: horizontal, across the socket. */

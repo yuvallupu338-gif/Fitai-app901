@@ -256,8 +256,12 @@ void main() {
     } else if (uMode == MODE_HAIR) {
       float wrapped = max((NdotL + 0.55) / 1.55, 0.0);
       diffuse += radiance * albedo * wrapped * 0.85;
-      float s1 = hairSpec(strand, N, L, V, -0.08, 42.0) * 0.85;
-      float s2 = hairSpec(strand, N, L, V, 0.10, 14.0) * 0.35;
+      /* Two sheens, and both used to be far too strong and far too tight: hair
+       * lit that way is satin, and the customers came out wearing a bolt of
+       * dress fabric on their heads. A wider, weaker primary is what reads as
+       * hair rather than as cloth. */
+      float s1 = hairSpec(strand, N, L, V, -0.08, 24.0) * 0.38;
+      float s2 = hairSpec(strand, N, L, V, 0.10, 9.0) * 0.18;
       specular += radiance * (s1 * mix(vec3(1.0), albedo, 0.25) + s2 * albedo);
       continue;
     } else {

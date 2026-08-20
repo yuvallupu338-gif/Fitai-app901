@@ -18,7 +18,7 @@ import { fbm, hash2, valueNoise, makeRng } from '../core/rng.js';
 import { clamp, smoothstep, lerp } from '../core/math.js';
 import { rgbToLab, labToRgb } from '../core/color.js';
 import {
-  F, ZONES, lipMask, lipLower, browMask, eyeOpening, ellipse, pair,
+  F, ZONES, lipMask, lipLower, browField, eyeOpening, ellipse, pair,
 } from '../model/face.js';
 
 /* Write a texture by evaluating a function per texel. `fn` returns
@@ -58,6 +58,16 @@ function makeTex(size, fn) {
  *  - brows are hair. Drawn as a solid shape they age the customer by twenty
  *    years and make every look worse than it is.
  */
+/*
+ * How many hairs are drawn across one brow.
+ *
+ * Exported because it is a sampling rate, not a taste: a brow is about 0.176
+ * wide in s, so on a 1024-pixel skin texture these get six pixels each. Raise
+ * it much past this and the brow stops being hair and starts being noise — see
+ * the note where it is used. The audit checks it against the texture size.
+ */
+export const BROW_HAIRS = 30;
+
 export function skinTexture(size, customer) {
   const rng = makeRng(customer.seed + 7717);
   const seed = (rng() * 1e6) | 0;
@@ -102,7 +112,7 @@ export function skinTexture(size, customer) {
     col = col.map((c) => c * edge);
 
     /* ---- the sockets and the places a face is always a little darker ---- */
-    const socketShade = pair(s, t, F.eyeS, F.eyeT - 0.004, 0.100, 0.052, 0.9);
+    const socketShade = pair(s, t, F.eyeS, F.eyeT - 0.010, 0.100, 0.046, 0.9);
     const nasolabial = pair(s, t, 0.135, 0.575, 0.030, 0.055, 0.95);
     const underNose = ellipse(s, t, 0.5, F.noseBaseT + 0.014, 0.115, 0.014, 0.9);
     const shading = socketShade * 0.20 + nasolabial * 0.10 + underNose * 0.12;
@@ -127,30 +137,57 @@ export function skinTexture(size, customer) {
     /* ---- lips ---- */
     const lm = lipMask(s, t);
     if (lm > 0.001) {
-      /* Vertical striations, denser towards the edges, plus a slightly darker
-       * vermilion border and a lighter centre on the lower lip. */
-      const stria = 0.5 + 0.5 * Math.sin(s * 620 + valueNoise(s * 70, t * 12, seed + 5) * 9);
-      const rim = smoothstep(0.75, 1.0, 1 - lm);
+      /*
+       * Vertical striations, a darker vermilion border, a lighter centre on the
+       * lower lip.
+       *
+       * The striations used to carry a third of the whole height range, and
+       * through the bump mapping that turned the mouth into a piece of
+       * corduroy: a row of hard ridges you could count from across the shop. A
+       * real lip's lines are something you see at arm's length and cannot feel,
+       * so they are mostly colour here and barely any height, and they fade out
+       * towards the middle of each lobe where the light catches instead.
+       */
+      const stria = 0.5 + 0.5 * Math.sin(s * 760 + valueNoise(s * 70, t * 12, seed + 5) * 9);
+      const edge = smoothstep(0.45, 1.0, 1 - lm);
+      const rim = smoothstep(0.80, 1.0, 1 - lm);
       const lower = lipLower(s, t);
       const lipCol = lipBase.map((c) =>
-        clamp(c * (0.90 + stria * 0.14) * (1 - rim * 0.22) * (1 + lower * 0.10), 0, 1));
+        clamp(c * (0.94 + stria * 0.11 * (0.30 + 0.70 * edge))
+          * (1 - rim * 0.26) * (1 + lower * 0.12), 0, 1));
       const a = smoothstep(0, 0.35, lm);
       col = [lerp(col[0], lipCol[0], a), lerp(col[1], lipCol[1], a), lerp(col[2], lipCol[2], a)];
-      height = lerp(height, 0.30 + stria * 0.34 + lower * 0.12, a);
+      height = lerp(height, 0.46 + stria * 0.09 * edge + lower * 0.07, a);
     }
 
     /* ---- brows ---- */
-    const bm = browMask(s, t);
-    if (bm > 0.002) {
-      /* Strand direction follows the arch: sample the noise along a sheared
-       * axis so the hairs sweep outwards instead of standing on end. */
-      const dir = (s - 0.5) * 2.2;
-      const strand = fbm(s * 300, (t - dir * 0.02) * 900, 2, seed + 17);
-      const density = smoothstep(0.30, 0.62, strand) * smoothstep(0.05, 0.45, bm);
-      const a = density * (0.82 + customer.browDensity * 0.18) * customer.browDensity;
+    const bg = browField(s, t);
+    if (bg && bg.m > 0.002) {
+      /*
+       * Hairs, not a smudge.
+       *
+       * This used to sample two octaves of noise at nine hundred cycles across
+       * a thousand-pixel texture — nearly one cycle per pixel, well past what
+       * the texture can hold — so what landed on the face was not hair, it was
+       * the aliasing of hair: a leopard-print patch floating over each eye. The
+       * frequency here is picked against the pixels that have to carry it, six
+       * or so to a hair, and the audit holds it there.
+       *
+       * A brow hair leaves the skin pointing up and out at the head of the brow
+       * and lies flatter along the arch past the peak, so the strokes shear
+       * with `along` rather than running parallel to each other.
+       */
+      const lean = 1.15 - 0.95 * smoothstep(-0.7, 0.5, bg.along);
+      const wob = fbm(bg.along * 5 + 3, bg.across * 2, 2, seed + 17) - 0.5;
+      const q = bg.along * BROW_HAIRS + bg.across * lean * 3.0 + wob * 2.2;
+      const hair = Math.pow(0.5 + 0.5 * Math.cos(q * Math.PI), 1.6);
+      /* Thinner at the tail, and feathered along both edges the way a brow
+       * nobody has drawn on with a pencil actually is. */
+      const body = Math.pow(bg.m, 0.55) * (1 - 0.35 * smoothstep(0.35, 1, bg.along));
+      const a = clamp(body * (0.26 + 0.74 * hair) * customer.browDensity, 0, 1);
       col = [lerp(col[0], browCol[0], a), lerp(col[1], browCol[1], a),
         lerp(col[2], browCol[2], a)];
-      height = lerp(height, 0.72, a * 0.8);
+      height = lerp(height, 0.70, a * 0.75);
     }
 
     /* ---- lashes and the wet line ---- */
@@ -161,11 +198,18 @@ export function skinTexture(size, customer) {
       height = lerp(height, 0.66, a);
     }
 
-    /* Inside the eye opening the head is hidden behind an eyeball; making it
+    /*
+     * Inside the eye opening the head is hidden behind an eyeball; making it
      * dark rather than skin-coloured means a sliver showing at a steep angle
-     * reads as shadow instead of as a hole in the face. */
+     * reads as shadow instead of as a hole in the face.
+     *
+     * Gently, though. The lids borrow these coordinates, so whatever is painted
+     * here is also painted along the lid margin an inch away from the camera —
+     * and at nearly half strength it was a brown smear across the eye of every
+     * customer, which is not what a lid looks like from any distance.
+     */
     const open = eyeOpening(s, t);
-    if (open > 0.01) col = col.map((c) => c * (1 - open * 0.42));
+    if (open > 0.01) col = col.map((c) => c * (1 - open * 0.20));
 
     out[0] = col[0]; out[1] = col[1]; out[2] = col[2]; out[3] = height;
   });
@@ -260,18 +304,37 @@ export function hairTexture(size, rgb) {
   /* The lit end of the range, not a brighter version of the whole thing: adding
    * a constant here washed platinum blonde out to white and made it disappear
    * against skin. */
-  const tip = rgb.map((c) => clamp(c * 1.30, 0, 1));
-  const root = rgb.map((c) => c * 0.38);
+  const tip = rgb.map((c) => clamp(c * 1.10, 0, 1));
+  const root = rgb.map((c) => c * 0.44);
   return makeTex(size, (u, v, out) => {
-    /* Strands run down the V axis, which is how every hair mesh here is
-     * unwrapped, with a low-frequency banding for lighter and darker locks. */
-    const strand = fbm(u * 340, v * 26, 3, seed);
-    const lock = fbm(u * 22, v * 4, 2, seed + 31);
-    const k = clamp(0.18 + strand * 0.62 + lock * 0.30, 0, 1);
+    /*
+     * Strands, as an actual periodic function rather than noise.
+     *
+     * The first version asked for `fbm(u * 340, ...)` in a 256-texel map — 340
+     * cycles across 256 samples, well past the point where a texture can carry
+     * them. What comes out is not fine hair, it is white noise, and on screen it
+     * reads as a sheet of speckled plastic. The frequency that matters is the
+     * one that survives sampling: a strand every five or six texels, phase
+     * broken up by a *low* frequency noise so they are not a comb.
+     *
+     * They run along V because that is how every hair mesh here is unwrapped —
+     * so the variation across a lock belongs on U, and along its length there
+     * should be almost none.
+     */
+    const jitter = valueNoise(u * 9, v * 2.0, seed) * 2.4;
+    const strand = 0.5 + 0.5 * Math.sin((u * 44 + jitter) * Math.PI * 2);
+    /* Sharpened, so a strand is a strand and not a sine wave. */
+    const fibre = Math.pow(strand, 1.7);
+    /* Broad light and dark locks, which is most of what reads as hair at any
+     * distance a customer is actually seen from. */
+    const lock = fbm(u * 5, v * 2.2, 2, seed + 31);
+    const k = clamp(0.12 + fibre * 0.34 + lock * 0.46, 0, 1);
     out[0] = lerp(root[0], tip[0], k);
     out[1] = lerp(root[1], tip[1], k);
     out[2] = lerp(root[2], tip[2], k);
-    out[3] = 0.35 + strand * 0.5;
+    /* The alpha channel is the bump height, not opacity. Following the strands
+     * is what makes the light break along them instead of across them. */
+    out[3] = 0.34 + fibre * 0.42;
   });
 }
 

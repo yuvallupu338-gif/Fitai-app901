@@ -709,10 +709,19 @@ export function unwrapHead(source, landmarks, opts = {}) {
     vertices[o] = pos[i * 3];
     vertices[o + 1] = pos[i * 3 + 1];
     vertices[o + 2] = pos[i * 3 + 2];
-    const l = Math.hypot(n[i * 3], n[i * 3 + 1], n[i * 3 + 2]) || 1;
-    vertices[o + 3] = n[i * 3] / l;
-    vertices[o + 4] = n[i * 3 + 1] / l;
-    vertices[o + 5] = n[i * 3 + 2] / l;
+    let nx = n[i * 3], ny = n[i * 3 + 1], nz = n[i * 3 + 2];
+    let l = Math.hypot(nx, ny, nz);
+    if (l < 1e-12) {
+      /* A vertex the cull left with no triangles on it — the far wall of a
+       * nostril, usually. It is never drawn, but a zero-length normal sitting
+       * in a vertex buffer is a trap for whoever reuses this mesh, so it gets
+       * the only direction that means anything here: out of the head. */
+      nx = pos[i * 3]; ny = pos[i * 3 + 1]; nz = pos[i * 3 + 2];
+      l = Math.hypot(nx, ny, nz) || 1;
+    }
+    vertices[o + 3] = nx / l;
+    vertices[o + 4] = ny / l;
+    vertices[o + 5] = nz / l;
     vertices[o + 6] = su[i];
     vertices[o + 7] = tv[i];
     /* The socket, the nostril and the underside of the jaw are dark on every
