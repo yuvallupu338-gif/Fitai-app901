@@ -1386,12 +1386,48 @@ if (existsSync(html)) {
    */
   const policy = (/<meta http-equiv="Content-Security-Policy" content="([^"]*)"/.exec(src) || [])[1] || '';
   check(policy.length > 0, 'html: the CSP is a real meta tag');
+
+  /*
+   * The local model compiles a WebAssembly module, which needs
+   * 'wasm-unsafe-eval'. That grant is acceptable; 'unsafe-eval' — which would
+   * also hand over eval() and new Function() over JavaScript — is not, and the
+   * two are one word apart.
+   */
+  check(!/'unsafe-eval'/.test(policy),
+    "html: 'wasm-unsafe-eval' is allowed for the local model, plain 'unsafe-eval' is not");
+  const scriptSrc = (/script-src ([^;]*)/.exec(policy) || [])[1] || '';
+  check(/'self'/.test(scriptSrc) && !/https?:/.test(scriptSrc),
+    `html: script-src stays on this origin — the model library is vendored, not fetched (got "${scriptSrc}")`);
   const connect = (/connect-src ([^;]*)/.exec(policy) || [])[1] || '';
   check(connect.length > 0, 'html: the CSP constrains where the page may connect');
-  check(!/\*/.test(connect) && !/\bhttps:(?!\/\/)/.test(connect),
-    `html: connect-src enumerates hosts rather than allowing a wildcard (got "${connect}")`);
-  check(connect.split(/\s+/).filter(Boolean).every((h) => h === "'none'" || h.startsWith('https://')),
-    'html: every connect-src entry is an https host');
+  /*
+   * A scheme-only source — bare `https:` — is the one that matters, because it
+   * lets anything on this origin post the neighbouring app's API keys to any
+   * server on the internet. A subdomain wildcard on a named domain is a
+   * different and much smaller thing, and it is unavoidable here: a HuggingFace
+   * weight request answers with a redirect to a regional cache whose hostname
+   * depends on where the reader is, and CSP checks the redirect target.
+   *
+   * So the rule is not "no asterisk". It is: every source is https, names a
+   * concrete registrable domain, and any wildcard is confined to that domain's
+   * subdomains.
+   */
+  const sources = connect.split(/\s+/).filter(Boolean);
+  check(!sources.includes('https:') && !sources.includes('*') && !sources.includes("'self'"),
+    `html: connect-src has no scheme-only or blanket source (got "${connect}")`);
+  for (const src2 of sources) {
+    if (src2 === "'none'") continue;
+    check(src2.startsWith('https://'), `html: connect-src source "${src2}" is https`);
+    const host = src2.slice('https://'.length);
+    check(!host.includes('/'), `html: connect-src source "${src2}" is a host, not a path`);
+    if (host.startsWith('*.')) {
+      const domain = host.slice(2);
+      check(domain.split('.').length >= 2 && !domain.includes('*'),
+        `html: the wildcard in "${src2}" is confined to one named domain`);
+    } else {
+      check(!host.includes('*'), `html: connect-src source "${src2}" wildcards only a whole subdomain`);
+    }
+  }
   check(!/(href|src)="\//.test(src), 'html: every path is relative, so Pages can serve it from a subpath');
   check(/<noscript/.test(src), 'html: says something without JavaScript');
   for (const m of src.match(/(?:href|src)="([^"]+)"/g) || []) {
