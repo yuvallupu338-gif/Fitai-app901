@@ -22,6 +22,7 @@
  */
 
 import { rngFrom } from '../core/rng.js';
+import { nightConfig } from '../game/nights.js';
 
 /* ------------------------------------------------------------------ *
  * The street plan
@@ -233,6 +234,7 @@ export function buildLayout(night, seed) {
 
   const lamps = streetLamps(rng);
   const props = propsFor(houses, rng, night);
+  const gaps = fenceGaps(houses, rng, nrng, night);
   const graph = walkGraph(houses);
   const sites = flagSites(houses);
   const puzzles = buildPuzzles(houses, sites, nrng);
@@ -248,6 +250,7 @@ export function buildLayout(night, seed) {
     houses,
     lamps,
     props,
+    gaps,
     graph,
     sites,
     puzzles,
@@ -899,6 +902,64 @@ function buildPuzzles(houses, sites, rng) {
  * up, and where she looks when she comes inside. It is a pure function of the
  * house, so it is the same in the daylight walk-through and in the dark.
  */
+/*
+ * The loose boards.
+ *
+ * Every back garden is closed on three sides by a boarded fence you cannot see
+ * over or climb, so the only honest way into one is down the corridor between
+ * two plots and through the metre-wide gap at the front — which means getting
+ * from a garden on one side of the street to a garden four houses along is a
+ * walk out to the road and all the way back in. At 3:31, with four minutes on
+ * the clock and her somewhere in the middle of it, that walk is the night.
+ *
+ * So one board in the back fence of every house is loose. Behind those fences
+ * is the open ground the whole row backs onto, and once you are on it you can
+ * run the length of the street out of sight of the road and come back in
+ * through somebody else's garden. It is the short way round, and the game
+ * never mentions it anywhere.
+ *
+ * Two rules make it a discovery rather than a checklist. WHERE the loose board
+ * is comes from the save seed, so it is in the same place every night of a
+ * save and can be learned. WHETHER it opens tonight comes from the night
+ * stream, exactly like the unlocked doors — and the count on the night table
+ * falls as the week goes on, so the street closes around the player one board
+ * at a time. A board that is loose tonight hangs visibly out of line with a
+ * track worn in the grass in front of it; one that has been nailed shut sits
+ * flush and looks like fence. That track is the whole tell, and it is the only
+ * one: invisible from the road, obvious from three metres to somebody who has
+ * learned what it means.
+ */
+function fenceGaps(houses, rng, nrng, night) {
+  const cfg = nightConfig(night);
+  const all = [];
+  for (const h of houses) {
+    const s = h.sign;
+    /* Along the run and clear of both corners, because a gap in a corner post
+     * is a hole in the geometry rather than a missing board. */
+    const half = h.w / 2 + PLAN.plotEdge;
+    all.push({
+      id: `gap${h.id}`,
+      houseId: h.id,
+      x: h.x + rng.range(-half + 1.6, half - 1.6),
+      z: s * (PLAN.frontZ + h.d + 6),
+      sign: s,
+      /* One panel is 1.1 m of fence, which is a person turned sideways. */
+      w: 1.1,
+      loose: false,
+      open: false,
+    });
+  }
+  /*
+   * Which of them are loose tonight. Never none: the flag is always reachable
+   * without any of these — the reachability test proves that on every seed and
+   * every night — but a night that silently takes away a lever the player has
+   * spent a week learning reads as a bug rather than as difficulty.
+   */
+  const want = Math.max(1, Math.min(all.length, cfg.shortcuts ?? 6));
+  for (const g of nrng.shuffle(all.slice()).slice(0, want)) g.loose = true;
+  return all;
+}
+
 export function interiorOf(h) {
   const s = h.sign;
   const z0 = h.z0 + 0.24, z1 = h.z1 - 0.24;

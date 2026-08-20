@@ -34,6 +34,15 @@ export const NIGHTS = [
     cone: 105,            /* her field of view, in degrees, total           */
     notice: 1.00,         /* multiplier on how fast she fills with suspicion */
     sleepers: 0,          /* neighbours standing in their gardens, asleep    */
+    /*
+     * How many of the twelve loose boards in the back fences are still loose
+     * tonight. They are the short way round the neighbourhood — through a
+     * garden and out the back instead of all the way to the front and down
+     * the side — and the count falling is the quietest thing on this table:
+     * the street is being nailed shut around the player, one board a night,
+     * and nobody ever says so.
+     */
+    shortcuts: 10,
     relocate: 0,          /* the flag moves if untouched for this long       */
     entersHouses: false,
     hideTime: 14,         /* seconds you can stay in a wardrobe              */
@@ -44,7 +53,7 @@ export const NIGHTS = [
     title: 'לילה שני',
     start: T(3, 30), flag: T(3, 31), end: T(3, 35),
     speed: 1.30, huntSpeed: 3.65, sight: 25, cone: 110, notice: 1.10,
-    sleepers: 0, relocate: 0, entersHouses: false, hideTime: 14,
+    sleepers: 0, shortcuts: 9, relocate: 0, entersHouses: false, hideTime: 14,
     note: 'מהירה ב-20%. הדגל רחוק יותר.',
   },
   {
@@ -55,7 +64,7 @@ export const NIGHTS = [
     /* "Sleeping neighbours": people standing in their own front gardens in the
      * dark, not moving, facing nothing. They block the shortest way through
      * and they wake if you touch them. */
-    sleepers: 4, relocate: 0, entersHouses: false, hideTime: 12,
+    sleepers: 4, shortcuts: 8, relocate: 0, entersHouses: false, hideTime: 12,
     note: 'יש אנשים בגינות. הם ישנים. אל תיגע בהם.',
   },
   {
@@ -66,7 +75,7 @@ export const NIGHTS = [
      * minutes of her being outside while you have nothing to go and get. */
     start: T(3, 28), flag: T(3, 31), end: T(3, 35),
     speed: 1.50, huntSpeed: 3.95, sight: 28, cone: 118, notice: 1.2,
-    sleepers: 4, relocate: 0, entersHouses: false, hideTime: 12,
+    sleepers: 4, shortcuts: 6, relocate: 0, entersHouses: false, hideTime: 12,
     note: 'השריקה מתחילה ב-3:28. הדגל עדיין ב-3:31.',
   },
   {
@@ -74,7 +83,7 @@ export const NIGHTS = [
     title: 'לילה חמישי',
     start: T(3, 28), flag: T(3, 31), end: T(3, 35),
     speed: 1.60, huntSpeed: 4.05, sight: 29, cone: 120, notice: 1.25,
-    sleepers: 6,
+    sleepers: 6, shortcuts: 5,
     /* If you have not picked it up within a minute it is somewhere else. */
     relocate: 60, entersHouses: false, hideTime: 10,
     note: 'אם לא תיקח אותו תוך דקה — הוא יזוז.',
@@ -84,7 +93,7 @@ export const NIGHTS = [
     title: 'לילה שישי',
     start: T(3, 28), flag: T(3, 31), end: T(3, 35),
     speed: 1.70, huntSpeed: 4.15, sight: 30, cone: 124, notice: 1.3,
-    sleepers: 6, relocate: 60,
+    sleepers: 6, shortcuts: 4, relocate: 60,
     /* Every door in the street is open tonight, including the ones she uses.
      * There is nowhere inside that is safe, which is the point. */
     entersHouses: true, hideTime: 8,
@@ -95,7 +104,7 @@ export const NIGHTS = [
     title: 'לילה שביעי',
     start: T(3, 28), flag: T(3, 31), end: T(3, 35),
     speed: 1.80, huntSpeed: 4.30, sight: 32, cone: 130, notice: 1.4,
-    sleepers: 8, relocate: 45, entersHouses: true, hideTime: 8,
+    sleepers: 8, shortcuts: 3, relocate: 45, entersHouses: true, hideTime: 8,
     note: 'הלילה האחרון. היא כבר לא מחפשת אותך.',
   },
 ];

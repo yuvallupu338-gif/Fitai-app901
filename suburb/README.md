@@ -157,6 +157,33 @@ there is a mirror on its back fence.
 You can skip all of it and still play the night. You will just be solving it
 blind, which is the trade the design is about.
 
+## The way round the back
+
+Every back garden is closed on three sides by boarded fence you cannot see over
+or climb, so the honest way into one is down the corridor between two plots and
+through the metre-wide gap at the front. Which means getting from a garden on
+one side of the street to a garden four houses along is a walk out to the road
+and all the way back in — and at 3:31, with four minutes on the clock and her
+somewhere in the middle of it, that walk is the night.
+
+So one board in the back fence of every house is loose. Behind those fences is
+the open ground the whole row backs onto, and once you are on it you can run
+the length of the street out of sight of the road and come back in through
+somebody else's garden. Nothing in the game mentions this anywhere.
+
+Two rules make it a discovery rather than a checklist. **Where** the loose
+board is comes from the save seed, so it is in the same place every night and
+can be learned. **Whether** it opens tonight comes from the night, exactly like
+the unlocked doors — and the count falls as the week goes on, from ten of the
+twelve on the first night to three on the last. The street is being nailed shut
+around you one board at a time, and nobody ever says so.
+
+The tell is a track worn in the grass at the foot of a board that is loose
+tonight. It is on the ground rather than on the fence, because a player running
+a back garden at 3:33 is looking at where their feet are going. From the road
+there is nothing to see; from three metres it is obvious, once you know what it
+means. Pushing the board is loud, which is the price of the short cut.
+
 ## The seven nights
 
 | night | what changes |
@@ -251,7 +278,7 @@ node --experimental-default-type=module tools/suburb-world.mjs
 node --experimental-default-type=module tools/suburb-world.mjs --seeds 8
 ```
 
-Around 1200 headless checks per neighbourhood, over all seven nights. The one
+Around 1500 headless checks per neighbourhood, over all seven nights. The one
 that earns its keep is reachability: it flood-fills the whole neighbourhood
 from the player's own bed using the player controller's own rules — 62cm step
 up, 34cm of clearance — and asserts that every night's flag can be reached from

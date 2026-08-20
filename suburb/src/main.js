@@ -996,11 +996,20 @@ class Game {
       case 'flagpole': return 'הדגל של הבית הזה';
       case 'story': return 'להסתכל';
       case 'garageDoor': return 'דלת המוסך נעולה';
+      case 'gap': {
+        const g = this.gap(it.gapId);
+        if (!g) return null;
+        if (g.open) return 'הקרש פתוח';
+        /* The nailed ones say so only once you are standing at them, which is
+         * the whole cost of walking over to find out. */
+        return g.loose ? 'לדחוף את הקרש' : 'הקרש מסומר';
+      }
       default: return it.label || null;
     }
   }
 
   house(id) { return this.layout.houses.find((h) => h.id === id); }
+  gap(id) { return (this.layout.gaps || []).find((g) => g.id === id); }
   doorFor(h) { return this.world.doors.find((d) => d.houseId === h.id); }
 
   use(it) {
@@ -1195,6 +1204,36 @@ class Game {
           ? 'הדגל של הבית הזה מונמך לחצי התורן. כולם מונמכים.'
           : 'דגל אדום קטן. לכל בית יש אחד.', 3800);
         break;
+      /*
+       * Pushing a loose board. It stays open for the rest of the night — a
+       * short cut you have to re-find every time you use it is not a short
+       * cut — and it is loud, which is the price: this is a fence panel being
+       * dragged out of the way in a silent street at half past three, and she
+       * comes to noise.
+       */
+      case 'gap': {
+        const g = this.gap(it.gapId);
+        if (!g) break;
+        if (g.open) { ui.log('כבר פתוח.'); break; }
+        if (!g.loose) {
+          /* Nailed. Nothing happens, and nothing is wasted either: knowing
+           * which boards are shut tonight is knowing the street. */
+          ui.log('מסומר. לא הלילה.');
+          audio.fence();
+          this.noise(it.x, it.z, 0.25);
+          break;
+        }
+        g.open = true;
+        for (const b of this.world.collision.boxes) {
+          if (b.tag === 'gapPanel' && b.id === g.id) { b.solid = false; b.opaque = false; }
+        }
+        this.world.collision.build();
+        audio.fence();
+        this.noise(it.x, it.z, 0.62);
+        ui.log('הקרש נפתח. יש דרך מאחור.', true);
+        break;
+      }
+
       case 'story': {
         const item = collectibleFor(it.slot);
         const isNew = store.findObject(item.id);
@@ -1507,6 +1546,28 @@ class Game {
     if (this.whistler) this.whistler.dynamics(this.dynamics, dt);
     if (this.neighbours) this.neighbours.dynamics(this.dynamics, this.time);
     if (this.flag) this.flag.dynamics(this.dynamics, cam, this.time);
+    /*
+     * The loose boards, in both halves of the day — the fence has a panel
+     * missing from the static mesh where each one goes, so if this does not
+     * run there is simply a person-sized hole in the back fence. It ran only
+     * at night once, and the afternoon had twelve of them.
+     *
+     * A board that is loose tonight sits a few degrees out of true, which
+     * together with the worn track in front of it is the only thing that says
+     * so. A board that has been nailed shut sits flush and looks like fence.
+     */
+    for (const g of this.layout.gaps || []) {
+      g.t = damp(g.t || 0, g.open ? 1 : 0, 7, dt);
+      this.dynamics.push({
+        mesh: 'gapBoard',
+        x: g.x - g.w / 2, y: 0, z: g.z,
+        /* Hinged at the panel's own left edge and swung either way depending
+         * on which side of the street the garden is, because adding a half
+         * turn instead put the whole board a full width off the hole it was
+         * supposed to be filling. */
+        rot: ((g.loose ? 0.055 : 0) + g.t * 1.30) * (g.sign > 0 ? 1 : -1),
+      });
+    }
     for (const d of this.world.doors) {
       /* Doors ease open rather than snapping, which is most of what sells a
        * door as a physical object rather than a state flag. */

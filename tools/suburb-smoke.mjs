@@ -607,6 +607,68 @@ async function main() {
     }
 
     /*
+     * The loose board in a back fence. It is the short way round the
+     * neighbourhood and the game never mentions it, so what has to be true is
+     * that it is silent until you are standing at it, that it says which kind
+     * it is once you are, and that pushing a loose one actually opens the
+     * fence rather than just the prompt.
+     */
+    const board = await page.evaluate(() => {
+      const g = window.suburb;
+      const gap = g.layout.gaps.find((x) => x.loose && !x.open);
+      const shut = g.layout.gaps.find((x) => !x.loose);
+      const col = g.world.collision;
+      return {
+        total: g.layout.gaps.length,
+        loose: g.layout.gaps.filter((x) => x.loose).length,
+        gap: gap && { id: gap.id, x: gap.x, z: gap.z, sign: gap.sign },
+        shut: shut && { id: shut.id, x: shut.x, z: shut.z, sign: shut.sign },
+        blocked: gap ? !col.standableAt(gap.x, gap.z, 0, 0.34, 1.75) : null,
+      };
+    });
+    check(board.total > 0 && board.loose > 0,
+      `${board.loose} of ${board.total} boards are loose tonight`);
+    check(board.blocked === true, 'a board nobody has pushed still closes the fence');
+    if (board.gap) {
+      const stand = async (q, d) => {
+        await page.evaluate(([p, dist]) => {
+          const g = window.suburb;
+          g.player.pos.x = p.x;
+          g.player.pos.z = p.z - p.sign * dist;
+          g.player.pos.y = g.world.collision.groundAt(p.x, p.z - p.sign * dist, 1.2, 0.62);
+          g.player.vel.x = g.player.vel.z = 0;
+          g.player.yaw = Math.atan2(-(p.x - g.player.pos.x), -(p.z - g.player.pos.z));
+        }, [q, d]);
+        await frames(page, 3);
+        return page.evaluate(() => {
+          const el = document.querySelector('#hud-prompt');
+          return el.hidden ? '' : el.textContent.trim();
+        });
+      };
+      check(!(await stand(board.gap, 4.5)).includes('קרש'),
+        'from across the garden the fence says nothing');
+      const near = await stand(board.gap, 1.5);
+      check(near.includes('לדחוף'), `up close it offers the push (prompt: "${near}")`);
+      if (board.shut) {
+        const nailed = await stand(board.shut, 1.5);
+        check(nailed.includes('מסומר'),
+          `and a nailed one says so, but only from here (prompt: "${nailed}")`);
+        await stand(board.gap, 1.5);
+      }
+      await press(page, 'KeyE', 5);
+      const opened = await page.evaluate((id) => {
+        const g = window.suburb;
+        const gap = g.layout.gaps.find((x) => x.id === id);
+        return {
+          open: gap.open,
+          through: g.world.collision.standableAt(gap.x, gap.z, 0, 0.34, 1.75),
+        };
+      }, board.gap.id);
+      check(opened.open && opened.through,
+        'pushing it opens a way through the fence');
+    }
+
+    /*
      * The fuse cabinet. The README's table says four switches and one strip of
      * red tape, so the tape has to be on exactly one of them and it has to be
      * the one the panel accepts — the lock at the fountain is standing in the

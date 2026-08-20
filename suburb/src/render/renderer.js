@@ -333,6 +333,17 @@ export class Renderer {
         [0, 0], [0.34, 0], [0.34, 0.30], [0, 0.30], MAT.GLOW, { sub: 2 });
     }, 128);
 
+    /*
+     * One panel of back fence, hinged at its own edge so a yaw swings it like
+     * a gate. Same trick as the door leaf below and for the same reason: a
+     * hole that appears in a fence the instant a key is pressed reads as the
+     * world glitching rather than as a way through.
+     */
+    this.dyn.gapBoard = make((mb) => {
+      addBox(mb, 0.55, 0.92, 0, 1.10, 1.85, 0.09, 0, MAT.WOOD,
+        { ao: shade(0.72), bottom: false });
+    }, 64);
+
     /* A door leaf, hinged at its own origin so a yaw on the model matrix
      * swings it. */
     this.dyn.door = make((mb) => {

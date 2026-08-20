@@ -18,7 +18,7 @@
      everything itself and talks to nobody: script-src is 'self' with no inline
      anything, and connect-src is 'none'. frame-ancestors is omitted — it is
      ignored in a meta tag. -->
-<meta http-equiv="Content-Security-Policy" content="default-src 'none'; script-src 'sha256-1OMGm71e4Sm7MVPPKW0H5QslGYCys+BTmzh2NocvkXA='; style-src 'sha256-mZEYVez5b3eXnFo3vrG9wqbW8kaMXTZ0ej34Kvsr5So='; img-src 'self' data:; font-src 'self' data:; connect-src 'none'; media-src 'none'; frame-src 'none'; worker-src 'none'; object-src 'none'; base-uri 'none'; form-action 'none'">
+<meta http-equiv="Content-Security-Policy" content="default-src 'none'; script-src 'sha256-Cxzy9hbny/1T5GXbe+pa+5uSMEW5bHKi8xcScuOvVvY='; style-src 'sha256-mZEYVez5b3eXnFo3vrG9wqbW8kaMXTZ0ej34Kvsr5So='; img-src 'self' data:; font-src 'self' data:; connect-src 'none'; media-src 'none'; frame-src 'none'; worker-src 'none'; object-src 'none'; base-uri 'none'; form-action 'none'">
 <link rel="icon" href="data:image/svg+xml,<svg xmlns='http://www.w3.org/2000/svg' viewBox='0 0 32 32'><rect width='32' height='32' fill='%230b1018'/><path d='M8 27V5' stroke='%23cfd6df' stroke-width='2'/><path d='M9 6h15l-4 5 4 5H9z' fill='%23c0261f'/></svg>">
 <style>
 /*
@@ -5371,6 +5371,17 @@ class Renderer {
         [0, 0], [0.34, 0], [0.34, 0.30], [0, 0.30], MAT.GLOW, { sub: 2 });
     }, 128);
 
+    /*
+     * One panel of back fence, hinged at its own edge so a yaw swings it like
+     * a gate. Same trick as the door leaf below and for the same reason: a
+     * hole that appears in a fence the instant a key is pressed reads as the
+     * world glitching rather than as a way through.
+     */
+    this.dyn.gapBoard = make((mb) => {
+      addBox(mb, 0.55, 0.92, 0, 1.10, 1.85, 0.09, 0, MAT.WOOD,
+        { ao: shade(0.72), bottom: false });
+    }, 64);
+
     /* A door leaf, hinged at its own origin so a yaw on the model matrix
      * swings it. */
     this.dyn.door = make((mb) => {
@@ -5758,6 +5769,131 @@ function modelInto(m, x, y, z, yaw, pitch, sx, sy, sz) {
   };
 })();
 
+__m["suburb/src/game/nights.js"] = (function () {
+/*
+ * nights.js — the seven nights, and what is different about each one.
+ *
+ * The whole difficulty curve is this table. Nothing else in the game branches
+ * on the night number, which is deliberate: a difficulty curve spread through
+ * six files is one nobody can read, and this one has to be readable because it
+ * is the design. Every field here is a promise to the player that the night
+ * they are on is different from the one before it in exactly one or two ways
+ * they can name.
+ *
+ * Times are seconds past 3:00:00, because the clock on the HUD is the game and
+ * writing 1860 rather than "3:31" once, here, is better than converting in
+ * four places.
+ *
+ * The first night's speeds are the design's: 1.2 m/s drifting, 3.5 m/s
+ * hunting, against a player who walks at 2.7 and runs at 4.5. You can always
+ * outrun her — right up to the seventh night, where 4.3 against 4.5 means you
+ * can outrun her for exactly as long as your breath lasts.
+ */
+
+const M = 60;
+const T = (h, m, s = 0) => (h - 3) * 3600 + m * M + s;
+
+const NIGHTS = [
+  {
+    n: 1,
+    title: 'לילה ראשון',
+    /* The whistle starts, the flag appears a minute later, and it is over at
+     * 3:35. Every night keeps that last number. */
+    start: T(3, 30), flag: T(3, 31), end: T(3, 35),
+    speed: 1.20,          /* metres per second while patrolling             */
+    huntSpeed: 3.50,
+    sight: 22,            /* how far she can see, in metres                 */
+    cone: 105,            /* her field of view, in degrees, total           */
+    notice: 1.00,         /* multiplier on how fast she fills with suspicion */
+    sleepers: 0,          /* neighbours standing in their gardens, asleep    */
+    /*
+     * How many of the twelve loose boards in the back fences are still loose
+     * tonight. They are the short way round the neighbourhood — through a
+     * garden and out the back instead of all the way to the front and down
+     * the side — and the count falling is the quietest thing on this table:
+     * the street is being nailed shut around the player, one board a night,
+     * and nobody ever says so.
+     */
+    shortcuts: 10,
+    relocate: 0,          /* the flag moves if untouched for this long       */
+    entersHouses: false,
+    hideTime: 14,         /* seconds you can stay in a wardrobe              */
+    note: 'היא איטית, והדגל קרוב. תלמד את הרחוב.',
+  },
+  {
+    n: 2,
+    title: 'לילה שני',
+    start: T(3, 30), flag: T(3, 31), end: T(3, 35),
+    speed: 1.30, huntSpeed: 3.65, sight: 25, cone: 110, notice: 1.10,
+    sleepers: 0, shortcuts: 9, relocate: 0, entersHouses: false, hideTime: 14,
+    note: 'מהירה ב-20%. הדגל רחוק יותר.',
+  },
+  {
+    n: 3,
+    title: 'לילה שלישי',
+    start: T(3, 30), flag: T(3, 31), end: T(3, 35),
+    speed: 1.40, huntSpeed: 3.80, sight: 26, cone: 115, notice: 1.15,
+    /* "Sleeping neighbours": people standing in their own front gardens in the
+     * dark, not moving, facing nothing. They block the shortest way through
+     * and they wake if you touch them. */
+    sleepers: 4, shortcuts: 8, relocate: 0, entersHouses: false, hideTime: 12,
+    note: 'יש אנשים בגינות. הם ישנים. אל תיגע בהם.',
+  },
+  {
+    n: 4,
+    title: 'לילה רביעי',
+    /* She starts two minutes early. The flag still appears at 3:31 and it is
+     * still over at 3:35, so this night is not longer — it is two extra
+     * minutes of her being outside while you have nothing to go and get. */
+    start: T(3, 28), flag: T(3, 31), end: T(3, 35),
+    speed: 1.50, huntSpeed: 3.95, sight: 28, cone: 118, notice: 1.2,
+    sleepers: 4, shortcuts: 6, relocate: 0, entersHouses: false, hideTime: 12,
+    note: 'השריקה מתחילה ב-3:28. הדגל עדיין ב-3:31.',
+  },
+  {
+    n: 5,
+    title: 'לילה חמישי',
+    start: T(3, 28), flag: T(3, 31), end: T(3, 35),
+    speed: 1.60, huntSpeed: 4.05, sight: 29, cone: 120, notice: 1.25,
+    sleepers: 6, shortcuts: 5,
+    /* If you have not picked it up within a minute it is somewhere else. */
+    relocate: 60, entersHouses: false, hideTime: 10,
+    note: 'אם לא תיקח אותו תוך דקה — הוא יזוז.',
+  },
+  {
+    n: 6,
+    title: 'לילה שישי',
+    start: T(3, 28), flag: T(3, 31), end: T(3, 35),
+    speed: 1.70, huntSpeed: 4.15, sight: 30, cone: 124, notice: 1.3,
+    sleepers: 6, shortcuts: 4, relocate: 60,
+    /* Every door in the street is open tonight, including the ones she uses.
+     * There is nowhere inside that is safe, which is the point. */
+    entersHouses: true, hideTime: 8,
+    note: 'הדלתות פתוחות הלילה. כולן.',
+  },
+  {
+    n: 7,
+    title: 'לילה שביעי',
+    start: T(3, 28), flag: T(3, 31), end: T(3, 35),
+    speed: 1.80, huntSpeed: 4.30, sight: 32, cone: 130, notice: 1.4,
+    sleepers: 8, shortcuts: 3, relocate: 45, entersHouses: true, hideTime: 8,
+    note: 'הלילה האחרון. היא כבר לא מחפשת אותך.',
+  },
+];
+
+function nightConfig(n) {
+  return NIGHTS[Math.max(1, Math.min(NIGHTS.length, n | 0)) - 1];
+}
+
+const TOTAL_NIGHTS = NIGHTS.length;
+
+  return {
+    "NIGHTS": NIGHTS,
+    "nightConfig": nightConfig,
+    "TOTAL_NIGHTS": TOTAL_NIGHTS,
+  };
+})();
+
 __m["suburb/src/world/layout.js"] = (function () {
 /*
  * layout.js — Pine Court, as numbers.
@@ -5783,6 +5919,7 @@ __m["suburb/src/world/layout.js"] = (function () {
  */
 
 const { rngFrom } = __m["suburb/src/core/rng.js"];
+const { nightConfig } = __m["suburb/src/game/nights.js"];
 
 /* ------------------------------------------------------------------ *
  * The street plan
@@ -5994,6 +6131,7 @@ function buildLayout(night, seed) {
 
   const lamps = streetLamps(rng);
   const props = propsFor(houses, rng, night);
+  const gaps = fenceGaps(houses, rng, nrng, night);
   const graph = walkGraph(houses);
   const sites = flagSites(houses);
   const puzzles = buildPuzzles(houses, sites, nrng);
@@ -6009,6 +6147,7 @@ function buildLayout(night, seed) {
     houses,
     lamps,
     props,
+    gaps,
     graph,
     sites,
     puzzles,
@@ -6660,6 +6799,64 @@ function buildPuzzles(houses, sites, rng) {
  * up, and where she looks when she comes inside. It is a pure function of the
  * house, so it is the same in the daylight walk-through and in the dark.
  */
+/*
+ * The loose boards.
+ *
+ * Every back garden is closed on three sides by a boarded fence you cannot see
+ * over or climb, so the only honest way into one is down the corridor between
+ * two plots and through the metre-wide gap at the front — which means getting
+ * from a garden on one side of the street to a garden four houses along is a
+ * walk out to the road and all the way back in. At 3:31, with four minutes on
+ * the clock and her somewhere in the middle of it, that walk is the night.
+ *
+ * So one board in the back fence of every house is loose. Behind those fences
+ * is the open ground the whole row backs onto, and once you are on it you can
+ * run the length of the street out of sight of the road and come back in
+ * through somebody else's garden. It is the short way round, and the game
+ * never mentions it anywhere.
+ *
+ * Two rules make it a discovery rather than a checklist. WHERE the loose board
+ * is comes from the save seed, so it is in the same place every night of a
+ * save and can be learned. WHETHER it opens tonight comes from the night
+ * stream, exactly like the unlocked doors — and the count on the night table
+ * falls as the week goes on, so the street closes around the player one board
+ * at a time. A board that is loose tonight hangs visibly out of line with a
+ * track worn in the grass in front of it; one that has been nailed shut sits
+ * flush and looks like fence. That track is the whole tell, and it is the only
+ * one: invisible from the road, obvious from three metres to somebody who has
+ * learned what it means.
+ */
+function fenceGaps(houses, rng, nrng, night) {
+  const cfg = nightConfig(night);
+  const all = [];
+  for (const h of houses) {
+    const s = h.sign;
+    /* Along the run and clear of both corners, because a gap in a corner post
+     * is a hole in the geometry rather than a missing board. */
+    const half = h.w / 2 + PLAN.plotEdge;
+    all.push({
+      id: `gap${h.id}`,
+      houseId: h.id,
+      x: h.x + rng.range(-half + 1.6, half - 1.6),
+      z: s * (PLAN.frontZ + h.d + 6),
+      sign: s,
+      /* One panel is 1.1 m of fence, which is a person turned sideways. */
+      w: 1.1,
+      loose: false,
+      open: false,
+    });
+  }
+  /*
+   * Which of them are loose tonight. Never none: the flag is always reachable
+   * without any of these — the reachability test proves that on every seed and
+   * every night — but a night that silently takes away a lever the player has
+   * spent a week learning reads as a bug rather than as difficulty.
+   */
+  const want = Math.max(1, Math.min(all.length, cfg.shortcuts ?? 6));
+  for (const g of nrng.shuffle(all.slice()).slice(0, want)) g.loose = true;
+  return all;
+}
+
 function interiorOf(h) {
   const s = h.sign;
   const z0 = h.z0 + 0.24, z1 = h.z1 - 0.24;
@@ -7811,8 +8008,18 @@ function props(sec, col, lights, interact, layout, rng) {
         boardFence(sec, col, fx, s * (PLAN.frontZ + 0.5), fx, s * (PLAN.frontZ + h.d + 6));
       }
     }
-    boardFence(sec, col, h.x - edge, s * (PLAN.frontZ + h.d + 6),
-      h.x + edge, s * (PLAN.frontZ + h.d + 6));
+    /* The back fence, with the loose panel left out of the run — the board
+     * itself is drawn dynamically so it can swing, exactly like a front
+     * door. */
+    const backZ = s * (PLAN.frontZ + h.d + 6);
+    const gap = (layout.gaps || []).find((g) => g.houseId === h.id);
+    if (gap) {
+      boardFence(sec, col, h.x - edge, backZ, gap.x - gap.w / 2, backZ);
+      boardFence(sec, col, gap.x + gap.w / 2, backZ, h.x + edge, backZ);
+      looseBoard(sec, col, interact, gap);
+    } else {
+      boardFence(sec, col, h.x - edge, backZ, h.x + edge, backZ);
+    }
   }
 }
 
@@ -8215,6 +8422,42 @@ function boardFence(sec, col, x0, z0, x1, z1) {
     { ao: aoWall, bottom: false });
   col.add(Math.min(x0, x1) - 0.08, 0, Math.min(z0, z1) - 0.08,
     Math.max(x0, x1) + 0.08, 1.85, Math.max(z0, z1) + 0.08, { tag: 'fence' });
+}
+
+/*
+ * One panel of back fence that is not nailed to anything.
+ *
+ * The board is a dynamic mesh, like a front door, so that pushing it swings it
+ * rather than teleporting a hole into a wall. What is built here is everything
+ * around it: the collision that keeps the garden shut until it is pushed, the
+ * prompt, and the one thing that makes the whole idea work — the track worn in
+ * the grass in front of a board that is loose tonight.
+ *
+ * The track is on the ground rather than on the fence, and that is deliberate:
+ * a player running a back garden at 3:33 is looking at where their feet are
+ * going, not up at the boards.
+ */
+function looseBoard(sec, col, interact, g) {
+  const mb = sec.at(g.x, g.z, g.w, 1.8, 2.2);
+  if (g.loose) {
+    /* Grass worn to bare earth by somebody coming through often enough to
+     * kill it — bark rather than pavement, and darkened, because a pale slab
+     * here reads as a garden path somebody laid on purpose and is visible
+     * from the far end of the garden. This has to be something you notice
+     * when you are near it and not before. A centimetre off the ground so it
+     * never fights the lawn for the same depth. */
+    addGround(mb, g.x - g.w * 0.34, Math.min(g.z, g.z - g.sign * 1.15),
+      g.x + g.w * 0.34, Math.max(g.z, g.z - g.sign * 1.15),
+      0.012, MAT.BARK, { sub: 2, ao: () => 0.42 });
+  }
+  /* Solid until it is pushed, and tagged so opening this one panel does not
+   * mean knowing anything about the rest of the fence. */
+  col.add(g.x - g.w / 2, 0, g.z - 0.09, g.x + g.w / 2, 1.85, g.z + 0.09,
+    { tag: 'gapPanel', id: g.id });
+  interact.push({
+    kind: 'gap', gapId: g.id, x: g.x, y: 1.0, z: g.z, radius: 1.9,
+    label: 'הקרש בגדר',
+  });
 }
 
 /* ------------------------------------------------------------------ *
@@ -11483,122 +11726,6 @@ class Flag {
   };
 })();
 
-__m["suburb/src/game/nights.js"] = (function () {
-/*
- * nights.js — the seven nights, and what is different about each one.
- *
- * The whole difficulty curve is this table. Nothing else in the game branches
- * on the night number, which is deliberate: a difficulty curve spread through
- * six files is one nobody can read, and this one has to be readable because it
- * is the design. Every field here is a promise to the player that the night
- * they are on is different from the one before it in exactly one or two ways
- * they can name.
- *
- * Times are seconds past 3:00:00, because the clock on the HUD is the game and
- * writing 1860 rather than "3:31" once, here, is better than converting in
- * four places.
- *
- * The first night's speeds are the design's: 1.2 m/s drifting, 3.5 m/s
- * hunting, against a player who walks at 2.7 and runs at 4.5. You can always
- * outrun her — right up to the seventh night, where 4.3 against 4.5 means you
- * can outrun her for exactly as long as your breath lasts.
- */
-
-const M = 60;
-const T = (h, m, s = 0) => (h - 3) * 3600 + m * M + s;
-
-const NIGHTS = [
-  {
-    n: 1,
-    title: 'לילה ראשון',
-    /* The whistle starts, the flag appears a minute later, and it is over at
-     * 3:35. Every night keeps that last number. */
-    start: T(3, 30), flag: T(3, 31), end: T(3, 35),
-    speed: 1.20,          /* metres per second while patrolling             */
-    huntSpeed: 3.50,
-    sight: 22,            /* how far she can see, in metres                 */
-    cone: 105,            /* her field of view, in degrees, total           */
-    notice: 1.00,         /* multiplier on how fast she fills with suspicion */
-    sleepers: 0,          /* neighbours standing in their gardens, asleep    */
-    relocate: 0,          /* the flag moves if untouched for this long       */
-    entersHouses: false,
-    hideTime: 14,         /* seconds you can stay in a wardrobe              */
-    note: 'היא איטית, והדגל קרוב. תלמד את הרחוב.',
-  },
-  {
-    n: 2,
-    title: 'לילה שני',
-    start: T(3, 30), flag: T(3, 31), end: T(3, 35),
-    speed: 1.30, huntSpeed: 3.65, sight: 25, cone: 110, notice: 1.10,
-    sleepers: 0, relocate: 0, entersHouses: false, hideTime: 14,
-    note: 'מהירה ב-20%. הדגל רחוק יותר.',
-  },
-  {
-    n: 3,
-    title: 'לילה שלישי',
-    start: T(3, 30), flag: T(3, 31), end: T(3, 35),
-    speed: 1.40, huntSpeed: 3.80, sight: 26, cone: 115, notice: 1.15,
-    /* "Sleeping neighbours": people standing in their own front gardens in the
-     * dark, not moving, facing nothing. They block the shortest way through
-     * and they wake if you touch them. */
-    sleepers: 4, relocate: 0, entersHouses: false, hideTime: 12,
-    note: 'יש אנשים בגינות. הם ישנים. אל תיגע בהם.',
-  },
-  {
-    n: 4,
-    title: 'לילה רביעי',
-    /* She starts two minutes early. The flag still appears at 3:31 and it is
-     * still over at 3:35, so this night is not longer — it is two extra
-     * minutes of her being outside while you have nothing to go and get. */
-    start: T(3, 28), flag: T(3, 31), end: T(3, 35),
-    speed: 1.50, huntSpeed: 3.95, sight: 28, cone: 118, notice: 1.2,
-    sleepers: 4, relocate: 0, entersHouses: false, hideTime: 12,
-    note: 'השריקה מתחילה ב-3:28. הדגל עדיין ב-3:31.',
-  },
-  {
-    n: 5,
-    title: 'לילה חמישי',
-    start: T(3, 28), flag: T(3, 31), end: T(3, 35),
-    speed: 1.60, huntSpeed: 4.05, sight: 29, cone: 120, notice: 1.25,
-    sleepers: 6,
-    /* If you have not picked it up within a minute it is somewhere else. */
-    relocate: 60, entersHouses: false, hideTime: 10,
-    note: 'אם לא תיקח אותו תוך דקה — הוא יזוז.',
-  },
-  {
-    n: 6,
-    title: 'לילה שישי',
-    start: T(3, 28), flag: T(3, 31), end: T(3, 35),
-    speed: 1.70, huntSpeed: 4.15, sight: 30, cone: 124, notice: 1.3,
-    sleepers: 6, relocate: 60,
-    /* Every door in the street is open tonight, including the ones she uses.
-     * There is nowhere inside that is safe, which is the point. */
-    entersHouses: true, hideTime: 8,
-    note: 'הדלתות פתוחות הלילה. כולן.',
-  },
-  {
-    n: 7,
-    title: 'לילה שביעי',
-    start: T(3, 28), flag: T(3, 31), end: T(3, 35),
-    speed: 1.80, huntSpeed: 4.30, sight: 32, cone: 130, notice: 1.4,
-    sleepers: 8, relocate: 45, entersHouses: true, hideTime: 8,
-    note: 'הלילה האחרון. היא כבר לא מחפשת אותך.',
-  },
-];
-
-function nightConfig(n) {
-  return NIGHTS[Math.max(1, Math.min(NIGHTS.length, n | 0)) - 1];
-}
-
-const TOTAL_NIGHTS = NIGHTS.length;
-
-  return {
-    "NIGHTS": NIGHTS,
-    "nightConfig": nightConfig,
-    "TOTAL_NIGHTS": TOTAL_NIGHTS,
-  };
-})();
-
 __m["suburb/src/game/clock.js"] = (function () {
 /*
  * clock.js — the five minutes.
@@ -14599,11 +14726,20 @@ class Game {
       case 'flagpole': return 'הדגל של הבית הזה';
       case 'story': return 'להסתכל';
       case 'garageDoor': return 'דלת המוסך נעולה';
+      case 'gap': {
+        const g = this.gap(it.gapId);
+        if (!g) return null;
+        if (g.open) return 'הקרש פתוח';
+        /* The nailed ones say so only once you are standing at them, which is
+         * the whole cost of walking over to find out. */
+        return g.loose ? 'לדחוף את הקרש' : 'הקרש מסומר';
+      }
       default: return it.label || null;
     }
   }
 
   house(id) { return this.layout.houses.find((h) => h.id === id); }
+  gap(id) { return (this.layout.gaps || []).find((g) => g.id === id); }
   doorFor(h) { return this.world.doors.find((d) => d.houseId === h.id); }
 
   use(it) {
@@ -14798,6 +14934,36 @@ class Game {
           ? 'הדגל של הבית הזה מונמך לחצי התורן. כולם מונמכים.'
           : 'דגל אדום קטן. לכל בית יש אחד.', 3800);
         break;
+      /*
+       * Pushing a loose board. It stays open for the rest of the night — a
+       * short cut you have to re-find every time you use it is not a short
+       * cut — and it is loud, which is the price: this is a fence panel being
+       * dragged out of the way in a silent street at half past three, and she
+       * comes to noise.
+       */
+      case 'gap': {
+        const g = this.gap(it.gapId);
+        if (!g) break;
+        if (g.open) { ui.log('כבר פתוח.'); break; }
+        if (!g.loose) {
+          /* Nailed. Nothing happens, and nothing is wasted either: knowing
+           * which boards are shut tonight is knowing the street. */
+          ui.log('מסומר. לא הלילה.');
+          audio.fence();
+          this.noise(it.x, it.z, 0.25);
+          break;
+        }
+        g.open = true;
+        for (const b of this.world.collision.boxes) {
+          if (b.tag === 'gapPanel' && b.id === g.id) { b.solid = false; b.opaque = false; }
+        }
+        this.world.collision.build();
+        audio.fence();
+        this.noise(it.x, it.z, 0.62);
+        ui.log('הקרש נפתח. יש דרך מאחור.', true);
+        break;
+      }
+
       case 'story': {
         const item = collectibleFor(it.slot);
         const isNew = store.findObject(item.id);
@@ -15110,6 +15276,28 @@ class Game {
     if (this.whistler) this.whistler.dynamics(this.dynamics, dt);
     if (this.neighbours) this.neighbours.dynamics(this.dynamics, this.time);
     if (this.flag) this.flag.dynamics(this.dynamics, cam, this.time);
+    /*
+     * The loose boards, in both halves of the day — the fence has a panel
+     * missing from the static mesh where each one goes, so if this does not
+     * run there is simply a person-sized hole in the back fence. It ran only
+     * at night once, and the afternoon had twelve of them.
+     *
+     * A board that is loose tonight sits a few degrees out of true, which
+     * together with the worn track in front of it is the only thing that says
+     * so. A board that has been nailed shut sits flush and looks like fence.
+     */
+    for (const g of this.layout.gaps || []) {
+      g.t = damp(g.t || 0, g.open ? 1 : 0, 7, dt);
+      this.dynamics.push({
+        mesh: 'gapBoard',
+        x: g.x - g.w / 2, y: 0, z: g.z,
+        /* Hinged at the panel's own left edge and swung either way depending
+         * on which side of the street the garden is, because adding a half
+         * turn instead put the whole board a full width off the hole it was
+         * supposed to be filling. */
+        rot: ((g.loose ? 0.055 : 0) + g.t * 1.30) * (g.sign > 0 ? 1 : -1),
+      });
+    }
     for (const d of this.world.doors) {
       /* Doors ease open rather than snapping, which is most of what sells a
        * door as a physical object rather than a state flag. */

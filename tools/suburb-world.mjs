@@ -141,7 +141,12 @@ for (const seed of SEEDS) {
     h.x, h.z0, h.siding, h.garageSide, h.dog ? 1 : 0, h.wallTop.toFixed(2),
   ].join(',')).join('|');
   const propPrint = (l) => l.props.map((p) => `${p.kind}:${(p.x ?? 0).toFixed(2)}`).join('|');
+  /* Where the loose boards are, but not which of them open tonight: the first
+   * is a fact about the street and has to be learnable, the second is a fact
+   * about the night and is allowed to move. */
+  const gapPrint = (l) => l.gaps.map((g) => `${g.houseId}:${g.x.toFixed(3)}`).join('|');
   const base = fingerprint(first), baseProps = propPrint(first);
+  const baseGaps = gapPrint(first);
 
   const usedSites = new Set();
   for (const cfg of NIGHTS) {
@@ -153,6 +158,34 @@ for (const seed of SEEDS) {
       `seed ${seed} night ${n}: the houses moved between nights`);
     check(propPrint(layout) === baseProps,
       `seed ${seed} night ${n}: the street furniture moved between nights`);
+    check(gapPrint(layout) === baseGaps,
+      `seed ${seed} night ${n}: the loose boards moved between nights — a short `
+      + 'cut you cannot learn is not a short cut');
+
+    /*
+     * The loose boards. One per house, inside its own back fence run, and the
+     * count that opens tonight is the night table's promise. Never zero: the
+     * flag is reachable without any of them, but a night that silently removes
+     * a lever the player spent a week learning reads as a bug.
+     */
+    check(layout.gaps.length === layout.houses.length,
+      `seed ${seed} night ${n}: ${layout.gaps.length} loose boards for `
+      + `${layout.houses.length} houses`);
+    for (const g of layout.gaps) {
+      const h = layout.houses.find((x) => x.id === g.houseId);
+      const edge = h.w / 2 + PLAN.plotEdge;
+      check(Math.abs(g.x - h.x) + g.w / 2 < edge,
+        `seed ${seed} night ${n}: the loose board at ${h.number} runs past the `
+        + 'corner of its own fence');
+      check(Math.abs(g.z - h.sign * (PLAN.frontZ + h.d + 6)) < 0.001,
+        `seed ${seed} night ${n}: the loose board at ${h.number} is not in the `
+        + 'back fence');
+    }
+    const loose = layout.gaps.filter((g) => g.loose).length;
+    check(loose === Math.max(1, Math.min(layout.gaps.length, cfg.shortcuts)),
+      `seed ${seed} night ${n}: ${loose} boards loose, table says ${cfg.shortcuts}`);
+    check(loose >= 1,
+      `seed ${seed} night ${n}: every board in the street is nailed shut`);
 
     /* Every night's flag has to be standable-next-to. */
     const s = layout.flagSite;

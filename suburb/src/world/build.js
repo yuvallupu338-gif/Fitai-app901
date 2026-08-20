@@ -756,8 +756,18 @@ function props(sec, col, lights, interact, layout, rng) {
         boardFence(sec, col, fx, s * (PLAN.frontZ + 0.5), fx, s * (PLAN.frontZ + h.d + 6));
       }
     }
-    boardFence(sec, col, h.x - edge, s * (PLAN.frontZ + h.d + 6),
-      h.x + edge, s * (PLAN.frontZ + h.d + 6));
+    /* The back fence, with the loose panel left out of the run — the board
+     * itself is drawn dynamically so it can swing, exactly like a front
+     * door. */
+    const backZ = s * (PLAN.frontZ + h.d + 6);
+    const gap = (layout.gaps || []).find((g) => g.houseId === h.id);
+    if (gap) {
+      boardFence(sec, col, h.x - edge, backZ, gap.x - gap.w / 2, backZ);
+      boardFence(sec, col, gap.x + gap.w / 2, backZ, h.x + edge, backZ);
+      looseBoard(sec, col, interact, gap);
+    } else {
+      boardFence(sec, col, h.x - edge, backZ, h.x + edge, backZ);
+    }
   }
 }
 
@@ -1160,6 +1170,42 @@ function boardFence(sec, col, x0, z0, x1, z1) {
     { ao: aoWall, bottom: false });
   col.add(Math.min(x0, x1) - 0.08, 0, Math.min(z0, z1) - 0.08,
     Math.max(x0, x1) + 0.08, 1.85, Math.max(z0, z1) + 0.08, { tag: 'fence' });
+}
+
+/*
+ * One panel of back fence that is not nailed to anything.
+ *
+ * The board is a dynamic mesh, like a front door, so that pushing it swings it
+ * rather than teleporting a hole into a wall. What is built here is everything
+ * around it: the collision that keeps the garden shut until it is pushed, the
+ * prompt, and the one thing that makes the whole idea work — the track worn in
+ * the grass in front of a board that is loose tonight.
+ *
+ * The track is on the ground rather than on the fence, and that is deliberate:
+ * a player running a back garden at 3:33 is looking at where their feet are
+ * going, not up at the boards.
+ */
+function looseBoard(sec, col, interact, g) {
+  const mb = sec.at(g.x, g.z, g.w, 1.8, 2.2);
+  if (g.loose) {
+    /* Grass worn to bare earth by somebody coming through often enough to
+     * kill it — bark rather than pavement, and darkened, because a pale slab
+     * here reads as a garden path somebody laid on purpose and is visible
+     * from the far end of the garden. This has to be something you notice
+     * when you are near it and not before. A centimetre off the ground so it
+     * never fights the lawn for the same depth. */
+    addGround(mb, g.x - g.w * 0.34, Math.min(g.z, g.z - g.sign * 1.15),
+      g.x + g.w * 0.34, Math.max(g.z, g.z - g.sign * 1.15),
+      0.012, MAT.BARK, { sub: 2, ao: () => 0.42 });
+  }
+  /* Solid until it is pushed, and tagged so opening this one panel does not
+   * mean knowing anything about the rest of the fence. */
+  col.add(g.x - g.w / 2, 0, g.z - 0.09, g.x + g.w / 2, 1.85, g.z + 0.09,
+    { tag: 'gapPanel', id: g.id });
+  interact.push({
+    kind: 'gap', gapId: g.id, x: g.x, y: 1.0, z: g.z, radius: 1.9,
+    label: 'הקרש בגדר',
+  });
 }
 
 /* ------------------------------------------------------------------ *
