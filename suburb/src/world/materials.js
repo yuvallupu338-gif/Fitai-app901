@@ -46,9 +46,19 @@ export const MAT = {
    * have made the one red thing in the neighbourhood into three.
    */
   EYE: 17,
+  /*
+   * Two more dressing gowns. CLOTH stays hers alone — the whole design of her
+   * silhouette is that it is not one of theirs — so the neighbours are dressed
+   * out of these three, three looks across ten people. Ten figures in one colour standing in ten gardens reads as one
+   * asset placed ten times, which is exactly what it is, and the eye says so
+   * before it has finished counting them.
+   */
+  CLOTH_B: 18,
+  CLOTH_C: 19,
+  CLOTH_D: 20,
 };
 
-export const MAT_COUNT = 18;
+export const MAT_COUNT = 21;
 
 /* The three house colours, in slot order, so the builder can pick a siding by
  * index and the map can colour a house to match what you will actually see. */
@@ -138,7 +148,8 @@ export function materialDefs(seed) {
       polish: 0.55, rust: 0.25, specular: 0.9, roughMul: 0.6,
     },
     /*
-     * 14 CLOTH — her dress, and nothing else. The tile is deliberately tiny:
+     * 14 CLOTH — her dress, and nothing else; the neighbours have 18 and 19.
+     * The tile is deliberately tiny:
      * limb UVs are in metres, so a value near 1 stretches one repeat across a
      * whole body and the weave turns into vertical streaks that read as
      * varnished wood. 0.35 puts about three repeats across a shoulder.
@@ -171,6 +182,26 @@ export function materialDefs(seed) {
     {
       kind: 'glow', color: '#d9d6cc', tile: 1, bump: 0.15, seed: s(17),
       emissive: 0.5, specular: 0.6, roughMul: 0.4,
+    },
+    /*
+     * 18 and 19 — the neighbours' clothes. Same weave as hers at the same tiny
+     * tile, because the tile is a fact about how limb UVs are measured rather
+     * than a fact about the garment. The colours are chosen to separate under
+     * a sodium lamp, which is a harder test than daylight: it collapses hue
+     * and leaves only lightness, so these two are picked to sit either side of
+     * her #b6ae98 in value rather than beside it in hue.
+     */
+    {
+      kind: 'cloth', color: '#54606b', tile: 0.35, bump: 1.1, seed: s(18),
+      specular: 0.05, roughMul: 1, normalStrength: 0.9,
+    },
+    {
+      kind: 'cloth', color: '#8a6f5c', tile: 0.35, bump: 1.1, seed: s(19),
+      specular: 0.05, roughMul: 1, normalStrength: 0.9,
+    },
+    {
+      kind: 'cloth', color: '#7d8272', tile: 0.35, bump: 1.1, seed: s(20),
+      specular: 0.05, roughMul: 1, normalStrength: 0.9,
     },
   ];
 }

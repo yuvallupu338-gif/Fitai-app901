@@ -24,6 +24,8 @@
  * patch of orange paint.
  */
 
+import { MAT_COUNT } from '../world/materials.js';
+
 const COMMON = `
 const float PI = 3.14159265359;
 
@@ -133,7 +135,11 @@ uniform float uFogDensity;
 uniform float uFogHeight;          /* the fog lies in a layer this deep       */
 uniform float uFogFloor;           /* and starts at this height               */
 
-#define MAX_MATS 18
+/* Sized from the material table itself rather than typed in here. It was
+ * typed in here, at 18, and the table grew to 21 the day the neighbours got
+ * clothes of their own — which does not fail loudly, it silently hands the
+ * last three materials somebody else's roughness. */
+#define MAX_MATS ${MAT_COUNT}
 uniform vec4 uMatA[MAX_MATS];      /* uvScale, roughnessMul, emissive, specular */
 uniform vec4 uMatB[MAX_MATS];      /* water, normalStrength, alphaCut, unused   */
 

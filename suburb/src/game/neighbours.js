@@ -18,6 +18,18 @@ import { rngFrom } from '../core/rng.js';
 import { clamp } from '../core/math.js';
 import { PLAN } from '../world/layout.js';
 
+/*
+ * The one place the neighbour skeleton is written down. renderer.js authors
+ * every part hanging from its own joint at local zero, and these are where
+ * those joints go, so the two files agree by construction rather than by
+ * coincidence. That is exactly what went wrong before: the torso mesh carried
+ * its own idea of where it belonged and was translated here as well, so it
+ * ended up floating seventy centimetres above the head it was attached to.
+ */
+const HIP = 0.88;
+const SHOULDER = 1.44;
+const CROWN = 1.60;
+
 export class Neighbours {
   constructor(layout, cfg, seed, scene) {
     this.layout = layout;
@@ -28,6 +40,22 @@ export class Neighbours {
     this.events = [];
     this.dog = null;
     this.build();
+  }
+
+  /*
+   * What this person looks like, drawn once and kept. It is on the person
+   * rather than on the draw call because a neighbour who changed height
+   * between two frames would be far worse than ten who are all the same, and
+   * because the daylight walk asks the player to recognise these people: the
+   * one at 14 has to be the same shape at 3:33 as she was at four in the
+   * afternoon. Seeded from the save like everything else in the street.
+   */
+  look() {
+    return {
+      tall: this.rng.range(0.93, 1.07),
+      wide: this.rng.range(0.94, 1.09),
+      look: this.rng.int(3),
+    };
   }
 
   build() {
@@ -49,6 +77,7 @@ export class Neighbours {
           sleeper: false,
           phase: this.rng.range(0, 6.28),
           talkedTo: false,
+          ...this.look(),
         });
       }
       return;
@@ -74,6 +103,7 @@ export class Neighbours {
         sleeper: true,
         phase: this.rng.range(0, 6.28),
         woke: 0,
+        ...this.look(),
       });
     }
 
@@ -154,23 +184,39 @@ export class Neighbours {
         ? Math.sin(time * 0.9 + p.phase) * 0.05
         : Math.sin(time * 1.6 + p.phase) * 0.02;
       const scream = p.screaming ? 0.06 * Math.sin(time * 26) : 0;
-      out.push({ mesh: 'nTorso', x: p.x, y: 0.72, z: p.z, rot: p.yaw + sway });
+      /*
+       * Every joint height is multiplied by this person's own height and every
+       * part is scaled to match, so a tall neighbour is tall all the way down
+       * rather than a standard body with the head moved up. The head is the
+       * one exception: it rides higher but is not itself scaled, because a
+       * head that grows with the body is how a figure becomes a doll, and
+       * because real heads vary far less than real heights do.
+       */
+      const h = p.tall, w = p.wide;
+      const look = p.look;
       out.push({
-        mesh: 'nHead', x: p.x, y: 1.55 + scream, z: p.z,
+        mesh: 'nTorso' + look, x: p.x, y: SHOULDER * h, z: p.z,
+        rot: p.yaw + sway, sy: h, sx: w, sz: w,
+      });
+      out.push({
+        mesh: 'nHead', x: p.x, y: CROWN * h + scream, z: p.z,
         rot: p.yaw + sway * 2,
         pitch: p.sleeper ? 0.22 : 0,
       });
       const c = Math.cos(p.yaw), s = Math.sin(p.yaw);
       for (const side of [-1, 1]) {
-        const ox = 0.21 * side;
+        const ox = 0.205 * side * w;
         out.push({
-          mesh: 'nArm', x: p.x + ox * c, y: 1.38, z: p.z + ox * s,
+          mesh: 'nArm' + look, x: p.x + ox * c, y: SHOULDER * h - 0.055,
+          z: p.z + ox * s,
           rot: p.yaw, pitch: sway * (p.screaming ? 8 : 1.5) * side,
+          sy: h, sx: w, sz: w,
         });
-        const lx = 0.09 * side;
+        const lx = 0.082 * side * w;
         out.push({
-          mesh: 'nLeg', x: p.x + lx * c, y: 0.74, z: p.z + lx * s,
+          mesh: 'nLeg' + look, x: p.x + lx * c, y: HIP * h, z: p.z + lx * s,
           rot: p.yaw, pitch: sway * 0.6 * side,
+          sy: h, sx: w, sz: w,
         });
       }
     }

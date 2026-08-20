@@ -251,21 +251,76 @@ export class Renderer {
         { ao: shade(0.5) });
     }, 256);
 
-    /* A neighbour: shorter, wider, dressed in the same cloth material because
-     * everybody in this neighbourhood is wearing a dressing gown at 3:30. */
-    this.dyn.nTorso = make((mb) => {
-      addLimb(mb, 0, 1.42, 0, [0.20, 0.12], [0.17, 0.11], 0.70, MAT.CLOTH,
-        { ao: shade(0.65) });
-    }, 128);
+    /*
+     * A neighbour: shorter and wider than her, and built out of one rule that
+     * the previous version broke — EVERY part is authored hanging downward
+     * from its own joint at local zero, and the draw call says where that
+     * joint is in the world.
+     *
+     * The torso used to be authored at its finished height (a limb from y=1.42
+     * down to y=0.72) and then ALSO translated to 0.72, so it floated at
+     * 1.44-2.14: a slab hanging in the air above the head it belonged to, with
+     * the arms swinging from nothing and the legs ending at the knee of a body
+     * that was not there. It was drawn that way in every daylight garden in
+     * the game. Hence the rule, stated once and kept: joints only.
+     *
+     * The proportions below make a 1.73 m person: feet on the ground, hips at
+     * 0.88, shoulders at 1.44, the crown at about 1.73. Joints overlap by a
+     * centimetre or two on purpose — a gap at a hip is far more visible than
+     * the overlap that closes it, and neither costs a triangle.
+     */
+    const NEIGHBOUR_CLOTH = [MAT.CLOTH_B, MAT.CLOTH_C, MAT.CLOTH_D];
+    NEIGHBOUR_CLOTH.forEach((cloth, i) => {
+      this.dyn['nTorso' + i] = make((mb) => {
+        /* Shoulders down to hips, and wider across the top: the taper is what
+         * stops a torso reading as a crate. */
+        addLimb(mb, 0, 0, 0, [0.195, 0.115], [0.150, 0.098], 0.58, cloth,
+          { ao: shade(0.65), sub: 2 });
+        /* The neck runs UP out of the shoulder joint, which is why it is its
+         * own short limb instead of part of the taper. Without it a head is a
+         * ball balanced on a box. */
+        addLimb(mb, 0, 0.14, 0, [0.043, 0.043], [0.055, 0.055], 0.14, MAT.SKIN,
+          { ao: shade(0.45) });
+        /* The pelvis, closing the hole the legs swing out of. Two poles
+         * pushed straight into the bottom of a coat is the single thing that
+         * most makes a low-polygon figure read as furniture. */
+        addLimb(mb, 0, -0.50, 0, [0.150, 0.098], [0.128, 0.092], 0.16, cloth,
+          { ao: shade(0.45) });
+      }, 384);
+      this.dyn['nLeg' + i] = make((mb) => {
+        addLimb(mb, 0, 0, 0, [0.072, 0.072], [0.050, 0.050], 0.80, cloth,
+          { ao: shade(0.5) });
+        /* A shoe, in roof shingle because it is the darkest thing in the
+         * atlas at this scale. A limb that stops dead in mid-air is a cut
+         * pole, and the eye reads the join with the ground before it reads
+         * anything else about a standing figure. */
+        addBox(mb, 0, -0.826, -0.022, 0.135, 0.088, 0.215, 0, MAT.ROOF,
+          { ao: shade(0.32) });
+      }, 256);
+      this.dyn['nArm' + i] = make((mb) => {
+        addLimb(mb, 0, 0, 0, [0.052, 0.052], [0.036, 0.036], 0.36, cloth,
+          { ao: shade(0.55) });
+        /* Sleeve, then bare forearm, then a hand. The break at the elbow is
+         * worth its four triangles: it is the only thing telling the eye this
+         * is an arm and not a rod. */
+        addLimb(mb, 0, -0.36, 0, [0.036, 0.036], [0.030, 0.030], 0.26, MAT.SKIN,
+          { ao: shade(0.5) });
+        addSphere(mb, 0, -0.645, 0, 0.040, 6, 5, MAT.SKIN,
+          { ao: shade(0.42), scaleY: 1.35, scaleZ: 0.8 });
+      }, 384);
+    });
     this.dyn.nHead = make((mb) => {
-      addSphere(mb, 0, 0, 0, 0.115, 10, 8, MAT.SKIN, { ao: shade(0.7), scaleY: 1.15 });
-    }, 256);
-    this.dyn.nLeg = make((mb) => {
-      addLimb(mb, 0, 0, 0, [0.07, 0.07], [0.05, 0.05], 0.72, MAT.CLOTH, { ao: shade(0.5) });
-    }, 128);
-    this.dyn.nArm = make((mb) => {
-      addLimb(mb, 0, 0, 0, [0.05, 0.05], [0.032, 0.032], 0.62, MAT.CLOTH, { ao: shade(0.55) });
-    }, 128);
+      addSphere(mb, 0, 0, 0, 0.115, 10, 8, MAT.SKIN, { ao: shade(0.72), scaleY: 1.15 });
+      /*
+       * Hair as a cap on the crown rather than as strands. At the distance a
+       * neighbour is ever actually looked at, what separates one head from
+       * another is the shape of the top of it and how dark it is against the
+       * sky; nothing finer than that survives the trip. It sits high enough to
+       * leave the face — such as it is — alone.
+       */
+      addSphere(mb, 0, 0.050, 0.008, 0.107, 10, 6, MAT.SKIN,
+        { ao: shade(0.26), scaleY: 0.78, scaleZ: 1.04 });
+    }, 384);
 
     /* The flag: a pole and a rectangle of cloth. It is drawn dynamically
      * because it moves twice in a night — once when it appears and once when
