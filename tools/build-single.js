@@ -23,6 +23,9 @@ import { fileURLToPath } from 'node:url';
 
 const ROOT = resolve(dirname(fileURLToPath(import.meta.url)), '..');
 
+/* Things worth saying at the end of a build that are not failures. */
+const notes = [];
+
 /* Positional args, with the FitAI build as the default so the existing
  * invocation keeps working untouched. */
 const HTML_IN = process.argv[2] && !process.argv[2].endsWith('.js')
@@ -103,7 +106,28 @@ function collect(abs) {
 function reject(src, k) {
   if (/\bexport\s+default\b/.test(src)) throw new Error(`${k}: export default is not supported`);
   if (/\bexport\s+\*/.test(src)) throw new Error(`${k}: export * is not supported`);
-  if (/\bimport\s*\(/.test(src)) throw new Error(`${k}: dynamic import() is not supported`);
+  /*
+   * A dynamic import is allowed through rather than bundled.
+   *
+   * It used to be refused outright, and for every module here that was right:
+   * this bundler flattens a static graph and cannot resolve a specifier decided
+   * at runtime. But src/ai/local.js loads a six-and-a-half megabyte model
+   * library on demand, and inlining that would triple the single file for a
+   * feature the single file cannot run anyway — the model weights are another
+   * gigabyte and are not in it either.
+   *
+   * So the call is left as it stands. In the bundle it resolves against a
+   * vendor/ directory that is not there, the import rejects, and local.js
+   * catches it and reports that the local model needs the full app. That is the
+   * correct behaviour, and it is only correct because the module was written to
+   * expect it — which is why this is a warning rather than silent permission.
+   */
+  if (/\bimport\s*\(/.test(src) && !/\/ai\/local\.js$/.test(k)) {
+    throw new Error(`${k}: dynamic import() is not supported`);
+  }
+  if (/\bimport\s*\(/.test(src)) {
+    notes.push(`${k}: dynamic import left unbundled — it must degrade on its own`);
+  }
   if (/\bimport\.meta\b/.test(src)) throw new Error(`${k}: import.meta is not supported`);
 }
 
@@ -240,3 +264,4 @@ writeFileSync(resolve(ROOT, HTML_OUT), html);
 
 const kb = Math.round(Buffer.byteLength(html) / 1024);
 console.log(`${HTML_OUT} — ${order.length} modules, ${kb} KB`);
+for (const n of notes) console.log(`  note  ${n}`);

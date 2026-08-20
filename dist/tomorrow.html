@@ -22,30 +22,60 @@
 <title>TomorrowAI · מחר, לפני שהוא מתחיל</title>
 
 <!--
-  connect-src is 'none' because this app talks to nobody. Every forecast,
-  score and recommendation is computed in src/engine/ from data that never
-  leaves the device, and the chat answers from the same local engine rather
-  than a model API (Contracts §15). So there is no request for the policy to
-  allow, and saying so out loud is worth more than it costs: this page shares
-  an origin with the other apps in this repository, which means their stored
-  data is only as safe as the weakest page here. If something ever did manage
-  to run inside this document, 'none' is the difference between a bug and a
-  year of somebody's sleep, mood and calendar leaving the machine.
+  connect-src names four model vendors and nothing else.
 
-  script-src and style-src are 'self' and nothing beside it: no inline
-  <script>, no inline style attribute, anywhere on the page. That is why
-  src/core/dom.js writes styles through the CSSOM rather than through
-  setAttribute('style', …) — a style attribute set that way is dropped by this
-  policy, silently, with nothing in the console pointing at the line.
+  Everything the app is actually for — the forecast, the score, the energy and
+  focus curves, the optimiser, the insights and the chat's own answers — is
+  computed in src/engine/ from data that never leaves the device, and that stays
+  true whether or not a model is connected (Contracts §15, §21.1). The only
+  requests this page can make are ones the user has switched on, to a vendor the
+  user chose, carrying the context the user selected in the settings screen.
 
-  font-src and img-src allow data: because ../src/styles/fonts.css carries the
-  three faces as embedded woff2 and the favicon below is an inline SVG.
+  The hosts are enumerated rather than allowed by wildcard. `https:` would let a
+  scripting bug anywhere on this origin post the FitAI API keys sitting in the
+  same localStorage jar to any server on the internet; this list means a bug can
+  only talk to four places that already have a key of the user's and no interest
+  in one. A custom base URL on a host outside this list is refused by the
+  browser, and the settings screen says so and names this line as the fix rather
+  than letting it fail as a mystery.
+
+  Both DashScope hosts are listed because an Alibaba account is served by the
+  international endpoint or the mainland one depending on where it was created,
+  and a user cannot be expected to know which before trying.
+
+  huggingface.co, *.hf.co and raw.githubusercontent.com are the local model's
+  download: the weights, the CDN they redirect to, and the WebAssembly runtime
+  that executes them. The *.hf.co wildcard is not laziness — a weight request to
+  huggingface.co answers with a 302 to a regional cache whose hostname depends
+  on where the reader is (us.aws.cdn.hf.co from here), and CSP checks the
+  redirect target too. Enumerating today's regions would break for somebody
+  abroad in a way nobody could diagnose. Narrower than https:, broader than the
+  rest of this line, and worth naming as the compromise it is.
+
+  'wasm-unsafe-eval' is the one grant here that genuinely weakens the page, and
+  it is the price of running a model in the browser at all: the weights are
+  executed by a WebAssembly module and compiling one is what this permits. It
+  does NOT permit eval() or new Function() over JavaScript — script-src stays
+  'self' with nothing inline, which is why the library sits in vendor/ instead
+  of coming from a CDN. Anybody who does not switch the local model on still
+  gets a page that compiles no WebAssembly, but they get the grant, and that is
+  the honest cost of shipping the feature at all.
+
+  worker-src is 'self' and not blob:. The library will happily build its own
+  worker out of a blob URL; vendor/web-llm-worker.js exists so it does not have
+  to, because blob: workers are a broader grant on an origin that also holds the
+  neighbouring app's API keys.
+
+  Everything else stays shut. default-src 'none' with script-src and style-src
+  at 'self' and nothing inline: no generated event handlers, no eval, no style
+  attributes. img-src and font-src allow data: because the fonts arrive as three
+  faces of embedded woff2 and the favicon below is an inline SVG.
 
   frame-ancestors is not here. It is ignored in a meta tag — it only counts as
   a real HTTP header, and GitHub Pages does not let this repository set one.
   Leaving it in would read as clickjacking protection that does not exist.
 -->
-<meta http-equiv="Content-Security-Policy" content="default-src 'none'; script-src 'sha256-bHMryEFbt+CvvUklUokKq70+fxq+jL5zLtMUBF7FKwA='; style-src 'sha256-7UPzrM59FeDd0UbNPr3vhd6QvkYHaDra+7a0y1zqkmE='; img-src 'self' data:; font-src 'self' data:; connect-src 'none'; media-src 'none'; frame-src 'none'; worker-src 'none'; object-src 'none'; base-uri 'none'; form-action 'none'">
+<meta http-equiv="Content-Security-Policy" content="default-src 'none'; script-src 'sha256-gFjtt841UcnyuUNSoz1NfEydVpewHnJBZKVPMDI6yLM='; style-src 'sha256-7UPzrM59FeDd0UbNPr3vhd6QvkYHaDra+7a0y1zqkmE='; img-src 'self' data:; font-src 'self' data:; connect-src https://dashscope.aliyuncs.com https://dashscope-intl.aliyuncs.com https://openrouter.ai https://api.deepseek.com https://api.anthropic.com https://huggingface.co https://*.hf.co https://raw.githubusercontent.com; media-src 'none'; frame-src 'none'; worker-src 'self'; object-src 'none'; base-uri 'none'; form-action 'none'">
 
 <!-- fonts.css is the repository's shared, generated set of embedded faces and
      is linked first so the families exist before tokens.css names them. The
@@ -3331,6 +3361,24 @@ function defaultProfile(nowIso) {
   };
 }
 
+/*
+ * The optional model connection. Off until somebody turns it on.
+ *
+ * `model` is free text on purpose. Vendors rename and retire model ids
+ * constantly, so a fixed menu is wrong within weeks and wrong in a way the user
+ * cannot work around; the registry offers suggestions and whatever is typed is
+ * what gets sent. The API key is deliberately NOT in here — see store.js.
+ */
+function defaultAi() {
+  return {
+    enabled: false,
+    providerId: '',
+    model: '',
+    baseUrl: '',
+    share: 'summary',
+  };
+}
+
 function emptyLearning() {
   return {
     samples: { days: 0, mornings: 0, durations: 0, completions: 0, reviews: 0 },
@@ -3377,7 +3425,7 @@ function emptyRoot(nowIso) {
     learning: emptyLearning(),
     feedback: [],
     chat: [],
-    settings: { firstRun: true, lastSeenDate: null },
+    settings: { firstRun: true, lastSeenDate: null, ai: defaultAi() },
     ui: { view: 'tomorrow', historyRange: 7, scheduleMode: 'day', insightsMode: 'insights', focus: '', focusDate: null },
   };
 }
@@ -3884,10 +3932,26 @@ function normalizeRoot(raw, nowIso) {
   root.chat = normalizeChat(raw.chat);
 
   const settings = isObject(raw.settings) ? raw.settings : {};
+  const ai = isObject(settings.ai) ? settings.ai : {};
   root.settings = {
     firstRun: bool(settings.firstRun, !root.user.onboarded),
     lastSeenDate: keyOr(settings.lastSeenDate, null),
+    ai: {
+      enabled: bool(ai.enabled, false),
+      providerId: str(ai.providerId, '').trim(),
+      model: str(ai.model, '').trim(),
+      baseUrl: str(ai.baseUrl, '').trim(),
+      share: ai.share === 'full' ? 'full' : 'summary',
+    },
   };
+
+  /*
+   * An imported backup must not be able to smuggle a key in. It is stored under
+   * its own localStorage key and never inside the document, so anything calling
+   * itself one here came from a hand-edited file.
+   */
+  delete root.settings.ai.key;
+  delete root.settings.ai.apiKey;
 
   const ui = isObject(raw.ui) ? raw.ui : {};
   root.ui = {
@@ -3918,6 +3982,7 @@ function normalizeRoot(raw, nowIso) {
 
   return {
     "defaultProfile": defaultProfile,
+    "defaultAi": defaultAi,
     "emptyLearning": emptyLearning,
     "emptyRoot": emptyRoot,
     "makeItem": makeItem,
@@ -4318,6 +4383,9 @@ const { isValidKey } = __m["tomorrow/src/core/time.js"];
 
 const KEY = 'tomorrowai.v1';
 
+/* Separate on purpose — see the API key section below. */
+const API_KEY = 'tomorrowai.key.v1';
+
 const adapter = pickAdapter();
 
 let state = migrate(adapter.read(KEY));
@@ -4369,8 +4437,44 @@ function subscribe(fn) {
 function reset() {
   state = migrate(null);
   adapter.remove(KEY);
+  adapter.remove(API_KEY);
   emit();
   return state;
+}
+
+/* ------------------------------------------------------------------ *
+ * The model API key
+ *
+ * Kept under its own storage key rather than inside the document, for one
+ * reason: exportJson() serialises the document. A person who backs up their
+ * data and mails it to themselves must not be mailing a live credential, and
+ * the safest way to guarantee that is for the exporter to have nothing to
+ * exclude. normalizeRoot() strips a key out of any imported file for the same
+ * reason.
+ *
+ * It is still plain text in localStorage, on an origin shared with the other
+ * apps in this repository. Anything that can run script on this origin can read
+ * it. The settings screen says so in as many words rather than leaving somebody
+ * to assume otherwise.
+ * ------------------------------------------------------------------ */
+
+/** The stored API key, or '' when there is none. */
+function apiKey() {
+  const raw = adapter.read(API_KEY);
+  return raw && typeof raw.k === 'string' ? raw.k : '';
+}
+
+/** Store or clear the API key. Passing '' removes it. */
+function setApiKey(value) {
+  const k = String(value || '').trim();
+  if (!k) {
+    adapter.remove(API_KEY);
+    emit();
+    return false;
+  }
+  const ok = adapter.write(API_KEY, { k });
+  emit();
+  return ok;
 }
 
 /** Replace the whole world — used by demo mode and by import. */
@@ -4534,6 +4638,10 @@ function setLearning(learning) {
  * Backup
  * ------------------------------------------------------------------ */
 
+/*
+ * The backup. It cannot contain the API key, because the key was never in the
+ * document to begin with — see setApiKey() above.
+ */
 function exportJson() {
   return JSON.stringify(state, null, 2);
 }
@@ -4566,6 +4674,8 @@ function importJson(text) {
     "update": update,
     "subscribe": subscribe,
     "reset": reset,
+    "apiKey": apiKey,
+    "setApiKey": setApiKey,
     "replace": replace,
     "persists": persists,
     "itemsOn": itemsOn,
