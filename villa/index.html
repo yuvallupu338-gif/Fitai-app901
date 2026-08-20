@@ -1,0 +1,149 @@
+<!DOCTYPE html>
+<html lang="he" dir="rtl">
+<head>
+<meta charset="utf-8">
+<meta name="viewport" content="width=device-width, initial-scale=1, viewport-fit=cover, user-scalable=no">
+<meta name="theme-color" content="#06080c">
+<meta name="description" content="שבעה לילות בוילה — משחק אימה והישרדות: תחסום את הפתחים, נהל את המשאבים, ותשרוד עד הבוקר.">
+<meta name="apple-mobile-web-app-capable" content="yes">
+<meta name="mobile-web-app-capable" content="yes">
+<meta name="apple-mobile-web-app-status-bar-style" content="black-translucent">
+<meta name="apple-mobile-web-app-title" content="שבעה לילות">
+<title>שבעה לילות בוילה</title>
+<!-- This game shares an origin with the two FitAI apps and the Backrooms
+     build, and localStorage is scoped per origin rather than per path — so
+     their stored data, including FitAI's vendor API keys, is only as safe as
+     the weakest page here. It draws everything itself, synthesises its own
+     sound and talks to nobody: script-src is 'self' with no inline anything,
+     and connect-src is 'none'. frame-ancestors is omitted on purpose, because
+     it is ignored in a meta tag and writing it in would only look like
+     clickjacking had been handled. -->
+<meta http-equiv="Content-Security-Policy" content="default-src 'none'; script-src 'self'; style-src 'self'; img-src 'self' data:; font-src 'self' data:; connect-src 'none'; media-src 'none'; frame-src 'none'; worker-src 'none'; object-src 'none'; base-uri 'none'; form-action 'none'">
+<link rel="stylesheet" href="src/styles/villa.css">
+<link rel="icon" href="data:image/svg+xml,<svg xmlns='http://www.w3.org/2000/svg' viewBox='0 0 32 32'><rect width='32' height='32' fill='%2306080c'/><path d='M4 14 L16 5 L28 14 L28 28 L4 28 Z' fill='none' stroke='%23e8a33d' stroke-width='2'/><rect x='13' y='19' width='6' height='9' fill='%23ffb457'/></svg>">
+</head>
+<body>
+
+<div id="app">
+
+  <!-- ------------------------------------------------------ the game -->
+  <div class="game" id="game" hidden>
+    <div class="stage" id="stage"></div>
+    <div id="hud-slot"></div>
+  </div>
+
+  <!-- the same game, as a prompt -->
+  <div id="console-slot"></div>
+
+  <div class="controls" id="controls" hidden>
+    <button type="button" id="btn-speed" title="מהירות המשחק">1×</button>
+    <button type="button" id="btn-mode">מצב טקסט</button>
+    <button type="button" id="btn-mute">השתקה</button>
+    <button type="button" id="btn-pause">❚❚</button>
+  </div>
+
+  <!-- --------------------------------------------------------- menu -->
+  <section class="screen" id="screen-menu">
+    <div class="card">
+      <div class="eyebrow">הישרדות</div>
+      <h1 class="title">שבעה לילות בוילה</h1>
+      <p class="sub">
+        שבעה לילות. בית אחד. בכל לילה יש בו יותר פתחים מאתמול —
+        ולא כולם היו שם כשנכנסת.
+      </p>
+      <div class="menu-buttons">
+        <button class="btn primary" id="btn-start" type="button">התחל לילה ראשון</button>
+        <button class="btn" id="btn-continue" type="button" hidden>המשך משחק שמור</button>
+        <button class="btn" id="btn-how" type="button">איך משחקים</button>
+      </div>
+      <div class="hint" id="menu-best"></div>
+    </div>
+  </section>
+
+  <!-- ------------------------------------------------------- how to -->
+  <section class="screen" id="screen-how" hidden>
+    <div class="card">
+      <div class="eyebrow">הוראות</div>
+      <h2 class="title">איך משחקים</h2>
+      <p class="sub">
+        ביום אתה מתכונן: אוסף ציוד מחדר הציוד, מחפש את מספר הטלפון של השכן
+        במגירה שבחדר השינה, וחוסם פתחים. בלילה הם מגיעים.
+      </p>
+      <div class="night-note">
+        <b>סקוץ׳ טייפ</b> מהיר וחלש — מאט פריצה ונקרע.<br>
+        <b>קרש</b> איטי וחזק — דורש פטיש ושני מסמרים. <b>מסמרים הם המשאב שנגמר.</b><br>
+        <b>תיקון</b> דוחף פתח בחזרה בלי חומרים — משתלם רק על פתח שכבר חסום.<br>
+        <b>הרובה</b> לא חוסם כלום. חמישה־עשר כדורים, חוזרים ל־15 כל בוקר.<br>
+        <b>השכן</b> — שתי קריאות בכל המשחק, חמש דקות, ורק דלתות.
+        רק מהטלפון שבכניסה, ורק אם מצאת את המספר.
+      </div>
+      <div class="menu-buttons">
+        <button class="btn" id="btn-how-back" type="button">חזרה</button>
+      </div>
+    </div>
+  </section>
+
+  <!-- ------------------------------------------ the night ahead -->
+  <section class="screen" id="screen-brief" hidden>
+    <div class="card">
+      <div class="eyebrow" id="brief-eyebrow"></div>
+      <h2 class="title" id="brief-title"></h2>
+      <div class="tally" id="brief-tally"></div>
+      <div class="night-note" id="brief-note"></div>
+      <div class="stat-row" id="brief-stats"></div>
+      <div class="menu-buttons">
+        <button class="btn primary" id="btn-brief-go" type="button">התחל להתכונן</button>
+      </div>
+    </div>
+  </section>
+
+  <!-- -------------------------------------------------------- pause -->
+  <section class="screen" id="screen-pause" hidden>
+    <div class="card">
+      <div class="eyebrow" id="pause-where"></div>
+      <h2 class="title">עצירה</h2>
+      <div class="menu-buttons">
+        <button class="btn primary" id="btn-resume" type="button">המשך</button>
+        <button class="btn" id="btn-pause-mode" type="button">החלף מצב תצוגה</button>
+        <button class="btn danger" id="btn-quit" type="button">תפריט ראשי</button>
+      </div>
+    </div>
+  </section>
+
+  <!-- --------------------------------------------------------- over -->
+  <section class="screen lost" id="screen-over" hidden>
+    <div class="card">
+      <div class="eyebrow" id="over-eyebrow"></div>
+      <h2 class="title" id="over-title"></h2>
+      <p class="sub" id="over-reason"></p>
+      <div class="stat-row" id="over-stats"></div>
+      <div class="menu-buttons">
+        <button class="btn primary" id="btn-retry" type="button">נסה שוב</button>
+        <button class="btn" id="btn-over-menu" type="button">תפריט ראשי</button>
+      </div>
+    </div>
+  </section>
+
+  <!-- ---------------------------------------------------------- won -->
+  <section class="screen won" id="screen-won" hidden>
+    <div class="card">
+      <div class="eyebrow">היום השמיני</div>
+      <h2 class="title">שרדת שבעה לילות</h2>
+      <p class="sub" id="won-text"></p>
+      <div class="stat-row" id="won-stats"></div>
+      <div class="menu-buttons">
+        <button class="btn primary" id="btn-again" type="button">שוב</button>
+        <button class="btn" id="btn-won-menu" type="button">תפריט ראשי</button>
+      </div>
+    </div>
+  </section>
+
+</div>
+
+<noscript>
+  <p class="noscript-note">המשחק דורש JavaScript.</p>
+</noscript>
+
+<script type="module" src="src/main.js"></script>
+</body>
+</html>

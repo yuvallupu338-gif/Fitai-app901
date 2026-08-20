@@ -30,9 +30,9 @@ export const REGULAR_OPENINGS = [
   { id: 'bedroom_window',     room: 'bedroom',  kind: 'window', isMain: false,
     name: 'חלון חדר השינה',         side: 'east',  at: 0.4 },
   { id: 'hall_window',        room: 'hall',     kind: 'window', isMain: false,
-    name: 'חלון המסדרון',          side: 'south', at: 0.5 },
+    name: 'חלון המסדרון',          side: 'east',  at: 0.5 },
   { id: 'kitchen_hatch',      room: 'kitchen',  kind: 'window', isMain: false,
-    name: 'צוהר המטבח',            side: 'east',  at: 0.3 },
+    name: 'צוהר המטבח',            side: 'north', at: 0.92 },
   { id: 'supply_door',        room: 'supply',   kind: 'door',   isMain: false,
     name: 'דלת חדר הציוד',          side: 'east',  at: 0.5 },
 ];

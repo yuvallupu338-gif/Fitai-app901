@@ -9,6 +9,23 @@
  * convention in docs/CONTRACTS.md.
  */
 
+/*
+ * Hebrew glues its one-letter prepositions onto the noun, and ב and ל absorb
+ * the definite article when they do: the kitchen is `המטבח`, but "in the
+ * kitchen" is `במטבח` and never `בהמטבח`. Every room name in this game carries
+ * its ה, so every place one is printed after a preposition goes through here.
+ * (מ does not absorb it — `מהמטבח` is correct — so it is left alone.)
+ */
+export function withPrep(prep, name) {
+  if ((prep === 'ב' || prep === 'ל') && name.charAt(0) === 'ה') {
+    return prep + name.slice(1);
+  }
+  return prep + name;
+}
+
+export const inRoom = (name) => withPrep('ב', name);
+export const toRoom = (name) => withPrep('ל', name);
+
 export const UI = {
   title: 'שבעה לילות בוילה',
   tagline: 'שבעה לילות. בית אחד. וכל לילה יש בו יותר פתחים מאתמול.',
@@ -69,7 +86,7 @@ export const EVENTS = {
   noise: (hint) => `${hint}.`,
   hidden_revealed: (name) => `מצאת אותו: ${name}.`,
   hidden_self_revealed: (name) => `זה כבר לא מסתתר — ${name}.`,
-  hidden_appeared: (room) => `משהו נפתח ב${room}.`,
+  hidden_appeared: (room) => `משהו נפתח ${inRoom(room)}.`,
   hidden_gone: (name) => `${name} נסגר מעצמו. כאילו לא היה.`,
 
   under_pressure: (name) => `${name} תחת לחץ.`,
@@ -89,7 +106,7 @@ export const EVENTS = {
   shot_intruder_out: 'זה יצא החוצה.',
   no_ammo: 'המחסנית ריקה.',
 
-  intruder_in: (room) => `משהו נכנס ל${room}.`,
+  intruder_in: (room) => `משהו נכנס ${toRoom(room)}.`,
   intruder_near: 'זה בחדר איתך.',
 
   drawer_searched: (left) => `חיטטת במגירה. ${left} עוד לא מצאת כלום.`,
@@ -108,7 +125,7 @@ export const EVENTS = {
 
   gathered: (t, p, n) => `לקחת ${t} סקוץ׳, ${p} קרשים, ${n} מסמרים.`,
   supply_empty: 'חדר הציוד ריק.',
-  moved: (room) => `אתה ב${room}.`,
+  moved: (room) => `אתה ${inRoom(room)}.`,
 
   defenseless: 'אין לך במה להגן על עצמך.',
 };

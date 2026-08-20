@@ -30,7 +30,10 @@ import { searchDrawer } from './drawer.js';
 import { usePhone } from './phone.js';
 import { beginDay, beginNight, tickDay, tickNight } from './night.js';
 
-export { PHASE } from './state.js';
+/* Passed through as a plain binding. The bundler in tools/build-single.js
+ * reads imports and exports but not the forwarding form (`export { X } from
+ * './y.js'`), and the single-file build is how this game is actually kept. */
+export { PHASE };
 
 /* ------------------------------------------------------------------ *
  * Starting
