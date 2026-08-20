@@ -18,7 +18,7 @@
      everything itself and talks to nobody: script-src is 'self' with no inline
      anything, and connect-src is 'none'. frame-ancestors is omitted — it is
      ignored in a meta tag. -->
-<meta http-equiv="Content-Security-Policy" content="default-src 'none'; script-src 'sha256-FfTCKRRs9qfHU+l//FkW11+vyXaB9W1Chjjos5bSwfs='; style-src 'sha256-mZEYVez5b3eXnFo3vrG9wqbW8kaMXTZ0ej34Kvsr5So='; img-src 'self' data:; font-src 'self' data:; connect-src 'none'; media-src 'none'; frame-src 'none'; worker-src 'none'; object-src 'none'; base-uri 'none'; form-action 'none'">
+<meta http-equiv="Content-Security-Policy" content="default-src 'none'; script-src 'sha256-1OMGm71e4Sm7MVPPKW0H5QslGYCys+BTmzh2NocvkXA='; style-src 'sha256-mZEYVez5b3eXnFo3vrG9wqbW8kaMXTZ0ej34Kvsr5So='; img-src 'self' data:; font-src 'self' data:; connect-src 'none'; media-src 'none'; frame-src 'none'; worker-src 'none'; object-src 'none'; base-uri 'none'; form-action 'none'">
 <link rel="icon" href="data:image/svg+xml,<svg xmlns='http://www.w3.org/2000/svg' viewBox='0 0 32 32'><rect width='32' height='32' fill='%230b1018'/><path d='M8 27V5' stroke='%23cfd6df' stroke-width='2'/><path d='M9 6h15l-4 5 4 5H9z' fill='%23c0261f'/></svg>">
 <style>
 /*
@@ -2188,9 +2188,13 @@ function createArrayTexture(gl, caps, width, height, layers, pixelsPerLayer, opt
   gl.texParameteri(gl.TEXTURE_2D_ARRAY, gl.TEXTURE_WRAP_T, gl.REPEAT);
   if (caps.aniso) {
     /* A lawn seen at a grazing angle from eye height is the worst case in the
-     * whole game for texture aliasing, and it is most of the screen. */
+     * whole game for texture aliasing, and it is most of the screen — with the
+     * road just behind it, which is the same problem in a darker colour.
+     * Sixteen rather than eight because every desktop offers sixteen and it
+     * only costs extra taps where the anisotropy ratio actually demands them:
+     * on a wall seen face-on it is one tap either way. */
     gl.texParameterf(gl.TEXTURE_2D_ARRAY, caps.aniso.TEXTURE_MAX_ANISOTROPY_EXT,
-      Math.min(8, caps.maxAniso));
+      Math.min(16, caps.maxAniso));
   }
   gl.bindTexture(gl.TEXTURE_2D_ARRAY, null);
   return tex;
@@ -2342,6 +2346,267 @@ function destroyMesh(gl, m) {
   };
 })();
 
+__m["suburb/src/world/materials.js"] = (function () {
+/*
+ * materials.js — the material table, and what each slot is for.
+ *
+ * Every surface in the neighbourhood is one of twenty-two materials, baked once
+ * per night into a single array texture. The slot index rides along in the
+ * vertex data, which is why the entire street — road, kerb, twelve houses,
+ * their roofs, every fence picket and every window — draws in one call.
+ *
+ * That is more slots than the sibling app uses, and the extra ones are all
+ * earning their place:
+ *
+ *   - three sidings rather than one, because a row of identical houses reads
+ *     as a corridor with a sky over it. Painting them by tint would not do it:
+ *     the tint multiplies one baked texture, so all twelve houses would still
+ *     have the same weather in the same places.
+ *   - two glasses, dark and lit. A window is either a black hole or somebody
+ *     is awake behind it, and which is which changes from night to night; two
+ *     slots costs one extra bake and lets the mesher decide per window.
+ *
+ * Emissive is scaled per slot at scene time (see EMISSIVE), so the same baked
+ * textures serve the day, where nothing glows, and the night, where the lit
+ * windows and the flag are the only things that do.
+ */
+
+const MAT = {
+  GRASS: 0,
+  ROAD: 1,
+  PATH: 2,
+  SIDING_A: 3,
+  SIDING_B: 4,
+  SIDING_C: 5,
+  BRICK: 6,
+  ROOF: 7,
+  WOOD: 8,
+  GLASS: 9,
+  GLASS_LIT: 10,
+  LEAF: 11,
+  BARK: 12,
+  METAL: 13,
+  CLOTH: 14,
+  SKIN: 15,
+  GLOW: 16,
+  /*
+   * Her eyes, and nothing else in the game. They are not the flag's red: the
+   * design is milky and pupil-less, and sharing a slot with the flag would
+   * have made the one red thing in the neighbourhood into three.
+   */
+  EYE: 17,
+  /*
+   * Two more dressing gowns. CLOTH stays hers alone — the whole design of her
+   * silhouette is that it is not one of theirs — so the neighbours are dressed
+   * out of these three: three looks across ten people. Ten figures in one
+   * colour standing in ten gardens reads as one asset placed ten times, which
+   * is exactly what it is, and the eye says so before it has finished
+   * counting them.
+   */
+  CLOTH_B: 18,
+  CLOTH_C: 19,
+  CLOTH_D: 20,
+  /*
+   * Painted plaster, and it exists because the inside of a house was being
+   * built out of PATH — poured pavement concrete at a 2.8 m tile with slab
+   * joints in it — so every bedroom ceiling and every dividing wall was a
+   * grid of two-metre paving slabs.
+   */
+  PLASTER: 21,
+};
+
+const MAT_COUNT = 22;
+
+/* The three house colours, in slot order, so the builder can pick a siding by
+ * index and the map can colour a house to match what you will actually see. */
+const SIDING_SLOTS = [MAT.SIDING_A, MAT.SIDING_B, MAT.SIDING_C];
+const SIDING_COLORS = ['#d9d2bd', '#9fb2bb', '#b3bfa4'];
+
+/*
+ * Material definitions, in slot order. `tile` is metres per texture repeat —
+ * UVs are authored in metres everywhere in this game, so this is the only
+ * place that decides how big a brick is. Getting it wrong is the most common
+ * way a procedural surface reads as wallpaper: brick at tile 4 gives bricks
+ * the size of paving slabs and nobody can say why the house looks wrong.
+ */
+function materialDefs(seed) {
+  const s = (n) => (seed | 0) + n * 977;
+  return [
+    /* 0 GRASS — the largest surface in the game by a wide margin. */
+    {
+      kind: 'grass', color: '#4e6a37', tile: 3.6, bump: 1.6, seed: s(0),
+      stripes: 4, roughMul: 1, specular: 0.06, normalStrength: 1.1,
+    },
+    /* 1 ROAD */
+    {
+      kind: 'asphalt', color: '#33353a', tile: 3.2, bump: 1.1, seed: s(1),
+      line: 0, specular: 0.22, roughMul: 0.95,
+    },
+    /* 2 PATH — pavement, driveways, the front path, the kerb. */
+    {
+      kind: 'concrete', color: '#9a978f', tile: 2.8, bump: 0.9, seed: s(2),
+      slabs: 2, specular: 0.18,
+    },
+    /* 3,4,5 SIDING — clapboard, three colours. The board count is per metre
+     * of texture, so all three agree about how wide a board is. */
+    {
+      kind: 'siding', color: SIDING_COLORS[0], tile: 2.0, bump: 1.35, seed: s(3),
+      boards: 8, specular: 0.14, normalStrength: 1.15,
+    },
+    {
+      kind: 'siding', color: SIDING_COLORS[1], tile: 2.0, bump: 1.35, seed: s(4),
+      boards: 8, specular: 0.14, normalStrength: 1.15,
+    },
+    {
+      kind: 'siding', color: SIDING_COLORS[2], tile: 2.0, bump: 1.35, seed: s(5),
+      boards: 8, specular: 0.14, normalStrength: 1.15,
+    },
+    /* 6 BRICK — chimneys, the low garden walls, the fountain. */
+    {
+      kind: 'brick', color: '#8d5a48', tile: 2.0, bump: 1.5, seed: s(6),
+      courses: 8, specular: 0.12,
+    },
+    /* 7 ROOF */
+    {
+      kind: 'shingle', color: '#4a4640', tile: 2.2, bump: 1.5, seed: s(7),
+      courses: 7, specular: 0.1, normalStrength: 1.2,
+    },
+    /* 8 WOOD — the picket fences and the porch decking, painted white. It is
+     * the single most-repeated small object in the frame, so its grain is at
+     * a much finer tile than anything else. */
+    {
+      kind: 'wood', color: '#e6e3d8', tile: 0.9, bump: 1.0, seed: s(8),
+      planks: 4, paint: 0.75, specular: 0.2,
+    },
+    /* 9 GLASS — a dark pane. Low roughness and high specular: at night the
+     * only thing a window does is catch the street lamp. */
+    {
+      kind: 'glass', color: '#0f151b', tile: 1.4, bump: 0.5, seed: s(9),
+      muntins: 2, lit: 0, specular: 1.6, roughMul: 0.18, normalStrength: 0.5,
+    },
+    /* 10 GLASS_LIT — somebody is awake. Warm, and pushed hard enough past 1.0
+     * that the bloom grabs it, because a lit window at the end of a dark
+     * street is the only landmark the player has. */
+    {
+      kind: 'glass', color: '#8a6a3c', tile: 1.4, bump: 0.5, seed: s(10),
+      muntins: 2, lit: 1, specular: 1.0, roughMul: 0.3, emissive: 1,
+      normalStrength: 0.5,
+    },
+    /* 11 LEAF — cut out. */
+    {
+      kind: 'foliage', color: '#3f5a30', tile: 1.1, bump: 1.2, seed: s(11),
+      cutout: true, alphaCut: 0.42, specular: 0.12,
+    },
+    /* 12 BARK */
+    { kind: 'bark', color: '#4b4136', tile: 1.2, bump: 1.8, seed: s(12), specular: 0.08 },
+    /* 13 METAL — cars, mailboxes, bins, lamp posts. */
+    {
+      kind: 'metal', color: '#6d7278', tile: 1.6, bump: 0.7, seed: s(13),
+      polish: 0.55, rust: 0.25, specular: 0.9, roughMul: 0.6,
+    },
+    /*
+     * 14 CLOTH — her dress, and nothing else; the neighbours have 18 and 19.
+     * The tile is deliberately tiny:
+     * limb UVs are in metres, so a value near 1 stretches one repeat across a
+     * whole body and the weave turns into vertical streaks that read as
+     * varnished wood. 0.35 puts about three repeats across a shoulder.
+     */
+    {
+      kind: 'cloth', color: '#b6ae98', tile: 0.35, bump: 1.1, seed: s(14),
+      specular: 0.05, roughMul: 1, normalStrength: 0.9,
+    },
+    /*
+     * 15 SKIN — hers, and the neighbours'. Far darker than a colour picker
+     * suggests, for the reason the sibling app writes down: anything light
+     * enough to read as skin in isolation comes back from the tonemap as pale
+     * plaster under a sodium lamp, and the figure at the end of the street
+     * turns into a shop mannequin.
+     */
+    {
+      kind: 'skin', color: '#6d5c52', tile: 0.14, bump: 0.8, seed: s(15),
+      specular: 0.14, roughMul: 1, normalStrength: 0.85,
+    },
+    /* 16 GLOW — the flag, and the glass of a street lamp. */
+    {
+      kind: 'glow', color: '#c0261f', tile: 1, bump: 0.1, seed: s(16),
+      emissive: 1, specular: 0.3, roughMul: 0.5,
+    },
+    /*
+     * 17 EYE — milky, no pupil, and only just emissive. Bright enough to be
+     * the one thing that resolves at thirty metres in fog, dim enough that it
+     * reads as an eye catching the light rather than as a lamp.
+     */
+    {
+      kind: 'glow', color: '#d9d6cc', tile: 1, bump: 0.15, seed: s(17),
+      emissive: 0.5, specular: 0.6, roughMul: 0.4,
+    },
+    /*
+     * 18 and 19 — the neighbours' clothes. Same weave as hers at the same tiny
+     * tile, because the tile is a fact about how limb UVs are measured rather
+     * than a fact about the garment. The colours are chosen to separate under
+     * a sodium lamp, which is a harder test than daylight: it collapses hue
+     * and leaves only lightness, so these two are picked to sit either side of
+     * her #b6ae98 in value rather than beside it in hue.
+     */
+    {
+      kind: 'cloth', color: '#54606b', tile: 0.35, bump: 1.1, seed: s(18),
+      specular: 0.05, roughMul: 1, normalStrength: 0.9,
+    },
+    {
+      kind: 'cloth', color: '#8a6f5c', tile: 0.35, bump: 1.1, seed: s(19),
+      specular: 0.05, roughMul: 1, normalStrength: 0.9,
+    },
+    {
+      kind: 'cloth', color: '#7d8272', tile: 0.35, bump: 1.1, seed: s(20),
+      specular: 0.05, roughMul: 1, normalStrength: 0.9,
+    },
+    /*
+     * 21 PLASTER — the inside of every house. The concrete recipe with its
+     * grid turned off and its damp turned off, which is what plaster is:
+     * one flat colour that is not quite flat, and nothing else. The tile is
+     * large on purpose, so the mottle drifts across a whole wall instead of
+     * repeating four times across it and reading as wallpaper.
+     */
+    {
+      kind: 'concrete', color: '#b9b3a6', tile: 3.4, bump: 0.30, seed: s(21),
+      slabs: 1, joint: 0, cracks: 0, damp: 0, vary: 0.03,
+      specular: 0.05, roughMul: 1, normalStrength: 0.5,
+    },
+  ];
+}
+
+/*
+ * How much each slot glows, by scene. In daylight nothing does — a lit window
+ * at noon is a darker rectangle, not a brighter one, and leaving the night's
+ * emissive on is what makes a daytime build look like a video game.
+ */
+const EMISSIVE = {
+  day: { [MAT.GLASS_LIT]: 0, [MAT.GLOW]: 0.15, [MAT.EYE]: 0.1 },
+  night: { [MAT.GLASS_LIT]: 1.35, [MAT.GLOW]: 1, [MAT.EYE]: 0.5 },
+};
+
+/* What a footstep on this material sounds like. The audio module speaks in
+ * these names; keeping the mapping here means the collision surface and the
+ * sound can never disagree about what you are standing on. */
+const FOOTSTEP = {
+  [MAT.GRASS]: 'grass',
+  [MAT.ROAD]: 'road',
+  [MAT.PATH]: 'path',
+  [MAT.WOOD]: 'wood',
+  [MAT.LEAF]: 'grass',
+};
+
+  return {
+    "MAT": MAT,
+    "MAT_COUNT": MAT_COUNT,
+    "SIDING_SLOTS": SIDING_SLOTS,
+    "SIDING_COLORS": SIDING_COLORS,
+    "materialDefs": materialDefs,
+    "EMISSIVE": EMISSIVE,
+    "FOOTSTEP": FOOTSTEP,
+  };
+})();
+
 __m["suburb/src/render/shaders.js"] = (function () {
 /*
  * shaders.js — every GLSL source in the game.
@@ -2368,6 +2633,8 @@ __m["suburb/src/render/shaders.js"] = (function () {
  * at the end. Tone-mapping anywhere else is what turns a sodium lamp into a
  * patch of orange paint.
  */
+
+const { MAT_COUNT } = __m["suburb/src/world/materials.js"];
 
 const COMMON = `
 const float PI = 3.14159265359;
@@ -2478,7 +2745,11 @@ uniform float uFogDensity;
 uniform float uFogHeight;          /* the fog lies in a layer this deep       */
 uniform float uFogFloor;           /* and starts at this height               */
 
-#define MAX_MATS 18
+/* Sized from the material table itself rather than typed in here. It was
+ * typed in here, at 18, and the table grew to 21 the day the neighbours got
+ * clothes of their own — which does not fail loudly, it silently hands the
+ * last three materials somebody else's roughness. */
+#define MAX_MATS ${MAT_COUNT}
 uniform vec4 uMatA[MAX_MATS];      /* uvScale, roughnessMul, emissive, specular */
 uniform vec4 uMatB[MAX_MATS];      /* water, normalStrength, alphaCut, unused   */
 
@@ -2641,7 +2912,26 @@ void main() {
   vec4 alb = texture(uAlbedo, vec3(uv, float(vMat)));
   vec4 nrm = texture(uNormalTex, vec3(uv, float(vMat)));
 
-  if (mb.z > 0.0 && nrm.b < mb.z) discard;   /* cut-out hedges and canopies  */
+  /*
+   * Cut-out hedges and canopies. Not a bare threshold against the mask: the
+   * mask is mipmapped like every other channel, so at any distance it is an
+   * average of the leaves and the gaps between them, and a hard test against
+   * an averaged mask is what turned every hedge in the street into a field of
+   * black-and-white static that boiled as the player walked.
+   *
+   * Rescaling the test by the mask's own screen-space rate of change fixes
+   * both ends of it at once. Close up fwidth is tiny, so this stays the same
+   * hard edge it always was. Far away fwidth is large, the comparison
+   * flattens towards the middle, and the mip's average decides the pixel
+   * instead of the noise riding on it — so a distant hedge thins out evenly
+   * rather than dissolving into speckle. It also stops the canopies eroding
+   * with distance, which a plain threshold does the moment the average of a
+   * leafy mip falls under the cut.
+   */
+  if (mb.z > 0.0) {
+    float cov = (nrm.b - mb.z) / max(fwidth(nrm.b), 1e-5) + 0.5;
+    if (cov < 0.5) discard;
+  }
 
   vec3 albedo = alb.rgb;
   float rough = clamp(alb.a * ma.y, 0.04, 1.0);
@@ -2650,9 +2940,31 @@ void main() {
   /* Tangent-space normal. The strength control matters more than it looks:
    * a lawn wants a great deal of it and a window pane wants almost none, and
    * one value for both is what makes everything read as plastic. */
-  vec3 tn = vec3(nrm.rg * 2.0 - 1.0, 0.0);
-  tn.xy *= mb.y;
-  tn.z = sqrt(max(0.0001, 1.0 - dot(tn.xy, tn.xy)));
+  /*
+   * Scaled against a unit Z rather than renormalised in the plane. The old
+   * form multiplied XY and then solved Z from them, which cannot represent a
+   * strength above one at all: once XY reaches unit length Z is zero and
+   * everything past that clamps flat. At the shipping texture size that
+   * flattened about a tenth of the grass and the siding; at the "high" setting
+   * a player is likely to pick it flattened nearly three quarters of the lawn,
+   * so turning the texture quality up made the largest surface in the game
+   * visibly worse. This form is monotone in the strength and never degenerate.
+   */
+  /*
+   * And faded out as the texel footprint grows, because normal maps do not
+   * mip in any useful sense. The albedo goes soft with distance — that is what
+   * the mip chain is for — but the normal keeps handing back centimetre-scale
+   * bumps long after a centimetre is smaller than a pixel, so every one of
+   * them is a coin toss per frame. That is what boiled the road and the far
+   * lawn into salt and pepper that crawled as the player walked, and no amount
+   * of anisotropy fixes it, because the aliasing is in the lighting rather
+   * than in the colour. Past about a texel and a half per pixel the bump is on
+   * its way out; by a dozen it is gone and the mipped albedo carries the
+   * surface on its own, which is the right answer at that distance anyway.
+   */
+  float foot = max(length(dFdx(uv)), length(dFdy(uv)));
+  float bump = mb.y * (1.0 - smoothstep(0.006, 0.05, foot));
+  vec3 tn = normalize(vec3((nrm.rg * 2.0 - 1.0) * bump, 1.0));
   mat3 TBN = mat3(normalize(vTan), normalize(vBit), N);
   N = normalize(TBN * tn);
 
@@ -3771,7 +4083,14 @@ const KINDS = {
      * evenly dirty car, which reads as a badly lit car rather than an old one.
      */
     const amt = clamp01(P.rust ?? 0.25);
-    const nf = tfbm(u, v, 4, S + 61, 4) + seam * 0.20 + scratch * 0.10;
+    /*
+     * Thirteen, not four. At four the blooms come out forty centimetres
+     * across on a 1.6 m tile — car-door-sized patches of saturated orange
+     * that read as blood spatter on a parked car rather than as rust on one.
+     * Rust arrives at a stone chip and a seam, so the feature it wants to be
+     * is the size of a hand.
+     */
+    const nf = tfbm(u, v, 13, S + 61, 4) + seam * 0.20 + scratch * 0.10;
     const th = 0.78 - amt * 0.34;
     const core = sstep(th, th + 0.06, nf);
     const halo = sstep(th - 0.14, th, nf) * (1 - core);
@@ -3780,9 +4099,12 @@ const KINDS = {
 
     let t = 0.88 + 0.16 * brush * flat + 0.14 * dent + 0.10 * scratch;
     let r = c[0] * t, g = c[1] * t, b = c[2] * t;
-    r = mix(r, 0.34 + 0.14 * brush, rust);
-    g = mix(g, 0.15 + 0.06 * brush, rust);
-    b = mix(b, 0.07 + 0.03 * brush, rust);
+    /* Browner than the obvious orange. Iron oxide on a painted panel is dark
+     * and dusty; the saturated colour is what a rust texture looks like when
+     * it is being looked at on its own rather than on a car. */
+    r = mix(r, 0.30 + 0.12 * brush, rust);
+    g = mix(g, 0.17 + 0.06 * brush, rust);
+    b = mix(b, 0.11 + 0.03 * brush, rust);
     r = mix(r, r * 0.72 + 0.10, stain);
     g = mix(g, g * 0.70 + 0.05, stain);
     b = mix(b, b * 0.70 + 0.02, stain);
@@ -4056,216 +4378,6 @@ function bakeMaterial(def, size) {
     "parseColor": parseColor,
     "MATERIAL_KINDS": MATERIAL_KINDS,
     "bakeMaterial": bakeMaterial,
-  };
-})();
-
-__m["suburb/src/world/materials.js"] = (function () {
-/*
- * materials.js — the material table, and what each slot is for.
- *
- * Every surface in the neighbourhood is one of seventeen materials, baked once
- * per night into a single array texture. The slot index rides along in the
- * vertex data, which is why the entire street — road, kerb, twelve houses,
- * their roofs, every fence picket and every window — draws in one call.
- *
- * Seventeen is more slots than the sibling app uses, and the extra ones are
- * all earning their place:
- *
- *   - three sidings rather than one, because a row of identical houses reads
- *     as a corridor with a sky over it. Painting them by tint would not do it:
- *     the tint multiplies one baked texture, so all twelve houses would still
- *     have the same weather in the same places.
- *   - two glasses, dark and lit. A window is either a black hole or somebody
- *     is awake behind it, and which is which changes from night to night; two
- *     slots costs one extra bake and lets the mesher decide per window.
- *
- * Emissive is scaled per slot at scene time (see EMISSIVE), so the same baked
- * textures serve the day, where nothing glows, and the night, where the lit
- * windows and the flag are the only things that do.
- */
-
-const MAT = {
-  GRASS: 0,
-  ROAD: 1,
-  PATH: 2,
-  SIDING_A: 3,
-  SIDING_B: 4,
-  SIDING_C: 5,
-  BRICK: 6,
-  ROOF: 7,
-  WOOD: 8,
-  GLASS: 9,
-  GLASS_LIT: 10,
-  LEAF: 11,
-  BARK: 12,
-  METAL: 13,
-  CLOTH: 14,
-  SKIN: 15,
-  GLOW: 16,
-  /*
-   * Her eyes, and nothing else in the game. They are not the flag's red: the
-   * design is milky and pupil-less, and sharing a slot with the flag would
-   * have made the one red thing in the neighbourhood into three.
-   */
-  EYE: 17,
-};
-
-const MAT_COUNT = 18;
-
-/* The three house colours, in slot order, so the builder can pick a siding by
- * index and the map can colour a house to match what you will actually see. */
-const SIDING_SLOTS = [MAT.SIDING_A, MAT.SIDING_B, MAT.SIDING_C];
-const SIDING_COLORS = ['#d9d2bd', '#9fb2bb', '#b3bfa4'];
-
-/*
- * Material definitions, in slot order. `tile` is metres per texture repeat —
- * UVs are authored in metres everywhere in this game, so this is the only
- * place that decides how big a brick is. Getting it wrong is the most common
- * way a procedural surface reads as wallpaper: brick at tile 4 gives bricks
- * the size of paving slabs and nobody can say why the house looks wrong.
- */
-function materialDefs(seed) {
-  const s = (n) => (seed | 0) + n * 977;
-  return [
-    /* 0 GRASS — the largest surface in the game by a wide margin. */
-    {
-      kind: 'grass', color: '#4e6a37', tile: 3.6, bump: 1.6, seed: s(0),
-      stripes: 4, roughMul: 1, specular: 0.06, normalStrength: 1.1,
-    },
-    /* 1 ROAD */
-    {
-      kind: 'asphalt', color: '#33353a', tile: 3.2, bump: 1.1, seed: s(1),
-      line: 0, specular: 0.22, roughMul: 0.95,
-    },
-    /* 2 PATH — pavement, driveways, the front path, the kerb. */
-    {
-      kind: 'concrete', color: '#9a978f', tile: 2.8, bump: 0.9, seed: s(2),
-      slabs: 2, specular: 0.18,
-    },
-    /* 3,4,5 SIDING — clapboard, three colours. The board count is per metre
-     * of texture, so all three agree about how wide a board is. */
-    {
-      kind: 'siding', color: SIDING_COLORS[0], tile: 2.0, bump: 1.35, seed: s(3),
-      boards: 8, specular: 0.14, normalStrength: 1.15,
-    },
-    {
-      kind: 'siding', color: SIDING_COLORS[1], tile: 2.0, bump: 1.35, seed: s(4),
-      boards: 8, specular: 0.14, normalStrength: 1.15,
-    },
-    {
-      kind: 'siding', color: SIDING_COLORS[2], tile: 2.0, bump: 1.35, seed: s(5),
-      boards: 8, specular: 0.14, normalStrength: 1.15,
-    },
-    /* 6 BRICK — chimneys, the low garden walls, the fountain. */
-    {
-      kind: 'brick', color: '#8d5a48', tile: 2.0, bump: 1.5, seed: s(6),
-      courses: 8, specular: 0.12,
-    },
-    /* 7 ROOF */
-    {
-      kind: 'shingle', color: '#4a4640', tile: 2.2, bump: 1.5, seed: s(7),
-      courses: 7, specular: 0.1, normalStrength: 1.2,
-    },
-    /* 8 WOOD — the picket fences and the porch decking, painted white. It is
-     * the single most-repeated small object in the frame, so its grain is at
-     * a much finer tile than anything else. */
-    {
-      kind: 'wood', color: '#e6e3d8', tile: 0.9, bump: 1.0, seed: s(8),
-      planks: 4, paint: 0.75, specular: 0.2,
-    },
-    /* 9 GLASS — a dark pane. Low roughness and high specular: at night the
-     * only thing a window does is catch the street lamp. */
-    {
-      kind: 'glass', color: '#0f151b', tile: 1.4, bump: 0.5, seed: s(9),
-      muntins: 2, lit: 0, specular: 1.6, roughMul: 0.18, normalStrength: 0.5,
-    },
-    /* 10 GLASS_LIT — somebody is awake. Warm, and pushed hard enough past 1.0
-     * that the bloom grabs it, because a lit window at the end of a dark
-     * street is the only landmark the player has. */
-    {
-      kind: 'glass', color: '#8a6a3c', tile: 1.4, bump: 0.5, seed: s(10),
-      muntins: 2, lit: 1, specular: 1.0, roughMul: 0.3, emissive: 1,
-      normalStrength: 0.5,
-    },
-    /* 11 LEAF — cut out. */
-    {
-      kind: 'foliage', color: '#3f5a30', tile: 1.1, bump: 1.2, seed: s(11),
-      cutout: true, alphaCut: 0.42, specular: 0.12,
-    },
-    /* 12 BARK */
-    { kind: 'bark', color: '#4b4136', tile: 1.2, bump: 1.8, seed: s(12), specular: 0.08 },
-    /* 13 METAL — cars, mailboxes, bins, lamp posts. */
-    {
-      kind: 'metal', color: '#6d7278', tile: 1.6, bump: 0.7, seed: s(13),
-      polish: 0.55, rust: 0.25, specular: 0.9, roughMul: 0.6,
-    },
-    /*
-     * 14 CLOTH — her dress, and nothing else. The tile is deliberately tiny:
-     * limb UVs are in metres, so a value near 1 stretches one repeat across a
-     * whole body and the weave turns into vertical streaks that read as
-     * varnished wood. 0.35 puts about three repeats across a shoulder.
-     */
-    {
-      kind: 'cloth', color: '#b6ae98', tile: 0.35, bump: 1.1, seed: s(14),
-      specular: 0.05, roughMul: 1, normalStrength: 0.9,
-    },
-    /*
-     * 15 SKIN — hers, and the neighbours'. Far darker than a colour picker
-     * suggests, for the reason the sibling app writes down: anything light
-     * enough to read as skin in isolation comes back from the tonemap as pale
-     * plaster under a sodium lamp, and the figure at the end of the street
-     * turns into a shop mannequin.
-     */
-    {
-      kind: 'skin', color: '#6d5c52', tile: 0.14, bump: 0.8, seed: s(15),
-      specular: 0.14, roughMul: 1, normalStrength: 0.85,
-    },
-    /* 16 GLOW — the flag, and the glass of a street lamp. */
-    {
-      kind: 'glow', color: '#c0261f', tile: 1, bump: 0.1, seed: s(16),
-      emissive: 1, specular: 0.3, roughMul: 0.5,
-    },
-    /*
-     * 17 EYE — milky, no pupil, and only just emissive. Bright enough to be
-     * the one thing that resolves at thirty metres in fog, dim enough that it
-     * reads as an eye catching the light rather than as a lamp.
-     */
-    {
-      kind: 'glow', color: '#d9d6cc', tile: 1, bump: 0.15, seed: s(17),
-      emissive: 0.5, specular: 0.6, roughMul: 0.4,
-    },
-  ];
-}
-
-/*
- * How much each slot glows, by scene. In daylight nothing does — a lit window
- * at noon is a darker rectangle, not a brighter one, and leaving the night's
- * emissive on is what makes a daytime build look like a video game.
- */
-const EMISSIVE = {
-  day: { [MAT.GLASS_LIT]: 0, [MAT.GLOW]: 0.15, [MAT.EYE]: 0.1 },
-  night: { [MAT.GLASS_LIT]: 1.35, [MAT.GLOW]: 1, [MAT.EYE]: 0.5 },
-};
-
-/* What a footstep on this material sounds like. The audio module speaks in
- * these names; keeping the mapping here means the collision surface and the
- * sound can never disagree about what you are standing on. */
-const FOOTSTEP = {
-  [MAT.GRASS]: 'grass',
-  [MAT.ROAD]: 'road',
-  [MAT.PATH]: 'path',
-  [MAT.WOOD]: 'wood',
-  [MAT.LEAF]: 'grass',
-};
-
-  return {
-    "MAT": MAT,
-    "MAT_COUNT": MAT_COUNT,
-    "SIDING_SLOTS": SIDING_SLOTS,
-    "SIDING_COLORS": SIDING_COLORS,
-    "materialDefs": materialDefs,
-    "EMISSIVE": EMISSIVE,
-    "FOOTSTEP": FOOTSTEP,
   };
 })();
 
@@ -5177,21 +5289,76 @@ class Renderer {
         { ao: shade(0.5) });
     }, 256);
 
-    /* A neighbour: shorter, wider, dressed in the same cloth material because
-     * everybody in this neighbourhood is wearing a dressing gown at 3:30. */
-    this.dyn.nTorso = make((mb) => {
-      addLimb(mb, 0, 1.42, 0, [0.20, 0.12], [0.17, 0.11], 0.70, MAT.CLOTH,
-        { ao: shade(0.65) });
-    }, 128);
+    /*
+     * A neighbour: shorter and wider than her, and built out of one rule that
+     * the previous version broke — EVERY part is authored hanging downward
+     * from its own joint at local zero, and the draw call says where that
+     * joint is in the world.
+     *
+     * The torso used to be authored at its finished height (a limb from y=1.42
+     * down to y=0.72) and then ALSO translated to 0.72, so it floated at
+     * 1.44-2.14: a slab hanging in the air above the head it belonged to, with
+     * the arms swinging from nothing and the legs ending at the knee of a body
+     * that was not there. It was drawn that way in every daylight garden in
+     * the game. Hence the rule, stated once and kept: joints only.
+     *
+     * The proportions below make a 1.73 m person: feet on the ground, hips at
+     * 0.88, shoulders at 1.44, the crown at about 1.73. Joints overlap by a
+     * centimetre or two on purpose — a gap at a hip is far more visible than
+     * the overlap that closes it, and neither costs a triangle.
+     */
+    const NEIGHBOUR_CLOTH = [MAT.CLOTH_B, MAT.CLOTH_C, MAT.CLOTH_D];
+    NEIGHBOUR_CLOTH.forEach((cloth, i) => {
+      this.dyn['nTorso' + i] = make((mb) => {
+        /* Shoulders down to hips, and wider across the top: the taper is what
+         * stops a torso reading as a crate. */
+        addLimb(mb, 0, 0, 0, [0.195, 0.115], [0.150, 0.098], 0.58, cloth,
+          { ao: shade(0.65), sub: 2 });
+        /* The neck runs UP out of the shoulder joint, which is why it is its
+         * own short limb instead of part of the taper. Without it a head is a
+         * ball balanced on a box. */
+        addLimb(mb, 0, 0.14, 0, [0.043, 0.043], [0.055, 0.055], 0.14, MAT.SKIN,
+          { ao: shade(0.45) });
+        /* The pelvis, closing the hole the legs swing out of. Two poles
+         * pushed straight into the bottom of a coat is the single thing that
+         * most makes a low-polygon figure read as furniture. */
+        addLimb(mb, 0, -0.50, 0, [0.150, 0.098], [0.128, 0.092], 0.16, cloth,
+          { ao: shade(0.45) });
+      }, 384);
+      this.dyn['nLeg' + i] = make((mb) => {
+        addLimb(mb, 0, 0, 0, [0.072, 0.072], [0.050, 0.050], 0.80, cloth,
+          { ao: shade(0.5) });
+        /* A shoe, in roof shingle because it is the darkest thing in the
+         * atlas at this scale. A limb that stops dead in mid-air is a cut
+         * pole, and the eye reads the join with the ground before it reads
+         * anything else about a standing figure. */
+        addBox(mb, 0, -0.826, -0.022, 0.135, 0.088, 0.215, 0, MAT.ROOF,
+          { ao: shade(0.32) });
+      }, 256);
+      this.dyn['nArm' + i] = make((mb) => {
+        addLimb(mb, 0, 0, 0, [0.052, 0.052], [0.036, 0.036], 0.36, cloth,
+          { ao: shade(0.55) });
+        /* Sleeve, then bare forearm, then a hand. The break at the elbow is
+         * worth its four triangles: it is the only thing telling the eye this
+         * is an arm and not a rod. */
+        addLimb(mb, 0, -0.36, 0, [0.036, 0.036], [0.030, 0.030], 0.26, MAT.SKIN,
+          { ao: shade(0.5) });
+        addSphere(mb, 0, -0.645, 0, 0.040, 6, 5, MAT.SKIN,
+          { ao: shade(0.42), scaleY: 1.35, scaleZ: 0.8 });
+      }, 384);
+    });
     this.dyn.nHead = make((mb) => {
-      addSphere(mb, 0, 0, 0, 0.115, 10, 8, MAT.SKIN, { ao: shade(0.7), scaleY: 1.15 });
-    }, 256);
-    this.dyn.nLeg = make((mb) => {
-      addLimb(mb, 0, 0, 0, [0.07, 0.07], [0.05, 0.05], 0.72, MAT.CLOTH, { ao: shade(0.5) });
-    }, 128);
-    this.dyn.nArm = make((mb) => {
-      addLimb(mb, 0, 0, 0, [0.05, 0.05], [0.032, 0.032], 0.62, MAT.CLOTH, { ao: shade(0.55) });
-    }, 128);
+      addSphere(mb, 0, 0, 0, 0.115, 10, 8, MAT.SKIN, { ao: shade(0.72), scaleY: 1.15 });
+      /*
+       * Hair as a cap on the crown rather than as strands. At the distance a
+       * neighbour is ever actually looked at, what separates one head from
+       * another is the shape of the top of it and how dark it is against the
+       * sky; nothing finer than that survives the trip. It sits high enough to
+       * leave the face — such as it is — alone.
+       */
+      addSphere(mb, 0, 0.050, 0.008, 0.107, 10, 6, MAT.SKIN,
+        { ao: shade(0.26), scaleY: 0.78, scaleZ: 1.04 });
+    }, 384);
 
     /* The flag: a pole and a rectangle of cloth. It is drawn dynamically
      * because it moves twice in a night — once when it appears and once when
@@ -7027,7 +7194,15 @@ function reveal(mb, x0, z0, x1, z1, base, hole, thick, mat) {
   const u0 = hole.u - hole.w / 2, u1 = hole.u + hole.w / 2;
   const y0 = base + hole.y, y1 = base + hole.y + hole.h;
   const A = (u, y, t) => [x0 + ux * u + nx * t, y, z0 + uz * u + nz * t];
-  const t0 = -thick / 2, t1 = thick / 2;
+  /*
+   * Flush with the siding on the outside and reaching the full thickness in,
+   * because that is where the two faces actually are: the exterior panel is on
+   * the wall line and the plaster is `thick` inside it. Centred on the line —
+   * which is what this was — left the frame standing twelve centimetres proud
+   * of the siding and stopping twelve short of the room, so every window had a
+   * hairline of daylight around it from the inside.
+   */
+  const t0 = -thick, t1 = 0;
   const o = { sub: 1, ao: aoUnder };
   /* sill, head, and the two jambs */
   addQuad(mb, A(u0, y0, t0), A(u1, y0, t0), A(u1, y0, t1), A(u0, y0, t1),
@@ -7038,6 +7213,40 @@ function reveal(mb, x0, z0, x1, z1, base, hole, thick, mat) {
     [0, 0], [hole.h, 0], [hole.h, thick], [0, thick], mat, o);
   addQuad(mb, A(u1, y0, t0), A(u1, y1, t0), A(u1, y1, t1), A(u1, y0, t1),
     [0, 0], [hole.h, 0], [hole.h, thick], [0, thick], mat, o);
+}
+
+/*
+ * The same wall again, wound the other way and set half a thickness in.
+ *
+ * Without it a house is a stage set. A panel is one quad with one winding, and
+ * with back-face culling on it is simply not there from behind — so standing
+ * in your own bedroom you looked straight through the back wall at the garden,
+ * with the window frames left hanging in mid-air over the grass and sky
+ * showing above the walls. The panes were always drawn on both faces, which is
+ * why they were the only thing left. Every interior in the game was like that,
+ * and from the outside, which is where these were built and looked at, all
+ * twelve houses were perfect.
+ *
+ * Reversing the two endpoints is what flips it: a panel's normal is ninety
+ * degrees left of the direction it is built in, so building b-to-a instead of
+ * a-to-b turns it to face the room. Every hole then has to be measured from
+ * the other end, which is the `len - u` below and the only fiddly part of it.
+ */
+function wallInner(mb, x0, z0, x1, z1, base, height, holes, thick, mat) {
+  const len = Math.hypot(x1 - x0, z1 - z0);
+  if (len < 0.002) return;
+  const ux = (x1 - x0) / len, uz = (z1 - z0) / len;
+  /*
+   * A full thickness in, not half. layout.js insets the interior box by
+   * exactly 0.24 to build the floor and the ceiling on, so anything less
+   * leaves a gap between the top of this wall and the edge of the ceiling —
+   * and a gap at the top of an interior wall is a strip of open sky running
+   * round the room, which is precisely what the first version of this drew.
+   */
+  const ix = uz * thick, iz = -ux * thick;
+  const flipped = holes.map((o) => ({ u: len - o.u, w: o.w, y: o.y, h: o.h }));
+  wallWithHoles(mb, x1 + ix, z1 + iz, x0 + ix, z0 + iz, base, height, flipped, mat,
+    { sub: 2, ao: aoWall });
 }
 
 /* A pane of glass, drawn on both faces so it is still there from inside. */
@@ -7228,6 +7437,12 @@ function house(sec, col, lights, interact, doors, h, layout, rng) {
     /* Sides run front-to-back, so their length is the house depth; the
      * openings were authored in that same measure. */
     wallWithHoles(mb, w.ax, w.az, w.bx, w.bz, 0, top, w.holes, siding);
+    /* And the room's side of it. Only where somebody can stand: a sealed house
+     * is a solid box nobody is ever inside, so plastering it would be
+     * triangles spent on a room that does not exist. */
+    if (h.enterable) {
+      wallInner(mb, w.ax, w.az, w.bx, w.bz, 0, top, w.holes, thick, MAT.PLASTER);
+    }
     for (const hole of w.holes) {
       reveal(mb, w.ax, w.az, w.bx, w.bz, 0, hole, thick, MAT.WOOD);
       if (hole.win) {
@@ -7396,13 +7611,17 @@ function interior(mb, col, interact, h, layout, rng) {
     { tag: 'floor', id: h.id, solid: false, opaque: false, platform: true });
   /* Ceiling, wound downward so it is visible from underneath. */
   addQuad(mb, [x0, top, z0], [x1, top, z0], [x1, top, z1], [x0, top, z1],
-    [0, 0], [h.w, 0], [h.w, h.d], [0, h.d], MAT.PATH, { sub: 2, ao: aoUnder });
+    [0, 0], [h.w, 0], [h.w, h.d], [0, h.d], MAT.PLASTER, { sub: 2, ao: aoUnder });
 
   /* The wall between the rooms, with a doorway in it. */
   const midZ = IN.midZ;
   const innerDoorX = h.x - h.w / 2 + IN.doorU;
-  wallWithHoles(mb, x0, midZ, x1, midZ, FLOOR, top - FLOOR,
-    [{ u: IN.doorU - 0.24, w: 1.0, y: 0, h: 2.05 }], MAT.PATH, { sub: 1 });
+  /* Both sides of it. This one has a room on either hand, so the single-sided
+   * version was missing from whichever side the player was actually on. */
+  const midHoles = [{ u: IN.doorU - 0.24, w: 1.0, y: 0, h: 2.05 }];
+  wallWithHoles(mb, x0, midZ, x1, midZ, FLOOR, top - FLOOR, midHoles,
+    MAT.PLASTER, { sub: 1 });
+  wallInner(mb, x0, midZ, x1, midZ, FLOOR, top - FLOOR, midHoles, 0, MAT.PLASTER);
   col.add(x0, FLOOR, midZ - 0.09, innerDoorX - 0.55, top, midZ + 0.09,
     { tag: 'wall', id: h.id });
   col.add(innerDoorX + 0.55, FLOOR, midZ - 0.09, x1, top, midZ + 0.09,
@@ -10890,6 +11109,18 @@ const { rngFrom } = __m["suburb/src/core/rng.js"];
 const { clamp } = __m["suburb/src/core/math.js"];
 const { PLAN } = __m["suburb/src/world/layout.js"];
 
+/*
+ * The one place the neighbour skeleton is written down. renderer.js authors
+ * every part hanging from its own joint at local zero, and these are where
+ * those joints go, so the two files agree by construction rather than by
+ * coincidence. That is exactly what went wrong before: the torso mesh carried
+ * its own idea of where it belonged and was translated here as well, so it
+ * ended up floating seventy centimetres above the head it was attached to.
+ */
+const HIP = 0.88;
+const SHOULDER = 1.44;
+const CROWN = 1.60;
+
 class Neighbours {
   constructor(layout, cfg, seed, scene) {
     this.layout = layout;
@@ -10900,6 +11131,22 @@ class Neighbours {
     this.events = [];
     this.dog = null;
     this.build();
+  }
+
+  /*
+   * What this person looks like, drawn once and kept. It is on the person
+   * rather than on the draw call because a neighbour who changed height
+   * between two frames would be far worse than ten who are all the same, and
+   * because the daylight walk asks the player to recognise these people: the
+   * one at 14 has to be the same shape at 3:33 as she was at four in the
+   * afternoon. Seeded from the save like everything else in the street.
+   */
+  look() {
+    return {
+      tall: this.rng.range(0.93, 1.07),
+      wide: this.rng.range(0.94, 1.09),
+      look: this.rng.int(3),
+    };
   }
 
   build() {
@@ -10921,6 +11168,7 @@ class Neighbours {
           sleeper: false,
           phase: this.rng.range(0, 6.28),
           talkedTo: false,
+          ...this.look(),
         });
       }
       return;
@@ -10946,6 +11194,7 @@ class Neighbours {
         sleeper: true,
         phase: this.rng.range(0, 6.28),
         woke: 0,
+        ...this.look(),
       });
     }
 
@@ -11026,23 +11275,39 @@ class Neighbours {
         ? Math.sin(time * 0.9 + p.phase) * 0.05
         : Math.sin(time * 1.6 + p.phase) * 0.02;
       const scream = p.screaming ? 0.06 * Math.sin(time * 26) : 0;
-      out.push({ mesh: 'nTorso', x: p.x, y: 0.72, z: p.z, rot: p.yaw + sway });
+      /*
+       * Every joint height is multiplied by this person's own height and every
+       * part is scaled to match, so a tall neighbour is tall all the way down
+       * rather than a standard body with the head moved up. The head is the
+       * one exception: it rides higher but is not itself scaled, because a
+       * head that grows with the body is how a figure becomes a doll, and
+       * because real heads vary far less than real heights do.
+       */
+      const h = p.tall, w = p.wide;
+      const look = p.look;
       out.push({
-        mesh: 'nHead', x: p.x, y: 1.55 + scream, z: p.z,
+        mesh: 'nTorso' + look, x: p.x, y: SHOULDER * h, z: p.z,
+        rot: p.yaw + sway, sy: h, sx: w, sz: w,
+      });
+      out.push({
+        mesh: 'nHead', x: p.x, y: CROWN * h + scream, z: p.z,
         rot: p.yaw + sway * 2,
         pitch: p.sleeper ? 0.22 : 0,
       });
       const c = Math.cos(p.yaw), s = Math.sin(p.yaw);
       for (const side of [-1, 1]) {
-        const ox = 0.21 * side;
+        const ox = 0.205 * side * w;
         out.push({
-          mesh: 'nArm', x: p.x + ox * c, y: 1.38, z: p.z + ox * s,
+          mesh: 'nArm' + look, x: p.x + ox * c, y: SHOULDER * h - 0.055,
+          z: p.z + ox * s,
           rot: p.yaw, pitch: sway * (p.screaming ? 8 : 1.5) * side,
+          sy: h, sx: w, sz: w,
         });
-        const lx = 0.09 * side;
+        const lx = 0.082 * side * w;
         out.push({
-          mesh: 'nLeg', x: p.x + lx * c, y: 0.74, z: p.z + lx * s,
+          mesh: 'nLeg' + look, x: p.x + lx * c, y: HIP * h, z: p.z + lx * s,
           rot: p.yaw, pitch: sway * 0.6 * side,
+          sy: h, sx: w, sz: w,
         });
       }
     }

@@ -138,11 +138,26 @@ async function approachFlag(page) {
     const g = window.suburb;
     const f = g.flag;
     const p = g.player;
-    const spots = [[0, 0], [0.9, 0], [-0.9, 0], [0, 0.9], [0, -0.9], [0.7, 0.7], [1.3, 0]];
+    /*
+     * The ring goes out to a metre and a half because one of the ten sites is
+     * a branch four metres up a tree and the only way to it is the ladder,
+     * whose rungs sit about 1.2 m to one side of the flag. Every offset inside
+     * a metre lands on the grass under the tree, where the branch is over your
+     * head and correctly out of reach, so this check reported the seventh
+     * night unwinnable whenever it drew the tree — and it was the harness
+     * looking in the wrong places, not the night.
+     */
+    const spots = [
+      [0, 0], [0.9, 0], [-0.9, 0], [0, 0.9], [0, -0.9], [0.7, 0.7], [1.3, 0],
+      [0, 1.2], [0, -1.2], [-1.3, 0], [1.2, 1.2], [-1.2, 1.2], [1.2, -1.2],
+      [-1.2, -1.2], [0, 1.5], [0, -1.5],
+    ];
     for (const [dx, dz] of spots) {
       const x = f.x + dx, z = f.z + dz;
       p.pos.x = x;
       p.pos.z = z;
+      /* Asked from just above the flag, so a rung counts as ground: the
+       * player standing on a ladder is standing on something. */
       p.pos.y = g.world.collision.groundAt(x, z, Math.max(1.2, f.y + 0.3), 0.62);
       p.vel.x = p.vel.z = p.vel.y = 0;
       p.crouch = !!f.site.crouch;
@@ -635,7 +650,31 @@ async function main() {
     const last = await page.evaluate(() => {
       const g = window.suburb;
       const p = g.layout.puzzles[g.flag.site.lock];
-      if (p) p.solved = true;          /* the lock is not what this is testing */
+      /*
+       * The lock is not what this is testing — the ending is — so it is opened
+       * from here rather than played. But opening it means what the game means
+       * by it: two of the ten locks change the world as well as their own
+       * `solved` flag, and setting the flag alone leaves the world in a state
+       * the player can never actually be in. The ladder is the one that
+       * matters, because until its rungs are standable the branch is four
+       * metres up with nothing under it, and the seventh night lands on the
+       * tree often enough that this failed roughly one run in ten and looked
+       * like a real regression every time.
+       */
+      if (p) p.solved = true;
+      if (p && p.id === 'ladder') {
+        p.progress = 1;
+        for (const b of g.world.collision.boxes) {
+          if (b.tag === 'rung') b.platform = true;
+        }
+        g.world.collision.build();
+      }
+      if (p && p.id === 'hedges') {
+        for (const it of g.world.interact) {
+          if (it.kind === 'gate' && it.box) { it.box.solid = false; it.box.opaque = false; }
+        }
+        g.world.collision.build();
+      }
       return { site: g.flag.site.id, x: g.flag.x, y: g.flag.y, z: g.flag.z };
     });
     const stoodLast = await approachFlag(page);

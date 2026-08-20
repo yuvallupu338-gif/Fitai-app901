@@ -726,7 +726,14 @@ const KINDS = {
      * evenly dirty car, which reads as a badly lit car rather than an old one.
      */
     const amt = clamp01(P.rust ?? 0.25);
-    const nf = tfbm(u, v, 4, S + 61, 4) + seam * 0.20 + scratch * 0.10;
+    /*
+     * Thirteen, not four. At four the blooms come out forty centimetres
+     * across on a 1.6 m tile — car-door-sized patches of saturated orange
+     * that read as blood spatter on a parked car rather than as rust on one.
+     * Rust arrives at a stone chip and a seam, so the feature it wants to be
+     * is the size of a hand.
+     */
+    const nf = tfbm(u, v, 13, S + 61, 4) + seam * 0.20 + scratch * 0.10;
     const th = 0.78 - amt * 0.34;
     const core = sstep(th, th + 0.06, nf);
     const halo = sstep(th - 0.14, th, nf) * (1 - core);
@@ -735,9 +742,12 @@ const KINDS = {
 
     let t = 0.88 + 0.16 * brush * flat + 0.14 * dent + 0.10 * scratch;
     let r = c[0] * t, g = c[1] * t, b = c[2] * t;
-    r = mix(r, 0.34 + 0.14 * brush, rust);
-    g = mix(g, 0.15 + 0.06 * brush, rust);
-    b = mix(b, 0.07 + 0.03 * brush, rust);
+    /* Browner than the obvious orange. Iron oxide on a painted panel is dark
+     * and dusty; the saturated colour is what a rust texture looks like when
+     * it is being looked at on its own rather than on a car. */
+    r = mix(r, 0.30 + 0.12 * brush, rust);
+    g = mix(g, 0.17 + 0.06 * brush, rust);
+    b = mix(b, 0.11 + 0.03 * brush, rust);
     r = mix(r, r * 0.72 + 0.10, stain);
     g = mix(g, g * 0.70 + 0.05, stain);
     b = mix(b, b * 0.70 + 0.02, stain);
