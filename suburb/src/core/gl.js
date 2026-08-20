@@ -122,9 +122,13 @@ export function createArrayTexture(gl, caps, width, height, layers, pixelsPerLay
   gl.texParameteri(gl.TEXTURE_2D_ARRAY, gl.TEXTURE_WRAP_T, gl.REPEAT);
   if (caps.aniso) {
     /* A lawn seen at a grazing angle from eye height is the worst case in the
-     * whole game for texture aliasing, and it is most of the screen. */
+     * whole game for texture aliasing, and it is most of the screen — with the
+     * road just behind it, which is the same problem in a darker colour.
+     * Sixteen rather than eight because every desktop offers sixteen and it
+     * only costs extra taps where the anisotropy ratio actually demands them:
+     * on a wall seen face-on it is one tap either way. */
     gl.texParameterf(gl.TEXTURE_2D_ARRAY, caps.aniso.TEXTURE_MAX_ANISOTROPY_EXT,
-      Math.min(8, caps.maxAniso));
+      Math.min(16, caps.maxAniso));
   }
   gl.bindTexture(gl.TEXTURE_2D_ARRAY, null);
   return tex;

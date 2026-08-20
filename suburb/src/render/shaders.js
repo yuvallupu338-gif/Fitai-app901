@@ -302,7 +302,26 @@ void main() {
   vec4 alb = texture(uAlbedo, vec3(uv, float(vMat)));
   vec4 nrm = texture(uNormalTex, vec3(uv, float(vMat)));
 
-  if (mb.z > 0.0 && nrm.b < mb.z) discard;   /* cut-out hedges and canopies  */
+  /*
+   * Cut-out hedges and canopies. Not a bare threshold against the mask: the
+   * mask is mipmapped like every other channel, so at any distance it is an
+   * average of the leaves and the gaps between them, and a hard test against
+   * an averaged mask is what turned every hedge in the street into a field of
+   * black-and-white static that boiled as the player walked.
+   *
+   * Rescaling the test by the mask's own screen-space rate of change fixes
+   * both ends of it at once. Close up fwidth is tiny, so this stays the same
+   * hard edge it always was. Far away fwidth is large, the comparison
+   * flattens towards the middle, and the mip's average decides the pixel
+   * instead of the noise riding on it — so a distant hedge thins out evenly
+   * rather than dissolving into speckle. It also stops the canopies eroding
+   * with distance, which a plain threshold does the moment the average of a
+   * leafy mip falls under the cut.
+   */
+  if (mb.z > 0.0) {
+    float cov = (nrm.b - mb.z) / max(fwidth(nrm.b), 1e-5) + 0.5;
+    if (cov < 0.5) discard;
+  }
 
   vec3 albedo = alb.rgb;
   float rough = clamp(alb.a * ma.y, 0.04, 1.0);
@@ -311,9 +330,31 @@ void main() {
   /* Tangent-space normal. The strength control matters more than it looks:
    * a lawn wants a great deal of it and a window pane wants almost none, and
    * one value for both is what makes everything read as plastic. */
-  vec3 tn = vec3(nrm.rg * 2.0 - 1.0, 0.0);
-  tn.xy *= mb.y;
-  tn.z = sqrt(max(0.0001, 1.0 - dot(tn.xy, tn.xy)));
+  /*
+   * Scaled against a unit Z rather than renormalised in the plane. The old
+   * form multiplied XY and then solved Z from them, which cannot represent a
+   * strength above one at all: once XY reaches unit length Z is zero and
+   * everything past that clamps flat. At the shipping texture size that
+   * flattened about a tenth of the grass and the siding; at the "high" setting
+   * a player is likely to pick it flattened nearly three quarters of the lawn,
+   * so turning the texture quality up made the largest surface in the game
+   * visibly worse. This form is monotone in the strength and never degenerate.
+   */
+  /*
+   * And faded out as the texel footprint grows, because normal maps do not
+   * mip in any useful sense. The albedo goes soft with distance — that is what
+   * the mip chain is for — but the normal keeps handing back centimetre-scale
+   * bumps long after a centimetre is smaller than a pixel, so every one of
+   * them is a coin toss per frame. That is what boiled the road and the far
+   * lawn into salt and pepper that crawled as the player walked, and no amount
+   * of anisotropy fixes it, because the aliasing is in the lighting rather
+   * than in the colour. Past about a texel and a half per pixel the bump is on
+   * its way out; by a dozen it is gone and the mipped albedo carries the
+   * surface on its own, which is the right answer at that distance anyway.
+   */
+  float foot = max(length(dFdx(uv)), length(dFdy(uv)));
+  float bump = mb.y * (1.0 - smoothstep(0.006, 0.05, foot));
+  vec3 tn = normalize(vec3((nrm.rg * 2.0 - 1.0) * bump, 1.0));
   mat3 TBN = mat3(normalize(vTan), normalize(vBit), N);
   N = normalize(TBN * tn);
 
