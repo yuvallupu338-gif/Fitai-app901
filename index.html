@@ -3102,8 +3102,9 @@ class LevelBuilder {
             min: new THREE.Vector3(x - ex, y - 0.2, z - ez),
             max: new THREE.Vector3(x + ex, y + height + 0.4, z + ez),
         });
-        // פתח בכל רצפה/תקרה דקה שהסולם עובר דרכה — אחרת מטפסים ונחבטים בתחתית המשטח
-        this.hatch(x, z, 1.95, 1.95, y + 0.9, y + height + 0.9);
+        // פתח בכל רצפה/תקרה דקה שהסולם עובר דרכה — אחרת מטפסים ונחבטים בתחתית המשטח.
+        // רחב מספיק כדי לצאת ממנו בנוחות מכל צד, כולל כלוב הבטיחות של הסולם.
+        this.hatch(x, z, 2.7, 2.7, y + 0.9, y + height + 0.9);
         return g;
     }
 
@@ -3494,6 +3495,8 @@ class LevelBuilder {
         for (const [px0, px1, pz0, pz1] of parts) {
             const sx = px1 - px0, sz = pz1 - pz0;
             if (sx < 0.06 || sz < 0.06) continue;
+            // רצועה צרה מדי ליד הפתח — עדיף לפתוח אותה עד הקצה מאשר להשאיר מדרך דקיק
+            if (Math.min(sx, sz) < 0.34) continue;
             const cxp = (px0 + px1) / 2, czp = (pz0 + pz1) / 2;
             const nm = new THREE.Mesh(boxGeo(sx, sy, sz, 0.5), mat);
             nm.position.set(cxp, c.c.y, czp);
