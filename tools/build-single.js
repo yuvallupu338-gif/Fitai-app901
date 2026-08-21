@@ -26,28 +26,7 @@ const ROOT = resolve(dirname(fileURLToPath(import.meta.url)), '..');
 /* Things worth saying at the end of a build that are not failures. */
 const notes = [];
 
-/*
- * Dynamic imports that are followed and inlined rather than refused.
- *
- * The refusal is right in general: this bundler flattens a static graph and
- * cannot resolve a specifier decided at runtime, so an unhandled one becomes a
- * blank screen. But a dynamic import whose specifier is a plain relative string
- * is perfectly resolvable — it is dynamic to defer a download in the served app,
- * not because the target is unknown.
- *
- * That is what src/ai/local.js does with the model library: six and a half
- * megabytes that most sessions never touch, so the served app fetches it only
- * when somebody switches the local model on. The single file has no such
- * option — there is no vendor directory beside a file on somebody's desktop —
- * so here it is inlined and the import() call is rewritten to hand back the
- * module that is already in the registry.
- *
- * The cost is the whole point and is worth stating: it takes the download from
- * under a megabyte to about seven, for everybody, including people who never
- * open the model settings. It buys the thing that was asked for — one file that
- * runs a model with no repository to clone.
- */
-const INLINE_DYNAMIC = [/\/vendor\/web-llm\.js$/];
+
 
 /* Positional args, with the FitAI build as the default so the existing
  * invocation keeps working untouched. */
@@ -119,19 +98,10 @@ function collect(abs) {
     deps.push({ ns: m[2], named: m[3], spec, raw: m[0] });
   }
 
-  /*
-   * Dynamic imports of a known file are dependencies like any other; they are
-   * collected here so the module is in the registry before anybody awaits it.
-   */
-  const lazy = [];
-  for (const m of withoutComments(src).matchAll(/\bimport\s*\(\s*['"]([^'"]+)['"]\s*\)/g)) {
-    if (INLINE_DYNAMIC.some((re) => re.test(m[1]))) lazy.push({ spec: m[1], raw: m[0] });
-  }
-
-  for (const d of deps.concat(lazy)) collect(resolve(dirname(abs), d.spec));
+  for (const d of deps) collect(resolve(dirname(abs), d.spec));
 
   stack.pop();
-  seen.set(k, { abs, src, deps, lazy });
+  seen.set(k, { abs, src, deps });
   order.push(k);
 }
 
@@ -169,30 +139,7 @@ function reject(raw, k) {
   const src = code(raw);
   if (/\bexport\s+default\b/.test(src)) throw new Error(`${k}: export default is not supported`);
   if (/\bexport\s+\*/.test(src)) throw new Error(`${k}: export * is not supported`);
-  /*
-   * A dynamic import is allowed through rather than bundled.
-   *
-   * It used to be refused outright, and for every module here that was right:
-   * this bundler flattens a static graph and cannot resolve a specifier decided
-   * at runtime. But src/ai/local.js loads a six-and-a-half megabyte model
-   * library on demand, and inlining that would triple the single file for a
-   * feature the single file cannot run anyway — the model weights are another
-   * gigabyte and are not in it either.
-   *
-   * So the call is left as it stands. In the bundle it resolves against a
-   * vendor/ directory that is not there, the import rejects, and local.js
-   * catches it and reports that the local model needs the full app. That is the
-   * correct behaviour, and it is only correct because the module was written to
-   * expect it — which is why this is a warning rather than silent permission.
-   */
-  for (const m of withoutComments(raw).matchAll(/\bimport\s*\(\s*['"]([^'"]+)['"]\s*\)/g)) {
-    if (!INLINE_DYNAMIC.some((re) => re.test(m[1]))) {
-      throw new Error(`${k}: dynamic import of "${m[1]}" is not supported`);
-    }
-  }
-  if (/\bimport\s*\((?!\s*['"])/.test(src)) {
-    throw new Error(`${k}: dynamic import with a computed specifier is not supported`);
-  }
+  if (/\bimport\s*\(/.test(src)) throw new Error(`${k}: dynamic import() is not supported`);
   if (/\bimport\.meta\b/.test(src)) throw new Error(`${k}: import.meta is not supported`);
 }
 
@@ -230,17 +177,6 @@ function transform(k, mod) {
       ? `const ${d.ns} = __m[${JSON.stringify(target)}];`
       : `const { ${destructure(d.named)} } = __m[${JSON.stringify(target)}];`;
     out = out.replace(d.raw, line);
-  }
-
-  /*
-   * import('./x.js') becomes a resolved promise over the registry entry. It
-   * stays a promise so every await, .then and .catch around it still behaves —
-   * rewriting it to a bare object would break the caller's error handling on
-   * the one path that has any.
-   */
-  for (const d of mod.lazy || []) {
-    const target = key(resolve(dirname(mod.abs), d.spec));
-    out = out.split(d.raw).join(`Promise.resolve(__m[${JSON.stringify(target)}])`);
   }
 
   const exported = new Set();
@@ -329,10 +265,9 @@ const sha = (s) => `'sha256-${createHash('sha256').update(s, 'utf8').digest('bas
  * Swap 'self' for the hash and leave every other token alone.
  *
  * This used to rewrite the whole directive, which quietly dropped anything else
- * in it. The local model needs 'wasm-unsafe-eval' to compile the runtime that
- * executes the weights, and losing it meant the single file could load the
- * library and then refuse to run it — with a CSP error naming a directive
- * nobody wrote.
+ * in it. Nothing in these three apps needs a second token today, and the moment
+ * one does the failure is a page that loads its own script and is then refused
+ * permission to run it, citing a directive nobody wrote.
  */
 function singleFileCsp(policy) {
   return policy

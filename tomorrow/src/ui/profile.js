@@ -116,9 +116,7 @@ export function render(root, ctx) {
   const ai = (ctx.root.settings && ctx.root.settings.ai) || {};
   const aiState = !ai.enabled
     ? 'מנוע החוקים המקומי עונה על הכול. מיידי, בלי מפתח ובלי רשת.'
-    : ai.providerId === 'local'
-      ? `מודל על המכשיר${ai.model ? ` — ${ai.model}` : ''}. בלי מפתח ובלי מכסה.`
-      : `${ai.model || 'מודל'} דרך ${ai.providerId}. שאלות על הציון והזמנים עדיין נענות מקומית.`;
+    : `${ai.model || 'מודל'} דרך ${ai.providerId}. שאלות על הציון והזמנים עדיין נענות מקומית.`;
 
   root.appendChild(card({ title: 'מודל שפה' },
     h('div.row.wrap', null,

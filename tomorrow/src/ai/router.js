@@ -57,26 +57,13 @@ export function route(question, ctx, options) {
   return { engine: 'remote', local, reason: 'the local engine did not recognise the question' };
 }
 
-/**
- * Whether a model could be reached at all right now.
- *
- * The local model counts as available only once it is actually loaded. A
- * question is not the moment to start a gigabyte download — the settings screen
- * is, deliberately and with the user watching — so an unloaded local model is
- * treated as absent and the rule engine answers.
- */
-export function remoteAvailable(settings, key, localState) {
-  if (localState && localState.enabled && localState.loaded) return 'local-model';
-  if (isConfigured(settings, key)) return 'hosted';
-  return '';
+/** Whether a model could be reached at all right now. */
+export function remoteAvailable(settings, key) {
+  return isConfigured(settings, key) ? 'hosted' : '';
 }
 
 /**
  * Answer one question, from whichever engine should answer it.
- *
- * `deps.localModelAsk` is injected rather than imported so this module stays
- * loadable — and testable — without the six-megabyte model library coming with
- * it. The chat passes it in only when a local model is resident.
  *
  * Returns `{ text, engine, model, streamed, note }`. `note` is non-empty when
  * something went wrong and the answer came from somewhere other than where it
@@ -103,17 +90,6 @@ export async function respond(question, ctx, opts) {
   const system = systemPrompt(ctx) + '\n\n' + contextBlock(ctx, o.share || 'summary');
 
   try {
-    if (o.remoteKind === 'local-model') {
-      if (typeof o.localModelAsk !== 'function') throw new Error('no local model driver was supplied');
-      const out = await o.localModelAsk(
-        { messages: [{ role: 'system', content: system }].concat(messages), maxTokens: 512 },
-        o.onDelta, o.signal);
-      return {
-        text: out.text, followups: [], engine: 'local-model',
-        model: out.model, streamed: !!out.streamed, note: '',
-      };
-    }
-
     const out = await remoteAsk({ system, messages, signal: o.signal }, o.onDelta);
     return {
       text: out.text, followups: [], engine: 'hosted',

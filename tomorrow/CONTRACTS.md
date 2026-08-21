@@ -1146,3 +1146,29 @@ settings screen shows exactly what each option sends before anything is sent.
 host that is not listed **will be blocked by the browser**, and the settings
 screen says that plainly rather than letting the request fail as a mystery. The
 `blocked_by_csp` error names the file and line to change.
+
+`script-src` stays `'self'` with nothing inline, `worker-src` is `'none'`, and
+there is no eval grant of any kind. The validator asserts all three.
+
+### 21.8 There is no on-device model, and there was
+
+A model that ran inside the browser was built and removed. It is recorded here
+because the reason is a rule and not an anecdote.
+
+It needed `'wasm-unsafe-eval'` to compile its runtime, a worker so generation
+did not freeze the page, three more hosts to fetch a gigabyte of weights, and a
+six-megabyte library checked into a repository that has no dependencies. Every
+one of those was defensible on its own. Together they were the price of a
+feature whose worst case is not a bad answer: the weights go onto the graphics
+card, a card without room does not report an error, the driver resets, and on
+Windows the desktop goes with it. It locked up a real machine.
+
+The environment it was written in had no WebGPU, so the path that mattered
+could never be run even once. **Do not ship a feature whose failure mode is the
+user's computer on a path nobody can test.** If it is rebuilt, it needs a
+machine with a GPU in the loop before anybody is offered it — not a warning
+label.
+
+Its permissions left with it, which is the other rule: a grant taken for a
+feature has to be given back when the feature goes, or the policy quietly
+becomes a list of everything this page was ever allowed to do.

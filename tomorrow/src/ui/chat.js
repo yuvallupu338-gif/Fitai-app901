@@ -25,8 +25,6 @@ import { get, pushChat, apiKey } from '../core/store.js';
 import { answer, SUGGESTIONS } from '../engine/chat.js';
 import { respond, remoteAvailable } from '../ai/router.js';
 import { providerById } from '../ai/providers.js';
-import { modelById, currentModel, isLoaded } from '../ai/localmodels.js';
-import { ask as askLocalModel } from '../ai/local.js';
 import { card, icon, ICONS } from './parts.js';
 import { openAiSettings } from './aisettings.js';
 
@@ -34,16 +32,8 @@ export function render(root, ctx) {
   const history = get().chat;
   const settings = (get().settings && get().settings.ai) || {};
 
-  /*
-   * Which engine is live, decided once per render. The local model counts only
-   * when it is actually resident — a question is not the moment to start a
-   * gigabyte download, so an unloaded one is treated as absent and the rule
-   * engine answers everything.
-   */
-  const kind = remoteAvailable(settings, apiKey(), {
-    enabled: settings.providerId === 'local' && settings.enabled,
-    loaded: isLoaded(),
-  });
+  /* Which engine is live, decided once per render. */
+  const kind = remoteAvailable(settings, apiKey());
 
   root.appendChild(h('header.home-head', null,
     h('div', null,
@@ -153,7 +143,6 @@ export function render(root, ctx) {
         history,
         share: settings.share || 'summary',
         signal: controller.signal,
-        localModelAsk: kind === 'local-model' ? localAsk : null,
         onDelta: (piece) => {
           if (!streamed) { waiting.remove(); streamed = true; }
           body.textContent += piece;
@@ -207,15 +196,6 @@ export function render(root, ctx) {
     }
   }
 
-  /*
-   * A plain import. local.js is small — the six-and-a-half megabyte library it
-   * drives sits behind an import() inside it, so the served app fetches that
-   * only when somebody switches a model on, and the single-file build inlines
-   * it so a downloaded copy can run one with nothing else beside it.
-   */
-  function localAsk(req, onDelta, signal) {
-    return askLocalModel(Object.assign({ model: currentModel() }, req), onDelta, signal);
-  }
 }
 
 /*
@@ -226,10 +206,7 @@ export function render(root, ctx) {
  */
 function modeBanner(ctx, kind, settings) {
   let text;
-  if (kind === 'local-model') {
-    const m = modelById(currentModel());
-    text = `${m ? m.label : currentModel()} רץ על המכשיר הזה. שאלות שהאפליקציה יודעת לענות עליהן נענות מיד מהתחזית; השאר הולך למודל.`;
-  } else if (kind === 'hosted') {
+  if (kind === 'hosted') {
     const p = providerById(settings.providerId);
     text = `${settings.model} דרך ${p ? p.label : settings.providerId}. שאלות על הציון, העומס והזמנים נענות מקומית מהתחזית; שאלות פתוחות נשלחות למודל.`;
   } else {
@@ -245,10 +222,6 @@ function modeBanner(ctx, kind, settings) {
 }
 
 function waitingText(kind, settings) {
-  if (kind === 'local-model') {
-    const m = modelById(currentModel());
-    return `${m ? m.label : 'המודל המקומי'} חושב…`;
-  }
   return `${settings.model || 'המודל'} חושב…`;
 }
 

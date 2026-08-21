@@ -1,7 +1,7 @@
 /*
  * aisettings.js — connecting a model, and being straight about what it costs.
  *
- * Three choices live here and each has a real price the user is entitled to know
+ * Two choices live here and each has a real price the user is entitled to know
  * before paying it, so each is stated on the screen rather than in a tooltip or
  * a document nobody opens.
  *
@@ -10,8 +10,11 @@
  * not described — because somebody deciding whether to send their calendar to a
  * vendor should be able to read the thing rather than trust a summary of it.
  *
- * A local model costs about a gigabyte of download and a GPU, and is markedly
- * less capable. It is free forever after that, which is the whole point.
+ * There was a third: a model running in the browser, no key and no quota. It is
+ * gone because it locked up somebody's machine — the weights go onto the
+ * graphics card, and a card without room does not report an error, it resets the
+ * driver. A feature whose worst case is the computer is not one to ship on a
+ * path nobody could test.
  *
  * The key is stored in this browser in plain text on an origin shared with the
  * other apps in this repository. That sentence is on the screen. It is not
@@ -22,8 +25,6 @@ import { h, sheet, announce } from '../core/dom.js';
 import { get, apiKey, setApiKey, update } from '../core/store.js';
 import { PROVIDERS, providerById } from '../ai/providers.js';
 import { testConnection } from '../ai/client.js';
-import { LOCAL_MODELS, DEFAULT_LOCAL_MODEL, modelById, currentModel, isLoaded } from '../ai/localmodels.js';
-import { capability, load, unload, deleteWeights } from '../ai/local.js';
 import { contextBlock } from '../ai/context.js';
 import { icon, ICONS } from './parts.js';
 
@@ -54,8 +55,7 @@ export function openAiSettings(ctx) {
     }));
 
     body.appendChild(choice(s));
-    if (s.enabled && s.providerId === 'local') body.appendChild(localSection(s));
-    else if (s.enabled && s.providerId) body.appendChild(hostedSection(s));
+    if (s.enabled && s.providerId) body.appendChild(hostedSection(s));
   }
 
   /* ---------------------------------------------------------------- *
@@ -64,11 +64,10 @@ export function openAiSettings(ctx) {
 
   function choice(s) {
     const options = [
-      { id: '', label: 'מקומי בלבד', note: 'מנוע החוקים עונה על הכול. מיידי, בחינם, בלי רשת.' },
-      { id: 'local', label: 'מודל על המכשיר', note: 'Qwen2.5 שרץ בדפדפן. בלי מפתח ובלי מכסה, אחרי הורדה של כג׳יגה.' },
-      { id: 'hosted', label: 'מודל מתארח', note: 'החכם ביותר. דורש מפתח API, ועולה כסף לפי שימוש.' },
+      { id: '', label: 'מקומי בלבד', note: 'מנוע החוקים עונה על הכול. מיידי, בחינם, בלי רשת ובלי מפתח.' },
+      { id: 'hosted', label: 'מודל מתארח', note: 'עונה גם על שאלות פתוחות. דורש מפתח API, ועולה כסף לפי שימוש.' },
     ];
-    const current = !s.enabled ? '' : (s.providerId === 'local' ? 'local' : 'hosted');
+    const current = !s.enabled ? '' : 'hosted';
 
     return h('div.field', { 'data-t': 'ai-enable' },
       h('span.label', { text: 'מי עונה' }),
@@ -76,151 +75,18 @@ export function openAiSettings(ctx) {
         type: 'button',
         'aria-pressed': current === o.id ? 'true' : 'false',
         onclick: () => {
-          if (o.id === '') save({ enabled: false });
-          else if (o.id === 'local') {
-            save({ enabled: true, providerId: 'local', model: s.model && currentModel() ? s.model : DEFAULT_LOCAL_MODEL });
-          } else {
-            const first = PROVIDERS[0];
-            save({
-              enabled: true,
-              providerId: s.providerId && s.providerId !== 'local' ? s.providerId : first.id,
-              model: s.providerId && s.providerId !== 'local' ? s.model : (first.suggestions[0] || ''),
-            });
-          }
+          if (o.id === '') { save({ enabled: false }); return; }
+          const first = PROVIDERS[0];
+          save({
+            enabled: true,
+            providerId: s.providerId || first.id,
+            model: s.providerId ? s.model : (first.suggestions[0] || ''),
+          });
         },
       },
       h('div.list-body', null,
         h('span.list-title', { text: o.label }),
         h('span.list-meta', { text: o.note }))))));
-  }
-
-  /* ---------------------------------------------------------------- *
-   * On the device
-   * ---------------------------------------------------------------- */
-
-  function localSection(s) {
-    const wrap = h('div.stack');
-
-    wrap.appendChild(h('p.card-note', {
-      text: 'המודל רץ בכרטיס הגרפי שלך. אחרי ההורדה הראשונה אין מפתח, אין מכסה, אין עלות ואין רשת — וזה מודל קטן, אז הוא פחות חכם מכל מודל מתארח.',
-    }));
-
-    /*
-     * The capability report is fetched and shown before anything can be
-     * downloaded. Finding out a device cannot run this after a gigabyte is the
-     * failure worth spending a round trip to avoid.
-     */
-    const status = h('p.card-note', { text: 'בודק את הדפדפן…' });
-    wrap.appendChild(status);
-
-    const models = h('div.stack.tight');
-    const progress = h('p.card-note', { hidden: true });
-    const action = h('div.row.wrap');
-    wrap.appendChild(models);
-    wrap.appendChild(progress);
-    wrap.appendChild(action);
-
-    capability().then((can) => {
-      status.textContent = can.detail;
-      status.className = can.ok ? 'card-note' : 'card-note warn';
-      if (!can.ok) {
-        /*
-         * A device that cannot run it is told what to do instead, not left with
-         * a dead screen and a switch it already flipped.
-         */
-        action.appendChild(h('p.card-note', {
-          text: 'אפשר להישאר על המנוע המקומי, שעובד בכל דפדפן, או לחבר מודל מתארח.',
-        }));
-        return;
-      }
-      fillModels();
-    });
-
-    function fillModels() {
-      models.textContent = '';
-      models.appendChild(h('span.label', { text: 'איזה מודל' }));
-      const rows = h('div.list');
-      models.appendChild(rows);
-      for (const m of LOCAL_MODELS) {
-        const resident = currentModel() === m.id;
-        rows.appendChild(h('button.list-row.pick', {
-          type: 'button', 'data-t': 'ai-model',
-          'aria-pressed': s.model === m.id ? 'true' : 'false',
-          onclick: () => save({ model: m.id }),
-        },
-        h('div.list-body', null,
-          h('span.list-title', { text: `${m.label}${resident ? ' · טעון' : ''}` }),
-          h('span.list-meta', { text: `${m.note} כ-${(m.vramMb / 1024).toFixed(1)} ג׳יגה בכרטיס.` }))));
-      }
-
-      action.textContent = '';
-
-      /*
-       * The warning is in front of the button, not behind it.
-       *
-       * This is the only control in the app that can take a machine down. It
-       * loads a model onto the graphics card, and a card without room for it
-       * does not report an error — the driver resets, and on Windows that takes
-       * the desktop with it. Somebody who has just had that happen deserved to
-       * have been told first, in the same breath as the button.
-       */
-      const chosen = modelById(s.model) || modelById(DEFAULT_LOCAL_MODEL);
-      action.appendChild(h('p.card-note.warn', {
-        text: `לפני שמתחילים: זה מוריד כ-${(chosen.vramMb / 1024).toFixed(1)} ג׳יגה וטוען אותם לכרטיס הגרפי. אם אין מספיק מקום בכרטיס, הדפדפן עלול להיתקע ובמקרים מסוימים המסך נתקע לרגע או שהמחשב מאט מאוד. אם זה קורה — לסגור את הלשונית, וכאן יש כפתור למחוק את מה שירד.`,
-      }));
-
-      action.appendChild(h('button.btn.primary', {
-        type: 'button', 'data-t': 'ai-test',
-        onclick: () => download(s.model || DEFAULT_LOCAL_MODEL),
-      }, icon(ICONS.spark), isLoaded() ? 'לטעון מחדש' : 'הבנתי — להוריד ולהפעיל'));
-
-      if (isLoaded()) {
-        action.appendChild(h('button.btn.quiet', {
-          type: 'button',
-          onclick: async () => { await unload(); paint(); },
-        }, 'לפנות מהזיכרון'));
-      }
-
-      action.appendChild(h('button.btn.quiet.danger', {
-        type: 'button', 'data-t': 'ai-delete',
-        onclick: async () => {
-          progress.hidden = false;
-          progress.className = 'card-note';
-          progress.textContent = 'מוחק…';
-          try {
-            await deleteWeights(s.model || DEFAULT_LOCAL_MODEL);
-            progress.textContent = 'הקבצים נמחקו מהמכשיר.';
-          } catch (e) {
-            progress.className = 'card-note warn';
-            progress.textContent = e && e.detail ? e.detail : String((e && e.message) || e);
-          }
-          paint();
-        },
-      }, 'למחוק את הקבצים שירדו'));
-    }
-
-    async function download(id) {
-      progress.hidden = false;
-      progress.textContent = 'מתחיל…';
-      try {
-        await load(id, (report) => {
-          /*
-           * The library's own numbers, unembellished. This wait is minutes long
-           * on a first run and a made-up progress bar would be noticed.
-           */
-          const pct = Math.round((report.progress || 0) * 100);
-          progress.textContent = report.text ? `${report.text} (${pct}%)` : `${pct}%`;
-        });
-        progress.textContent = 'המודל טעון ומוכן.';
-        announce('המודל המקומי מוכן');
-        paint();
-      } catch (e) {
-        progress.className = 'card-note warn';
-        progress.textContent = e && e.detail ? e.detail : String((e && e.message) || e);
-      }
-    }
-
-    return wrap;
   }
 
   /* ---------------------------------------------------------------- *

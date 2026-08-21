@@ -43,28 +43,13 @@
   international endpoint or the mainland one depending on where it was created,
   and a user cannot be expected to know which before trying.
 
-  huggingface.co, *.hf.co and raw.githubusercontent.com are the local model's
-  download: the weights, the CDN they redirect to, and the WebAssembly runtime
-  that executes them. The *.hf.co wildcard is not laziness — a weight request to
-  huggingface.co answers with a 302 to a regional cache whose hostname depends
-  on where the reader is (us.aws.cdn.hf.co from here), and CSP checks the
-  redirect target too. Enumerating today's regions would break for somebody
-  abroad in a way nobody could diagnose. Narrower than https:, broader than the
-  rest of this line, and worth naming as the compromise it is.
-
-  'wasm-unsafe-eval' is the one grant here that genuinely weakens the page, and
-  it is the price of running a model in the browser at all: the weights are
-  executed by a WebAssembly module and compiling one is what this permits. It
-  does NOT permit eval() or new Function() over JavaScript — script-src stays
-  'self' with nothing inline, which is why the library sits in vendor/ instead
-  of coming from a CDN. Anybody who does not switch the local model on still
-  gets a page that compiles no WebAssembly, but they get the grant, and that is
-  the honest cost of shipping the feature at all.
-
-  worker-src is 'self' and not blob:. The library will happily build its own
-  worker out of a blob URL; vendor/web-llm-worker.js exists so it does not have
-  to, because blob: workers are a broader grant on an origin that also holds the
-  neighbouring app's API keys.
+  There was briefly more here. A model that ran inside the browser needed
+  'wasm-unsafe-eval' to compile its runtime, a worker to keep the page
+  answering, and three more hosts to fetch a gigabyte of weights from. It locked
+  up a machine and was removed, and every grant it needed went with it — which
+  is the part worth noticing. A permission taken for a feature has to leave when
+  the feature does, or the policy quietly becomes a list of everything this page
+  was ever allowed to do.
 
   Everything else stays shut. default-src 'none' with script-src and style-src
   at 'self' and nothing inline: no generated event handlers, no eval, no style
@@ -75,7 +60,7 @@
   a real HTTP header, and GitHub Pages does not let this repository set one.
   Leaving it in would read as clickjacking protection that does not exist.
 -->
-<meta http-equiv="Content-Security-Policy" content="default-src 'none'; script-src 'self' 'wasm-unsafe-eval'; style-src 'self'; img-src 'self' data:; font-src 'self' data:; connect-src https://dashscope.aliyuncs.com https://dashscope-intl.aliyuncs.com https://openrouter.ai https://api.deepseek.com https://api.anthropic.com https://huggingface.co https://*.hf.co https://raw.githubusercontent.com; media-src 'none'; frame-src 'none'; worker-src 'self'; object-src 'none'; base-uri 'none'; form-action 'none'">
+<meta http-equiv="Content-Security-Policy" content="default-src 'none'; script-src 'self'; style-src 'self'; img-src 'self' data:; font-src 'self' data:; connect-src https://dashscope.aliyuncs.com https://dashscope-intl.aliyuncs.com https://openrouter.ai https://api.deepseek.com https://api.anthropic.com; media-src 'none'; frame-src 'none'; worker-src 'none'; object-src 'none'; base-uri 'none'; form-action 'none'">
 
 <!-- fonts.css is the repository's shared, generated set of embedded faces and
      is linked first so the families exist before tokens.css names them. The
