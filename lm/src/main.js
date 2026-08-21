@@ -42,6 +42,9 @@ const EVAL_WINDOWS = 512;    // held-out windows per measurement
 
 const state = {
   text: '',
+  /* The chosen corpus in full, when the box is showing only its head; null
+   * when the box holds the whole text. See showCorpus/sourceText. */
+  source: null,
   chars: [], stoi: new Map(),
   /* The encoded stream, cached against the text it came from. Counting the
    * characters of a megabyte corpus and encoding it is a tenth of a second, and
@@ -125,11 +128,61 @@ function fillPicker() {
   }
 }
 
-/** Mark the text as the user's own without reloading anything. */
-function markCustom() {
+/* ------------------------------------------------------------------ *
+ * The textarea is a window on the text, not the text itself.
+ *
+ * Setting a textarea's value costs Chromium time quadratic in its length:
+ * measured on this page, 100k characters take 57ms, 400k take 1.1s, and the
+ * whole 2.26M-character corpus takes 46 seconds — during which the tab is
+ * frozen, because it is one synchronous assignment. It is not word wrap and it
+ * is not the right-to-left text; both were ruled out by measurement. Reading
+ * the value back is free, so nothing else was ever the problem.
+ *
+ * So a chosen corpus goes into `state.source` whole, and the box gets its first
+ * PREVIEW characters. Training, the vocabulary and the split all read
+ * `sourceText()`, which returns the whole thing. The moment the user types, the
+ * box becomes the truth again — their text is theirs, however long — and that
+ * is what markCustom() clears.
+ */
+const PREVIEW = 120000;
+
+/** The full text to train on: the chosen corpus, or whatever is in the box. */
+function sourceText() {
+  return state.source === null ? $('corpus').value : state.source;
+}
+
+/** Show a corpus: the whole thing in state, a readable slice on screen. */
+function showCorpus(text) {
+  state.source = text;
+  const long = text.length > PREVIEW;
+  $('corpus').value = long ? text.slice(0, PREVIEW) : text;
+  $('corpus-preview').textContent = long
+    ? `מוצגים ${PREVIEW.toLocaleString('he-IL')} התווים הראשונים מתוך ${text.length.toLocaleString('he-IL')} — האימון קורא את כולם.`
+    : '';
+}
+
+/** Mark the text as the user's own, leaving the text alone. */
+function becomeCustom() {
   if ($('corpus-pick').value === 'custom') return;
   $('corpus-pick').value = 'custom';
   describeCorpus('custom');
+}
+
+/**
+ * The user typed. The box stops being a window and becomes the whole text.
+ *
+ * Said out loud rather than done quietly: if a preview were still a window
+ * after an edit, every keystroke would silently train on two million
+ * characters the user cannot see, and if the window simply became the text
+ * with no word about it, selecting all and deleting would leave most of the
+ * corpus behind. Neither is something to discover later.
+ */
+function markCustom() {
+  if (state.source !== null) {
+    state.source = null;
+    $('corpus-preview').textContent = 'ערכת את הטקסט — מעכשיו מתאמנים על מה שבתיבה בלבד.';
+  }
+  becomeCustom();
 }
 
 function describeCorpus(id) {
@@ -153,7 +206,7 @@ async function pickCorpus(id) {
 
   try {
     const text = await c.load();
-    $('corpus').value = text;
+    showCorpus(text);
     $('text-note').textContent = `${c.label} · ${c.note}`;
     describeCorpus(id);
     buildModel();
@@ -170,7 +223,7 @@ async function pickCorpus(id) {
  * ------------------------------------------------------------------ */
 
 function readText() {
-  const text = $('corpus').value;
+  const text = sourceText();
   const { context } = settings();
 
   const tokens = settings().tokens;
@@ -707,7 +760,7 @@ $('corpus').addEventListener('input', () => {
   markCustom();
   clearTimeout(textTimer);
   textTimer = setTimeout(() => {
-    if ($('corpus').value !== state.text) buildModel();
+    if (sourceText() !== state.text) buildModel();
   }, 500);
 });
 
@@ -718,8 +771,8 @@ $('file').addEventListener('change', async (e) => {
   if (!file) return;
   cancelRebuild();
   const text = await file.text();
-  $('corpus').value = text;
-  markCustom();
+  showCorpus(text);
+  becomeCustom();
   $('text-note').textContent = `נטען: ${file.name} · ${text.length.toLocaleString('he-IL')} תווים`;
   buildModel();
 });
@@ -777,8 +830,8 @@ $('scan-prompt').addEventListener('click', () => {
 $('scan-train').addEventListener('click', () => {
   if (!state.scanned) return;
   const name = ($('draw-name').value || 'תמונה').trim();
-  $('corpus').value = `${$('corpus').value.replace(/\s+$/, '')}\n\n[${name}]\n${state.scanned}\n`;
-  markCustom();
+  showCorpus(`${sourceText().replace(/\s+$/, '')}\n\n[${name}]\n${state.scanned}\n`);
+  becomeCustom();
   cancelRebuild();
   buildModel();
   say('picture-msg', 'התמונה נוספה לטקסט האימון והמודל נבנה מחדש. עכשיו צריך לאמן.', 'good');
@@ -804,6 +857,6 @@ fillPicker();
 describeTrained();
 $('corpus-pick').value = 'log';
 describeCorpus('log');
-$('corpus').value = buildCorpus();
+showCorpus(buildCorpus());
 buildModel();
 stats();

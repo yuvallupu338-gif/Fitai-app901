@@ -464,16 +464,32 @@ const codeBaseline = Math.log(new Set(codeText).size);
 check(codeLoss < codeBaseline - 0.8, `training on code went from ${codeBaseline.toFixed(2)} to ${codeLoss} in 400 steps`);
 notes.push(`code corpus after 400 steps: ${codeLoss} against random guessing ${codeBaseline.toFixed(2)}`);
 
+/* The box shows the head of a large corpus; the model trains on all of it.
+ * So the assertions below are about the text the trainer sees, which the page
+ * reports in #text-stats, and not about what fits on screen. */
+const pickedAt = Date.now();
 await page.selectOption('#corpus-pick', 'both');
 await page.waitForFunction(
-  () => document.querySelector('#corpus').value.length > 100000 && !document.querySelector('#corpus-pick').disabled,
+  () => /\d/.test(document.querySelector('#text-stats').textContent)
+    && !document.querySelector('#corpus-pick').disabled,
   null, { timeout: 30000 },
 );
+const pickMs = Date.now() - pickedAt;
+/* Setting a textarea's value costs time quadratic in its length: the whole
+ * corpus took 46 seconds in one synchronous assignment, with the tab frozen
+ * throughout. It is shown a window at a time now, and this is the check that
+ * says so — a regression here is a page that hangs, not one that is slow. */
+check(pickMs < 6000, `choosing the largest corpus took ${(pickMs / 1000).toFixed(1)}s — the whole text is going into the box again`);
+notes.push(`choosing the 2.26M-character corpus: ${pickMs} ms`);
+
 const bothText = await page.inputValue('#corpus');
 check(/[֐-׿]/.test(bothText) && /function |def |const /.test(bothText),
   'the combined corpus is missing one of its two halves');
-check(bothText.length > codeText.length, 'the combined corpus is no larger than the code corpus alone');
-notes.push(`combined corpus: ${bothText.length.toLocaleString()} characters, ${new Set(bothText).size} distinct`);
+const bothTrained = await page.evaluate(() => document.querySelector('#text-stats').textContent);
+const bothChars = Number((bothTrained.match(/[\d,]+/) || ['0'])[0].replace(/,/g, ''));
+check(bothChars > codeText.length,
+  `the model is training on ${bothChars.toLocaleString()} characters, no more than the code corpus alone`);
+notes.push(`combined corpus: ${bothChars.toLocaleString()} characters trained on, ${bothText.length.toLocaleString()} shown`);
 
 /* Typing over a chosen corpus makes it yours, and the picker has to say so. */
 await page.fill('#corpus', 'שלום שלום שלום שלום שלום שלום שלום שלום שלום שלום');

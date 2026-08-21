@@ -8,8 +8,9 @@
 שלך. ברירת המחדל מתאמנת בערך מאה צעדים בשנייה, ותוך פחות מדקה כבר רואים אותה
 עוברת מרעש אקראי לשורות שנראות כמו יומן אימונים.
 
-שלושה מהטקסטים שהיא מתאמנת עליהם נכתבו במיוחד בשבילה על ידי מאה סוכנים שרצו
-במקביל: 75 כתבו קוד, 25 כתבו שאלות ותשובות בעברית. אפשר גם לטעון מודל שכבר
+ארבעה מהטקסטים שהיא מתאמנת עליהם נכתבו במיוחד בשבילה על ידי 309 סוכנים שרצו
+במקביל: 163 כתבו קוד, 105 כתבו שאלות ותשובות בעברית — 15 מהם על ההיסטוריה של
+ישראל — 33 ציירו, ו־8 כתבו שיחה. ביחד 2,261,584 תווים. אפשר גם לטעון מודל שכבר
 אומן על הכל, בלחיצה אחת, ולראות מיד מה יוצא.
 
 </div>
@@ -29,9 +30,9 @@ open dist/laken.html            # 2.3 MB, rebuild with:
 node tools/build-single.js lm/index.html dist/laken.html
 ```
 
-That one file is everything: the page, the model, both corpora — all 713,117
-characters of what the hundred agents wrote — and the trained model itself. Copy
-it to a phone, open it on a plane, and it trains.
+That one file is everything: the page, the model, all four corpora — the
+2,261,584 characters of what the three hundred agents wrote — and the trained
+model itself. Copy it to a phone, open it on a plane, and it trains.
 
 Paste text, press **התחל אימון**, and watch the loss curve. `Space` starts and
 stops it when the focus is not in a text box.
