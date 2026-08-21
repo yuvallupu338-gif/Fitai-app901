@@ -2520,6 +2520,12 @@ class CollisionWorld {
         }
         return col;
     }
+    /* בונה מחדש את רשת החיפוש אחרי שהוסרו קוליידרים (למשל בחיתוך פתחים) */
+    rebuild() {
+        const keep = this.all.filter(c => !c.dead);
+        this.all = []; this.statics = []; this.dynamics = []; this.grid = new Map();
+        for (const c of keep) this.add(c);
+    }
     /* מחזיר מערך מועמדים בסביבה (משתמש במערך פנימי — ללא הקצאות בכל פריים) */
     near(minx, minz, maxx, maxz) {
         const out = this._bufs[this._bufIdx];
@@ -2599,6 +2605,7 @@ class LevelBuilder {
         this.followers = [];
         this.ziplines = [];
         this.ladders = [];
+        this.hatches = [];
         this.disposables = [];
         this.spawn = { pos: new THREE.Vector3(0, 1, 0), yaw: Math.PI };
         this.goal = null;
@@ -3095,6 +3102,8 @@ class LevelBuilder {
             min: new THREE.Vector3(x - ex, y - 0.2, z - ez),
             max: new THREE.Vector3(x + ex, y + height + 0.4, z + ez),
         });
+        // פתח בכל רצפה/תקרה דקה שהסולם עובר דרכה — אחרת מטפסים ונחבטים בתחתית המשטח
+        this.hatch(x, z, 1.95, 1.95, y + 0.9, y + height + 0.9);
         return g;
     }
 
@@ -3439,7 +3448,71 @@ class LevelBuilder {
 
     /* מיזוג כל הגאומטריה הסטטית לקבוצות גדולות — מוריד מאות draw calls
        למספר דו־ספרתי ומבטל את רוב הקטיעות. מדלג על כל מה שמונפש. */
+    /* רושם פתח מלבני שייחתך בכל משטח דק שעובר בטווח הגבהים הנתון */
+    hatch(x, z, w, d, y0, y1) {
+        this.hatches.push({ x, z, w, d, y0, y1 });
+    }
+
+    /* חותך את הפתחים הרשומים — רץ פעם אחת לפני מיזוג הגאומטריה */
+    cutHatches() {
+        if (!this.hatches.length) return 0;
+        let cut = 0;
+        for (const h of this.hatches) {
+            const hx0 = h.x - h.w / 2, hx1 = h.x + h.w / 2;
+            const hz0 = h.z - h.d / 2, hz1 = h.z + h.d / 2;
+            const victims = [];
+            for (const c of this.world.all) {
+                if (!c.solid || c.dynamic || c.dead || c.yaw !== 0) continue;
+                if (c.h.y * 2 > 1.7) continue;                    // רק משטחים דקים, לא קירות
+                if (c.top < h.y0 || c.bottom > h.y1) continue;
+                if (c.max.x <= hx0 || c.min.x >= hx1) continue;
+                if (c.max.z <= hz0 || c.min.z >= hz1) continue;
+                victims.push(c);
+            }
+            for (const c of victims) cut += this._splitSlab(c, hx0, hx1, hz0, hz1);
+        }
+        if (cut) this.world.rebuild();
+        return cut;
+    }
+
+    /* מפרק משטח לארבע רצועות סביב הפתח */
+    _splitSlab(c, hx0, hx1, hz0, hz1) {
+        const m = c.mesh;
+        const mat = (m && m.material) || MAT.concrete;
+        const cast = m ? m.castShadow : false;
+        const recv = m ? m.receiveShadow : true;
+        const x0 = c.c.x - c.h.x, x1 = c.c.x + c.h.x;
+        const z0 = c.c.z - c.h.z, z1 = c.c.z + c.h.z;
+        const ax0 = Math.max(x0, hx0), ax1 = Math.min(x1, hx1);
+        const az0 = Math.max(z0, hz0), az1 = Math.min(z1, hz1);
+        const parts = [
+            [x0, x1, z0, az0], [x0, x1, az1, z1],
+            [x0, ax0, az0, az1], [ax1, x1, az0, az1],
+        ];
+        const sy = c.h.y * 2;
+        let n = 0;
+        for (const [px0, px1, pz0, pz1] of parts) {
+            const sx = px1 - px0, sz = pz1 - pz0;
+            if (sx < 0.06 || sz < 0.06) continue;
+            const cxp = (px0 + px1) / 2, czp = (pz0 + pz1) / 2;
+            const nm = new THREE.Mesh(boxGeo(sx, sy, sz, 0.5), mat);
+            nm.position.set(cxp, c.c.y, czp);
+            nm.castShadow = cast; nm.receiveShadow = recv;
+            this.group.add(nm);
+            this.world.add(new Collider(cxp, c.c.y, czp, sx / 2, c.h.y, sz / 2, 0, {
+                mesh: nm, surface: c.surface, slip: c.slip, noWallrun: c.noWallrun,
+                conveyor: c.conveyor, launch: c.launch,
+            }));
+            n++;
+        }
+        if (m) m.removeFromParent();
+        c.dead = true;
+        c.solid = false;
+        return n;
+    }
+
     finalize() {
+        this.cutHatches();
         if (!BGU || !BGU.mergeGeometries) return { merged: 0, removed: 0 };
         this.group.updateMatrixWorld(true);
         const buckets = new Map();
@@ -3789,6 +3862,9 @@ class PlayerController {
                 this.jumpBuf = 0;
                 this.audio.jump('metal');
             } else {
+                // בראש הסולם נעמדים על המשטח הסמוך במקום להמשיך לעלות לריק
+                if (climbUp && this.pos.y > this.onLadder.max.y - 1.45 &&
+                    this.tryLadderTopOut(world, this.onLadder)) return;
                 this.stepPhase += Math.abs(this.vel.y) * dt;
                 if (this.stepPhase > 1.1) { this.stepPhase = 0; this.audio.ladder(); }
                 this.integrate(dt, world);
@@ -4134,6 +4210,40 @@ class PlayerController {
             this.audio.jump();
             this.audio.zipStop();
         }
+    }
+
+    /* יציאה בראש הסולם — מושכים את השחקן אל המשטח הקרוב ביותר שאפשר לעמוד עליו */
+    tryLadderTopOut(world, region) {
+        const topY = region.max.y - 0.4;
+        const feet = this.pos.y;
+        if (feet < topY - 1.25) return false;
+        const fwd = this.forwardVec(_v3a);
+        // קודם לכיוון המבט, ואז מסביב — כך היציאה מרגישה טבעית
+        const dirs = [[fwd.x, fwd.z]];
+        for (let i = 0; i < 8; i++) {
+            const a = (i / 8) * Math.PI * 2;
+            dirs.push([Math.cos(a), Math.sin(a)]);
+        }
+        for (const [dx, dz] of dirs) {
+            for (const reach of [0.95, 1.25]) {
+                const tx = this.pos.x + dx * reach, tz = this.pos.z + dz * reach;
+                const surf = this.topAt(tx, tz, CFG.RADIUS * 0.8, feet - 1.1, feet + 1.4, world);
+                if (surf === -Infinity) continue;
+                if (!this.freeAt(tx, surf + 0.06, tz, CFG.HEIGHT, CFG.RADIUS, null, world)) continue;
+                this.state = 'mantle';
+                this.mantleT = 0;
+                this.mantleFrom.copy(this.pos);
+                this.mantleTo.set(tx, surf + 0.06, tz);
+                this.onLadder = null;
+                this.vel.set(0, 0, 0);
+                this.height = this.targetHeight = CFG.HEIGHT;
+                this.addFlow(CFG.FLOW_GAIN);
+                this.audio.vault();
+                this.stateLabel = 'יציאה מהסולם';
+                return true;
+            }
+        }
+        return false;
     }
 
     /* ---------- סולמות ---------- */
