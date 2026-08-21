@@ -196,6 +196,7 @@ const results = entries.map((e) => {
     embed: e.model.embed,
     hidden: e.model.hidden,
     steps: e.meta.steps ?? null,
+    trainedOn: e.meta.characters ?? null,
     lr: e.meta.lr ?? null,
     batch: e.meta.batch ?? null,
     source: e.meta.source ?? null,
@@ -229,7 +230,33 @@ if (opts.json) {
       console.log(`${' '.repeat(width)}   ⚠ its vocabulary covers only ${(r.coverage * 100).toFixed(1)}% of the passage`);
     }
   }
-  if (results.length > 1) {
+  /*
+   * Two models are only comparable here if the passage is held out from BOTH.
+   *
+   * This tool once reported that a small old model beat a larger, longer-
+   * trained one on the same passage, and the reason was not the models. The
+   * corpus had grown from 713k characters to 2.26M since the older one was
+   * trained, and the corpus builder shuffles its slices — so the last tenth of
+   * the new text is a different tenth, and roughly half of it was training
+   * data for the older model. It was scoring its own homework, and the table
+   * gave it a clean win with no hint that anything was wrong.
+   *
+   * There is no honest way to correct that after the fact, so this says so
+   * instead of ranking them. The number to compare is only ever between models
+   * that saw the same text.
+   */
+  const sizes = results.map((r) => r.trainedOn).filter((n) => n !== null);
+  const mixed = sizes.length > 1 && Math.max(...sizes) - Math.min(...sizes) > Math.max(...sizes) * 0.01;
+
+  if (results.length > 1 && mixed) {
+    console.log('\n⚠ these models were trained on different corpora:');
+    for (const r of results) {
+      console.log(`    ${r.name.padEnd(width)}  ${r.trainedOn === null ? 'unrecorded' : `${r.trainedOn.toLocaleString()} characters`}`);
+    }
+    console.log('  The passage is the tail of the corpus as it stands now, so for a model');
+    console.log('  trained on a smaller version of it this is not held-out text at all —');
+    console.log('  it may well have trained on this exact passage. Not ranking them.');
+  } else if (results.length > 1) {
     const [best] = results;
     const worst = results[results.length - 1];
     console.log(`\n${best.name} wins by ${(worst.bits - best.bits).toFixed(3)} bits per character over ${worst.name}`);
