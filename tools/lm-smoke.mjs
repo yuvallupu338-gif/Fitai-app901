@@ -380,14 +380,22 @@ await page.click('#train');
 const wordLoss = number(await page.textContent('#s-train'));
 check(Number.isFinite(wordLoss) && wordLoss > 0, `a word model trained to ${wordLoss}`);
 
-await page.fill('#chat-text', 'כמה מים לשתות ביום');
-await page.click('#chat-send');
-await page.waitForTimeout(500);
-const said = (await page.$$eval('#chat-log .bubble.theirs', (els) => els.map((e) => e.textContent))).pop() || '';
+/* Four questions rather than one, and the words pooled. A single reply is
+ * about twenty words long, so one word landing either way moves the ratio by
+ * five points — enough that tightening where an answer stops was reported as
+ * the tokenizer breaking. The property under test is a property of the
+ * vocabulary and does not need to be read off one sentence. */
+const spoken = [];
+for (const q of ['כמה מים לשתות ביום', 'מה זה אימון טוב', 'איך מתחילים להתאמן', 'כמה פעמים בשבוע']) {
+  await page.fill('#chat-text', q);
+  await page.click('#chat-send');
+  await page.waitForTimeout(500);
+  const said = (await page.$$eval('#chat-log .bubble.theirs', (els) => els.map((e) => e.textContent))).pop() || '';
+  spoken.push(...said.split(/[^\p{L}\p{N}_]+/u).filter((w) => w.length >= 3));
+}
 const corpusText = await page.inputValue('#corpus');
-const spoken = said.split(/[^\p{L}\p{N}_]+/u).filter((w) => w.length >= 3);
 const real = spoken.filter((w) => corpusText.includes(w));
-check(spoken.length > 0, 'the word model said nothing with a word in it');
+check(spoken.length >= 20, `the word model said only ${spoken.length} words across four questions`);
 check(real.length / Math.max(1, spoken.length) > 0.8,
   `only ${real.length} of ${spoken.length} words it wrote exist in the corpus — the tokens are not words`);
 notes.push(`word mode: ${wordStats.trim()}, loss ${wordLoss} after 250 steps, ${real.length}/${spoken.length} of the words it spoke are real`);

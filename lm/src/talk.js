@@ -26,10 +26,17 @@ import { generate } from './model.js';
 export const ASK = 'ש: ';
 export const ANSWER = 'ת: ';
 
-/* Where an answer ends: the next question, a blank line, or a line that starts
- * another kind of block. All three appear in the corpus as the thing that
- * follows an answer, so all three are places the model genuinely tries to go. */
-const STOPS = [`\n${ASK.trim()}`, '\n\n', '\n['];
+/* Where an answer ends: the next question, a second answer, a blank line, or a
+ * line that starts another kind of block. All of them appear in the corpus as
+ * the thing that follows an answer, so all of them are places the model
+ * genuinely tries to go.
+ *
+ * `\nת:` earns its place from watching the shipped model: asked one question it
+ * would write a line, invent a question of its own, and answer that one too,
+ * because a corpus of question-answer pairs teaches the pair and not the pause.
+ * The first answer is the reply; everything after it is the model talking to
+ * itself, and the box should not show it. */
+const STOPS = [`\n${ASK.trim()}`, `\n${ANSWER.trim()}`, '\n\n', '\n['];
 
 /**
  * One reply to one message.

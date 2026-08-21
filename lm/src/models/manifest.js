@@ -6,13 +6,13 @@
 export const MODEL = {
   "file": "laken.js",
   "source": "corpus:both",
-  "characters": 713117,
-  "steps": 40000,
-  "heldOutLoss": 2.3427,
-  "vocab": 134,
+  "characters": 2261604,
+  "steps": 300000,
+  "heldOutLoss": 2.5052,
+  "vocab": 154,
   "context": 12,
-  "embed": 16,
+  "embed": 24,
   "hidden": 256,
-  "bytes": 857783,
-  "trainedAt": "2026-08-21T12:38:07.505Z"
+  "bytes": 1039694,
+  "trainedAt": "2026-08-21T23:02:14.624Z"
 };
