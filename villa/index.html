@@ -30,6 +30,20 @@
   <canvas id="view"></canvas>
   <div id="hud-slot"></div>
 
+  <!-- ------------------------------------------------- touch controls -->
+  <!-- Every action in this game is bound to a key, and a phone has none. The
+       left half of the screen is a stick that appears under the thumb; these
+       are the rest. Each one dispatches the same tap the keyboard does, so
+       there is exactly one implementation of every action. -->
+  <div id="touch" hidden>
+    <button class="tb" id="t-use" data-tap="interact">E</button>
+    <button class="tb fire" id="t-fire" data-tap="shoot">ירי</button>
+    <button class="tb small" id="t-torch" data-tap="torch">פנס</button>
+    <button class="tb small" id="t-map" data-tap="map">מפה</button>
+    <button class="tb small" id="t-search" data-tap="search">חפש</button>
+    <button class="tb tiny" id="t-pause">❚❚</button>
+  </div>
+
   <!-- The floor plan, over the top. The same SVG the 2D build used as its
        whole interface is the in-game map here: one key, and you can see what
        you cannot see from inside a dark room. -->
@@ -128,6 +142,11 @@
       <div class="menu-buttons">
         <button class="btn primary" id="btn-resume" type="button">המשך</button>
         <button class="btn" id="btn-pause-mode" type="button">החלף מצב תצוגה</button>
+        <!-- These live here as well as in the top bar, because on a phone the
+             top bar is hidden: five buttons and a clock do not fit across a
+             portrait screen, and the clock wins. -->
+        <button class="btn" id="btn-pause-speed" type="button">מהירות: 1×</button>
+        <button class="btn" id="btn-pause-mute" type="button">השתקה</button>
         <button class="btn danger" id="btn-quit" type="button">תפריט ראשי</button>
       </div>
     </div>

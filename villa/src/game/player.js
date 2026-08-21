@@ -61,7 +61,13 @@ export class Player {
 
   update(dt, input, world, opts) {
     const look = input.takeLook();
-    this.yaw += look.dx;
+    /*
+     * Yaw is *subtracted*. core/math.js builds the view from a yaw that grows
+     * counter-clockwise seen from above, so adding a rightward mouse delta
+     * turns the camera left — which is the one control bug a player notices
+     * inside a second and cannot play around.
+     */
+    this.yaw -= look.dx;
     this.pitch = clamp(this.pitch - look.dy, -1.45, 1.45);
 
     const m = input.move();

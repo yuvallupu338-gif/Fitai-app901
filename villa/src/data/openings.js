@@ -24,15 +24,18 @@ export const REGULAR_OPENINGS = [
   { id: 'living_window_side', room: 'living',   kind: 'window', isMain: false,
     name: 'חלון הצד בסלון',         side: 'west',  at: 0.82 },
   { id: 'kitchen_door_back',  room: 'kitchen',  kind: 'door',   isMain: false,
-    name: 'הדלת האחורית במטבח',     side: 'north', at: 0.35 },
+    name: 'הדלת האחורית במטבח',     side: 'north', at: 0.20 },
   { id: 'kitchen_window',     room: 'kitchen',  kind: 'window', isMain: false,
-    name: 'חלון המטבח',            side: 'north', at: 0.75 },
+    name: 'חלון המטבח',            side: 'north', at: 0.52 },
   { id: 'bedroom_window',     room: 'bedroom',  kind: 'window', isMain: false,
     name: 'חלון חדר השינה',         side: 'east',  at: 0.4 },
   { id: 'hall_window',        room: 'hall',     kind: 'window', isMain: false,
     name: 'חלון המסדרון',          side: 'east',  at: 0.5 },
+  /* A hatch, not a window: narrower, so three openings fit on the kitchen's
+   * one outside wall without overlapping. They did overlap by a full metre,
+   * which cut the wall between them away entirely. */
   { id: 'kitchen_hatch',      room: 'kitchen',  kind: 'window', isMain: false,
-    name: 'צוהר המטבח',            side: 'north', at: 0.92 },
+    name: 'צוהר המטבח',            side: 'north', at: 0.86, narrow: true },
   { id: 'supply_door',        room: 'supply',   kind: 'door',   isMain: false,
     name: 'דלת חדר הציוד',          side: 'east',  at: 0.5 },
 ];

@@ -18,7 +18,7 @@
      and connect-src is 'none'. frame-ancestors is omitted on purpose, because
      it is ignored in a meta tag and writing it in would only look like
      clickjacking had been handled. -->
-<meta http-equiv="Content-Security-Policy" content="default-src 'none'; script-src 'sha256-ueVYkH1j5gf3pFWCS4biMhZF8h5cnzDIUmH764SCdXE='; style-src 'sha256-ccz9fwRQzrpOORu3eXGYjQUuuXciRnTYlZcQWlfwTng='; img-src 'self' data:; font-src 'self' data:; connect-src 'none'; media-src 'none'; frame-src 'none'; worker-src 'none'; object-src 'none'; base-uri 'none'; form-action 'none'">
+<meta http-equiv="Content-Security-Policy" content="default-src 'none'; script-src 'sha256-CE75iAPFsxLG9nKH6SeqlIFtc1Z58V887dNIK1eaeDc='; style-src 'sha256-eX532I1zBIPC+r60EAmZ65H/Rv7r/v3eTGpGeGdYXIg='; img-src 'self' data:; font-src 'self' data:; connect-src 'none'; media-src 'none'; frame-src 'none'; worker-src 'none'; object-src 'none'; base-uri 'none'; form-action 'none'">
 <link rel="icon" href="data:image/svg+xml,<svg xmlns='http://www.w3.org/2000/svg' viewBox='0 0 32 32'><rect width='32' height='32' fill='%2306080c'/><path d='M4 14 L16 5 L28 14 L28 28 L4 28 Z' fill='none' stroke='%23e8a33d' stroke-width='2'/><rect x='13' y='19' width='6' height='9' fill='%23ffb457'/></svg>">
 <style>
 /*
@@ -557,6 +557,74 @@ button:focus-visible, input:focus-visible {
 .alert.good { border-inline-start-color: var(--good); color: #a9dcc0; }
 
 /* ================================================================== *
+ * Touch controls
+ * ================================================================== */
+
+#touch {
+  position: absolute;
+  inset: 0;
+  z-index: 28;
+  pointer-events: none;
+}
+#touch[hidden] { display: none !important; }
+
+/* 48px is the smallest a thumb reliably hits; nothing here is under it. */
+.tb {
+  position: absolute;
+  pointer-events: auto;
+  border-radius: 50%;
+  background: rgba(10, 14, 20, 0.62);
+  border: 1px solid rgba(150, 172, 204, 0.34);
+  color: var(--ink);
+  font-size: 0.86rem;
+  width: 74px; height: 74px;
+  display: grid; place-items: center;
+  -webkit-tap-highlight-color: transparent;
+  touch-action: manipulation;
+}
+.tb:active { background: rgba(232, 163, 61, 0.28); border-color: var(--amber); }
+.tb.small { width: 54px; height: 54px; font-size: 0.72rem; }
+.tb.tiny { width: 44px; height: 44px; font-size: 0.66rem; }
+.tb.fire { border-color: rgba(220, 66, 48, 0.5); }
+.tb.fire:active { background: rgba(220, 66, 48, 0.32); border-color: var(--bad); }
+
+/*
+ * Physical sides, not logical ones. These are thumb positions, and a thumb
+ * does not flip when the text does — using `inset-inline-*` in this RTL
+ * document put every action button on the left, which is the half of the
+ * screen game/input.js reserves for the walking stick, so pressing fire and
+ * walking were the same gesture.
+ *
+ * Left half: the stick, wherever the thumb lands. Right: everything else.
+ */
+#t-use    { right: 1.1rem;  bottom: 7.4rem; }
+#t-fire   { right: 6.4rem;  bottom: 2.6rem; }
+#t-torch  { right: 1.4rem;  bottom: 1.4rem; }
+#t-map    { right: 1.4rem;  bottom: 13.2rem; }
+#t-search { right: 6.9rem;  bottom: 8.6rem; }
+#t-pause  { left: 0.8rem;   top: 0.8rem; }
+
+/* On a phone the top bar and the clock cannot share a row, so the bar goes
+   and its contents move to the pause screen. */
+@media (pointer: coarse) {
+  .controls { display: none !important; }
+}
+
+/* On a touch device the HUD's action chips become the number keys. */
+.hud3.touch .h3-act { pointer-events: auto; cursor: pointer; }
+.hud3.touch .h3-act:active { background: rgba(232, 163, 61, 0.28); }
+.hud3.touch .h3-act.off { pointer-events: none; }
+.hud3.touch .h3-prompt { pointer-events: auto; }
+
+@media (max-width: 700px) {
+  .h3-prompt { top: auto; bottom: 9.5rem; min-width: 0; max-width: 92vw; }
+  .h3-alerts { bottom: auto; top: 5.2rem; max-width: 62vw; }
+  .h3-bottom { bottom: 0.7rem; inset-inline-start: 0.7rem; }
+  .h3-chip { padding: 0.2rem 0.38rem; }
+  .controls button { padding: 0.4rem 0.55rem; }
+}
+
+/* ================================================================== *
  * First-person HUD
  * ================================================================== */
 
@@ -826,6 +894,20 @@ button:focus-visible, input:focus-visible {
   <canvas id="view"></canvas>
   <div id="hud-slot"></div>
 
+  <!-- ------------------------------------------------- touch controls -->
+  <!-- Every action in this game is bound to a key, and a phone has none. The
+       left half of the screen is a stick that appears under the thumb; these
+       are the rest. Each one dispatches the same tap the keyboard does, so
+       there is exactly one implementation of every action. -->
+  <div id="touch" hidden>
+    <button class="tb" id="t-use" data-tap="interact">E</button>
+    <button class="tb fire" id="t-fire" data-tap="shoot">ירי</button>
+    <button class="tb small" id="t-torch" data-tap="torch">פנס</button>
+    <button class="tb small" id="t-map" data-tap="map">מפה</button>
+    <button class="tb small" id="t-search" data-tap="search">חפש</button>
+    <button class="tb tiny" id="t-pause">❚❚</button>
+  </div>
+
   <!-- The floor plan, over the top. The same SVG the 2D build used as its
        whole interface is the in-game map here: one key, and you can see what
        you cannot see from inside a dark room. -->
@@ -924,6 +1006,11 @@ button:focus-visible, input:focus-visible {
       <div class="menu-buttons">
         <button class="btn primary" id="btn-resume" type="button">המשך</button>
         <button class="btn" id="btn-pause-mode" type="button">החלף מצב תצוגה</button>
+        <!-- These live here as well as in the top bar, because on a phone the
+             top bar is hidden: five buttons and a clock do not fit across a
+             portrait screen, and the clock wins. -->
+        <button class="btn" id="btn-pause-speed" type="button">מהירות: 1×</button>
+        <button class="btn" id="btn-pause-mute" type="button">השתקה</button>
         <button class="btn danger" id="btn-quit" type="button">תפריט ראשי</button>
       </div>
     </div>
@@ -2250,15 +2337,18 @@ const REGULAR_OPENINGS = [
   { id: 'living_window_side', room: 'living',   kind: 'window', isMain: false,
     name: 'חלון הצד בסלון',         side: 'west',  at: 0.82 },
   { id: 'kitchen_door_back',  room: 'kitchen',  kind: 'door',   isMain: false,
-    name: 'הדלת האחורית במטבח',     side: 'north', at: 0.35 },
+    name: 'הדלת האחורית במטבח',     side: 'north', at: 0.20 },
   { id: 'kitchen_window',     room: 'kitchen',  kind: 'window', isMain: false,
-    name: 'חלון המטבח',            side: 'north', at: 0.75 },
+    name: 'חלון המטבח',            side: 'north', at: 0.52 },
   { id: 'bedroom_window',     room: 'bedroom',  kind: 'window', isMain: false,
     name: 'חלון חדר השינה',         side: 'east',  at: 0.4 },
   { id: 'hall_window',        room: 'hall',     kind: 'window', isMain: false,
     name: 'חלון המסדרון',          side: 'east',  at: 0.5 },
+  /* A hatch, not a window: narrower, so three openings fit on the kitchen's
+   * one outside wall without overlapping. They did overlap by a full metre,
+   * which cut the wall between them away entirely. */
   { id: 'kitchen_hatch',      room: 'kitchen',  kind: 'window', isMain: false,
-    name: 'צוהר המטבח',            side: 'north', at: 0.92 },
+    name: 'צוהר המטבח',            side: 'north', at: 0.86, narrow: true },
   { id: 'supply_door',        room: 'supply',   kind: 'door',   isMain: false,
     name: 'דלת חדר הציוד',          side: 'east',  at: 0.5 },
 ];
@@ -4869,6 +4959,24 @@ const KINDS = {
   },
 
   /*
+   * Pure emission, for the muzzle flash. Nothing here is lit — `em` goes
+   * straight into the normal map's alpha and out the other side of the shader
+   * as light the surface makes itself, which is what a flash is.
+   */
+  glow(u, v, o, P, S) {
+    const c = P.color || [1.0, 0.86, 0.55];
+    const d = Math.hypot(u - 0.5, v - 0.5) * 2;
+    const core = 1 - sstep(0.0, 0.85, d);
+    const spikes = Math.abs(Math.cos(Math.atan2(v - 0.5, u - 0.5) * 4)) * 0.4 + 0.6;
+    const a = core * spikes * (0.7 + 0.6 * tfbm(u * 3, v * 3, 8, S, 2));
+    o.r = c[0]; o.g = c[1]; o.b = c[2];
+    o.rough = 1;
+    o.h = 0.5;
+    o.em = Math.min(1, a * 1.6);
+    o.mask = core > 0.06 ? 1 : 0;
+  },
+
+  /*
    * What is outside. Not a skybox — a material for the quad that seals each
    * window and door, so an opening reads as "there is something out there and
    * you cannot see it" rather than as a hole into the void. Almost black, with
@@ -5577,6 +5685,14 @@ const MATERIALS = [
   { name: 'metalDark',  kind: 'metal',    color: '#5a5d61', bump: 1.0, gloss: 0.30, rust: 0.22, seed: 85 },
   { name: 'metalPale',  kind: 'metal',    color: '#9aa0a4', bump: 0.8, gloss: 0.22, rust: 0.05, seed: 86 },
   { name: 'lampShade',  kind: 'metal',    color: '#d8c49a', bump: 0.6, gloss: 0.5, rust: 0, seed: 87 },
+  { name: 'gunMetal',   kind: 'metal',    color: '#33373c', bump: 0.7, gloss: 0.52, rust: 0.10, seed: 88 },
+  { name: 'gunStock',   kind: 'oak',      color: '#3d2818', bump: 1.0, boards: 1, lengths: 1, wear: 0.45, seed: 89 },
+  { name: 'muzzleFlash', kind: 'glow',    color: '#ffd089', bump: 0.1, cutout: true, seed: 90 },
+  { name: 'hand',       kind: 'fabric',   color: '#63503f', bump: 1.0, weave: 190, seed: 95 },
+  { name: 'sleeve',     kind: 'fabric',   color: '#3a3d42', bump: 1.3, weave: 90, seed: 96 },
+  /* Trim. Painted a shade off the walls everywhere, so a room reads as built
+   * rather than as an extruded rectangle. */
+  { name: 'trim',       kind: 'door',     color: '#8e887c', bump: 0.9, seed: 97 },
 
   /* --- furniture --- */
   { name: 'woodDark',   kind: 'oak',      color: '#4a3527', bump: 1.2, boards: 3, lengths: 2, wear: 0.2, gloss: true, seed: 91 },
@@ -5963,6 +6079,7 @@ const WALL_T = 0.14;
 const DOOR_W = 1.05;
 const DOOR_H = 2.06;
 const WINDOW_W = 1.35;
+const NARROW_W = 0.78;   /* a hatch or a vent */
 const WINDOW_SILL = 0.95;
 const WINDOW_TOP = 2.10;
 const EYE_H = 1.68;
@@ -6095,7 +6212,7 @@ function openingHoles(r, edges, defs) {
     if (!e) continue;
     const len = edgeLength(e);
     const isDoor = def.kind === 'door';
-    const w = isDoor ? DOOR_W : WINDOW_W;
+    const w = isDoor ? DOOR_W : (def.narrow ? NARROW_W : WINDOW_W);
     const half = (w / 2) / len;
     /* Keep the hole clear of the corners, or the reveal has nothing to sit in. */
     const t = Math.min(Math.max(def.at, half + 0.04), 1 - half - 0.04);
@@ -6128,6 +6245,55 @@ function wallPanel(mb, e, t0, t1, y0, y1, mat, ao) {
     [a[0], y0, a[1]], [b[0], y0, b[1]], [b[0], y1, b[1]], [a[0], y1, a[1]],
     [0, 0], [len, 0], [len, y1 - y0], [0, y1 - y0],
     mat, { sub: Math.max(1, Math.round(Math.max(len, y1 - y0) * 1.4)), ao });
+}
+
+/*
+ * Skirting board along the foot of a wall run, and architrave around a hole.
+ *
+ * Neither changes what the player can do and both change what the house is.
+ * A wall meeting a floor at a bare right angle is the single clearest tell
+ * that a room was extruded rather than built; a skirting board puts a lit edge
+ * and a shadow line along every one of them, which is exactly where the eye
+ * looks to judge whether a space is real.
+ */
+function skirting(mb, e, t0, t1, mat) {
+  if (t1 - t0 < 1e-4) return;
+  const len = edgeLength(e);
+  const dx = (e.bx - e.ax) / len, dz = (e.bz - e.az) / len;
+  const a = pointAt(e, t0);
+  const b = pointAt(e, t1);
+  const w = len * (t1 - t0);
+  const cx = (a[0] + b[0]) / 2, cz = (a[1] + b[1]) / 2;
+  /* Inward normal, so the board stands proud of the wall into the room. */
+  const nx = -dz, nz = dx;
+  const depth = 0.022;
+  const cy = 0.055;
+  addBox(mb, cx + nx * depth, cy, cz + nz * depth,
+    w, 0.11, depth * 2, Math.atan2(dz, dx), mat, { bottom: false, ao: () => 0.62 });
+}
+
+function architrave(mb, e, hole, mat) {
+  const len = edgeLength(e);
+  const dx = (e.bx - e.ax) / len, dz = (e.bz - e.az) / len;
+  const nx = -dz, nz = dx;
+  const a = pointAt(e, hole.t0);
+  const b = pointAt(e, hole.t1);
+  const { y0, y1 } = hole;
+  const rot = Math.atan2(dz, dx);
+  const t = 0.018;
+  const w = 0.055;
+  const out = 0.012;
+  /* two uprights */
+  for (const p of [a, b]) {
+    const sign = p === a ? -1 : 1;
+    addBox(mb, p[0] + nx * out + dx * sign * w * 0.5, (y0 + y1) / 2 + w * 0.25,
+      p[1] + nz * out + dz * sign * w * 0.5,
+      w, (y1 - y0) + w, t * 2, rot, mat, { bottom: false, ao: () => 0.7 });
+  }
+  /* head */
+  const mx = (a[0] + b[0]) / 2, mz = (a[1] + b[1]) / 2;
+  addBox(mb, mx + nx * out, y1 + w * 0.5, mz + nz * out,
+    len * (hole.t1 - hole.t0) + w * 2, w, t * 2, rot, mat, { bottom: false, ao: () => 0.7 });
 }
 
 /*
@@ -6167,6 +6333,52 @@ function holeReveal(mb, e, hole, mat, ao) {
       [b[0] + ox, y0, b[1] + oz], [a[0] + ox, y0, a[1] + oz],
       [0, 0], [w, 0], [w, WALL_T], [0, WALL_T], mat, { ao });
   }
+}
+
+/*
+ * The pocket of night behind an opening: a back wall and four sides, all
+ * facing inwards, open towards the room. Deep enough that a figure standing
+ * outside is between the player and the back of it.
+ */
+function outsidePocket(mb, e, hole, mat) {
+  const len = edgeLength(e);
+  const dx = (e.bx - e.ax) / len, dz = (e.bz - e.az) / len;
+  const nx = -dz, nz = dx;                 /* into the room */
+  const a = pointAt(e, hole.t0);
+  const b = pointAt(e, hole.t1);
+  const mx = (a[0] + b[0]) / 2, mz = (a[1] + b[1]) / 2;
+
+  const DEPTH = 3.4;
+  const PAD = 1.5;                         /* wider than the hole, so the
+                                            * pocket's own corners are never
+                                            * inside the player's view of it */
+  const halfW = len * (hole.t1 - hole.t0) / 2 + PAD;
+  const y0 = -0.4;
+  const y1 = hole.y1 + 1.6;
+
+  /* Origin at the outer face of the wall. */
+  const ox = mx - nx * WALL_T, oz = mz - nz * WALL_T;
+  const P = (side, depth, y) => [
+    ox + dx * halfW * side - nx * depth,
+    y,
+    oz + dz * halfW * side - nz * depth,
+  ];
+
+  const uv = (w, h) => [[0, 0], [w, 0], [w, h], [0, h]];
+
+  /* back — faces the room, normal +n */
+  addQuad(mb, P(-1, DEPTH, y0), P(1, DEPTH, y0), P(1, DEPTH, y1), P(-1, DEPTH, y1),
+    ...uv(halfW * 2, y1 - y0), mat, { ao: () => 0.5 });
+  /* left and right walls of the pocket, facing inwards */
+  addQuad(mb, P(-1, 0, y0), P(-1, DEPTH, y0), P(-1, DEPTH, y1), P(-1, 0, y1),
+    ...uv(DEPTH, y1 - y0), mat, { ao: () => 0.42 });
+  addQuad(mb, P(1, DEPTH, y0), P(1, 0, y0), P(1, 0, y1), P(1, DEPTH, y1),
+    ...uv(DEPTH, y1 - y0), mat, { ao: () => 0.42 });
+  /* floor and ceiling of the pocket */
+  addQuad(mb, P(-1, 0, y0), P(1, 0, y0), P(1, DEPTH, y0), P(-1, DEPTH, y0),
+    ...uv(halfW * 2, DEPTH), mat, { ao: () => 0.35 });
+  addQuad(mb, P(-1, DEPTH, y1), P(1, DEPTH, y1), P(1, 0, y1), P(-1, 0, y1),
+    ...uv(halfW * 2, DEPTH), mat, { ao: () => 0.35 });
 }
 
 /* A pane filling the hole, at some fraction of the way through the reveal.
@@ -6269,21 +6481,53 @@ function buildVilla(mat) {
       const ao = wallAO(0, WALL_H);
       let cursor = 0;
       for (const h of mine) {
-        if (h.t0 > cursor) wallPanel(mb, e, cursor, h.t0, 0, WALL_H, mat[finish.wall], ao);
-        if (h.y0 > 0.001) wallPanel(mb, e, h.t0, h.t1, 0, h.y0, mat[finish.wall], ao);
+        if (h.t0 > cursor) {
+          wallPanel(mb, e, cursor, h.t0, 0, WALL_H, mat[finish.wall], ao);
+          skirting(mb, e, cursor, h.t0, mat.trim);
+        }
+        if (h.y0 > 0.001) {
+          wallPanel(mb, e, h.t0, h.t1, 0, h.y0, mat[finish.wall], ao);
+          /* A window's wall carries on down to the floor, so the skirting
+           * runs behind it rather than stopping at the reveal. */
+          skirting(mb, e, h.t0, h.t1, mat.trim);
+        }
         if (h.y1 < WALL_H - 0.001) wallPanel(mb, e, h.t0, h.t1, h.y1, WALL_H, mat[finish.wall], ao);
-        holeReveal(mb, e, h, mat[finish.wall], ao);
+
+        /*
+         * A doorway is cut from both rooms that share it, and each room's
+         * reveal runs one wall thickness *out* of its own wall plane — which
+         * is exactly the other room's wall plane. Building it from both sides
+         * lays two identical sets of jambs and a lintel in the same place, in
+         * two different materials, and the depth buffer picks between them per
+         * pixel: the frame of every interior door flickers as you walk. Only
+         * the alphabetically-first room builds it.
+         */
+        const ownsFrame = h.kind !== 'doorway' || r.id < h.to;
+        if (ownsFrame) {
+          holeReveal(mb, e, h, mat[finish.wall], ao);
+          architrave(mb, e, h, mat.trim);
+        }
         cursor = Math.max(cursor, h.t1);
 
         if (h.kind === 'opening') {
-          /* Seal the far end so an opening looks out at the night rather than
-           * into nothing, and record where it is for everything else. */
-          holePlane(mb, e, h, mat.night, 1.0, {});
+          /*
+           * Outside. Not a flat seal across the far end of the reveal — that
+           * is what this used to be, and it put an opaque wall seven hundred
+           * millimetres in front of the things that come to the windows, so
+           * the entire "something is working on the other side of this"
+           * feature was invisible for the whole game. It is a shallow pocket
+           * of night instead, deep enough to stand a figure in and framed by
+           * the opening, which is the only view of them the player ever gets.
+           */
+          outsidePocket(mb, e, h, mat.night);
           if (!h.isDoor) holePlane(glassMb, e, h, mat.glass, 0.35, {});
           anchors[h.id] = anchorFor(e, h, r.id);
         }
       }
-      if (cursor < 1) wallPanel(mb, e, cursor, 1, 0, WALL_H, mat[finish.wall], ao);
+      if (cursor < 1) {
+        wallPanel(mb, e, cursor, 1, 0, WALL_H, mat[finish.wall], ao);
+        skirting(mb, e, cursor, 1, mat.trim);
+      }
     }
 
     /* ---- hidden openings: no hole is cut until one is actually found, so
@@ -6418,6 +6662,7 @@ function pointLineDistance(x, z, e) {
     "DOOR_W": DOOR_W,
     "DOOR_H": DOOR_H,
     "WINDOW_W": WINDOW_W,
+    "NARROW_W": NARROW_W,
     "WINDOW_SILL": WINDOW_SILL,
     "WINDOW_TOP": WINDOW_TOP,
     "EYE_H": EYE_H,
@@ -6890,10 +7135,21 @@ class Input {
     const c = this.canvas;
 
     window.addEventListener('keydown', (e) => {
+      /*
+       * Never touch a key that is being typed. Space scrolls a page and Tab
+       * leaves it, and neither is wanted mid-night — but this listener is on
+       * `window`, so cancelling them unconditionally also cancelled them
+       * inside the Hebrew prompt, where a space is most of what a player
+       * types. Two words could not be separated in the text mode of a text
+       * game.
+       */
+      const el = e.target;
+      const typing = el && (el.tagName === 'INPUT' || el.tagName === 'TEXTAREA'
+        || el.isContentEditable);
+      if (typing) return;
       if (e.repeat) return;
       this.keys[e.code] = true;
-      /* Space scrolls a page and Tab leaves it; neither is wanted mid-night. */
-      if (e.code === 'Space' || e.code === 'Tab') e.preventDefault();
+      if (e.code === 'Space') e.preventDefault();
     });
     window.addEventListener('keyup', (e) => { this.keys[e.code] = false; });
     window.addEventListener('blur', () => { this.keys = Object.create(null); });
@@ -6948,8 +7204,21 @@ class Input {
     c.addEventListener('pointercancel', end);
   }
 
+  /*
+   * Pointer lock, but never on a touch device.
+   *
+   * There is no mouse to lock, and a locked element captures every pointer
+   * event on the page — so calling this on a phone routes all five on-screen
+   * buttons into the canvas and the game becomes walk-and-look only, with no
+   * way to board anything. It looks exactly like the buttons are broken.
+   */
   requestLock() {
+    if (this.coarse) return;
     if (this.canvas.requestPointerLock) this.canvas.requestPointerLock();
+  }
+
+  get coarse() {
+    return !!(window.matchMedia && window.matchMedia('(pointer: coarse)').matches);
   }
 
   /* Called once per frame; returns the look delta in radians and clears it. */
@@ -7058,7 +7327,13 @@ class Player {
 
   update(dt, input, world, opts) {
     const look = input.takeLook();
-    this.yaw += look.dx;
+    /*
+     * Yaw is *subtracted*. core/math.js builds the view from a yaw that grows
+     * counter-clockwise seen from above, so adding a rightward mouse delta
+     * turns the camera left — which is the one control bug a player notices
+     * inside a second and cannot play around.
+     */
+    this.yaw -= look.dx;
     this.pitch = clamp(this.pitch - look.dy, -1.45, 1.45);
 
     const m = input.move();
@@ -7360,6 +7635,271 @@ function roomCentres(areas) {
   return {
     "buildEntities": buildEntities,
     "roomCentres": roomCentres,
+  };
+})();
+
+__m["villa/src/game/viewmodel.js"] = (function () {
+/*
+ * viewmodel.js — the rifle, in your hands.
+ *
+ * The game talks constantly about fifteen rounds and about a weapon that
+ * cannot solve anything, and until you can see it none of that is real. So it
+ * is on screen, it moves when you move, it kicks when it fires, and it goes
+ * empty visibly.
+ *
+ * There is no separate view-space pass in this renderer — every mesh it draws
+ * is in world coordinates. Rather than add a second projection and a second
+ * depth range for one object, the rifle is built *into the world* each frame,
+ * at a position derived from the camera basis. It costs one dynamic buffer
+ * upload of about three hundred triangles, and it buys something better than
+ * a view-space model would have: the rifle is lit by the room it is in. Walk
+ * from the lit hall into a dark bedroom and it goes dark in your hands.
+ *
+ * The three motions are all lag, and they are what stop it looking glued to
+ * the camera:
+ *
+ *   sway     the rifle chases the camera's rotation a few frames behind, so
+ *            turning swings it and stopping settles it;
+ *   bob      tied to walking distance, not to time, in step with the footfall;
+ *   recoil   a hard kick back and up on the shot, decaying fast.
+ */
+
+const { MeshBuilder, addQuad } = __m["villa/src/render/meshbuilder.js"];
+
+/*
+ * Where the rifle sits relative to the eye, in metres: right, down, forward.
+ *
+ * `fwd` is the number that decides whether it reads as a weapon or as a stick
+ * in the distance. The barrel runs another 0.6 m beyond the origin, so holding
+ * it far forward puts the muzzle a metre out and the whole thing shrinks into
+ * perspective. Held close and turned a few degrees inward, it fills the corner
+ * of the frame the way a rifle does when you are actually carrying one.
+ */
+const HOLD = { right: 0.175, down: 0.190, fwd: 0.31 };
+const LOWER = { right: 0.22, down: 0.42, fwd: 0.20 };   /* while hands are busy */
+const TOE_IN = 0.10;   /* radians the muzzle is turned towards the centre */
+
+class ViewModel {
+  constructor() {
+    this.swayYaw = 0;
+    this.swayPitch = 0;
+    this.recoil = 0;
+    this.flash = 0;
+    this.bob = 0;
+    this.lowered = 0;
+  }
+
+  fire() {
+    this.recoil = 1;
+    this.flash = 1;
+  }
+
+  update(dt, player, busy) {
+    /* Sway: a first-order lag on the camera angles. The difference between
+     * where the camera is looking and where the rifle has got to is the whole
+     * effect. */
+    const k = 1 - Math.exp(-11 * dt);
+    this.swayYaw += (player.yaw - this.swayYaw) * k;
+    this.swayPitch += (player.pitch - this.swayPitch) * k;
+
+    this.recoil *= Math.exp(-11 * dt);
+    this.flash *= Math.exp(-26 * dt);
+    this.bob = player.bob;
+
+    /* Both hands are on the hammer, so the rifle drops out of the way. */
+    const want = busy ? 1 : 0;
+    this.lowered += (want - this.lowered) * (1 - Math.exp(-7 * dt));
+  }
+
+  /*
+   * Build it. `mat` is the material index table; returns mesh data plus the
+   * muzzle's world position so the caller can hang a light on it.
+   */
+  build(player, ammo, mat) {
+    const mb = new MeshBuilder(600);
+
+    /* Camera basis, matching core/math.js viewFromEuler exactly. Using the
+     * swayed angles rather than the live ones is what produces the lag. */
+    const cy = Math.cos(this.swayYaw), sy = Math.sin(this.swayYaw);
+    const cp = Math.cos(this.swayPitch), sp = Math.sin(this.swayPitch);
+    const right = [cy, 0, -sy];
+    const up = [sy * sp, cp, cy * sp];
+    const fwd = [-sy * cp, sp, -cy * cp];
+
+    const lower = this.lowered;
+    const hold = {
+      right: HOLD.right + (LOWER.right - HOLD.right) * lower,
+      down: HOLD.down + (LOWER.down - HOLD.down) * lower,
+      fwd: HOLD.fwd + (LOWER.fwd - HOLD.fwd) * lower,
+    };
+
+    /* Recoil drives the rifle back along its own axis and tips the muzzle up. */
+    const kick = this.recoil;
+    const originX = player.x + right[0] * hold.right - up[0] * (hold.down - this.bob * 0.6) + fwd[0] * (hold.fwd - kick * 0.09);
+    const originY = player.y + right[1] * hold.right - up[1] * (hold.down - this.bob * 0.6) + fwd[1] * (hold.fwd - kick * 0.09);
+    const originZ = player.z + right[2] * hold.right - up[2] * (hold.down - this.bob * 0.6) + fwd[2] * (hold.fwd - kick * 0.09);
+
+    /* Tip the whole rifle up around its own right axis by the recoil. */
+    const tip = kick * 0.17 - lower * 0.55;
+    const ct = Math.cos(tip), st = Math.sin(tip);
+    let f = [
+      fwd[0] * ct + up[0] * st, fwd[1] * ct + up[1] * st, fwd[2] * ct + up[2] * st,
+    ];
+    const u = [
+      up[0] * ct - fwd[0] * st, up[1] * ct - fwd[1] * st, up[2] * ct - fwd[2] * st,
+    ];
+
+    /*
+     * Toe the muzzle in towards the centre of the frame, around the up axis.
+     * A rifle held exactly parallel to the view direction looks like a prop
+     * bolted to the camera.
+     *
+     * Both axes rotate out of the ORIGINAL pair. Overwriting `f` first and
+     * then deriving the new right from it is not a rotation — it leaves the
+     * frame non-orthonormal (the right axis came out 1% short), which shears
+     * every box built in it.
+     */
+    const cw = Math.cos(TOE_IN), sw = Math.sin(TOE_IN);
+    const f0 = f;
+    f = [
+      f0[0] * cw - right[0] * sw, f0[1] * cw - right[1] * sw, f0[2] * cw - right[2] * sw,
+    ];
+    const r2 = [
+      right[0] * cw + f0[0] * sw, right[1] * cw + f0[1] * sw, right[2] * cw + f0[2] * sw,
+    ];
+
+    /*
+     * The camera basis is LEFT-handed: for viewFromEuler's right/up/forward,
+     * `right x up` comes out as MINUS forward, because the view looks down its
+     * own -Z. orientedBox needs a right-handed triple or every face it emits is
+     * wound inside-out — the box then draws its own interior, and with the
+     * normals pointing inwards the rifle is lit by nothing. Handing it the
+     * backward axis makes the triple right-handed; the box is symmetric in
+     * depth, so the geometry is unchanged.
+     */
+    const nf = [-f[0], -f[1], -f[2]];
+
+    const O = [originX, originY, originZ];
+    /* eslint-disable-next-line no-unused-vars -- read through `box` below */
+    const box = (offR, offU, offF, hw, hh, hd, m) =>
+      orientedBox(mb, at(O, r2, u, f, offR, offU, offF), r2, u, nf, hw, hh, hd, m);
+
+    /* barrel */
+    box(0, 0.016, 0.32, 0.018, 0.018, 0.32, mat.gunMetal);
+    /* magazine tube under it */
+    box(0, -0.018, 0.26, 0.014, 0.014, 0.26, mat.gunMetal);
+    /* receiver */
+    box(0, 0, -0.02, 0.028, 0.042, 0.11, mat.gunMetal);
+    /* fore-end */
+    box(0, -0.006, 0.15, 0.030, 0.032, 0.14, mat.gunStock);
+    /* stock, dropping away towards the shoulder */
+    box(0, -0.038, -0.21, 0.027, 0.052, 0.14, mat.gunStock);
+    /* comb */
+    box(0, 0.014, -0.17, 0.024, 0.019, 0.10, mat.gunStock);
+    /* trigger guard */
+    box(0, -0.047, -0.03, 0.009, 0.016, 0.032, mat.gunMetal);
+    /* front sight */
+    box(0, 0.042, 0.615, 0.005, 0.018, 0.008, mat.gunMetal);
+    /* bolt handle, out to the right */
+    box(0.038, 0.008, -0.045, 0.019, 0.008, 0.008, mat.gunMetal);
+
+    /*
+     * Hands. Two blocks and four stubs, and they are worth more than every
+     * other detail on the rifle put together: without them the weapon floats
+     * in the corner of the frame like a decal, and with them it is being
+     * carried. They are the same dark fabric as the rest of the player, who is
+     * otherwise never seen.
+     */
+    /* forward hand, wrapped under the fore-end */
+    box(0.004, -0.038, 0.150, 0.026, 0.024, 0.040, mat.hand);
+    for (let i = 0; i < 4; i++) {
+      box(-0.020 + i * 0.002, -0.020, 0.128 + i * 0.019, 0.030, 0.012, 0.008, mat.hand);
+    }
+    /* trigger hand, at the grip */
+    box(0.004, -0.050, -0.055, 0.025, 0.025, 0.042, mat.hand);
+    for (let i = 0; i < 3; i++) {
+      box(-0.018, -0.034, -0.082 + i * 0.020, 0.028, 0.011, 0.008, mat.hand);
+    }
+    /* the wrist and forearm running off the bottom of the frame */
+    box(0.026, -0.098, -0.155, 0.030, 0.030, 0.12, mat.sleeve);
+
+    const muzzle = at(O, r2, u, f, 0, 0.016, 0.655);
+
+    /*
+     * The flash, as a pair of crossed quads at the muzzle. Two planes rather
+     * than one so it does not vanish when seen edge-on, and cut out so the
+     * quad's corners are not a visible rectangle of light.
+     */
+    if (this.flash > 0.04) {
+      const s = 0.09 * (0.6 + this.flash * 0.9);
+      /*
+       * A disc across the muzzle and a flame along the barrel. The two used to
+       * be (right, up) and (up, right), which are the same plane written twice
+       * — two coplanar quads, z-fighting, and no cross at all. These share
+       * only the up axis, so the flash reads whether you are behind the rifle
+       * or beside it.
+       */
+      const planes = [[r2, u, s, s], [f, u, s * 1.5, s * 0.7]];
+      for (const [a, b, sa, sb] of planes) {
+        const P = (x, y) => [
+          muzzle[0] + a[0] * sa * x + b[0] * sb * y,
+          muzzle[1] + a[1] * sa * x + b[1] * sb * y,
+          muzzle[2] + a[2] * sa * x + b[2] * sb * y,
+        ];
+        addQuad(mb, P(-1, -1), P(1, -1), P(1, 1), P(-1, 1),
+          [0, 0], [1, 0], [1, 1], [0, 1], mat.muzzleFlash, { ao: () => 1 });
+      }
+    }
+
+    /*
+     * Rounds left, shown on the rifle itself rather than only in the corner:
+     * a short row of brass in the side of the receiver. Reading your ammunition
+     * off the weapon is one less thing to take your eyes off the room for.
+     */
+    const shown = Math.min(5, Math.ceil(ammo / 3));
+    for (let i = 0; i < shown; i++) {
+      box(0.030, -0.008, -0.07 + i * 0.020, 0.004, 0.007, 0.008, mat.metalPale);
+    }
+
+    return {
+      data: mb.finish(),
+      muzzle,
+      flash: this.flash,
+    };
+  }
+}
+
+function at(O, right, up, fwd, r, u, f) {
+  return [
+    O[0] + right[0] * r + up[0] * u + fwd[0] * f,
+    O[1] + right[1] * r + up[1] * u + fwd[1] * f,
+    O[2] + right[2] * r + up[2] * u + fwd[2] * f,
+  ];
+}
+
+/* Same construction as world/barricade.js: right x up = normal(forward). */
+function orientedBox(mb, c, right, up, fwd, hw, hh, hd, mat) {
+  const P = (sx, sy, sz) => [
+    c[0] + right[0] * hw * sx + up[0] * hh * sy + fwd[0] * hd * sz,
+    c[1] + right[1] * hw * sx + up[1] * hh * sy + fwd[1] * hd * sz,
+    c[2] + right[2] * hw * sx + up[2] * hh * sy + fwd[2] * hd * sz,
+  ];
+  const A = P(-1, -1, 1), B = P(1, -1, 1), C = P(1, 1, 1), D = P(-1, 1, 1);
+  const E = P(-1, -1, -1), F = P(1, -1, -1), G = P(1, 1, -1), H = P(-1, 1, -1);
+  const uvF = [[0, 0], [hw * 2, 0], [hw * 2, hh * 2], [0, hh * 2]];
+  const uvE = [[0, 0], [hd * 2, 0], [hd * 2, hh * 2], [0, hh * 2]];
+  const uvT = [[0, 0], [hw * 2, 0], [hw * 2, hd * 2], [0, hd * 2]];
+  const o = { ao: () => 0.92 };
+  addQuad(mb, A, B, C, D, ...uvF, mat, o);
+  addQuad(mb, F, E, H, G, ...uvF, mat, o);
+  addQuad(mb, B, F, G, C, ...uvE, mat, o);
+  addQuad(mb, E, A, D, H, ...uvE, mat, o);
+  addQuad(mb, D, C, G, H, ...uvT, mat, o);
+  addQuad(mb, E, F, B, A, ...uvT, mat, o);
+}
+
+  return {
+    "ViewModel": ViewModel,
   };
 })();
 
@@ -7844,7 +8384,7 @@ function updateHud3d(hud, state, ctx) {
         const row = h('div.h3-actions');
         for (const a of OPENING_ACTIONS) {
           const why = canPerform(state, { type: a.type, id: o.id });
-          row.appendChild(h(`div.h3-act${why ? '.off' : ''}`,
+          row.appendChild(h(`div.h3-act${why ? '.off' : ''}`, { 'data-tap': a.key },
             h('kbd', { text: a.key }),
             h('span', { text: a.label }),
             why ? h('em', { text: PARSER[why] || '' }) : null));
@@ -7856,7 +8396,7 @@ function updateHud3d(hud, state, ctx) {
         if (a) {
           const why = canPerform(state, { type: a.type });
           el.prompt.appendChild(h('div.h3-actions',
-            h(`div.h3-act${why ? '.off' : ''}`,
+            h(`div.h3-act${why ? '.off' : ''}`, { 'data-tap': 'interact' },
               h('kbd', { text: a.key }),
               h('span', { text: a.label }),
               why ? h('em', { text: PARSER[why] || '' }) : null)));
@@ -8921,6 +9461,7 @@ const { Input } = __m["villa/src/game/input.js"];
 const { Player } = __m["villa/src/game/player.js"];
 const { findTarget, syncRoom } = __m["villa/src/game/interact.js"];
 const { buildEntities, roomCentres } = __m["villa/src/game/entities.js"];
+const { ViewModel } = __m["villa/src/game/viewmodel.js"];
 
 const { createMap, updateMap } = __m["villa/src/ui/map.js"];
 const { createHud3d, updateHud3d, pushAlert3d, OPENING_ACTIONS, PROP_ACTIONS } = __m["villa/src/ui/hud3d.js"];
@@ -8937,6 +9478,7 @@ let world = null;          /* geometry, anchors, lights, walkable areas   */
 let gpu = null;            /* uploaded meshes                             */
 let player = null;
 let state = null;
+let rifle = null;
 
 let hud = null;
 let mapRefs = null;
@@ -8967,6 +9509,11 @@ function show(name) {
   running = playing;
   qs('#controls').hidden = !playing;
   qs('#view').hidden = !playing || mode !== 'fp';
+  const touch = qs('#touch');
+  if (touch) {
+    const coarse = window.matchMedia && window.matchMedia('(pointer: coarse)').matches;
+    touch.hidden = !(playing && mode === 'fp' && coarse);
+  }
   if (hud) hud.root.hidden = !playing || mode !== 'fp';
   if (con) con.root.hidden = !playing || mode !== 'text';
   qs('#mapover').hidden = !(playing && mode === 'fp' && mapOpen);
@@ -9022,6 +9569,7 @@ async function loadWorld() {
     barricade: null,
     tape: null,
     entities: null,
+    gun: null,
     sig: '',
   };
 
@@ -9057,6 +9605,7 @@ async function startRun(resumed) {
   const e = roomRect(ROOM_BY_ID.entrance);
   player = new Player((e.x0 + e.x1) / 2, e.z1 - 1.6, 0);
   player.torch = true;
+  rifle = new ViewModel();
   state.player.room = 'entrance';
 
   if (con) clearConsole(con);
@@ -9167,6 +9716,12 @@ function drainEvents() {
   for (const ev of drain(state)) {
     const sound = EVENT_SOUND[ev.kind];
     if (sound) audio.play(sound);
+    /* Intercepted here rather than in the key handler, so a shot the rules
+     * refused — no ammunition, nothing to shoot at — never kicks the camera. */
+    if ((ev.kind === 'shot' || ev.kind === 'shot_intruder') && rifle) {
+      rifle.fire();
+      player.pitch = Math.min(1.45, player.pitch + 0.035);
+    }
     const line = describeEvent(ev);
     if (!line) continue;
     if (mode === 'fp') pushAlert3d(hud, line, TONE[ev.kind] || 'plain');
@@ -9199,8 +9754,16 @@ function frame(now) {
     const gdt = dt * speed;
 
     /* --- the player --- */
-    const moved = player.update(dt, input.ref, world, {});
+    /*
+     * The speed control multiplies the world clock, and the player's legs have
+     * to come with it. Without this, 4x means the night runs out four times
+     * faster while you still cross the hall at walking pace — the control
+     * stops being "play faster" and becomes "be four times slower", which is
+     * the opposite of what it says on it.
+     */
+    const moved = player.update(dt, input.ref, world, { speed });
     if (moved.stepped) audio.play('step');
+    rifle.update(dt, player, busy);
     syncRoom(state, player.roomAt(world.areas));
 
     /* --- the world --- */
@@ -9266,9 +9829,15 @@ function buildView(target, dt) {
   const ent = buildEntities(state, world.anchors, world.centres, MATERIAL_INDEX, clockTime);
   gpu.entities = renderer.uploadDynamic(gpu.entities, ent);
 
+  /* The rifle is built into the world each frame at a position derived from
+   * the camera, so it is lit by the room the player is standing in. */
+  const gun = rifle.build(player, state.inv.ammo, MATERIAL_INDEX);
+  gpu.gun = renderer.uploadDynamic(gpu.gun, gun.data);
+
   const meshes = [
     { mesh: gpu.building }, { mesh: gpu.props }, { mesh: gpu.barricade },
     { mesh: gpu.entities && gpu.entities.count ? gpu.entities : null },
+    { mesh: gpu.gun && gpu.gun.count ? gpu.gun : null },
     { mesh: gpu.glass },
     { mesh: gpu.tape, cutout: true },
   ];
@@ -9288,6 +9857,16 @@ function buildView(target, dt) {
   const lights = world.lights.map((l) => Object.assign({}, l, {
     intensity: (l.intensity === undefined ? 1 : l.intensity) * (night ? 0.30 : 1),
   }));
+
+  /* The muzzle flash is a light as well as a sprite. For about a tenth of a
+   * second the room is lit by the shot, which is the only time all night the
+   * player sees the far corners of it — and is worth more than the damage. */
+  if (gun.flash > 0.04) {
+    lights.push({
+      x: gun.muzzle[0], y: gun.muzzle[1], z: gun.muzzle[2],
+      r: 1.0, g: 0.86, b: 0.58, intensity: 46 * gun.flash, range: 13, group: 0,
+    });
+  }
 
   return {
     camera: { x: player.x, y: player.y, z: player.z, yaw: player.yaw, pitch: player.pitch, fov: 70 },
@@ -9325,6 +9904,7 @@ function handleKeys() {
 
   for (const tap of taps) {
     if (tap === 'torch') { player.torch = !player.torch; audio.play('click'); continue; }
+    if (tap === 'map') { toggleMap(); continue; }
     if (tap === 'shoot') { doAction({ type: 'shoot' }); continue; }
     if (tap === 'search') { doAction({ type: 'search' }); continue; }
     if (tap === 'ready') { doAction({ type: 'ready' }); continue; }
@@ -9428,10 +10008,32 @@ function placeInRoom(roomId) {
   if (!player || !world) return;
   const c = world.centres[roomId];
   if (!c) return;
-  player.x = c.x;
-  player.z = c.z;
-  player.vx = 0;
-  player.vz = 0;
+  /*
+   * The centre of a room is very often the middle of the bed or the coffee
+   * table. Dropping the player there wedges them inside a blocker, and since
+   * every direction out of it also fails `canStand`, they are stuck for the
+   * rest of the run with no way to tell why. Spiral outwards until there is
+   * somewhere to actually stand.
+   */
+  const { areas, blockers } = world;
+  if (player.canStand(c.x, c.z, areas, blockers)) {
+    player.x = c.x; player.z = c.z; player.vx = 0; player.vz = 0;
+    return;
+  }
+  for (let ring = 1; ring <= 12; ring++) {
+    const r = ring * 0.35;
+    for (let i = 0; i < 12; i++) {
+      const a = (i / 12) * Math.PI * 2;
+      const x = c.x + Math.cos(a) * r;
+      const z = c.z + Math.sin(a) * r;
+      if (player.canStand(x, z, areas, blockers)) {
+        player.x = x; player.z = z; player.vx = 0; player.vz = 0;
+        return;
+      }
+    }
+  }
+  /* Nowhere in this room is standable, which should not happen — leave the
+   * player where they were rather than inside a wardrobe. */
 }
 
 function setMode(next) {
@@ -9444,6 +10046,8 @@ function setMode(next) {
   hud.root.hidden = !running || mode !== 'fp';
   con.root.hidden = !running || mode !== 'text';
   qs('#mapover').hidden = !(running && mode === 'fp' && mapOpen);
+  const coarse = window.matchMedia && window.matchMedia('(pointer: coarse)').matches;
+  qs('#touch').hidden = !(running && mode === 'fp' && coarse);
   if (mode === 'text' && state) {
     if (document.pointerLockElement) document.exitPointerLock();
     print(con, statusLines(state), 'status');
@@ -9494,7 +10098,31 @@ function boot() {
   qs('#btn-speed').textContent = `${speed}×`;
   qs('#btn-mode').textContent = mode === 'fp' ? UI.modeText : 'מצב תלת־ממד';
   audio.setMuted(!!p.muted);
-  qs('#btn-mute').textContent = p.muted ? 'בטל השתקה' : 'השתקה';
+
+  /* The same two controls as the top bar, for the phone build where the top
+   * bar is hidden. One implementation each; the labels are refreshed together. */
+  const refreshControlLabels = () => {
+    qs('#btn-speed').textContent = `${speed}×`;
+    qs('#btn-pause-speed').textContent = `מהירות: ${speed}×`;
+    const muted = audio.muted;
+    qs('#btn-mute').textContent = muted ? 'בטל השתקה' : 'השתקה';
+    qs('#btn-pause-mute').textContent = muted ? 'בטל השתקה' : 'השתקה';
+  };
+  const cycleSpeed = () => {
+    speed = SPEEDS[(SPEEDS.indexOf(speed) + 1) % SPEEDS.length];
+    store.setPrefs({ speed });
+    refreshControlLabels();
+  };
+  const toggleMute = () => {
+    const next = !audio.muted;
+    audio.setMuted(next);
+    store.setPrefs({ muted: next });
+    refreshControlLabels();
+  };
+  qs('#btn-pause-speed').addEventListener('click', cycleSpeed);
+  qs('#btn-pause-mute').addEventListener('click', toggleMute);
+  qs('#t-pause').addEventListener('click', doPause);
+  refreshControlLabels();
 
   const b = store.best();
   if (renderer) {
@@ -9520,19 +10148,10 @@ function boot() {
     else print(con, statusLines(state), 'status');
   });
 
-  qs('#btn-speed').addEventListener('click', () => {
-    speed = SPEEDS[(SPEEDS.indexOf(speed) + 1) % SPEEDS.length];
-    store.setPrefs({ speed });
-    qs('#btn-speed').textContent = `${speed}×`;
-  });
+  qs('#btn-speed').addEventListener('click', () => cycleSpeed());
   qs('#btn-map').addEventListener('click', toggleMap);
   qs('#btn-mode').addEventListener('click', () => setMode(mode === 'fp' ? 'text' : 'fp'));
-  qs('#btn-mute').addEventListener('click', () => {
-    const next = !audio.muted;
-    audio.setMuted(next);
-    store.setPrefs({ muted: next });
-    qs('#btn-mute').textContent = next ? 'בטל השתקה' : 'השתקה';
-  });
+  qs('#btn-mute').addEventListener('click', () => toggleMute());
   qs('#btn-pause').addEventListener('click', doPause);
   qs('#btn-resume').addEventListener('click', () => {
     resume(state); show(null);
@@ -9546,6 +10165,18 @@ function boot() {
   qs('#btn-again').addEventListener('click', () => startRun(null));
   qs('#btn-over-menu').addEventListener('click', () => show('menu'));
   qs('#btn-won-menu').addEventListener('click', () => show('menu'));
+
+  /*
+   * Losing pointer lock — Escape, alt-tab, the window losing focus — used to
+   * leave the game running with mouse-look dead and nothing on screen saying
+   * so. The player is left waggling a mouse at a house that will not turn.
+   * Treat it as a pause, which is both the truth and a screen with a button
+   * on it.
+   */
+  document.addEventListener('pointerlockchange', () => {
+    if (document.pointerLockElement) return;
+    if (running && mode === 'fp' && !mapOpen && !input.ref.coarse) doPause();
+  });
 
   canvas.addEventListener('click', () => {
     if (running && mode === 'fp' && !mapOpen) {
@@ -9562,6 +10193,8 @@ function boot() {
     if (e.code === 'Escape') { if (mapOpen) toggleMap(); else if (running) doPause(); return; }
     if (!running || mode !== 'fp') return;
     if (document.activeElement === con.input) return;
+    /* Holding E must not board a window twelve times. */
+    if (e.repeat) return;
     const map = {
       KeyE: 'interact', KeyF: 'torch', Space: 'shoot', KeyQ: 'search',
       Digit1: '1', Digit2: '2', Digit3: '3', Digit4: '4', KeyR: 'ready',
@@ -9569,6 +10202,29 @@ function boot() {
     if (e.code === 'Tab') { e.preventDefault(); toggleMap(); return; }
     const tap = map[e.code];
     if (tap) { e.preventDefault(); input.ref.press(tap); }
+  });
+
+  /*
+   * Touch. Every button carries the tap it dispatches in a data attribute and
+   * they are all handled here, so an on-screen control and its key are the
+   * same code path — a phone build that drifts from the keyboard build is a
+   * phone build that quietly stops being testable.
+   *
+   * `pointerdown` rather than `click`: a click waits to find out whether it
+   * was a double tap, and three hundred milliseconds is a long time when
+   * something is coming through the kitchen window.
+   */
+  const isTouch = window.matchMedia && window.matchMedia('(pointer: coarse)').matches;
+  if (isTouch) {
+    qs('#touch').hidden = false;
+    hud.root.classList.add('touch');
+  }
+  document.addEventListener('pointerdown', (e) => {
+    const el = e.target.closest && e.target.closest('[data-tap]');
+    if (!el || !running || mode !== 'fp') return;
+    e.preventDefault();
+    e.stopPropagation();
+    input.ref.press(el.getAttribute('data-tap'));
   });
 
   window.addEventListener('resize', () => { if (renderer) renderer.resize(); });

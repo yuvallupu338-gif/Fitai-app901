@@ -410,6 +410,24 @@ const KINDS = {
   },
 
   /*
+   * Pure emission, for the muzzle flash. Nothing here is lit — `em` goes
+   * straight into the normal map's alpha and out the other side of the shader
+   * as light the surface makes itself, which is what a flash is.
+   */
+  glow(u, v, o, P, S) {
+    const c = P.color || [1.0, 0.86, 0.55];
+    const d = Math.hypot(u - 0.5, v - 0.5) * 2;
+    const core = 1 - sstep(0.0, 0.85, d);
+    const spikes = Math.abs(Math.cos(Math.atan2(v - 0.5, u - 0.5) * 4)) * 0.4 + 0.6;
+    const a = core * spikes * (0.7 + 0.6 * tfbm(u * 3, v * 3, 8, S, 2));
+    o.r = c[0]; o.g = c[1]; o.b = c[2];
+    o.rough = 1;
+    o.h = 0.5;
+    o.em = Math.min(1, a * 1.6);
+    o.mask = core > 0.06 ? 1 : 0;
+  },
+
+  /*
    * What is outside. Not a skybox — a material for the quad that seals each
    * window and door, so an opening reads as "there is something out there and
    * you cannot see it" rather than as a hole into the void. Almost black, with

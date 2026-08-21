@@ -51,6 +51,14 @@ export const MATERIALS = [
   { name: 'metalDark',  kind: 'metal',    color: '#5a5d61', bump: 1.0, gloss: 0.30, rust: 0.22, seed: 85 },
   { name: 'metalPale',  kind: 'metal',    color: '#9aa0a4', bump: 0.8, gloss: 0.22, rust: 0.05, seed: 86 },
   { name: 'lampShade',  kind: 'metal',    color: '#d8c49a', bump: 0.6, gloss: 0.5, rust: 0, seed: 87 },
+  { name: 'gunMetal',   kind: 'metal',    color: '#33373c', bump: 0.7, gloss: 0.52, rust: 0.10, seed: 88 },
+  { name: 'gunStock',   kind: 'oak',      color: '#3d2818', bump: 1.0, boards: 1, lengths: 1, wear: 0.45, seed: 89 },
+  { name: 'muzzleFlash', kind: 'glow',    color: '#ffd089', bump: 0.1, cutout: true, seed: 90 },
+  { name: 'hand',       kind: 'fabric',   color: '#63503f', bump: 1.0, weave: 190, seed: 95 },
+  { name: 'sleeve',     kind: 'fabric',   color: '#3a3d42', bump: 1.3, weave: 90, seed: 96 },
+  /* Trim. Painted a shade off the walls everywhere, so a room reads as built
+   * rather than as an extruded rectangle. */
+  { name: 'trim',       kind: 'door',     color: '#8e887c', bump: 0.9, seed: 97 },
 
   /* --- furniture --- */
   { name: 'woodDark',   kind: 'oak',      color: '#4a3527', bump: 1.2, boards: 3, lengths: 2, wear: 0.2, gloss: true, seed: 91 },

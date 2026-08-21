@@ -35,10 +35,21 @@ export class Input {
     const c = this.canvas;
 
     window.addEventListener('keydown', (e) => {
+      /*
+       * Never touch a key that is being typed. Space scrolls a page and Tab
+       * leaves it, and neither is wanted mid-night — but this listener is on
+       * `window`, so cancelling them unconditionally also cancelled them
+       * inside the Hebrew prompt, where a space is most of what a player
+       * types. Two words could not be separated in the text mode of a text
+       * game.
+       */
+      const el = e.target;
+      const typing = el && (el.tagName === 'INPUT' || el.tagName === 'TEXTAREA'
+        || el.isContentEditable);
+      if (typing) return;
       if (e.repeat) return;
       this.keys[e.code] = true;
-      /* Space scrolls a page and Tab leaves it; neither is wanted mid-night. */
-      if (e.code === 'Space' || e.code === 'Tab') e.preventDefault();
+      if (e.code === 'Space') e.preventDefault();
     });
     window.addEventListener('keyup', (e) => { this.keys[e.code] = false; });
     window.addEventListener('blur', () => { this.keys = Object.create(null); });
@@ -93,8 +104,21 @@ export class Input {
     c.addEventListener('pointercancel', end);
   }
 
+  /*
+   * Pointer lock, but never on a touch device.
+   *
+   * There is no mouse to lock, and a locked element captures every pointer
+   * event on the page — so calling this on a phone routes all five on-screen
+   * buttons into the canvas and the game becomes walk-and-look only, with no
+   * way to board anything. It looks exactly like the buttons are broken.
+   */
   requestLock() {
+    if (this.coarse) return;
     if (this.canvas.requestPointerLock) this.canvas.requestPointerLock();
+  }
+
+  get coarse() {
+    return !!(window.matchMedia && window.matchMedia('(pointer: coarse)').matches);
   }
 
   /* Called once per frame; returns the look delta in radians and clears it. */

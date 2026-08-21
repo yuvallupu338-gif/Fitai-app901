@@ -36,6 +36,7 @@ import { Input } from './game/input.js';
 import { Player } from './game/player.js';
 import { findTarget, syncRoom } from './game/interact.js';
 import { buildEntities, roomCentres } from './game/entities.js';
+import { ViewModel } from './game/viewmodel.js';
 
 import { createMap, updateMap } from './ui/map.js';
 import { createHud3d, updateHud3d, pushAlert3d, OPENING_ACTIONS, PROP_ACTIONS } from './ui/hud3d.js';
@@ -52,6 +53,7 @@ let world = null;          /* geometry, anchors, lights, walkable areas   */
 let gpu = null;            /* uploaded meshes                             */
 let player = null;
 let state = null;
+let rifle = null;
 
 let hud = null;
 let mapRefs = null;
@@ -82,6 +84,11 @@ function show(name) {
   running = playing;
   qs('#controls').hidden = !playing;
   qs('#view').hidden = !playing || mode !== 'fp';
+  const touch = qs('#touch');
+  if (touch) {
+    const coarse = window.matchMedia && window.matchMedia('(pointer: coarse)').matches;
+    touch.hidden = !(playing && mode === 'fp' && coarse);
+  }
   if (hud) hud.root.hidden = !playing || mode !== 'fp';
   if (con) con.root.hidden = !playing || mode !== 'text';
   qs('#mapover').hidden = !(playing && mode === 'fp' && mapOpen);
@@ -137,6 +144,7 @@ async function loadWorld() {
     barricade: null,
     tape: null,
     entities: null,
+    gun: null,
     sig: '',
   };
 
@@ -172,6 +180,7 @@ async function startRun(resumed) {
   const e = roomRect(ROOM_BY_ID.entrance);
   player = new Player((e.x0 + e.x1) / 2, e.z1 - 1.6, 0);
   player.torch = true;
+  rifle = new ViewModel();
   state.player.room = 'entrance';
 
   if (con) clearConsole(con);
@@ -282,6 +291,12 @@ function drainEvents() {
   for (const ev of drain(state)) {
     const sound = EVENT_SOUND[ev.kind];
     if (sound) audio.play(sound);
+    /* Intercepted here rather than in the key handler, so a shot the rules
+     * refused — no ammunition, nothing to shoot at — never kicks the camera. */
+    if ((ev.kind === 'shot' || ev.kind === 'shot_intruder') && rifle) {
+      rifle.fire();
+      player.pitch = Math.min(1.45, player.pitch + 0.035);
+    }
     const line = describeEvent(ev);
     if (!line) continue;
     if (mode === 'fp') pushAlert3d(hud, line, TONE[ev.kind] || 'plain');
@@ -314,8 +329,16 @@ function frame(now) {
     const gdt = dt * speed;
 
     /* --- the player --- */
-    const moved = player.update(dt, input.ref, world, {});
+    /*
+     * The speed control multiplies the world clock, and the player's legs have
+     * to come with it. Without this, 4x means the night runs out four times
+     * faster while you still cross the hall at walking pace — the control
+     * stops being "play faster" and becomes "be four times slower", which is
+     * the opposite of what it says on it.
+     */
+    const moved = player.update(dt, input.ref, world, { speed });
     if (moved.stepped) audio.play('step');
+    rifle.update(dt, player, busy);
     syncRoom(state, player.roomAt(world.areas));
 
     /* --- the world --- */
@@ -381,9 +404,15 @@ function buildView(target, dt) {
   const ent = buildEntities(state, world.anchors, world.centres, MATERIAL_INDEX, clockTime);
   gpu.entities = renderer.uploadDynamic(gpu.entities, ent);
 
+  /* The rifle is built into the world each frame at a position derived from
+   * the camera, so it is lit by the room the player is standing in. */
+  const gun = rifle.build(player, state.inv.ammo, MATERIAL_INDEX);
+  gpu.gun = renderer.uploadDynamic(gpu.gun, gun.data);
+
   const meshes = [
     { mesh: gpu.building }, { mesh: gpu.props }, { mesh: gpu.barricade },
     { mesh: gpu.entities && gpu.entities.count ? gpu.entities : null },
+    { mesh: gpu.gun && gpu.gun.count ? gpu.gun : null },
     { mesh: gpu.glass },
     { mesh: gpu.tape, cutout: true },
   ];
@@ -403,6 +432,16 @@ function buildView(target, dt) {
   const lights = world.lights.map((l) => Object.assign({}, l, {
     intensity: (l.intensity === undefined ? 1 : l.intensity) * (night ? 0.30 : 1),
   }));
+
+  /* The muzzle flash is a light as well as a sprite. For about a tenth of a
+   * second the room is lit by the shot, which is the only time all night the
+   * player sees the far corners of it — and is worth more than the damage. */
+  if (gun.flash > 0.04) {
+    lights.push({
+      x: gun.muzzle[0], y: gun.muzzle[1], z: gun.muzzle[2],
+      r: 1.0, g: 0.86, b: 0.58, intensity: 46 * gun.flash, range: 13, group: 0,
+    });
+  }
 
   return {
     camera: { x: player.x, y: player.y, z: player.z, yaw: player.yaw, pitch: player.pitch, fov: 70 },
@@ -440,6 +479,7 @@ function handleKeys() {
 
   for (const tap of taps) {
     if (tap === 'torch') { player.torch = !player.torch; audio.play('click'); continue; }
+    if (tap === 'map') { toggleMap(); continue; }
     if (tap === 'shoot') { doAction({ type: 'shoot' }); continue; }
     if (tap === 'search') { doAction({ type: 'search' }); continue; }
     if (tap === 'ready') { doAction({ type: 'ready' }); continue; }
@@ -543,10 +583,32 @@ function placeInRoom(roomId) {
   if (!player || !world) return;
   const c = world.centres[roomId];
   if (!c) return;
-  player.x = c.x;
-  player.z = c.z;
-  player.vx = 0;
-  player.vz = 0;
+  /*
+   * The centre of a room is very often the middle of the bed or the coffee
+   * table. Dropping the player there wedges them inside a blocker, and since
+   * every direction out of it also fails `canStand`, they are stuck for the
+   * rest of the run with no way to tell why. Spiral outwards until there is
+   * somewhere to actually stand.
+   */
+  const { areas, blockers } = world;
+  if (player.canStand(c.x, c.z, areas, blockers)) {
+    player.x = c.x; player.z = c.z; player.vx = 0; player.vz = 0;
+    return;
+  }
+  for (let ring = 1; ring <= 12; ring++) {
+    const r = ring * 0.35;
+    for (let i = 0; i < 12; i++) {
+      const a = (i / 12) * Math.PI * 2;
+      const x = c.x + Math.cos(a) * r;
+      const z = c.z + Math.sin(a) * r;
+      if (player.canStand(x, z, areas, blockers)) {
+        player.x = x; player.z = z; player.vx = 0; player.vz = 0;
+        return;
+      }
+    }
+  }
+  /* Nowhere in this room is standable, which should not happen — leave the
+   * player where they were rather than inside a wardrobe. */
 }
 
 function setMode(next) {
@@ -559,6 +621,8 @@ function setMode(next) {
   hud.root.hidden = !running || mode !== 'fp';
   con.root.hidden = !running || mode !== 'text';
   qs('#mapover').hidden = !(running && mode === 'fp' && mapOpen);
+  const coarse = window.matchMedia && window.matchMedia('(pointer: coarse)').matches;
+  qs('#touch').hidden = !(running && mode === 'fp' && coarse);
   if (mode === 'text' && state) {
     if (document.pointerLockElement) document.exitPointerLock();
     print(con, statusLines(state), 'status');
@@ -609,7 +673,31 @@ function boot() {
   qs('#btn-speed').textContent = `${speed}×`;
   qs('#btn-mode').textContent = mode === 'fp' ? UI.modeText : 'מצב תלת־ממד';
   audio.setMuted(!!p.muted);
-  qs('#btn-mute').textContent = p.muted ? 'בטל השתקה' : 'השתקה';
+
+  /* The same two controls as the top bar, for the phone build where the top
+   * bar is hidden. One implementation each; the labels are refreshed together. */
+  const refreshControlLabels = () => {
+    qs('#btn-speed').textContent = `${speed}×`;
+    qs('#btn-pause-speed').textContent = `מהירות: ${speed}×`;
+    const muted = audio.muted;
+    qs('#btn-mute').textContent = muted ? 'בטל השתקה' : 'השתקה';
+    qs('#btn-pause-mute').textContent = muted ? 'בטל השתקה' : 'השתקה';
+  };
+  const cycleSpeed = () => {
+    speed = SPEEDS[(SPEEDS.indexOf(speed) + 1) % SPEEDS.length];
+    store.setPrefs({ speed });
+    refreshControlLabels();
+  };
+  const toggleMute = () => {
+    const next = !audio.muted;
+    audio.setMuted(next);
+    store.setPrefs({ muted: next });
+    refreshControlLabels();
+  };
+  qs('#btn-pause-speed').addEventListener('click', cycleSpeed);
+  qs('#btn-pause-mute').addEventListener('click', toggleMute);
+  qs('#t-pause').addEventListener('click', doPause);
+  refreshControlLabels();
 
   const b = store.best();
   if (renderer) {
@@ -635,19 +723,10 @@ function boot() {
     else print(con, statusLines(state), 'status');
   });
 
-  qs('#btn-speed').addEventListener('click', () => {
-    speed = SPEEDS[(SPEEDS.indexOf(speed) + 1) % SPEEDS.length];
-    store.setPrefs({ speed });
-    qs('#btn-speed').textContent = `${speed}×`;
-  });
+  qs('#btn-speed').addEventListener('click', () => cycleSpeed());
   qs('#btn-map').addEventListener('click', toggleMap);
   qs('#btn-mode').addEventListener('click', () => setMode(mode === 'fp' ? 'text' : 'fp'));
-  qs('#btn-mute').addEventListener('click', () => {
-    const next = !audio.muted;
-    audio.setMuted(next);
-    store.setPrefs({ muted: next });
-    qs('#btn-mute').textContent = next ? 'בטל השתקה' : 'השתקה';
-  });
+  qs('#btn-mute').addEventListener('click', () => toggleMute());
   qs('#btn-pause').addEventListener('click', doPause);
   qs('#btn-resume').addEventListener('click', () => {
     resume(state); show(null);
@@ -661,6 +740,18 @@ function boot() {
   qs('#btn-again').addEventListener('click', () => startRun(null));
   qs('#btn-over-menu').addEventListener('click', () => show('menu'));
   qs('#btn-won-menu').addEventListener('click', () => show('menu'));
+
+  /*
+   * Losing pointer lock — Escape, alt-tab, the window losing focus — used to
+   * leave the game running with mouse-look dead and nothing on screen saying
+   * so. The player is left waggling a mouse at a house that will not turn.
+   * Treat it as a pause, which is both the truth and a screen with a button
+   * on it.
+   */
+  document.addEventListener('pointerlockchange', () => {
+    if (document.pointerLockElement) return;
+    if (running && mode === 'fp' && !mapOpen && !input.ref.coarse) doPause();
+  });
 
   canvas.addEventListener('click', () => {
     if (running && mode === 'fp' && !mapOpen) {
@@ -677,6 +768,8 @@ function boot() {
     if (e.code === 'Escape') { if (mapOpen) toggleMap(); else if (running) doPause(); return; }
     if (!running || mode !== 'fp') return;
     if (document.activeElement === con.input) return;
+    /* Holding E must not board a window twelve times. */
+    if (e.repeat) return;
     const map = {
       KeyE: 'interact', KeyF: 'torch', Space: 'shoot', KeyQ: 'search',
       Digit1: '1', Digit2: '2', Digit3: '3', Digit4: '4', KeyR: 'ready',
@@ -684,6 +777,29 @@ function boot() {
     if (e.code === 'Tab') { e.preventDefault(); toggleMap(); return; }
     const tap = map[e.code];
     if (tap) { e.preventDefault(); input.ref.press(tap); }
+  });
+
+  /*
+   * Touch. Every button carries the tap it dispatches in a data attribute and
+   * they are all handled here, so an on-screen control and its key are the
+   * same code path — a phone build that drifts from the keyboard build is a
+   * phone build that quietly stops being testable.
+   *
+   * `pointerdown` rather than `click`: a click waits to find out whether it
+   * was a double tap, and three hundred milliseconds is a long time when
+   * something is coming through the kitchen window.
+   */
+  const isTouch = window.matchMedia && window.matchMedia('(pointer: coarse)').matches;
+  if (isTouch) {
+    qs('#touch').hidden = false;
+    hud.root.classList.add('touch');
+  }
+  document.addEventListener('pointerdown', (e) => {
+    const el = e.target.closest && e.target.closest('[data-tap]');
+    if (!el || !running || mode !== 'fp') return;
+    e.preventDefault();
+    e.stopPropagation();
+    input.ref.press(el.getAttribute('data-tap'));
   });
 
   window.addEventListener('resize', () => { if (renderer) renderer.resize(); });

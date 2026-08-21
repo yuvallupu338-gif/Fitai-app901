@@ -4,7 +4,8 @@
  * Content-Security-Policy.
  *
  * localStorage is per-origin, not per-path. GitHub Pages serves the plan app at
- * /, this repo's larger FitAI at /app/ and the game at /backrooms/, and they
+ * /, this repo's larger FitAI at /app/, and the games at /backrooms/ and
+ * /villa/, and they
  * share one storage jar — which holds, among other things, the vendor API keys
  * this app keeps under `fitai.key.*`. A policy on one page secures nothing
  * while a neighbour has none, so all three are checked together.
@@ -46,6 +47,18 @@ const PAGES = [
       const start = page.locator('button', { hasText: /התחל|Start|שחק/ }).first();
       if (await start.count()) await start.click().catch(() => {});
       await page.waitForTimeout(2500);
+    } },
+  { name: 'villa      /villa/',     url: `${BASE}/villa/index.html`,
+    drive: async page => {
+      /* Into the game proper: the villa bakes its materials on the first run
+       * and the interesting policy surface — the canvas, the synthesised
+       * audio, the generated HUD — only exists on the other side of that. */
+      await page.click('#btn-start').catch(() => {});
+      await page.waitForSelector('#screen-brief:not([hidden])', { timeout: 180000 }).catch(() => {});
+      await page.click('#btn-brief-go').catch(() => {});
+      await page.waitForTimeout(2500);
+      await page.keyboard.press('Tab').catch(() => {});
+      await page.waitForTimeout(600);
     } },
 ];
 
@@ -126,5 +139,5 @@ for (const p of PAGES) {
 }
 
 await browser.close();
-console.log(failures ? `\n✗ ${failures} check(s) failed` : '\n✓ all three pages carry a policy and none of them will run injected code');
+console.log(failures ? `\n✗ ${failures} check(s) failed` : '\n✓ every page carries a policy and none of them will run injected code');
 process.exit(failures ? 1 : 0);

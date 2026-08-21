@@ -130,7 +130,7 @@ export function updateHud3d(hud, state, ctx) {
         const row = h('div.h3-actions');
         for (const a of OPENING_ACTIONS) {
           const why = canPerform(state, { type: a.type, id: o.id });
-          row.appendChild(h(`div.h3-act${why ? '.off' : ''}`,
+          row.appendChild(h(`div.h3-act${why ? '.off' : ''}`, { 'data-tap': a.key },
             h('kbd', { text: a.key }),
             h('span', { text: a.label }),
             why ? h('em', { text: PARSER[why] || '' }) : null));
@@ -142,7 +142,7 @@ export function updateHud3d(hud, state, ctx) {
         if (a) {
           const why = canPerform(state, { type: a.type });
           el.prompt.appendChild(h('div.h3-actions',
-            h(`div.h3-act${why ? '.off' : ''}`,
+            h(`div.h3-act${why ? '.off' : ''}`, { 'data-tap': 'interact' },
               h('kbd', { text: a.key }),
               h('span', { text: a.label }),
               why ? h('em', { text: PARSER[why] || '' }) : null)));

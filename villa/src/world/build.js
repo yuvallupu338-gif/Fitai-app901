@@ -40,6 +40,7 @@ export const WALL_T = 0.14;
 export const DOOR_W = 1.05;
 export const DOOR_H = 2.06;
 export const WINDOW_W = 1.35;
+export const NARROW_W = 0.78;   /* a hatch or a vent */
 export const WINDOW_SILL = 0.95;
 export const WINDOW_TOP = 2.10;
 export const EYE_H = 1.68;
@@ -172,7 +173,7 @@ function openingHoles(r, edges, defs) {
     if (!e) continue;
     const len = edgeLength(e);
     const isDoor = def.kind === 'door';
-    const w = isDoor ? DOOR_W : WINDOW_W;
+    const w = isDoor ? DOOR_W : (def.narrow ? NARROW_W : WINDOW_W);
     const half = (w / 2) / len;
     /* Keep the hole clear of the corners, or the reveal has nothing to sit in. */
     const t = Math.min(Math.max(def.at, half + 0.04), 1 - half - 0.04);
@@ -205,6 +206,55 @@ function wallPanel(mb, e, t0, t1, y0, y1, mat, ao) {
     [a[0], y0, a[1]], [b[0], y0, b[1]], [b[0], y1, b[1]], [a[0], y1, a[1]],
     [0, 0], [len, 0], [len, y1 - y0], [0, y1 - y0],
     mat, { sub: Math.max(1, Math.round(Math.max(len, y1 - y0) * 1.4)), ao });
+}
+
+/*
+ * Skirting board along the foot of a wall run, and architrave around a hole.
+ *
+ * Neither changes what the player can do and both change what the house is.
+ * A wall meeting a floor at a bare right angle is the single clearest tell
+ * that a room was extruded rather than built; a skirting board puts a lit edge
+ * and a shadow line along every one of them, which is exactly where the eye
+ * looks to judge whether a space is real.
+ */
+function skirting(mb, e, t0, t1, mat) {
+  if (t1 - t0 < 1e-4) return;
+  const len = edgeLength(e);
+  const dx = (e.bx - e.ax) / len, dz = (e.bz - e.az) / len;
+  const a = pointAt(e, t0);
+  const b = pointAt(e, t1);
+  const w = len * (t1 - t0);
+  const cx = (a[0] + b[0]) / 2, cz = (a[1] + b[1]) / 2;
+  /* Inward normal, so the board stands proud of the wall into the room. */
+  const nx = -dz, nz = dx;
+  const depth = 0.022;
+  const cy = 0.055;
+  addBox(mb, cx + nx * depth, cy, cz + nz * depth,
+    w, 0.11, depth * 2, Math.atan2(dz, dx), mat, { bottom: false, ao: () => 0.62 });
+}
+
+function architrave(mb, e, hole, mat) {
+  const len = edgeLength(e);
+  const dx = (e.bx - e.ax) / len, dz = (e.bz - e.az) / len;
+  const nx = -dz, nz = dx;
+  const a = pointAt(e, hole.t0);
+  const b = pointAt(e, hole.t1);
+  const { y0, y1 } = hole;
+  const rot = Math.atan2(dz, dx);
+  const t = 0.018;
+  const w = 0.055;
+  const out = 0.012;
+  /* two uprights */
+  for (const p of [a, b]) {
+    const sign = p === a ? -1 : 1;
+    addBox(mb, p[0] + nx * out + dx * sign * w * 0.5, (y0 + y1) / 2 + w * 0.25,
+      p[1] + nz * out + dz * sign * w * 0.5,
+      w, (y1 - y0) + w, t * 2, rot, mat, { bottom: false, ao: () => 0.7 });
+  }
+  /* head */
+  const mx = (a[0] + b[0]) / 2, mz = (a[1] + b[1]) / 2;
+  addBox(mb, mx + nx * out, y1 + w * 0.5, mz + nz * out,
+    len * (hole.t1 - hole.t0) + w * 2, w, t * 2, rot, mat, { bottom: false, ao: () => 0.7 });
 }
 
 /*
@@ -244,6 +294,52 @@ function holeReveal(mb, e, hole, mat, ao) {
       [b[0] + ox, y0, b[1] + oz], [a[0] + ox, y0, a[1] + oz],
       [0, 0], [w, 0], [w, WALL_T], [0, WALL_T], mat, { ao });
   }
+}
+
+/*
+ * The pocket of night behind an opening: a back wall and four sides, all
+ * facing inwards, open towards the room. Deep enough that a figure standing
+ * outside is between the player and the back of it.
+ */
+function outsidePocket(mb, e, hole, mat) {
+  const len = edgeLength(e);
+  const dx = (e.bx - e.ax) / len, dz = (e.bz - e.az) / len;
+  const nx = -dz, nz = dx;                 /* into the room */
+  const a = pointAt(e, hole.t0);
+  const b = pointAt(e, hole.t1);
+  const mx = (a[0] + b[0]) / 2, mz = (a[1] + b[1]) / 2;
+
+  const DEPTH = 3.4;
+  const PAD = 1.5;                         /* wider than the hole, so the
+                                            * pocket's own corners are never
+                                            * inside the player's view of it */
+  const halfW = len * (hole.t1 - hole.t0) / 2 + PAD;
+  const y0 = -0.4;
+  const y1 = hole.y1 + 1.6;
+
+  /* Origin at the outer face of the wall. */
+  const ox = mx - nx * WALL_T, oz = mz - nz * WALL_T;
+  const P = (side, depth, y) => [
+    ox + dx * halfW * side - nx * depth,
+    y,
+    oz + dz * halfW * side - nz * depth,
+  ];
+
+  const uv = (w, h) => [[0, 0], [w, 0], [w, h], [0, h]];
+
+  /* back — faces the room, normal +n */
+  addQuad(mb, P(-1, DEPTH, y0), P(1, DEPTH, y0), P(1, DEPTH, y1), P(-1, DEPTH, y1),
+    ...uv(halfW * 2, y1 - y0), mat, { ao: () => 0.5 });
+  /* left and right walls of the pocket, facing inwards */
+  addQuad(mb, P(-1, 0, y0), P(-1, DEPTH, y0), P(-1, DEPTH, y1), P(-1, 0, y1),
+    ...uv(DEPTH, y1 - y0), mat, { ao: () => 0.42 });
+  addQuad(mb, P(1, DEPTH, y0), P(1, 0, y0), P(1, 0, y1), P(1, DEPTH, y1),
+    ...uv(DEPTH, y1 - y0), mat, { ao: () => 0.42 });
+  /* floor and ceiling of the pocket */
+  addQuad(mb, P(-1, 0, y0), P(1, 0, y0), P(1, DEPTH, y0), P(-1, DEPTH, y0),
+    ...uv(halfW * 2, DEPTH), mat, { ao: () => 0.35 });
+  addQuad(mb, P(-1, DEPTH, y1), P(1, DEPTH, y1), P(1, 0, y1), P(-1, 0, y1),
+    ...uv(halfW * 2, DEPTH), mat, { ao: () => 0.35 });
 }
 
 /* A pane filling the hole, at some fraction of the way through the reveal.
@@ -346,21 +442,53 @@ export function buildVilla(mat) {
       const ao = wallAO(0, WALL_H);
       let cursor = 0;
       for (const h of mine) {
-        if (h.t0 > cursor) wallPanel(mb, e, cursor, h.t0, 0, WALL_H, mat[finish.wall], ao);
-        if (h.y0 > 0.001) wallPanel(mb, e, h.t0, h.t1, 0, h.y0, mat[finish.wall], ao);
+        if (h.t0 > cursor) {
+          wallPanel(mb, e, cursor, h.t0, 0, WALL_H, mat[finish.wall], ao);
+          skirting(mb, e, cursor, h.t0, mat.trim);
+        }
+        if (h.y0 > 0.001) {
+          wallPanel(mb, e, h.t0, h.t1, 0, h.y0, mat[finish.wall], ao);
+          /* A window's wall carries on down to the floor, so the skirting
+           * runs behind it rather than stopping at the reveal. */
+          skirting(mb, e, h.t0, h.t1, mat.trim);
+        }
         if (h.y1 < WALL_H - 0.001) wallPanel(mb, e, h.t0, h.t1, h.y1, WALL_H, mat[finish.wall], ao);
-        holeReveal(mb, e, h, mat[finish.wall], ao);
+
+        /*
+         * A doorway is cut from both rooms that share it, and each room's
+         * reveal runs one wall thickness *out* of its own wall plane — which
+         * is exactly the other room's wall plane. Building it from both sides
+         * lays two identical sets of jambs and a lintel in the same place, in
+         * two different materials, and the depth buffer picks between them per
+         * pixel: the frame of every interior door flickers as you walk. Only
+         * the alphabetically-first room builds it.
+         */
+        const ownsFrame = h.kind !== 'doorway' || r.id < h.to;
+        if (ownsFrame) {
+          holeReveal(mb, e, h, mat[finish.wall], ao);
+          architrave(mb, e, h, mat.trim);
+        }
         cursor = Math.max(cursor, h.t1);
 
         if (h.kind === 'opening') {
-          /* Seal the far end so an opening looks out at the night rather than
-           * into nothing, and record where it is for everything else. */
-          holePlane(mb, e, h, mat.night, 1.0, {});
+          /*
+           * Outside. Not a flat seal across the far end of the reveal — that
+           * is what this used to be, and it put an opaque wall seven hundred
+           * millimetres in front of the things that come to the windows, so
+           * the entire "something is working on the other side of this"
+           * feature was invisible for the whole game. It is a shallow pocket
+           * of night instead, deep enough to stand a figure in and framed by
+           * the opening, which is the only view of them the player ever gets.
+           */
+          outsidePocket(mb, e, h, mat.night);
           if (!h.isDoor) holePlane(glassMb, e, h, mat.glass, 0.35, {});
           anchors[h.id] = anchorFor(e, h, r.id);
         }
       }
-      if (cursor < 1) wallPanel(mb, e, cursor, 1, 0, WALL_H, mat[finish.wall], ao);
+      if (cursor < 1) {
+        wallPanel(mb, e, cursor, 1, 0, WALL_H, mat[finish.wall], ao);
+        skirting(mb, e, cursor, 1, mat.trim);
+      }
     }
 
     /* ---- hidden openings: no hole is cut until one is actually found, so
