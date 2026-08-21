@@ -323,6 +323,16 @@ export function createTrainer(model, opts = {}) {
    * does. */
   const state = { lastNorm: 0, lastClipped: false, lastLoss: NaN };
 
+  const requireRoom = (xs, ys, count) => {
+    const need = count * model.context;
+    if (xs.length < need || ys.length < count) {
+      throw new RangeError(
+        `trainer: asked for ${count} windows of ${model.context} characters, `
+        + `but was handed room for ${Math.floor(xs.length / model.context)} contexts and ${ys.length} targets`,
+      );
+    }
+  };
+
   const space = (n) => {
     if (n > ws.batch) ws = createWorkspace(model, n);
     return ws;
@@ -337,6 +347,13 @@ export function createTrainer(model, opts = {}) {
 
     /** One optimiser step over one batch. Returns its loss. */
     step(xs, ys, count = cfg.batch, lr = cfg.lr) {
+      /* The workspace grows to fit `count`; the caller's arrays do not, and
+       * reading past the end of an Int32Array is not an error in JavaScript —
+       * it is `undefined`, which indexes the embedding table at NaN, which puts
+       * NaN into every weight on the following update. Nothing downstream can
+       * catch it: the gradient clip compares `norm > clip`, and that is false
+       * for NaN. So it is caught here, where the mistake still has a name. */
+      requireRoom(xs, ys, count);
       const w = space(count);
       zeroGrads(grads);
       forward(model, w, xs, count);
@@ -366,6 +383,7 @@ export function createTrainer(model, opts = {}) {
     /** Loss over a set of windows, in chunks, without touching the weights. */
     evaluate(xs, ys, count, chunk = 256) {
       if (!count) return NaN;
+      requireRoom(xs, ys, count);
       let total = 0;
       for (let off = 0; off < count; off += chunk) {
         const n = Math.min(chunk, count - off);

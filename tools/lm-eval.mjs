@@ -43,8 +43,22 @@ const arg = (name, fallback) => {
   const i = process.argv.indexOf(`--${name}`);
   if (i < 0) return fallback;
   const v = process.argv[i + 1];
-  if (v === undefined || v.startsWith('--')) return true;
-  return typeof fallback === 'number' ? Number(v) : v;
+  /* A flag with no value used to come back as `true`, and `true` is not a
+   * number, so the numeric guard skipped it — then arithmetic quietly turned it
+   * into 1. `--lr` on its own trained at a learning rate of 1 and said nothing
+   * about it; the model came out at a held-out loss of 32 against 4.9 for
+   * random guessing. A numeric option with nothing after it is a mistake, and
+   * is treated as one. */
+  const missing = v === undefined || v.startsWith('--');
+  if (typeof fallback === 'number') {
+    const n = missing ? NaN : Number(v);
+    if (!Number.isFinite(n)) {
+      console.error(`lm-eval: --${name} needs a number`);
+      process.exit(2);
+    }
+    return n;
+  }
+  return missing ? true : v;
 };
 
 const FLAGS = new Set(['corpus', 'in', 'positions', 'seed', 'val', 'json', 'force']);

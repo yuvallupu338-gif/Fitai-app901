@@ -17,11 +17,12 @@
  */
 
 import { createServer } from 'node:http';
-import { readFile } from 'node:fs/promises';
+import { readFile, writeFile } from 'node:fs/promises';
 import { existsSync, mkdirSync } from 'node:fs';
 import { resolve, dirname, extname, join } from 'node:path';
 import { fileURLToPath } from 'node:url';
 import { createRequire } from 'node:module';
+import { createModel, serialize } from '../lm/src/model.js';
 
 const ROOT = resolve(dirname(fileURLToPath(import.meta.url)), '..');
 const require = createRequire(join('/opt/node22/lib/node_modules/', 'x.js'));
@@ -264,6 +265,86 @@ await page.waitForFunction(
   null, { timeout: 8000 },
 );
 check(/לא נטען/.test(await page.textContent('#file-msg')), 'a junk model file was not refused clearly');
+
+/* ---------------------------------------------------------------- the sliders
+ *
+ * Both of these were found by a review agent and confirmed by a second one that
+ * tried to refute them, and both ended the same way: every weight NaN, the run
+ * gone, and the only symptom a message blaming the learning rate.
+ *
+ * The first is a drag. A range input fires `input` on every pixel and `change`
+ * only on release, and the training loop reads the batch size fresh each frame
+ * — so for the length of a drag the loop asked for more windows than the arrays
+ * held. The second is a model file with a context longer than the slider can
+ * represent: the arrays were sized from the slider, which caps at 24, while the
+ * windows were built for the model, which may want 32. */
+await page.reload({ waitUntil: 'networkidle' });
+await page.click('#train');
+await page.waitForFunction(() => Number(document.querySelector('#s-steps').textContent.replace(/[^\d]/g, '')) > 120, null, { timeout: 30000 });
+
+/* The mouse cannot reach what is below the fold, and boundingBox() will
+ * cheerfully return coordinates that are. */
+await page.locator('#batch').scrollIntoViewIfNeeded();
+const box = await page.locator('#batch').boundingBox();
+const cy = box.y + box.height / 2;
+/* Grab the thumb where it actually is — on a right-to-left page the minimum is
+ * at the right edge — and drag it across slowly. The bug lived in the frames
+ * between the pixels, so a fast drag can miss it. */
+await page.mouse.move(box.x + box.width - 8, cy);
+await page.mouse.down();
+for (let f = 0.9; f >= 0; f -= 0.15) {
+  await page.mouse.move(box.x + 8 + (box.width - 16) * f, cy, { steps: 3 });
+  await page.waitForTimeout(200);
+}
+await page.mouse.up();
+await page.waitForTimeout(600);
+
+const dragMsg = await page.textContent('#train-msg');
+const draggedSteps = number(await page.textContent('#s-steps'));
+const draggedLoss = number(await page.textContent('#s-train'));
+const draggedBatch = await page.inputValue('#batch');
+check(!/NaN/.test(dragMsg), `dragging the batch slider while training killed the model: ${dragMsg}`);
+check(Number.isFinite(draggedLoss) && draggedLoss > 0, `the loss stopped being a number during a drag: ${draggedLoss}`);
+check(draggedSteps > 120, 'training stopped during the drag');
+check(Number(draggedBatch) > 64, `the drag did not move the slider: ${draggedBatch}`);
+await page.click('#train');
+notes.push(`dragged the batch to ${draggedBatch} mid-run: ${draggedSteps} steps, loss ${draggedLoss}`);
+
+/* A model whose window the sliders cannot show. Built rather than trained —
+ * this is about the shape, and an untrained model NaNs just as loudly. */
+const wideModel = `${SHOT_DIR}/../ctx32-model.json`;
+{
+  const text = await page.inputValue('#corpus');
+  const chars = [...new Set(text)].sort();
+  const model = createModel({ chars, context: 32, embed: 8, hidden: 16, seed: 3 });
+  await writeFile(wideModel, JSON.stringify(serialize(model, { source: 'lm-smoke', steps: 0 })));
+}
+await page.reload({ waitUntil: 'networkidle' });
+await page.setInputFiles('#import', wideModel);
+await page.waitForFunction(() => !document.querySelector('#file-msg').hidden, null, { timeout: 10000 });
+check(/חלון 32/.test(await page.textContent('#file-msg')), 'a 32-character window was not reported on import');
+check(/32/.test(await page.textContent('#ctx-val')),
+  `the slider claims a window the loaded model does not have: ${await page.textContent('#ctx-val')}`);
+
+await page.fill('#batch', '128');
+await page.dispatchEvent('#batch', 'input');
+await page.click('#train');
+/* Caught rather than left to throw: when this regresses the page stops taking
+ * steps at all, and a raw timeout says nothing about why. */
+const wideTrained = await page
+  .waitForFunction(() => Number(document.querySelector('#s-steps').textContent.replace(/[^\d]/g, '')) > 60, null, { timeout: 40000 })
+  .then(() => true)
+  .catch(() => false);
+const wideMsg = await page.textContent('#train-msg');
+const wideLoss = number(await page.textContent('#s-train'));
+check(wideTrained,
+  `a model with a 32-character window never took 60 steps — its batch arrays are being sized from the slider (capped at 24) rather than from the model. Page said: ${wideMsg || '(nothing)'}`);
+check(!/NaN/.test(wideMsg), `training a 32-window model after moving the batch slider died: ${wideMsg}`);
+if (wideTrained) {
+  check(Number.isFinite(wideLoss) && wideLoss > 0 && wideLoss < 6, `a 32-window model trained to ${wideLoss}`);
+  notes.push(`a 32-character window trained at batch 128: loss ${wideLoss}`);
+}
+await page.click('#train').catch(() => {});
 
 /* ---------------------------------------------------------------- corpora */
 

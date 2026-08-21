@@ -52,13 +52,27 @@ import { makeRng } from '../lm/src/rng.js';
 
 const ROOT = resolve(dirname(fileURLToPath(import.meta.url)), '..');
 
-function arg(name, fallback) {
+const arg = (name, fallback) => {
   const i = process.argv.indexOf(`--${name}`);
   if (i < 0) return fallback;
   const v = process.argv[i + 1];
-  if (v === undefined || v.startsWith('--')) return true;
-  return typeof fallback === 'number' ? Number(v) : v;
-}
+  /* A flag with no value used to come back as `true`, and `true` is not a
+   * number, so the numeric guard skipped it — then arithmetic quietly turned it
+   * into 1. `--lr` on its own trained at a learning rate of 1 and said nothing
+   * about it; the model came out at a held-out loss of 32 against 4.9 for
+   * random guessing. A numeric option with nothing after it is a mistake, and
+   * is treated as one. */
+  const missing = v === undefined || v.startsWith('--');
+  if (typeof fallback === 'number') {
+    const n = missing ? NaN : Number(v);
+    if (!Number.isFinite(n)) {
+      console.error(`lm-train: --${name} needs a number`);
+      process.exit(2);
+    }
+    return n;
+  }
+  return missing ? true : v;
+};
 
 const opts = {
   in: arg('in', ''),
@@ -80,13 +94,6 @@ const opts = {
   minCount: arg('min-count', 1),
   quiet: process.argv.includes('--quiet'),
 };
-
-for (const [k, v] of Object.entries(opts)) {
-  if (typeof v === 'number' && !Number.isFinite(v)) {
-    console.error(`lm-train: --${k} is not a number`);
-    process.exit(2);
-  }
-}
 
 if (!opts.in && !CORPORA.some((c) => c.id === opts.corpus && c.load)) {
   console.error(`lm-train: --corpus must be one of ${CORPORA.filter((c) => c.load).map((c) => c.id).join(', ')}`);
@@ -119,7 +126,19 @@ const xs = new Int32Array(opts.batch * opts.ctx);
 const ys = new Int32Array(opts.batch);
 const evalSet = fixedBatch(val, { context: opts.ctx, count: 2048, seedRng: makeRng(opts.seed + 2) });
 
-console.log(`text     ${source}: ${text.length.toLocaleString()} characters, ${chars.length} in the vocabulary${dropped ? ` (${dropped} dropped)` : ''}`);
+/* Two different numbers, and the one that used to be printed alone is the less
+ * important of the two. `dropped` counts vocabulary entries that did not make
+ * the cut; what matters to whoever reads the loss afterwards is how much of the
+ * text went with them, because every dropped character is deleted from the
+ * stream — the model is then scored on a text nobody chose. */
+const sourceLength = [...text].length;
+const removed = sourceLength - data.length;
+const removedShare = sourceLength ? removed / sourceLength : 0;
+console.log(`text     ${source}: ${text.length.toLocaleString()} characters, ${chars.length} in the vocabulary`
+  + (dropped ? ` (${dropped} rare characters dropped, taking ${removed.toLocaleString()} positions — ${(removedShare * 100).toFixed(2)}% of the text)` : ''));
+if (removedShare > 0.02) {
+  console.log('         ⚠ that is a large share of the text: the loss below is for what is left of it, not for what you passed in');
+}
 console.log(`split    ${train.length.toLocaleString()} training, ${val.length.toLocaleString()} held out`);
 console.log(`model    context ${opts.ctx} · embed ${opts.emb} · hidden ${opts.hidden} · ${paramCount(model).toLocaleString()} parameters`);
 console.log(`run      ${opts.steps.toLocaleString()} steps · batch ${opts.batch} · lr ${opts.lr} decaying to ${(opts.lr * opts.decay).toPrecision(2)}`

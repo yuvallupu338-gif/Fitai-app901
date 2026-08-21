@@ -224,8 +224,9 @@ function buildModel({ keepText = true } = {}) {
 
   state.trainer = createTrainer(state.model, { batch: cfg.batch, lr: cfg.lr });
   state.fill = makeBatcher(state.train, { context: cfg.context, rng: makeRng(cfg.seed + 1) });
-  state.xs = new Int32Array(cfg.batch * cfg.context);
-  state.ys = new Int32Array(cfg.batch);
+  state.xs = null;
+  state.ys = null;
+  fitBatch(cfg.batch);
   state.evalSet = state.val && state.val.length
     ? fixedBatch(state.val, { context: cfg.context, count: EVAL_WINDOWS, seedRng: makeRng(cfg.seed + 2) })
     : { xs: new Int32Array(0), ys: new Int32Array(0), count: 0 };
@@ -243,9 +244,36 @@ function buildModel({ keepText = true } = {}) {
   writeSample({ auto: true });
 }
 
+/**
+ * Batch buffers large enough for the next step, sized from the live model.
+ *
+ * Two ways this used to go wrong, both of which ended with every weight NaN and
+ * a training run gone:
+ *
+ * The slider fires `input` on every pixel of a drag and `change` only when it
+ * is released, and the training loop reads the batch size fresh each frame. So
+ * for the whole of a drag the loop was asking for more windows than the arrays
+ * held. Reading past an Int32Array gives `undefined`, which indexes the
+ * embedding table at NaN.
+ *
+ * And the old code sized the arrays with the *slider's* context, which is
+ * capped at 24 — while a model loaded from a file may have been trained with
+ * up to 64. Its own context is the only one that describes the windows being
+ * built, which is why this reads state.model and not the interface.
+ */
+function fitBatch(count) {
+  const context = state.model ? state.model.context : settings().context;
+  if (!state.xs || state.xs.length < count * context) state.xs = new Int32Array(count * context);
+  if (!state.ys || state.ys.length < count) state.ys = new Int32Array(count);
+}
+
 function refresh() {
   const cfg = settings();
-  $('ctx-val').textContent = cfg.context;
+  /* A model loaded from a file can have a window the slider cannot represent —
+   * it caps at 24, the format allows 64 — and in that case the number under the
+   * slider is not the model's. Say which one is being shown. */
+  const liveContext = state.model ? state.model.context : cfg.context;
+  $('ctx-val').textContent = liveContext === cfg.context ? cfg.context : `${liveContext} · במודל שנטען`;
   $('emb-val').textContent = cfg.embed;
   $('hidden-val').textContent = cfg.hidden;
   $('batch-val').textContent = cfg.batch;
@@ -287,6 +315,10 @@ function trainFrame(now) {
   if (!state.running) return;
   const t = state.trainer;
   const cfg = settings();
+  /* Once per frame, before anything is read: the batch slider may have moved
+   * since the last one, and it moves during a drag without ever telling the
+   * page it has finished. */
+  fitBatch(cfg.batch);
   const budgetEnd = performance.now() + FRAME_BUDGET_MS;
   let done = 0;
 
@@ -466,8 +498,9 @@ function adopt({ model, meta }, label) {
   state.fill = positions(train, model.context) > 0
     ? makeBatcher(train, { context: model.context, rng: makeRng(cfg.seed + 1) })
     : null;
-  state.xs = new Int32Array(cfg.batch * model.context);
-  state.ys = new Int32Array(cfg.batch);
+  state.xs = null;
+  state.ys = null;
+  fitBatch(cfg.batch);
   state.evalSet = val.length
     ? fixedBatch(val, { context: model.context, count: EVAL_WINDOWS, seedRng: makeRng(cfg.seed + 2) })
     : { xs: new Int32Array(0), ys: new Int32Array(0), count: 0 };
@@ -522,11 +555,11 @@ for (const id of ['ctx', 'emb', 'hidden']) {
 }
 $('seed').addEventListener('change', () => buildModel());
 
-$('batch').addEventListener('input', refresh);
-$('batch').addEventListener('change', () => {
-  const cfg = settings();
-  state.xs = new Int32Array(cfg.batch * cfg.context);
-  state.ys = new Int32Array(cfg.batch);
+/* On `input`, not `change`: a drag is a long series of the first and a single
+ * one of the second, and the training loop does not wait for the release. */
+$('batch').addEventListener('input', () => {
+  refresh();
+  fitBatch(settings().batch);
 });
 
 for (const id of ['lr', 'temp', 'topk', 'len']) $(id).addEventListener('input', refresh);
