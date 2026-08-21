@@ -28,6 +28,9 @@
  *   --batch N      windows per step            (default: 64)
  *   --lr F         learning rate               (default: 0.02)
  *   --decay F      final learning rate as a fraction of --lr (default: 0.1)
+ *   --warmup N     steps spent ramping the rate up from zero (default: 0)
+ *   --weight-decay F   pull weights towards zero each step  (default: 0)
+ *   --clip F       gradient norm ceiling       (default: 5)
  *   --seed N       everything random           (default: 1)
  *   --val F        fraction held out           (default: 0.1)
  *   --every N      steps between report lines  (default: 250)
@@ -68,6 +71,9 @@ const opts = {
   batch: arg('batch', 64),
   lr: arg('lr', 0.02),
   decay: arg('decay', 0.1),
+  warmup: arg('warmup', 0),
+  weightDecay: arg('weight-decay', 0),
+  clip: arg('clip', 5),
   seed: arg('seed', 1),
   val: arg('val', 0.1),
   every: arg('every', 250),
@@ -105,7 +111,9 @@ const model = createModel({
   chars, context: opts.ctx, embed: opts.emb, hidden: opts.hidden,
   seed: opts.seed, padToken: pickPad(chars),
 });
-const trainer = createTrainer(model, { batch: opts.batch, lr: opts.lr });
+const trainer = createTrainer(model, {
+  batch: opts.batch, lr: opts.lr, weightDecay: opts.weightDecay, clip: opts.clip,
+});
 const fill = makeBatcher(train, { context: opts.ctx, rng: makeRng(opts.seed + 1) });
 const xs = new Int32Array(opts.batch * opts.ctx);
 const ys = new Int32Array(opts.batch);
@@ -114,12 +122,26 @@ const evalSet = fixedBatch(val, { context: opts.ctx, count: 2048, seedRng: makeR
 console.log(`text     ${source}: ${text.length.toLocaleString()} characters, ${chars.length} in the vocabulary${dropped ? ` (${dropped} dropped)` : ''}`);
 console.log(`split    ${train.length.toLocaleString()} training, ${val.length.toLocaleString()} held out`);
 console.log(`model    context ${opts.ctx} · embed ${opts.emb} · hidden ${opts.hidden} · ${paramCount(model).toLocaleString()} parameters`);
-console.log(`run      ${opts.steps.toLocaleString()} steps · batch ${opts.batch} · lr ${opts.lr} decaying to ${(opts.lr * opts.decay).toPrecision(2)}\n`);
+console.log(`run      ${opts.steps.toLocaleString()} steps · batch ${opts.batch} · lr ${opts.lr} decaying to ${(opts.lr * opts.decay).toPrecision(2)}`
+  + (opts.warmup ? ` · warm-up ${opts.warmup}` : '')
+  + (opts.weightDecay ? ` · weight decay ${opts.weightDecay}` : '')
+  + (opts.clip !== 5 ? ` · clip ${opts.clip}` : '') + '\n');
 
-/* Linear decay to a floor. The last few hundred steps of a run at full rate
- * bounce around a minimum they cannot settle into; the same steps at a tenth of
- * the rate are worth roughly another thousand. */
-const lrAt = (step) => opts.lr * (1 + (opts.decay - 1) * (step / Math.max(1, opts.steps)));
+/* Linear decay to a floor, with an optional ramp at the front.
+ *
+ * The decay is the part that always pays: the last few hundred steps of a run
+ * at full rate bounce around a minimum they cannot settle into, and the same
+ * steps at a tenth of the rate are worth roughly another thousand.
+ *
+ * The warm-up is there because Adam's second-moment estimate starts at zero and
+ * is worthless for its first few dozen steps, so the first updates are taken
+ * with a step size chosen by almost no evidence. Ramping in from zero costs
+ * those steps and can save a run at a high rate. It is off by default because
+ * at the rates this trains at, it usually changes nothing. */
+const lrAt = (step) => {
+  const decayed = opts.lr * (1 + (opts.decay - 1) * (step / Math.max(1, opts.steps)));
+  return opts.warmup > 0 ? decayed * Math.min(1, step / opts.warmup) : decayed;
+};
 
 const started = Date.now();
 let recent = 0, recentN = 0;
@@ -158,6 +180,12 @@ const file = serialize(model, {
   steps: opts.steps,
   batch: opts.batch,
   lr: opts.lr,
+  context: opts.ctx,
+  embed: opts.emb,
+  hidden: opts.hidden,
+  warmup: opts.warmup || undefined,
+  weightDecay: opts.weightDecay || undefined,
+  clip: opts.clip !== 5 ? opts.clip : undefined,
   heldOutLoss: Number.isFinite(held) ? +held.toFixed(4) : null,
   trainedAt: new Date().toISOString(),
 });
