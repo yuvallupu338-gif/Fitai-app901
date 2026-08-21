@@ -200,9 +200,64 @@
       <pre class="out idle" id="out" dir="auto"></pre>
     </section>
 
+    <!-- --------------------------------------------------------- talking -->
+    <section class="panel">
+      <h2><b>5</b> צ'אט</h2>
+      <p class="sub">
+        אפשר לכתוב לו והוא עונה, כי כך בנוי רבע מהטקסט שהוא למד: שורת <code>ש:</code>
+        ואחריה שורת <code>ת:</code>. מה שהוא לא יכול זה לזכור — הוא רואה 12 תווים
+        אחורה, אז עד שהוא מגיע לענות, תחילת המשפט שלך כבר מחוץ לטווח שלו. מה
+        שכתוב למעלה בשיחה זה בשבילך, לא בשבילו.
+      </p>
+
+      <div class="chat" id="chat-log" aria-live="polite"></div>
+
+      <div class="chat-row">
+        <input type="text" id="chat-text" dir="auto" placeholder="כתוב לו משהו…" autocomplete="off">
+        <button type="button" class="primary" id="chat-send">שלח</button>
+      </div>
+      <span class="note">הטמפרטורה והסינון מפאנל 4 חלים גם כאן.</span>
+    </section>
+
+    <!-- ---------------------------------------------------------- pictures -->
+    <section class="panel">
+      <h2><b>6</b> תמונות</h2>
+      <p class="sub">
+        שני כיוונים, ורק אחד מהם הוא המודל. <b>לצייר</b> — הוא באמת מצייר, כי
+        חלק מהטקסט שהוא למד הוא ציורי תווים ו־SVG קטן. <b>לסרוק</b> — התמונה
+        שלך הופכת לתווים כאן בקוד, בחשבון פשוט של בהירות; שום דבר לא "מזוהה",
+        וזו הסיבה שזה מדויק.
+      </p>
+
+      <div class="field">
+        <label for="draw-name">מה שיצייר</label>
+        <input type="text" id="draw-name" dir="auto" placeholder="חתול" value="חתול">
+      </div>
+      <div class="buttons">
+        <button type="button" id="draw-art">צייר בתווים</button>
+        <button type="button" id="draw-svg">צייר SVG</button>
+      </div>
+      <pre class="out art" id="draw-out" dir="ltr"></pre>
+      <div class="svg-frame" id="draw-svg-frame" hidden>
+        <img id="draw-svg-out" alt="ציור וקטורי שהמודל כתב">
+      </div>
+
+      <div class="field spaced">
+        <label for="scan">תמונה מהמחשב, לתווים</label>
+        <input type="file" id="scan" accept="image/png,image/jpeg,image/webp,image/gif,image/svg+xml">
+        <span class="note">ההמרה רצה כאן, על התמונה שבחרת, ולא יוצאת לשום מקום.</span>
+      </div>
+      <pre class="out art" id="scan-out" dir="ltr"></pre>
+      <div class="buttons">
+        <button type="button" id="scan-prompt" disabled>קח כהתחלה</button>
+        <button type="button" id="scan-train" disabled>הוסף לטקסט האימון</button>
+      </div>
+      <p class="msg" id="picture-msg" hidden></p>
+    </section>
+
     <!-- ------------------------------------------------------------- file -->
     <section class="panel">
-      <h2><b>5</b> מודל מוכן, ושמירה</h2>
+      <h2><b>7</b> מודל מוכן, ושמירה</h2>
       <p class="sub">
         אין חובה לאמן מאפס: המודל שלמטה כבר אומן על מה שהסוכנים כתבו, ואפשר
         לטעון אותו ולראות מיד מה יוצא. <span id="trained-note">—</span>

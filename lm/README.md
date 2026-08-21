@@ -152,6 +152,42 @@ extension at all (`Dockerfile`) each fell through the header pattern, which
 merged two files into one — and two JSON documents in one file is a parse error
 that was never there. Every number above is from after that was fixed.
 
+## Talking to it, and pictures
+
+Three things the page can do besides writing paragraphs. Two of them are the
+model; one is arithmetic, and the difference matters enough to put in the
+interface as well as here.
+
+**Chat.** A quarter of the corpus is Hebrew written in one fixed shape — a `ש:`
+line, then a `ת:` line — so a conversation is a completion. The page writes your
+message in that shape, writes the two characters that begin an answer, and lets
+the model carry on until it starts asking itself the next question. What it
+cannot do is remember: it sees twelve characters, so by the time it is answering,
+the start of your own sentence is already out of range. The transcript on screen
+is for you, not for it, and the page says so rather than letting the layout imply
+a memory that is not there.
+
+**Drawing.** Two corpora are pictures written as text — character art under a
+`[name]` heading, and small SVG under a comment — so a drawing is a completion
+too. The character art comes back as text. The SVG is rendered through an
+`<img>`, which is the one place a browser will draw SVG and refuse to run
+anything inside it; the markup is filtered as well, and anything with a script,
+an external reference or a tag that is not a shape is refused and shown as raw
+text instead. `tools/lm-corpus.mjs --verify` checks the corpus against that same
+filter, so the pictures it is taught are pictures the page will actually draw.
+
+**Reading an image is not the model.** A photograph you choose is drawn small on
+a canvas, and each cell becomes the character whose weight matches its
+brightness. That is a hundred-year-old idea, it is exact, and nothing is being
+recognised — calling it "scanning" would be a lie about what happened. What it
+gives you is a picture the model can read, because it is text: put it in the
+prompt, or add it to the training corpus and train on it.
+
+What none of this is: image generation or image understanding in the sense
+anyone means it in 2026. That needs a different architecture and something like
+four orders of magnitude more weights. This is what eighty-six thousand can do,
+which is characters — and characters, it turns out, are enough to draw a cat.
+
 ## The knobs
 
 | control | what it changes |

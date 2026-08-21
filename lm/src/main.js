@@ -26,6 +26,8 @@ import { buildVocab, encode, splitData, makeBatcher, fixedBatch, pickPad, positi
 import { createModel, createTrainer, generate, serialize, deserialize, paramCount } from './model.js';
 import { makeRng } from './rng.js';
 import { createChart } from './chart.js';
+import { reply as talkReply } from './talk.js';
+import { loadImage, imageToCharacters, drawing, vector, safeSvg, svgDataUri } from './picture.js';
 
 const $ = (id) => document.getElementById(id);
 
@@ -57,6 +59,9 @@ const state = {
   elapsed: 0,
   rate: { steps: 0, at: 0, value: 0 },
   lastSampleAt: -1,
+  /* The last picture turned into characters, kept so the two buttons under it
+   * have something to act on after the file input has been forgotten. */
+  scanned: '',
 };
 
 const chart = createChart($('chart'));
@@ -299,6 +304,9 @@ function refresh() {
    * has nothing to train on, but it can still write. */
   $('train').disabled = !ready || !state.fill;
   $('write').disabled = !ready;
+  $('chat-send').disabled = !ready;
+  $('draw-art').disabled = !ready;
+  $('draw-svg').disabled = !ready;
   $('export').disabled = !ready;
   $('train').textContent = state.running ? 'עצור' : (state.trainer && state.trainer.steps ? 'המשך אימון' : 'התחל אימון');
 }
@@ -412,6 +420,101 @@ function writeSample({ auto = false } = {}) {
   $('out-label').textContent = steps === 0
     ? 'עוד לא התאמן — זה מה שרעש נראה כמו:'
     : `אחרי ${steps.toLocaleString('he-IL')} צעדים${auto ? '' : ' · לבקשתך'}:`;
+}
+
+/* ------------------------------------------------------------------ *
+ * Talking to it
+ * ------------------------------------------------------------------ */
+
+function bubble(kind, text, note) {
+  const el = document.createElement('div');
+  el.className = `bubble ${kind}`;
+  el.textContent = text;
+  if (note) {
+    const small = document.createElement('span');
+    small.className = 'cut';
+    small.textContent = note;
+    el.appendChild(small);
+  }
+  $('chat-log').appendChild(el);
+  $('chat-log').scrollTop = $('chat-log').scrollHeight;
+  return el;
+}
+
+function send() {
+  const input = $('chat-text');
+  const message = input.value.trim();
+  if (!message || !state.model) return;
+
+  bubble('mine', message);
+  input.value = '';
+
+  const { text, reason } = talkReply(state.model, message, {
+    temperature: +$('temp').value / 100,
+    topK: +$('topk').value,
+  });
+
+  if (!text) {
+    /* An empty answer is a real answer from a model this size, and pretending
+     * otherwise — a spinner, a retry, a canned line — would be the one place on
+     * this page that lied about what it is. */
+    bubble('theirs empty', 'לא יצא לו כלום הפעם.');
+    return;
+  }
+  bubble('theirs', text, reason === 'length' ? 'נקטע באורך המקסימלי' : null);
+}
+
+/* ------------------------------------------------------------------ *
+ * Pictures
+ * ------------------------------------------------------------------ */
+
+function drawCharacters() {
+  if (!state.model) return;
+  $('draw-svg-frame').hidden = true;
+  const art = drawing(state.model, $('draw-name').value || 'חתול', {
+    generate,
+    temperature: +$('temp').value / 100,
+    topK: +$('topk').value || 10,
+  });
+  $('draw-out').textContent = art || '(שורה ריקה)';
+  say('picture-msg', art ? '' : 'הוא לא צייר כלום. אולי הטקסט שהוא אומן עליו לא כולל ציורים.', art ? '' : 'bad');
+}
+
+function drawVector() {
+  if (!state.model) return;
+  const raw = vector(state.model, $('draw-name').value || 'חתול', {
+    generate,
+    temperature: +$('temp').value / 100,
+    topK: +$('topk').value || 8,
+  });
+  $('draw-out').textContent = raw;
+
+  const svg = safeSvg(raw);
+  const frame = $('draw-svg-frame');
+  if (!svg) {
+    frame.hidden = true;
+    say('picture-msg', 'מה שיצא הוא לא SVG שאפשר לצייר — זה מה שקורה כשמודל בגודל הזה מנסה לכתוב תגיות. הטקסט הגולמי למעלה.', 'bad');
+    return;
+  }
+  /* Drawn through an <img>, which is where a browser renders SVG and refuses to
+   * run anything inside it. */
+  $('draw-svg-out').src = svgDataUri(svg);
+  frame.hidden = false;
+  say('picture-msg', 'זה מה שהוא כתב, כמו שהדפדפן מצייר אותו.', 'good');
+}
+
+async function scanPicture(file) {
+  try {
+    const image = await loadImage(file);
+    const { text, width, height } = imageToCharacters(image, { width: 56 });
+    state.scanned = text;
+    $('scan-out').textContent = text;
+    $('scan-prompt').disabled = false;
+    $('scan-train').disabled = false;
+    say('picture-msg', `${file.name}: ${image.naturalWidth}×${image.naturalHeight} נקודות הפכו ל־${width}×${height} תווים. החשבון רץ כאן, המודל לא היה מעורב.`, 'good');
+  } catch (err) {
+    say('picture-msg', `התמונה לא נקראה: ${err.message}`, 'bad');
+  }
 }
 
 /* ------------------------------------------------------------------ *
@@ -598,6 +701,37 @@ $('reset').addEventListener('click', () => buildModel());
 $('write').addEventListener('click', () => writeSample({ auto: false }));
 $('export').addEventListener('click', exportModel);
 $('load-trained').addEventListener('click', loadTrained);
+
+$('chat-send').addEventListener('click', send);
+$('chat-text').addEventListener('keydown', (e) => { if (e.key === 'Enter') send(); });
+
+$('draw-art').addEventListener('click', drawCharacters);
+$('draw-svg').addEventListener('click', drawVector);
+$('draw-name').addEventListener('keydown', (e) => { if (e.key === 'Enter') drawCharacters(); });
+
+$('scan').addEventListener('change', (e) => {
+  const file = e.target.files && e.target.files[0];
+  if (file) scanPicture(file);
+});
+
+$('scan-prompt').addEventListener('click', () => {
+  if (!state.scanned) return;
+  $('prompt').value = state.scanned.split('\n').slice(0, 2).join('\n');
+  writeSample({ auto: false });
+});
+
+/* Adding a picture to the training text is the one place where the two
+ * directions meet: scan a few, train on them, and it starts drawing things that
+ * look like what you fed it. */
+$('scan-train').addEventListener('click', () => {
+  if (!state.scanned) return;
+  const name = ($('draw-name').value || 'תמונה').trim();
+  $('corpus').value = `${$('corpus').value.replace(/\s+$/, '')}\n\n[${name}]\n${state.scanned}\n`;
+  markCustom();
+  cancelRebuild();
+  buildModel();
+  say('picture-msg', 'התמונה נוספה לטקסט האימון והמודל נבנה מחדש. עכשיו צריך לאמן.', 'good');
+});
 $('import').addEventListener('change', (e) => {
   const file = e.target.files && e.target.files[0];
   if (file) importModel(file);

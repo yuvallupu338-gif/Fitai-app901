@@ -53,13 +53,32 @@ const mix = (parts, seed) => {
 
 const JOIN = '\n\n';
 
-let codeParts = null;
-let generalParts = null;
+/* One loader per module, each caching what it imported: switching back and
+ * forth between corpora should not re-parse half a megabyte each time. */
+const cache = {};
+const partsOf = async (name) => {
+  if (!cache[name]) {
+    const mod = name === 'code' ? await import('./code.js')
+      : name === 'general' ? await import('./general.js')
+        : name === 'chat' ? await import('./chat.js')
+          : await import('./pictures.js');
+    cache[name] = mod.PARTS;
+  }
+  return cache[name];
+};
 
-/* Cached after the first import: switching back and forth between corpora
- * should not re-parse half a megabyte of module each time. */
-const loadCode = async () => (codeParts ??= (await import('./code.js')).PARTS);
-const loadGeneral = async () => (generalParts ??= (await import('./general.js')).PARTS);
+const one = (name, seed) => async () => mix(await partsOf(name), seed).join(JOIN);
+
+const many = (names, seed) => async () => {
+  const all = await Promise.all(names.map(partsOf));
+  return mix(all.flat(), seed).join(JOIN);
+};
+
+const note = (...names) => {
+  const writers = names.reduce((n, k) => n + (MANIFEST[k] ? MANIFEST[k].writers : 0), 0);
+  const characters = names.reduce((n, k) => n + (MANIFEST[k] ? MANIFEST[k].characters : 0), 0);
+  return `${writers} ${writers === 1 ? 'מאמן' : 'מאמנים'} · ${thousands(characters)}`;
+};
 
 export const CORPORA = [
   {
@@ -72,26 +91,37 @@ export const CORPORA = [
   {
     id: 'code',
     label: 'קוד',
-    note: `${writers(MANIFEST.code.writers)} · ${thousands(MANIFEST.code.characters)}`,
+    note: note('code'),
     hint: 'קוד בעשרות שפות. סוגריים, הזחה ושמות משתנים — מבנה שמודל תווים לומד יפה.',
-    load: async () => mix(await loadCode(), 101).join(JOIN),
+    load: one('code', 101),
   },
   {
     id: 'general',
     label: 'שאלות ותשובות',
-    note: `${writers(MANIFEST.general.writers)} · ${thousands(MANIFEST.general.characters)}`,
+    note: note('general'),
     hint: 'עברית חופשית בפורמט קבוע של ש: ות:. הכי קשה מהשלושה, כי עברית לא חוזרת על עצמה.',
-    load: async () => mix(await loadGeneral(), 202).join(JOIN),
+    load: one('general', 202),
+  },
+  {
+    id: 'chat',
+    label: 'שיחה',
+    note: note('chat'),
+    hint: 'חילופי דברים קצרים באותו פורמט — זה מה שגורם לתיבת הצ׳אט לענות במשהו שנראה כמו תשובה.',
+    load: one('chat', 404),
+  },
+  {
+    id: 'pictures',
+    label: 'ציורים',
+    note: note('pictures'),
+    hint: 'ציורי תווים תחת [שם] ו־SVG קטן תחת הערה. זה מה שהופך את "צייר" למשהו שיוצא ממנו.',
+    load: one('pictures', 505),
   },
   {
     id: 'both',
     label: 'הכל ביחד',
-    note: `${writers(MANIFEST.code.writers + MANIFEST.general.writers)} · ${thousands(MANIFEST.code.characters + MANIFEST.general.characters)}`,
-    hint: 'שתי שפות ושתי מערכות כתב בבת אחת. אוצר המילים כפול, וההפסד יישאר גבוה יותר — זה מה שערבוב עולה.',
-    load: async () => {
-      const [a, b] = await Promise.all([loadCode(), loadGeneral()]);
-      return mix([...a, ...b], 303).join(JOIN);
-    },
+    note: note('code', 'general', 'chat', 'pictures'),
+    hint: 'ארבע מערכות כתב ושני אלפביתים בבת אחת. אוצר המילים הכי גדול, וההפסד יישאר גבוה יותר — זה מה שערבוב עולה, וזה מה שהמודל שנשלח אומן עליו.',
+    load: many(['code', 'general', 'chat', 'pictures'], 303),
   },
   {
     id: 'custom',

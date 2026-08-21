@@ -404,8 +404,14 @@ export function createTrainer(model, opts = {}) {
  * and the spelling collapses. topK cuts the tail off first — the long tail of a
  * softmax over 90 characters holds enough total probability that, left in, the
  * model draws from it every few characters and the text never coheres.
+ *
+ * `stop` is a list of strings that end the writing early, and it is what turns
+ * this into something you can hold a conversation with: a reply ends where the
+ * model starts asking itself the next question, a drawing ends at the blank
+ * line after it, an SVG at its closing tag. The marker is left in what comes
+ * back — the caller knows what it asked for and where to cut.
  */
-export function generate(model, { prompt = '', length = 400, temperature = 0.9, topK = 0, rng = Math.random } = {}) {
+export function generate(model, { prompt = '', length = 400, temperature = 0.9, topK = 0, rng = Math.random, stop = null } = {}) {
   const { context: C, vocabSize: V, chars, stoi } = model;
   const ws = createWorkspace(model, 1);
   const ctx = new Int32Array(C).fill(model.padToken);
@@ -462,6 +468,14 @@ export function generate(model, { prompt = '', length = 400, temperature = 0.9, 
 
     out += chars[pick];
     push(pick);
+
+    if (stop) {
+      let done = false;
+      for (const marker of stop) {
+        if (marker && out.endsWith(marker)) { done = true; break; }
+      }
+      if (done) break;
+    }
   }
   return out;
 }

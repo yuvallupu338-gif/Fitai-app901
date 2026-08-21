@@ -34,6 +34,8 @@ import { resolve, dirname, basename } from 'node:path';
 import { fileURLToPath, pathToFileURL } from 'node:url';
 
 import { deserialize, generate } from '../lm/src/model.js';
+import { reply } from '../lm/src/talk.js';
+import { drawing, vector, safeSvg } from '../lm/src/picture.js';
 import { corpusById } from '../lm/src/corpora/index.js';
 import { makeRng } from '../lm/src/rng.js';
 
@@ -202,7 +204,45 @@ for (const file of files) {
     return d % 2 === 0 && s % 2 === 0;
   });
 
+  /* The three things the page now offers besides writing: answering, drawing in
+   * characters, drawing in SVG. Each is a completion in a shape the corpus
+   * teaches, so each either works or does not, and the fraction that works is
+   * the number worth printing. */
+  const QUESTIONS = ['שלום', 'מה שלומך', 'כמה חלבון ביום', 'מה זה משתנה', 'איך מתחילים להתאמן', 'מה אתה יודע לעשות', 'תסביר לי', 'למה'];
+  const answered = QUESTIONS.map((q, i) => reply(model, q, {
+    temperature: opts.temp, topK: opts.topk, rng: makeRng(opts.seed + 977 + i),
+  }));
+  const chat = {
+    asked: QUESTIONS.length,
+    replied: answered.filter((a) => a.text.length > 0).length,
+    /* An answer that ends where the next question begins is one the model chose
+     * to end. One that runs into the character limit is one it did not. */
+    ended: answered.filter((a) => a.reason === 'turn').length,
+    meanLength: answered.reduce((n, a) => n + a.text.length, 0) / QUESTIONS.length,
+    sample: (answered.find((a) => a.text) || { text: '' }).text.slice(0, 60),
+  };
+
+  const SUBJECTS = ['חתול', 'כלב', 'בית', 'עץ', 'שמש', 'לב', 'פרח', 'ציפור'];
+  const drawn = SUBJECTS.map((subject, i) => drawing(model, subject, {
+    generate, temperature: opts.temp, topK: opts.topk || 10, rng: makeRng(opts.seed + 313 + i),
+  }));
+  /* A drawing is at least two lines, none of them longer than the corpus allows
+   * — a model that has not learned the shape runs on past the blank line and
+   * writes a paragraph. */
+  const looksDrawn = drawn.filter((d) => {
+    const rows = d.split('\n').filter((l) => l.trim());
+    return rows.length >= 2 && rows.every((l) => l.length <= 44);
+  });
+
+  const vectors = SUBJECTS.map((subject, i) => vector(model, subject, {
+    generate, temperature: opts.temp, topK: opts.topk || 8, rng: makeRng(opts.seed + 611 + i),
+  }));
+  const renderable = vectors.filter((v) => safeSvg(v) !== null);
+
   reports.push({
+    chat,
+    drawings: { tried: SUBJECTS.length, shaped: looksDrawn.length, sample: (looksDrawn[0] || drawn[0] || '').split('\n').slice(0, 4).join(' ⏎ ').slice(0, 70) },
+    vectors: { tried: SUBJECTS.length, renderable: renderable.length, sample: (renderable[0] || vectors[0] || '').slice(0, 70) },
     name,
     steps: meta.steps ?? null,
     characters: all.length,
@@ -252,6 +292,9 @@ if (opts.json) {
     console.log(`  lines copied whole from the corpus       ${pct(r.lines.memorisedRate)}   (${r.lines.count} lines, mean ${r.lines.meanLength.toFixed(1)} against the corpus's ${r.lines.corpusMeanLength.toFixed(1)})`);
     console.log(`  stays in the prompt's alphabet           Hebrew ${pct(r.stickiness.hebrew)} · code ${pct(r.stickiness.function)}`);
     console.log(`  passages looping on themselves           ${pct(r.repetition)}`);
+    console.log(`  questions it answered at all             ${r.chat.replied}/${r.chat.asked}   (${r.chat.ended} ended on their own, mean ${Math.round(r.chat.meanLength)} characters)`);
+    console.log(`  drawings shaped like drawings            ${r.drawings.shaped}/${r.drawings.tried}   ${JSON.stringify(r.drawings.sample)}`);
+    console.log(`  SVG a browser would render               ${r.vectors.renderable}/${r.vectors.tried}   ${JSON.stringify(r.vectors.sample.slice(0, 46))}`);
     console.log(`  first passage: ${JSON.stringify(r.sample.slice(0, 90))}\n`);
   }
 }

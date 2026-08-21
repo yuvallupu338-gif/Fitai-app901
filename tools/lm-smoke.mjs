@@ -396,7 +396,7 @@ notes.push('a model loaded within half a second of a keystroke survived the pend
  * larger alphabet, and that it trains. */
 await page.reload({ waitUntil: 'networkidle' });
 const options = await page.$$eval('#corpus-pick option', (os) => os.map((o) => o.value));
-check(options.join(',') === 'log,code,general,both,custom', `the picker offers ${options.join(', ')}`);
+check(options.join(',') === 'log,code,general,chat,pictures,both,custom', `the picker offers ${options.join(', ')}`);
 
 await page.selectOption('#corpus-pick', 'code');
 await page.waitForFunction(

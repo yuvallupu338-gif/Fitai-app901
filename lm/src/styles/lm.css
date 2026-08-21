@@ -401,3 +401,102 @@ a { color: var(--amber); }
    rather than a style attribute: script-src and style-src here are both 'self'
    with nothing inline allowed, and a style attribute is inline. */
 .field.spaced { margin-top: 13px; }
+
+
+/* ------------------------------------------------------------------ chat */
+
+.chat {
+  background: var(--night);
+  border: 1px solid var(--line-soft);
+  border-radius: var(--r-sm);
+  padding: 12px;
+  min-height: 130px;
+  max-height: 320px;
+  overflow-y: auto;
+  display: flex;
+  flex-direction: column;
+  gap: 8px;
+}
+
+.chat:empty::before {
+  content: "עוד לא אמרתם כלום.";
+  color: var(--dimmer);
+  font-size: 13.5px;
+}
+
+.bubble {
+  max-width: 86%;
+  padding: 8px 12px;
+  border-radius: 14px;
+  font-size: 14.5px;
+  line-height: 1.55;
+  white-space: pre-wrap;
+  word-break: break-word;
+}
+
+/* The person is the one with the solid ground under them; the model gets the
+   quieter surface, which is also the honest hierarchy here. */
+.bubble.mine {
+  align-self: flex-start;
+  background: var(--amber-wash);
+  border: 1px solid var(--amber-deep);
+  color: var(--chalk);
+}
+
+.bubble.theirs {
+  align-self: flex-end;
+  background: var(--steel-2);
+  border: 1px solid var(--line);
+  color: var(--chalk);
+  font-family: var(--mono);
+  font-size: 13.5px;
+}
+
+.bubble.theirs.empty { color: var(--dimmer); font-style: italic; }
+
+.bubble .cut {
+  display: block;
+  margin-top: 5px;
+  font-size: 11.5px;
+  color: var(--dimmer);
+  font-family: var(--body);
+  font-style: normal;
+}
+
+.chat-row {
+  display: flex;
+  gap: var(--gap);
+  margin-top: 12px;
+}
+
+.chat-row input { flex: 1; min-width: 0; }
+
+/* -------------------------------------------------------------- pictures */
+
+pre.out.art {
+  font-size: 11px;
+  line-height: 1.08;
+  letter-spacing: 0;
+  white-space: pre;
+  overflow-x: auto;
+  min-height: 64px;
+  margin-top: 12px;
+}
+
+.svg-frame {
+  margin-top: 12px;
+  background: var(--night);
+  border: 1px solid var(--line-soft);
+  border-radius: var(--r-sm);
+  padding: 14px;
+  display: grid;
+  place-items: center;
+}
+
+.svg-frame[hidden] { display: none; }
+
+.svg-frame img {
+  width: 128px;
+  height: 128px;
+  image-rendering: auto;
+}

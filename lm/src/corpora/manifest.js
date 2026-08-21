@@ -394,103 +394,240 @@ export const MANIFEST = {
     "parts": [
       {
         "id": "gen-01",
+        "language": "gen",
         "characters": 7020
       },
       {
         "id": "gen-02",
+        "language": "gen",
         "characters": 7818
       },
       {
         "id": "gen-03",
+        "language": "gen",
         "characters": 8071
       },
       {
         "id": "gen-04",
+        "language": "gen",
         "characters": 7452
       },
       {
         "id": "gen-05",
+        "language": "gen",
         "characters": 8558
       },
       {
         "id": "gen-06",
+        "language": "gen",
         "characters": 7788
       },
       {
         "id": "gen-07",
+        "language": "gen",
         "characters": 7185
       },
       {
         "id": "gen-08",
+        "language": "gen",
         "characters": 7275
       },
       {
         "id": "gen-09",
+        "language": "gen",
         "characters": 5977
       },
       {
         "id": "gen-10",
+        "language": "gen",
         "characters": 5042
       },
       {
         "id": "gen-11",
+        "language": "gen",
         "characters": 7751
       },
       {
         "id": "gen-12",
+        "language": "gen",
         "characters": 7895
       },
       {
         "id": "gen-13",
+        "language": "gen",
         "characters": 6599
       },
       {
         "id": "gen-14",
+        "language": "gen",
         "characters": 7704
       },
       {
         "id": "gen-15",
+        "language": "gen",
         "characters": 4470
       },
       {
         "id": "gen-16",
+        "language": "gen",
         "characters": 4291
       },
       {
         "id": "gen-17",
+        "language": "gen",
         "characters": 6726
       },
       {
         "id": "gen-18",
+        "language": "gen",
         "characters": 7974
       },
       {
         "id": "gen-19",
+        "language": "gen",
         "characters": 5431
       },
       {
         "id": "gen-20",
+        "language": "gen",
         "characters": 7903
       },
       {
         "id": "gen-21",
+        "language": "gen",
         "characters": 7876
       },
       {
         "id": "gen-22",
+        "language": "gen",
         "characters": 7169
       },
       {
         "id": "gen-23",
+        "language": "gen",
         "characters": 7048
       },
       {
         "id": "gen-24",
+        "language": "gen",
         "characters": 8079
       },
       {
         "id": "gen-25",
+        "language": "gen",
         "characters": 6119
+      }
+    ]
+  },
+  "chat": {
+    "writers": 8,
+    "characters": 34810,
+    "parts": [
+      {
+        "id": "chat-01",
+        "language": "chat",
+        "characters": 3297
+      },
+      {
+        "id": "chat-02",
+        "language": "chat",
+        "characters": 4127
+      },
+      {
+        "id": "chat-03",
+        "language": "chat",
+        "characters": 4448
+      },
+      {
+        "id": "chat-04",
+        "language": "chat",
+        "characters": 4606
+      },
+      {
+        "id": "chat-05",
+        "language": "chat",
+        "characters": 5337
+      },
+      {
+        "id": "chat-06",
+        "language": "chat",
+        "characters": 5029
+      },
+      {
+        "id": "chat-07",
+        "language": "chat",
+        "characters": 3970
+      },
+      {
+        "id": "chat-08",
+        "language": "chat",
+        "characters": 3982
+      }
+    ]
+  },
+  "pictures": {
+    "writers": 12,
+    "characters": 73685,
+    "parts": [
+      {
+        "id": "art-01",
+        "language": "art",
+        "characters": 5199
+      },
+      {
+        "id": "art-02",
+        "language": "art",
+        "characters": 5457
+      },
+      {
+        "id": "art-03",
+        "language": "art",
+        "characters": 5743
+      },
+      {
+        "id": "art-04",
+        "language": "art",
+        "characters": 4644
+      },
+      {
+        "id": "art-05",
+        "language": "art",
+        "characters": 4702
+      },
+      {
+        "id": "art-06",
+        "language": "art",
+        "characters": 5032
+      },
+      {
+        "id": "svg-01",
+        "language": "svg",
+        "characters": 7118
+      },
+      {
+        "id": "svg-02",
+        "language": "svg",
+        "characters": 6217
+      },
+      {
+        "id": "svg-03",
+        "language": "svg",
+        "characters": 7032
+      },
+      {
+        "id": "svg-04",
+        "language": "svg",
+        "characters": 6511
+      },
+      {
+        "id": "svg-05",
+        "language": "svg",
+        "characters": 8122
+      },
+      {
+        "id": "svg-06",
+        "language": "svg",
+        "characters": 7886
       }
     ]
   }
