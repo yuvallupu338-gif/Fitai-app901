@@ -23,6 +23,11 @@
  */
 
 import { detectWebGpu } from './webgpu.js';
+import {
+  LOCAL_MODELS, DEFAULT_LOCAL_MODEL, modelById, currentModel, isLoaded, setLoadedModel,
+} from './localmodels.js';
+
+export { LOCAL_MODELS, DEFAULT_LOCAL_MODEL, modelById, currentModel, isLoaded };
 
 /*
  * Loaded on demand, never at import time.
@@ -57,45 +62,6 @@ export class LocalModelError extends Error {
   }
 }
 
-/*
- * The models offered, smallest first.
- *
- * Qwen, because that is what was asked for. This library version carries Qwen2
- * and Qwen2.5 and no Qwen3 — a newer hosted Qwen is a different path and the
- * settings screen says so rather than letting somebody believe the name in the
- * menu is the model they were promised.
- *
- * The sizes are the library's own vram_required_MB. They are the number that
- * decides whether a machine can run this at all, so they are shown in the menu
- * rather than left for somebody to discover when the tab crashes.
- */
-export const LOCAL_MODELS = [
-  {
-    id: 'Qwen2.5-0.5B-Instruct-q4f16_1-MLC',
-    label: 'Qwen2.5 0.5B',
-    vramMb: 945,
-    note: 'הקטן והמהיר. רץ כמעט על הכול, ומדי פעם עונה לא לעניין.',
-  },
-  {
-    id: 'Qwen2.5-1.5B-Instruct-q4f16_1-MLC',
-    label: 'Qwen2.5 1.5B',
-    vramMb: 1630,
-    note: 'האיזון הסביר. דורש כרטיס גרפי עם כ-2 ג׳יגה פנויים.',
-  },
-  {
-    id: 'Qwen2.5-3B-Instruct-q4f16_1-MLC',
-    label: 'Qwen2.5 3B',
-    vramMb: 2504,
-    note: 'הטוב מבין השלושה, ואיטי יותר להוריד ולהתחיל.',
-  },
-];
-
-export function modelById(id) {
-  return LOCAL_MODELS.find((m) => m.id === id) || null;
-}
-
-export const DEFAULT_LOCAL_MODEL = LOCAL_MODELS[1].id;
-
 /* ------------------------------------------------------------------ *
  * Can this browser do it at all
  * ------------------------------------------------------------------ */
@@ -118,7 +84,6 @@ export async function capability() {
  * ------------------------------------------------------------------ */
 
 let engine = null;
-let loadedModel = '';
 let loading = null;
 
 /**
@@ -135,7 +100,7 @@ let loading = null;
 export async function load(modelId, onProgress) {
   const id = modelId || DEFAULT_LOCAL_MODEL;
 
-  if (engine && loadedModel === id) return engine;
+  if (engine && currentModel() === id) return engine;
   if (loading) return loading;
 
   const can = await capability();
@@ -167,7 +132,7 @@ export async function load(modelId, onProgress) {
       }
 
       engine = next;
-      loadedModel = id;
+      setLoadedModel(id);
       return engine;
     } catch (cause) {
       throw translate(cause);
@@ -217,7 +182,7 @@ export async function ask(req, onDelta, signal) {
     throw translate(cause);
   }
 
-  return { text: text.trim(), model: loadedModel, streamed: true, local: true };
+  return { text: text.trim(), model: currentModel(), streamed: true, local: true };
 }
 
 /** Free the GPU memory. The model reloads on the next question. */
@@ -225,16 +190,7 @@ export async function unload() {
   if (!engine) return;
   try { if (engine.unload) await engine.unload(); } catch (e) { /* nothing to do */ }
   engine = null;
-  loadedModel = '';
-}
-
-/** Which model is resident right now, or '' when none is. */
-export function currentModel() {
-  return loadedModel;
-}
-
-export function isLoaded() {
-  return engine !== null;
+  setLoadedModel('');
 }
 
 /*

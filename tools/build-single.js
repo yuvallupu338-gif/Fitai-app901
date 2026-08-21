@@ -26,6 +26,21 @@ const ROOT = resolve(dirname(fileURLToPath(import.meta.url)), '..');
 /* Things worth saying at the end of a build that are not failures. */
 const notes = [];
 
+/*
+ * The files allowed to keep a dynamic import.
+ *
+ * Named one at a time rather than permitted generally, because the refusal is
+ * usually right: this bundler flattens a static graph and cannot resolve a
+ * specifier decided at runtime, so an unhandled one becomes a blank screen. Each
+ * of these loads the on-device model driver, which cannot be bundled at all — it
+ * needs import.meta.url, a syntax error once inlined — and each is written to
+ * catch the rejection and say the local model needs the full app.
+ */
+const DEGRADES_WITHOUT_ITS_IMPORT = new Set([
+  'tomorrow/src/ui/chat.js',
+  'tomorrow/src/ui/aisettings.js',
+]);
+
 /* Positional args, with the FitAI build as the default so the existing
  * invocation keeps working untouched. */
 const HTML_IN = process.argv[2] && !process.argv[2].endsWith('.js')
@@ -103,7 +118,24 @@ function collect(abs) {
   order.push(k);
 }
 
-function reject(src, k) {
+/*
+ * Strip comments and string bodies before pattern-matching source.
+ *
+ * Every check below asks "does this file do X", and prose explaining why a file
+ * does *not* do X contains the same words. chat.js was refused for a dynamic
+ * import that existed only in a comment describing where the real one lives.
+ */
+function code(src) {
+  return src
+    .replace(/\/\*[\s\S]*?\*\//g, '')
+    .replace(/(^|[^:])\/\/[^\n]*/g, '$1')
+    .replace(/'(?:\\.|[^'\\])*'/g, "''")
+    .replace(/"(?:\\.|[^"\\])*"/g, '""')
+    .replace(/`(?:\\.|[^`\\])*`/g, '``');
+}
+
+function reject(raw, k) {
+  const src = code(raw);
   if (/\bexport\s+default\b/.test(src)) throw new Error(`${k}: export default is not supported`);
   if (/\bexport\s+\*/.test(src)) throw new Error(`${k}: export * is not supported`);
   /*
@@ -122,10 +154,10 @@ function reject(src, k) {
    * correct behaviour, and it is only correct because the module was written to
    * expect it — which is why this is a warning rather than silent permission.
    */
-  if (/\bimport\s*\(/.test(src) && !/\/ai\/local\.js$/.test(k)) {
-    throw new Error(`${k}: dynamic import() is not supported`);
-  }
   if (/\bimport\s*\(/.test(src)) {
+    if (!DEGRADES_WITHOUT_ITS_IMPORT.has(k)) {
+      throw new Error(`${k}: dynamic import() is not supported`);
+    }
     notes.push(`${k}: dynamic import left unbundled — it must degrade on its own`);
   }
   if (/\bimport\.meta\b/.test(src)) throw new Error(`${k}: import.meta is not supported`);

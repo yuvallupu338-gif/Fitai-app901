@@ -25,7 +25,7 @@ import { get, pushChat, apiKey } from '../core/store.js';
 import { answer, SUGGESTIONS } from '../engine/chat.js';
 import { respond, remoteAvailable } from '../ai/router.js';
 import { providerById } from '../ai/providers.js';
-import { modelById, currentModel, isLoaded } from '../ai/local.js';
+import { modelById, currentModel, isLoaded } from '../ai/localmodels.js';
 import { card, icon, ICONS } from './parts.js';
 import { openAiSettings } from './aisettings.js';
 
@@ -207,12 +207,18 @@ export function render(root, ctx) {
   }
 
   /*
-   * Loaded on demand so the six-megabyte library is not imported by a screen
-   * that in most sessions never uses it.
+   * The driver, fetched only when a model is actually resident.
+   *
+   * It cannot be a normal import: local.js needs import.meta.url to locate its
+   * worker, and that is a syntax error once flattened into the single-file
+   * build. Keeping it behind import() keeps it out of that bundle, which is
+   * correct — the offline copy has no model library and no weights and could
+   * never run one. The catalogue above is imported normally, so the badge can
+   * still name a model without any of this coming with it.
    */
   async function localAsk(req, onDelta, signal) {
-    const local = await import('../ai/local.js');
-    return local.ask(Object.assign({ model: currentModel() }, req), onDelta, signal);
+    const driver = await import('../ai/local.js');
+    return driver.ask(Object.assign({ model: currentModel() }, req), onDelta, signal);
   }
 }
 

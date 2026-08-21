@@ -674,3 +674,56 @@ body.flow-open { overflow: hidden; }
    ink rather than in any of the verdict colours. It is not a good day or a bad
    one; it is a day with too little in it to call either way. */
 .week-day.band-light .week-bar i { background: var(--text-dim); }
+
+/*
+ * A list row used as a choice.
+ *
+ * The app had chips for picking one of a few short options and rows for
+ * displaying things, and nothing for picking one of a few options that each
+ * need a sentence to explain them — which is what every choice in the model
+ * settings is. Rather than a new component, this is the existing row made
+ * pressable, so it inherits the spacing, the border and the title/meta pairing
+ * already used everywhere else.
+ */
+button.list-row.pick {
+  /*
+   * One column, not three. A .list-row is a grid of [time | body | actions] and
+   * a choice has no time and no actions — so its single child landed in the
+   * 4.5em time track and every label wrapped into a ribbon.
+   */
+  grid-template-columns: minmax(0, 1fr);
+  inline-size: 100%;
+  text-align: start;
+  font: inherit;
+  color: inherit;
+  cursor: pointer;
+}
+
+button.list-row.pick[aria-pressed='true'] {
+  border-color: var(--primary-line);
+  background: var(--primary-wash);
+}
+
+button.list-row.pick[aria-pressed='true'] .list-title { color: var(--primary); }
+
+/* The generated context, shown before anything is sent. Monospace because it is
+   the literal payload, and scrollable because it is long on purpose. */
+.code-preview {
+  max-block-size: 40vh;
+  overflow: auto;
+  padding: var(--s-3);
+  border: 1px solid var(--line);
+  border-radius: var(--r-sm);
+  background: var(--surface-2);
+  font-family: var(--mono);
+  font-size: var(--fs-xs);
+  line-height: 1.6;
+  white-space: pre-wrap;
+  overflow-wrap: anywhere;
+}
+
+/* The chat's stop button, only present while a model is streaming. */
+.chat-stop[hidden] { display: none; }
+.chat-note-line { color: var(--warn); font-size: var(--fs-sm); margin-block: var(--s-2); }
+.chat-mode-edit { flex: none; }
+.chat-waiting { color: var(--text-dim); }

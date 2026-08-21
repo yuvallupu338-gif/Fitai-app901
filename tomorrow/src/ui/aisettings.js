@@ -22,7 +22,17 @@ import { h, sheet, announce } from '../core/dom.js';
 import { get, apiKey, setApiKey, update } from '../core/store.js';
 import { PROVIDERS, providerById } from '../ai/providers.js';
 import { testConnection } from '../ai/client.js';
-import { LOCAL_MODELS, DEFAULT_LOCAL_MODEL, capability, load, unload, currentModel, isLoaded } from '../ai/local.js';
+import { LOCAL_MODELS, DEFAULT_LOCAL_MODEL, currentModel, isLoaded } from '../ai/localmodels.js';
+import { detectWebGpu } from '../ai/webgpu.js';
+
+/*
+ * The driver is fetched only when this screen actually needs it — checking a
+ * device's capability does not, and neither does drawing the menu. It stays out
+ * of the single-file build for the reason given in localmodels.js.
+ */
+function driver() {
+  return import('../ai/local.js');
+}
 import { contextBlock } from '../ai/context.js';
 import { icon, ICONS } from './parts.js';
 
@@ -71,9 +81,8 @@ export function openAiSettings(ctx) {
 
     return h('div.field', { 'data-t': 'ai-enable' },
       h('span.label', { text: 'מי עונה' }),
-      h('div.stack.tight', null, options.map((o) => h('button.opt', {
+      h('div.list', null, options.map((o) => h('button.list-row.pick', {
         type: 'button',
-        class: current === o.id ? 'opt on' : 'opt',
         'aria-pressed': current === o.id ? 'true' : 'false',
         onclick: () => {
           if (o.id === '') save({ enabled: false });
@@ -89,8 +98,9 @@ export function openAiSettings(ctx) {
           }
         },
       },
-      h('span.opt-label', { text: o.label }),
-      h('span.opt-note', { text: o.note })))));
+      h('div.list-body', null,
+        h('span.list-title', { text: o.label }),
+        h('span.list-meta', { text: o.note }))))));
   }
 
   /* ---------------------------------------------------------------- *
@@ -119,7 +129,7 @@ export function openAiSettings(ctx) {
     wrap.appendChild(progress);
     wrap.appendChild(action);
 
-    capability().then((can) => {
+    detectWebGpu().then((can) => {
       status.textContent = can.detail;
       status.className = can.ok ? 'card-note' : 'card-note warn';
       if (!can.ok) {
@@ -138,16 +148,18 @@ export function openAiSettings(ctx) {
     function fillModels() {
       models.textContent = '';
       models.appendChild(h('span.label', { text: 'איזה מודל' }));
+      const rows = h('div.list');
+      models.appendChild(rows);
       for (const m of LOCAL_MODELS) {
         const resident = currentModel() === m.id;
-        models.appendChild(h('button.opt', {
+        rows.appendChild(h('button.list-row.pick', {
           type: 'button', 'data-t': 'ai-model',
-          class: s.model === m.id ? 'opt on' : 'opt',
           'aria-pressed': s.model === m.id ? 'true' : 'false',
           onclick: () => save({ model: m.id }),
         },
-        h('span.opt-label', { text: `${m.label}${resident ? ' · טעון' : ''}` }),
-        h('span.opt-note', { text: `${m.note} כ-${(m.vramMb / 1024).toFixed(1)} ג׳יגה בכרטיס.` })));
+        h('div.list-body', null,
+          h('span.list-title', { text: `${m.label}${resident ? ' · טעון' : ''}` }),
+          h('span.list-meta', { text: `${m.note} כ-${(m.vramMb / 1024).toFixed(1)} ג׳יגה בכרטיס.` }))));
       }
 
       action.textContent = '';
@@ -159,7 +171,7 @@ export function openAiSettings(ctx) {
       if (isLoaded()) {
         action.appendChild(h('button.btn.quiet', {
           type: 'button',
-          onclick: async () => { await unload(); paint(); },
+          onclick: async () => { const { unload } = await driver(); await unload(); paint(); },
         }, 'לפנות מהזיכרון'));
       }
     }
@@ -168,6 +180,7 @@ export function openAiSettings(ctx) {
       progress.hidden = false;
       progress.textContent = 'מתחיל…';
       try {
+        const { load } = await driver();
         await load(id, (report) => {
           /*
            * The library's own numbers, unembellished. This wait is minutes long
@@ -303,14 +316,14 @@ export function openAiSettings(ctx) {
       { id: 'full', label: 'כולל הלוח', note: 'גם מה כתוב בכל פריט. תשובות טובות יותר, יותר מידע שיוצא.' },
     ];
 
-    const buttons = h('div.stack.tight', null, options.map((o) => h('button.opt', {
+    const buttons = h('div.list', null, options.map((o) => h('button.list-row.pick', {
       type: 'button', 'data-t': 'ai-share',
-      class: (s.share || 'summary') === o.id ? 'opt on' : 'opt',
       'aria-pressed': (s.share || 'summary') === o.id ? 'true' : 'false',
       onclick: () => save({ share: o.id }),
     },
-    h('span.opt-label', { text: o.label }),
-    h('span.opt-note', { text: o.note }))));
+    h('div.list-body', null,
+      h('span.list-title', { text: o.label }),
+      h('span.list-meta', { text: o.note })))));
 
     return h('div.field', null,
       h('span.label', { text: 'מה נשלח למודל' }),

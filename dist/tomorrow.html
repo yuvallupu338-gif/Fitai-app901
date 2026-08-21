@@ -75,7 +75,7 @@
   a real HTTP header, and GitHub Pages does not let this repository set one.
   Leaving it in would read as clickjacking protection that does not exist.
 -->
-<meta http-equiv="Content-Security-Policy" content="default-src 'none'; script-src 'sha256-gFjtt841UcnyuUNSoz1NfEydVpewHnJBZKVPMDI6yLM='; style-src 'sha256-7UPzrM59FeDd0UbNPr3vhd6QvkYHaDra+7a0y1zqkmE='; img-src 'self' data:; font-src 'self' data:; connect-src https://dashscope.aliyuncs.com https://dashscope-intl.aliyuncs.com https://openrouter.ai https://api.deepseek.com https://api.anthropic.com https://huggingface.co https://*.hf.co https://raw.githubusercontent.com; media-src 'none'; frame-src 'none'; worker-src 'self'; object-src 'none'; base-uri 'none'; form-action 'none'">
+<meta http-equiv="Content-Security-Policy" content="default-src 'none'; script-src 'sha256-lXwaWIG06U3znD5f07e6DddJ/SKWUHo3m3aNTRInWGY='; style-src 'sha256-1fCU1SyMMqOqvlWVwL5qQslvlEShhPATo+lYli8Jj2w='; img-src 'self' data:; font-src 'self' data:; connect-src https://dashscope.aliyuncs.com https://dashscope-intl.aliyuncs.com https://openrouter.ai https://api.deepseek.com https://api.anthropic.com https://huggingface.co https://*.hf.co https://raw.githubusercontent.com; media-src 'none'; frame-src 'none'; worker-src 'self'; object-src 'none'; base-uri 'none'; form-action 'none'">
 
 <!-- fonts.css is the repository's shared, generated set of embedded faces and
      is linked first so the families exist before tokens.css names them. The
@@ -2553,6 +2553,59 @@ body.flow-open { overflow: hidden; }
    ink rather than in any of the verdict colours. It is not a good day or a bad
    one; it is a day with too little in it to call either way. */
 .week-day.band-light .week-bar i { background: var(--text-dim); }
+
+/*
+ * A list row used as a choice.
+ *
+ * The app had chips for picking one of a few short options and rows for
+ * displaying things, and nothing for picking one of a few options that each
+ * need a sentence to explain them — which is what every choice in the model
+ * settings is. Rather than a new component, this is the existing row made
+ * pressable, so it inherits the spacing, the border and the title/meta pairing
+ * already used everywhere else.
+ */
+button.list-row.pick {
+  /*
+   * One column, not three. A .list-row is a grid of [time | body | actions] and
+   * a choice has no time and no actions — so its single child landed in the
+   * 4.5em time track and every label wrapped into a ribbon.
+   */
+  grid-template-columns: minmax(0, 1fr);
+  inline-size: 100%;
+  text-align: start;
+  font: inherit;
+  color: inherit;
+  cursor: pointer;
+}
+
+button.list-row.pick[aria-pressed='true'] {
+  border-color: var(--primary-line);
+  background: var(--primary-wash);
+}
+
+button.list-row.pick[aria-pressed='true'] .list-title { color: var(--primary); }
+
+/* The generated context, shown before anything is sent. Monospace because it is
+   the literal payload, and scrollable because it is long on purpose. */
+.code-preview {
+  max-block-size: 40vh;
+  overflow: auto;
+  padding: var(--s-3);
+  border: 1px solid var(--line);
+  border-radius: var(--r-sm);
+  background: var(--surface-2);
+  font-family: var(--mono);
+  font-size: var(--fs-xs);
+  line-height: 1.6;
+  white-space: pre-wrap;
+  overflow-wrap: anywhere;
+}
+
+/* The chat's stop button, only present while a model is streaming. */
+.chat-stop[hidden] { display: none; }
+.chat-note-line { color: var(--warn); font-size: var(--fs-sm); margin-block: var(--s-2); }
+.chat-mode-edit { flex: none; }
+.chat-waiting { color: var(--text-dim); }
 
 </style>
 </head>
@@ -13010,7 +13063,20 @@ function naturalLanguage(ctx, draft, repaint) {
       const parsed = parseQuickAdd(text, { today: ctx.today, now: ctx.now, profile: ctx.profile });
       if (!parsed.ok) { readout.hidden = true; return; }
 
-      Object.assign(draft, parsed.item);
+      /*
+       * Only the fields the parser actually read.
+       *
+       * parseQuickAdd fills a date and a start whether or not it found one —
+       * today, and null — and copying those wholesale overwrote the day the
+       * editor was opened for. Preparing tomorrow in the evening ritual and
+       * typing "אימון ב-17:00" put the workout on today, silently, and the
+       * ritual's own list then correctly showed nothing. `matched` exists to say
+       * which parts were understood, and this is what it is for.
+       */
+      const patch = Object.assign({}, parsed.item);
+      if (!parsed.matched.date) delete patch.date;
+      if (!parsed.matched.time) delete patch.start;
+      Object.assign(draft, patch);
       readout.hidden = false;
       readout.textContent = '';
       readout.appendChild(h('span.badge.accent', { text: 'הבנתי' }));
@@ -13991,55 +14057,2330 @@ function answer(question, context) {
   };
 })();
 
+__m["tomorrow/src/ai/providers.js"] = (function () {
+/*
+ * providers.js — the hosted models this app can be pointed at, and the exact
+ * shape each vendor wants its request in.
+ *
+ * Nothing in this table is load-bearing. The forecast, the score, the two
+ * curves, the optimiser and the chat's own answers are computed on the device
+ * and stay correct with every endpoint below unreachable (Contracts §21.1).
+ * What a model adds is phrasing, and the questions the local intent matcher
+ * does not recognise. That is the whole of it.
+ *
+ * TWO REQUEST SHAPES, NOT FIVE.
+ *
+ * Anthropic takes the system prompt as a top-level field and streams typed
+ * events; the rest speak the OpenAI chat-completions dialect, where the system
+ * prompt is the first message and the stream is a run of
+ * choices[0].delta.content fragments closed by a literal [DONE]. Each family is
+ * written once and shared by every provider that speaks it. Copied per vendor
+ * they drift within a month, and then a fix to the stream parser lands in three
+ * of the five copies and the fourth truncates answers on a Tuesday.
+ *
+ * SUGGESTIONS ARE EXAMPLES, NEVER A WHITELIST.
+ *
+ * Vendors rename and retire model ids constantly, so §21.3 makes the id free
+ * text: the registry offers ids that were right when it was written, and
+ * whatever the user types is what gets sent. The thing that makes free text
+ * usable rather than baffling is on the client's side — a rejected id comes
+ * back as its own `bad_model` error naming the id, not as a generic failure
+ * that could equally be an expired key.
+ */
+
+/* ------------------------------------------------------------------ *
+ * Server-sent events, the parts of them these vendors actually use
+ * ------------------------------------------------------------------ */
+
+/*
+ * Shared results. parseStream is called once per line of a stream — thousands
+ * of times for a long answer — and the overwhelming majority of those lines are
+ * blank separators, comment heartbeats and event names that carry no text.
+ * Frozen because they are handed out repeatedly; the client only ever reads.
+ */
+const NONE = Object.freeze({ text: '', done: false });
+const DONE = Object.freeze({ text: '', done: true });
+
+/*
+ * The payload of one SSE line, or null when the line carries nothing.
+ *
+ * `event:` lines are deliberately ignored. Anthropic sends both an event name
+ * and a `type` field inside the JSON that follows, and reading the name would
+ * mean holding state between two lines to remember which event the next `data:`
+ * belongs to. The `type` inside the object says the same thing without that.
+ *
+ * Trimming the value is safe because everything after `data:` here is either
+ * JSON or the [DONE] sentinel, never prose whose whitespace matters — and it is
+ * what strips the CR of a CRLF stream before JSON.parse chokes on it.
+ */
+function sseData(line) {
+  const s = String(line || '').trim();
+  if (!s || s.charAt(0) === ':') return null;
+  if (s.slice(0, 5) !== 'data:') return null;
+  return s.slice(5).trim();
+}
+
+/** A vendor error object, or a bare string, reduced to one sentence. */
+function messageOf(err) {
+  if (typeof err === 'string') return err;
+  if (!err || typeof err !== 'object') return '';
+  return String(err.message || err.msg || err.code || '');
+}
+
+/*
+ * Message content, which is a string in the common case and an array of typed
+ * parts in the less common one. Some OpenAI-compatible vendors have started
+ * answering with the array form, and joining it here is cheaper than every
+ * caller learning both shapes.
+ */
+function partsToText(content) {
+  if (typeof content === 'string') return content;
+  if (!Array.isArray(content)) return '';
+  let out = '';
+  for (const part of content) {
+    if (typeof part === 'string') out += part;
+    else if (part && typeof part.text === 'string') out += part.text;
+  }
+  return out;
+}
+
+/* ------------------------------------------------------------------ *
+ * Family one — OpenAI-compatible chat completions
+ * ------------------------------------------------------------------ */
+
+function bearerHeaders(key) {
+  return { 'content-type': 'application/json', authorization: `Bearer ${key}` };
+}
+
+/*
+ * The system prompt is the first message here, not a field.
+ *
+ * `stream` is set only when it is true, and temperature is not sent at all.
+ * Both are omissions on purpose: this dialect is spoken by four different
+ * companies and the reasoning models among them reject a temperature outright,
+ * so a request rejected over a parameter nobody asked for would surface as a
+ * mysterious 400 on the first message the user ever sends.
+ */
+function openaiBody(req) {
+  const messages = req.system
+    ? [{ role: 'system', content: req.system }].concat(req.messages)
+    : req.messages.slice();
+  const body = { model: req.model, messages, max_tokens: req.maxTokens };
+  if (req.stream) body.stream = true;
+  return body;
+}
+
+function openaiParseStream(line, state) {
+  const raw = sseData(line);
+  if (raw === null) return NONE;
+  // The sentinel is not JSON, and parsing it first is what keeps it from being
+  // reported as a malformed chunk at the end of every successful answer.
+  if (raw === '[DONE]') return DONE;
+
+  let msg;
+  try {
+    msg = JSON.parse(raw);
+  } catch (e) {
+    // The client hands over whole lines only, so this is a vendor emitting
+    // something undocumented rather than a split chunk. Skipping one line is
+    // better than failing an answer that is otherwise arriving fine.
+    return NONE;
+  }
+
+  // An HTTP 200 can still turn into an error halfway through — a quota that
+  // ran out mid-generation arrives as a data line, not as a status code.
+  if (msg && msg.error) return { text: '', done: true, error: messageOf(msg.error) };
+
+  const choice = ((msg && msg.choices) || [])[0] || {};
+  const delta = choice.delta || {};
+  if (state && typeof msg.model === 'string' && msg.model) state.model = msg.model;
+
+  // Only `content` is the answer. Reasoning models put their scratch work in
+  // reasoning_content, and streaming that into the chat bubble would show the
+  // user a monologue the model never meant to say out loud.
+  return { text: partsToText(delta.content), done: false };
+}
+
+function openaiParseWhole(data) {
+  const choice = ((data && data.choices) || [])[0] || {};
+  return partsToText((choice.message || {}).content);
+}
+
+/* ------------------------------------------------------------------ *
+ * Family two — Anthropic messages
+ * ------------------------------------------------------------------ */
+
+function anthropicHeaders(key) {
+  return {
+    'content-type': 'application/json',
+    'x-api-key': key,
+    'anthropic-version': '2023-06-01',
+    // Without this the API refuses any request whose Origin is a browser, and
+    // this app is nothing but a browser.
+    'anthropic-dangerous-direct-browser-access': 'true',
+  };
+}
+
+/** system is a top-level field here — the one structural difference. */
+function anthropicBody(req) {
+  const body = {
+    model: req.model,
+    max_tokens: req.maxTokens,
+    messages: req.messages.slice(),
+  };
+  if (req.system) body.system = req.system;
+  if (req.stream) body.stream = true;
+  return body;
+}
+
+function anthropicParseStream(line, state) {
+  const raw = sseData(line);
+  if (raw === null) return NONE;
+
+  let msg;
+  try {
+    msg = JSON.parse(raw);
+  } catch (e) {
+    return NONE;
+  }
+
+  const type = msg && msg.type;
+
+  if (type === 'content_block_delta') {
+    const delta = msg.delta || {};
+    // text_delta and nothing else. A thinking_delta carries the model's private
+    // reasoning and a signature_delta carries a cryptographic blob; both would
+    // otherwise stream straight into the chat as if they were the answer.
+    if (delta.type === 'text_delta' && typeof delta.text === 'string') {
+      return { text: delta.text, done: false };
+    }
+    return NONE;
+  }
+
+  if (type === 'message_start' && state) {
+    const echoed = (msg.message || {}).model;
+    if (typeof echoed === 'string' && echoed) state.model = echoed;
+    return NONE;
+  }
+
+  if (type === 'error') return { text: '', done: true, error: messageOf(msg.error) };
+  if (type === 'message_stop') return DONE;
+  return NONE;
+}
+
+function anthropicParseWhole(data) {
+  const blocks = (data && data.content) || [];
+  let out = '';
+  for (const block of blocks) {
+    if (block && block.type === 'text' && typeof block.text === 'string') out += block.text;
+  }
+  return out;
+}
+
+/* ------------------------------------------------------------------ *
+ * The table
+ * ------------------------------------------------------------------ */
+
+const PROVIDERS = [
+  {
+    id: 'qwen',
+    /*
+     * Alibaba serves DashScope from two separate installations, and an account
+     * works on exactly one of them: keys created outside mainland China belong
+     * to the international host, keys created inside it to dashscope.aliyuncs.com.
+     * There is no way to tell which from the key, and picking one quietly would
+     * hand half of all Qwen users a rejected key with no hint that the host is
+     * the problem. So the label says which one this is, the hint says what to do
+     * when it is the other, and `altBaseUrl` lets the settings screen offer the
+     * mainland host as one click through the custom provider. Both hosts are
+     * already named in index.html's connect-src, so neither is blocked.
+     */
+    label: 'Qwen · DashScope (בינלאומי)',
+    endpoint: 'https://dashscope-intl.aliyuncs.com/compatible-mode/v1/chat/completions',
+    altBaseUrl: 'https://dashscope.aliyuncs.com/compatible-mode/v1',
+    docsHost: 'bailian.console.alibabacloud.com',
+    keyHint: 'sk-…',
+    hint: 'המפתחות של DashScope שייכים לאזור שבו נפתח החשבון. זו הכתובת הבינלאומית; '
+      + 'אם החשבון נפתח בסין, בחר "כתובת מותאמת" והזן '
+      + 'https://dashscope.aliyuncs.com/compatible-mode/v1 — שתי הכתובות כבר מותרות באפליקציה.',
+    streams: true,
+    suggestions: ['qwen3.7-plus', 'qwen-plus', 'qwen-max', 'qwen-turbo'],
+    headers: bearerHeaders,
+    body: openaiBody,
+    parseStream: openaiParseStream,
+    parseWhole: openaiParseWhole,
+  },
+  {
+    id: 'openrouter',
+    label: 'OpenRouter',
+    endpoint: 'https://openrouter.ai/api/v1/chat/completions',
+    docsHost: 'openrouter.ai',
+    keyHint: 'sk-or-v1-…',
+    /*
+     * Here because it serves Qwen's models too, under `qwen/…` ids, and one
+     * account reaches them without opening an Alibaba Cloud account at all —
+     * which is the difference between the user trying this feature tonight and
+     * abandoning it at a billing form.
+     *
+     * OpenRouter's optional HTTP-Referer and X-Title ranking headers are not
+     * sent. Any header beyond the plain ones turns the call into a CORS
+     * preflight, and a preflight the vendor declines to allow fails as a
+     * contentless TypeError — the same shape a CSP refusal has. Attribution is
+     * not worth an error the user cannot act on.
+     */
+    hint: 'דרך נוחה להגיע למודלים של Qwen בלי חשבון של Alibaba. המזהים כאן בנויים '
+      + 'בצורת ספק/מודל.',
+    streams: true,
+    suggestions: ['qwen/qwen3.7-plus', 'qwen/qwen-plus', 'deepseek/deepseek-chat'],
+    headers: bearerHeaders,
+    body: openaiBody,
+    parseStream: openaiParseStream,
+    parseWhole: openaiParseWhole,
+  },
+  {
+    id: 'deepseek',
+    label: 'DeepSeek',
+    endpoint: 'https://api.deepseek.com/chat/completions',
+    docsHost: 'platform.deepseek.com',
+    keyHint: 'sk-…',
+    hint: 'זול ומהיר לניסוח בעברית. שים לב שהכתובת כאן היא ללא /v1.',
+    streams: true,
+    suggestions: ['deepseek-chat', 'deepseek-reasoner'],
+    headers: bearerHeaders,
+    body: openaiBody,
+    parseStream: openaiParseStream,
+    parseWhole: openaiParseWhole,
+  },
+  {
+    id: 'anthropic',
+    label: 'Anthropic',
+    endpoint: 'https://api.anthropic.com/v1/messages',
+    docsHost: 'console.anthropic.com',
+    keyHint: 'sk-ant-…',
+    hint: 'מבנה הבקשה שונה משאר הספקים, אבל זה מטופל כאן ולא דורש כלום מהמשתמש.',
+    streams: true,
+    // Only the two ids this repository already ships against, in src/ai/providers.js.
+    // Guessing a third from memory is how a settings screen ends up suggesting a
+    // model that never existed.
+    suggestions: ['claude-sonnet-5', 'claude-opus-5'],
+    headers: anthropicHeaders,
+    body: anthropicBody,
+    parseStream: anthropicParseStream,
+    parseWhole: anthropicParseWhole,
+  },
+  {
+    id: 'custom',
+    label: 'כתובת מותאמת',
+    endpoint: '',
+    needsBaseUrl: true,
+    docsHost: '',
+    keyHint: 'לרוב sk-…',
+    /*
+     * Anything that speaks the OpenAI dialect — a self-hosted gateway, the
+     * mainland DashScope host, a vendor added after this was written. The catch
+     * is §21.7: connect-src names a fixed set of hosts, so a base URL anywhere
+     * else is refused by the browser before the request leaves. The client
+     * checks that list itself and says exactly which line to edit rather than
+     * letting it fail as a mystery.
+     */
+    hint: 'כתובת בסיס תואמת OpenAI, כולל /v1 ובלי /chat/completions. הדפדפן חוסם כל '
+      + 'שרת שלא מופיע ב-connect-src שבקובץ tomorrow/index.html.',
+    streams: true,
+    suggestions: [],
+    headers: bearerHeaders,
+    body: openaiBody,
+    parseStream: openaiParseStream,
+    parseWhole: openaiParseWhole,
+  },
+];
+
+const BY_ID = new Map(PROVIDERS.map((p) => [p.id, p]));
+
+function providerById(id) {
+  return BY_ID.get(String(id || '')) || null;
+}
+
+/**
+ * The URL to POST to for a given `settings.ai`, or '' when it cannot be worked
+ * out — an unknown provider id, or the custom provider with nothing typed yet.
+ *
+ * The custom path appends `/chat/completions` unless the user already did, and
+ * never invents a version segment: every OpenAI-compatible gateway documents
+ * its base URL including /v1, so guessing one would only turn a URL the user
+ * pasted correctly into a 404 they cannot explain.
+ */
+function endpointFor(settings) {
+  const s = settings || {};
+  const provider = providerById(s.providerId);
+  if (!provider) return '';
+  if (!provider.needsBaseUrl) return provider.endpoint;
+
+  const base = String(s.baseUrl || '').trim().replace(/\/+$/, '');
+  if (!base) return '';
+  return /\/chat\/completions$/.test(base) ? base : `${base}/chat/completions`;
+}
+
+  return {
+    "PROVIDERS": PROVIDERS,
+    "providerById": providerById,
+    "endpointFor": endpointFor,
+  };
+})();
+
+__m["tomorrow/src/ai/client.js"] = (function () {
+/*
+ * client.js — the only module in TomorrowAI that opens a network connection.
+ *
+ * Everything else runs on the device, and that is not a limitation being worked
+ * around: the score, the curves, the risks and the optimiser are already exact,
+ * and sending them to a model would make them slower and less true. This file
+ * exists for the other half of the chat — the phrasings the local matcher does
+ * not recognise (Contracts §15, §21.1).
+ *
+ * Which is why every failure here is a soft one. `ask` never throws anything
+ * except a ChatError, and every ChatError carries a Hebrew sentence the chat can
+ * show while it answers from the local engine instead. The one thing the UI must
+ * not do with that fallback is present it as the model's answer; §21.1 makes
+ * that a rule and the error's `detail` gives it the words.
+ *
+ * THE STREAM BUFFER IS THE PART THAT BREAKS.
+ *
+ * A network chunk is not a line and it is not a character. One JSON event
+ * routinely arrives split across two reads, and a Hebrew letter is two bytes
+ * that split just as happily. So the decoder is kept in streaming mode across
+ * reads and the tail of the buffer — everything after the last newline — is
+ * carried into the next chunk instead of being parsed or dropped. Dropping it
+ * costs a word here and a sentence there, which looks like the model trailing
+ * off rather than like a bug in this loop.
+ *
+ * NO FAKE STREAMING.
+ *
+ * `streamed` in the result is the truth about what happened, not a preference.
+ * A vendor that answers a stream request with one whole JSON document gets
+ * reported as `streamed: false` and the UI shows the answer at once, because
+ * §21.1 forbids animating text that already arrived complete.
+ */
+
+const { providerById, endpointFor } = __m["tomorrow/src/ai/providers.js"];
+const { apiKey, get } = __m["tomorrow/src/core/store.js"];
+
+/*
+ * The hosts index.html's connect-src allows. This is a mirror, not the source
+ * of truth — editing one without the other is the mistake this constant exists
+ * to make visible, because a host missing from the CSP fails as a contentless
+ * TypeError that looks exactly like being offline. Checking the list here turns
+ * that into a sentence naming the file and the line to change.
+ */
+const CSP_HOSTS = [
+  'dashscope.aliyuncs.com',
+  'dashscope-intl.aliyuncs.com',
+  'openrouter.ai',
+  'api.deepseek.com',
+  'api.anthropic.com',
+];
+
+const CSP_FILE = 'tomorrow/index.html';
+
+/* Short answers: this is a chat about one day, not an essay generator. */
+const DEFAULT_MAX_TOKENS = 700;
+
+/* ------------------------------------------------------------------ *
+ * The error
+ * ------------------------------------------------------------------ */
+
+/**
+ * Everything this module throws. `kind` is one of the eight §21.5 names and is
+ * what code branches on; `detail` is a Hebrew sentence written to be shown to a
+ * person as-is. `vendor` keeps the provider's own English message, which is
+ * worth showing in the settings screen and worth keeping out of the chat.
+ */
+class ChatError extends Error {
+  constructor(kind, detail, info) {
+    super(detail);
+    this.name = 'ChatError';
+    this.kind = kind;
+    this.detail = detail;
+    this.status = (info && info.status) || 0;
+    this.vendor = (info && info.vendor) || '';
+    /*
+     * Text that had already streamed in when the failure hit. The chat needs it
+     * to decide what to do with a half-painted bubble; what it must not do is
+     * keep it on screen as though the model finished the thought.
+     */
+    this.partial = (info && info.partial) || '';
+  }
+}
+
+/* ------------------------------------------------------------------ *
+ * Hebrew for every way this can go wrong
+ * ------------------------------------------------------------------ */
+
+const HE = {
+  noProvider: 'לא נבחר ספק מודל בהגדרות. עד שייבחר אחד, התשובות מגיעות מהמנוע המקומי.',
+  noEndpoint: 'כתובת הבסיס של הספק המותאם חסרה. הזן כתובת https מלאה במסך ההגדרות.',
+  noQuestion: 'לא נשלחה שאלה למודל.',
+  noFetch: 'הדפדפן הזה לא תומך בבקשות רשת מודרניות, ולכן אי אפשר לפנות למודל מרוחק. '
+    + 'המנוע המקומי ממשיך לעבוד כרגיל.',
+  aborted: 'הבקשה בוטלה.',
+};
+
+function noKeyHe(provider) {
+  return `אין מפתח API שמור עבור ${provider.label}. אפשר להזין אותו במסך ההגדרות — `
+    + 'בינתיים המנוע המקומי עונה, והוא לא צריך מפתח.';
+}
+
+function noModelHe(provider) {
+  return `לא הוזן מזהה מודל עבור ${provider.label}. העתק את המזהה המדויק מהקונסולה של הספק.`;
+}
+
+function badUrlHe(url) {
+  return `הכתובת "${url}" אינה כתובת תקינה. הזן כתובת https מלאה במסך ההגדרות.`;
+}
+
+function cspHe(url, host, reason) {
+  if (reason === 'protocol') {
+    return `הדפדפן יחסום את ${url}: ההגדרה connect-src בקובץ ${CSP_FILE} מתירה רק כתובות https.`;
+  }
+  return `הדפדפן חוסם בקשות אל ${host}. רשימת השרתים המותרים היא connect-src שבקובץ `
+    + `${CSP_FILE}, וכתובת שלא מופיעה שם לא יוצאת מהדפדפן כלל. אפשר להוסיף שם את `
+    + `${host}, או לבחור ספק מהרשימה.`;
+}
+
+function unauthorizedHe(provider, status) {
+  if (status === 402) {
+    return `${provider.label} דחה את הבקשה מסיבת חיוב — לרוב זו יתרה שנגמרה. `
+      + 'בדוק את החשבון אצל הספק ונסה שוב.';
+  }
+  return `המפתח נדחה על ידי ${provider.label}. בדוק שהעתקת אותו במלואו, שהוא עדיין פעיל, `
+    + 'ושהחשבון מורשה למודל שנבחר.';
+}
+
+function rateLimitedHe(provider) {
+  return `חרגת ממכסת הבקשות של ${provider.label}. חכה דקה ונסה שוב; `
+    + 'בינתיים המנוע המקומי ממשיך לענות.';
+}
+
+function badModelHe(provider, model) {
+  return `${provider.label} לא מכיר את המודל "${model}". העתק את המזהה המדויק מהקונסולה `
+    + 'של הספק — ספקים משנים ומוציאים משימוש מזהי מודלים כל הזמן.';
+}
+
+function serverHe(provider, status) {
+  return status
+    ? `${provider.label} החזיר שגיאה ${status}. זו תקלה בצד שלהם — נסה שוב עוד רגע.`
+    : `${provider.label} הפסיק את התשובה באמצע. נסה שוב עוד רגע.`;
+}
+
+function unreadableHe(provider) {
+  return `התשובה מ-${provider.label} לא הייתה קריאה. נסה שוב.`;
+}
+
+function emptyHe(provider) {
+  return `${provider.label} החזיר תשובה ריקה. נסה שוב, או מודל אחר.`;
+}
+
+function networkHe(host) {
+  return `לא הצלחתי להגיע ל-${host}. בדוק את החיבור לאינטרנט ונסה שוב.`;
+}
+
+/* ------------------------------------------------------------------ *
+ * Reading the settings and the key
+ * ------------------------------------------------------------------ */
+
+function currentSettings() {
+  try {
+    return get().settings.ai || {};
+  } catch (e) {
+    // Storage that refuses to be read is not a reason to take the chat down;
+    // an empty settings object simply reads as "not configured".
+    return {};
+  }
+}
+
+/*
+ * The key is never passed around in the Root document and never exported with a
+ * backup (§21.2), so it is read from its own storage key at the moment of the
+ * call. An explicit '' from the caller means "no key", not "go and look".
+ */
+function keyOf(explicit) {
+  if (explicit === undefined || explicit === null) {
+    try {
+      return apiKey();
+    } catch (e) {
+      return '';
+    }
+  }
+  return String(explicit).trim();
+}
+
+/* ------------------------------------------------------------------ *
+ * The request
+ * ------------------------------------------------------------------ */
+
+/**
+ * Whether a remote call is possible at all: switched on, a known provider, a
+ * model id, a reachable endpoint and a key. The chat calls this before routing
+ * a question, and answers locally when it is false — which is the normal state
+ * of this app, not an error.
+ */
+function isConfigured(settings, key) {
+  const s = settings || currentSettings();
+  if (!s.enabled) return false;
+  const provider = providerById(s.providerId);
+  if (!provider) return false;
+  if (!String(s.model || '').trim()) return false;
+  if (!endpointFor(s)) return false;
+  return !!keyOf(key);
+}
+
+/**
+ * Chat turns, in the shape both families accept.
+ *
+ * Three repairs, each for a real 400. The stored history uses the role 'ai'
+ * (§3), which neither vendor has ever heard of. Anthropic rejects a
+ * conversation that opens with an assistant turn, and rejects two turns of the
+ * same role in a row — which is exactly what happens after a failed remote call
+ * leaves a local answer in the history. Merging those is cheaper than losing the
+ * user's next question to a validation error.
+ */
+function normalizeMessages(list) {
+  const out = [];
+  for (const raw of Array.isArray(list) ? list : []) {
+    if (!raw) continue;
+    const role = raw.role === 'user' ? 'user' : 'assistant';
+    const content = typeof raw.content === 'string' ? raw.content : String(raw.text || '');
+    const text = content.trim();
+    if (!text) continue;
+    if (!out.length && role !== 'user') continue;
+    const last = out[out.length - 1];
+    if (last && last.role === role) last.content = `${last.content}\n\n${text}`;
+    else out.push({ role, content: text });
+  }
+  return out;
+}
+
+/** The URL's host, plus whether the browser will let us talk to it. */
+function reachable(url) {
+  let parsed;
+  try {
+    parsed = new URL(url);
+  } catch (e) {
+    return { ok: false, host: '', reason: 'url' };
+  }
+  if (parsed.protocol !== 'https:') return { ok: false, host: parsed.host, reason: 'protocol' };
+  if (CSP_HOSTS.indexOf(parsed.host) < 0) return { ok: false, host: parsed.host, reason: 'host' };
+  return { ok: true, host: parsed.host, reason: '' };
+}
+
+/*
+ * Everything that can be decided before the network is touched. Each failure
+ * here is one the user can fix in the settings screen, and each names the field.
+ */
+function prepare(options) {
+  const settings = options.settings || currentSettings();
+  const provider = providerById(settings.providerId);
+  if (!provider) throw new ChatError('bad_model', HE.noProvider);
+
+  const model = String(options.model || settings.model || '').trim();
+  if (!model) throw new ChatError('bad_model', noModelHe(provider));
+
+  const key = keyOf(options.key);
+  if (!key) throw new ChatError('no_key', noKeyHe(provider));
+
+  const endpoint = endpointFor(settings);
+  if (!endpoint) throw new ChatError('network', HE.noEndpoint);
+
+  const reach = reachable(endpoint);
+  if (!reach.ok) {
+    if (reach.reason === 'url') throw new ChatError('network', badUrlHe(endpoint));
+    throw new ChatError('blocked_by_csp', cspHe(endpoint, reach.host, reach.reason));
+  }
+
+  const messages = normalizeMessages(options.messages);
+  if (!messages.length) throw new ChatError('server', HE.noQuestion);
+
+  const maxTokens = Number(options.maxTokens) > 0
+    ? Math.floor(Number(options.maxTokens))
+    : DEFAULT_MAX_TOKENS;
+
+  return {
+    provider,
+    endpoint,
+    host: reach.host,
+    key,
+    model,
+    system: String(options.system || ''),
+    messages,
+    maxTokens,
+    signal: options.signal || null,
+  };
+}
+
+/* ------------------------------------------------------------------ *
+ * Failure classification
+ * ------------------------------------------------------------------ */
+
+/*
+ * Vendors do not agree on status codes for a wrong model id — DashScope answers
+ * 400 with "Model not exist", Anthropic answers 404 — so the message is read as
+ * well as the code. Getting this wrong is not cosmetic: a wrong model id and an
+ * expired key produce the same shrug otherwise, and §21.5 requires the user to
+ * be able to tell which of the two they are looking at.
+ */
+const MODEL_RE = /model|模型|deployment|endpoints? (?:found|available)/i;
+const RATE_RE = /rate.?limit|quota|throttl|too many requests/i;
+
+/*
+ * `status` is 200 for a failure that arrived inside a stream, which is a case
+ * worth reading the message for rather than dismissing as a server fault:
+ * routing gateways accept the request, start the response and only then report
+ * that the model id goes nowhere. Under a free-text model id that is the most
+ * likely thing to be wrong, and sending the user back to check a typo is
+ * cheaper than sending them to wait out an outage that is not happening.
+ *
+ * Above 500 the message is ignored on purpose. An overloaded vendor often says
+ * the model is unavailable, and reading that as a bad id would tell the user to
+ * fix a setting that is already correct.
+ */
+function kindForStatus(status, vendor) {
+  if (status === 401 || status === 403 || status === 402) return 'unauthorized';
+  if (status === 429) return 'rate_limited';
+  if (status >= 500) return 'server';
+  if (RATE_RE.test(vendor)) return 'rate_limited';
+  if (status === 404) return 'bad_model';
+  if (MODEL_RE.test(vendor)) return 'bad_model';
+  return 'server';
+}
+
+function detailFor(kind, ctx) {
+  if (kind === 'unauthorized') return unauthorizedHe(ctx.provider, ctx.status);
+  if (kind === 'rate_limited') return rateLimitedHe(ctx.provider);
+  if (kind === 'bad_model') return badModelHe(ctx.provider, ctx.model);
+  return serverHe(ctx.provider, ctx.status);
+}
+
+/** The vendor's own explanation, from a body that may or may not be JSON. */
+function vendorMessage(raw) {
+  const s = String(raw || '').trim();
+  if (!s) return '';
+  try {
+    const data = JSON.parse(s);
+    const err = (data && data.error) || data;
+    const msg = err && (err.message || err.msg);
+    if (typeof msg === 'string' && msg) return msg;
+  } catch (e) {
+    // An error body that is not JSON — an HTML gateway page, usually — is still
+    // the only thing the vendor said, so it is kept, clipped.
+  }
+  return s.slice(0, 300);
+}
+
+async function fromResponse(res, ctx) {
+  let raw = '';
+  try {
+    raw = await res.text();
+  } catch (e) {
+    // A body that cannot be read does not change what the status code means.
+  }
+  const vendor = vendorMessage(raw);
+  const status = res.status;
+  const kind = kindForStatus(status, vendor);
+  const detail = detailFor(kind, { provider: ctx.provider, model: ctx.model, status });
+  return new ChatError(kind, detail, { status, vendor });
+}
+
+/*
+ * A rejected fetch. In a browser a CSP refusal, a CORS refusal, a dead network
+ * and a bad DNS name all reject with the same contentless TypeError — there is
+ * deliberately no detail, so that a page cannot probe hosts it is not allowed to
+ * reach. Since the CSP list is known here, the one case that can be told apart
+ * is told apart, and the rest are honestly reported as "could not reach".
+ */
+function fromThrown(e, ctx) {
+  if (e instanceof ChatError) return e;
+  const aborted = (e && e.name === 'AbortError') || (ctx.signal && ctx.signal.aborted);
+  if (aborted) return new ChatError('aborted', HE.aborted);
+
+  const reach = reachable(ctx.endpoint);
+  if (!reach.ok) {
+    return new ChatError('blocked_by_csp', cspHe(ctx.endpoint, reach.host, reach.reason));
+  }
+  return new ChatError('network', networkHe(ctx.host), { vendor: String((e && e.message) || e) });
+}
+
+/* ------------------------------------------------------------------ *
+ * The call
+ * ------------------------------------------------------------------ */
+
+/*
+ * A caller's onDelta is a render function, and a render function can throw. If
+ * it does, the answer still has to finish arriving: `text` below is what the
+ * chat ends up storing, so an exception in one repaint must not cost the rest of
+ * the reply.
+ */
+function emit(onDelta, chunk) {
+  if (typeof onDelta !== 'function') return;
+  try {
+    onDelta(chunk);
+  } catch (e) {
+    console.error(e);
+  }
+}
+
+async function readStream(res, ready, onDelta) {
+  const reader = res.body.getReader();
+  const decoder = new TextDecoder();
+  const state = { model: '' };
+
+  let buffer = '';
+  let text = '';
+  let failure = null;
+  let finished = false;
+
+  const handle = (line) => {
+    const out = ready.provider.parseStream(line, state);
+    if (!out) return;
+    if (out.error) {
+      failure = String(out.error);
+      finished = true;
+      return;
+    }
+    if (out.text) {
+      text += out.text;
+      emit(onDelta, out.text);
+    }
+    if (out.done) finished = true;
+  };
+
+  try {
+    while (!finished) {
+      const chunk = await reader.read();
+      if (chunk.done) {
+        /*
+         * End of stream. The decoder is flushed in case the last read ended
+         * mid-character, and whatever is left in the buffer is a final line that
+         * simply never got its newline — every vendor here sends one sooner or
+         * later, and the last event of a short answer is exactly where it goes
+         * missing.
+         */
+        buffer += decoder.decode();
+        if (buffer.trim()) handle(buffer);
+        buffer = '';
+        break;
+      }
+
+      buffer += decoder.decode(chunk.value, { stream: true });
+
+      /*
+       * Only complete lines are parsed. The remainder stays in the buffer for
+       * the next read: a JSON event split across two chunks is the normal case,
+       * not the edge case, and parsing half of one throws away the half of the
+       * sentence it carried.
+       */
+      let nl = buffer.indexOf('\n');
+      while (nl >= 0) {
+        const line = buffer.slice(0, nl);
+        buffer = buffer.slice(nl + 1);
+        if (line.trim()) handle(line);
+        if (finished) break;
+        nl = buffer.indexOf('\n');
+      }
+    }
+  } catch (e) {
+    throw fromThrown(e, ready);
+  } finally {
+    /*
+     * Releasing the reader matters when we stopped early — on [DONE], on an
+     * error event, on abort. An abandoned reader holds the connection open, and
+     * a few of those are enough to stall the next request.
+     */
+    try {
+      const cancelled = reader.cancel();
+      if (cancelled && typeof cancelled.catch === 'function') cancelled.catch(() => {});
+    } catch (e) {
+      // Cancelling an already-closed reader is not a failure worth reporting.
+    }
+  }
+
+  if (failure !== null) {
+    const kind = kindForStatus(200, failure);
+    throw new ChatError(kind, detailFor(kind, {
+      provider: ready.provider,
+      model: ready.model,
+      status: 0,
+    }), { vendor: failure, partial: text });
+  }
+
+  return { text: text.trim(), model: state.model || ready.model, streamed: true };
+}
+
+function echoedModel(data, fallback) {
+  const echoed = data && data.model;
+  return typeof echoed === 'string' && echoed ? echoed : fallback;
+}
+
+async function send(ready, onDelta, allowEmpty) {
+  if (typeof fetch !== 'function') throw new ChatError('network', HE.noFetch);
+  if (ready.signal && ready.signal.aborted) throw new ChatError('aborted', HE.aborted);
+
+  const wantsStream = typeof onDelta === 'function' && ready.provider.streams !== false;
+  const payload = ready.provider.body({
+    model: ready.model,
+    system: ready.system,
+    messages: ready.messages,
+    maxTokens: ready.maxTokens,
+    stream: wantsStream,
+  });
+
+  let res;
+  try {
+    res = await fetch(ready.endpoint, {
+      method: 'POST',
+      headers: ready.provider.headers(ready.key),
+      body: JSON.stringify(payload),
+      signal: ready.signal || undefined,
+    });
+  } catch (e) {
+    throw fromThrown(e, ready);
+  }
+
+  if (!res.ok) throw await fromResponse(res, ready);
+
+  /*
+   * Asking for a stream is not the same as getting one. A gateway may answer
+   * with a single JSON document, and treating that as SSE finds no `data:` lines
+   * and reports an empty answer for a reply that arrived intact. The content
+   * type decides; a vendor that sends none is taken at its word.
+   */
+  const type = String((res.headers && res.headers.get('content-type')) || '').toLowerCase();
+  const isSse = type.indexOf('text/event-stream') >= 0 || (wantsStream && !type);
+  const canRead = res.body && typeof res.body.getReader === 'function';
+
+  let result;
+  if (wantsStream && isSse && canRead) {
+    result = await readStream(res, ready, onDelta);
+  } else {
+    let data;
+    try {
+      data = await res.json();
+    } catch (e) {
+      throw new ChatError('server', unreadableHe(ready.provider));
+    }
+    const text = String(ready.provider.parseWhole(data) || '').trim();
+    result = { text, model: echoedModel(data, ready.model), streamed: false };
+  }
+
+  /*
+   * An empty reply is a failure, not an answer. Returning '' would put a blank
+   * bubble on screen over the label of a model that said nothing, when the local
+   * engine had a real answer ready the whole time.
+   */
+  if (!result.text && !allowEmpty) throw new ChatError('server', emptyHe(ready.provider));
+  return result;
+}
+
+/**
+ * Ask the configured model one question.
+ *
+ * @param {Object} req  { settings, system, messages, model, maxTokens, key, signal }
+ *   `settings` defaults to the stored `settings.ai` and `key` to the stored API
+ *   key, so the chat can call this with nothing but the turns.
+ * @param {Function} [onDelta]  called with each text fragment as it arrives.
+ *   Passing it is what asks for a stream; the result says whether one happened.
+ * @returns {Promise<{text: String, model: String, streamed: Boolean}>}
+ * @throws {ChatError} always a ChatError, never anything else
+ */
+async function ask(req, onDelta) {
+  const ready = prepare(req || {});
+  return send(ready, onDelta, false);
+}
+
+/**
+ * The smallest real request the vendor will accept — one word, one token back —
+ * so the settings screen can prove the key, the host and the model id together
+ * before the user asks anything that matters.
+ *
+ * It reports what actually came back, including the model id the vendor echoed,
+ * which is how a silently redirected alias shows up as itself.
+ */
+async function testConnection(settings, key) {
+  const s = settings || currentSettings();
+  const asked = String(s.model || '').trim();
+  let ready;
+  try {
+    ready = prepare({
+      settings: s,
+      key,
+      messages: [{ role: 'user', content: 'ping' }],
+      maxTokens: 1,
+    });
+  } catch (e) {
+    return { ok: false, kind: e.kind || 'server', detail: e.detail || String(e.message || e) };
+  }
+
+  try {
+    /*
+     * No onDelta, so this never asks for a stream, and `allowEmpty` because a
+     * one-token budget legitimately comes back with nothing in it. A 200 with an
+     * empty body still proves everything this is testing.
+     */
+    const out = await send(ready, null, true);
+    const echoed = out.model || asked;
+    const detail = echoed && echoed !== asked
+      ? `החיבור עובד. ${ready.provider.label} ענה עם המודל ${echoed} (ביקשת ${asked}).`
+      : `החיבור עובד. ${ready.provider.label} קיבל את המפתח וענה עם המודל ${echoed}.`;
+    return { ok: true, kind: 'ok', detail };
+  } catch (e) {
+    if (e instanceof ChatError) {
+      const vendor = e.vendor ? ` (${e.vendor})` : '';
+      return { ok: false, kind: e.kind, detail: `${e.detail}${vendor}` };
+    }
+    return { ok: false, kind: 'server', detail: serverHe(ready.provider, 0) };
+  }
+}
+
+  return {
+    "ChatError": ChatError,
+    "isConfigured": isConfigured,
+    "ask": ask,
+    "testConnection": testConnection,
+  };
+})();
+
+__m["tomorrow/src/ai/context.js"] = (function () {
+/*
+ * context.js — everything the model is told about the day, and everything it
+ * is deliberately not told.
+ *
+ * The rest of this feature is plumbing: a table of vendors, a fetch, a map from
+ * HTTP status to a Hebrew sentence. This file is the part that decides whether
+ * an answer sounds like TomorrowAI or like a general chatbot that happens to
+ * reply in Hebrew. A hosted model knows nothing about this person and cannot
+ * find anything out, so every fact that appears in an answer has to arrive from
+ * here, already computed, in a form it cannot misread.
+ *
+ * Two jobs, kept apart on purpose. systemPrompt() is the standing instruction —
+ * the voice, the hedging, and the one rule the whole product rests on: the
+ * numbers belong to the engine and the model may not make new ones.
+ * contextBlock() is the day itself, rendered as text. They are separate because
+ * the block changes every time anything on the schedule moves and the rules
+ * never do, and because a caller can put the rules in the vendor's system field
+ * while the block travels with the question.
+ *
+ * THE SHARE LEVEL IS A PROMISE, NOT A PREFERENCE.
+ *
+ * 'summary' sends the shape of the day — the score, the factors, where the
+ * curves turn, the risks, the totals, the confidence — and no item names at
+ * all, so somebody can buy better phrasing from a vendor without handing over
+ * their calendar. Leaving titles out of a schedule listing is not enough to
+ * achieve that: the engine writes them into risk reasons, into the focus
+ * factor's detail line and into the recommendation's own title, so every piece
+ * of free text coming out of the forecast is scrubbed on the way through. And
+ * anything that is not exactly the string 'full' is treated as 'summary',
+ * because the cost of a typo in a settings value has to be less disclosure and
+ * never more.
+ *
+ * Pure: no DOM, no network, no clock. `ctx.now` is injected by the caller like
+ * everywhere else in this app, so this module stays a function of its
+ * arguments and can be read, diffed and tested in plain Node.
+ */
+
+const { time: fmtTime, duration: fmtDuration, pct, dayName, dateLabel } = __m["tomorrow/src/core/fmt.js"];
+const { bedtimeAbs } = __m["tomorrow/src/core/time.js"];
+
+const DAY_MINUTES = 1440;
+
+/* ------------------------------------------------------------------ *
+ * Small renderers
+ * ------------------------------------------------------------------ */
+
+function timeFormatOf(ctx) {
+  return (ctx && ctx.profile && ctx.profile.timeFormat) || '24h';
+}
+
+/*
+ * A clock reading, marked when it belongs to the small hours of the morning
+ * after.
+ *
+ * Curves, bedtimes and late items all run past midnight, and fromMinutes()
+ * wraps them, which is right for a screen where the row's position says which
+ * day it is on. In a flat block of text it is not: a bedtime that renders as
+ * 00:30 next to a wake time of 06:45 reads as a night of six hours in the wrong
+ * direction, and the model would describe it that way with complete confidence.
+ */
+function clock(minute, format) {
+  const n = Number(minute);
+  if (!Number.isFinite(n)) return '—';
+  const text = fmtTime(n, format);
+  return n >= DAY_MINUTES ? `${text} (למחרת)` : text;
+}
+
+function span(from, to, format) {
+  return `${clock(from, format)}–${clock(to, format)}`;
+}
+
+function int(n) {
+  const v = Number(n);
+  return Number.isFinite(v) ? String(Math.round(v)) : '—';
+}
+
+/*
+ * An item's start, or null when it has none.
+ *
+ * Worth its own function because `Number(null)` is 0 and `Number.isFinite(0)`
+ * is true, so the obvious test passes for an unscheduled task and hands it a
+ * start time of midnight. That reached the block once: a task the user had not
+ * placed anywhere was presented to the model as an item at 00:00, which it
+ * would have described back to them as a fact about their night.
+ */
+function startOf(item) {
+  if (!item || item.start === null || item.start === undefined) return null;
+  const n = Number(item.start);
+  return Number.isFinite(n) ? n : null;
+}
+
+/*
+ * The day's items in reading order, unscheduled ones last, ties broken by id.
+ *
+ * The order is what the summary level's placeholders are numbered from, so it
+ * has to be stable: a handle that meant one thing in the first question and
+ * something else in the third would let the model contradict itself across a
+ * conversation while quoting the app's own data both times.
+ */
+function orderedItems(ctx) {
+  const items = (ctx && ctx.items) || [];
+  return items.slice().sort((a, b) => {
+    const as = startOf(a);
+    const bs = startOf(b);
+    const an = as === null ? Infinity : as;
+    const bn = bs === null ? Infinity : bs;
+    if (an !== bn) return an - bn;
+    return String(a && a.id) < String(b && b.id) ? -1 : 1;
+  });
+}
+
+/* ------------------------------------------------------------------ *
+ * Withholding names
+ * ------------------------------------------------------------------ */
+
+/**
+ * A scrubber that replaces this day's item titles with neutral handles.
+ *
+ * Numbered rather than a single placeholder repeated, because the conflict risk
+ * says two things overlap and the whole content of that sentence is that they
+ * are two different things. Collapsing both to one word would turn a real
+ * warning into a sentence that reads like a bug.
+ */
+function anonymiser(items) {
+  const names = items
+    .map((it, i) => ({ title: String((it && it.title) || '').trim(), handle: `פריט ${i + 1}` }))
+    /* Two characters is the floor. A one-character title is somebody testing
+     * the input box, and substituting it would rewrite half the Hebrew in the
+     * block — the letter ו alone appears in almost every sentence. */
+    .filter((n) => n.title.length >= 2)
+    /* Longest first, because one title is often contained in another — קריאה
+     * inside קריאה למבחן. Replacing the short one first leaves the tail of the
+     * long one sitting in the text, which is the leak this function exists to
+     * prevent. */
+    .sort((a, b) => (b.title.length - a.title.length) || (a.title < b.title ? -1 : 1));
+
+  return function scrub(text) {
+    let s = text === null || text === undefined ? '' : String(text);
+    for (const n of names) {
+      // The quoted form first: otherwise the handle lands inside a pair of
+      // quotes and the sweep below replaces it a second time, throwing away the
+      // number that made it useful.
+      s = s.split(`"${n.title}"`).join(n.handle);
+      s = s.split(n.title).join(n.handle);
+    }
+    /*
+     * The sweep. Every item name the engine interpolates into a sentence it
+     * wraps in ASCII double quotes — risk.js, scoring.js and optimize.js all do
+     * it, and nothing else in the forecast's Hebrew is quoted that way; the
+     * gershayim inside אחה״צ is a different character entirely. So a quoted run
+     * still standing at this point is a name this function was never given,
+     * which happens when a risk points at an item the caller did not pass or
+     * when a future string quotes something new. It costs a little fluency to
+     * blank it. Leaving it would break the promise the setting made, and the
+     * user would never know.
+     */
+    return s.replace(/"[^"]*"/g, 'פריט ביומן');
+  };
+}
+
+/** At the full level the engine's own wording travels untouched. */
+function verbatim(text) {
+  return text === null || text === undefined ? '' : String(text);
+}
+
+/* ------------------------------------------------------------------ *
+ * The system prompt
+ * ------------------------------------------------------------------ */
+
+/*
+ * Written in English, like the prompts in the repository's other app, while
+ * every string the model has to produce or recognise is given in Hebrew. The
+ * instructions are for the model; the vocabulary is for the user.
+ */
+const RULES = `You are the phrasing layer of TomorrowAI, a Hebrew app that reads a person's
+next day before it starts and estimates how it is likely to go. They are asking
+you from the app's chat screen, with the forecast you are given open on the
+screen behind you.
+
+Answer in Hebrew. Two or three sentences. Go longer only when they ask for
+something that genuinely needs it, and never past a short paragraph.
+
+Plain text only. The reply is rendered as a paragraph, so markdown does not
+become formatting here — it becomes visible asterisks and hash marks. No
+bullet lists, no headings, no bold, no emoji.
+
+THE NUMBERS ARE THE APP'S, NOT YOURS
+
+This is the rule the product stands on, and it outranks everything else below.
+Every figure in the data block — the score, each factor, the energy and focus
+levels, the times, the durations, the percentages, the confidence — has already
+been computed by the app's own engine from this person's own history. Your job
+is to say what those figures mean in a sentence a human would actually say. It
+is not to produce figures.
+
+  * Quote a number only if it appears in the block, and quote it exactly as it
+    is written there. Copy times character for character.
+  * Never compute a new one. Not an average, not a difference, not a
+    percentage, not a total, not an "about an hour and a half" worked out from
+    two times in the block. A number you derived looks identical to a number
+    the engine computed, and the person has no way to tell them apart — which
+    is how one invented figure costs the app the credibility of every real
+    figure it has ever shown them.
+  * When they ask for something the block does not contain, say so plainly:
+    אין לי את המספר הזה. That is always a correct answer. A plausible guess
+    never is.
+  * A what-if — what happens if I sleep at 23:00, if I move the workout — is a
+    calculation, and the app has a screen that runs it for real against the
+    same engine. Send them to מה אם instead of estimating the new score.
+
+THE FUTURE IS AN ESTIMATE, AND THE HEBREW HAS TO SAY SO
+
+The app never claims to know what will happen, and neither do you. A prediction
+stated as fact is a bug, not a style choice.
+
+  * Wrong: מחר תהיה עייף ב-14:00.
+  * Right: לפי הדפוס שלך, צפויה ירידה באנרגיה סביב 14:00.
+
+Hedge inside the sentence, using these words: צפוי, צפויה, סביר, נוטה, ייתכן,
+בערך, להערכתי, כנראה, לפי הדפוס שלך, על סמך הימים האחרונים שלך. A hedge added
+at the end as a disclaimer is not a hedge. What already happened — what they
+logged, what they planned, what is on the schedule — is fact and does not get
+hedged; only the day that has not happened yet does.
+
+THE VOICE
+
+Calm, short, human: a level-headed friend who has looked at the numbers, not a
+coach and not a wellness app.
+
+  * Never dramatic. No exclamation marks. Nothing here is an emergency.
+  * Never judgemental. A short night, an unfinished task and a heavy day are
+    information, not failures. Do not tell them what they should have done, and
+    do not congratulate them either — praise for an early bedtime is the same
+    move as a telling-off for a late one, and both make the app something they
+    have to manage their feelings around.
+  * No filler. Do not restate the question, do not announce that you looked at
+    the data, do not offer to help further. Open with the answer.
+  * This is the register: הבוקר שלך נראה חזק, אבל אחר הצהריים עמוס מהרגיל.
+    העברה של משימה אחת לאחרי 18:00 ושינה חצי שעה מוקדם יותר משפרות את התחזית.
+
+YOU HAVE NOT DONE ANYTHING
+
+You are a reply in a chat box. You cannot move a task, change a bedtime, add
+anything to the schedule, open a screen or save a setting, and nothing in the
+app acts on what you write. Never use a verb that claims otherwise — העברתי,
+שיניתי, הוספתי, קבעתי, עדכנתי, מחקתי. Suggest, and name the place that really
+does it:
+
+  * שפר את מחר — applies the app's own highest-impact change to the day.
+  * מה אם — tries a change and shows the new score without saving it.
+  * לוח — the schedule, where an item is moved or edited by hand.
+  * פרופיל — wake time, bedtime and the rest of the settings.
+
+כדאי להזיז את זה מוקדם יותר, אפשר לעשות את זה במסך לוח is right. הזזתי את זה
+is a lie they will catch the moment they look at the schedule.
+
+WHEN NAMES ARE WITHHELD
+
+The data block states which share level this person chose. At the summary level
+their calendar entries were deliberately not sent: the block gives the shape of
+the day and calls each thing on it פריט 1, פריט 2 and so on. Those are
+placeholders, not names. Do not guess what they stand for, do not ask for them,
+and do not repeat a placeholder back — פריט 2 means nothing to the person
+reading. Say אחד הדברים שקבעת למחר, or identify it by its time.
+
+WHAT YOU ARE NOT
+
+TomorrowAI plans days. It is not a doctor, a therapist or a diagnosis. If
+someone describes pain, illness or real distress, answer briefly and kindly,
+stay away from clinical advice, and do not fold it into the forecast. A
+question with nothing to do with their day can get a short answer, but this is
+a planning app and what is useful here is almost always tomorrow.`;
+
+/*
+ * The handful of facts that must be true no matter how the caller assembles the
+ * request. The block below carries the day in detail, but a client is free to
+ * send it as part of the user turn, and a system prompt that did not know which
+ * date it was talking about would let the model answer a question about Tuesday
+ * with Monday's numbers and sound entirely sure of itself.
+ *
+ * Nothing here identifies anybody: no name, no titles, no notes. It stays safe
+ * to send at either share level, which is what lets the settings screen preview
+ * it honestly.
+ */
+function frameOf(ctx) {
+  const f = ctx && ctx.forecast;
+  if (!f) {
+    return 'No day has been computed yet. Until a forecast arrives, say you do not have the '
+      + 'numbers rather than describing a day you cannot see.';
+  }
+
+  const lines = [];
+  const when = ctx && ctx.now instanceof Date ? dateLabel(f.date, ctx.now) : dayName(f.date);
+  lines.push(`This conversation is about ${f.date} (${when}). Everything you are told is about `
+    + 'that one day. A question about another day, or about anything the data does not cover, '
+    + 'gets an honest אין לי את הנתון הזה rather than a guess.');
+
+  const c = f.confidence;
+  if (c && c.learningMode) {
+    lines.push(`The app is still learning this person: confidence in this forecast is ${pct(c.overall)} `
+      + 'and it is in learning mode. Hedge harder than usual and say outright that the estimate '
+      + 'is early, rather than letting a confident sentence stand on thin history.');
+  } else if (c) {
+    lines.push(`The app's confidence in this forecast is ${pct(c.overall)} (${c.level}). Do not `
+      + 'sound more certain than that number, and do not quote a different one.');
+  }
+
+  if (f.judged === false) {
+    lines.push('The score is not a verdict on this day — there is too little planned for it to '
+      + 'grade anything. Describe the day, do not mark it.');
+  }
+
+  return lines.join('\n\n');
+}
+
+/**
+ * The standing instruction sent with every question.
+ *
+ * Safe to call with no forecast, and with no `ctx` at all: the settings screen
+ * shows exactly what leaves the device before anything has left it, and that
+ * preview happens on a screen where a day may not have been computed yet.
+ */
+function systemPrompt(ctx) {
+  return `${RULES}\n\n${frameOf(ctx)}\n`;
+}
+
+/* ------------------------------------------------------------------ *
+ * The day, as text
+ * ------------------------------------------------------------------ */
+
+function factorLines(f, scrub, out) {
+  const factors = (f && f.factors) || [];
+  if (!factors.length) return;
+  out.push('factors (score 0-100, weight, direction against this person\'s own average):');
+  for (const x of factors) {
+    out.push(`  ${x.key} / ${x.label} — ${int(x.score)}, weight ${x.weight}, ${x.direction}`
+      + `${x.detail ? ` — ${scrub(x.detail)}` : ''}`);
+  }
+}
+
+function curveLines(f, format, out) {
+  const e = f.energyPeak || null;
+  const d = f.energyDip || null;
+  const p = f.focusPeak || null;
+  if (e) out.push(`energy: peak ${int(e.value)} at ${clock(e.minute, format)}`
+    + `${d ? `, afternoon dip ${int(d.value)} at ${clock(d.minute, format)}` : ''}`);
+  if (p) out.push(`focus: peak ${int(p.value)} at ${clock(p.minute, format)}`);
+
+  const windows = f.focusWindows || [];
+  if (!windows.length) {
+    out.push('best focus windows: none long enough to recommend — the day has no clear stretch of 45 minutes above the threshold.');
+    return;
+  }
+  out.push('best focus windows (best first):');
+  for (const w of windows) {
+    out.push(`  ${span(w.start, w.end, format)} — focus ${int(w.score)}, confidence ${pct(w.confidence)}`);
+  }
+}
+
+function riskLines(f, scrub, format, full, items, out) {
+  const risks = f.risks || [];
+  if (!risks.length) {
+    out.push('risks: none found. That is not a promise the day will go smoothly, only that nothing in the data stands out.');
+    return;
+  }
+  const byId = new Map(items.map((it) => [it && it.id, it]));
+  out.push(`risks (worst first, ${risks.length}):`);
+  for (const r of risks) {
+    out.push(`  ${r.key} — severity ${r.severity}, score ${int(r.score)}`);
+    out.push(`    title: ${scrub(r.title)}`);
+    out.push(`    reason: ${scrub(r.reason)}`);
+    out.push(`    suggestion: ${scrub(r.suggestion)}`);
+    if (r.window) out.push(`    when: ${span(r.window.start, r.window.end, format)}`);
+    const ids = r.itemIds || [];
+    if (!ids.length) continue;
+    /* The ids themselves never go out. They are meaningless to a model and at
+     * the summary level they would be a second channel for the same names the
+     * rest of this function is busy withholding. */
+    out.push(full
+      ? `    involves: ${ids.map((id) => (byId.get(id) || {}).title || 'פריט שאינו ביום הזה').join(', ')}`
+      : `    involves: ${ids.length} ${ids.length === 1 ? 'item' : 'items'} on the schedule`);
+  }
+}
+
+function insightLines(f, scrub, out) {
+  const insights = f.insights || [];
+  if (!insights.length) {
+    out.push('insights: none yet — fewer than three comparable days logged. Do not offer a pattern; there is not one to offer.');
+    return;
+  }
+  out.push('insights, learned from this person\'s own logged days (each one is only true with its evidence attached):');
+  for (const i of insights) {
+    out.push(`  ${scrub(i.text)} — ${scrub(i.evidence)} (${i.samples} samples, ${i.strength})`);
+  }
+}
+
+function recommendationLines(f, scrub, out) {
+  const r = f.recommendation;
+  if (!r) {
+    out.push('primary recommendation: none. The optimiser searched and found no single change worth at least a point. Say that plainly if asked; do not invent one.');
+    return;
+  }
+  out.push('primary recommendation (the highest-impact change the optimiser found, already scored):');
+  out.push(`  ${scrub(r.title)}`);
+  out.push(`  ${scrub(r.detail)}`);
+  out.push(`  projected score: ${int(r.from)} to ${int(r.to)}, confidence ${pct(r.confidence)}`);
+  out.push('  the person applies it themselves from שפר את מחר. You cannot apply it.');
+}
+
+function scheduleLines(f, format, full, items, out) {
+  if (!full) {
+    out.push(`schedule: withheld. The day holds ${items.length} ${items.length === 1 ? 'item' : 'items'}; `
+      + 'their names and times were not sent, by the person\'s own choice in settings. Everything '
+      + 'above describes the shape of the day without saying what is in it.');
+    return;
+  }
+  if (!items.length) {
+    out.push('schedule: empty — nothing is planned on this day.');
+    return;
+  }
+  out.push(`schedule (${items.length} items, times exact):`);
+  for (const it of items) {
+    const at = startOf(it);
+    const when = at === null
+      ? `unscheduled, ${fmtDuration(it.duration)}`
+      : span(at, at + Number(it.duration), format);
+    const tags = [it.type, it.category, `priority ${it.priority}`, `difficulty ${it.difficulty}`,
+      `energy ${it.energyRequirement}`, `focus ${it.focusRequirement}`, it.status];
+    if (it.locked) tags.push('locked');
+    if (it.isTop) tags.push('marked most important');
+    out.push(`  ${when} — ${it.title} [${tags.join(', ')}]`);
+  }
+  out.push('  notes attached to items are never sent, at any share level.');
+}
+
+/**
+ * The live forecast as compact, unambiguous text.
+ *
+ * `share` is 'summary' or 'full' from `Root.settings.ai`. Anything else — an
+ * old value, a typo, undefined — falls to 'summary'. A default that widened
+ * disclosure would be a privacy bug hiding behind a data-validation bug.
+ */
+function contextBlock(ctx, share) {
+  const full = share === 'full';
+  const f = ctx && ctx.forecast;
+  const format = timeFormatOf(ctx);
+  const items = orderedItems(ctx);
+  const scrub = full ? verbatim : anonymiser(items);
+  const out = [];
+
+  out.push('FORECAST DATA — computed by the app, on the device, before this request. Quote it; never recompute it.');
+
+  if (!f) {
+    out.push('none — no day has been computed yet, so there are no numbers to quote.');
+    return out.join('\n');
+  }
+
+  out.push(full
+    ? 'share level: full — the schedule below carries the real titles this person typed.'
+    : 'share level: summary — item names were withheld deliberately. פריט N is a placeholder for a real thing on the schedule whose name was not sent.');
+  out.push('');
+
+  out.push(`day: ${f.date} (${dayName(f.date)})`);
+  const plan = ctx.plan;
+  if (plan) {
+    /* Two bedtimes, and confusing them is the easiest mistake to make here.
+     * `bedtime` is tonight — the night that ends on this date, the one the sleep
+     * factor is scored on and the one the recommendation moves. `nextBedtime`
+     * closes the day. A model told only "bedtime" would answer a question about
+     * tonight with tomorrow evening's number. */
+    out.push(`awake window: ${clock(plan.wake, format)} to ${clock(bedtimeAbs(plan.nextBedtime), format)}`);
+    out.push(`tonight's lights-out (the night before this day, and the one a sleep change would move): ${clock(plan.bedtime, format)}`);
+  }
+  out.push(`score: ${int(f.score)} / 100 — band ${f.band}, called ${f.label}`);
+  if (f.judged === false) {
+    out.push('  judged: false — too little is planned for the score to be a verdict on anything. It is not a grade and must not be described as one.');
+  }
+  out.push('');
+
+  factorLines(f, scrub, out);
+  out.push('');
+
+  curveLines(f, format, out);
+  out.push('');
+
+  riskLines(f, scrub, format, full, items, out);
+  out.push('');
+
+  const t = f.totals || {};
+  out.push(`totals: ${fmtDuration(t.loadMinutes)} booked, ${fmtDuration(t.freeMinutes)} free, `
+    + `${fmtDuration(t.sleepMinutes)} sleep, ${fmtDuration(t.awakeMinutes)} awake; `
+    + `${int(t.taskCount)} tasks, ${int(t.doneCount)} of them already done; `
+    + `${int(t.topCount)} marked as most important for the day`);
+
+  const c = f.confidence;
+  if (c) {
+    out.push(`confidence: ${pct(c.overall)} (level ${c.level}), learning mode: ${c.learningMode ? 'yes' : 'no'}`
+      + `${f.meta ? `, built from ${int(f.meta.samples)} logged days` : ''}`);
+    for (const reason of c.reasons || []) out.push(`  ${scrub(reason)}`);
+  }
+  out.push('');
+
+  const reasons = f.reasons || {};
+  if ((reasons.up || []).length || (reasons.down || []).length) {
+    out.push('the app\'s own wording for why the score is what it is:');
+    if ((reasons.up || []).length) out.push(`  holding it up: ${reasons.up.map(scrub).join('; ')}`);
+    if ((reasons.down || []).length) out.push(`  pulling it down: ${reasons.down.map(scrub).join('; ')}`);
+    out.push('');
+  }
+
+  insightLines(f, scrub, out);
+  out.push('');
+
+  recommendationLines(f, scrub, out);
+  out.push('');
+
+  scheduleLines(f, format, full, items, out);
+
+  return out.join('\n');
+}
+
+  return {
+    "systemPrompt": systemPrompt,
+    "contextBlock": contextBlock,
+  };
+})();
+
+__m["tomorrow/src/ai/router.js"] = (function () {
+/*
+ * router.js — which engine answers.
+ *
+ * Two engines, and the order between them is the whole design. The local rule
+ * engine goes first on everything it recognises, and a model only sees what it
+ * did not.
+ *
+ * That order is not a fallback arrangement, it is the better one. Asked how
+ * tomorrow looks, the rule engine reads the score off the forecast that is on
+ * screen; a language model given the same forecast would paraphrase it, more
+ * slowly, and occasionally with a digit changed. Asked to find an hour for a
+ * project, the rule engine runs the scheduler and returns a slot that satisfies
+ * every constraint in Contracts §7; a model would suggest a time. For anything
+ * the app actually knows, a model is a worse answer wearing better clothes.
+ *
+ * What a model is genuinely better at is everything else: the question phrased
+ * sideways, the follow-up that assumes the previous answer, the request for
+ * advice the rule engine has no rule for. So it gets those, and nothing else —
+ * which also happens to make it cheap, because most questions never reach it.
+ *
+ * The route taken is reported, always, and the chat shows it. A person who
+ * cannot tell which engine answered cannot calibrate how much to trust the
+ * answer, and this app's whole argument is that its numbers are worth trusting.
+ */
+
+const { answer: localAnswer } = __m["tomorrow/src/engine/chat.js"];
+const { isConfigured, ask: remoteAsk, ChatError } = __m["tomorrow/src/ai/client.js"];
+const { systemPrompt, contextBlock } = __m["tomorrow/src/ai/context.js"];
+
+/*
+ * How many turns of history a model is given.
+ *
+ * Enough that "and what about Thursday?" resolves, small enough that a long
+ * evening of chat does not quietly become an expensive request. Counted in
+ * turns rather than tokens because it is the unit the failure is measured in:
+ * one turn too few and a follow-up loses its subject.
+ */
+const HISTORY_TURNS = 6;
+
+/**
+ * Where a question should go, without sending it anywhere.
+ *
+ * Separated from asking so the chat can decide what to show *before* it starts —
+ * a streaming bubble for a model, an immediate answer for the local engine — and
+ * so this decision is testable without a network.
+ */
+function route(question, ctx, options) {
+  const o = options || {};
+  const local = localAnswer(question, ctx);
+
+  if (local.kind !== 'unknown') {
+    return { engine: 'local', local, reason: `the local engine recognised this as "${local.kind}"` };
+  }
+  if (!o.remoteAvailable) {
+    return { engine: 'local', local, reason: 'no model is connected, so the local engine answers anyway' };
+  }
+  return { engine: 'remote', local, reason: 'the local engine did not recognise the question' };
+}
+
+/**
+ * Whether a model could be reached at all right now.
+ *
+ * The local model counts as available only once it is actually loaded. A
+ * question is not the moment to start a gigabyte download — the settings screen
+ * is, deliberately and with the user watching — so an unloaded local model is
+ * treated as absent and the rule engine answers.
+ */
+function remoteAvailable(settings, key, localState) {
+  if (localState && localState.enabled && localState.loaded) return 'local-model';
+  if (isConfigured(settings, key)) return 'hosted';
+  return '';
+}
+
+/**
+ * Answer one question, from whichever engine should answer it.
+ *
+ * `deps.localModelAsk` is injected rather than imported so this module stays
+ * loadable — and testable — without the six-megabyte model library coming with
+ * it. The chat passes it in only when a local model is resident.
+ *
+ * Returns `{ text, engine, model, streamed, note }`. `note` is non-empty when
+ * something went wrong and the answer came from somewhere other than where it
+ * was headed; the chat shows it verbatim, because "the model failed and this is
+ * the local answer instead" is information the reader needs and not an apology
+ * to be smoothed away.
+ */
+async function respond(question, ctx, opts) {
+  const o = opts || {};
+  const decision = route(question, ctx, { remoteAvailable: !!o.remoteKind });
+
+  if (decision.engine === 'local') {
+    return {
+      text: decision.local.text,
+      followups: decision.local.followups || [],
+      engine: 'local',
+      model: '',
+      streamed: false,
+      note: '',
+    };
+  }
+
+  const messages = buildMessages(question, ctx, o.history);
+  const system = systemPrompt(ctx) + '\n\n' + contextBlock(ctx, o.share || 'summary');
+
+  try {
+    if (o.remoteKind === 'local-model') {
+      if (typeof o.localModelAsk !== 'function') throw new Error('no local model driver was supplied');
+      const out = await o.localModelAsk(
+        { messages: [{ role: 'system', content: system }].concat(messages), maxTokens: 512 },
+        o.onDelta, o.signal);
+      return {
+        text: out.text, followups: [], engine: 'local-model',
+        model: out.model, streamed: !!out.streamed, note: '',
+      };
+    }
+
+    const out = await remoteAsk({ system, messages, signal: o.signal }, o.onDelta);
+    return {
+      text: out.text, followups: [], engine: 'hosted',
+      model: out.model, streamed: !!out.streamed, note: '',
+    };
+  } catch (e) {
+    /*
+     * A cancelled answer is not a failure and must not be dressed as one. The
+     * user pressed stop; saying "the model failed, here is a local answer"
+     * would be answering a question they withdrew.
+     */
+    if (e && (e.kind === 'aborted' || e.name === 'AbortError')) {
+      return { text: '', followups: [], engine: 'aborted', model: '', streamed: false, note: '' };
+    }
+
+    /*
+     * Everything else falls back to the rule engine, which for an unrecognised
+     * question means its "I did not understand, here is what I can answer"
+     * reply. That is a poor answer, and it is still better than an error with
+     * nothing behind it — and the note says exactly what happened, so nobody
+     * mistakes the local reply for the model's.
+     */
+    const detail = (e instanceof ChatError || (e && e.detail)) ? e.detail : String((e && e.message) || e);
+    return {
+      text: decision.local.text,
+      followups: decision.local.followups || [],
+      engine: 'local',
+      model: '',
+      streamed: false,
+      note: `המודל לא ענה — ${detail} התשובה למטה היא של המנוע המקומי.`,
+    };
+  }
+}
+
+/*
+ * The turns a model is given, oldest first.
+ *
+ * The stored history uses the role 'ai' (§4.1), which no vendor has heard of;
+ * client.js repairs that, but only if the roles arrive in a shape it can read,
+ * so the mapping happens here where the store's vocabulary is still in scope.
+ */
+function buildMessages(question, ctx, history) {
+  const turns = Array.isArray(history) ? history.slice(-HISTORY_TURNS * 2) : [];
+  const messages = turns
+    .filter((t) => t && typeof t.text === 'string' && t.text.trim())
+    .map((t) => ({ role: t.role === 'user' ? 'user' : 'assistant', content: t.text }));
+  messages.push({ role: 'user', content: question });
+  return messages;
+}
+
+  return {
+    "route": route,
+    "remoteAvailable": remoteAvailable,
+    "respond": respond,
+  };
+})();
+
+__m["tomorrow/src/ai/localmodels.js"] = (function () {
+/*
+ * localmodels.js — which on-device models exist, and which one is resident.
+ *
+ * Data and a single flag, split out of local.js so that everything except the
+ * machinery can be imported normally.
+ *
+ * The split is not tidiness. local.js needs `import.meta.url` to find its worker
+ * and `import()` to fetch the model library, and neither survives being
+ * flattened into the single-file build — an inline script has no module record,
+ * so `import.meta` there is a syntax error rather than a missing value. That
+ * build genuinely cannot run a local model anyway: the library is not in it and
+ * the weights are a gigabyte on somebody's disk. So local.js stays out of the
+ * bundle entirely, reached only through import(), and the parts that are just
+ * facts about models live here where any screen can name them.
+ */
+
+/*
+ * Qwen, because that is what was asked for, smallest first.
+ *
+ * This library version carries Qwen2 and Qwen2.5 and no Qwen3, so the newer
+ * hosted Qwen is a different path and the settings screen says so rather than
+ * letting the name in the menu imply otherwise.
+ *
+ * The sizes are the library's own vram_required_MB. They decide whether a
+ * machine can run this at all, so they are in the menu rather than left to be
+ * discovered when the tab dies.
+ */
+const LOCAL_MODELS = [
+  {
+    id: 'Qwen2.5-0.5B-Instruct-q4f16_1-MLC',
+    label: 'Qwen2.5 0.5B',
+    vramMb: 945,
+    note: 'הקטן והמהיר. רץ כמעט על הכול, ומדי פעם עונה לא לעניין.',
+  },
+  {
+    id: 'Qwen2.5-1.5B-Instruct-q4f16_1-MLC',
+    label: 'Qwen2.5 1.5B',
+    vramMb: 1630,
+    note: 'האיזון הסביר. דורש כרטיס גרפי עם כ-2 ג׳יגה פנויים.',
+  },
+  {
+    id: 'Qwen2.5-3B-Instruct-q4f16_1-MLC',
+    label: 'Qwen2.5 3B',
+    vramMb: 2504,
+    note: 'הטוב מבין השלושה, ואיטי יותר להוריד ולהתחיל.',
+  },
+];
+
+const DEFAULT_LOCAL_MODEL = LOCAL_MODELS[1].id;
+
+function modelById(id) {
+  return LOCAL_MODELS.find((m) => m.id === id) || null;
+}
+
+/*
+ * Which model is resident, as a fact the whole app can read without pulling in
+ * the driver. The driver is the only writer; everybody else asks.
+ *
+ * A module-level variable rather than something in the store, because it
+ * describes this browser tab's GPU at this moment. Persisting it would mean a
+ * reload claiming a model is loaded when the GPU is empty.
+ */
+const state = { loaded: '' };
+
+function currentModel() {
+  return state.loaded;
+}
+
+function isLoaded() {
+  return state.loaded !== '';
+}
+
+/** Called by local.js only. */
+function setLoadedModel(id) {
+  state.loaded = id || '';
+}
+
+  return {
+    "LOCAL_MODELS": LOCAL_MODELS,
+    "DEFAULT_LOCAL_MODEL": DEFAULT_LOCAL_MODEL,
+    "modelById": modelById,
+    "currentModel": currentModel,
+    "isLoaded": isLoaded,
+    "setLoadedModel": setLoadedModel,
+  };
+})();
+
+__m["tomorrow/src/ai/webgpu.js"] = (function () {
+/*
+ * webgpu.js — whether this device can run a model at all, and what to say if not.
+ *
+ * Its own file, and pure enough to test, because it is the branch almost
+ * everybody meets first. "Unsupported" is not an answer anybody can act on:
+ * a browser with no WebGPU, a browser with WebGPU that will not open an adapter,
+ * and an adapter too small for the model are three different problems with three
+ * different fixes, and the difference is the whole value of this function.
+ *
+ * This is also the one part of the local-model feature that was verified in the
+ * environment it was written in, precisely because that environment has no
+ * WebGPU — navigator.gpu is undefined there, with and without the usual flags.
+ * The negative path is tested; the positive one is a promise the library makes.
+ */
+
+/*
+ * The smallest model in the menu needs a bit under a gigabyte. Below roughly
+ * that there is no point starting a download that ends in a crashed tab.
+ */
+const MIN_USABLE_MB = 900;
+
+/**
+ * `{ ok, reason, detail, limits }`.
+ *
+ * `reason` is a token to branch on; `detail` is the Hebrew sentence to show.
+ * `limits` carries what the adapter reported, so the settings screen can say
+ * how much room there actually is rather than guessing.
+ *
+ * `nav` is injectable so this can be tested against a browser that does not
+ * exist — which is the only way the interesting cases get covered at all.
+ */
+async function detectWebGpu(nav) {
+  const gpu = nav !== undefined ? nav : (typeof navigator !== 'undefined' ? navigator : null);
+
+  if (!gpu) {
+    return {
+      ok: false,
+      reason: 'no_browser',
+      detail: 'אין כאן דפדפן, אז אין GPU להריץ עליו.',
+      limits: null,
+    };
+  }
+
+  if (!gpu.gpu) {
+    return {
+      ok: false,
+      reason: 'no_webgpu',
+      /*
+       * Names the browsers rather than saying "unsupported browser", because
+       * the honest answer to "why not" is that this is new and not everywhere
+       * yet — and on an iPhone the answer is "not on this device", which is
+       * worth saying before somebody spends ten minutes looking for a setting.
+       */
+      detail: 'הדפדפן הזה לא תומך ב-WebGPU, וזה מה שמריץ מודל מקומי. כרום או אדג׳ מעודכנים במחשב הם הכי בטוחים; באייפון זה עדיין לא זמין.',
+      limits: null,
+    };
+  }
+
+  let adapter = null;
+  try {
+    adapter = await gpu.gpu.requestAdapter();
+  } catch (e) {
+    return {
+      ok: false,
+      reason: 'adapter_failed',
+      detail: `הדפדפן תומך ב-WebGPU אבל לא הצליח לפתוח את הכרטיס הגרפי: ${String(e && e.message || e).slice(0, 120)}`,
+      limits: null,
+    };
+  }
+
+  if (!adapter) {
+    return {
+      ok: false,
+      reason: 'no_adapter',
+      detail: 'יש תמיכה ב-WebGPU אבל שום כרטיס גרפי לא נענה. לפעמים זה נפתר בהפעלה מחדש של הדפדפן, ולפעמים זה כרטיס שהדפדפן חוסם.',
+      limits: null,
+    };
+  }
+
+  const limits = adapter.limits || {};
+  const bufferMb = limits.maxBufferSize ? Math.floor(limits.maxBufferSize / (1024 * 1024)) : null;
+  const storageMb = limits.maxStorageBufferBindingSize
+    ? Math.floor(limits.maxStorageBufferBindingSize / (1024 * 1024))
+    : null;
+
+  const info = { vendor: '', architecture: '' };
+  if (adapter.info) {
+    info.vendor = adapter.info.vendor || '';
+    info.architecture = adapter.info.architecture || '';
+  }
+
+  /*
+   * maxBufferSize is not the amount of memory available, and must not be
+   * reported as though it were — it is the largest single allocation. It is
+   * still the number that most often decides whether a model loads, so a value
+   * below what the smallest model needs is worth warning about while stopping
+   * short of refusing: the library packs weights across several buffers and may
+   * well manage where this heuristic says it will not.
+   */
+  if (bufferMb !== null && bufferMb < MIN_USABLE_MB) {
+    return {
+      ok: true,
+      reason: 'tight_memory',
+      detail: `הכרטיס הגרפי מדווח על הקצאה מרבית של כ-${bufferMb} מגה. אפשר לנסות, אבל סביר שרק המודל הקטן ביותר ייטען.`,
+      limits: { bufferMb, storageMb, info },
+    };
+  }
+
+  return {
+    ok: true,
+    reason: 'ready',
+    detail: bufferMb
+      ? `הדפדפן מוכן להריץ מודל מקומי (הקצאה מרבית כ-${bufferMb} מגה).`
+      : 'הדפדפן מוכן להריץ מודל מקומי.',
+    limits: { bufferMb, storageMb, info },
+  };
+}
+
+  return {
+    "detectWebGpu": detectWebGpu,
+  };
+})();
+
+__m["tomorrow/src/ui/aisettings.js"] = (function () {
+/*
+ * aisettings.js — connecting a model, and being straight about what it costs.
+ *
+ * Three choices live here and each has a real price the user is entitled to know
+ * before paying it, so each is stated on the screen rather than in a tooltip or
+ * a document nobody opens.
+ *
+ * A hosted model costs money per question and sends the day to a company. The
+ * privacy control shows the actual text that would leave the device — generated,
+ * not described — because somebody deciding whether to send their calendar to a
+ * vendor should be able to read the thing rather than trust a summary of it.
+ *
+ * A local model costs about a gigabyte of download and a GPU, and is markedly
+ * less capable. It is free forever after that, which is the whole point.
+ *
+ * The key is stored in this browser in plain text on an origin shared with the
+ * other apps in this repository. That sentence is on the screen. It is not
+ * softened, because the alternative to saying it is somebody assuming otherwise.
+ */
+
+const { h, sheet, announce } = __m["tomorrow/src/core/dom.js"];
+const { get, apiKey, setApiKey, update } = __m["tomorrow/src/core/store.js"];
+const { PROVIDERS, providerById } = __m["tomorrow/src/ai/providers.js"];
+const { testConnection } = __m["tomorrow/src/ai/client.js"];
+const { LOCAL_MODELS, DEFAULT_LOCAL_MODEL, currentModel, isLoaded } = __m["tomorrow/src/ai/localmodels.js"];
+const { detectWebGpu } = __m["tomorrow/src/ai/webgpu.js"];
+
+/*
+ * The driver is fetched only when this screen actually needs it — checking a
+ * device's capability does not, and neither does drawing the menu. It stays out
+ * of the single-file build for the reason given in localmodels.js.
+ */
+function driver() {
+  return import('../ai/local.js');
+}
+const { contextBlock } = __m["tomorrow/src/ai/context.js"];
+const { icon, ICONS } = __m["tomorrow/src/ui/parts.js"];
+
+function openAiSettings(ctx) {
+  const body = h('div.stack', { 'data-t': 'ai-settings' });
+  const close = sheet(body, { title: 'מודל שפה' });
+  paint();
+  return close;
+
+  function settings() {
+    return Object.assign({ enabled: false, providerId: '', model: '', baseUrl: '', share: 'summary' },
+      (get().settings && get().settings.ai) || {});
+  }
+
+  function save(patch) {
+    update((root) => {
+      root.settings.ai = Object.assign({}, root.settings.ai, patch);
+    });
+    paint();
+  }
+
+  function paint() {
+    const s = settings();
+    body.textContent = '';
+
+    body.appendChild(h('p.card-note', {
+      text: 'האפליקציה עובדת במלואה בלי זה. הציון, עקומות האנרגיה והריכוז, הסיכונים וההמלצות מחושבים כאן במכשיר בכל מקרה — מודל מוסיף ניסוח ותשובות לשאלות פתוחות, ולא יותר.',
+    }));
+
+    body.appendChild(choice(s));
+    if (s.enabled && s.providerId === 'local') body.appendChild(localSection(s));
+    else if (s.enabled && s.providerId) body.appendChild(hostedSection(s));
+  }
+
+  /* ---------------------------------------------------------------- *
+   * Which engine
+   * ---------------------------------------------------------------- */
+
+  function choice(s) {
+    const options = [
+      { id: '', label: 'מקומי בלבד', note: 'מנוע החוקים עונה על הכול. מיידי, בחינם, בלי רשת.' },
+      { id: 'local', label: 'מודל על המכשיר', note: 'Qwen2.5 שרץ בדפדפן. בלי מפתח ובלי מכסה, אחרי הורדה של כג׳יגה.' },
+      { id: 'hosted', label: 'מודל מתארח', note: 'החכם ביותר. דורש מפתח API, ועולה כסף לפי שימוש.' },
+    ];
+    const current = !s.enabled ? '' : (s.providerId === 'local' ? 'local' : 'hosted');
+
+    return h('div.field', { 'data-t': 'ai-enable' },
+      h('span.label', { text: 'מי עונה' }),
+      h('div.list', null, options.map((o) => h('button.list-row.pick', {
+        type: 'button',
+        'aria-pressed': current === o.id ? 'true' : 'false',
+        onclick: () => {
+          if (o.id === '') save({ enabled: false });
+          else if (o.id === 'local') {
+            save({ enabled: true, providerId: 'local', model: s.model && currentModel() ? s.model : DEFAULT_LOCAL_MODEL });
+          } else {
+            const first = PROVIDERS[0];
+            save({
+              enabled: true,
+              providerId: s.providerId && s.providerId !== 'local' ? s.providerId : first.id,
+              model: s.providerId && s.providerId !== 'local' ? s.model : (first.suggestions[0] || ''),
+            });
+          }
+        },
+      },
+      h('div.list-body', null,
+        h('span.list-title', { text: o.label }),
+        h('span.list-meta', { text: o.note }))))));
+  }
+
+  /* ---------------------------------------------------------------- *
+   * On the device
+   * ---------------------------------------------------------------- */
+
+  function localSection(s) {
+    const wrap = h('div.stack');
+
+    wrap.appendChild(h('p.card-note', {
+      text: 'המודל רץ בכרטיס הגרפי שלך. אחרי ההורדה הראשונה אין מפתח, אין מכסה, אין עלות ואין רשת — וזה מודל קטן, אז הוא פחות חכם מכל מודל מתארח.',
+    }));
+
+    /*
+     * The capability report is fetched and shown before anything can be
+     * downloaded. Finding out a device cannot run this after a gigabyte is the
+     * failure worth spending a round trip to avoid.
+     */
+    const status = h('p.card-note', { text: 'בודק את הדפדפן…' });
+    wrap.appendChild(status);
+
+    const models = h('div.stack.tight');
+    const progress = h('p.card-note', { hidden: true });
+    const action = h('div.row.wrap');
+    wrap.appendChild(models);
+    wrap.appendChild(progress);
+    wrap.appendChild(action);
+
+    detectWebGpu().then((can) => {
+      status.textContent = can.detail;
+      status.className = can.ok ? 'card-note' : 'card-note warn';
+      if (!can.ok) {
+        /*
+         * A device that cannot run it is told what to do instead, not left with
+         * a dead screen and a switch it already flipped.
+         */
+        action.appendChild(h('p.card-note', {
+          text: 'אפשר להישאר על המנוע המקומי, שעובד בכל דפדפן, או לחבר מודל מתארח.',
+        }));
+        return;
+      }
+      fillModels();
+    });
+
+    function fillModels() {
+      models.textContent = '';
+      models.appendChild(h('span.label', { text: 'איזה מודל' }));
+      const rows = h('div.list');
+      models.appendChild(rows);
+      for (const m of LOCAL_MODELS) {
+        const resident = currentModel() === m.id;
+        rows.appendChild(h('button.list-row.pick', {
+          type: 'button', 'data-t': 'ai-model',
+          'aria-pressed': s.model === m.id ? 'true' : 'false',
+          onclick: () => save({ model: m.id }),
+        },
+        h('div.list-body', null,
+          h('span.list-title', { text: `${m.label}${resident ? ' · טעון' : ''}` }),
+          h('span.list-meta', { text: `${m.note} כ-${(m.vramMb / 1024).toFixed(1)} ג׳יגה בכרטיס.` }))));
+      }
+
+      action.textContent = '';
+      action.appendChild(h('button.btn.primary', {
+        type: 'button', 'data-t': 'ai-test',
+        onclick: () => download(s.model || DEFAULT_LOCAL_MODEL),
+      }, icon(ICONS.spark), isLoaded() ? 'לטעון מחדש' : 'להוריד ולהפעיל'));
+
+      if (isLoaded()) {
+        action.appendChild(h('button.btn.quiet', {
+          type: 'button',
+          onclick: async () => { const { unload } = await driver(); await unload(); paint(); },
+        }, 'לפנות מהזיכרון'));
+      }
+    }
+
+    async function download(id) {
+      progress.hidden = false;
+      progress.textContent = 'מתחיל…';
+      try {
+        const { load } = await driver();
+        await load(id, (report) => {
+          /*
+           * The library's own numbers, unembellished. This wait is minutes long
+           * on a first run and a made-up progress bar would be noticed.
+           */
+          const pct = Math.round((report.progress || 0) * 100);
+          progress.textContent = report.text ? `${report.text} (${pct}%)` : `${pct}%`;
+        });
+        progress.textContent = 'המודל טעון ומוכן.';
+        announce('המודל המקומי מוכן');
+        paint();
+      } catch (e) {
+        progress.className = 'card-note warn';
+        progress.textContent = e && e.detail ? e.detail : String((e && e.message) || e);
+      }
+    }
+
+    return wrap;
+  }
+
+  /* ---------------------------------------------------------------- *
+   * Hosted
+   * ---------------------------------------------------------------- */
+
+  function hostedSection(s) {
+    const wrap = h('div.stack');
+    const provider = providerById(s.providerId) || PROVIDERS[0];
+
+    wrap.appendChild(h('div.field', { 'data-t': 'ai-provider' },
+      h('span.label', { text: 'ספק' }),
+      h('div.chip-row', null, PROVIDERS.map((p) => h('button.chip', {
+        type: 'button',
+        class: p.id === s.providerId ? 'chip is-on' : 'chip',
+        'aria-pressed': p.id === s.providerId ? 'true' : 'false',
+        onclick: () => save({ providerId: p.id, model: p.suggestions[0] || '' }),
+      }, p.label)))));
+
+    /*
+     * Free text, not a menu. Vendors rename and retire model ids constantly, so
+     * a fixed list is wrong within weeks and wrong in a way nobody can work
+     * around. The chips fill the field; whatever is in the field is what gets
+     * sent.
+     */
+    const modelInput = h('input.input', {
+      type: 'text', 'data-t': 'ai-model', value: s.model || '',
+      placeholder: provider.suggestions[0] || 'מזהה המודל',
+      autocomplete: 'off', spellcheck: 'false', dir: 'ltr',
+      onchange: (e) => save({ model: e.target.value.trim() }),
+    });
+
+    wrap.appendChild(h('label.field', null,
+      h('span.label', { text: 'מזהה המודל' }),
+      modelInput,
+      provider.suggestions.length
+        ? h('div.chip-row', null, provider.suggestions.map((sug) => h('button.chip', {
+          type: 'button',
+          onclick: () => { modelInput.value = sug; save({ model: sug }); },
+        }, sug)))
+        : null,
+      h('span.field-hint', {
+        text: 'שדה חופשי בכוונה — ספקים משנים מזהי מודלים כל הזמן. אם המזהה שגוי, בדיקת החיבור תגיד בדיוק את זה.',
+      })));
+
+    if (provider.id === 'custom') {
+      wrap.appendChild(h('label.field', null,
+        h('span.label', { text: 'כתובת בסיס' }),
+        h('input.input', {
+          type: 'url', value: s.baseUrl || '', dir: 'ltr', placeholder: 'https://…/v1/chat/completions',
+          onchange: (e) => save({ baseUrl: e.target.value.trim() }),
+        }),
+        h('span.field-hint.warn', {
+          text: 'מארח שלא מופיע ב-connect-src של הדף ייחסם על ידי הדפדפן. השורה לשינוי היא ה-Content-Security-Policy בקובץ tomorrow/index.html.',
+        })));
+    }
+
+    wrap.appendChild(keyField(provider));
+    wrap.appendChild(testRow(s));
+    wrap.appendChild(shareField(s));
+    return wrap;
+  }
+
+  function keyField(provider) {
+    const input = h('input.input', {
+      type: 'password', 'data-t': 'ai-key', value: apiKey(), dir: 'ltr',
+      placeholder: provider.keyHint || 'המפתח שלך', autocomplete: 'off', spellcheck: 'false',
+      onchange: (e) => { setApiKey(e.target.value); },
+    });
+
+    return h('div.field', null,
+      h('span.label', { text: 'מפתח API' }),
+      h('div.row', null, input,
+        h('button.btn.quiet', {
+          type: 'button', 'aria-label': 'להציג את המפתח',
+          onclick: () => { input.type = input.type === 'password' ? 'text' : 'password'; },
+        }, 'הצג')),
+      /*
+       * Said plainly, and not softened. The alternative to this sentence is
+       * somebody assuming the key is protected by something.
+       */
+      h('span.field-hint.warn', {
+        text: 'המפתח נשמר בדפדפן הזה כטקסט גלוי, על אותו origin כמו שאר האפליקציות במאגר — כל דבר שיכול להריץ סקריפט כאן יכול לקרוא אותו. הוא לא נכנס לקובץ הגיבוי, ולעולם לא נשלח לשום מקום חוץ מהספק שבחרת.',
+      }));
+  }
+
+  function testRow(s) {
+    const result = h('p.card-note', { 'data-t': 'ai-test-result', hidden: true });
+    const button = h('button.btn', {
+      type: 'button', 'data-t': 'ai-test',
+      onclick: async () => {
+        button.disabled = true;
+        result.hidden = false;
+        result.className = 'card-note';
+        result.textContent = 'בודק…';
+        const out = await testConnection(s, apiKey());
+        result.className = out.ok ? 'card-note good' : 'card-note warn';
+        result.textContent = out.detail;
+        button.disabled = false;
+      },
+    }, icon(ICONS.spark), 'בדיקת חיבור');
+
+    return h('div.stack.tight', null, button, result);
+  }
+
+  /* ---------------------------------------------------------------- *
+   * What leaves the device
+   * ---------------------------------------------------------------- */
+
+  function shareField(s) {
+    const preview = h('pre.code-preview', { 'data-t': 'ai-preview', hidden: true, dir: 'rtl' });
+
+    const options = [
+      { id: 'summary', label: 'צורת היום בלבד', note: 'ציון, אנרגיה, ריכוז, סיכונים וזמנים — בלי שמות של פריטים.' },
+      { id: 'full', label: 'כולל הלוח', note: 'גם מה כתוב בכל פריט. תשובות טובות יותר, יותר מידע שיוצא.' },
+    ];
+
+    const buttons = h('div.list', null, options.map((o) => h('button.list-row.pick', {
+      type: 'button', 'data-t': 'ai-share',
+      'aria-pressed': (s.share || 'summary') === o.id ? 'true' : 'false',
+      onclick: () => save({ share: o.id }),
+    },
+    h('div.list-body', null,
+      h('span.list-title', { text: o.label }),
+      h('span.list-meta', { text: o.note })))));
+
+    return h('div.field', null,
+      h('span.label', { text: 'מה נשלח למודל' }),
+      buttons,
+      h('button.btn.quiet', {
+        type: 'button',
+        onclick: () => {
+          if (!preview.hidden) { preview.hidden = true; return; }
+          /*
+           * The real text, generated by the same function that builds the
+           * request — not a description of it. Somebody deciding whether to send
+           * their calendar to a company should be able to read the thing.
+           */
+          preview.textContent = contextBlock({
+            forecast: ctx.forecast, profile: ctx.profile, plan: ctx.plan,
+            items: ctx.input.items, learning: ctx.root.learning,
+            insights: ctx.forecast.insights, now: ctx.now, input: ctx.input,
+          }, s.share || 'summary');
+          preview.hidden = false;
+        },
+      }, 'להראות בדיוק מה נשלח'),
+      preview);
+  }
+}
+
+  return {
+    "openAiSettings": openAiSettings,
+  };
+})();
+
 __m["tomorrow/src/ui/chat.js"] = (function () {
 /*
  * chat.js — asking the app about your day.
  *
- * The banner at the top is not a disclaimer somebody made me add. There is no
- * model behind this screen, and the honest version of that fact is more useful
- * than hiding it: the answers come from the same forecast the other screens are
- * drawn from, which is why they quote exact times and exact scores and why they
- * are instant. An app that faked a typing indicator here would be trading the
- * one thing it has — the numbers being real — for the appearance of something
- * it does not have.
+ * Two engines answer here and the badge at the top always says which one just
+ * did. That is not a disclaimer somebody made me add; it is the only way a
+ * reader can calibrate what they are looking at. An answer from the rule engine
+ * quotes the exact score off the forecast beside it and arrives instantly. An
+ * answer from a model is better phrased and is a model's answer, with whatever
+ * that implies. Collapsing the two into one anonymous voice would trade the one
+ * thing this app has — its numbers being real — for the appearance of being
+ * cleverer than it is.
  *
- * If an adapter is ever registered, the engine reports mode 'remote' and this
- * screen stops claiming the answers are local. That check is deliberately read
- * at render time rather than baked in.
+ * Which engine gets a question is decided in ai/router.js, and the short version
+ * is that the rule engine answers everything the app actually knows. See the
+ * comment there; it is a product decision, not a fallback arrangement.
+ *
+ * Nothing here fakes anything. When a model streams, the text appears as it
+ * comes off the socket. When it does not, there is a plain waiting state rather
+ * than an animation implying tokens are arriving. When a call fails, the reply
+ * says so and is labelled as the local engine's.
  */
 
 const { h } = __m["tomorrow/src/core/dom.js"];
-const { get, pushChat } = __m["tomorrow/src/core/store.js"];
-const { answer, SUGGESTIONS, mode, hasAdapter } = __m["tomorrow/src/engine/chat.js"];
+const { get, pushChat, apiKey } = __m["tomorrow/src/core/store.js"];
+const { answer, SUGGESTIONS } = __m["tomorrow/src/engine/chat.js"];
+const { respond, remoteAvailable } = __m["tomorrow/src/ai/router.js"];
+const { providerById } = __m["tomorrow/src/ai/providers.js"];
+const { modelById, currentModel, isLoaded } = __m["tomorrow/src/ai/localmodels.js"];
 const { card, icon, ICONS } = __m["tomorrow/src/ui/parts.js"];
+const { openAiSettings } = __m["tomorrow/src/ui/aisettings.js"];
 
 function render(root, ctx) {
   const history = get().chat;
+  const settings = (get().settings && get().settings.ai) || {};
+
+  /*
+   * Which engine is live, decided once per render. The local model counts only
+   * when it is actually resident — a question is not the moment to start a
+   * gigabyte download, so an unloaded one is treated as absent and the rule
+   * engine answers everything.
+   */
+  const kind = remoteAvailable(settings, apiKey(), {
+    enabled: settings.providerId === 'local' && settings.enabled,
+    loaded: isLoaded(),
+  });
 
   root.appendChild(h('header.home-head', null,
     h('div', null,
       h('h1', { text: 'לשאול את TomorrowAI' }),
       h('p.sub', { text: 'על מחר, על העומס, על מה כדאי לשנות.' }))));
 
-  root.appendChild(h('div.card.flat.chat-note', null,
-    icon(ICONS.spark, { class: 'chat-note-icon' }),
-    h('p.card-note', {
-      text: hasAdapter()
-        ? 'התשובות מגיעות ממודל חיצוני שחובר לאפליקציה.'
-        : 'התשובות נבנות כאן במכשיר, מהתחזית עצמה — אין מודל שפה מחובר, ושום דבר לא נשלח החוצה. לכן הן מדויקות במספרים ומוגבלות בניסוח.',
-    })));
+  root.appendChild(modeBanner(ctx, kind, settings));
 
   const thread = h('div.chat-thread', { role: 'log', 'aria-live': 'polite', 'aria-label': 'שיחה' });
   root.appendChild(thread);
 
   for (const msg of history) thread.appendChild(bubble(msg.role, msg.text));
-  if (!history.length) {
-    thread.appendChild(bubble('ai', opener(ctx)));
-  }
+  if (!history.length) thread.appendChild(bubble('ai', opener(ctx)));
 
   const followups = h('div.chip-row.chat-suggest');
   root.appendChild(followups);
-  fillSuggestions(followups, SUGGESTIONS.slice(0, 4), ask);
+  fillSuggestions(SUGGESTIONS.slice(0, 4));
 
   const input = h('input.input', {
     type: 'text', 'data-t': 'chat-input', autocomplete: 'off',
@@ -14047,30 +16388,35 @@ function render(root, ctx) {
     onkeydown: (e) => { if (e.key === 'Enter') { e.preventDefault(); send(); } },
   });
 
-  root.appendChild(h('form.chat-bar', {
-    onsubmit: (e) => { e.preventDefault(); send(); },
-  }, input,
-  h('button.btn.primary.icon', {
+  const sendBtn = h('button.btn.primary.icon', {
     type: 'submit', 'data-t': 'chat-send', 'aria-label': 'שליחה',
     /*
      * The arrow is flipped because an inline SVG is not mirrored by dir="rtl" —
      * only text is. Drawn as-is it points right, which in Hebrew is the
      * direction you came from, so the send button read as a back button.
      */
-  }, icon('M4 12h14M13 6l6 6-6 6', { weight: '2', class: 'flip' }))));
+  }, icon('M4 12h14M13 6l6 6-6 6', { weight: '2', class: 'flip' }));
+
+  const stopBtn = h('button.btn.icon.chat-stop', {
+    type: 'button', 'data-t': 'chat-stop', 'aria-label': 'להפסיק', hidden: true,
+    onclick: () => { if (inflight) inflight.abort(); },
+  }, icon('M7 7h10v10H7z', { weight: '2' }));
+
+  root.appendChild(h('form.chat-bar', {
+    onsubmit: (e) => { e.preventDefault(); send(); },
+  }, input, stopBtn, sendBtn));
+
+  let inflight = null;
 
   function send() {
     const text = input.value.trim();
-    if (!text) return;
+    if (!text || inflight) return;
     input.value = '';
     ask(text);
   }
 
-  function ask(question) {
-    thread.appendChild(bubble('user', question));
-    pushChat('user', question);
-
-    const reply = answer(question, {
+  function contextFor() {
+    return {
       forecast: ctx.forecast,
       profile: ctx.profile,
       plan: ctx.plan,
@@ -14080,14 +16426,155 @@ function render(root, ctx) {
       insights: ctx.forecast.insights,
       input: ctx.input,
       now: ctx.now,
-    });
+    };
+  }
 
-    thread.appendChild(bubble('ai', reply.text));
-    pushChat('ai', reply.text);
-    fillSuggestions(followups, reply.followups.length ? reply.followups : SUGGESTIONS.slice(0, 3), ask);
+  async function ask(question) {
+    if (inflight) return;
+
+    thread.appendChild(bubble('user', question));
+    pushChat('user', question);
     thread.scrollTop = thread.scrollHeight;
+
+    /*
+     * The local engine answers synchronously, so the common case never shows a
+     * waiting state at all — putting one up for four milliseconds would be
+     * inventing latency to look busy.
+     */
+    if (!kind) {
+      const reply = answer(question, contextFor());
+      finish(reply.text, reply.followups, '');
+      return;
+    }
+
+    const controller = new AbortController();
+    inflight = controller;
+    stopBtn.hidden = false;
+    sendBtn.disabled = true;
+    input.disabled = true;
+
+    const pending = bubble('ai', '');
+    const body = pending.querySelector('p');
+    pending.classList.add('is-streaming');
+    thread.appendChild(pending);
+
+    /*
+     * A waiting note, replaced by the first token. It says which model is being
+     * waited on rather than "thinking", because on a local model the honest
+     * answer to "why is this slow" is the name of the thing doing the work.
+     */
+    const waiting = h('span.chat-waiting', { text: waitingText(kind, settings) });
+    body.appendChild(waiting);
+
+    let streamed = false;
+    try {
+      const out = await respond(question, contextFor(), {
+        remoteKind: kind,
+        history,
+        share: settings.share || 'summary',
+        signal: controller.signal,
+        localModelAsk: kind === 'local-model' ? localAsk : null,
+        onDelta: (piece) => {
+          if (!streamed) { waiting.remove(); streamed = true; }
+          body.textContent += piece;
+          thread.scrollTop = thread.scrollHeight;
+        },
+      });
+
+      pending.remove();
+
+      if (out.engine === 'aborted') {
+        // Nothing was withdrawn from the user; they withdrew the question.
+        if (body.textContent.trim()) finish(body.textContent.trim(), [], 'הפסקתי באמצע.');
+        else clearBusy();
+        return;
+      }
+
+      finish(out.text, out.followups, out.note);
+    } catch (e) {
+      pending.remove();
+      const reply = answer(question, contextFor());
+      finish(reply.text, reply.followups,
+        `משהו נכשל בדרך למודל: ${String((e && e.message) || e).slice(0, 120)} התשובה למטה היא של המנוע המקומי.`);
+    }
+  }
+
+  function clearBusy() {
+    inflight = null;
+    stopBtn.hidden = true;
+    sendBtn.disabled = false;
+    input.disabled = false;
     input.focus();
   }
+
+  /* `next` rather than `followups`: the outer name is the element these go
+   * into, and shadowing it here made the helper below read as a bug. */
+  function finish(text, next, note) {
+    if (note) thread.appendChild(h('p.chat-note-line', { 'data-t': 'chat-note', text: note }));
+    if (text) {
+      thread.appendChild(bubble('ai', text));
+      pushChat('ai', text);
+    }
+    fillSuggestions(next && next.length ? next : SUGGESTIONS.slice(0, 3));
+    thread.scrollTop = thread.scrollHeight;
+    clearBusy();
+  }
+
+  function fillSuggestions(list) {
+    followups.textContent = '';
+    for (const sug of list) {
+      followups.appendChild(h('button.chip', { type: 'button', onclick: () => ask(sug) }, sug));
+    }
+  }
+
+  /*
+   * The driver, fetched only when a model is actually resident.
+   *
+   * It cannot be a normal import: local.js needs import.meta.url to locate its
+   * worker, and that is a syntax error once flattened into the single-file
+   * build. Keeping it behind import() keeps it out of that bundle, which is
+   * correct — the offline copy has no model library and no weights and could
+   * never run one. The catalogue above is imported normally, so the badge can
+   * still name a model without any of this coming with it.
+   */
+  async function localAsk(req, onDelta, signal) {
+    const driver = await import('../ai/local.js');
+    return driver.ask(Object.assign({ model: currentModel() }, req), onDelta, signal);
+  }
+}
+
+/*
+ * The badge, and the way into the settings.
+ *
+ * It names the model rather than saying "connected", because "which model" is
+ * the question somebody actually has when an answer surprises them.
+ */
+function modeBanner(ctx, kind, settings) {
+  let text;
+  if (kind === 'local-model') {
+    const m = modelById(currentModel());
+    text = `${m ? m.label : currentModel()} רץ על המכשיר הזה. שאלות שהאפליקציה יודעת לענות עליהן נענות מיד מהתחזית; השאר הולך למודל.`;
+  } else if (kind === 'hosted') {
+    const p = providerById(settings.providerId);
+    text = `${settings.model} דרך ${p ? p.label : settings.providerId}. שאלות על הציון, העומס והזמנים נענות מקומית מהתחזית; שאלות פתוחות נשלחות למודל.`;
+  } else {
+    text = 'התשובות נבנות כאן במכשיר, מהתחזית עצמה — אין מודל מחובר, ושום דבר לא נשלח החוצה. לכן הן מדויקות במספרים ומוגבלות בניסוח.';
+  }
+
+  return h('div.card.flat.chat-note', { 'data-t': 'chat-mode' },
+    icon(ICONS.spark, { class: 'chat-note-icon' }),
+    h('p.card-note', { text }),
+    h('button.btn.quiet.chat-mode-edit', {
+      type: 'button', onclick: () => openAiSettings(ctx),
+    }, kind ? 'שינוי' : 'לחבר מודל'));
+}
+
+function waitingText(kind, settings) {
+  if (kind === 'local-model') {
+    const m = modelById(currentModel());
+    return `${m ? m.label : 'המודל המקומי'} חושב…`;
+  }
+  return `${settings.model || 'המודל'} חושב…`;
 }
 
 function opener(ctx) {
@@ -14102,14 +16589,7 @@ function bubble(role, text) {
   }, h('p', { text }));
 }
 
-function fillSuggestions(host, list, onPick) {
-  host.textContent = '';
-  for (const s of list) {
-    host.appendChild(h('button.chip', {
-      type: 'button', onclick: () => onPick(s),
-    }, s));
-  }
-}
+
 
   return {
     "render": render,
@@ -14584,6 +17064,7 @@ const { fromMinutes, toMinutes } = __m["tomorrow/src/core/time.js"];
 const { SCHEMA_VERSION } = __m["tomorrow/src/storage/migrate.js"];
 const { PRIORITY_AREAS, PREFERRED_TIMES } = __m["tomorrow/src/data/catalog.js"];
 const { card, icon, ICONS, stat } = __m["tomorrow/src/ui/parts.js"];
+const { openAiSettings } = __m["tomorrow/src/ui/aisettings.js"];
 
 function render(root, ctx) {
   const p = ctx.profile;
@@ -14666,6 +17147,30 @@ function render(root, ctx) {
     toggle('פחות תנועה', p.reduceMotion,
       'מבטל אנימציות גם אם המערכת שלך לא מבקשת את זה.',
       (v) => { save(ctx, { reduceMotion: v }); ctx.refresh(); })));
+
+  /* -------------------------------------------------- model */
+
+  /*
+   * Says which engine is answering, in the same words the chat's badge uses.
+   * "Connected" would be the useless version — when an answer surprises
+   * somebody, the question they have is which model produced it.
+   */
+  const ai = (ctx.root.settings && ctx.root.settings.ai) || {};
+  const aiState = !ai.enabled
+    ? 'מנוע החוקים המקומי עונה על הכול. מיידי, בלי מפתח ובלי רשת.'
+    : ai.providerId === 'local'
+      ? `מודל על המכשיר${ai.model ? ` — ${ai.model}` : ''}. בלי מפתח ובלי מכסה.`
+      : `${ai.model || 'מודל'} דרך ${ai.providerId}. שאלות על הציון והזמנים עדיין נענות מקומית.`;
+
+  root.appendChild(card({ title: 'מודל שפה' },
+    h('div.row.wrap', null,
+      h('span.grow', null,
+        h('span.label', { text: 'מי עונה בצ׳אט' }),
+        h('p.card-note', { text: aiState })),
+      h('button.btn', {
+        type: 'button', 'data-t': 'ai-open',
+        onclick: () => openAiSettings(ctx),
+      }, ai.enabled ? 'שינוי' : 'לחבר מודל'))));
 
   /* -------------------------------------------------- reminders */
 
