@@ -284,7 +284,13 @@ async function run() {
 
         const nl = await page.$(t('quickadd-nl'));
         if (nl) {
-          await nl.fill('מחר ב-17:00 אימון של שעה');
+          /*
+           * No day word. The ritual is preparing one specific date and the item
+           * has to land on it — saying "מחר" here asks for a different day and
+           * makes this check depend on what time the suite runs, which is how it
+           * passed all evening and failed after midnight.
+           */
+          await nl.fill('אימון של שעה ב-17:00');
           await nl.dispatchEvent('change');
           await page.waitForTimeout(400);
         }

@@ -209,7 +209,20 @@ function naturalLanguage(ctx, draft, repaint) {
       const parsed = parseQuickAdd(text, { today: ctx.today, now: ctx.now, profile: ctx.profile });
       if (!parsed.ok) { readout.hidden = true; return; }
 
-      Object.assign(draft, parsed.item);
+      /*
+       * Only the fields the parser actually read.
+       *
+       * parseQuickAdd fills a date and a start whether or not it found one —
+       * today, and null — and copying those wholesale overwrote the day the
+       * editor was opened for. Preparing tomorrow in the evening ritual and
+       * typing "אימון ב-17:00" put the workout on today, silently, and the
+       * ritual's own list then correctly showed nothing. `matched` exists to say
+       * which parts were understood, and this is what it is for.
+       */
+      const patch = Object.assign({}, parsed.item);
+      if (!parsed.matched.date) delete patch.date;
+      if (!parsed.matched.time) delete patch.start;
+      Object.assign(draft, patch);
       readout.hidden = false;
       readout.textContent = '';
       readout.appendChild(h('span.badge.accent', { text: 'הבנתי' }));

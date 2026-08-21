@@ -22,6 +22,7 @@ import { fromMinutes, toMinutes } from '../core/time.js';
 import { SCHEMA_VERSION } from '../storage/migrate.js';
 import { PRIORITY_AREAS, PREFERRED_TIMES } from '../data/catalog.js';
 import { card, icon, ICONS, stat } from './parts.js';
+import { openAiSettings } from './aisettings.js';
 
 export function render(root, ctx) {
   const p = ctx.profile;
@@ -104,6 +105,30 @@ export function render(root, ctx) {
     toggle('פחות תנועה', p.reduceMotion,
       'מבטל אנימציות גם אם המערכת שלך לא מבקשת את זה.',
       (v) => { save(ctx, { reduceMotion: v }); ctx.refresh(); })));
+
+  /* -------------------------------------------------- model */
+
+  /*
+   * Says which engine is answering, in the same words the chat's badge uses.
+   * "Connected" would be the useless version — when an answer surprises
+   * somebody, the question they have is which model produced it.
+   */
+  const ai = (ctx.root.settings && ctx.root.settings.ai) || {};
+  const aiState = !ai.enabled
+    ? 'מנוע החוקים המקומי עונה על הכול. מיידי, בלי מפתח ובלי רשת.'
+    : ai.providerId === 'local'
+      ? `מודל על המכשיר${ai.model ? ` — ${ai.model}` : ''}. בלי מפתח ובלי מכסה.`
+      : `${ai.model || 'מודל'} דרך ${ai.providerId}. שאלות על הציון והזמנים עדיין נענות מקומית.`;
+
+  root.appendChild(card({ title: 'מודל שפה' },
+    h('div.row.wrap', null,
+      h('span.grow', null,
+        h('span.label', { text: 'מי עונה בצ׳אט' }),
+        h('p.card-note', { text: aiState })),
+      h('button.btn', {
+        type: 'button', 'data-t': 'ai-open',
+        onclick: () => openAiSettings(ctx),
+      }, ai.enabled ? 'שינוי' : 'לחבר מודל'))));
 
   /* -------------------------------------------------- reminders */
 
