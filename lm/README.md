@@ -22,6 +22,17 @@ npx http-server -p 8080 .      # or: python3 -m http.server 8080
 open http://localhost:8080/lm/
 ```
 
+Or open the prebuilt single file, which needs no server and no network at all:
+
+```bash
+open dist/laken.html            # 2.3 MB, rebuild with:
+node tools/build-single.js lm/index.html dist/laken.html
+```
+
+That one file is everything: the page, the model, both corpora — all 713,117
+characters of what the hundred agents wrote — and the trained model itself. Copy
+it to a phone, open it on a plane, and it trains.
+
 Paste text, press **התחל אימון**, and watch the loss curve. `Space` starts and
 stops it when the focus is not in a text box.
 

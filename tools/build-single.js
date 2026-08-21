@@ -49,13 +49,77 @@ function key(abs) {
   return relative(ROOT, abs).split('\\').join('/');
 }
 
+/**
+ * A copy of a module with the contents of strings and comments blanked out, the
+ * same length as the original so a match's index still points at the same
+ * character.
+ *
+ * The corpora are ES modules whose whole content is a list of JSON strings —
+ * half a megabyte of other people's code, quoted. Scanning that with a regular
+ * expression for `import(` finds the dynamic imports inside the *training text*
+ * and tries to bundle them, which is how a build first failed on a corpus slice
+ * that happened to contain one. Static imports were never at risk only because
+ * their pattern is anchored to the start of a line and every slice is one line.
+ *
+ * It does not understand regular expression literals, so a regex containing a
+ * lone quote would desynchronise it. Nothing here has one, and the three builds
+ * are checked after any change to this file.
+ */
+function maskStrings(src) {
+  const out = src.split('');
+  const n = src.length;
+  let i = 0;
+  while (i < n) {
+    const ch = src[i];
+    if (ch === '"' || ch === "'" || ch === '`') {
+      const quote = ch;
+      i++;
+      while (i < n) {
+        if (src[i] === '\\') { out[i] = ' '; if (i + 1 < n) out[i + 1] = ' '; i += 2; continue; }
+        if (src[i] === quote) { i++; break; }
+        out[i] = ' ';
+        i++;
+      }
+      continue;
+    }
+    if (ch === '/' && src[i + 1] === '/') {
+      while (i < n && src[i] !== '\n') { out[i] = ' '; i++; }
+      continue;
+    }
+    if (ch === '/' && src[i + 1] === '*') {
+      const end = src.indexOf('*/', i + 2);
+      const stop = end < 0 ? n : end + 2;
+      for (let j = i; j < stop; j++) out[j] = ' ';
+      i = stop;
+      continue;
+    }
+    i++;
+  }
+  return out.join('');
+}
+
+/** Every `import('./x.js')` that is really code, with where it sits. */
+function dynamicImports(src) {
+  const masked = maskStrings(src);
+  const re = /\bimport\s*\(\s*['"]([^'"]+)['"]\s*\)/g;
+  const found = [];
+  let m;
+  while ((m = re.exec(masked))) {
+    /* The specifier itself was blanked by the mask, so read it back out of the
+     * original at the same offsets. */
+    const spec = src.slice(m.index, m.index + m[0].length).match(/['"]([^'"]+)['"]/)[1];
+    found.push({ start: m.index, end: m.index + m[0].length, spec });
+  }
+  return found;
+}
+
 function collect(abs) {
   const k = key(abs);
   if (seen.has(k)) return;
   seen.set(k, null);
 
   const src = readFileSync(abs, 'utf8');
-  reject(src, k);
+  reject(maskStrings(src), k);
 
   const deps = [];
   /* `[\s\S]*?` inside the braces so a named import may wrap over several
@@ -72,15 +136,26 @@ function collect(abs) {
 
   for (const d of deps) collect(resolve(dirname(abs), d.spec));
 
+  /* Dynamic imports are how LAKEN's page loads a corpus or a trained model only
+   * when someone asks for one. Served, that is a second request; bundled, there
+   * is nothing left to request — so the module is pulled in here and the call
+   * becomes a lookup in transform(). */
+  for (const dyn of dynamicImports(src)) {
+    if (!dyn.spec.startsWith('.')) throw new Error(`${k}: bare dynamic import "${dyn.spec}" — not bundleable`);
+    collect(resolve(dirname(abs), dyn.spec));
+  }
+
   seen.set(k, { abs, src, deps });
   order.push(k);
 }
 
 function reject(src, k) {
-  if (/\bexport\s+default\b/.test(src)) throw new Error(`${k}: export default is not supported`);
   if (/\bexport\s+\*/.test(src)) throw new Error(`${k}: export * is not supported`);
-  if (/\bimport\s*\(/.test(src)) throw new Error(`${k}: dynamic import() is not supported`);
   if (/\bimport\.meta\b/.test(src)) throw new Error(`${k}: import.meta is not supported`);
+  /* A dynamic import built from a variable cannot be resolved at build time,
+   * and silently leaving it in would produce a file that looks fine until the
+   * button that needs it is pressed. */
+  if (/\bimport\s*\(\s*[^'"\s)]/.test(src)) throw new Error(`${k}: computed dynamic import — not bundleable`);
 }
 
 function transform(k, mod) {
@@ -89,13 +164,45 @@ function transform(k, mod) {
   // imports -> registry destructuring
   for (const d of mod.deps) {
     const target = key(resolve(dirname(mod.abs), d.spec));
+    /* `import { MODEL as TRAINED }` becomes `const { MODEL: TRAINED }`.
+     * Destructuring renames with a colon; leaving the `as` in place emitted a
+     * syntax error into the middle of a two megabyte file, which is a bad place
+     * to go looking for one. */
+    const named = (d.named || '')
+      .replace(/\s+/g, ' ')
+      .split(',')
+      .map((t) => t.trim())
+      .filter(Boolean)
+      .map((t) => {
+        const as = /^([\w$]+)\s+as\s+([\w$]+)$/.exec(t);
+        return as ? `${as[1]}: ${as[2]}` : t;
+      })
+      .join(', ');
     const line = d.ns
       ? `const ${d.ns} = __m[${JSON.stringify(target)}];`
-      : `const { ${d.named.replace(/\s+/g, ' ').trim()} } = __m[${JSON.stringify(target)}];`;
+      : `const { ${named} } = __m[${JSON.stringify(target)}];`;
     out = out.replace(d.raw, line);
   }
 
+  /* import('./x.js') -> the module object, already in the registry. Awaiting a
+   * resolved promise keeps every call site unchanged, including the ones that
+   * hand it to Promise.all. */
+  for (const dyn of dynamicImports(out).reverse()) {
+    const target = key(resolve(dirname(mod.abs), dyn.spec));
+    if (!seen.has(target)) throw new Error(`${k}: dynamic import "${dyn.spec}" was never collected`);
+    out = out.slice(0, dyn.start)
+      + `Promise.resolve(__m[${JSON.stringify(target)}])`
+      + out.slice(dyn.end);
+  }
+
   const exported = new Set();
+
+  /* export default <expression>; — what the generated corpus and model modules
+   * use, since each is one enormous value and nothing else. */
+  out = out.replace(/^[ \t]*export\s+default\s+/m, () => {
+    exported.add('default:__default');
+    return 'const __default = ';
+  });
 
   // export [async] const/let/function/class -> plain declaration, remembered.
   // `async` matters: the vision client is the one module here that awaits a
@@ -147,8 +254,24 @@ const css = CSS_FILES.map((f) => readFileSync(f, 'utf8')).join('\n\n');
 /* The same source the entry point and stylesheets were discovered in — reading
  * index.html again here is how the first version of this emitted FitAI's shell
  * wrapped around the Backrooms bundle. */
+/**
+ * Make a sequence inert that the HTML parser would otherwise act on.
+ *
+ * A string inside this bundle can contain the text `</script>` — the corpora
+ * are half a megabyte of other people's code, and one slice of HTML has exactly
+ * that. The parser does not know it is looking at a JavaScript string: it ends
+ * the script element there, and everything after it becomes a second inline
+ * script, which the policy hash does not cover and which begins in the middle
+ * of an expression. That is how the first single-file build of LAKEN produced a
+ * 2.8 MB file that did nothing at all.
+ *
+ * `<\/script>` is the same string to JavaScript and no longer a closing tag to
+ * the parser. `<!--` is the same hazard through a different tokenizer state.
+ */
+const inert = (js) => js.replace(/<\/script/gi, '<\\/script').replace(/<!--/g, '<\\!--');
+
 const styleBody = `\n${css}\n`;
-const scriptBody = `\n${bundle}\n`;
+const scriptBody = `\n${inert(bundle)}\n`;
 
 /* The page carries a Content-Security-Policy that says script-src 'self' and
  * style-src 'self' — correct for the served app, and fatal here, because this
@@ -180,11 +303,42 @@ html = html
     /(<meta http-equiv="Content-Security-Policy" content=")([^"]*)(">)/,
     (_, a, policy, c) => a + singleFileCsp(policy) + c
   )
-  .replace('</head>', `<style>${styleBody}</style>\n</head>`)
-  .replace('</body>', `<script>${scriptBody}</script>\n</body>`);
+  /* Function replacers, not strings. In a replacement string `$&` inserts the
+   * match and `$'` inserts everything after it — and the bundle being inserted
+   * here is half a megabyte of shell, Perl-ish regex and template literals,
+   * which contains both. As a string this quietly spliced parts of the document
+   * into the middle of the script; as a function the text goes in exactly as
+   * it is. */
+  .replace('</head>', () => `<style>${styleBody}</style>\n</head>`)
+  .replace('</body>', () => `<script>${scriptBody}</script>\n</body>`);
 
 if (!/Content-Security-Policy/.test(html)) {
   throw new Error(`${HTML_IN}: no CSP meta tag — the single-file build must not ship without one`);
+}
+
+/* What the browser will run has to be exactly what was hashed, so read it back
+ * out of the finished file the way the parser will: from the opening tag to the
+ * first closing tag, and compare.
+ *
+ * Counting tags does not work here. The corpora are half a megabyte of other
+ * people's code and contain `<script`, `</style>` and `<!--` as ordinary text
+ * inside JavaScript strings; inside a script element all of that is script-data
+ * and inert, and a check that counted it would refuse a file that is perfectly
+ * well-formed. What is not inert is an unescaped `</script`, which ends the
+ * element early — and this comparison is exactly the test for that, because
+ * everything after the break would be missing from what it reads back. */
+const between = (open, close) => {
+  const a = html.indexOf(open);
+  if (a < 0) return null;
+  const b = html.indexOf(close, a + open.length);
+  return b < 0 ? null : html.slice(a + open.length, b);
+};
+
+if (between('<style>', '</style>') !== styleBody) {
+  throw new Error(`${HTML_OUT}: the style element the parser will read is not the one that was hashed`);
+}
+if (between('<script>', '</script>') !== scriptBody) {
+  throw new Error(`${HTML_OUT}: the script element the parser will read is not the one that was hashed — something in the bundle closed the tag early`);
 }
 
 mkdirSync(dirname(resolve(ROOT, HTML_OUT)), { recursive: true });

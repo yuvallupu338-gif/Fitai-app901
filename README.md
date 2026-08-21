@@ -22,10 +22,12 @@ npx http-server -p 8080 .     # or: python3 -m http.server 8080
 open http://localhost:8080
 ```
 
-Or open the prebuilt single file, which works straight off the disk:
+Or open a prebuilt single file, which works straight off the disk:
 
 ```bash
-open dist/fitai.html
+open dist/fitai.html            # the plan app
+open dist/backrooms.html        # the game
+open dist/laken.html            # LAKEN, with its corpora and a trained model inside
 ```
 
 ### On GitHub Pages
@@ -336,7 +338,7 @@ tools/
   lm-train.mjs      trains the toy model from the command line
   lm-corpus.mjs     assembles the agents' slices, and parses the code in them
   lm-smoke.mjs      drives the toy model's page in Chromium
-  build-single.js   bundles everything into dist/fitai.html
+  build-single.js   bundles any of the apps into one self-contained file
   fetch-fonts.js    regenerates the embedded font subsets
 docs/
   CONTRACTS.md      the binding module spec
@@ -349,6 +351,7 @@ node tools/validate.js                                  # data + engine contract
 node tools/vision-audit.mjs                             # photo-scan containment
 node tools/ai-audit.mjs                                 # providers + intake containment
 node tools/build-single.js                              # single-file bundle
+node tools/build-single.js lm/index.html dist/laken.html
 node tools/lm-check.mjs                                 # the toy model's arithmetic
 node tools/lm-corpus.mjs --verify --audit               # the agent-written corpora
 NODE_PATH=/opt/node22/lib/node_modules node tools/smoke.mjs --shots
