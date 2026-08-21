@@ -38,6 +38,7 @@
  */
 
 import { makeRng, fillGauss, sampleFrom } from './rng.js';
+import { encode, isWordVocab } from './tokenizer.js';
 
 export const FORMAT = 'laken/1';
 
@@ -48,7 +49,15 @@ export const LIMITS = {
   context: 64,
   embed: 256,
   hidden: 2048,
-  vocab: 512,
+  /* Room for a word vocabulary. A character alphabet needs 139; the hybrid
+   * word-and-character one needs a few thousand, and every token in it is a
+   * column of the output matrix — which is why this is a ceiling and not a
+   * recommendation. */
+  vocab: 8192,
+  /* The longest a single token may be. A Hebrew word with its leading space
+   * fits in twenty; the cap is here so a model file cannot hand the page a
+   * paragraph and call it a token. */
+  token: 32,
   params: 25e6,
 };
 
@@ -95,6 +104,12 @@ export function createModel({ chars, context = 8, embed = 24, hidden = 128, seed
     format: FORMAT,
     chars: chars.slice(),
     stoi: new Map(chars.map((ch, i) => [ch, i])),
+    /* Whether its tokens are words or characters. Everything downstream is the
+     * same either way except one thing — how a prompt is cut into tokens — and
+     * that one thing is wrong in a way nobody notices: a word model handed a
+     * prompt one character at a time gets ids for letters it barely uses, and
+     * answers as if the prompt had been gibberish. */
+    wordy: isWordVocab(chars),
     vocabSize: V,
     context, embed, hidden, inDim, seed,
     padToken: padToken >= 0 && padToken < V ? padToken : 0,
@@ -420,10 +435,7 @@ export function generate(model, { prompt = '', length = 400, temperature = 0.9, 
     for (let i = 0; i < C - 1; i++) ctx[i] = ctx[i + 1];
     ctx[C - 1] = tok;
   };
-  for (const ch of prompt) {
-    const id = stoi.get(ch);
-    if (id !== undefined) push(id);
-  }
+  for (const id of encode(prompt, stoi, { words: model.wordy })) push(id);
 
   const temp = Math.max(0.01, temperature);
   const k = topK > 0 ? Math.min(topK, V) : V;
@@ -526,7 +538,9 @@ export function deserialize(json) {
     throw new Error('bad vocabulary');
   }
   for (const ch of chars) {
-    if (typeof ch !== 'string' || ch.length === 0 || ch.length > 4) throw new Error('bad vocabulary entry');
+    if (typeof ch !== 'string' || ch.length === 0 || ch.length > LIMITS.token) {
+      throw new Error('bad vocabulary entry');
+    }
   }
   if (new Set(chars).size !== chars.length) throw new Error('duplicate characters in the vocabulary');
 

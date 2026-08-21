@@ -47,7 +47,7 @@ import { resolve, dirname, basename, join } from 'node:path';
 import { fileURLToPath } from 'node:url';
 
 import { createModel, createTrainer, generate, serialize, deserialize, paramCount } from '../lm/src/model.js';
-import { buildVocab, encode, splitData, makeBatcher, fixedBatch, pickPad, positions } from '../lm/src/tokenizer.js';
+import { buildCodec, splitData, makeBatcher, fixedBatch, pickPad, positions } from '../lm/src/tokenizer.js';
 /* The same catalogue the page's picker reads, so `--corpus code` here and "קוד"
  * there are the same characters in the same order, and a loss from one run is
  * comparable with a loss from the other. */
@@ -82,6 +82,8 @@ const opts = {
   in: arg('in', ''),
   fromModel: arg('from-model', ''),
   corpus: arg('corpus', 'log'),
+  tokens: arg('tokens', 'char'),
+  maxWords: arg('max-words', 1500),
   out: arg('out', 'lm/model.json'),
   steps: arg('steps', 6000),
   ctx: arg('ctx', 8),
@@ -122,8 +124,13 @@ const text = opts.in
   : await corpusById(opts.corpus).load();
 
 const source = opts.in ? basename(opts.in) : `corpus:${opts.corpus}`;
-const { chars, stoi, dropped } = buildVocab(text, { minCount: opts.minCount });
-const data = encode(text, stoi);
+if (opts.tokens !== 'char' && opts.tokens !== 'word') {
+  console.error("lm-train: --tokens must be char or word");
+  process.exit(2);
+}
+const codec = buildCodec(text, { tokens: opts.tokens, maxWords: opts.maxWords, minCount: opts.minCount });
+const { chars, stoi, dropped = 0 } = codec;
+const data = codec.encode(text);
 const { train, val } = splitData(data, { valFraction: opts.val, context: opts.ctx });
 
 if (positions(train, opts.ctx) <= 0) {
@@ -149,9 +156,16 @@ const evalSet = fixedBatch(val, { context: opts.ctx, count: 2048, seedRng: makeR
  * text went with them, because every dropped character is deleted from the
  * stream — the model is then scored on a text nobody chose. */
 const sourceLength = [...text].length;
-const removed = sourceLength - data.length;
+/* How much of the text the stream actually covers — measured in characters,
+ * because with word tokens the stream is shorter than the text by design and
+ * comparing the two counts directly reports half the corpus as deleted. Each
+ * token is worth however many characters it spells. */
+let covered = 0;
+for (let i = 0; i < data.length; i++) covered += [...chars[data[i]]].length;
+const removed = sourceLength - covered;
 const removedShare = sourceLength ? removed / sourceLength : 0;
-console.log(`text     ${source}: ${text.length.toLocaleString()} characters, ${chars.length} in the vocabulary`
+console.log(`text     ${source}: ${text.length.toLocaleString()} characters, ${chars.length} tokens in the vocabulary`
+  + (opts.tokens === 'word' ? ` (${codec.characters} characters + ${codec.words} words, ${codec.charactersPerToken.toFixed(2)} characters each)` : '')
   + (dropped ? ` (${dropped} rare characters dropped, taking ${removed.toLocaleString()} positions — ${(removedShare * 100).toFixed(2)}% of the text)` : ''));
 if (removedShare > 0.02) {
   console.log('         ⚠ that is a large share of the text: the loss below is for what is left of it, not for what you passed in');
@@ -216,6 +230,8 @@ const file = serialize(model, {
   steps: opts.steps,
   batch: opts.batch,
   lr: opts.lr,
+  tokens: opts.tokens,
+  charactersPerToken: opts.tokens === 'word' ? +codec.charactersPerToken.toFixed(3) : 1,
   context: opts.ctx,
   embed: opts.emb,
   hidden: opts.hidden,

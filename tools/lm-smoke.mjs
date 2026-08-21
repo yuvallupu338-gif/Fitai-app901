@@ -349,6 +349,49 @@ if (wideTrained) {
 }
 await page.click('#train').catch(() => {});
 
+/* --------------------------------------------------------------- by word
+ *
+ * The page can predict a character at a time or a word at a time, and the
+ * difference is the whole argument: a word model's output is made of words that
+ * exist, because they are its tokens. Check that switching really rebuilds the
+ * vocabulary, that it still trains, and that what comes out of the chat is
+ * found in the corpus — which for a character model at this size it is not. */
+/* A fresh load rather than a reload: Chromium restores form fields across a
+ * reload, so the corpus box would still hold whatever the previous section
+ * typed into it, and this section would be measuring that instead. */
+await page.goto(`http://127.0.0.1:${port}/lm/index.html`, { waitUntil: 'networkidle' });
+await page.waitForFunction(() => /משקלים/.test(document.querySelector('#params').textContent), null, { timeout: 20000 });
+const charStats = await page.textContent('#text-stats');
+await page.selectOption('#tokens', 'word');
+await page.waitForFunction(
+  () => /טוקנים/.test(document.querySelector('#text-stats').textContent),
+  null, { timeout: 30000 },
+);
+const wordStats = await page.textContent('#text-stats');
+check(charStats !== wordStats, 'switching to words did not change the vocabulary');
+check(/תווים לטוקן/.test(wordStats), `the word stats do not report compression: ${wordStats}`);
+
+await page.click('#train');
+await page.waitForFunction(
+  () => Number(document.querySelector('#s-steps').textContent.replace(/[^\d]/g, '')) > 250,
+  null, { timeout: 90000 },
+);
+await page.click('#train');
+const wordLoss = number(await page.textContent('#s-train'));
+check(Number.isFinite(wordLoss) && wordLoss > 0, `a word model trained to ${wordLoss}`);
+
+await page.fill('#chat-text', 'כמה מים לשתות ביום');
+await page.click('#chat-send');
+await page.waitForTimeout(500);
+const said = (await page.$$eval('#chat-log .bubble.theirs', (els) => els.map((e) => e.textContent))).pop() || '';
+const corpusText = await page.inputValue('#corpus');
+const spoken = said.split(/[^\p{L}\p{N}_]+/u).filter((w) => w.length >= 3);
+const real = spoken.filter((w) => corpusText.includes(w));
+check(spoken.length > 0, 'the word model said nothing with a word in it');
+check(real.length / Math.max(1, spoken.length) > 0.8,
+  `only ${real.length} of ${spoken.length} words it wrote exist in the corpus — the tokens are not words`);
+notes.push(`word mode: ${wordStats.trim()}, loss ${wordLoss} after 250 steps, ${real.length}/${spoken.length} of the words it spoke are real`);
+
 /* ---------------------------------------------------------------- the timer
  *
  * Typing arms a rebuild half a second later. Two things about that were wrong,

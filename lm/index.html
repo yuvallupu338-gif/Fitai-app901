@@ -109,6 +109,18 @@
       </p>
 
       <div class="field">
+        <label for="tokens">מה הוא מנחש</label>
+        <select id="tokens">
+          <option value="char">תו אחד בכל פעם</option>
+          <option value="word">מילה שלמה בכל פעם</option>
+        </select>
+        <span class="note" id="tokens-note">
+          תווים: מהיר, ורואים אותו לומד לאיית. מילים: איטי יותר לאמן, אבל מה
+          שיוצא עשוי ממילים שקיימות.
+        </span>
+      </div>
+
+      <div class="field">
         <label for="ctx">חלון הקשר <span class="val" id="ctx-val">8</span></label>
         <input type="range" id="ctx" min="1" max="24" step="1" value="8">
         <span class="note">כמה תווים אחורה הוא רואה. מעבר לזה — שכח.</span>

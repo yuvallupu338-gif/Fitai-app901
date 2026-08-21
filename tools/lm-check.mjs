@@ -27,7 +27,7 @@ import {
   paramCount, LIMITS, FORMAT,
 } from '../lm/src/model.js';
 import {
-  buildVocab, encode, decode, splitData, makeBatcher, fixedBatch, pickPad, positions,
+  buildVocab, buildCodec, isWordVocab, encode, decode, splitData, makeBatcher, fixedBatch, pickPad, positions,
 } from '../lm/src/tokenizer.js';
 import { buildCorpus } from '../lm/src/corpus.js';
 import { makeRng } from '../lm/src/rng.js';
@@ -67,6 +67,64 @@ const near = (a, b, tol, msg) => check(Math.abs(a - b) <= tol, `${msg}: ${a} vs 
   check(pickPad(['a', '\n', 'b']) === 1, 'pad is not the newline when there is one');
   check(pickPad(['a', ' ', 'b']) === 1, 'pad is not the space when there is no newline');
   check(pickPad(['a', 'b']) === 0, 'pad has no fallback');
+}
+
+/* ------------------------------------------------------------------ *
+ * 1b. The word vocabulary
+ *
+ * A tokenizer that loses characters is the worst kind of bug here, because
+ * nothing downstream can see it: training proceeds, the loss falls, and the
+ * model has simply learned a text nobody wrote. The first version of this one
+ * merged any run of spaces into the following word, which deleted every level
+ * of indentation in the code corpus — four percent of the text, and exactly
+ * the four percent that carries what code looks like.
+ *
+ * So the property asserted here is the strongest one available: encode, decode,
+ * and demand the original back, character for character, on text that contains
+ * every hazard — indentation, blank lines, tabs, punctuation runs, a word that
+ * is not in the vocabulary, and both alphabets.
+ * ------------------------------------------------------------------ */
+
+{
+  const text = [
+    'ש: כמה מים לשתות ביום?',
+    'ת: בערך שני ליטר, ומיטוכונדריה לא קשורה.',
+    '',
+    'function chunk(list, size) {',
+    '  if (!Array.isArray(list)) {',
+    '\t\treturn [];',
+    '  }',
+    '  return list;   // three spaces, then a comment',
+    '}',
+    '',
+    '[חתול]',
+    ' /\\_/\\',
+    '( o.o )',
+  ].join('\n');
+
+  /* wordMinCount 1 because this passage is short: a word here appears once or
+   * twice, and the point of the check is the round trip, not the frequency
+   * cut-off. */
+  const codec = buildCodec(text, { tokens: 'word', maxWords: 40, wordMinCount: 1 });
+  const ids = codec.encode(text);
+  check(decode(ids, codec.chars) === text, 'the word tokenizer does not round-trip — it is losing characters');
+  check(codec.chars.length > 40, 'the word vocabulary lost its character fallback');
+  check(isWordVocab(codec.chars), 'the word vocabulary reports itself as characters');
+  check(!isWordVocab(buildCodec(text).chars), 'the character vocabulary reports itself as words');
+  check(ids.length < [...text].length, 'the word vocabulary compressed nothing');
+
+  /* Every token has to be spellable — a token nobody can write is a token the
+   * model can emit and the page cannot render. */
+  check(codec.chars.every((t) => typeof t === 'string' && t.length > 0 && t.length <= LIMITS.token),
+    'a token is empty or longer than the format allows');
+
+  /* A word out of the list is spelled, not dropped and not turned into a
+   * stand-in nobody asked for. */
+  const rare = buildCodec('אבג מיטוכונדריה אבג אבג', { tokens: 'word', maxWords: 1, wordMinCount: 2 });
+  check(decode(rare.encode('מיטוכונדריה'), rare.chars) === 'מיטוכונדריה',
+    'a word outside the vocabulary is not spelled out');
+
+  notes.push(`word tokenizer: ${codec.chars.length} tokens, ${codec.charactersPerToken.toFixed(2)} characters each, round trip exact`);
 }
 
 /* ------------------------------------------------------------------ *

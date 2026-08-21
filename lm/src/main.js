@@ -22,7 +22,7 @@
 import { buildCorpus } from './corpus.js';
 import { CORPORA, corpusById } from './corpora/index.js';
 import { MODEL as TRAINED } from './models/manifest.js';
-import { buildVocab, encode, splitData, makeBatcher, fixedBatch, pickPad, positions } from './tokenizer.js';
+import { buildCodec, encode, splitData, makeBatcher, fixedBatch, pickPad, positions } from './tokenizer.js';
 import { createModel, createTrainer, generate, serialize, deserialize, paramCount } from './model.js';
 import { makeRng } from './rng.js';
 import { createChart } from './chart.js';
@@ -61,6 +61,8 @@ const state = {
   lastSampleAt: -1,
   /* The last picture turned into characters, kept so the two buttons under it
    * have something to act on after the file input has been forgotten. */
+  tokens: 'char',
+  codec: null,
   scanned: '',
 };
 
@@ -95,6 +97,7 @@ const clock = (ms) => {
 const lrFromSlider = (v) => 0.001 * Math.pow(200, v / 100);
 
 const settings = () => ({
+  tokens: $('tokens').value,
   context: +$('ctx').value,
   embed: +$('emb').value,
   hidden: +$('hidden').value,
@@ -170,12 +173,19 @@ function readText() {
   const text = $('corpus').value;
   const { context } = settings();
 
-  if (text !== state.text || !state.data) {
+  const tokens = settings().tokens;
+  if (text !== state.text || tokens !== state.tokens || !state.data) {
     state.text = text;
-    const vocab = buildVocab(text);
-    state.chars = vocab.chars;
-    state.stoi = vocab.stoi;
-    state.data = vocab.chars.length >= 2 ? encode(text, vocab.stoi) : null;
+    state.tokens = tokens;
+    /* Building a word vocabulary counts every word in the corpus, which on a
+     * megabyte is a good deal more work than counting characters — hence the
+     * cache, and hence rebuilding it when the kind changes and not only when
+     * the text does. */
+    const codec = buildCodec(text, { tokens, maxWords: 1500 });
+    state.codec = codec;
+    state.chars = codec.chars;
+    state.stoi = codec.stoi;
+    state.data = codec.chars.length >= 2 ? codec.encode(text) : null;
   }
 
   if (state.chars.length < 2 || !state.data) {
@@ -196,8 +206,9 @@ function readText() {
     return false;
   }
 
-  $('text-stats').textContent =
-    `${data.length.toLocaleString('he-IL')} תווים · ${state.chars.length} שונים`;
+  $('text-stats').textContent = state.tokens === 'word'
+    ? `${data.length.toLocaleString('he-IL')} טוקנים · ${state.chars.length} שונים · ${state.codec.charactersPerToken.toFixed(2)} תווים לטוקן`
+    : `${data.length.toLocaleString('he-IL')} תווים · ${state.chars.length} שונים`;
   const held = val.length
     ? `${val.length.toLocaleString('he-IL')} תווים בסוף הטקסט נשמרים לבדיקה — עליהם הוא לא מתאמן.`
     : 'הטקסט קצר מדי כדי לשמור חלק לבדיקה, אז הפסד הבדיקה יישאר ריק.';
@@ -630,8 +641,13 @@ function adopt({ model, meta }, label) {
   $('ctx').value = model.context;
   $('emb').value = model.embed;
   $('hidden').value = model.hidden;
+  $('tokens').value = model.wordy ? 'word' : 'char';
+  state.tokens = model.wordy ? 'word' : 'char';
   const cfg = settings();
-  const data = encode(state.text, model.stoi);
+  /* With the model's own tokenizer, not the page's: a word model handed a
+   * stream of character ids would be training on a text written in an alphabet
+   * it does not use. */
+  const data = encode(state.text, model.stoi, { words: model.wordy });
   const { train, val } = splitData(data, { valFraction: 0.1, context: model.context });
   state.train = train;
   state.val = val;
@@ -714,6 +730,10 @@ for (const id of ['ctx', 'emb', 'hidden']) {
   $(id).addEventListener('input', refresh);
   $(id).addEventListener('change', () => buildModel());
 }
+
+/* Changing what a token is changes the vocabulary, the stream and the model —
+ * everything except the text itself. */
+$('tokens').addEventListener('change', () => { state.data = null; buildModel(); });
 $('seed').addEventListener('change', () => buildModel());
 
 /* On `input`, not `change`: a drag is a long series of the first and a single

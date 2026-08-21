@@ -10,10 +10,14 @@
  * window of 16. Two agents tuning the same model would each come back with a
  * smaller number and no way to tell who had actually done better.
  *
- * This picks the positions once — a fixed sample of the held-out tail, far
- * enough in that every context length has real history behind it — and asks
- * each model to predict the same characters. What comes out is comparable by
- * construction, and it is the only number that should decide anything.
+ * This reads the same passage of held-out text with every model and measures
+ * the total surprise, then divides by the characters that passage holds. Bits
+ * per character is the one number that survives every difference between the
+ * models being compared: a word model is surprised once per word and a
+ * character model once per letter, but a passage has a fixed number of
+ * characters in it either way, and the model that predicts the passage better
+ * spends fewer bits on it. It is also the number the compression literature has
+ * used for fifty years, for the same reason.
  *
  * Usage:
  *   node tools/lm-eval.mjs a.json b.json                 # leaderboard
@@ -33,7 +37,7 @@ import { resolve, dirname, basename } from 'node:path';
 import { fileURLToPath, pathToFileURL } from 'node:url';
 
 import { deserialize, createWorkspace, forward, softmaxLoss, paramCount, LIMITS } from '../lm/src/model.js';
-import { encode } from '../lm/src/tokenizer.js';
+import { buildCodec, encode, isWordVocab } from '../lm/src/tokenizer.js';
 import { corpusById, CORPORA } from '../lm/src/corpora/index.js';
 import { makeRng } from '../lm/src/rng.js';
 
@@ -108,66 +112,85 @@ const text = opts.in
   ? await readFile(resolve(ROOT, opts.in), 'utf8')
   : await corpusById(opts.corpus).load();
 
-/* Every model must read the text the same way, or the positions below name
- * different characters for different models and the comparison is a fiction.
- * Same alphabet, same order, or this stops. */
-const alphabet = entries[0].model.chars.join('');
-for (const e of entries) {
-  if (e.model.chars.join('') !== alphabet && !opts.force) {
-    console.error(`${e.name}: its vocabulary differs from ${entries[0].name}'s, so the two cannot be scored on the same characters.`);
-    console.error('Train them on the same corpus, or pass --force to score them separately anyway.');
-    process.exit(1);
-  }
-}
+/* The held-out tail, as text rather than as tokens — every model cuts it into
+ * its own tokens below. Capped so a large corpus does not make this a training
+ * run in its own right. */
+const characters = [...text];
+const cut = Math.floor(characters.length * (1 - opts.val));
+const tail = characters.slice(cut).join('');
+const passage = tail.length > 160000 ? tail.slice(0, 160000) : tail;
 
-const data = encode(text, entries[0].model.stoi);
-const cut = Math.floor(data.length * (1 - opts.val));
-
-/* Positions live in the held-out tail, and never in its first stretch: a model
- * with a window of 24 needs 24 characters of history behind the character it is
- * asked about, and giving one model padding where another gets text would be
- * the same unfairness in a smaller place. */
-const floorAt = cut + LIMITS.context;
-if (data.length - floorAt < 64) {
+if (passage.length < 2000) {
   console.error('the held-out tail is too short to score anything');
   process.exit(1);
 }
 
-const rng = makeRng(opts.seed);
-const span = data.length - floorAt;
-const count = Math.min(opts.positions, span);
-const positions = new Int32Array(count);
-for (let i = 0; i < count; i++) positions[i] = floorAt + Math.floor(rng() * span);
-
-/** Mean negative log likelihood over exactly those characters. */
+/**
+ * Total surprise over the passage, in bits per character.
+ *
+ * Every token after the first `context` of them is scored, with its own model's
+ * history behind it. The divisor is the characters those tokens actually spell,
+ * not the passage length: a vocabulary that cannot represent some character
+ * drops it, and dividing by characters it never predicted would hand that model
+ * a discount for the parts it cannot read. `coverage` reports how much of the
+ * passage each model could represent at all.
+ */
 function score(model, chunk = 256) {
   const C = model.context;
+  const stream = encode(passage, model.stoi, { words: model.wordy });
+  if (stream.length <= C + 1) return null;
+
+  let spelled = 0;
+  for (let i = 0; i < stream.length; i++) spelled += [...model.chars[stream[i]]].length;
+
   const ws = createWorkspace(model, chunk);
   const xs = new Int32Array(chunk * C);
   const ys = new Int32Array(chunk);
-  let total = 0;
-  for (let off = 0; off < count; off += chunk) {
-    const n = Math.min(chunk, count - off);
+  let nats = 0;
+  let scored = 0;
+  let predictedCharacters = 0;
+
+  for (let start = C; start < stream.length; start += chunk) {
+    const n = Math.min(chunk, stream.length - start);
     for (let b = 0; b < n; b++) {
-      const at = positions[off + b];
-      for (let c = 0; c < C; c++) xs[b * C + c] = data[at - C + c];
-      ys[b] = data[at];
+      const at = start + b;
+      for (let c = 0; c < C; c++) xs[b * C + c] = stream[at - C + c];
+      ys[b] = stream[at];
+      predictedCharacters += [...model.chars[stream[at]]].length;
     }
     forward(model, ws, xs, n);
-    total += softmaxLoss(model, ws, ys, n) * n;
+    nats += softmaxLoss(model, ws, ys, n) * n;
+    scored += n;
   }
-  return total / count;
+
+  return {
+    natsPerToken: nats / scored,
+    bitsPerCharacter: nats / Math.LN2 / predictedCharacters,
+    natsPerCharacter: nats / predictedCharacters,
+    tokens: stream.length,
+    charactersPerToken: spelled / stream.length,
+    coverage: spelled / [...passage].length,
+  };
 }
 
 const results = entries.map((e) => {
   const started = Date.now();
-  const loss = score(e.model);
+  const s = score(e.model);
+  if (!s) {
+    console.error(`${e.name}: its vocabulary cannot read enough of this text to be scored`);
+    process.exit(1);
+  }
   return {
     name: e.name,
     path: e.path,
-    loss,
-    bits: loss / Math.LN2,
-    perplexity: Math.exp(loss),
+    loss: s.natsPerCharacter,
+    bits: s.bitsPerCharacter,
+    perplexity: Math.exp(s.natsPerCharacter),
+    natsPerToken: s.natsPerToken,
+    tokens: e.model.wordy ? 'word' : 'char',
+    vocabulary: e.model.chars.length,
+    charactersPerToken: s.charactersPerToken,
+    coverage: s.coverage,
     parameters: paramCount(e.model),
     context: e.model.context,
     embed: e.model.embed,
@@ -186,28 +209,29 @@ if (opts.json) {
   console.log(JSON.stringify({
     corpus: opts.in || `corpus:${opts.corpus}`,
     characters: text.length,
-    vocabulary: entries[0].model.chars.length,
-    positions: count,
-    seed: opts.seed,
-    randomGuessing: Math.log(entries[0].model.chars.length),
+    passage: passage.length,
+    metric: 'bits per character on held-out text',
     results,
   }, null, 2));
 } else {
   const source = opts.in || `corpus:${opts.corpus}`;
-  console.log(`${source}: ${text.length.toLocaleString()} characters, ${entries[0].model.chars.length} in the vocabulary`);
-  console.log(`scoring the same ${count.toLocaleString()} held-out characters (seed ${opts.seed}); random guessing is ${Math.log(entries[0].model.chars.length).toFixed(4)}\n`);
+  console.log(`${source}: ${text.length.toLocaleString()} characters`);
+  console.log(`scoring the same held-out passage of ${passage.length.toLocaleString()} characters with each model\n`);
   const width = Math.max(...results.map((r) => r.name.length), 5);
-  console.log(`${'model'.padEnd(width)}   loss    bits/ch   perplexity  params    shape        steps`);
+  console.log(`${'model'.padEnd(width)}   bits/ch   nats/ch   params    tokens   vocab   ch/token   steps`);
   for (const r of results) {
     console.log(
-      `${r.name.padEnd(width)}   ${r.loss.toFixed(4)}  ${r.bits.toFixed(3)}     ${r.perplexity.toFixed(2).padStart(7)}   `
-      + `${String(r.parameters.toLocaleString()).padStart(8)}  ${`${r.context}·${r.embed}·${r.hidden}`.padEnd(11)}  `
-      + `${r.steps === null ? '—' : r.steps.toLocaleString()}`,
+      `${r.name.padEnd(width)}   ${r.bits.toFixed(3).padStart(7)}   ${r.loss.toFixed(3).padStart(7)}   `
+      + `${String(r.parameters.toLocaleString()).padStart(8)}   ${r.tokens.padStart(6)}   ${String(r.vocabulary).padStart(5)}   `
+      + `${r.charactersPerToken.toFixed(2).padStart(8)}   ${r.steps === null ? '—' : r.steps.toLocaleString()}`,
     );
+    if (r.coverage < 0.999) {
+      console.log(`${' '.repeat(width)}   ⚠ its vocabulary covers only ${(r.coverage * 100).toFixed(1)}% of the passage`);
+    }
   }
   if (results.length > 1) {
-    const [best, ...rest] = results;
-    const worst = rest[rest.length - 1];
-    console.log(`\n${best.name} wins by ${(worst.loss - best.loss).toFixed(4)} nats over ${worst.name}`);
+    const [best] = results;
+    const worst = results[results.length - 1];
+    console.log(`\n${best.name} wins by ${(worst.bits - best.bits).toFixed(3)} bits per character over ${worst.name}`);
   }
 }
