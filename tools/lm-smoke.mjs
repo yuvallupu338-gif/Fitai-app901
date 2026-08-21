@@ -349,6 +349,44 @@ if (wideTrained) {
 }
 await page.click('#train').catch(() => {});
 
+/* ---------------------------------------------------------------- the timer
+ *
+ * Typing arms a rebuild half a second later. Two things about that were wrong,
+ * both found by review and both verified by a second agent: the rebuild did not
+ * ask whether the text had actually changed, and nothing cancelled it. So an
+ * edit that changed nothing threw away a run, and a model loaded within half a
+ * second of a keystroke was replaced by a random one while the message on
+ * screen still named the model that was gone. */
+await page.reload({ waitUntil: 'networkidle' });
+await page.click('#train');
+await page.waitForFunction(() => Number(document.querySelector('#s-steps').textContent.replace(/[^\d]/g, '')) > 150, null, { timeout: 30000 });
+
+const beforeEdit = await page.inputValue('#corpus');
+await page.click('#corpus');
+await page.keyboard.type('x');
+await page.keyboard.press('Backspace');
+await page.waitForTimeout(1100);
+const afterEdit = await page.inputValue('#corpus');
+const stepsAfterEdit = number(await page.textContent('#s-steps'));
+check(afterEdit === beforeEdit, 'the no-op edit did not leave the text as it was, so this checks nothing');
+check(stepsAfterEdit > 150, `an edit that changed nothing threw away the run: ${stepsAfterEdit} steps left`);
+notes.push(`a no-op edit during training left ${stepsAfterEdit} steps standing`);
+if (await page.textContent('#train') === 'עצור') await page.click('#train');
+
+/* A keystroke, then immediately the trained model. The rebuild must not fire
+ * over it. */
+await page.click('#corpus');
+await page.keyboard.type('y');
+await page.click('#load-trained');
+await page.waitForFunction(() => /נטען מודל/.test(document.querySelector('#file-msg').textContent), null, { timeout: 30000 });
+const loadedSample = await page.textContent('#out');
+await page.waitForTimeout(1400);
+check(/נטען מודל/.test(await page.textContent('#file-msg')),
+  'the loaded-model message disappeared while the model was being replaced underneath it');
+check(await page.textContent('#out') === loadedSample,
+  'a rebuild armed by a keystroke replaced the model that had just been loaded');
+notes.push('a model loaded within half a second of a keystroke survived the pending rebuild');
+
 /* ---------------------------------------------------------------- corpora */
 
 /* The three agent-written corpora are ES modules imported on demand, which is

@@ -72,6 +72,12 @@ const say = (el, text, kind = '') => {
   node.hidden = !text;
 };
 
+/* The pending rebuild armed by typing, and the way to call it off. Declared up
+ * here because half the file cancels it and the handler that arms it is the
+ * last thing in the file. */
+let textTimer = 0;
+const cancelRebuild = () => { clearTimeout(textTimer); textTimer = 0; };
+
 const clock = (ms) => {
   const s = Math.floor(ms / 1000);
   return `${Math.floor(s / 60)}:${String(s % 60).padStart(2, '0')}`;
@@ -128,6 +134,7 @@ async function pickCorpus(id) {
   const c = corpusById(id);
   if (!c.load) { describeCorpus(id); return; }
 
+  cancelRebuild();
   stop();
   const pick = $('corpus-pick');
   pick.disabled = true;
@@ -368,6 +375,9 @@ function trainFrame(now) {
 
 function start() {
   if (!state.model || !state.fill || state.running) return;
+  /* A rebuild armed by the keystroke before this click would stop the run half
+   * a second after it started. */
+  cancelRebuild();
   state.running = true;
   state.frameAt = 0;
   state.rate = { steps: 0, at: performance.now(), value: state.rate.value };
@@ -475,6 +485,7 @@ async function importModel(file) {
  * teaching it that ז means ד.
  */
 function adopt({ model, meta }, label) {
+  cancelRebuild();
   stop();
   state.model = model;
   state.chars = model.chars;
@@ -528,11 +539,28 @@ function adopt({ model, meta }, label) {
  * Wiring
  * ------------------------------------------------------------------ */
 
-let textTimer = 0;
+/**
+ * Typing rebuilds the model, half a second after the last keystroke — but only
+ * if the text is actually different now.
+ *
+ * Both halves of that sentence were missing, and each cost real runs. Without
+ * the comparison, an edit that changes nothing — type a character, delete it —
+ * threw away a run of hundreds of steps, because buildModel() begins by
+ * stopping and re-initialising unconditionally. And without anything cancelling
+ * the timer, a rebuild armed by a keystroke went off half a second later
+ * regardless of what had happened in between: pressing start cancelled its own
+ * run, and loading a model replaced it with a random one while the message on
+ * screen still said which model had been loaded.
+ *
+ * So the timer is cancelled by every path that takes over the model, and what
+ * it eventually runs asks first whether there is anything to do.
+ */
 $('corpus').addEventListener('input', () => {
   markCustom();
   clearTimeout(textTimer);
-  textTimer = setTimeout(() => buildModel(), 500);
+  textTimer = setTimeout(() => {
+    if ($('corpus').value !== state.text) buildModel();
+  }, 500);
 });
 
 $('corpus-pick').addEventListener('change', (e) => pickCorpus(e.target.value));
@@ -540,6 +568,7 @@ $('corpus-pick').addEventListener('change', (e) => pickCorpus(e.target.value));
 $('file').addEventListener('change', async (e) => {
   const file = e.target.files && e.target.files[0];
   if (!file) return;
+  cancelRebuild();
   const text = await file.text();
   $('corpus').value = text;
   markCustom();
