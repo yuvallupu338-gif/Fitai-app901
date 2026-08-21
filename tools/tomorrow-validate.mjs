@@ -1280,6 +1280,82 @@ if (demo && typeof demo.demoRoot === 'function') {
 }
 
 /* ------------------------------------------------------------------ *
+ * 15b. The on-device model must not be able to take a machine down
+ *
+ * Somebody's computer locked up loading a model this app offered them, so these
+ * are not style rules. Each one is a thing that was true when that happened.
+ * ------------------------------------------------------------------ */
+
+const localModels = await load('src/ai/localmodels.js');
+const gpu = await load('src/ai/webgpu.js');
+
+if (localModels) {
+  check(localModels.DEFAULT_LOCAL_MODEL === localModels.LOCAL_MODELS[0].id,
+    'local model: the default is the smallest one offered');
+  check(localModels.LOCAL_MODELS.every((m, i, a) => i === 0 || m.vramMb >= a[i - 1].vramMb),
+    'local model: the menu is ordered smallest first');
+  for (const m of localModels.LOCAL_MODELS) {
+    check(typeof m.vramMb === 'number' && m.vramMb > 0,
+      `local model: ${m.label} states what it needs from the GPU`);
+  }
+}
+
+if (gpu && typeof gpu.detectWebGpu === 'function') {
+  const noGpu = await gpu.detectWebGpu({});
+  check(noGpu.ok === false && noGpu.reason === 'no_webgpu',
+    'local model: a browser without WebGPU is refused, not warned');
+  check(/כרום|אדג|אייפון/.test(noGpu.detail),
+    'local model: and told where it does work');
+
+  /* An adapter too small to hold the smallest model must be a refusal. It used
+   * to return ok:true with "you can try", which is an invitation dressed as a
+   * caution — and what happens when it does not fit is a driver reset, not a
+   * message. */
+  const tight = await gpu.detectWebGpu({
+    gpu: { requestAdapter: async () => ({ limits: { maxBufferSize: 512 * 1024 * 1024 } }) },
+  });
+  check(tight.ok === false,
+    `local model: an adapter too small to hold the smallest model is refused (got ok=${tight.ok})`);
+
+  const roomy = await gpu.detectWebGpu({
+    gpu: { requestAdapter: async () => ({ limits: { maxBufferSize: 2048 * 1024 * 1024 } }) },
+  });
+  check(roomy.ok === true, 'local model: a card with room is allowed');
+}
+
+{
+  /*
+   * No inference on the page's own thread. A frozen tab on a machine already at
+   * its limit is indistinguishable from a dead computer, and it removes the one
+   * control that would let somebody take it back.
+   */
+  const src = readFileSync(resolve(APP, 'src/ai/local.js'), 'utf8')
+    .replace(/\/\*[\s\S]*?\*\//g, '')
+    .replace(/(^|[^:])\/\/[^\n]*/g, '$1');
+  check(!/CreateMLCEngine\s*\(/.test(src),
+    'local model: never runs the engine on the page thread — a worker or nothing');
+  check(/CreateWebWorkerMLCEngine/.test(src),
+    'local model: uses a worker engine');
+  check(/deleteWeights/.test(src),
+    'local model: the downloaded gigabyte can be deleted from inside the app');
+  /*
+   * A worker on file:// is refused by the browser asynchronously, so
+   * `new Worker()` does not throw and the engine would wait forever. The
+   * protocol is checked before any of the gigabyte is fetched.
+   */
+  check(/location\.protocol === 'file:'/.test(src),
+    'local model: a page opened from disk is refused before it downloads anything');
+}
+
+{
+  /* The warning sits in front of the button, not behind it. */
+  const ui = readFileSync(resolve(APP, 'src/ui/aisettings.js'), 'utf8');
+  check(/card-note\.warn[\s\S]{0,400}לפני שמתחילים/.test(ui) || /לפני שמתחילים/.test(ui),
+    'local model: the download is preceded by a plain warning');
+  check(/ai-delete/.test(ui), 'local model: the settings offer a way to delete the weights');
+}
+
+/* ------------------------------------------------------------------ *
  * 16. UI surface — the parts a browser test cannot reach cheaply
  * ------------------------------------------------------------------ */
 

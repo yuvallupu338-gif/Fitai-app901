@@ -22,9 +22,8 @@ import { h, sheet, announce } from '../core/dom.js';
 import { get, apiKey, setApiKey, update } from '../core/store.js';
 import { PROVIDERS, providerById } from '../ai/providers.js';
 import { testConnection } from '../ai/client.js';
-import { LOCAL_MODELS, DEFAULT_LOCAL_MODEL, currentModel, isLoaded } from '../ai/localmodels.js';
-import { detectWebGpu } from '../ai/webgpu.js';
-import { load, unload } from '../ai/local.js';
+import { LOCAL_MODELS, DEFAULT_LOCAL_MODEL, modelById, currentModel, isLoaded } from '../ai/localmodels.js';
+import { capability, load, unload, deleteWeights } from '../ai/local.js';
 import { contextBlock } from '../ai/context.js';
 import { icon, ICONS } from './parts.js';
 
@@ -121,7 +120,7 @@ export function openAiSettings(ctx) {
     wrap.appendChild(progress);
     wrap.appendChild(action);
 
-    detectWebGpu().then((can) => {
+    capability().then((can) => {
       status.textContent = can.detail;
       status.className = can.ok ? 'card-note' : 'card-note warn';
       if (!can.ok) {
@@ -155,10 +154,25 @@ export function openAiSettings(ctx) {
       }
 
       action.textContent = '';
+
+      /*
+       * The warning is in front of the button, not behind it.
+       *
+       * This is the only control in the app that can take a machine down. It
+       * loads a model onto the graphics card, and a card without room for it
+       * does not report an error — the driver resets, and on Windows that takes
+       * the desktop with it. Somebody who has just had that happen deserved to
+       * have been told first, in the same breath as the button.
+       */
+      const chosen = modelById(s.model) || modelById(DEFAULT_LOCAL_MODEL);
+      action.appendChild(h('p.card-note.warn', {
+        text: `לפני שמתחילים: זה מוריד כ-${(chosen.vramMb / 1024).toFixed(1)} ג׳יגה וטוען אותם לכרטיס הגרפי. אם אין מספיק מקום בכרטיס, הדפדפן עלול להיתקע ובמקרים מסוימים המסך נתקע לרגע או שהמחשב מאט מאוד. אם זה קורה — לסגור את הלשונית, וכאן יש כפתור למחוק את מה שירד.`,
+      }));
+
       action.appendChild(h('button.btn.primary', {
         type: 'button', 'data-t': 'ai-test',
         onclick: () => download(s.model || DEFAULT_LOCAL_MODEL),
-      }, icon(ICONS.spark), isLoaded() ? 'לטעון מחדש' : 'להוריד ולהפעיל'));
+      }, icon(ICONS.spark), isLoaded() ? 'לטעון מחדש' : 'הבנתי — להוריד ולהפעיל'));
 
       if (isLoaded()) {
         action.appendChild(h('button.btn.quiet', {
@@ -166,6 +180,23 @@ export function openAiSettings(ctx) {
           onclick: async () => { await unload(); paint(); },
         }, 'לפנות מהזיכרון'));
       }
+
+      action.appendChild(h('button.btn.quiet.danger', {
+        type: 'button', 'data-t': 'ai-delete',
+        onclick: async () => {
+          progress.hidden = false;
+          progress.className = 'card-note';
+          progress.textContent = 'מוחק…';
+          try {
+            await deleteWeights(s.model || DEFAULT_LOCAL_MODEL);
+            progress.textContent = 'הקבצים נמחקו מהמכשיר.';
+          } catch (e) {
+            progress.className = 'card-note warn';
+            progress.textContent = e && e.detail ? e.detail : String((e && e.message) || e);
+          }
+          paint();
+        },
+      }, 'למחוק את הקבצים שירדו'));
     }
 
     async function download(id) {

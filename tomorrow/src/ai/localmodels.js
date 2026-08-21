@@ -46,7 +46,16 @@ export const LOCAL_MODELS = [
   },
 ];
 
-export const DEFAULT_LOCAL_MODEL = LOCAL_MODELS[1].id;
+/*
+ * The smallest one, deliberately.
+ *
+ * This defaulted to the 1.5B until somebody's machine locked up loading it. The
+ * failure mode of getting this wrong is not a poor answer, it is a graphics
+ * driver reset — which on Windows takes the desktop with it — so the default has
+ * to be the one most likely to survive, and moving up is a choice somebody makes
+ * after the small one worked.
+ */
+export const DEFAULT_LOCAL_MODEL = LOCAL_MODELS[0].id;
 
 export function modelById(id) {
   return LOCAL_MODELS.find((m) => m.id === id) || null;

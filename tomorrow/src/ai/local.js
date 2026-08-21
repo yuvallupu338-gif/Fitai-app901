@@ -76,6 +76,27 @@ export class LocalModelError extends Error {
  * sends people to the wrong one.
  */
 export async function capability() {
+  /*
+   * The protocol first, because a worker is not optional any more.
+   *
+   * A page opened from disk cannot start a module worker: there is no vendor
+   * directory beside a downloaded file, and on file:// the browser refuses the
+   * request anyway. The refusal arrives asynchronously, through the worker's
+   * error event, so `new Worker(...)` does not throw and a try/catch around it
+   * catches nothing — the engine would simply wait forever, with a progress
+   * line that never moves and a machine that looks like it is thinking.
+   *
+   * Checking the protocol turns that into a sentence somebody can act on,
+   * before any of the gigabyte is fetched.
+   */
+  if (typeof location !== 'undefined' && location.protocol === 'file:') {
+    return {
+      ok: false,
+      reason: 'needs_server',
+      detail: 'הקובץ הבודד הזה נפתח ישירות מהדיסק, ומודל מקומי חייב תהליכון נפרד שדפדפן לא מרשה לפתוח כך. מודל מתארח כן עובד כאן — ואם רוצים את המקומי, צריך להריץ את האפליקציה המלאה מהתיקייה דרך שרת מקומי.',
+      limits: null,
+    };
+  }
   return detectWebGpu();
 }
 
@@ -110,29 +131,36 @@ export async function load(modelId, onProgress) {
     const webllm = await library();
     try {
       /*
-       * A worker when there can be one, this thread when there cannot.
+       * A worker, or nothing.
        *
-       * Generating a token is arithmetic on a few hundred million parameters,
-       * and on the page's own thread that means the interface stops answering
-       * while it happens. So a worker is the right answer wherever one is
-       * reachable — which is the served app, where vendor/web-llm-worker.js sits
-       * next to the page.
+       * There used to be a fallback that ran the engine on the page's own
+       * thread when no worker file was reachable — which is the case in the
+       * single-file build, where there is no vendor directory beside a file on
+       * somebody's desktop. That fallback is gone, and its removal is the point
+       * of this comment rather than a footnote to it.
        *
-       * It is not reachable in the single-file build: there is no vendor
-       * directory beside a file somebody downloaded to their desktop. That
-       * build is the whole point of shipping this at all, so it falls back to
-       * running on this thread, which is slower to feel and works. The URL is
-       * resolved against the document rather than against import.meta, because
-       * import.meta is a syntax error once this module is flattened into an
-       * inline script — which is exactly what the single-file build does to it.
+       * Generating a token is arithmetic over hundreds of millions of
+       * parameters. On the main thread the page stops answering while it
+       * happens: the stop button cannot be pressed, the progress text cannot
+       * update, and the browser reports the tab as hung. On a machine whose
+       * integrated GPU is already at its limit, that is indistinguishable from
+       * the computer having died, and it removes the one control that would let
+       * somebody take it back.
+       *
+       * So if a worker cannot be created, this refuses and says where the model
+       * does work. Refusing is a worse feature and a better program: the failure
+       * it avoids is not a bad answer, it is somebody force-restarting a laptop.
        */
-      let next = null;
+      let worker = null;
       try {
-        const worker = new Worker('vendor/web-llm-worker.js', { type: 'module' });
-        next = await webllm.CreateWebWorkerMLCEngine(worker, id, { initProgressCallback: report });
-      } catch (workerFailed) {
-        next = await webllm.CreateMLCEngine(id, { initProgressCallback: report });
+        worker = new Worker('vendor/web-llm-worker.js', { type: 'module' });
+      } catch (cause) {
+        throw new LocalModelError('no_worker',
+          'המודל המקומי צריך להיווצר בתהליכון נפרד, ובקובץ הבודד הזה אין לו קובץ עובד לצידו. אפשר להריץ את האפליקציה מהתיקייה המלאה, או להשתמש במודל מתארח שעובד גם כאן.',
+          cause);
       }
+
+      const next = await webllm.CreateWebWorkerMLCEngine(worker, id, { initProgressCallback: report });
 
       function report(update) {
         if (typeof onProgress === 'function') {
@@ -198,6 +226,35 @@ export async function ask(req, onDelta, signal) {
   }
 
   return { text: text.trim(), model: currentModel(), streamed: true, local: true };
+}
+
+/**
+ * Delete the downloaded weights from the browser's cache.
+ *
+ * About a gigabyte per model, and until this existed the only way to get it back
+ * was the browser's own "clear site data" — which somebody has to know to look
+ * for, on a machine that may have just been force-restarted because of this
+ * feature. A thing that can take a gigabyte and destabilise a laptop has to
+ * offer the way out from inside the app.
+ */
+export async function deleteWeights(modelId) {
+  const webllm = await library();
+  const id = modelId || currentModel() || DEFAULT_LOCAL_MODEL;
+  await unload();
+  const errors = [];
+  for (const fn of ['deleteModelInCache', 'deleteModelWasmInCache']) {
+    if (typeof webllm[fn] !== 'function') continue;
+    try {
+      await webllm[fn](id);
+    } catch (e) {
+      errors.push(`${fn}: ${String((e && e.message) || e)}`);
+    }
+  }
+  if (errors.length) {
+    throw new LocalModelError('cache',
+      `חלק מהקבצים לא נמחקו. אפשר לנקות ידנית דרך הגדרות הדפדפן ← מחיקת נתוני גלישה. (${errors.join('; ')})`);
+  }
+  return true;
 }
 
 /** Free the GPU memory. The model reloads on the next question. */

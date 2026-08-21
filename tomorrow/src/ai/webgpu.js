@@ -98,10 +98,24 @@ export async function detectWebGpu(nav) {
    * well manage where this heuristic says it will not.
    */
   if (bufferMb !== null && bufferMb < MIN_USABLE_MB) {
+    /*
+     * Refused, not warned.
+     *
+     * This used to return ok:true with "you can try, but probably only the
+     * smallest will load", which is an invitation dressed as a caution. What
+     * happens when it does not load is not a message — the graphics driver
+     * resets, and on Windows the desktop goes with it. "Probably will not work"
+     * is not a risk to hand to somebody whose machine is what gets spent.
+     *
+     * maxBufferSize is the largest single allocation rather than the total
+     * memory, and WebGPU exposes no way to ask for the total, so this is a
+     * proxy and an imperfect one. It is the only number available, and erring
+     * toward refusal is the right direction to be imperfect in.
+     */
     return {
-      ok: true,
+      ok: false,
       reason: 'tight_memory',
-      detail: `הכרטיס הגרפי מדווח על הקצאה מרבית של כ-${bufferMb} מגה. אפשר לנסות, אבל סביר שרק המודל הקטן ביותר ייטען.`,
+      detail: `הכרטיס הגרפי מדווח על הקצאה מרבית של כ-${bufferMb} מגה, פחות ממה שהמודל הקטן ביותר צריך. הרצה בכל זאת עלולה להקפיא את הדפדפן או את המסך, אז אני לא מציע את זה כאן.`,
       limits: { bufferMb, storageMb, info },
     };
   }
