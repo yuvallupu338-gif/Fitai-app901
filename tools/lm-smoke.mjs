@@ -20,6 +20,7 @@ import { createServer } from 'node:http';
 import { readFile, writeFile } from 'node:fs/promises';
 import { existsSync, mkdirSync } from 'node:fs';
 import { resolve, dirname, extname, join } from 'node:path';
+import { tmpdir } from 'node:os';
 import { fileURLToPath } from 'node:url';
 import { createRequire } from 'node:module';
 import { createModel, serialize } from '../lm/src/model.js';
@@ -312,7 +313,9 @@ notes.push(`dragged the batch to ${draggedBatch} mid-run: ${draggedSteps} steps,
 
 /* A model whose window the sliders cannot show. Built rather than trained —
  * this is about the shape, and an untrained model NaNs just as loudly. */
-const wideModel = `${SHOT_DIR}/../ctx32-model.json`;
+/* In the system temp directory, not in the repository: a check that leaves a
+ * file behind in dist/ is a check that gets committed by accident. */
+const wideModel = join(tmpdir(), 'lm-smoke-ctx32.json');
 {
   const text = await page.inputValue('#corpus');
   const chars = [...new Set(text)].sort();
