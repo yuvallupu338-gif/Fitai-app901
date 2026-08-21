@@ -89,7 +89,7 @@ await page.goto(`http://127.0.0.1:${port}/lm/index.html`, { waitUntil: 'networki
  * trained model are well over a megabyte, and a page that pulls them before
  * anyone has asked for a corpus or pressed a button is a page nobody opens
  * twice on a phone. */
-const eager = requested.filter((u) => /\/(code|general|agents)\.js/.test(u));
+const eager = requested.filter((u) => /\/(code|general|laken)\.js/.test(u));
 check(eager.length === 0, `loaded before being asked for: ${eager.join(', ')}`);
 const boot = requested.filter((u) => u.endsWith('.js')).length;
 notes.push(`first paint pulled ${boot} modules, none of them a corpus`);
@@ -193,7 +193,7 @@ let savedPath = null;
 if (download) {
   savedPath = await download.path();
   const file = JSON.parse(await readFile(savedPath, 'utf8'));
-  check(file.format === 'dumb-lm/1', `the saved file has the wrong format tag: ${file.format}`);
+  check(file.format === 'laken/1', `the saved file has the wrong format tag: ${file.format}`);
   check(Array.isArray(file.weights?.W1) && file.weights.W1.length > 0, 'the saved file has no weights');
   check(file.meta?.steps > 0, 'the saved file does not record how long it trained');
   notes.push(`saved ${download.suggestedFilename()}, ${(JSON.stringify(file).length / 1048576).toFixed(2)} MB`);
@@ -339,6 +339,34 @@ await page.dispatchEvent('#hidden', 'change');
 await page.waitForTimeout(300);
 check(number(await page.textContent('#s-steps')) === 0, 'changing the model size did not start a fresh model');
 check(await page.textContent('#train') === 'התחל אימון', 'a rebuilt model still offers to continue the old run');
+
+/* The two claims this page makes about the machine it runs on, checked from
+ * inside the page rather than asserted in a README: it cannot reach the
+ * network, and it does not write to the storage jar it shares with the FitAI
+ * apps — the one holding their API keys. */
+const reach = await page.evaluate(async () => {
+  const out = {};
+  try { await fetch('https://example.com/x'); out.fetch = 'went through'; }
+  catch (e) { out.fetch = 'blocked'; }
+  try {
+    out.socket = await new Promise((resolve) => {
+      let ws;
+      try { ws = new WebSocket('wss://example.com/x'); } catch { resolve('blocked'); return; }
+      ws.onopen = () => resolve('went through');
+      ws.onerror = () => resolve('blocked');
+      setTimeout(() => resolve('blocked'), 1500);
+    });
+  } catch { out.socket = 'blocked'; }
+  let stored = null;
+  try { stored = { keys: Object.keys(localStorage), session: Object.keys(sessionStorage) }; } catch { stored = 'unreadable'; }
+  out.stored = stored;
+  return out;
+});
+check(reach.fetch === 'blocked', `the page could fetch across the network: ${reach.fetch}`);
+check(reach.socket === 'blocked', `the page could open a socket: ${reach.socket}`);
+check(reach.stored !== 'unreadable' && reach.stored.keys.length === 0 && reach.stored.session.length === 0,
+  `the page wrote to storage it shares with the other apps: ${JSON.stringify(reach.stored)}`);
+notes.push(`after a full run: fetch ${reach.fetch}, socket ${reach.socket}, storage keys ${JSON.stringify(reach.stored.keys ?? reach.stored)}`);
 
 const csp = await page.evaluate(() => window.__csp);
 check(csp.length === 0, `content security policy violations: ${csp.join('; ')}`);

@@ -4,7 +4,7 @@
  */
 
 export const MODEL = {
-  "file": "agents.js",
+  "file": "laken.js",
   "source": "corpus:log",
   "characters": 32650,
   "steps": 400,
@@ -13,6 +13,6 @@ export const MODEL = {
   "context": 8,
   "embed": 24,
   "hidden": 128,
-  "bytes": 305792,
-  "trainedAt": "2026-08-21T00:37:19.223Z"
+  "bytes": 305790,
+  "trainedAt": "2026-08-21T01:04:19.806Z"
 };

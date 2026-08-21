@@ -391,7 +391,7 @@ function exportModel() {
   const url = URL.createObjectURL(blob);
   const a = document.createElement('a');
   a.href = url;
-  a.download = `dumb-lm-${steps}-steps.json`;
+  a.download = `laken-${steps}-steps.json`;
   document.body.appendChild(a);
   a.click();
   a.remove();
@@ -415,7 +415,7 @@ async function loadTrained() {
   say('file-msg', 'טוען את המודל המאומן…', '');
   await new Promise((r) => requestAnimationFrame(r));
   try {
-    const json = (await import('./models/agents.js')).default;
+    const json = (await import('./models/laken.js')).default;
     adopt(deserialize(json), `המודל המאומן: ${TRAINED.steps.toLocaleString('he-IL')} צעדים`);
   } catch (err) {
     say('file-msg', `המודל המאומן לא נטען: ${err.message}`, 'bad');

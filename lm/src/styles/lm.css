@@ -52,6 +52,18 @@ header p {
   color: var(--dim);
 }
 
+/* The name is a word in Latin letters at the top of a right-to-left page, so it
+   is anchored to the same edge as everything else rather than left where its
+   own direction would put it. */
+header h1 { text-align: start; }
+
+.tag {
+  font-family: var(--display);
+  font-size: clamp(15px, 3.2vw, 19px);
+  color: var(--amber);
+  margin: 0 0 14px;
+}
+
 header p + p { margin-top: 8px; }
 
 /* ------------------------------------------------------------------ grid */

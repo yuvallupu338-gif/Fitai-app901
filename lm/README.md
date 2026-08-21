@@ -1,8 +1,9 @@
-# מודל שפה מטומטם
+# LAKEN
 
 <div dir="rtl">
 
-רשת נוירונים קטנה שמנחשת את התו הבא, ומתאמנת בדפדפן על טקסט שאתה נותן לה. בלי
+**LAKEN** הוא רשת נוירונים קטנה שמנחשת את התו הבא, ומתאמנת בדפדפן על טקסט שאתה
+נותן לה. בלי
 שרת, בלי מפתח API, בלי קרדיטים ובלי אינטרנט אחרי שהדף נטען — הכל רץ על המעבד
 שלך. ברירת המחדל מתאמנת בערך מאה צעדים בשנייה, ותוך פחות מדקה כבר רואים אותה
 עוברת מרעש אקראי לשורות שנראות כמו יומן אימונים.
@@ -13,7 +14,8 @@
 
 </div>
 
-Open `lm/index.html` over http (ES modules do not load from `file://`):
+LAKEN lives in `lm/`. Open `lm/index.html` over http (ES modules do not load
+from `file://`):
 
 ```bash
 npx http-server -p 8080 .      # or: python3 -m http.server 8080
@@ -25,7 +27,7 @@ stops it when the focus is not in a text box.
 
 ## What it actually is
 
-A character-level neural language model, the 2003 shape: an embedding table, one
+LAKEN is a character-level neural language model, the 2003 shape: an embedding table, one
 hidden layer, a softmax. In full:
 
 ```
@@ -51,6 +53,82 @@ context window, so with the default 8 it cannot keep a thought across two Hebrew
 words. It has no notion of a word, a sentence or a fact — only which characters
 follow which. It will spell perfectly and mean nothing, which is a good way to
 see what the models that do mean something had to add.
+
+## The corpora, and the hundred agents that wrote them
+
+The text LAKEN trains on was written for it by a hundred agents running in
+parallel, one slice each: seventy-five wrote code, one language or one domain
+apiece, and twenty-five wrote Hebrew questions and answers, one subject apiece.
+Nobody wrote the same slice twice and nothing was hand-edited afterwards.
+
+| corpus | writers | characters | distinct | random guessing |
+| --- | --- | --- | --- | --- |
+| יומן אימונים | — | 32,650 | 44 | 3.78 |
+| קוד | 75 | 537,846 | 105 | 4.65 |
+| שאלות ותשובות | 25 | 175,269 | 91 | 4.51 |
+| הכל ביחד | 100 | 713,117 | 134 | 4.90 |
+
+The code half covers sixteen file types — JavaScript, Python, TypeScript, HTML,
+CSS, SQL, shell, Go, Rust, C, Java, JSON, YAML, Dockerfiles, Markdown and unified
+diffs — as 579 small files, each headed by the path it would live at. The Hebrew
+half is 773 question-and-answer pairs across twenty-five subjects, in one fixed
+`ש:` / `ת:` shape, which is the structure a character model can actually get
+hold of.
+
+They ship as ES modules, not as `.txt` files, and the reason is the security
+policy rather than taste: this page runs under `connect-src 'none'` and cannot
+fetch anything at all, but `import` is governed by `script-src`, which is
+`'self'`. So the corpora load, and the page still cannot talk to the network.
+They load only when chosen — together they are the better part of a megabyte,
+and most visitors never leave the default.
+
+`tools/lm-corpus.mjs --from <dir>` assembles the slices. It unwraps a slice that
+arrived inside a code fence, normalises line endings, and strips characters that
+are not text — one writer, asked for a string sanitiser, wrote the control
+characters into its regular expression literally rather than as escapes, so the
+slice really did contain a NUL. Three characters in seven hundred thousand, and
+each would have become a token in the vocabulary: an invisible column in every
+weight matrix, for a character no text has. A slice under 1,200 characters is
+reported rather than repaired, because a corpus quietly patched by a regular
+expression is a corpus nobody can reason about.
+
+Slices are shuffled once with a fixed seed before being joined, which is not
+cosmetic. They arrive grouped by language, and the trainer holds out the last
+tenth of the text — so the held-out set was whichever language happened to be
+last, and the first mixed run read 2.44 training against 5.21 held out. The model
+was not overfitting; it was being examined in a language nobody taught it. After
+the shuffle the same run reads 3.01 against 2.83.
+
+### Does the code actually compile
+
+`--audit` splits the corpus back into the 579 files it was assembled from and
+hands each one to the tool a developer of that language would reach for: `node
+--check`, `py_compile`, `bash -n`, `gofmt`, `rustfmt`, `gcc -fsyntax-only`,
+`javac`, the TypeScript compiler's own parser, a YAML loader, `JSON.parse`.
+
+```
+458/478 of the snippets a parser exists for on this machine parse on their own.
+18 more parse but reference a sibling snippet they were not given.
+2 genuinely do not parse — 0.4% of what was checked.
+```
+
+The two are the same mistake twice: `errno` used without `#include <errno.h>`.
+They are left in. This is training text for a model that learns characters, and
+hand-fixing what the agents wrote would make the corpus something other than
+what the agents wrote.
+
+The 18 are not defects at all — a C file including its own header, a Rust file
+declaring `mod shapes;`, a Java class extending the one in the snippet above it.
+They were written as a set and are being parsed one at a time, which is the
+auditor's doing. Separating those two kinds of failure is the whole reason the
+audit is worth running: counting them together would have reported a corpus that
+is 96% sound as one that is 87% sound.
+
+Four more failures it reported at first were its own bugs, not the corpus's:
+dotfiles (`.eslintrc.json`), a parenthetical after a path, and files with no
+extension at all (`Dockerfile`) each fell through the header pattern, which
+merged two files into one — and two JSON documents in one file is a parse error
+that was never there. Every number above is from after that was fixed.
 
 ## The knobs
 
@@ -91,8 +169,8 @@ training there, or just make it write.
 
 ## The model file
 
-One JSON object: `format`, the vocabulary, the three shape numbers, and the five
-weight tensors, rounded to six significant digits. At the defaults it is about
+One JSON object: `format` (`laken/1`), the vocabulary, the three shape numbers,
+and the five weight tensors, rounded to six significant digits. At the defaults it is about
 0.29 MB. Nothing is stored in the browser by itself — no localStorage, no cache,
 nothing behind your back. Close the tab without saving and the training is gone.
 
@@ -109,6 +187,35 @@ megabyte and most visitors would rather train their own. `tools/lm-train.mjs`
 writes that module, and a small manifest beside it, whenever `--out` ends in
 `.js`; the manifest is what the button reads to say how long the model trained
 and how much it weighs, without loading it to find out.
+
+## What it can reach
+
+Nothing. It is worth being precise about, because "train a model on your own
+machine" sounds like it should cost something:
+
+- **The page** runs inside the browser's tab sandbox with
+  `default-src 'none'; script-src 'self'; connect-src 'none'`. It cannot open a
+  socket, read a file you did not hand it through a file picker, or write
+  anywhere on your disk. The only file it ever produces is the one you get by
+  pressing save, through the browser's own download flow.
+- **Nothing is stored.** No localStorage, no cache, no service worker. Close the
+  tab and the trained weights are gone — which is the whole reason the save
+  button exists.
+- **What it does spend is CPU.** One core of it, in the tab, for as long as
+  training runs. A laptop will spin its fan; a phone will get warm. Pressing
+  stop ends it, and closing the tab ends it whether or not anything was pressed.
+- **Memory, measured rather than assumed.** Pushed to the largest model the
+  sliders allow — 864,262 weights, batch 256, on the full 713,117-character
+  corpus — the tab's JavaScript heap reads 46.7 MB, and training slows to about
+  one step a second. At the defaults it is a few megabytes. For comparison, an
+  ordinary news site is heavier than either.
+- **The worst it can do to itself** is run out of memory, which takes more than
+  the sliders can ask for: every one of them is bounded, and the file loader
+  refuses a model file claiming more than 25 million weights before it allocates
+  anything. A tab that runs out of memory is a tab the browser discards; it does
+  not take anything else with it.
+- **`tools/lm-train.mjs`** is an ordinary node process: it reads the file you
+  point it at, uses one core, and writes the one file you named. That is all.
 
 ## Checks
 

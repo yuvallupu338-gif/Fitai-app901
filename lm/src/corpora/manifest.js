@@ -389,8 +389,8 @@ export const MANIFEST = {
     ]
   },
   "general": {
-    "writers": 16,
-    "characters": 110926,
+    "writers": 25,
+    "characters": 175269,
     "parts": [
       {
         "id": "gen-01",
@@ -455,6 +455,42 @@ export const MANIFEST = {
       {
         "id": "gen-16",
         "characters": 4291
+      },
+      {
+        "id": "gen-17",
+        "characters": 6726
+      },
+      {
+        "id": "gen-18",
+        "characters": 7974
+      },
+      {
+        "id": "gen-19",
+        "characters": 5431
+      },
+      {
+        "id": "gen-20",
+        "characters": 7903
+      },
+      {
+        "id": "gen-21",
+        "characters": 7876
+      },
+      {
+        "id": "gen-22",
+        "characters": 7169
+      },
+      {
+        "id": "gen-23",
+        "characters": 7048
+      },
+      {
+        "id": "gen-24",
+        "characters": 8079
+      },
+      {
+        "id": "gen-25",
+        "characters": 6119
       }
     ]
   }

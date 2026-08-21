@@ -1,5 +1,5 @@
 /*
- * model.js — the model, and the arithmetic that trains it.
+ * model.js — LAKEN itself, and the arithmetic that trains it.
  *
  * The whole thing is one idea: look at the last C characters, and guess the
  * next one. Each character in the window is looked up in an embedding table,
@@ -39,7 +39,7 @@
 
 import { makeRng, fillGauss, sampleFrom } from './rng.js';
 
-export const FORMAT = 'dumb-lm/1';
+export const FORMAT = 'laken/1';
 
 /* Ceilings, not recommendations. They exist so that a model file off a stranger's
  * disk cannot ask the page for a 40 GB allocation before anything has looked at

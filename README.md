@@ -65,7 +65,7 @@ any of FitAI's storage. See [`backrooms/README.md`](backrooms/README.md).
 
 ### Also in this repo: `lm/`
 
-`lm/` is a character-level language model that trains in the browser: an
+`lm/` is **LAKEN**, a character-level language model that trains in the browser: an
 embedding table, one `tanh` layer and a softmax over the alphabet of whatever
 text you paste in, with the backward pass written out by hand and checked
 against numerically measured gradients. It is deliberately the dumbest thing
