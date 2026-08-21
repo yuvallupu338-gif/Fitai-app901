@@ -8,8 +8,8 @@
 
 export const MANIFEST = {
   "code": {
-    "writers": 75,
-    "characters": 537846,
+    "writers": 88,
+    "characters": 653814,
     "parts": [
       {
         "id": "code-01-js",
@@ -385,12 +385,77 @@ export const MANIFEST = {
         "id": "code-75-diff",
         "language": "diff",
         "characters": 6404
+      },
+      {
+        "id": "pro-001",
+        "language": "pro",
+        "characters": 9059
+      },
+      {
+        "id": "pro-002",
+        "language": "pro",
+        "characters": 8979
+      },
+      {
+        "id": "pro-003",
+        "language": "pro",
+        "characters": 8943
+      },
+      {
+        "id": "pro-004",
+        "language": "pro",
+        "characters": 8890
+      },
+      {
+        "id": "pro-005",
+        "language": "pro",
+        "characters": 8990
+      },
+      {
+        "id": "pro-006",
+        "language": "pro",
+        "characters": 9067
+      },
+      {
+        "id": "pro-007",
+        "language": "pro",
+        "characters": 8989
+      },
+      {
+        "id": "pro-008",
+        "language": "pro",
+        "characters": 8753
+      },
+      {
+        "id": "pro-009",
+        "language": "pro",
+        "characters": 7647
+      },
+      {
+        "id": "pro-010",
+        "language": "pro",
+        "characters": 8797
+      },
+      {
+        "id": "pro-011",
+        "language": "pro",
+        "characters": 9048
+      },
+      {
+        "id": "pro-012",
+        "language": "pro",
+        "characters": 9603
+      },
+      {
+        "id": "pro-013",
+        "language": "pro",
+        "characters": 9177
       }
     ]
   },
   "general": {
-    "writers": 25,
-    "characters": 175269,
+    "writers": 48,
+    "characters": 331453,
     "parts": [
       {
         "id": "gen-01",
@@ -516,6 +581,121 @@ export const MANIFEST = {
         "id": "gen-25",
         "language": "gen",
         "characters": 6119
+      },
+      {
+        "id": "heb-01",
+        "language": "heb",
+        "characters": 7701
+      },
+      {
+        "id": "heb-02",
+        "language": "heb",
+        "characters": 4725
+      },
+      {
+        "id": "heb-03",
+        "language": "heb",
+        "characters": 7230
+      },
+      {
+        "id": "heb-04",
+        "language": "heb",
+        "characters": 7522
+      },
+      {
+        "id": "heb-05",
+        "language": "heb",
+        "characters": 8595
+      },
+      {
+        "id": "heb-06",
+        "language": "heb",
+        "characters": 5199
+      },
+      {
+        "id": "heb-07",
+        "language": "heb",
+        "characters": 7535
+      },
+      {
+        "id": "heb-08",
+        "language": "heb",
+        "characters": 6195
+      },
+      {
+        "id": "heb-09",
+        "language": "heb",
+        "characters": 6287
+      },
+      {
+        "id": "heb-10",
+        "language": "heb",
+        "characters": 6790
+      },
+      {
+        "id": "know-001",
+        "language": "know",
+        "characters": 6011
+      },
+      {
+        "id": "know-002",
+        "language": "know",
+        "characters": 4882
+      },
+      {
+        "id": "know-003",
+        "language": "know",
+        "characters": 6612
+      },
+      {
+        "id": "know-004",
+        "language": "know",
+        "characters": 6282
+      },
+      {
+        "id": "know-005",
+        "language": "know",
+        "characters": 7079
+      },
+      {
+        "id": "know-006",
+        "language": "know",
+        "characters": 7190
+      },
+      {
+        "id": "know-007",
+        "language": "know",
+        "characters": 6599
+      },
+      {
+        "id": "know-008",
+        "language": "know",
+        "characters": 6409
+      },
+      {
+        "id": "know-009",
+        "language": "know",
+        "characters": 6024
+      },
+      {
+        "id": "know-010",
+        "language": "know",
+        "characters": 7394
+      },
+      {
+        "id": "know-011",
+        "language": "know",
+        "characters": 6348
+      },
+      {
+        "id": "know-012",
+        "language": "know",
+        "characters": 7481
+      },
+      {
+        "id": "know-013",
+        "language": "know",
+        "characters": 10048
       }
     ]
   },
@@ -566,8 +746,8 @@ export const MANIFEST = {
     ]
   },
   "pictures": {
-    "writers": 12,
-    "characters": 73685,
+    "writers": 21,
+    "characters": 127225,
     "parts": [
       {
         "id": "art-01",
@@ -598,6 +778,51 @@ export const MANIFEST = {
         "id": "art-06",
         "language": "art",
         "characters": 5032
+      },
+      {
+        "id": "see-01",
+        "language": "see",
+        "characters": 6431
+      },
+      {
+        "id": "see-02",
+        "language": "see",
+        "characters": 5233
+      },
+      {
+        "id": "see-03",
+        "language": "see",
+        "characters": 6717
+      },
+      {
+        "id": "see-04",
+        "language": "see",
+        "characters": 5020
+      },
+      {
+        "id": "see-05",
+        "language": "see",
+        "characters": 7836
+      },
+      {
+        "id": "see-06",
+        "language": "see",
+        "characters": 6432
+      },
+      {
+        "id": "see-07",
+        "language": "see",
+        "characters": 6010
+      },
+      {
+        "id": "see-08",
+        "language": "see",
+        "characters": 4632
+      },
+      {
+        "id": "see-09",
+        "language": "see",
+        "characters": 5211
       },
       {
         "id": "svg-01",
