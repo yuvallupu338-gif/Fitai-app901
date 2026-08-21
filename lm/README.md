@@ -188,6 +188,47 @@ writes that module, and a small manifest beside it, whenever `--out` ends in
 `.js`; the manifest is what the button reads to say how long the model trained
 and how much it weighs, without loading it to find out.
 
+## What it learned
+
+Three runs, same shape — context 12, embedding 32, hidden 256, about 136,000
+weights — one per corpus. Loss is in nats per character; the last column is what
+a model that has learned nothing scores.
+
+| corpus | steps | held out | random guessing |
+| --- | --- | --- | --- |
+| קוד | 15,000 | 2.675 | 4.65 |
+| שאלות ותשובות | 15,000 | 2.449 | 4.51 |
+| **הכל ביחד** — this is LAKEN, and it ships with the page | 30,000 | **2.638** | 4.90 |
+
+```bash
+node tools/lm-train.mjs --corpus both --ctx 12 --emb 32 --hidden 256   --steps 30000 --out lm/src/models/laken.js
+```
+
+Twenty minutes on one core, and the curve had not flattened: the last two
+thousand steps still took a tenth off. This is where a bigger model would start
+to pay, and where this one stops being the point.
+
+What 2.638 buys, at temperature 0.7:
+
+```
+ש: כמה הירות להיצה בתיברים במן בחות היא במהרך האל השרבה משויב בשתמה מאפוה
+
+function getare.bine(stige = s)
+        elure: 5 crint_s.lat = nath, (wrord act);
+    }
+```
+
+Not one real word, in either language. But look at what it did get: given a
+Hebrew prompt it writes Hebrew, given `function get` it writes something with
+parentheses, a body, an indented statement ending in a semicolon and a closing
+brace on its own line. It learned which alphabet it is in from the characters
+before it, and it learned the shape of a line of code from the inside — without
+a dictionary, without a token for `function`, and without any memory of what it
+wrote twelve characters ago.
+
+That gap — perfect shape, no meaning — is the most honest picture of what a
+language model is that fits on one screen.
+
 ## What it can reach
 
 Nothing. It is worth being precise about, because "train a model on your own

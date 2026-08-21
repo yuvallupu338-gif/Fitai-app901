@@ -343,7 +343,14 @@ check(await page.textContent('#train') === 'התחל אימון', 'a rebuilt mod
 /* The two claims this page makes about the machine it runs on, checked from
  * inside the page rather than asserted in a README: it cannot reach the
  * network, and it does not write to the storage jar it shares with the FitAI
- * apps — the one holding their API keys. */
+ * apps — the one holding their API keys.
+ *
+ * Everything the page did on its own is captured first, because these probes
+ * are meant to fail: each one raises the CSP violation and the console error
+ * that prove the policy is doing its job, and counting those against the page
+ * would make the evidence look like the crime. */
+const ownViolations = await page.evaluate(() => (window.__csp || []).slice());
+const ownProblems = problems.slice();
 const reach = await page.evaluate(async () => {
   const out = {};
   try { await fetch('https://example.com/x'); out.fetch = 'went through'; }
@@ -368,9 +375,18 @@ check(reach.stored !== 'unreadable' && reach.stored.keys.length === 0 && reach.s
   `the page wrote to storage it shares with the other apps: ${JSON.stringify(reach.stored)}`);
 notes.push(`after a full run: fetch ${reach.fetch}, socket ${reach.socket}, storage keys ${JSON.stringify(reach.stored.keys ?? reach.stored)}`);
 
-const csp = await page.evaluate(() => window.__csp);
-check(csp.length === 0, `content security policy violations: ${csp.join('; ')}`);
-check(problems.length === 0, `browser errors: ${problems.join(' | ')}`);
+/* The probes above must have been refused by the policy, not merely have
+ * failed: a network that happens to be down would look identical from inside
+ * the page. */
+const probeViolations = (await page.evaluate(() => (window.__csp || []).slice()))
+  .slice(ownViolations.length)
+  .filter((v) => /connect-src|img-src/.test(v));
+check(probeViolations.length >= 2,
+  `the policy did not refuse the probes — they may have failed for some other reason: ${probeViolations.join('; ')}`);
+
+check(ownViolations.length === 0, `content security policy violations: ${ownViolations.join('; ')}`);
+check(ownProblems.length === 0, `browser errors: ${ownProblems.join(' | ')}`);
+notes.push(`the policy refused ${probeViolations.length} probes and nothing the page did itself`);
 
 await browser.close();
 server.close();

@@ -5,14 +5,14 @@
 
 export const MODEL = {
   "file": "laken.js",
-  "source": "corpus:log",
-  "characters": 32650,
-  "steps": 400,
-  "heldOutLoss": 0.3468,
-  "vocab": 44,
-  "context": 8,
-  "embed": 24,
-  "hidden": 128,
-  "bytes": 305790,
-  "trainedAt": "2026-08-21T01:04:19.806Z"
+  "source": "corpus:both",
+  "characters": 713117,
+  "steps": 30000,
+  "heldOutLoss": 2.6377,
+  "vocab": 134,
+  "context": 12,
+  "embed": 32,
+  "hidden": 256,
+  "bytes": 1249826,
+  "trainedAt": "2026-08-21T01:22:49.742Z"
 };
