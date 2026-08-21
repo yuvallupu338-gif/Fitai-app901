@@ -4,11 +4,11 @@
  * the same places in it.
  *
  * The number tools/lm-train.mjs prints at the end of a run cannot be compared
- * across runs, and that is not a flaw in the trainer: its held-out set is drawn
- * with a seed that includes the context length, so a model with a window of 8
- * and one with a window of 16 are examined on different characters. Two agents
- * tuning the same model would each come back with a smaller number and no way
- * to tell who had actually done better.
+ * across runs, and that is not a flaw in the trainer: its held-out windows are
+ * drawn from a span that is the tail minus the context length, so the same seed
+ * lands on different characters for a model with a window of 8 and one with a
+ * window of 16. Two agents tuning the same model would each come back with a
+ * smaller number and no way to tell who had actually done better.
  *
  * This picks the positions once — a fixed sample of the held-out tail, far
  * enough in that every context length has real history behind it — and asks

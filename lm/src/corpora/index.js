@@ -28,13 +28,18 @@ const writers = (n) => `${n} ${n === 1 ? 'מאמן' : 'מאמנים'}`;
  * grouped: twenty of JavaScript, eighteen of Python, and at the end the three
  * config formats. The trainer holds out the last tenth of the text, which in
  * that order is not a sample of the corpus — it is whichever two languages
- * happen to be last. Measured that way the first mixed corpus reported a
- * training loss of 2.4 against a held-out loss of 5.2: the model was not
- * overfitting, it was being examined in a language nobody taught it.
+ * happen to be last.
  *
- * One shuffle with a fixed seed fixes it and stays reproducible: the tail is
- * now a random tenth of the writers, everyone's work appears on both sides of
- * the split, and the same page always builds the same text.
+ * Measured on this corpus at 800 steps, grouped order gives a training loss of
+ * 4.28 against 5.23 held out — worse than the 4.90 of random guessing, because
+ * the model was being examined in a language nobody taught it. One shuffle with
+ * a fixed seed gives 4.32 against 4.40, and the two now move together.
+ *
+ * Fixed seed, so it stays reproducible. And note what the shuffle does and does
+ * not do: a slice still lands wholly on one side of the split — the tail is now
+ * a random tenth of the writers instead of the last two languages, which is
+ * enough to make it a sample of the corpus, but no writer's work is on both
+ * sides. The page and the command line always build the same text.
  */
 const mix = (parts, seed) => {
   const rng = makeRng(seed);

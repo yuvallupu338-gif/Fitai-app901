@@ -7,12 +7,12 @@ export const MODEL = {
   "file": "laken.js",
   "source": "corpus:both",
   "characters": 713117,
-  "steps": 30000,
-  "heldOutLoss": 2.6377,
+  "steps": 40000,
+  "heldOutLoss": 2.3427,
   "vocab": 134,
   "context": 12,
-  "embed": 32,
+  "embed": 16,
   "hidden": 256,
-  "bytes": 1249826,
-  "trainedAt": "2026-08-21T01:22:49.742Z"
+  "bytes": 857783,
+  "trainedAt": "2026-08-21T12:38:07.505Z"
 };

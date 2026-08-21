@@ -105,10 +105,21 @@ expression is a corpus nobody can reason about.
 
 Slices are shuffled once with a fixed seed before being joined, which is not
 cosmetic. They arrive grouped by language, and the trainer holds out the last
-tenth of the text — so the held-out set was whichever language happened to be
-last, and the first mixed run read 2.44 training against 5.21 held out. The model
-was not overfitting; it was being examined in a language nobody taught it. After
-the shuffle the same run reads 3.01 against 2.83.
+tenth of the text — so the held-out set is whichever language happens to be
+last, and the model is examined in a language nobody taught it.
+
+The size of that mistake, measured on the corpus that ships (800 steps, context
+12, embedding 32, hidden 256, same seed both times):
+
+| slice order | training | held out | gap |
+| --- | --- | --- | --- |
+| grouped by language | 4.28 | 5.23 | 0.96 |
+| shuffled once, fixed seed | 4.32 | 4.40 | 0.08 |
+
+Grouped, the held-out number is *worse than random guessing* (4.90) — the model
+had learned something real and was being marked on material from another course.
+Shuffled, training and held-out move together, which is what a held-out number
+is for.
 
 ### Does the code actually compile
 
@@ -160,8 +171,9 @@ temperature and top-k apply immediately.
 ## From the command line
 
 The browser is where you watch it; the terminal is where you leave it running.
-Same modules, several times faster with no frame budget to respect, and it can
-be pointed at a file too big to paste:
+Same modules, with no frame to hand back — measured at about a quarter more
+steps per second than the page at the same shape, not the order of magnitude
+that phrase usually implies — and it can be pointed at a file too big to paste:
 
 ```bash
 node tools/lm-train.mjs                                     # the built-in corpus
@@ -201,41 +213,89 @@ and how much it weighs, without loading it to find out.
 
 ## What it learned
 
-Three runs, same shape — context 12, embedding 32, hidden 256, about 136,000
-weights — one per corpus. Loss is in nats per character; the last column is what
-a model that has learned nothing scores.
+Six agents were given the same corpus, the same scoring tool and one strategy
+each — width, context, embedding size, the optimiser, regularisation, and "the
+best model that trains in five minutes" — and told to train it their own way.
+Three finished before the account's session limit stopped the rest. Every model
+was scored the same way: `lm-eval.mjs` on 4,096 fixed held-out characters,
+seed 7, which is the only number allowed to decide anything here.
 
-| corpus | steps | held out | random guessing |
-| --- | --- | --- | --- |
-| קוד | 15,000 | 2.675 | 4.65 |
-| שאלות ותשובות | 15,000 | 2.449 | 4.51 |
-| **הכל ביחד** — this is LAKEN, and it ships with the page | 30,000 | **2.638** | 4.90 |
+The result was not the one the shape of the question suggests. The agent that
+*narrowed* the model won:
+
+| what changed | shape | parameters | minutes | held out |
+| --- | --- | --- | --- | --- |
+| the model that used to ship | 12·32·256, 30,000 steps | 137,286 | 20 | 2.6261 |
+| more width | 12·32·384 and 512, matched compute | 200k–300k | 7 | 2.81 – 3.03 |
+| more context | 16·24·256, 9,000 steps | 136,214 | 6 | 2.7397 |
+| **less embedding** | **12·16·256, 40,000 steps** | **85,990** | **12** | **2.3605** |
+
+Halving the embedding — 32 numbers per character down to 16 — took a quarter of
+the loss away and 37% of the weights with it. With 134 characters in the
+vocabulary, 32 numbers each was describing distinctions that are not there, and
+the steps that money bought were worth more. The width agent measured the same
+thing from the other side: at matched compute, steps beat width by about five to
+one, and every widening it tried lost.
+
+That model is what ships now. Reproduce it with:
 
 ```bash
-node tools/lm-train.mjs --corpus both --ctx 12 --emb 32 --hidden 256   --steps 30000 --out lm/src/models/laken.js
+node tools/lm-train.mjs --corpus both --ctx 12 --emb 16 --hidden 256 \
+  --steps 40000 --out lm/src/models/laken.js
 ```
 
-Twenty minutes on one core, and the curve had not flattened: the last two
-thousand steps still took a tenth off. This is where a bigger model would start
-to pay, and where this one stops being the point.
+Two single-corpus runs, for scale: code alone reaches 2.675 in 15,000 steps
+against 4.65 for random guessing, and the Hebrew questions alone 2.449 against
+4.51. The mixed corpus is harder than either, which is what a doubled alphabet
+costs.
 
-What 2.638 buys, at temperature 0.7:
+### What the loss did not tell us
+
+`lm-probe.mjs` counts things in what the model writes. Both models, at the page's
+own defaults:
+
+| | used to ship | ships now |
+| --- | --- | --- |
+| held-out loss | 2.6261 | **2.3605** |
+| words that exist | 17.3% | **23.3%** |
+| lines copied whole | 0.8% | **0.0%** |
+| closing brackets that closed something | **73.8%** | 56.3% |
+| passages looping | 4.3% | 4.3% |
+| stays in the prompt's alphabet | 100% | 100% |
+
+The narrower model writes more real words and copies nothing, and it is worse at
+brackets — the one thing a wider character representation was buying. Worth
+saying because the loss alone would have hidden it.
+
+The looping figure needed a second look: at temperature 0.8 the new model loops
+on 15.6% of its passages against the old one's 4.3%, which reads as a
+regression until you sweep the knob. It is not the model, it is the sampler
+meeting a sharper distribution:
+
+| temperature | top-k | looping | real words | brackets |
+| --- | --- | --- | --- | --- |
+| 0.8 | 12 | 15.6% | 24.6% | 61.4% |
+| 0.9 | 12 | 4.3% | 23.3% | 56.3% |
+| 1.0 | 12 | 1.6% | 21.5% | 61.8% |
+| 1.0 | off | 0.0% | 16.6% | 55.1% |
+
+The page defaults to 0.9, where the two models loop identically.
+
+What 2.36 buys, at temperature 0.9:
 
 ```
-ש: כמה הירות להיצה בתיברים במן בחות היא במהרך האל השרבה משויב בשתמה מאפוה
+ש: כמה הירות להיצה בתיברים במן בחות היא במהרך האל השרבה משויב
 
 function getare.bine(stige = s)
         elure: 5 crint_s.lat = nath, (wrord act);
     }
 ```
 
-Not one real word, in either language. But look at what it did get: given a
-Hebrew prompt it writes Hebrew, given `function get` it writes something with
-parentheses, a body, an indented statement ending in a semicolon and a closing
-brace on its own line. It learned which alphabet it is in from the characters
-before it, and it learned the shape of a line of code from the inside — without
-a dictionary, without a token for `function`, and without any memory of what it
-wrote twelve characters ago.
+Still not one real word in either language. But given a Hebrew prompt it writes
+Hebrew, and given `function get` it writes parentheses, a body, an indented
+statement ending in a semicolon and a closing brace on its own line. It learned
+which alphabet it is in from the characters before it, with no dictionary and no
+memory past twelve characters.
 
 That gap — perfect shape, no meaning — is the most honest picture of what a
 language model is that fits on one screen.

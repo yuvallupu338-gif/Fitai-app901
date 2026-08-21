@@ -10,8 +10,10 @@
  * samples still improve, so the bug survives every eyeball test and shows up
  * only as a model that plateaus higher than it should. So each weight is
  * nudged by hand in both directions, the loss is measured at each end, and the
- * slope that comes out is compared against what backward() computed. They agree
- * to eleven digits or this file fails.
+ * slope that comes out is compared against what backward() computed. They have
+ * to agree to seven significant digits — or, for a gradient too small for the
+ * difference quotient to resolve at all, to within 1e-10 absolute. Either way
+ * the margin is five orders of magnitude above the errors a real bug makes.
  *
  * The rest covers what the gradient check cannot see: that batches line up with
  * the text, that validation is really held out, that a model survives a trip
@@ -280,6 +282,48 @@ for (const cfg of [
 }
 
 /* ------------------------------------------------------------------ *
+ * 5b. Adam's bias correction
+ *
+ * A review agent noticed that this whole file passed with the bias correction
+ * deleted, which is fair: every other check here measures where training ends
+ * up, and Adam without its correction still gets there — a little differently,
+ * a little later, and never in a way that shows up as a failure.
+ *
+ * The first step is where it is visible, and it has an exact answer. Adam's
+ * moments both start at zero, so after one step m = (1-β1)g and v = (1-β2)g².
+ * Dividing each by its own bias term recovers g and g², and the update becomes
+ * lr · g/|g| — every weight with a gradient moves by exactly the learning rate,
+ * whatever the gradient was. Leave the correction out and the same ratio is
+ * 0.1/√0.001 = 3.16, so every weight moves by 3.16 times the rate instead.
+ * ------------------------------------------------------------------ */
+
+{
+  const chars = 'abcdefgh'.split('');
+  const rng = makeRng(4);
+  const xs = Int32Array.from({ length: 8 * 3 }, () => Math.floor(rng() * 8));
+  const ys = Int32Array.from({ length: 8 }, () => Math.floor(rng() * 8));
+  const lr = 0.01;
+
+  const model = createModel({ chars, context: 3, embed: 6, hidden: 12, seed: 4 });
+  const before = Float64Array.from(model.W2);
+  /* No clip and no decay: both would scale the step and blur the reading. W2 is
+   * the tensor to watch because every one of its weights gets a gradient from
+   * every row of the batch — an embedding row for a character the batch never
+   * used would sit still and mean nothing. */
+  createTrainer(model, { batch: 8, lr, clip: 0, weightDecay: 0 }).step(xs, ys, 8);
+
+  const moved = [];
+  for (let i = 0; i < model.W2.length; i++) moved.push(Math.abs(model.W2[i] - before[i]));
+  moved.sort((a, b) => a - b);
+  const median = moved[Math.floor(moved.length / 2)];
+
+  check(moved[0] > 0, 'the first step moved no weight at all');
+  near(median / lr, 1, 0.001, 'the first Adam step is not one learning rate — the bias correction is wrong or missing');
+  near(moved[moved.length - 1] / lr, 1, 0.001, 'the largest first step is not one learning rate');
+  notes.push(`first Adam step: every weight moved ${(median / lr).toFixed(6)} learning rates (3.16 without bias correction)`);
+}
+
+/* ------------------------------------------------------------------ *
  * 6. It actually learns
  * ------------------------------------------------------------------ */
 
@@ -382,6 +426,67 @@ for (const cfg of [
       push(stoi.get(ch));
     }
     check(outside === 0, `top-k ${k} emitted ${outside} characters from outside the top ${k}`);
+  }
+
+  /* Temperature had no assertion behind it at all until a review agent said so,
+   * and it is the control people reach for first.
+   *
+   * What it does is divide the logits before the softmax, so the distribution
+   * the sampler is handed flattens as it rises. That is measurable exactly —
+   * one context, no randomness, the entropy of the distribution itself — which
+   * is a far sharper test than looking at the text: the output's own character
+   * entropy barely moves, because a model that has learned the shape of a line
+   * writes varied-looking characters at any temperature.
+   *
+   * The second check is on generate() rather than on the arithmetic: pushed
+   * near zero it must collapse into repeating itself, which is the behaviour
+   * the page's own note promises and the arithmetic above cannot demonstrate. */
+  {
+    const ws = createWorkspace(model, 1);
+    const ctx = new Int32Array(model.context).fill(model.padToken);
+    const seed = encode('הערה: ה', stoi);
+    for (let i = 0; i < seed.length && i < model.context; i++) ctx[model.context - 1 - i] = seed[seed.length - 1 - i];
+    forward(model, ws, ctx, 1);
+    const logits = Array.from(ws.logits.slice(0, model.vocabSize));
+
+    const entropyAt = (t) => {
+      const scaled = logits.map((l) => l / t);
+      const max = Math.max(...scaled);
+      const exp = scaled.map((l) => Math.exp(l - max));
+      const sum = exp.reduce((a, b) => a + b, 0);
+      return exp.reduce((h, e) => { const p = e / sum; return h - (p > 0 ? p * Math.log(p) : 0); }, 0);
+    };
+
+    const ladder = [0.3, 0.7, 1.0, 1.5].map((t) => ({ t, h: entropyAt(t) }));
+    for (let i = 1; i < ladder.length; i++) {
+      check(ladder[i].h > ladder[i - 1].h,
+        `temperature ${ladder[i].t} does not flatten the distribution more than ${ladder[i - 1].t}: `
+        + `${ladder[i].h.toFixed(4)} against ${ladder[i - 1].h.toFixed(4)} nats`);
+    }
+    check(ladder[3].h - ladder[0].h > 0.5, 'the whole temperature range barely moves the distribution');
+
+    /* And on generate() itself: cold sampling must reach for fewer different
+     * characters than hot sampling.
+     *
+     * Two more tempting assertions were written here first and both were wrong,
+     * for the same reason — they were claims about this particular model
+     * dressed up as claims about temperature.
+     *
+     * That cold output looks repetitive: greedy decoding only has to repeat
+     * once a context recurs, and a model whose cycle is longer than the sample
+     * never does. And that a temperature near zero is the argmax, so two random
+     * streams must agree: that holds only when the gap between the top logits
+     * is large next to the temperature. The shipped model's gap is about one
+     * nat, so at 0.02 it is argmax and the two streams do agree. The small model
+     * trained inside this file has gaps of a few hundredths, where dividing by
+     * 0.02 leaves the runner-up a third of the probability — and it samples,
+     * correctly, exactly as the arithmetic says it should. */
+    const at = (t, seed) => generate(model, { length: 1500, temperature: t, topK: 0, rng: makeRng(seed) });
+    const chars0 = new Set(at(0.05, 1)).size;
+    const chars15 = new Set(at(1.5, 1)).size;
+    check(chars0 < chars15, `cold sampling used ${chars0} characters and hot used ${chars15}`);
+    notes.push(`temperature: ${ladder.map((l) => `${l.t}→${l.h.toFixed(2)}`).join(' ')} nats at one context; `
+      + `${chars0} characters used near zero against ${chars15} at 1.5`);
   }
 
   /* An absurd learning rate must leave a live trainer behind, not NaN weights.

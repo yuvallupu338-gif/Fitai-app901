@@ -71,13 +71,17 @@ any of FitAI's storage. See [`backrooms/README.md`](backrooms/README.md).
 embedding table, one `tanh` layer and a softmax over the alphabet of whatever
 text you paste in, with the backward pass written out by hand and checked
 against numerically measured gradients. It is deliberately the dumbest thing
-that still learns — thirty thousand weights, no attention, no memory past its
-context window — and it goes from random guessing to something that looks like
-Hebrew in under a minute of watching the loss fall.
+that still learns — thirty thousand weights at its defaults, eighty-six thousand
+in the model that ships with it, no attention, no memory past its context window
+— and it goes from random guessing to something that looks like Hebrew in under
+a minute of watching the loss fall.
 
 Its training text was written for it by a hundred agents running in parallel:
 seventy-five wrote code across a dozen languages, twenty-five wrote Hebrew
-questions and answers. Those corpora ship as ES modules rather than as text
+questions and answers. Another six then trained it, one strategy each, scored
+against each other on the same held-out characters; the one that won made the
+model *narrower* and beat the shipped model by a quarter of a nat with 37% fewer
+weights. Those corpora ship as ES modules rather than as text
 files, and one already-trained model ships beside them, because the page talks
 to nothing — `connect-src 'none'`, no key, no credits, nothing written to
 storage — and a module is something it can import when asked. Served at `/lm/`.
@@ -399,7 +403,9 @@ catch. A backward pass with a term missing still trains — a wrong gradient wit
 the right sign is still downhill — so the model still improves, the samples still
 get better, and the bug shows up only as a plateau nobody can explain. So it
 nudges individual weights and compares the slope it measures against the
-gradient the code computed, to eleven digits, on every tensor. Each of the
+gradient the code computed, to seven significant digits (or 1e-10 absolute,
+where a gradient is too small for a difference quotient to resolve), on every
+tensor. Each of the
 mutations you would expect to matter (an embedding gradient that overwrites
 instead of accumulating, a missing `1 - tanh²`, a factor of 1.0001 on one term)
 was applied on purpose and watched fail here before the check was trusted.

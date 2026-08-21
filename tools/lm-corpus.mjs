@@ -162,6 +162,16 @@ export const MANIFEST = ${JSON.stringify(manifest, null, 2)};
   return { manifest, rejected };
 }
 
+/**
+ * Load the built corpora and check them against their own manifest.
+ *
+ * Worth being clear about what this can and cannot catch: the manifest is
+ * written by the same build that writes the modules, so agreeing with it proves
+ * they have not drifted apart since — a half-finished rebuild, an edited
+ * module, a module from one build sitting beside a manifest from another — and
+ * proves nothing about whether that build was right. The format checks below
+ * are the part that looks at the text itself.
+ */
 async function verify() {
   const code = (await import(pathToFileURL(join(OUT, 'code.js')))).default;
   const general = (await import(pathToFileURL(join(OUT, 'general.js')))).default;
@@ -400,6 +410,19 @@ async function audit() {
   console.log(`${broken} genuinely do not parse — ${Math.round((broken / Math.max(1, total)) * 1000) / 10}% of what was checked.`);
 
   await rm(dir, { recursive: true, force: true });
+
+  /* A floor, not a demand for perfection. The two C snippets that use errno
+   * without including errno.h are left in on purpose — this is training text
+   * for a model that learns characters, and hand-fixing what the agents wrote
+   * would make the corpus something other than what the agents wrote. But a
+   * build that dropped to four snippets in five has broken something, and
+   * printing that in a report nobody reads is not a check. */
+  const FLOOR = 0.9;
+  const rate = total ? ok / total : 1;
+  if (rate < FLOOR) {
+    console.error(`\n✗ below the ${Math.round(FLOOR * 100)}% floor — something in the corpus or in the splitter is broken`);
+    process.exitCode = 1;
+  }
   return results;
 }
 
