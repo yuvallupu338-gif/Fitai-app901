@@ -188,6 +188,42 @@ anyone means it in 2026. That needs a different architecture and something like
 four orders of magnitude more weights. This is what eighty-six thousand can do,
 which is characters — and characters, it turns out, are enough to draw a cat.
 
+### What it took to make it draw
+
+The first model trained on the picture corpus drew nothing: eight attempts, zero
+that came out shaped like a drawing, zero SVG a browser would render. The
+diagnosis is one measurement. Ask the model what it expects immediately after
+the heading `[חתול]`, and it answers correctly — 77% on a space, which is how
+every drawing in the corpus begins, indented. It starts right and then drifts
+into code within a line or two.
+
+That is the twelve-character window, doing exactly what it says on the tin. The
+heading leaves the window after twelve characters, and from then on the model is
+looking at slashes, spaces and pipes — which are also what code looks like, and
+code is two thirds of the corpus. Hebrew never had this problem because Hebrew
+letters are their own evidence; a drawing's identity is not in its characters,
+it is in a heading that has already scrolled away.
+
+Before believing any of that, the test itself was checked: the probe calls a
+drawing "shaped like a drawing" if it is at least two lines and no line runs
+past 44 characters. Applied to the 266 drawings a person actually wrote, 253 of
+them pass — 95%. So a model scoring zero is the model, not the ruler.
+
+Three things were tried against that, each a full training run:
+
+| change | SVG a browser renders | answers that end on their own |
+| --- | --- | --- |
+| pictures at 9% of the corpus | 0/8 | 5/8 |
+| pictures at 28% | 2/8 | 2/8 |
+| a 24-character window, same steps | 0/8 | 2/8 |
+
+Weighting the pictures up is the only one that moved the drawing, and it moved
+the conversation the other way — the two families compete for the same eighty-six
+thousand weights, and there is no version of this where both get everything. The
+longer window lost across the board at equal compute, which is the same verdict
+the context agent reached earlier from the other direction: at this size, steps
+are worth more than memory.
+
 ## The knobs
 
 | control | what it changes |
