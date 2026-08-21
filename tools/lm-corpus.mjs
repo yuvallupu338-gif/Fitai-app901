@@ -51,10 +51,14 @@ const SEPARATOR = '\n\n';
  */
 const FAMILIES = [
   { prefix: 'code-', module: 'code', label: 'code across a dozen languages' },
+  { prefix: 'pro-', module: 'code', label: 'code across a dozen languages' },
   { prefix: 'gen-', module: 'general', label: 'Hebrew questions and answers' },
+  { prefix: 'know-', module: 'general', label: 'Hebrew questions and answers' },
+  { prefix: 'heb-', module: 'general', label: 'Hebrew questions and answers' },
   { prefix: 'chat-', module: 'chat', label: 'short Hebrew exchanges, the shape the chat box speaks' },
-  { prefix: 'art-', module: 'pictures', label: 'character art and small SVG' },
-  { prefix: 'svg-', module: 'pictures', label: 'character art and small SVG' },
+  { prefix: 'art-', module: 'pictures', label: 'character art, small SVG, and pictures with their names' },
+  { prefix: 'svg-', module: 'pictures', label: 'character art, small SVG, and pictures with their names' },
+  { prefix: 'see-', module: 'pictures', label: 'character art, small SVG, and pictures with their names' },
 ];
 
 const familyOf = (id) => FAMILIES.find((f) => id.startsWith(f.prefix)) || null;
