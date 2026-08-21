@@ -226,12 +226,25 @@ for (const file of files) {
   const drawn = SUBJECTS.map((subject, i) => drawing(model, subject, {
     generate, temperature: opts.temp, topK: opts.topk || 10, rng: makeRng(opts.seed + 313 + i),
   }));
-  /* A drawing is at least two lines, none of them longer than the corpus allows
-   * — a model that has not learned the shape runs on past the blank line and
-   * writes a paragraph. */
+  /* A drawing is at least two lines, none longer than the corpus allows, and
+   * made of the characters people draw with rather than of letters.
+   *
+   * The geometry alone was not enough, and the failure was instructive: a model
+   * that had learned nothing about drawing scored 4 out of 8 by writing short
+   * lines of code, because short lines of code are short lines. Ink is the part
+   * that cannot be faked: the drawings in the corpus average 7.7% letters and
+   * most contain none at all, while the code in it is 78% letters. The line at
+   * 25% sits between the two, and 226 of the 254 real drawings clear it — the
+   * ones that do not are the drawings with words written inside them. */
+  const INK = /[\\/|_\-=+*o.:'"()\[\]{}<>^v~#@,` ]/;
   const looksDrawn = drawn.filter((d) => {
     const rows = d.split('\n').filter((l) => l.trim());
-    return rows.length >= 2 && rows.every((l) => l.length <= 44);
+    if (rows.length < 2 || !rows.every((l) => l.length <= 44)) return false;
+    const body = rows.join('');
+    const solid = [...body].filter((c) => c.trim());
+    if (!solid.length) return false;
+    const letters = solid.filter((c) => /\p{L}/u.test(c)).length;
+    return letters / solid.length < 0.25;
   });
 
   const vectors = SUBJECTS.map((subject, i) => vector(model, subject, {

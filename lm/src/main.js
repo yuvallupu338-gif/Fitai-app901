@@ -503,6 +503,33 @@ function drawVector() {
   say('picture-msg', 'זה מה שהוא כתב, כמו שהדפדפן מצייר אותו.', 'good');
 }
 
+/**
+ * Ask the model to name the picture that was scanned.
+ *
+ * Twenty of the writing agents taught exactly this shape — a `תמונה:` line, the
+ * drawing, then `זה:` and what it is — so naming a picture is a completion like
+ * everything else here. It is the weakest thing on the page by a distance: the
+ * model sees twelve characters, which is half a line of the drawing, so what it
+ * is really doing is recognising a texture rather than a shape. When it is
+ * right, it is right for a reason; it is just not often right.
+ */
+function namePicture() {
+  if (!state.model || !state.scanned) return;
+  /* Only the first few rows: more than that and the heading is so far away it
+   * cannot matter, and the model has learned the format on small drawings. */
+  const rows = state.scanned.split('\n').filter((l) => l.trim()).slice(0, 5);
+  const prompt = `\nתמונה:\n${rows.join('\n')}\nזה:`;
+  const raw = generate(state.model, {
+    prompt,
+    length: 40,
+    temperature: Math.min(0.7, +$('temp').value / 100),
+    topK: +$('topk').value || 8,
+    stop: ['\n'],
+  });
+  const guess = raw.split('\n')[0].trim();
+  say('scan-answer', guess ? `הוא חושב שזה: ${guess}` : 'הוא לא אמר כלום.', guess ? 'good' : 'bad');
+}
+
 async function scanPicture(file) {
   try {
     const image = await loadImage(file);
@@ -511,6 +538,8 @@ async function scanPicture(file) {
     $('scan-out').textContent = text;
     $('scan-prompt').disabled = false;
     $('scan-train').disabled = false;
+    $('scan-name').disabled = !state.model;
+    say('scan-answer', '', '');
     say('picture-msg', `${file.name}: ${image.naturalWidth}×${image.naturalHeight} נקודות הפכו ל־${width}×${height} תווים. החשבון רץ כאן, המודל לא היה מעורב.`, 'good');
   } catch (err) {
     say('picture-msg', `התמונה לא נקראה: ${err.message}`, 'bad');
@@ -713,6 +742,8 @@ $('scan').addEventListener('change', (e) => {
   const file = e.target.files && e.target.files[0];
   if (file) scanPicture(file);
 });
+
+$('scan-name').addEventListener('click', namePicture);
 
 $('scan-prompt').addEventListener('click', () => {
   if (!state.scanned) return;

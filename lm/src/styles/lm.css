@@ -403,6 +403,18 @@ a { color: var(--amber); }
 .field.spaced { margin-top: 13px; }
 
 
+/* The chat is the headline: full width, above the workshop, and given room to
+   hold a conversation rather than a sample. */
+.panel.lead {
+  margin-bottom: 16px;
+  border-color: var(--line);
+  background: linear-gradient(180deg, var(--steel-2), var(--steel));
+}
+
+.panel.lead > h2 { font-size: 22px; }
+
+.panel.lead .chat { min-height: 200px; max-height: 420px; }
+
 /* ------------------------------------------------------------------ chat */
 
 .chat {
