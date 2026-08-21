@@ -1,0 +1,995 @@
+/*
+ * components.css — everything the views assemble screens out of.
+ *
+ * The rule this file follows: a component is a class, a variant is a second
+ * class on the same element, and state comes from the attribute that already
+ * carries it — aria-pressed, aria-current, disabled, [hidden]. Nothing here
+ * styles a data-t hook. Those are handles for the browser test (Contracts §20)
+ * and hanging appearance on them would mean a redesign silently breaks the
+ * test, or the test's names dictate the design. The two exceptions are the
+ * overlay classes: .modal-* and .sheet-* are emitted by src/core/dom.js, so
+ * their names are a real interface between that file and this one.
+ */
+
+/* ================================================================== *
+ * Buttons
+ * ================================================================== */
+
+.btn {
+  display: inline-flex;
+  align-items: center;
+  justify-content: center;
+  gap: var(--s-2);
+  min-height: var(--tap);
+  padding: var(--s-3) var(--s-5);
+  border: 1px solid transparent;
+  border-radius: var(--r-md);
+  background: var(--surface-2);
+  color: var(--text);
+  font-size: var(--fs-base);
+  font-weight: 700;
+  line-height: 1.2;
+  text-align: center;
+  text-decoration: none;
+  white-space: nowrap;
+  transition: background var(--t-fast) var(--ease), border-color var(--t-fast) var(--ease),
+              transform var(--t-fast) var(--ease), box-shadow var(--t-fast) var(--ease);
+}
+
+.btn svg { width: 20px; height: 20px; flex: none; }
+
+.btn:hover { background: var(--surface-3); }
+
+/* One pixel, not a scale. A button that shrinks under the thumb reflows the
+   text inside it, and on a card full of numbers that reads as a glitch. */
+.btn:active { transform: translateY(1px); }
+
+.btn.primary {
+  background: var(--grad);
+  border-color: transparent;
+  color: var(--primary-ink);
+  box-shadow: var(--glow);
+}
+
+/* The gradient cannot be lightened by changing a background-color, so hover
+   goes through a filter. Kept small: this is a calm app and a button that
+   flares under the cursor is not. */
+.btn.primary:hover { filter: brightness(1.07); }
+
+.btn.ghost {
+  background: transparent;
+  border-color: var(--line);
+  color: var(--text);
+}
+
+.btn.ghost:hover { background: var(--surface-2); border-color: var(--primary-line); }
+
+.btn.quiet {
+  background: transparent;
+  border-color: transparent;
+  color: var(--text-dim);
+  font-weight: 600;
+}
+
+.btn.quiet:hover { background: var(--surface-2); color: var(--text); }
+
+.btn.danger { background: var(--risk-wash); color: var(--risk); border-color: transparent; }
+.btn.danger:hover { background: var(--risk-wash); border-color: var(--risk); }
+
+.btn.icon {
+  min-height: var(--tap);
+  min-width: var(--tap);
+  padding: var(--s-2);
+  border-radius: var(--r-sm);
+  background: transparent;
+  color: var(--text-dim);
+}
+
+.btn.icon:hover { background: var(--surface-2); color: var(--text); }
+
+.btn.small { min-height: 36px; padding: var(--s-2) var(--s-4); font-size: var(--fs-sm); }
+.btn.block { display: flex; width: 100%; }
+
+/*
+ * A disabled control has to look unavailable and be unavailable. Contracts
+ * §16.6 bans the third state — a live-looking button that does nothing — so
+ * anything not built yet carries [disabled] and a .badge.soon saying so, and
+ * pointer-events stays on: a cursor of not-allowed is information, and
+ * removing pointer events also removes the tooltip that explains it.
+ */
+.btn:disabled,
+.btn[aria-disabled="true"] {
+  opacity: .45;
+  cursor: not-allowed;
+  filter: none;
+  box-shadow: none;
+  transform: none;
+}
+
+/* The floating add button. Sits above the bottom bar on a phone and inside
+   the content column once there is a sidebar. */
+.fab {
+  position: fixed;
+  inset-block-end: calc(var(--nav-h) + env(safe-area-inset-bottom) + var(--s-4));
+  inset-inline-end: max(var(--gutter), env(safe-area-inset-right));
+  z-index: 45;
+  width: 56px;
+  height: 56px;
+  min-height: 56px;
+  padding: 0;
+  border-radius: var(--r-pill);
+  background: var(--grad);
+  color: var(--primary-ink);
+  box-shadow: var(--shadow), var(--glow);
+}
+
+.fab svg { width: 26px; height: 26px; }
+
+@media (min-width: 1024px) {
+  .fab { inset-block-end: var(--s-6); inset-inline-end: var(--s-6); }
+}
+
+/* ================================================================== *
+ * Cards
+ * ================================================================== */
+
+.card {
+  padding: var(--s-5);
+  border: 1px solid var(--line);
+  border-radius: var(--r);
+  background: var(--surface);
+  box-shadow: var(--shadow-sm);
+}
+
+.card.flat { box-shadow: none; background: transparent; }
+.card.tight { padding: var(--s-4); }
+
+/* The hero card behind the score. The wash is the only place in the app that
+   uses the accent as a surface, which is what makes the score read as the
+   subject of the screen without a single extra pixel of chrome. */
+.card.hero {
+  position: relative;
+  overflow: hidden;
+  border-color: var(--primary-line);
+  background: var(--surface);
+  background-image: var(--grad-soft);
+  padding-block: var(--s-6);
+}
+
+.card-head {
+  display: flex;
+  align-items: baseline;
+  justify-content: space-between;
+  gap: var(--s-3);
+  margin-block-end: var(--s-4);
+}
+
+.card-title { font-size: var(--fs-lg); font-weight: 700; line-height: var(--lh-snug); }
+.card-note { margin-block-start: var(--s-3); font-size: var(--fs-sm); color: var(--text-dim); }
+
+/* Tone variants, used by risk cards and by the what-if diff. The border does
+   the talking; a fully tinted card at this size reads as an alert banner. */
+.card.tone-good { border-color: color-mix(in srgb, var(--good) 40%, var(--line)); background-color: var(--good-wash); }
+.card.tone-warn { border-color: color-mix(in srgb, var(--warn) 40%, var(--line)); background-color: var(--warn-wash); }
+.card.tone-risk { border-color: color-mix(in srgb, var(--risk) 40%, var(--line)); background-color: var(--risk-wash); }
+
+/* ================================================================== *
+ * Score ring and factor bars
+ * ================================================================== */
+
+/*
+ * The score dial: an SVG behind, the number and its band label stacked in
+ * front of it. align-content is the load-bearing line — a grid with two auto
+ * rows and spare height stretches those rows by default, which pushed the
+ * band label most of the way down to the ring stroke and moved it again every
+ * time the number changed width. Packed at the centre, the pair reads as one
+ * label in the middle of a dial.
+ */
+.ring-wrap {
+  position: relative;
+  display: grid;
+  place-items: center;
+  align-content: center;
+  width: clamp(168px, 46vw, 216px);
+  aspect-ratio: 1;
+  margin-inline: auto;
+}
+
+.ring-wrap > svg { position: absolute; inset: 0; width: 100%; height: 100%; }
+
+.ring-value {
+  position: relative;
+  font-family: var(--font-display);
+  font-size: var(--fs-display);
+  line-height: 1;
+  letter-spacing: -.02em;
+  font-variant-numeric: tabular-nums;
+  font-feature-settings: 'tnum' 1;
+}
+
+.ring-caption {
+  position: relative;
+  margin-block-start: var(--s-1);
+  font-size: var(--fs-sm);
+  font-weight: 700;
+  color: var(--text-dim);
+}
+
+/* One factor of the score. The label column is fixed so six bars line up as a
+   column of bars rather than six separate rows that happen to be stacked. */
+.bar-row {
+  display: grid;
+  grid-template-columns: 7.5em minmax(0, 1fr) 3em;
+  align-items: center;
+  gap: var(--s-3);
+  padding-block: var(--s-2);
+}
+
+.bar-row + .bar-row { border-block-start: 1px solid var(--line-soft); }
+.bar-label { font-size: var(--fs-sm); font-weight: 600; }
+
+.bar-track {
+  height: 8px;
+  border-radius: var(--r-pill);
+  background: var(--surface-3);
+  overflow: hidden;
+}
+
+.bar-fill {
+  /* The fill is an <i>, and an inline box ignores both width and height — every
+     bar rendered as an empty track until this was here. */
+  display: block;
+  height: 100%;
+  border-radius: var(--r-pill);
+  background: var(--grad);
+  transition: width var(--t-slow) var(--ease);
+}
+
+.bar-fill.good { background: var(--good); }
+.bar-fill.warn { background: var(--warn); }
+.bar-fill.risk { background: var(--risk); }
+
+.bar-value {
+  font-family: var(--font-mono);
+  font-variant-numeric: tabular-nums;
+  font-size: var(--fs-sm);
+  color: var(--text-dim);
+  text-align: end;
+}
+
+/* ================================================================== *
+ * Charts
+ * ================================================================== */
+
+.chart {
+  position: relative;
+  width: 100%;
+  min-width: 0;
+}
+
+/*
+ * The SVG sizes itself from the box, never the other way round. A chart with a
+ * width attribute is the single most reliable way to give a 375px phone a
+ * horizontal scrollbar, so the element is told to be exactly as wide as its
+ * container and to take its height from the viewBox aspect.
+ */
+.chart > svg { display: block; width: 100%; height: auto; overflow: visible; }
+
+.chart-axis { font-family: var(--font-mono); font-size: 10px; fill: var(--text-mute); }
+.chart-grid { stroke: var(--grid); stroke-width: 1; }
+.chart-grid.strong { stroke: var(--grid-strong); }
+.chart-line { fill: none; stroke-width: 2.5; stroke-linecap: round; stroke-linejoin: round; }
+.chart-line.energy { stroke: var(--energy); }
+.chart-line.focus { stroke: var(--focus); }
+.chart-band { fill: var(--primary-wash); }
+.chart-marker { fill: var(--surface); stroke-width: 2; }
+
+.legend { display: flex; flex-wrap: wrap; gap: var(--s-4); font-size: var(--fs-xs); color: var(--text-dim); }
+.legend-item { display: inline-flex; align-items: center; gap: var(--s-2); }
+.legend-dot { width: 10px; height: 10px; border-radius: var(--r-pill); flex: none; }
+.legend-dot.energy { background: var(--energy); }
+.legend-dot.focus { background: var(--focus); }
+
+.sparkline { display: block; width: 100%; height: 28px; }
+
+/* ================================================================== *
+ * Chips, segmented control, badges
+ * ================================================================== */
+
+.chip {
+  display: inline-flex;
+  align-items: center;
+  gap: var(--s-2);
+  min-height: 36px;
+  padding: var(--s-2) var(--s-4);
+  border: 1px solid var(--line);
+  border-radius: var(--r-pill);
+  background: var(--surface-2);
+  color: var(--text-dim);
+  font-size: var(--fs-sm);
+  font-weight: 600;
+  white-space: nowrap;
+  transition: background var(--t-fast) var(--ease), color var(--t-fast) var(--ease),
+              border-color var(--t-fast) var(--ease);
+}
+
+.chip:hover { color: var(--text); border-color: var(--primary-line); }
+
+.chip[aria-pressed="true"],
+.chip.is-on {
+  background: var(--primary-wash);
+  border-color: var(--primary-line);
+  color: var(--primary);
+}
+
+/*
+ * The segmented control — day/week, 7/30/90/365, the three energy levels.
+ * A track with the buttons inside it, and the selected one lifted onto its own
+ * surface. No sliding indicator: it would need JavaScript to follow a resize,
+ * and a control that is wrong for one frame after a rotation is worse than one
+ * that never moves.
+ */
+.seg {
+  display: inline-flex;
+  padding: 3px;
+  gap: 2px;
+  border: 1px solid var(--line);
+  border-radius: var(--r-pill);
+  background: var(--surface-2);
+  max-width: 100%;
+  overflow-x: auto;
+  scrollbar-width: none;
+}
+
+.seg::-webkit-scrollbar { display: none; }
+
+.seg > button {
+  flex: 1 1 auto;
+  min-height: 36px;
+  padding: var(--s-2) var(--s-4);
+  border-radius: var(--r-pill);
+  color: var(--text-dim);
+  font-size: var(--fs-sm);
+  font-weight: 700;
+  white-space: nowrap;
+  text-align: center;
+  transition: background var(--t-fast) var(--ease), color var(--t-fast) var(--ease);
+}
+
+.seg > button:hover { color: var(--text); }
+
+.seg > button[aria-pressed="true"],
+.seg > button[aria-selected="true"],
+.seg > button.is-on {
+  background: var(--surface);
+  color: var(--text);
+  box-shadow: var(--shadow-sm);
+}
+
+.badge {
+  display: inline-flex;
+  align-items: center;
+  gap: 6px;
+  padding: 3px var(--s-3);
+  border-radius: var(--r-pill);
+  background: var(--surface-3);
+  color: var(--text-dim);
+  font-size: var(--fs-xs);
+  font-weight: 700;
+  line-height: 1.6;
+  white-space: nowrap;
+}
+
+.badge.good { background: var(--good-wash); color: var(--good); }
+.badge.warn { background: var(--warn-wash); color: var(--warn); }
+.badge.risk { background: var(--risk-wash); color: var(--risk); }
+.badge.accent { background: var(--primary-wash); color: var(--primary); }
+
+/* The honest label for a control that is not built yet. */
+.badge.soon { background: var(--surface-3); color: var(--text-mute); }
+
+/* ================================================================== *
+ * Fields — inputs, selects, textareas, time
+ * ================================================================== */
+
+.field { display: flex; flex-direction: column; gap: var(--s-2); min-width: 0; }
+
+.field > label,
+.label {
+  font-size: var(--fs-sm);
+  font-weight: 600;
+  color: var(--text-dim);
+}
+
+.input,
+.select,
+.textarea,
+input[type="text"],
+input[type="search"],
+input[type="number"],
+input[type="time"],
+input[type="date"],
+select,
+textarea {
+  width: 100%;
+  min-height: var(--tap);
+  padding: var(--s-3) var(--s-4);
+  border: 1px solid var(--line);
+  border-radius: var(--r-sm);
+  background: var(--surface-2);
+  color: var(--text);
+  /* 16px exactly. Anything smaller and iOS Safari zooms the page on focus,
+     which on a bottom sheet scrolls the field it just zoomed to off-screen. */
+  font-size: var(--fs-base);
+  line-height: 1.4;
+  transition: border-color var(--t-fast) var(--ease), box-shadow var(--t-fast) var(--ease);
+}
+
+textarea, .textarea { min-height: 96px; resize: vertical; line-height: var(--lh-body); }
+
+.input:focus,
+.select:focus,
+.textarea:focus,
+input:focus,
+select:focus,
+textarea:focus {
+  outline: none;
+  border-color: var(--primary-line);
+  box-shadow: 0 0 0 3px var(--primary-wash);
+}
+
+/* Keyboard users still get the ring; the box-shadow above is the resting
+   focus style for a pointer and the two together are too much. */
+.input:focus-visible,
+input:focus-visible,
+select:focus-visible,
+textarea:focus-visible { outline: 2px solid var(--outline); outline-offset: 1px; }
+
+::placeholder { color: var(--text-mute); opacity: 1; }
+
+input[aria-invalid="true"],
+.input.is-error { border-color: var(--risk); }
+
+.field-error { font-size: var(--fs-xs); color: var(--risk); }
+.field-hint { font-size: var(--fs-xs); color: var(--text-mute); }
+
+/*
+ * A select needs its own arrow once the native one is turned off, and it is
+ * drawn with a border rather than an image so it inherits the text colour and
+ * follows the theme switch for free. The wrapper positions it at the inline
+ * end, which in this RTL document is the left — the same side the native
+ * control puts it on.
+ */
+.select-wrap { position: relative; display: block; min-width: 0; }
+
+.select-wrap > select {
+  appearance: none;
+  -webkit-appearance: none;
+  padding-inline-end: var(--s-7);
+}
+
+.select-wrap::after {
+  content: '';
+  position: absolute;
+  inset-inline-end: var(--s-4);
+  top: 50%;
+  width: 8px;
+  height: 8px;
+  margin-top: -6px;
+  border-inline-end: 2px solid var(--text-dim);
+  border-block-end: 2px solid var(--text-dim);
+  transform: rotate(45deg);
+  pointer-events: none;
+}
+
+/*
+ * Times are read left to right in Hebrew as everywhere else — 07:30 is not
+ * 30:70 — so the field holding one is forced to LTR. Left to itself the
+ * browser puts the caret and the segment order of a native time input on the
+ * wrong side of an RTL form and people type the minutes into the hours.
+ */
+input[type="time"],
+input[type="date"],
+.time-input {
+  direction: ltr;
+  text-align: center;
+  font-family: var(--font-mono);
+  font-variant-numeric: tabular-nums;
+  letter-spacing: .02em;
+}
+
+/*
+ * The stepper used for bedtime and wake. Two large targets and a number
+ * between them, because the thing being adjusted is usually ±15 minutes from
+ * where it already is, and a native time field makes that a four-tap
+ * operation.
+ */
+.timepick {
+  display: flex;
+  align-items: center;
+  justify-content: space-between;
+  gap: var(--s-3);
+  padding: var(--s-2);
+  border: 1px solid var(--line);
+  border-radius: var(--r-md);
+  background: var(--surface-2);
+}
+
+.timepick > button {
+  display: grid;
+  place-items: center;
+  width: var(--tap);
+  height: var(--tap);
+  flex: none;
+  border-radius: var(--r-sm);
+  background: var(--surface-3);
+  color: var(--text);
+  font-size: var(--fs-lg);
+  font-weight: 700;
+}
+
+.timepick > button:hover { background: var(--primary-wash); color: var(--primary); }
+
+.timepick-value {
+  flex: 1 1 auto;
+  text-align: center;
+  direction: ltr;
+  font-family: var(--font-mono);
+  font-variant-numeric: tabular-nums;
+  font-size: var(--fs-title);
+  font-weight: 600;
+  line-height: 1.1;
+}
+
+.timepick-note { font-size: var(--fs-xs); color: var(--text-mute); text-align: center; }
+
+/* Checkboxes, radios and switches keep the native control and only borrow the
+   accent colour. A hand-built checkbox loses the platform's own focus, its
+   keyboard behaviour and its high-contrast rendering, and gains nothing here. */
+input[type="checkbox"],
+input[type="radio"] {
+  width: 20px;
+  height: 20px;
+  min-height: 0;
+  flex: none;
+  accent-color: var(--primary-strong);
+}
+
+.check-row {
+  display: flex;
+  align-items: center;
+  gap: var(--s-3);
+  min-height: var(--tap);
+  cursor: pointer;
+}
+
+.check-row > span { flex: 1 1 auto; min-width: 0; }
+
+/* ================================================================== *
+ * Sliders
+ *
+ * The vendor pseudo-elements have to be written as separate rules. One
+ * selector list containing both, and every browser that does not recognise
+ * the other one throws the whole block away.
+ * ================================================================== */
+
+.slider {
+  width: 100%;
+  min-height: var(--tap);
+  padding: 0;
+  border: 0;
+  background: transparent;
+  appearance: none;
+  -webkit-appearance: none;
+  cursor: pointer;
+}
+
+.slider::-webkit-slider-runnable-track {
+  height: 6px;
+  border-radius: var(--r-pill);
+  background: var(--surface-3);
+}
+
+.slider::-moz-range-track {
+  height: 6px;
+  border-radius: var(--r-pill);
+  background: var(--surface-3);
+}
+
+.slider::-webkit-slider-thumb {
+  appearance: none;
+  -webkit-appearance: none;
+  width: 24px;
+  height: 24px;
+  margin-top: -9px;
+  border: 2px solid var(--surface);
+  border-radius: var(--r-pill);
+  background: var(--primary);
+  box-shadow: var(--shadow-sm);
+}
+
+.slider::-moz-range-thumb {
+  width: 24px;
+  height: 24px;
+  border: 2px solid var(--surface);
+  border-radius: var(--r-pill);
+  background: var(--primary);
+  box-shadow: var(--shadow-sm);
+}
+
+.slider:focus-visible::-webkit-slider-thumb { outline: 2px solid var(--outline); outline-offset: 2px; }
+.slider:focus-visible::-moz-range-thumb { outline: 2px solid var(--outline); outline-offset: 2px; }
+
+.slider-row { display: grid; grid-template-columns: minmax(0, 1fr) auto; align-items: center; gap: var(--s-4); }
+
+.slider-value {
+  font-family: var(--font-mono);
+  font-variant-numeric: tabular-nums;
+  font-size: var(--fs-md);
+  font-weight: 600;
+  min-width: 3.5em;
+  text-align: end;
+}
+
+/* The 1–5 scales in the evening ritual and the morning check-in. Five real
+   buttons, because a slider cannot be read out as "3 of 5" and cannot be
+   reached with one tap. */
+.scale { display: grid; grid-template-columns: repeat(5, minmax(0, 1fr)); gap: var(--s-2); }
+
+.scale > button {
+  min-height: 52px;
+  border: 1px solid var(--line);
+  border-radius: var(--r-sm);
+  background: var(--surface-2);
+  color: var(--text-dim);
+  font-family: var(--font-mono);
+  font-size: var(--fs-md);
+  font-weight: 600;
+  text-align: center;
+  transition: background var(--t-fast) var(--ease), color var(--t-fast) var(--ease),
+              border-color var(--t-fast) var(--ease);
+}
+
+.scale > button[aria-pressed="true"] {
+  background: var(--primary-wash);
+  border-color: var(--primary-line);
+  color: var(--primary);
+}
+
+/* ================================================================== *
+ * List rows and the timeline
+ * ================================================================== */
+
+.list { display: flex; flex-direction: column; gap: var(--s-2); }
+
+.list-row {
+  display: grid;
+  grid-template-columns: 4.5em minmax(0, 1fr) auto;
+  align-items: center;
+  gap: var(--s-3);
+  width: 100%;
+  min-height: 56px;
+  padding: var(--s-3);
+  border: 1px solid var(--line-soft);
+  border-radius: var(--r-md);
+  background: var(--surface-2);
+  text-align: start;
+  transition: border-color var(--t-fast) var(--ease), background var(--t-fast) var(--ease);
+}
+
+.list-row:hover { border-color: var(--line); background: var(--surface-3); }
+
+.list-row.is-done { opacity: .6; }
+.list-row.is-done .list-title { text-decoration: line-through; }
+
+.list-time {
+  font-family: var(--font-mono);
+  font-variant-numeric: tabular-nums;
+  font-size: var(--fs-sm);
+  color: var(--text-dim);
+  direction: ltr;
+  text-align: start;
+}
+
+/* A column, not an inline run. Both children are spans, so without this the
+   title and its meta line sit side by side and touch: "ללמוד למבחןשעתיים". */
+.list-body { display: flex; flex-direction: column; gap: 2px; min-width: 0; }
+.list-title { font-size: var(--fs-md); font-weight: 600; line-height: var(--lh-snug); }
+.list-meta { font-size: var(--fs-xs); color: var(--text-mute); }
+.list-actions { display: flex; align-items: center; gap: var(--s-1); }
+
+/* A coloured edge is how an item says which category it belongs to without
+   spending a chip on it. inline-start, so it is on the right in this document
+   and moves by itself if that ever changes. */
+.list-row.accent-work { border-inline-start: 3px solid var(--primary); }
+.list-row.accent-fitness { border-inline-start: 3px solid var(--good); }
+.list-row.accent-study { border-inline-start: 3px solid var(--violet); }
+.list-row.accent-health { border-inline-start: 3px solid var(--focus); }
+.list-row.accent-personal { border-inline-start: 3px solid var(--warn); }
+
+/*
+ * The timeline. One vertical rail with a dot per entry, drawn with a border on
+ * the container rather than a pseudo-element per row so it stays unbroken
+ * between rows of different heights.
+ */
+.timeline {
+  position: relative;
+  display: flex;
+  flex-direction: column;
+  gap: var(--s-2);
+  padding-inline-start: var(--s-5);
+  border-inline-start: 2px solid var(--line);
+  margin-inline-start: var(--s-2);
+}
+
+.timeline-entry {
+  position: relative;
+  display: grid;
+  grid-template-columns: 4.5em minmax(0, 1fr);
+  align-items: baseline;
+  gap: var(--s-3);
+  padding-block: var(--s-2);
+}
+
+.timeline-entry::before {
+  content: '';
+  position: absolute;
+  inset-inline-start: calc(var(--s-5) * -1 - 5px);
+  top: 12px;
+  width: 8px;
+  height: 8px;
+  border-radius: var(--r-pill);
+  background: var(--text-mute);
+  box-shadow: 0 0 0 3px var(--bg);
+}
+
+.timeline-entry.tone-good::before { background: var(--good); }
+.timeline-entry.tone-warn::before { background: var(--warn); }
+.timeline-entry.is-now::before { background: var(--primary); box-shadow: 0 0 0 3px var(--bg), 0 0 0 6px var(--primary-wash); }
+
+.timeline-time {
+  font-family: var(--font-mono);
+  font-variant-numeric: tabular-nums;
+  font-size: var(--fs-sm);
+  color: var(--text-dim);
+  direction: ltr;
+  text-align: start;
+}
+
+.timeline-title { font-size: var(--fs-base); font-weight: 600; }
+.timeline-detail { font-size: var(--fs-sm); color: var(--text-dim); }
+
+/* ================================================================== *
+ * Overlays — modal and sheet
+ *
+ * The class names here are fixed by src/core/dom.js. Both backdrops are a
+ * plain scrim: a blur behind every dialog in the app costs a repaint of the
+ * whole page on every scroll underneath it, and on the phones this is for it
+ * is the difference between a sheet that rises and one that stutters.
+ * ================================================================== */
+
+.modal-back,
+.sheet-back {
+  position: fixed;
+  inset: 0;
+  z-index: 60;
+  background: var(--scrim);
+  animation: fade var(--t-mid) var(--ease);
+}
+
+.modal-back { display: grid; place-items: center; padding: var(--s-4); }
+
+.modal-box {
+  width: 100%;
+  max-width: 460px;
+  max-height: 86dvh;
+  overflow-y: auto;
+  overscroll-behavior: contain;
+  padding: var(--s-5);
+  border: 1px solid var(--line);
+  border-radius: var(--r-lg);
+  background: var(--surface);
+  box-shadow: var(--shadow-lg);
+  animation: rise var(--t-mid) var(--ease);
+}
+
+.sheet-back { display: flex; align-items: flex-end; justify-content: center; }
+
+.sheet-box {
+  display: flex;
+  flex-direction: column;
+  width: 100%;
+  max-width: 640px;
+  /* Not 100dvh: leaving the top of the page visible is what tells somebody
+     this is a layer over the day and not a new screen. */
+  max-height: 88dvh;
+  border: 1px solid var(--line);
+  border-block-end: 0;
+  border-start-start-radius: var(--r-lg);
+  border-start-end-radius: var(--r-lg);
+  background: var(--surface);
+  box-shadow: var(--shadow-lg);
+  animation: slide-up var(--t-mid) var(--ease);
+}
+
+.sheet-head {
+  display: flex;
+  align-items: center;
+  justify-content: space-between;
+  gap: var(--s-3);
+  flex: none;
+  padding: var(--s-4) var(--s-5);
+  border-block-end: 1px solid var(--line-soft);
+}
+
+.sheet-title { font-size: var(--fs-lg); font-weight: 700; min-width: 0; }
+
+.sheet-body {
+  flex: 1 1 auto;
+  min-height: 0;
+  overflow-y: auto;
+  overscroll-behavior: contain;
+  -webkit-overflow-scrolling: touch;
+  padding: var(--s-5);
+  /* The home indicator sits over the last row of a sheet that ends at the
+     bottom edge of the screen. */
+  padding-block-end: calc(var(--s-5) + env(safe-area-inset-bottom));
+  display: flex;
+  flex-direction: column;
+  gap: var(--s-4);
+}
+
+/* A row of actions pinned under the sheet's content. */
+.sheet-actions { display: flex; gap: var(--s-3); }
+.sheet-actions > .btn { flex: 1 1 0; }
+
+@media (min-width: 768px) {
+  .sheet-back { align-items: center; padding: var(--s-5); }
+
+  .sheet-box {
+    max-height: 82dvh;
+    border-radius: var(--r-lg);
+    border-block-end: 1px solid var(--line);
+    animation: rise var(--t-mid) var(--ease);
+  }
+
+  .sheet-body { padding-block-end: var(--s-5); }
+}
+
+@keyframes fade { from { opacity: 0; } to { opacity: 1; } }
+@keyframes rise { from { opacity: 0; transform: translateY(8px) scale(.985); } to { opacity: 1; transform: none; } }
+@keyframes slide-up { from { transform: translateY(12%); } to { transform: none; } }
+
+/* ================================================================== *
+ * Empty states, skeletons, toasts
+ * ================================================================== */
+
+/*
+ * Every empty state names the next action (Contracts §16.7). The shape is
+ * fixed — a mark, a line saying what is not here, a line saying what to do,
+ * and the button that does it — so that "nothing scheduled tomorrow" and "no
+ * history yet" cannot drift into two different-looking screens.
+ */
+.empty {
+  display: flex;
+  flex-direction: column;
+  align-items: center;
+  gap: var(--s-3);
+  padding: var(--s-7) var(--s-5);
+  border: 1px dashed var(--line);
+  border-radius: var(--r);
+  background: var(--surface);
+  text-align: center;
+}
+
+.empty-mark {
+  display: grid;
+  place-items: center;
+  width: 52px;
+  height: 52px;
+  border-radius: var(--r-pill);
+  background: var(--primary-wash);
+  color: var(--primary);
+}
+
+.empty-mark svg { width: 24px; height: 24px; }
+.empty-title { font-size: var(--fs-md); font-weight: 700; }
+.empty-text { font-size: var(--fs-sm); color: var(--text-dim); max-width: 40ch; }
+
+.skeleton {
+  position: relative;
+  overflow: hidden;
+  border-radius: var(--r-sm);
+  background: var(--surface-2);
+  /* A skeleton with no height collapses and the layout jumps twice — once
+     when it appears, once when it is replaced. */
+  min-height: 14px;
+}
+
+.skeleton.line { height: 14px; }
+.skeleton.title { height: 22px; width: 60%; }
+.skeleton.block { height: 120px; border-radius: var(--r-md); }
+.skeleton.ring { width: 168px; height: 168px; border-radius: var(--r-pill); margin-inline: auto; }
+
+.skeleton::after {
+  content: '';
+  position: absolute;
+  inset: 0;
+  background: linear-gradient(90deg, transparent, var(--surface-3), transparent);
+  transform: translateX(-100%);
+  animation: shimmer 1.4s var(--ease) infinite;
+}
+
+@keyframes shimmer { to { transform: translateX(100%); } }
+
+/* The blanket reduced-motion rule stops the sweep mid-travel, which leaves a
+   bright band frozen across the placeholder. Removing the sweep entirely is
+   the honest version of "no animation". */
+@media (prefers-reduced-motion: reduce) {
+  .skeleton::after { display: none; }
+}
+
+:root[data-motion="reduced"] .skeleton::after { display: none; }
+
+/*
+ * The toast. Above the bottom bar, never over it: on a phone this appears
+ * right after a tap, and covering the thing that was just tapped is how a
+ * confirmation turns into a mis-tap.
+ */
+.toast {
+  position: fixed;
+  inset-block-end: calc(var(--nav-h) + env(safe-area-inset-bottom) + var(--s-4));
+  inset-inline: var(--s-4);
+  z-index: 70;
+  display: flex;
+  align-items: center;
+  justify-content: center;
+  gap: var(--s-3);
+  margin-inline: auto;
+  max-width: 420px;
+  padding: var(--s-3) var(--s-5);
+  border: 1px solid var(--line);
+  border-radius: var(--r-pill);
+  background: var(--surface-3);
+  color: var(--text);
+  font-size: var(--fs-sm);
+  font-weight: 600;
+  text-align: center;
+  box-shadow: var(--shadow);
+  animation: rise var(--t-mid) var(--ease);
+}
+
+.toast.good { border-color: color-mix(in srgb, var(--good) 45%, var(--line)); }
+.toast.warn { border-color: color-mix(in srgb, var(--warn) 45%, var(--line)); }
+
+.toast > .btn { min-height: 32px; padding: 0 var(--s-3); font-size: var(--fs-sm); }
+
+@media (min-width: 1024px) {
+  .toast { inset-block-end: var(--s-6); }
+}
+
+/* ================================================================== *
+ * Small shared pieces
+ * ================================================================== */
+
+/* The confidence and evidence line that has to appear under anything the app
+   predicted. Contracts §11 and §6.4: never a number without what it rests on. */
+.evidence {
+  display: flex;
+  align-items: center;
+  gap: var(--s-2);
+  font-size: var(--fs-xs);
+  color: var(--text-mute);
+}
+
+.divider { height: 1px; background: var(--line-soft); border: 0; }
+
+/* A number the eye is meant to land on: the score delta, a duration, a count. */
+.stat { display: flex; flex-direction: column; gap: 2px; min-width: 0; }
+.stat-value {
+  font-family: var(--font-mono);
+  font-variant-numeric: tabular-nums;
+  font-size: var(--fs-lg);
+  font-weight: 600;
+}
+.stat-label { font-size: var(--fs-xs); color: var(--text-mute); }

@@ -1,0 +1,390 @@
+/*
+ * base.css — reset, type, the app shell, and the rules that hold the page
+ * together at every width.
+ *
+ * The shell it expects, which index.html sets up and app.js fills in:
+ *
+ *   <div id="app" class="shell">
+ *     <nav class="shell-nav">      five <button class="nav-btn" data-t="nav-*">
+ *     <main class="shell-main">
+ *       <section class="view" data-t="view-tomorrow"> … cards …
+ *
+ * The class is already on the mount point in the HTML, so app.js can render
+ * into #app without knowing this file exists. Below 1024px the nav is fixed to
+ * the bottom edge and <main> reserves room for it; from 1024px the same two
+ * elements become a grid, sidebar in the inline-start column — the right-hand
+ * side, since the document is RTL.
+ *
+ * The page itself scrolls. Making <main> the scroll container instead costs
+ * the mobile URL-bar collapse and gives nothing back.
+ */
+
+/* ------------------------------------------------------------------ *
+ * Reset
+ * ------------------------------------------------------------------ */
+
+*, *::before, *::after { box-sizing: border-box; }
+* { margin: 0; padding: 0; }
+
+html {
+  -webkit-text-size-adjust: 100%;
+  text-size-adjust: 100%;
+  scroll-behavior: smooth;
+  /* iOS paints this behind the elastic overscroll at the top and bottom of
+     the page. Without it a dark app flashes white when someone drags past
+     the end of a list. */
+  background: var(--bg);
+}
+
+body {
+  min-height: 100vh;
+  min-height: 100dvh;
+  background: var(--bg);
+  color: var(--text);
+  font-family: var(--font-body);
+  font-size: var(--fs-base);
+  line-height: var(--lh-body);
+  -webkit-font-smoothing: antialiased;
+  /* A tap on a card should not flash a grey box behind it; the components
+     draw their own pressed states. */
+  -webkit-tap-highlight-color: transparent;
+}
+
+img, video { max-width: 100%; height: auto; }
+svg { max-width: 100%; }
+
+button, input, select, textarea {
+  font: inherit;
+  color: inherit;
+  font-family: inherit;
+}
+
+button {
+  background: none;
+  border: 0;
+  cursor: pointer;
+  /* Safari refuses to centre text in a button any other way. */
+  text-align: inherit;
+}
+
+button:disabled { cursor: default; }
+
+a { color: var(--primary); text-decoration-thickness: 1px; text-underline-offset: 3px; }
+
+ul, ol { list-style: none; }
+
+::selection { background: var(--primary-wash); color: var(--text); }
+
+/* ------------------------------------------------------------------ *
+ * No horizontal scroll. Anywhere. Ever.
+ *
+ * Contracts §17 lists six widths that have to be clean, and at five of them
+ * the thing that breaks is never the layout — it is one child that refuses to
+ * shrink. A grid and a flex item both default to min-width:auto, which means
+ * "no narrower than my content", so a single long word, a 60-character Hebrew
+ * title, a chart with a fixed viewBox or a row of chips pushes its track wider
+ * than the column and the whole page gains a scrollbar. minmax(0, 1fr) on the
+ * track and min-width:0 on the children is the actual fix; overflow-x on the
+ * root is the seatbelt, not the brake.
+ *
+ * clip rather than hidden: overflow:hidden turns the element into a scroll
+ * container, which silently kills position:sticky inside it, and the desktop
+ * sidebar is sticky.
+ * ------------------------------------------------------------------ */
+
+html, body {
+  max-width: 100%;
+  overflow-x: hidden;
+  overflow-x: clip;
+}
+
+body { overflow-wrap: break-word; }
+
+:where(.shell, .shell-main, .view, .stack, .row, .cluster, .grid-2) > * { min-width: 0; }
+
+/* Anything that genuinely cannot shrink — a wide table, a long chip row —
+   scrolls inside its own box instead of widening the page. */
+.scroll-x {
+  overflow-x: auto;
+  overscroll-behavior-x: contain;
+  -webkit-overflow-scrolling: touch;
+  scrollbar-width: thin;
+}
+
+/* ------------------------------------------------------------------ *
+ * Typography
+ *
+ * The display face is Secular One, which ships in one weight only. Asking it
+ * for 700 gets a synthesised bold — smeared, heavier on the Hebrew than the
+ * Latin, and visibly not the same font. So display headings stay at 400 and
+ * every bold in the app is Assistant, which has real 600 and 700 cuts.
+ * ------------------------------------------------------------------ */
+
+h1, .h1 {
+  font-family: var(--font-display);
+  font-weight: 400;
+  font-size: var(--fs-title);
+  line-height: var(--lh-tight);
+  letter-spacing: -.01em;
+}
+
+h2, .h2 { font-size: var(--fs-lg); font-weight: 700; line-height: var(--lh-snug); }
+h3, .h3 { font-size: var(--fs-md); font-weight: 700; line-height: var(--lh-snug); }
+
+.lead { font-size: var(--fs-md); color: var(--text-dim); line-height: var(--lh-snug); }
+.sub { font-size: var(--fs-sm); color: var(--text-dim); max-width: 56ch; }
+.meta { font-size: var(--fs-xs); color: var(--text-mute); }
+
+.eyebrow {
+  font-family: var(--font-mono);
+  font-size: var(--fs-xs);
+  letter-spacing: var(--track-eyebrow);
+  text-transform: uppercase;
+  color: var(--text-mute);
+}
+
+/* Digits that have to line up or hold still: the score as it counts, a column
+   of times, a duration next to a duration. */
+.num {
+  font-family: var(--font-mono);
+  font-variant-numeric: tabular-nums;
+  font-feature-settings: 'tnum' 1;
+}
+
+.strong { font-weight: 700; }
+.dim { color: var(--text-dim); }
+.mute { color: var(--text-mute); }
+.good { color: var(--good); }
+.warn { color: var(--warn); }
+.bad { color: var(--risk); }
+.accent { color: var(--primary); }
+
+/* ------------------------------------------------------------------ *
+ * Accessibility
+ * ------------------------------------------------------------------ */
+
+.sr-only {
+  position: absolute;
+  width: 1px; height: 1px;
+  padding: 0; margin: -1px;
+  overflow: hidden;
+  clip: rect(0 0 0 0);
+  clip-path: inset(50%);
+  white-space: nowrap;
+  border: 0;
+}
+
+/* The ring follows the corner it sits on, so a pill button gets a pill ring
+   and a card gets a card one. outline-offset keeps it off the border it is
+   announcing. */
+:focus-visible {
+  outline: 2px solid var(--outline);
+  outline-offset: 2px;
+  border-radius: inherit;
+}
+
+:focus:not(:focus-visible) { outline: none; }
+
+/* ------------------------------------------------------------------ *
+ * Shell
+ * ------------------------------------------------------------------ */
+
+.shell {
+  position: relative;
+  min-height: 100vh;
+  min-height: 100dvh;
+}
+
+.shell-main {
+  /* Room for the fixed bottom bar plus whatever the phone's home indicator
+     takes, plus a little air so the last card never touches the nav. */
+  padding-block-end: calc(var(--nav-h) + env(safe-area-inset-bottom) + var(--s-6));
+}
+
+/*
+ * Safe-area padding is the one place this file uses physical left/right
+ * instead of logical properties, and on purpose: the notch and the rounded
+ * corners are on a physical side of a physical device, and they do not swap
+ * when the document direction does. Taking the larger of the gutter and the
+ * inset on each side keeps the layout identical in portrait and correct in
+ * landscape.
+ */
+.view {
+  display: flex;
+  flex-direction: column;
+  gap: var(--s-4);
+  width: 100%;
+  max-width: var(--wrap);
+  margin-inline: auto;
+  padding-block: var(--s-5) 0;
+  padding-left: max(var(--gutter), env(safe-area-inset-left));
+  padding-right: max(var(--gutter), env(safe-area-inset-right));
+}
+
+.shell-nav {
+  position: fixed;
+  inset-inline: 0;
+  bottom: 0;
+  z-index: 40;
+  display: flex;
+  justify-content: space-around;
+  align-items: stretch;
+  gap: var(--s-1);
+  height: calc(var(--nav-h) + env(safe-area-inset-bottom));
+  padding-block-start: var(--s-1);
+  padding-block-end: env(safe-area-inset-bottom);
+  padding-inline: var(--s-2);
+  background: var(--surface);
+  border-block-start: 1px solid var(--line);
+}
+
+.nav-btn {
+  flex: 1 1 0;
+  min-width: 0;
+  display: flex;
+  flex-direction: column;
+  align-items: center;
+  justify-content: center;
+  gap: 3px;
+  padding: var(--s-1) 2px;
+  border-radius: var(--r-md);
+  color: var(--text-mute);
+  font-size: var(--fs-xs);
+  font-weight: 600;
+  line-height: 1;
+  transition: color var(--t-fast) var(--ease), background var(--t-fast) var(--ease);
+}
+
+.nav-btn svg { width: 22px; height: 22px; flex: none; }
+.nav-btn span { max-width: 100%; overflow: hidden; text-overflow: ellipsis; white-space: nowrap; }
+
+.nav-btn:hover { color: var(--text-dim); }
+
+.nav-btn[aria-current="page"],
+.nav-btn.is-active {
+  color: var(--primary);
+  background: var(--primary-wash);
+}
+
+/*
+ * From 1024px the nav becomes a sidebar. Grid areas rather than column order,
+ * because the nav is first in the DOM for keyboard and screen-reader users and
+ * the layout should not depend on that staying true.
+ */
+@media (min-width: 1024px) {
+  .shell {
+    display: grid;
+    grid-template-columns: var(--side-w) minmax(0, 1fr);
+    grid-template-areas: 'nav main';
+    align-items: start;
+  }
+
+  .shell-nav {
+    grid-area: nav;
+    position: sticky;
+    top: 0;
+    inset-inline: auto;
+    bottom: auto;
+    flex-direction: column;
+    justify-content: flex-start;
+    align-items: stretch;
+    gap: var(--s-1);
+    height: 100vh;
+    height: 100dvh;
+    padding: var(--s-5) var(--s-3);
+    border-block-start: 0;
+    border-inline-end: 1px solid var(--line);
+    background: var(--bg);
+  }
+
+  .nav-btn {
+    flex: none;
+    flex-direction: row;
+    justify-content: flex-start;
+    gap: var(--s-3);
+    min-height: var(--tap);
+    padding: var(--s-3) var(--s-4);
+    font-size: var(--fs-sm);
+    line-height: var(--lh-snug);
+  }
+
+  .shell-main {
+    grid-area: main;
+    padding-block-end: var(--s-8);
+  }
+
+  .view { padding-block-start: var(--s-6); gap: var(--s-5); }
+}
+
+/* Wide desktop: the column stops growing long before the window does. A
+   720px measure is a comfortable read; 1400px of card is not. */
+@media (min-width: 1440px) {
+  .view { max-width: 860px; }
+}
+
+/* ------------------------------------------------------------------ *
+ * Layout primitives. Every one of them is RTL-correct because none of them
+ * names a physical side.
+ * ------------------------------------------------------------------ */
+
+.stack { display: flex; flex-direction: column; gap: var(--s-3); }
+.stack.tight { gap: var(--s-2); }
+.stack.loose { gap: var(--s-5); }
+
+.row { display: flex; align-items: center; gap: var(--s-3); }
+.row.top { align-items: flex-start; }
+.row.spread { justify-content: space-between; }
+
+/* A row that wraps instead of overflowing — chips, filters, tags. */
+.cluster { display: flex; flex-wrap: wrap; align-items: center; gap: var(--s-2); }
+
+.grid-2 { display: grid; grid-template-columns: minmax(0, 1fr); gap: var(--s-3); }
+@media (min-width: 560px) { .grid-2 { grid-template-columns: repeat(2, minmax(0, 1fr)); } }
+
+.grow { flex: 1 1 auto; min-width: 0; }
+.center { text-align: center; }
+.hidden { display: none !important; }
+
+/* ------------------------------------------------------------------ *
+ * Motion
+ *
+ * The token file already zeroes the durations, which covers everything that
+ * reads a variable. This catches the rest: a keyframe animation with its
+ * timing written into the shorthand, a transition on a third-party default.
+ * Reduced motion means the end state arrives immediately, not that nothing
+ * happens — so animations run once and stop rather than being removed.
+ * ------------------------------------------------------------------ */
+
+@media (prefers-reduced-motion: reduce) {
+  *, *::before, *::after {
+    animation-duration: 1ms !important;
+    animation-iteration-count: 1 !important;
+    transition-duration: 1ms !important;
+    scroll-behavior: auto !important;
+  }
+  html { scroll-behavior: auto; }
+}
+
+:root[data-motion="reduced"] *,
+:root[data-motion="reduced"] *::before,
+:root[data-motion="reduced"] *::after {
+  animation-duration: 1ms !important;
+  animation-iteration-count: 1 !important;
+  transition-duration: 1ms !important;
+}
+
+:root[data-motion="reduced"] { scroll-behavior: auto; }
+
+/* The <noscript> line. It has no style attribute of its own because the page
+   ships a CSP with no 'unsafe-inline' — an inline style would be dropped and
+   the message would land unstyled at the top-left of a black page. */
+.noscript-note {
+  margin: var(--s-7) auto;
+  max-width: 42ch;
+  padding: var(--s-5);
+  border: 1px solid var(--line);
+  border-radius: var(--r);
+  background: var(--surface);
+  color: var(--text-dim);
+  text-align: center;
+}

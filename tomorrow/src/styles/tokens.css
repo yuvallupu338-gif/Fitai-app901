@@ -1,0 +1,298 @@
+/*
+ * tokens.css — every colour, size, radius and duration TomorrowAI uses.
+ *
+ * Dark is the default and lives on bare :root, because this is an app people
+ * open at night: the evening ritual is the one screen it is guaranteed to see
+ * every day, and a white page at 23:00 is a worse product before a single
+ * pixel of layout is decided. Light is an override under [data-theme="light"],
+ * set by the profile switch — deliberately not by prefers-color-scheme. The
+ * profile owns a real setting; following the OS as well would mean the switch
+ * appears to do nothing for anyone whose system disagrees with their choice.
+ *
+ * Two attributes on <html> drive everything conditional here:
+ *   data-theme="light"     the profile's theme switch
+ *   data-motion="reduced"  the profile's motion override, ORed by app.js with
+ *                          the prefers-reduced-motion media query
+ *
+ * Fonts are not declared here. ../src/styles/fonts.css carries Assistant,
+ * Secular One and IBM Plex Mono as embedded woff2 for the whole repository and
+ * is linked before this file; re-embedding them would add a megabyte of
+ * base64 for a second copy of the same faces.
+ */
+
+:root {
+  /* Tells the browser which way round its own furniture goes: the scrollbars,
+     the native form controls, the spinner inside a number field. Without it a
+     dark page gets a white scrollbar track on the side of it. */
+  color-scheme: dark;
+
+  /* ---------------------------------------------------------------- *
+   * Surfaces — four steps, and no more.
+   *
+   * bg is the page, surface is a card on it, surface-2 is something inside a
+   * card, surface-3 is a pressed or hovered state. A fifth step stops reading
+   * as depth and starts reading as noise, and every extra step is another
+   * background a text colour has to be checked against.
+   * ---------------------------------------------------------------- */
+  --bg: #080B12;
+  --surface: #10151F;
+  --surface-2: #151C29;
+  --surface-3: #1B2434;
+
+  /* Borders do almost all the separating work in this design, so they are
+     quiet on purpose: a 1px line at this weight defines an edge without the
+     interface looking drawn on graph paper. */
+  --line: #232E42;
+  --line-soft: #1A2231;
+
+  /* Ink. Three weights: what you read, what supports it, what only labels it. */
+  --text: #EEF2F9;
+  --text-dim: #A6B6CE;
+  --text-mute: #8B9CB6;
+
+  /* ---------------------------------------------------------------- *
+   * Accent.
+   *
+   * --primary is the accent as ink: links, active icons, the numbers the eye
+   * should land on. --primary-strong is the accent as a fill, and it is a
+   * different, darker colour for one reason — white text has to sit on it and
+   * clear AA, which #7D93FF does not allow. Keeping both means nobody has to
+   * choose between a legible button and a legible label.
+   * ---------------------------------------------------------------- */
+  --primary: #7D93FF;
+  --primary-strong: #5046E5;
+  --primary-ink: #FFFFFF;
+  --primary-wash: rgba(125, 147, 255, .12);
+  --primary-line: rgba(125, 147, 255, .32);
+
+  /* Indigo into blue into a faint violet. Three stops rather than two because
+     a two-stop ramp across this much hue passes through a flat middle; the
+     blue at 52% is what keeps it electric instead of muddy. White clears 5.0:1
+     against every point along it, checked below. */
+  --grad: linear-gradient(135deg, #5046E5 0%, #2A66E8 52%, #7B4FE4 100%);
+  /* The same three stops as raw colours. An SVG <linearGradient> cannot read a
+     CSS gradient, and the score ring and the curve fills are SVG, so the stops
+     exist twice by necessity. They are next to each other so the day one of
+     them moves, the other is on the following line. */
+  --grad-1: #5046E5;
+  --grad-2: #2A66E8;
+  --grad-3: #7B4FE4;
+  --grad-soft: linear-gradient(135deg, rgba(80, 70, 229, .18) 0%, rgba(42, 102, 232, .14) 52%, rgba(123, 79, 228, .18) 100%);
+
+  /* Status. Muted on purpose: this app tells someone their evening may be
+     tight, not that their house is on fire. A saturated red for a schedule
+     risk trains people to ignore the colour by the third day. */
+  --good: #5FCF9B;
+  --good-wash: rgba(95, 207, 155, .12);
+  --warn: #F0B95C;
+  --warn-wash: rgba(240, 185, 92, .12);
+  --risk: #FF8B7E;
+  --risk-wash: rgba(255, 139, 126, .12);
+
+  /* The two curves share one chart and must stay apart for someone who cannot
+     separate blue from violet, so focus is teal rather than the violet end of
+     the brand ramp — a hue and a lightness apart from energy, not a shade of
+     it. Legends still label both; colour is never the only carrier. */
+  --energy: #7D93FF;
+  --focus: #58D3C4;
+  --violet: #B08CF8;
+
+  /* Chart furniture. Grid lines sit under data and must never compete with
+     it, so they are a hair above the surface they sit on. */
+  --grid: rgba(166, 182, 206, .14);
+  --grid-strong: rgba(166, 182, 206, .26);
+
+  /* The focus-visible outline. Named for the CSS property it feeds, not "ring",
+     which in this app means the score dial. */
+  --outline: #8FA2FF;
+  --scrim: rgba(4, 6, 11, .66); /* behind a modal or a sheet */
+
+  /* ---------------------------------------------------------------- *
+   * Type — one scale, seven steps, and every size in the app is one of them.
+   * ---------------------------------------------------------------- */
+  --font-body: 'Assistant', system-ui, -apple-system, 'Segoe UI', sans-serif;
+  --font-display: 'Secular One', 'Assistant', system-ui, sans-serif;
+  /* IBM Plex Mono has no Hebrew in the embedded subset, which is exactly
+     right: it is here for digits — scores, clock times, durations — so a
+     column of numbers lines up and a counting score does not jitter as the
+     glyph widths change. Hebrew inside it falls back to Assistant. */
+  --font-mono: 'IBM Plex Mono', ui-monospace, 'SF Mono', monospace;
+
+  --fs-display: clamp(56px, 16vw, 76px);   /* the score, and nothing else */
+  --fs-title: clamp(24px, 6vw, 30px);      /* screen headings */
+  --fs-lg: 19px;                           /* card titles */
+  --fs-md: 17px;                           /* lead lines, list row titles */
+  --fs-base: 16px;                         /* body */
+  --fs-sm: 14px;                           /* supporting copy */
+  --fs-xs: 12.5px;                         /* meta, eyebrows, axis labels */
+
+  --lh-tight: 1.15;
+  --lh-snug: 1.35;
+  --lh-body: 1.6;
+  --track-eyebrow: .12em;
+
+  /* ---------------------------------------------------------------- *
+   * Space — a 4px grid. Generous by default; this app is calm or it is
+   * nothing, and the fastest way to make it feel like an admin panel is to
+   * tighten the padding.
+   * ---------------------------------------------------------------- */
+  --s-1: 4px;
+  --s-2: 8px;
+  --s-3: 12px;
+  --s-4: 16px;
+  --s-5: 20px;
+  --s-6: 28px;
+  --s-7: 40px;
+  --s-8: 56px;
+
+  /* Radius. Cards and sheets live in the 18–24 band the design calls for;
+     the smaller steps are for things inside a card, which have to read as
+     nested rather than as another card. */
+  --r-xs: 8px;
+  --r-sm: 12px;
+  --r-md: 16px;
+  --r: 20px;
+  --r-lg: 24px;
+  --r-pill: 999px;
+
+  /* Elevation is mostly a border and a very soft drop. Heavy shadows on a
+     near-black page read as smudges rather than lift. */
+  --shadow-sm: 0 1px 2px rgba(0, 0, 0, .30);
+  --shadow: 0 8px 24px rgba(0, 0, 0, .34);
+  --shadow-lg: 0 24px 60px rgba(0, 0, 0, .48);
+  --glow: 0 6px 24px rgba(80, 70, 229, .30);
+
+  /* Motion. One easing curve for the whole app: things start quickly and
+     settle, which is what makes a score counting up look like a measurement
+     rather than an animation. */
+  --ease: cubic-bezier(.2, .8, .3, 1);
+  --t-fast: .16s;
+  --t-mid: .26s;
+  --t-slow: .44s;
+
+  /* Layout */
+  --nav-h: 62px;
+  --side-w: 248px;
+  --wrap: 720px;      /* reading width of a column of cards */
+  --gutter: 16px;
+  --tap: 44px;        /* smallest thing worth aiming a thumb at */
+}
+
+/*
+ * Contrast, measured rather than assumed (WCAG 2.1 relative luminance, the
+ * darkest surface each colour is allowed to sit on):
+ *
+ *   dark theme            bg #080B12   surface #10151F   surface-3 #1B2434
+ *   --text     #EEF2F9      17.5:1        16.3:1            13.9:1
+ *   --text-dim #A6B6CE       9.6:1         8.9:1             7.6:1
+ *   --text-mute #8B9CB6      7.1:1         6.6:1             5.6:1
+ *   --primary  #7D93FF       7.0:1         6.5:1             5.6:1
+ *   --good     #5FCF9B      10.2:1         9.5:1             8.1:1
+ *   --warn     #F0B95C      11.1:1        10.3:1             8.8:1
+ *   --risk     #FF8B7E       8.7:1         8.1:1             6.9:1
+ *   --focus    #58D3C4      10.8:1        10.0:1             8.6:1
+ *
+ *   light theme           bg #F4F7FC   surface #FFFFFF   surface-3 #E3EAF4
+ *   --text     #0E1521      17.0:1        18.3:1            15.1:1
+ *   --text-dim #48586F       6.7:1         7.2:1             6.0:1
+ *   --text-mute #55647B      5.6:1         6.0:1             5.0:1
+ *   --primary  #3A4CD4       6.2:1         6.6:1             5.5:1
+ *   --good     #0D6A49       6.2:1         6.6:1             5.5:1
+ *   --warn     #7F5304       6.2:1         6.7:1             5.5:1
+ *   --risk     #B3312A       5.8:1         6.2:1             5.1:1
+ *
+ *   --primary-ink #FFFFFF on --grad: 6.3:1 at the indigo end, 5.0:1 at the
+ *   worst point of the ramp, 5.2:1 at the violet end. On the light theme's
+ *   deeper ramp the same white never drops below 5.7:1.
+ *
+ * Every one of these clears 4.5:1, the small-text threshold, so nothing in the
+ * app depends on a size or a weight to be readable — including --text-mute,
+ * which is only ever used at 12.5px and would fail the moment somebody trusted
+ * the large-text allowance for it. The warm status colours are the ones that
+ * needed the most moving: an amber and a coral bright enough to read as amber
+ * and coral on a near-black page are far above the line, and the same two hues
+ * in the light theme have to go almost brown to get there. That asymmetry is
+ * why the light block below overrides the status colours instead of reusing
+ * them.
+ */
+
+:root[data-theme="light"] {
+  color-scheme: light;
+
+  --bg: #F4F7FC;
+  --surface: #FFFFFF;
+  --surface-2: #EAF0F8;
+  --surface-3: #E3EAF4;
+
+  --line: #D5DFEE;
+  --line-soft: #E5ECF6;
+
+  --text: #0E1521;
+  --text-dim: #48586F;
+  --text-mute: #55647B;
+
+  --primary: #3A4CD4;
+  --primary-strong: #4338CA;
+  --primary-ink: #FFFFFF;
+  --primary-wash: rgba(58, 76, 212, .09);
+  --primary-line: rgba(58, 76, 212, .26);
+
+  /* Deeper stops for the light theme. The dark ramp is tuned to glow against
+     a near-black page; on white the same three colours read as a highlighter,
+     and white text on them loses a point of contrast it cannot spare. */
+  --grad: linear-gradient(135deg, #4338CA 0%, #1D5FD8 52%, #6D45D6 100%);
+  --grad-1: #4338CA;
+  --grad-2: #1D5FD8;
+  --grad-3: #6D45D6;
+  --grad-soft: linear-gradient(135deg, rgba(67, 56, 202, .10) 0%, rgba(29, 95, 216, .08) 52%, rgba(109, 69, 214, .10) 100%);
+
+  --good: #0D6A49;
+  --good-wash: rgba(13, 106, 73, .10);
+  --warn: #7F5304;
+  --warn-wash: rgba(127, 83, 4, .10);
+  --risk: #B3312A;
+  --risk-wash: rgba(179, 49, 42, .09);
+
+  --energy: #3A4CD4;
+  --focus: #0B6B62;
+  --violet: #6D45D6;
+
+  --grid: rgba(14, 21, 33, .10);
+  --grid-strong: rgba(14, 21, 33, .20);
+
+  --outline: #3A4CD4;
+  --scrim: rgba(16, 24, 40, .40);
+
+  /* On white, the same drop shadow reads as dirt. Lighter, tighter, and
+     leaning on the border instead. */
+  --shadow-sm: 0 1px 2px rgba(16, 24, 40, .06);
+  --shadow: 0 8px 24px rgba(16, 24, 40, .08);
+  --shadow-lg: 0 24px 60px rgba(16, 24, 40, .14);
+  --glow: 0 6px 20px rgba(67, 56, 202, .22);
+}
+
+/*
+ * Reduced motion is handled at the token level as well as in base.css.
+ *
+ * The blanket rule in base.css kills transitions and animations, but plenty of
+ * timing in this app is read out of these variables by JavaScript — the score
+ * counting up, the what-if curve morphing between two shapes. Zeroing the
+ * durations here means those land on their end state immediately instead of
+ * needing every animation call site to remember to ask.
+ *
+ * Not 0s: a zero-length transition never fires transitionend, and code waiting
+ * for one to clean up would wait forever. 1ms fires on the next frame.
+ */
+@media (prefers-reduced-motion: reduce) {
+  :root {
+    --t-fast: 1ms;
+    --t-mid: 1ms;
+    --t-slow: 1ms;
+  }
+}
+
+:root[data-motion="reduced"] {
+  --t-fast: 1ms;
+  --t-mid: 1ms;
+  --t-slow: 1ms;
+}

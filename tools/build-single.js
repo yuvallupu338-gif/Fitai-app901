@@ -23,6 +23,11 @@ import { fileURLToPath } from 'node:url';
 
 const ROOT = resolve(dirname(fileURLToPath(import.meta.url)), '..');
 
+/* Things worth saying at the end of a build that are not failures. */
+const notes = [];
+
+
+
 /* Positional args, with the FitAI build as the default so the existing
  * invocation keeps working untouched. */
 const HTML_IN = process.argv[2] && !process.argv[2].endsWith('.js')
@@ -49,10 +54,30 @@ function key(abs) {
   return relative(ROOT, abs).split('\\').join('/');
 }
 
+const stack = [];
+
 function collect(abs) {
   const k = key(abs);
-  if (seen.has(k)) return;
+  /*
+   * null marks "being collected". Meeting one again is an import cycle, and a
+   * cycle is the one thing this bundler cannot flatten: it emits each module as
+   * an IIFE that destructures its dependencies out of the registry, so whichever
+   * half of the cycle is written first reads an entry that does not exist yet
+   * and the whole bundle dies on load.
+   *
+   * Real ES modules survive cycles through hoisting and live bindings, which is
+   * why one can sit in a served app for months looking perfectly healthy. This
+   * build is where it surfaces, so it is where it has to be reported — by name,
+   * with the loop spelled out, rather than as a blank page and a stack trace
+   * pointing at line 8922 of a generated file.
+   */
+  if (seen.has(k)) {
+    if (seen.get(k) !== null) return;      // already collected, nothing to do
+    const loop = stack.slice(stack.indexOf(k)).concat(k).join(' -> ');
+    throw new Error(`import cycle: ${loop}`);
+  }
   seen.set(k, null);
+  stack.push(k);
 
   const src = readFileSync(abs, 'utf8');
   reject(src, k);
@@ -67,20 +92,79 @@ function collect(abs) {
   while ((m = importRe.exec(src))) {
     const spec = m[4];
     if (!spec.startsWith('.')) throw new Error(`${k}: bare import "${spec}" — not bundleable`);
+    // m[1] is a default import. export default is rejected below, so one here
+    // is a mistake — and left unchecked it emitted `const { undefined } = …`.
+    if (m[1]) throw new Error(`${k}: default import of "${spec}" — this repo uses named exports only`);
     deps.push({ ns: m[2], named: m[3], spec, raw: m[0] });
   }
 
   for (const d of deps) collect(resolve(dirname(abs), d.spec));
 
+  stack.pop();
   seen.set(k, { abs, src, deps });
   order.push(k);
 }
 
-function reject(src, k) {
+/*
+ * Strip comments and string bodies before pattern-matching source.
+ *
+ * Every check below asks "does this file do X", and prose explaining why a file
+ * does *not* do X contains the same words. chat.js was refused for a dynamic
+ * import that existed only in a comment describing where the real one lives.
+ */
+/*
+ * Comments out, strings intact.
+ *
+ * code() below also blanks string literals, which is right for asking "does this
+ * file call X" and exactly wrong for asking "what does it import" — the
+ * specifier IS a string literal, so the pattern matched import('') every time
+ * and the model library silently never got bundled.
+ */
+function withoutComments(src) {
+  return src
+    .replace(/\/\*[\s\S]*?\*\//g, '')
+    .replace(/(^|[^:])\/\/[^\n]*/g, '$1');
+}
+
+function code(src) {
+  return src
+    .replace(/\/\*[\s\S]*?\*\//g, '')
+    .replace(/(^|[^:])\/\/[^\n]*/g, '$1')
+    .replace(/'(?:\\.|[^'\\])*'/g, "''")
+    .replace(/"(?:\\.|[^"\\])*"/g, '""')
+    .replace(/`(?:\\.|[^`\\])*`/g, '``');
+}
+
+function reject(raw, k) {
+  const src = code(raw);
   if (/\bexport\s+default\b/.test(src)) throw new Error(`${k}: export default is not supported`);
   if (/\bexport\s+\*/.test(src)) throw new Error(`${k}: export * is not supported`);
   if (/\bimport\s*\(/.test(src)) throw new Error(`${k}: dynamic import() is not supported`);
   if (/\bimport\.meta\b/.test(src)) throw new Error(`${k}: import.meta is not supported`);
+}
+
+/*
+ * `import { a as b }` is not `const { a as b }`.
+ *
+ * Destructuring renames with a colon; `as` is import syntax and nothing else.
+ * Emitting it verbatim produces a file that parses right up to the first
+ * aliased import and then dies with "Unexpected identifier 'as'" — and because
+ * the bundle is one inline script, that one token takes the whole app down with
+ * a blank page. Every app in this repo before TomorrowAI imported each symbol
+ * under its own name, so this sat here working perfectly for two builds.
+ */
+function destructure(named) {
+  return named
+    .replace(/\s+/g, ' ')
+    .split(',')
+    .map((piece) => {
+      const t = piece.trim();
+      if (!t) return null;
+      const alias = /^([\w$]+)\s+as\s+([\w$]+)$/.exec(t);
+      return alias ? `${alias[1]}: ${alias[2]}` : t;
+    })
+    .filter(Boolean)
+    .join(', ');
 }
 
 function transform(k, mod) {
@@ -91,7 +175,7 @@ function transform(k, mod) {
     const target = key(resolve(dirname(mod.abs), d.spec));
     const line = d.ns
       ? `const ${d.ns} = __m[${JSON.stringify(target)}];`
-      : `const { ${d.named.replace(/\s+/g, ' ').trim()} } = __m[${JSON.stringify(target)}];`;
+      : `const { ${destructure(d.named)} } = __m[${JSON.stringify(target)}];`;
     out = out.replace(d.raw, line);
   }
 
@@ -147,8 +231,25 @@ const css = CSS_FILES.map((f) => readFileSync(f, 'utf8')).join('\n\n');
 /* The same source the entry point and stylesheets were discovered in — reading
  * index.html again here is how the first version of this emitted FitAI's shell
  * wrapped around the Backrooms bundle. */
-const styleBody = `\n${css}\n`;
-const scriptBody = `\n${bundle}\n`;
+/*
+ * Line endings normalised before anything is hashed or written.
+ *
+ * The HTML parser converts CRLF and lone CR to LF while tokenising, so the text
+ * a <script> element ends up holding is not the bytes that were on disk. Hash
+ * the bytes and the browser computes a different digest from the normalised
+ * text, refuses to run the script, and reports a CSP violation that looks like
+ * the bundler emitted the wrong hash.
+ *
+ * It surfaced when the model library was vendored in: 210 carriage returns
+ * inside six and a half megabytes, and the whole single-file build was a blank
+ * page. Everything written here is authored with LF, so this had never mattered
+ * before and would have been invisible until the next file arrived with
+ * Windows line endings in it.
+ */
+const lf = (s) => s.replace(/\r\n?/g, '\n');
+
+const styleBody = lf(`\n${css}\n`);
+const scriptBody = lf(`\n${bundle}\n`);
 
 /* The page carries a Content-Security-Policy that says script-src 'self' and
  * style-src 'self' — correct for the served app, and fatal here, because this
@@ -160,16 +261,30 @@ const scriptBody = `\n${bundle}\n`;
  * 'self' is also meaningless once the file is opened from file://, which is the
  * whole point of this build, and every asset is already a data: URI. */
 const sha = (s) => `'sha256-${createHash('sha256').update(s, 'utf8').digest('base64')}'`;
+/*
+ * Swap 'self' for the hash and leave every other token alone.
+ *
+ * This used to rewrite the whole directive, which quietly dropped anything else
+ * in it. Nothing in these three apps needs a second token today, and the moment
+ * one does the failure is a page that loads its own script and is then refused
+ * permission to run it, citing a directive nobody wrote.
+ */
 function singleFileCsp(policy) {
   return policy
     .split(';')
     .map((d) => {
       const t = d.trim();
-      if (t.startsWith('script-src')) return ` script-src ${sha(scriptBody)}`;
-      if (t.startsWith('style-src')) return ` style-src ${sha(styleBody)}`;
+      if (t.startsWith('script-src')) return ` ${swapSelf(t, sha(scriptBody))}`;
+      if (t.startsWith('style-src')) return ` ${swapSelf(t, sha(styleBody))}`;
       return d;
     })
     .join(';');
+}
+
+function swapSelf(directive, hash) {
+  const parts = directive.split(/\s+/).filter(Boolean);
+  const kept = parts.slice(1).filter((p) => p !== "'self'");
+  return [parts[0], hash].concat(kept).join(' ');
 }
 
 let html = htmlSrc;
@@ -180,8 +295,20 @@ html = html
     /(<meta http-equiv="Content-Security-Policy" content=")([^"]*)(">)/,
     (_, a, policy, c) => a + singleFileCsp(policy) + c
   )
-  .replace('</head>', `<style>${styleBody}</style>\n</head>`)
-  .replace('</body>', `<script>${scriptBody}</script>\n</body>`);
+  /*
+   * Replacer functions, not replacement strings.
+   *
+   * String.replace gives $&, $`, $' and $1 special meaning INSIDE the
+   * replacement, so any of those sequences in the bundle would be rewritten on
+   * the way in — and the script that landed in the file would no longer match
+   * the hash computed from it a few lines above. The vendored model library
+   * contains `require$$3`, where $$ is itself the escape for a literal $, so
+   * this was not hypothetical: the page loaded and refused to execute its own
+   * script, reporting a CSP hash mismatch that looked like a bundler bug
+   * anywhere but here.
+   */
+  .replace('</head>', () => `<style>${styleBody}</style>\n</head>`)
+  .replace('</body>', () => `<script>${scriptBody}</script>\n</body>`);
 
 if (!/Content-Security-Policy/.test(html)) {
   throw new Error(`${HTML_IN}: no CSP meta tag — the single-file build must not ship without one`);
@@ -192,3 +319,4 @@ writeFileSync(resolve(ROOT, HTML_OUT), html);
 
 const kb = Math.round(Buffer.byteLength(html) / 1024);
 console.log(`${HTML_OUT} — ${order.length} modules, ${kb} KB`);
+for (const n of notes) console.log(`  note  ${n}`);
