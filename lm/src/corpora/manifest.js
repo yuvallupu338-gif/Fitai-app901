@@ -8,8 +8,8 @@
 
 export const MANIFEST = {
   "code": {
-    "writers": 88,
-    "characters": 653814,
+    "writers": 163,
+    "characters": 1332625,
     "parts": [
       {
         "id": "code-01-js",
@@ -344,7 +344,7 @@ export const MANIFEST = {
       {
         "id": "code-67-c",
         "language": "c",
-        "characters": 7082
+        "characters": 7120
       },
       {
         "id": "code-68-java",
@@ -444,18 +444,393 @@ export const MANIFEST = {
       {
         "id": "pro-012",
         "language": "pro",
-        "characters": 9603
+        "characters": 8996
       },
       {
         "id": "pro-013",
         "language": "pro",
-        "characters": 9177
+        "characters": 8973
+      },
+      {
+        "id": "pro-014",
+        "language": "pro",
+        "characters": 9007
+      },
+      {
+        "id": "pro-015",
+        "language": "pro",
+        "characters": 8970
+      },
+      {
+        "id": "pro-016",
+        "language": "pro",
+        "characters": 13452
+      },
+      {
+        "id": "pro-017",
+        "language": "pro",
+        "characters": 8997
+      },
+      {
+        "id": "pro-018",
+        "language": "pro",
+        "characters": 8826
+      },
+      {
+        "id": "pro-019",
+        "language": "pro",
+        "characters": 8499
+      },
+      {
+        "id": "pro-020",
+        "language": "pro",
+        "characters": 8942
+      },
+      {
+        "id": "pro-021",
+        "language": "pro",
+        "characters": 8931
+      },
+      {
+        "id": "pro-022",
+        "language": "pro",
+        "characters": 9014
+      },
+      {
+        "id": "pro-023",
+        "language": "pro",
+        "characters": 9563
+      },
+      {
+        "id": "pro-024",
+        "language": "pro",
+        "characters": 8733
+      },
+      {
+        "id": "pro-025",
+        "language": "pro",
+        "characters": 9660
+      },
+      {
+        "id": "pro-026",
+        "language": "pro",
+        "characters": 8976
+      },
+      {
+        "id": "pro-027",
+        "language": "pro",
+        "characters": 8942
+      },
+      {
+        "id": "pro-028",
+        "language": "pro",
+        "characters": 9275
+      },
+      {
+        "id": "pro-029",
+        "language": "pro",
+        "characters": 10990
+      },
+      {
+        "id": "pro-030",
+        "language": "pro",
+        "characters": 8955
+      },
+      {
+        "id": "pro-031",
+        "language": "pro",
+        "characters": 8906
+      },
+      {
+        "id": "pro-032",
+        "language": "pro",
+        "characters": 8972
+      },
+      {
+        "id": "pro-033",
+        "language": "pro",
+        "characters": 8966
+      },
+      {
+        "id": "pro-034",
+        "language": "pro",
+        "characters": 8454
+      },
+      {
+        "id": "pro-035",
+        "language": "pro",
+        "characters": 8952
+      },
+      {
+        "id": "pro-036",
+        "language": "pro",
+        "characters": 8975
+      },
+      {
+        "id": "pro-037",
+        "language": "pro",
+        "characters": 8957
+      },
+      {
+        "id": "pro-038",
+        "language": "pro",
+        "characters": 8878
+      },
+      {
+        "id": "pro-039",
+        "language": "pro",
+        "characters": 11225
+      },
+      {
+        "id": "pro-040",
+        "language": "pro",
+        "characters": 8808
+      },
+      {
+        "id": "pro-041",
+        "language": "pro",
+        "characters": 8984
+      },
+      {
+        "id": "pro-042",
+        "language": "pro",
+        "characters": 8953
+      },
+      {
+        "id": "pro-043",
+        "language": "pro",
+        "characters": 8933
+      },
+      {
+        "id": "pro-044",
+        "language": "pro",
+        "characters": 8872
+      },
+      {
+        "id": "pro-045",
+        "language": "pro",
+        "characters": 8511
+      },
+      {
+        "id": "pro-046",
+        "language": "pro",
+        "characters": 8955
+      },
+      {
+        "id": "pro-047",
+        "language": "pro",
+        "characters": 8590
+      },
+      {
+        "id": "pro-048",
+        "language": "pro",
+        "characters": 8936
+      },
+      {
+        "id": "pro-049",
+        "language": "pro",
+        "characters": 8956
+      },
+      {
+        "id": "pro-050",
+        "language": "pro",
+        "characters": 8805
+      },
+      {
+        "id": "pro-051",
+        "language": "pro",
+        "characters": 8938
+      },
+      {
+        "id": "pro-052",
+        "language": "pro",
+        "characters": 8975
+      },
+      {
+        "id": "pro-053",
+        "language": "pro",
+        "characters": 8956
+      },
+      {
+        "id": "pro-054",
+        "language": "pro",
+        "characters": 9236
+      },
+      {
+        "id": "pro-055",
+        "language": "pro",
+        "characters": 10628
+      },
+      {
+        "id": "pro-056",
+        "language": "pro",
+        "characters": 9925
+      },
+      {
+        "id": "pro-057",
+        "language": "pro",
+        "characters": 8954
+      },
+      {
+        "id": "pro-058",
+        "language": "pro",
+        "characters": 8851
+      },
+      {
+        "id": "pro-059",
+        "language": "pro",
+        "characters": 8960
+      },
+      {
+        "id": "pro-060",
+        "language": "pro",
+        "characters": 8960
+      },
+      {
+        "id": "pro-061",
+        "language": "pro",
+        "characters": 8677
+      },
+      {
+        "id": "pro-062",
+        "language": "pro",
+        "characters": 8951
+      },
+      {
+        "id": "pro-063",
+        "language": "pro",
+        "characters": 8622
+      },
+      {
+        "id": "pro-064",
+        "language": "pro",
+        "characters": 11543
+      },
+      {
+        "id": "pro-065",
+        "language": "pro",
+        "characters": 9019
+      },
+      {
+        "id": "pro-066",
+        "language": "pro",
+        "characters": 8936
+      },
+      {
+        "id": "pro-067",
+        "language": "pro",
+        "characters": 8409
+      },
+      {
+        "id": "pro-068",
+        "language": "pro",
+        "characters": 8976
+      },
+      {
+        "id": "pro-069",
+        "language": "pro",
+        "characters": 8656
+      },
+      {
+        "id": "pro-070",
+        "language": "pro",
+        "characters": 9287
+      },
+      {
+        "id": "pro-071",
+        "language": "pro",
+        "characters": 8675
+      },
+      {
+        "id": "pro-072",
+        "language": "pro",
+        "characters": 8990
+      },
+      {
+        "id": "pro-073",
+        "language": "pro",
+        "characters": 8976
+      },
+      {
+        "id": "pro-074",
+        "language": "pro",
+        "characters": 8978
+      },
+      {
+        "id": "pro-075",
+        "language": "pro",
+        "characters": 8804
+      },
+      {
+        "id": "pro-076",
+        "language": "pro",
+        "characters": 8993
+      },
+      {
+        "id": "pro-077",
+        "language": "pro",
+        "characters": 8988
+      },
+      {
+        "id": "pro-078",
+        "language": "pro",
+        "characters": 8997
+      },
+      {
+        "id": "pro-079",
+        "language": "pro",
+        "characters": 8991
+      },
+      {
+        "id": "pro-080",
+        "language": "pro",
+        "characters": 8152
+      },
+      {
+        "id": "pro-081",
+        "language": "pro",
+        "characters": 7545
+      },
+      {
+        "id": "pro-082",
+        "language": "pro",
+        "characters": 7386
+      },
+      {
+        "id": "pro-083",
+        "language": "pro",
+        "characters": 8994
+      },
+      {
+        "id": "pro-084",
+        "language": "pro",
+        "characters": 8055
+      },
+      {
+        "id": "pro-085",
+        "language": "pro",
+        "characters": 10756
+      },
+      {
+        "id": "pro-086",
+        "language": "pro",
+        "characters": 7512
+      },
+      {
+        "id": "pro-087",
+        "language": "pro",
+        "characters": 8907
+      },
+      {
+        "id": "pro-088",
+        "language": "pro",
+        "characters": 8956
       }
     ]
   },
   "general": {
-    "writers": 48,
-    "characters": 331453,
+    "writers": 105,
+    "characters": 691070,
     "parts": [
       {
         "id": "gen-01",
@@ -690,12 +1065,297 @@ export const MANIFEST = {
       {
         "id": "know-012",
         "language": "know",
-        "characters": 7481
+        "characters": 7167
       },
       {
         "id": "know-013",
         "language": "know",
-        "characters": 10048
+        "characters": 6617
+      },
+      {
+        "id": "know-014",
+        "language": "know",
+        "characters": 6448
+      },
+      {
+        "id": "know-015",
+        "language": "know",
+        "characters": 6881
+      },
+      {
+        "id": "know-016",
+        "language": "know",
+        "characters": 7353
+      },
+      {
+        "id": "know-017",
+        "language": "know",
+        "characters": 6283
+      },
+      {
+        "id": "know-018",
+        "language": "know",
+        "characters": 6007
+      },
+      {
+        "id": "know-019",
+        "language": "know",
+        "characters": 7039
+      },
+      {
+        "id": "know-020",
+        "language": "know",
+        "characters": 6493
+      },
+      {
+        "id": "know-021",
+        "language": "know",
+        "characters": 5059
+      },
+      {
+        "id": "know-022",
+        "language": "know",
+        "characters": 7370
+      },
+      {
+        "id": "know-023",
+        "language": "know",
+        "characters": 6673
+      },
+      {
+        "id": "know-024",
+        "language": "know",
+        "characters": 6818
+      },
+      {
+        "id": "know-025",
+        "language": "know",
+        "characters": 6945
+      },
+      {
+        "id": "know-026",
+        "language": "know",
+        "characters": 6936
+      },
+      {
+        "id": "know-027",
+        "language": "know",
+        "characters": 4886
+      },
+      {
+        "id": "know-028",
+        "language": "know",
+        "characters": 6000
+      },
+      {
+        "id": "know-029",
+        "language": "know",
+        "characters": 6535
+      },
+      {
+        "id": "know-030",
+        "language": "know",
+        "characters": 6982
+      },
+      {
+        "id": "know-031",
+        "language": "know",
+        "characters": 6401
+      },
+      {
+        "id": "know-032",
+        "language": "know",
+        "characters": 7817
+      },
+      {
+        "id": "know-033",
+        "language": "know",
+        "characters": 6847
+      },
+      {
+        "id": "know-034",
+        "language": "know",
+        "characters": 5818
+      },
+      {
+        "id": "know-035",
+        "language": "know",
+        "characters": 6245
+      },
+      {
+        "id": "know-036",
+        "language": "know",
+        "characters": 6432
+      },
+      {
+        "id": "know-037",
+        "language": "know",
+        "characters": 6127
+      },
+      {
+        "id": "know-038",
+        "language": "know",
+        "characters": 5962
+      },
+      {
+        "id": "know-039",
+        "language": "know",
+        "characters": 6302
+      },
+      {
+        "id": "know-040",
+        "language": "know",
+        "characters": 4873
+      },
+      {
+        "id": "know-041",
+        "language": "know",
+        "characters": 4997
+      },
+      {
+        "id": "know-042",
+        "language": "know",
+        "characters": 6609
+      },
+      {
+        "id": "know-043",
+        "language": "know",
+        "characters": 7043
+      },
+      {
+        "id": "know-044",
+        "language": "know",
+        "characters": 6838
+      },
+      {
+        "id": "know-045",
+        "language": "know",
+        "characters": 6354
+      },
+      {
+        "id": "know-046",
+        "language": "know",
+        "characters": 6267
+      },
+      {
+        "id": "know-047",
+        "language": "know",
+        "characters": 6511
+      },
+      {
+        "id": "know-048",
+        "language": "know",
+        "characters": 7117
+      },
+      {
+        "id": "know-049",
+        "language": "know",
+        "characters": 6401
+      },
+      {
+        "id": "know-050",
+        "language": "know",
+        "characters": 8954
+      },
+      {
+        "id": "know-051",
+        "language": "know",
+        "characters": 6531
+      },
+      {
+        "id": "know-052",
+        "language": "know",
+        "characters": 7591
+      },
+      {
+        "id": "know-053",
+        "language": "know",
+        "characters": 7032
+      },
+      {
+        "id": "know-054",
+        "language": "know",
+        "characters": 5030
+      },
+      {
+        "id": "know-055",
+        "language": "know",
+        "characters": 5023
+      },
+      {
+        "id": "know-056",
+        "language": "know",
+        "characters": 6071
+      },
+      {
+        "id": "know-057",
+        "language": "know",
+        "characters": 6019
+      },
+      {
+        "id": "know-058",
+        "language": "know",
+        "characters": 6009
+      },
+      {
+        "id": "know-059",
+        "language": "know",
+        "characters": 4706
+      },
+      {
+        "id": "know-060",
+        "language": "know",
+        "characters": 6024
+      },
+      {
+        "id": "know-061",
+        "language": "know",
+        "characters": 6195
+      },
+      {
+        "id": "know-062",
+        "language": "know",
+        "characters": 6103
+      },
+      {
+        "id": "know-063",
+        "language": "know",
+        "characters": 6487
+      },
+      {
+        "id": "know-064",
+        "language": "know",
+        "characters": 6002
+      },
+      {
+        "id": "know-065",
+        "language": "know",
+        "characters": 7208
+      },
+      {
+        "id": "know-066",
+        "language": "know",
+        "characters": 6224
+      },
+      {
+        "id": "know-067",
+        "language": "know",
+        "characters": 4771
+      },
+      {
+        "id": "know-068",
+        "language": "know",
+        "characters": 6533
+      },
+      {
+        "id": "know-069",
+        "language": "know",
+        "characters": 6059
+      },
+      {
+        "id": "know-070",
+        "language": "know",
+        "characters": 7007
       }
     ]
   },
@@ -746,8 +1406,8 @@ export const MANIFEST = {
     ]
   },
   "pictures": {
-    "writers": 21,
-    "characters": 127225,
+    "writers": 33,
+    "characters": 203093,
     "parts": [
       {
         "id": "art-01",
@@ -817,12 +1477,72 @@ export const MANIFEST = {
       {
         "id": "see-08",
         "language": "see",
-        "characters": 4632
+        "characters": 5963
       },
       {
         "id": "see-09",
         "language": "see",
-        "characters": 5211
+        "characters": 6278
+      },
+      {
+        "id": "see-10",
+        "language": "see",
+        "characters": 6105
+      },
+      {
+        "id": "see-11",
+        "language": "see",
+        "characters": 6438
+      },
+      {
+        "id": "see-12",
+        "language": "see",
+        "characters": 6001
+      },
+      {
+        "id": "see-13",
+        "language": "see",
+        "characters": 6042
+      },
+      {
+        "id": "see-14",
+        "language": "see",
+        "characters": 6303
+      },
+      {
+        "id": "see-15",
+        "language": "see",
+        "characters": 6284
+      },
+      {
+        "id": "see-16",
+        "language": "see",
+        "characters": 5473
+      },
+      {
+        "id": "see-17",
+        "language": "see",
+        "characters": 6053
+      },
+      {
+        "id": "see-18",
+        "language": "see",
+        "characters": 6250
+      },
+      {
+        "id": "see-19",
+        "language": "see",
+        "characters": 5404
+      },
+      {
+        "id": "see-20",
+        "language": "see",
+        "characters": 6809
+      },
+      {
+        "id": "see-21",
+        "language": "see",
+        "characters": 6284
       },
       {
         "id": "svg-01",

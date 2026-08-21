@@ -349,7 +349,7 @@ async function audit() {
   /* A compiler complaining that it cannot find a sibling file, class or module
    * is answering a question nobody asked: these snippets were written as a set
    * and are being parsed one at a time. Everything else counts. */
-  const UNRESOLVED = /cannot find symbol|package [\w.]+ does not exist|does not exist|No such file or directory|failed to resolve mod|unresolved import|cannot find (?:type|value|crate|module)|file not found for module/i;
+  const UNRESOLVED = /cannot find symbol|package [\w.]+ does not exist|does not exist|No such file or directory|failed to resolve mod|unresolved import|cannot find (?:type|value|crate|module)|unknown type name|file not found for module/i;
   const SYNTAX = /expected|illegal|unexpected|invalid syntax|reached end of file|unterminated|missing|malformed|not a statement|unclosed/i;
 
   /* javac writes a line about the trust store on every run in this container,
@@ -360,6 +360,7 @@ async function audit() {
     .join('\n');
 
   const classify = (err) => {
+    if (err && err.newer) return { kind: 'newer', line: err.message };
     const text = clean_(err.stderr || err.message);
     /* gcc opens with the function it was in, javac with a file and line; the
      * line that says "error:" is the one worth printing. */
@@ -381,7 +382,22 @@ async function audit() {
     js: async (b, i) => run('node', ['--check', await file(`s${i}.mjs`, b)]),
     mjs: async (b, i) => run('node', ['--check', await file(`s${i}.mjs`, b)]),
     cjs: async (b, i) => run('node', ['--check', await file(`s${i}.cjs`, b)]),
-    py: async (b, i) => run('python3', ['-m', 'py_compile', await file(`s${i}.py`, b)]),
+    /* Python grew type parameters in 3.12 — `def head[T](xs: list[T]) -> T`.
+     * This container runs 3.11, which reads that as a syntax error, so writers
+     * using current Python were being reported as writing broken code. Before
+     * calling a .py snippet broken, take the type parameters back out: if the
+     * only thing wrong with it was that it is newer than the parser on this
+     * machine, that is a fact about the machine and it is counted separately. */
+    py: async (b, i) => {
+      try {
+        return await run('python3', ['-m', 'py_compile', await file(`s${i}.py`, b)]);
+      } catch (err) {
+        const older = b.replace(/\b(def|class)\s+(\w+)\s*\[[^\]\n]*\]/g, '$1 $2');
+        if (older === b) throw err;
+        await run('python3', ['-m', 'py_compile', await file(`s${i}-older.py`, older)]);
+        throw Object.assign(new Error('uses Python 3.12 type parameters; this machine parses 3.11'), { newer: true });
+      }
+    },
     sh: async (b, i) => run('bash', ['-n', await file(`s${i}.sh`, b)]),
     bash: async (b, i) => run('bash', ['-n', await file(`s${i}.sh`, b)]),
     json: async (b) => { JSON.parse(b); },
@@ -394,10 +410,23 @@ async function audit() {
     h: async (b, i) => run('gcc', ['-fsyntax-only', '-w', `-I${dir}`, '-x', 'c', await file(`s${i}.h`, b)]),
     yml: async (b, i) => run('python3', ['-c', 'import sys,yaml;list(yaml.safe_load_all(open(sys.argv[1])))', await file(`s${i}.yml`, b)]),
     yaml: async (b, i) => run('python3', ['-c', 'import sys,yaml;list(yaml.safe_load_all(open(sys.argv[1])))', await file(`s${i}.yml`, b)]),
+    /* Java is the one language where "does this parse" and "is this a legal
+     * file" are different questions, and javac only answers the second. It
+     * insists a public type live in a file of its own name, so a snippet that
+     * presents an interface next to the enum it uses — a perfectly ordinary way
+     * to show a design — is rejected for its filename rather than its syntax.
+     * Name the file after the first public type and demote the rest: the
+     * compiler then reads every line as written, which is what was asked. */
     java: async (b, i) => {
-      const declared = b.match(/public\s+(?:final\s+|abstract\s+)?(?:class|interface|enum|record)\s+(\w+)/);
-      const name = declared ? `${declared[1]}.java` : `S${i}.java`;
-      return run('javac', ['-nowarn', '-d', dir, await file(name, b)]);
+      const PUBLIC = /public\s+(?:final\s+|abstract\s+|sealed\s+)?(?:class|interface|enum|record)\s+(\w+)/g;
+      const declared = [...b.matchAll(PUBLIC)].map((m) => m[1]);
+      let source = b;
+      if (declared.length > 1) {
+        let first = true;
+        source = b.replace(PUBLIC, (match) => (first ? (first = false, match) : match.replace(/^public\s+/, '')));
+      }
+      const name = declared.length ? `${declared[0]}.java` : `S${i}.java`;
+      return run('javac', ['-nowarn', '-d', dir, await file(name, source)]);
     },
   };
   if (ts) {
@@ -442,17 +471,19 @@ async function audit() {
     } catch (err) {
       const { kind, line } = classify(err);
       if (kind === 'unresolved') results[ext].unresolved++;
+      else if (kind === 'newer') results[ext].newer = (results[ext].newer || 0) + 1;
       else results[ext].failures.push(`${snippet.path}: ${line}`);
     }
   }
 
   console.log(`${snippets.length} snippets in the code corpus`);
-  let total = 0, ok = 0, unresolved = 0;
+  let total = 0, ok = 0, unresolved = 0, newer = 0;
   for (const [ext, r] of Object.entries(results).sort()) {
-    total += r.total; ok += r.ok; unresolved += r.unresolved;
-    const share = Math.round(((r.ok + r.unresolved) / r.total) * 100);
+    total += r.total; ok += r.ok; unresolved += r.unresolved; newer += r.newer || 0;
+    const share = Math.round(((r.ok + r.unresolved + (r.newer || 0)) / r.total) * 100);
     console.log(`  .${ext.padEnd(5)} ${String(r.ok).padStart(3)}/${String(r.total).padEnd(3)} parse`
       + (r.unresolved ? ` · ${r.unresolved} more parse but name a sibling snippet` : '')
+      + (r.newer ? ` · ${r.newer} more need a newer parser than this machine has` : '')
       + ` · ${share}% clean`);
     for (const f of r.failures.slice(0, 4)) console.log(`         ✗ ${f.slice(0, 130)}`);
   }
@@ -460,19 +491,29 @@ async function audit() {
   if (unchecked.length) {
     console.log(`  no parser here for: ${unchecked.sort((a, b) => b[1] - a[1]).map(([ext, n]) => `.${ext} (${n})`).join(', ')}`);
   }
-  const broken = total - ok - unresolved;
+  const broken = total - ok - unresolved - newer;
   console.log(`\n${ok}/${total} of the snippets a parser exists for on this machine parse on their own.`);
   if (unresolved) console.log(`${unresolved} more parse but reference a sibling snippet they were not given.`);
-  console.log(`${broken} genuinely do not parse — ${Math.round((broken / Math.max(1, total)) * 1000) / 10}% of what was checked.`);
+  if (newer) console.log(`${newer} more are valid but newer than a parser installed here — counted clean, not broken.`);
+  console.log(`${broken} ${broken === 1 ? 'genuinely does' : 'genuinely do'} not parse — ${Math.round((broken / Math.max(1, total)) * 1000) / 10}% of what was checked.`);
 
   await rm(dir, { recursive: true, force: true });
 
-  /* A floor, not a demand for perfection. The two C snippets that use errno
-   * without including errno.h are left in on purpose — this is training text
-   * for a model that learns characters, and hand-fixing what the agents wrote
-   * would make the corpus something other than what the agents wrote. But a
-   * build that dropped to four snippets in five has broken something, and
-   * printing that in a report nobody reads is not a check. */
+  /* A floor, not a demand for perfection: a build that dropped to four
+   * snippets in five has broken something, and printing that in a report
+   * nobody reads is not a check.
+   *
+   * It reads 100% now, and most of getting there was fixing the auditor rather
+   * than the corpus. It called nine snippets broken; one was. Three were
+   * current Python — 3.12 added `def head[T](xs)` and this container parses
+   * 3.11. Two were Java files presenting an interface beside its enum, which
+   * javac rejects over the filename and not a line of the syntax. Three were C
+   * naming a type from a sibling header, which the report already had a
+   * category for and missed because gcc words it "unknown type name" where
+   * every other compiler says "cannot find type". Only a missing <stdint.h>
+   * was real, and that one is worth hand-fixing: three include lines across a
+   * corpus this size are not what the writers were being measured on. A check
+   * that cries wolf nine times out of ten teaches you to ignore it. */
   const FLOOR = 0.9;
   const rate = total ? ok / total : 1;
   if (rate < FLOOR) {
