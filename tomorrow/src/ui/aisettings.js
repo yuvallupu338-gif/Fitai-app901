@@ -24,15 +24,7 @@ import { PROVIDERS, providerById } from '../ai/providers.js';
 import { testConnection } from '../ai/client.js';
 import { LOCAL_MODELS, DEFAULT_LOCAL_MODEL, currentModel, isLoaded } from '../ai/localmodels.js';
 import { detectWebGpu } from '../ai/webgpu.js';
-
-/*
- * The driver is fetched only when this screen actually needs it — checking a
- * device's capability does not, and neither does drawing the menu. It stays out
- * of the single-file build for the reason given in localmodels.js.
- */
-function driver() {
-  return import('../ai/local.js');
-}
+import { load, unload } from '../ai/local.js';
 import { contextBlock } from '../ai/context.js';
 import { icon, ICONS } from './parts.js';
 
@@ -171,7 +163,7 @@ export function openAiSettings(ctx) {
       if (isLoaded()) {
         action.appendChild(h('button.btn.quiet', {
           type: 'button',
-          onclick: async () => { const { unload } = await driver(); await unload(); paint(); },
+          onclick: async () => { await unload(); paint(); },
         }, 'לפנות מהזיכרון'));
       }
     }
@@ -180,7 +172,6 @@ export function openAiSettings(ctx) {
       progress.hidden = false;
       progress.textContent = 'מתחיל…';
       try {
-        const { load } = await driver();
         await load(id, (report) => {
           /*
            * The library's own numbers, unembellished. This wait is minutes long

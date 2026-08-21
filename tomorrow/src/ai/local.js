@@ -110,20 +110,35 @@ export async function load(modelId, onProgress) {
     const webllm = await library();
     try {
       /*
-       * The worker is created here rather than inside the library so that
-       * `worker-src 'self'` is enough — see vendor/web-llm-worker.js. The URL is
-       * resolved against this module so it keeps working from a subpath, which
-       * is how GitHub Pages serves this repository.
+       * A worker when there can be one, this thread when there cannot.
+       *
+       * Generating a token is arithmetic on a few hundred million parameters,
+       * and on the page's own thread that means the interface stops answering
+       * while it happens. So a worker is the right answer wherever one is
+       * reachable — which is the served app, where vendor/web-llm-worker.js sits
+       * next to the page.
+       *
+       * It is not reachable in the single-file build: there is no vendor
+       * directory beside a file somebody downloaded to their desktop. That
+       * build is the whole point of shipping this at all, so it falls back to
+       * running on this thread, which is slower to feel and works. The URL is
+       * resolved against the document rather than against import.meta, because
+       * import.meta is a syntax error once this module is flattened into an
+       * inline script — which is exactly what the single-file build does to it.
        */
-      const worker = new Worker(new URL('../../vendor/web-llm-worker.js', import.meta.url), { type: 'module' });
+      let next = null;
+      try {
+        const worker = new Worker('vendor/web-llm-worker.js', { type: 'module' });
+        next = await webllm.CreateWebWorkerMLCEngine(worker, id, { initProgressCallback: report });
+      } catch (workerFailed) {
+        next = await webllm.CreateMLCEngine(id, { initProgressCallback: report });
+      }
 
-      const next = await webllm.CreateWebWorkerMLCEngine(worker, id, {
-        initProgressCallback: (report) => {
-          if (typeof onProgress === 'function') {
-            onProgress({ text: report.text || '', progress: report.progress || 0 });
-          }
-        },
-      });
+      function report(update) {
+        if (typeof onProgress === 'function') {
+          onProgress({ text: update.text || '', progress: update.progress || 0 });
+        }
+      }
 
       if (engine && engine.unload) {
         // Swapping models frees the old one's memory. Without this a person

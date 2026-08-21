@@ -27,19 +27,27 @@ const ROOT = resolve(dirname(fileURLToPath(import.meta.url)), '..');
 const notes = [];
 
 /*
- * The files allowed to keep a dynamic import.
+ * Dynamic imports that are followed and inlined rather than refused.
  *
- * Named one at a time rather than permitted generally, because the refusal is
- * usually right: this bundler flattens a static graph and cannot resolve a
- * specifier decided at runtime, so an unhandled one becomes a blank screen. Each
- * of these loads the on-device model driver, which cannot be bundled at all — it
- * needs import.meta.url, a syntax error once inlined — and each is written to
- * catch the rejection and say the local model needs the full app.
+ * The refusal is right in general: this bundler flattens a static graph and
+ * cannot resolve a specifier decided at runtime, so an unhandled one becomes a
+ * blank screen. But a dynamic import whose specifier is a plain relative string
+ * is perfectly resolvable — it is dynamic to defer a download in the served app,
+ * not because the target is unknown.
+ *
+ * That is what src/ai/local.js does with the model library: six and a half
+ * megabytes that most sessions never touch, so the served app fetches it only
+ * when somebody switches the local model on. The single file has no such
+ * option — there is no vendor directory beside a file on somebody's desktop —
+ * so here it is inlined and the import() call is rewritten to hand back the
+ * module that is already in the registry.
+ *
+ * The cost is the whole point and is worth stating: it takes the download from
+ * under a megabyte to about seven, for everybody, including people who never
+ * open the model settings. It buys the thing that was asked for — one file that
+ * runs a model with no repository to clone.
  */
-const DEGRADES_WITHOUT_ITS_IMPORT = new Set([
-  'tomorrow/src/ui/chat.js',
-  'tomorrow/src/ui/aisettings.js',
-]);
+const INLINE_DYNAMIC = [/\/vendor\/web-llm\.js$/];
 
 /* Positional args, with the FitAI build as the default so the existing
  * invocation keeps working untouched. */
@@ -111,10 +119,19 @@ function collect(abs) {
     deps.push({ ns: m[2], named: m[3], spec, raw: m[0] });
   }
 
-  for (const d of deps) collect(resolve(dirname(abs), d.spec));
+  /*
+   * Dynamic imports of a known file are dependencies like any other; they are
+   * collected here so the module is in the registry before anybody awaits it.
+   */
+  const lazy = [];
+  for (const m of withoutComments(src).matchAll(/\bimport\s*\(\s*['"]([^'"]+)['"]\s*\)/g)) {
+    if (INLINE_DYNAMIC.some((re) => re.test(m[1]))) lazy.push({ spec: m[1], raw: m[0] });
+  }
+
+  for (const d of deps.concat(lazy)) collect(resolve(dirname(abs), d.spec));
 
   stack.pop();
-  seen.set(k, { abs, src, deps });
+  seen.set(k, { abs, src, deps, lazy });
   order.push(k);
 }
 
@@ -125,6 +142,20 @@ function collect(abs) {
  * does *not* do X contains the same words. chat.js was refused for a dynamic
  * import that existed only in a comment describing where the real one lives.
  */
+/*
+ * Comments out, strings intact.
+ *
+ * code() below also blanks string literals, which is right for asking "does this
+ * file call X" and exactly wrong for asking "what does it import" — the
+ * specifier IS a string literal, so the pattern matched import('') every time
+ * and the model library silently never got bundled.
+ */
+function withoutComments(src) {
+  return src
+    .replace(/\/\*[\s\S]*?\*\//g, '')
+    .replace(/(^|[^:])\/\/[^\n]*/g, '$1');
+}
+
 function code(src) {
   return src
     .replace(/\/\*[\s\S]*?\*\//g, '')
@@ -154,11 +185,13 @@ function reject(raw, k) {
    * correct behaviour, and it is only correct because the module was written to
    * expect it — which is why this is a warning rather than silent permission.
    */
-  if (/\bimport\s*\(/.test(src)) {
-    if (!DEGRADES_WITHOUT_ITS_IMPORT.has(k)) {
-      throw new Error(`${k}: dynamic import() is not supported`);
+  for (const m of withoutComments(raw).matchAll(/\bimport\s*\(\s*['"]([^'"]+)['"]\s*\)/g)) {
+    if (!INLINE_DYNAMIC.some((re) => re.test(m[1]))) {
+      throw new Error(`${k}: dynamic import of "${m[1]}" is not supported`);
     }
-    notes.push(`${k}: dynamic import left unbundled — it must degrade on its own`);
+  }
+  if (/\bimport\s*\((?!\s*['"])/.test(src)) {
+    throw new Error(`${k}: dynamic import with a computed specifier is not supported`);
   }
   if (/\bimport\.meta\b/.test(src)) throw new Error(`${k}: import.meta is not supported`);
 }
@@ -197,6 +230,17 @@ function transform(k, mod) {
       ? `const ${d.ns} = __m[${JSON.stringify(target)}];`
       : `const { ${destructure(d.named)} } = __m[${JSON.stringify(target)}];`;
     out = out.replace(d.raw, line);
+  }
+
+  /*
+   * import('./x.js') becomes a resolved promise over the registry entry. It
+   * stays a promise so every await, .then and .catch around it still behaves —
+   * rewriting it to a bare object would break the caller's error handling on
+   * the one path that has any.
+   */
+  for (const d of mod.lazy || []) {
+    const target = key(resolve(dirname(mod.abs), d.spec));
+    out = out.split(d.raw).join(`Promise.resolve(__m[${JSON.stringify(target)}])`);
   }
 
   const exported = new Set();
@@ -251,8 +295,25 @@ const css = CSS_FILES.map((f) => readFileSync(f, 'utf8')).join('\n\n');
 /* The same source the entry point and stylesheets were discovered in — reading
  * index.html again here is how the first version of this emitted FitAI's shell
  * wrapped around the Backrooms bundle. */
-const styleBody = `\n${css}\n`;
-const scriptBody = `\n${bundle}\n`;
+/*
+ * Line endings normalised before anything is hashed or written.
+ *
+ * The HTML parser converts CRLF and lone CR to LF while tokenising, so the text
+ * a <script> element ends up holding is not the bytes that were on disk. Hash
+ * the bytes and the browser computes a different digest from the normalised
+ * text, refuses to run the script, and reports a CSP violation that looks like
+ * the bundler emitted the wrong hash.
+ *
+ * It surfaced when the model library was vendored in: 210 carriage returns
+ * inside six and a half megabytes, and the whole single-file build was a blank
+ * page. Everything written here is authored with LF, so this had never mattered
+ * before and would have been invisible until the next file arrived with
+ * Windows line endings in it.
+ */
+const lf = (s) => s.replace(/\r\n?/g, '\n');
+
+const styleBody = lf(`\n${css}\n`);
+const scriptBody = lf(`\n${bundle}\n`);
 
 /* The page carries a Content-Security-Policy that says script-src 'self' and
  * style-src 'self' — correct for the served app, and fatal here, because this
@@ -264,16 +325,31 @@ const scriptBody = `\n${bundle}\n`;
  * 'self' is also meaningless once the file is opened from file://, which is the
  * whole point of this build, and every asset is already a data: URI. */
 const sha = (s) => `'sha256-${createHash('sha256').update(s, 'utf8').digest('base64')}'`;
+/*
+ * Swap 'self' for the hash and leave every other token alone.
+ *
+ * This used to rewrite the whole directive, which quietly dropped anything else
+ * in it. The local model needs 'wasm-unsafe-eval' to compile the runtime that
+ * executes the weights, and losing it meant the single file could load the
+ * library and then refuse to run it — with a CSP error naming a directive
+ * nobody wrote.
+ */
 function singleFileCsp(policy) {
   return policy
     .split(';')
     .map((d) => {
       const t = d.trim();
-      if (t.startsWith('script-src')) return ` script-src ${sha(scriptBody)}`;
-      if (t.startsWith('style-src')) return ` style-src ${sha(styleBody)}`;
+      if (t.startsWith('script-src')) return ` ${swapSelf(t, sha(scriptBody))}`;
+      if (t.startsWith('style-src')) return ` ${swapSelf(t, sha(styleBody))}`;
       return d;
     })
     .join(';');
+}
+
+function swapSelf(directive, hash) {
+  const parts = directive.split(/\s+/).filter(Boolean);
+  const kept = parts.slice(1).filter((p) => p !== "'self'");
+  return [parts[0], hash].concat(kept).join(' ');
 }
 
 let html = htmlSrc;
@@ -284,8 +360,20 @@ html = html
     /(<meta http-equiv="Content-Security-Policy" content=")([^"]*)(">)/,
     (_, a, policy, c) => a + singleFileCsp(policy) + c
   )
-  .replace('</head>', `<style>${styleBody}</style>\n</head>`)
-  .replace('</body>', `<script>${scriptBody}</script>\n</body>`);
+  /*
+   * Replacer functions, not replacement strings.
+   *
+   * String.replace gives $&, $`, $' and $1 special meaning INSIDE the
+   * replacement, so any of those sequences in the bundle would be rewritten on
+   * the way in — and the script that landed in the file would no longer match
+   * the hash computed from it a few lines above. The vendored model library
+   * contains `require$$3`, where $$ is itself the escape for a literal $, so
+   * this was not hypothetical: the page loaded and refused to execute its own
+   * script, reporting a CSP hash mismatch that looked like a bundler bug
+   * anywhere but here.
+   */
+  .replace('</head>', () => `<style>${styleBody}</style>\n</head>`)
+  .replace('</body>', () => `<script>${scriptBody}</script>\n</body>`);
 
 if (!/Content-Security-Policy/.test(html)) {
   throw new Error(`${HTML_IN}: no CSP meta tag — the single-file build must not ship without one`);
