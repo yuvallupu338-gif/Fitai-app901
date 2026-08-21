@@ -76,12 +76,15 @@ in the model that ships with it, no attention, no memory past its context window
 — and it goes from random guessing to something that looks like Hebrew in under
 a minute of watching the loss fall.
 
-Its training text was written for it by a hundred agents running in parallel:
-seventy-five wrote code across a dozen languages, twenty-five wrote Hebrew
-questions and answers. Another six then trained it, one strategy each, scored
-against each other on the same held-out characters; the one that won made the
-model *narrower* and beat the shipped model by a quarter of a nat with 37% fewer
-weights. Those corpora ship as ES modules rather than as text
+Its training text was written for it by 309 agents running in parallel: 163
+wrote code across twenty file types, 105 wrote Hebrew questions and answers,
+33 drew and 8 wrote conversation — 2,261,604 characters between them, and every
+snippet a compiler exists for on this machine parses. Others then trained it,
+one strategy each, scored against each other on the same held-out characters;
+what won kept making the model *smaller*. Widening it lost three times over,
+and past a certain amount of text it stops learning the language and starts
+averaging it — both measured, both in `lm/README.md`. Those corpora ship as ES
+modules rather than as text
 files, and one already-trained model ships beside them, because the page talks
 to nothing — `connect-src 'none'`, no key, no credits, nothing written to
 storage — and a module is something it can import when asked. Served at `/lm/`.
@@ -331,7 +334,7 @@ src/
 lm/
   index.html        the character-level model that trains in the browser
   src/              model, tokenizer, corpus, chart, seeded rng
-  src/corpora/      the code and Hebrew corpora the hundred agents wrote
+  src/corpora/      the code, Hebrew, chat and drawing corpora the agents wrote
   src/models/       one trained model, as a module the page can import
 tools/
   validate.js       cross-checks the data and engine layers

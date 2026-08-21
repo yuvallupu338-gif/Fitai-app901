@@ -68,24 +68,29 @@ see what the models that do mean something had to add.
 
 ## The corpora, and the hundred agents that wrote them
 
-The text LAKEN trains on was written for it by a hundred agents running in
-parallel, one slice each: seventy-five wrote code, one language or one domain
-apiece, and twenty-five wrote Hebrew questions and answers, one subject apiece.
-Nobody wrote the same slice twice and nothing was hand-edited afterwards.
+The text LAKEN trains on was written for it by 309 agents running in parallel,
+one slice each and nobody writing the same slice twice: 163 wrote code, one
+language or one domain apiece; 105 wrote Hebrew questions and answers, one
+subject apiece, fifteen of them on the history of Israel; 33 drew; 8 wrote
+conversation. Three include lines were added by hand afterwards and nothing
+else was.
 
 | corpus | writers | characters | distinct | random guessing |
 | --- | --- | --- | --- | --- |
 | יומן אימונים | — | 32,650 | 44 | 3.78 |
-| קוד | 75 | 537,846 | 105 | 4.65 |
-| שאלות ותשובות | 25 | 175,269 | 91 | 4.51 |
-| הכל ביחד | 100 | 713,117 | 134 | 4.90 |
+| קוד | 163 | 1,332,625 | 120 | 4.79 |
+| שאלות ותשובות | 105 | 691,070 | 109 | 4.69 |
+| שיחה | 8 | 34,810 | 41 | 3.71 |
+| ציורים | 33 | 203,093 | 110 | 4.70 |
+| הכל ביחד | 309 | 2,261,604 | 154 | 5.04 |
 
-The code half covers sixteen file types — JavaScript, Python, TypeScript, HTML,
+The code half covers twenty file types — JavaScript, Python, TypeScript, HTML,
 CSS, SQL, shell, Go, Rust, C, Java, JSON, YAML, Dockerfiles, Markdown and unified
-diffs — as 579 small files, each headed by the path it would live at. The Hebrew
-half is 773 question-and-answer pairs across twenty-five subjects, in one fixed
-`ש:` / `ת:` shape, which is the structure a character model can actually get
-hold of.
+diffs among them — as 1,084 small files, each headed by the path it would live
+at. Of the 915 a parser exists for on this machine, 915 are clean. The Hebrew
+half is 5,792 question-and-answer pairs, in one fixed `ש:` / `ת:` shape, which
+is the structure a character model can actually get hold of, and the drawings
+are 266 in characters and 234 in SVG.
 
 They ship as ES modules, not as `.txt` files, and the reason is the security
 policy rather than taste: this page runs under `connect-src 'none'` and cannot
@@ -373,6 +378,47 @@ memory past twelve characters.
 That gap — perfect shape, no meaning — is the most honest picture of what a
 language model is that fits on one screen.
 
+### Two things that turned out not to be the bottleneck
+
+The model spells. Asked for `מים` it bets on מ, then י, then ם, three
+separate guesses against a hundred-odd alternatives, and most of its capacity
+goes to that rather than to what the sentence is about. So the tokenizer grew a
+word mode — the commonest whole words, each carrying its one leading space,
+with every character kept alongside as a fallback so anything unusual is simply
+spelled and nothing needs an `<unk>`. The picker above the text box switches
+between them.
+
+It is a real win on Hebrew and it is not the fix. On the chat corpus a word is
+worth 2.05 characters, and there the word model wins. On the corpus that
+actually ships, four alphabets and thirty-odd file formats, a word is worth
+**1.33** characters — code identifiers do not repeat — and that much compression
+does not pay for a vocabulary twelve times larger. Trained side by side on
+identical text for identical steps, the two finish within 0.06 bits per
+character of each other, and the character model gets there in a fifth of the
+time. At matched wall-clock, which is the only budget a browser tab has, it is
+not close.
+
+The second one cost more to learn. The corpus doubled — 309 writers, 2.26M
+characters — and the model got *worse*:
+
+| | corpus | parameters | steps | real words it writes | looping |
+| --- | --- | --- | --- | --- | --- |
+| the model that ships | 713k | 85,990 | 40,000 | **27.5%** | **15.6%** |
+| twice the text | 2.26M | 117,258 | 100,000 | 17.3% | 33.5% |
+
+Twice the text and two and a half times the training, for two thirds of the real
+words and twice the looping. Widening it does not rescue it either — measured on
+the same corpus and the same 100,000 steps, 117k parameters beat 212k by 0.148
+bits per character, and 313k was further behind still. Three separate
+measurements now say the same thing: at this size, steps beat width, and there
+is an amount of text past which a model this small stops learning the language
+and starts averaging it.
+
+That is the honest ceiling of the shape, and it is worth seeing rather than
+working around. The page keeps every corpus separately selectable for exactly
+this reason: a model given only the Hebrew loops on 6.9% of its passages against
+the mixed model's 33.5%, and cannot write a line of code.
+
 ## What it can reach
 
 Nothing. It is worth being precise about, because "train a model on your own
@@ -390,8 +436,8 @@ machine" sounds like it should cost something:
   training runs. A laptop will spin its fan; a phone will get warm. Pressing
   stop ends it, and closing the tab ends it whether or not anything was pressed.
 - **Memory, measured rather than assumed.** Pushed to the largest model the
-  sliders allow — 864,262 weights, batch 256, on the full 713,117-character
-  corpus — the tab's JavaScript heap reads 46.7 MB, and training slows to about
+  sliders allow — 875,802 weights, batch 256, on the full 2,261,604-character
+  corpus — the tab's JavaScript heap reads 64.8 MB and training runs at about
   one step a second. At the defaults it is a few megabytes. For comparison, an
   ordinary news site is heavier than either.
 - **The worst it can do to itself** is run out of memory, which takes more than
