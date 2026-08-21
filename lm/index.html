@@ -1,0 +1,237 @@
+<!DOCTYPE html>
+<html lang="he" dir="rtl">
+<head>
+<meta charset="utf-8">
+<meta name="viewport" content="width=device-width, initial-scale=1, viewport-fit=cover">
+<meta name="theme-color" content="#0E1520">
+<meta name="description" content="מודל שפה קטן שמתאמן בדפדפן על הטקסט שלך — בלי שרת, בלי מפתח API ובלי קרדיטים.">
+<title>מודל שפה מטומטם · אימון בדפדפן</title>
+
+<!-- This page shares an origin with the two FitAI apps and the game, and their
+     stored data — API keys included — is only as safe as the weakest page on
+     it. So: no network at all. connect-src is 'none', which means a bug here
+     cannot beacon anything anywhere; the model trains on text you paste and the
+     only thing that ever leaves is a file you asked to save. script-src is
+     'self' with nothing inline and no eval. frame-ancestors is omitted — it is
+     ignored in a meta tag. -->
+<meta http-equiv="Content-Security-Policy" content="default-src 'none'; script-src 'self'; style-src 'self'; img-src 'self' data:; font-src 'self' data:; connect-src 'none'; media-src 'none'; frame-src 'none'; worker-src 'none'; object-src 'none'; base-uri 'none'; form-action 'none'">
+
+<link rel="stylesheet" href="../src/styles/fonts.css">
+<link rel="stylesheet" href="../src/styles/tokens.css">
+<link rel="stylesheet" href="src/styles/lm.css">
+
+<link rel="icon" href="data:image/svg+xml,<svg xmlns='http://www.w3.org/2000/svg' viewBox='0 0 32 32'><rect width='32' height='32' rx='7' fill='%230E1520'/><circle cx='11' cy='12' r='2.4' fill='%23FFB13C'/><circle cx='21' cy='9' r='2.4' fill='%2356D9CE'/><circle cx='21' cy='20' r='2.4' fill='%2356D9CE'/><circle cx='11' cy='24' r='2.4' fill='%23FFB13C'/><path d='M11 12 L21 9 M11 12 L21 20 M11 24 L21 20 M11 24 L21 9' stroke='%232C3D57' stroke-width='1.6'/></svg>">
+</head>
+<body>
+
+<div class="wrap">
+
+<header>
+  <h1>מודל שפה מטומטם</h1>
+  <p>
+    רשת נוירונים קטנה שיודעת לעשות בדיוק דבר אחד: להסתכל על כמה תווים אחרונים
+    ולנחש מה בא אחריהם. היא מתאמנת כאן, בדפדפן שלך, על טקסט שאתה נותן לה — בלי
+    שרת, בלי מפתח API, בלי קרדיטים ובלי אינטרנט אחרי שהדף נטען.
+  </p>
+  <p>
+    היא באמת מטומטמת, וזה העניין: אין לה מילון מילים, אין לה זיכרון מעבר לחלון
+    ההקשר, ואין לה מושג מה זה משפט. בדקה הראשונה תראה אותה לומדת קודם אילו אותיות
+    קיימות, אחר כך איפה שמים רווח, ואז את הצורה של שורה — ורק אחרי זה, אם בכלל,
+    משהו שנראה כמו מילים.
+  </p>
+</header>
+
+<div class="cols">
+
+  <div>
+
+    <!-- ------------------------------------------------------- the text -->
+    <section class="panel">
+      <h2><b>1</b> הטקסט</h2>
+      <p class="sub">
+        זה כל מה שהמודל אי פעם יידע. שים כאן מה שבא לך — שירים, הודעות ווטסאפ,
+        קוד, יומן אימונים. ככל שיש יותר, וככל שהוא יותר עקבי, כך ילמד מהר יותר.
+      </p>
+
+      <div class="field">
+        <label for="corpus">
+          טקסט לאימון
+          <span class="val" id="text-stats">—</span>
+        </label>
+        <textarea id="corpus" spellcheck="false" dir="auto"></textarea>
+        <span class="note" id="text-note">ברירת המחדל: יומן אימונים שנוצר כאן במקום, כדי שיהיה במה להתחיל.</span>
+      </div>
+
+      <div class="field">
+        <label for="file">או קובץ טקסט מהמחשב</label>
+        <input type="file" id="file" accept=".txt,.md,.csv,text/plain">
+      </div>
+
+      <div class="buttons">
+        <button type="button" id="default-text">החזר את טקסט ברירת המחדל</button>
+      </div>
+
+      <p class="msg" id="text-msg" hidden></p>
+    </section>
+
+    <!-- ------------------------------------------------------ the model -->
+    <section class="panel">
+      <h2><b>2</b> המודל</h2>
+      <p class="sub">
+        ארבע החלטות, וכל אחת מהן משנה גם כמה הוא לומד וגם כמה לאט. שינוי כאן בונה
+        מודל חדש מאפס.
+      </p>
+
+      <div class="field">
+        <label for="ctx">חלון הקשר <span class="val" id="ctx-val">8</span></label>
+        <input type="range" id="ctx" min="1" max="24" step="1" value="8">
+        <span class="note">כמה תווים אחורה הוא רואה. מעבר לזה — שכח.</span>
+      </div>
+
+      <div class="field">
+        <label for="emb">גודל ייצוג לאות <span class="val" id="emb-val">24</span></label>
+        <input type="range" id="emb" min="4" max="64" step="4" value="24">
+        <span class="note">כמה מספרים מתארים כל תו. כאן נלמד שאותיות דומות מתנהגות דומה.</span>
+      </div>
+
+      <div class="field">
+        <label for="hidden">נוירונים בשכבה <span class="val" id="hidden-val">128</span></label>
+        <input type="range" id="hidden" min="8" max="512" step="8" value="128">
+        <span class="note">רוחב השכבה החבויה — כמה דפוסים הוא מסוגל להחזיק בבת אחת.</span>
+      </div>
+
+      <div class="field">
+        <label for="batch">גודל אצווה <span class="val" id="batch-val">64</span></label>
+        <input type="range" id="batch" min="8" max="256" step="8" value="64">
+        <span class="note">כמה קטעי טקסט נבדקים בכל צעד. גדול יותר = צעד יציב יותר ואיטי יותר.</span>
+      </div>
+
+      <div class="field">
+        <label for="lr">קצב למידה <span class="val" id="lr-val">0.020</span></label>
+        <input type="range" id="lr" min="0" max="100" step="1" value="55">
+        <span class="note">כמה זזים בכל צעד. אפשר לשנות תוך כדי אימון — נסה להוריד כשהעקומה מתיישרת.</span>
+      </div>
+
+      <div class="field">
+        <label for="seed">זרע אקראיות <span class="val" id="params">—</span></label>
+        <input type="text" id="seed" value="1" inputmode="numeric" dir="ltr">
+        <span class="note">אותו זרע ואותן הגדרות = בדיוק אותו אימון, שוב.</span>
+      </div>
+    </section>
+
+  </div>
+
+  <div>
+
+    <!-- --------------------------------------------------------- training -->
+    <section class="panel">
+      <h2><b>3</b> אימון</h2>
+      <p class="sub">
+        ה"הפסד" הוא כמה המודל הופתע מהתו שבא באמת. 0 = ידע בדיוק. הקו המקווקו הוא
+        ניחוש אקראי — כל מה שמתחתיו זה משהו שנלמד.
+      </p>
+
+      <div class="stats">
+        <div class="stat lead"><span>הפסד אימון</span><b id="s-train">—</b></div>
+        <div class="stat cool"><span>הפסד בדיקה</span><b id="s-val">—</b></div>
+        <div class="stat"><span>צעדים</span><b id="s-steps">0</b></div>
+        <div class="stat"><span>צעדים לשנייה</span><b id="s-rate">—</b></div>
+        <div class="stat"><span>גרדיאנט</span><b id="s-norm">—</b></div>
+        <div class="stat"><span>זמן</span><b id="s-time">0:00</b></div>
+      </div>
+
+      <canvas class="chart" id="chart" aria-label="עקומת ההפסד לאורך האימון"></canvas>
+      <div class="legend">
+        <span><i class="k-train"></i>אימון</span>
+        <span><i class="k-val"></i>טקסט שהוא לא ראה</span>
+        <span><i class="k-base"></i>ניחוש אקראי</span>
+      </div>
+
+      <div class="buttons">
+        <button type="button" class="primary" id="train">התחל אימון</button>
+        <button type="button" id="reset">אתחל מודל</button>
+      </div>
+
+      <p class="msg" id="train-msg" hidden></p>
+    </section>
+
+    <!-- --------------------------------------------------------- sampling -->
+    <section class="panel">
+      <h2><b>4</b> מה הוא כותב</h2>
+      <p class="sub">
+        תוך כדי אימון הוא כותב לכאן שורות חדשות בכל כמה מאות צעדים, כדי שתראה את
+        השינוי. אפשר גם לבקש ידנית.
+      </p>
+
+      <div class="field">
+        <label for="prompt">התחלה (אפשר להשאיר ריק)</label>
+        <input type="text" id="prompt" dir="auto" placeholder="שבוע 3 · יום שני">
+      </div>
+
+      <div class="field">
+        <label for="temp">טמפרטורה <span class="val" id="temp-val">0.90</span></label>
+        <input type="range" id="temp" min="10" max="200" step="5" value="90">
+        <span class="note">נמוך = משעמם וחוזר על עצמו, גבוה = משתולל ומאבד את האיות.</span>
+      </div>
+
+      <div class="field">
+        <label for="topk">סינון מועמדים <span class="val" id="topk-val">12</span></label>
+        <input type="range" id="topk" min="0" max="40" step="1" value="12">
+        <span class="note">כמה אפשרויות נשארות בכל תו. 0 = בלי סינון, וזה נשמע.</span>
+      </div>
+
+      <div class="field">
+        <label for="len">אורך <span class="val" id="len-val">400</span></label>
+        <input type="range" id="len" min="100" max="2000" step="50" value="400">
+      </div>
+
+      <div class="buttons">
+        <button type="button" class="primary" id="write">כתוב</button>
+      </div>
+
+      <p class="sub" id="out-label">עוד לא התאמן — זה מה שרעש נראה כמו:</p>
+      <pre class="out idle" id="out" dir="auto"></pre>
+    </section>
+
+    <!-- ------------------------------------------------------------- file -->
+    <section class="panel">
+      <h2><b>5</b> שמירה</h2>
+      <p class="sub">
+        המודל המאומן הוא קובץ JSON אחד — משקלים ואוצר מילים. שום דבר לא נשמר
+        בדפדפן מעצמו: תסגור את הלשונית בלי לשמור, והאימון הלך.
+      </p>
+      <div class="buttons">
+        <button type="button" id="export">שמור מודל לקובץ</button>
+      </div>
+      <div class="field spaced">
+        <label for="import">טען מודל מקובץ</label>
+        <input type="file" id="import" accept=".json,application/json">
+      </div>
+      <p class="msg" id="file-msg" hidden></p>
+    </section>
+
+  </div>
+</div>
+
+<footer>
+  <p>
+    מה שרץ כאן: טבלת ייצוגים לתווים, שכבה חבויה אחת עם <code>tanh</code>,
+    ו־<code>softmax</code> על כל התווים האפשריים. אימון ב־Adam עם גזירה אנליטית
+    שנבדקה מול גזירה נומרית ב־<code>tools/lm-check.mjs</code>.
+  </p>
+  <p>
+    לאימון ארוך יותר על קובץ גדול, בלי חלון דפדפן:
+    <code dir="ltr">node tools/lm-train.mjs --in book.txt --steps 20000</code>
+    ואז "טען מודל מקובץ".
+  </p>
+</footer>
+
+<noscript>
+  <p class="msg">הדף הזה מאמן רשת נוירונים בדפדפן, אז הוא צריך JavaScript.</p>
+</noscript>
+
+</div>
+
+<script type="module" src="src/main.js"></script>
+</body>
+</html>

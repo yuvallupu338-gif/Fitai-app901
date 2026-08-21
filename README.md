@@ -63,8 +63,20 @@ no libraries and no media files, same as everything else here. It is served at
 `/backrooms/`, and its code touches neither the questionnaire, the plan, nor
 any of FitAI's storage. See [`backrooms/README.md`](backrooms/README.md).
 
+### Also in this repo: `lm/`
+
+`lm/` is a character-level language model that trains in the browser: an
+embedding table, one `tanh` layer and a softmax over the alphabet of whatever
+text you paste in, with the backward pass written out by hand and checked
+against numerically measured gradients. It is deliberately the dumbest thing
+that still learns — thirty thousand weights, no attention, no memory past its
+context window — and it goes from random guessing to something that looks like
+Hebrew in under a minute of watching the loss fall. It talks to nothing:
+`connect-src 'none'`, no key, no credits, and nothing written to storage. Served
+at `/lm/`. See [`lm/README.md`](lm/README.md).
+
 Its *code* does not, which is not the same as saying it cannot — see
-[Security](#security) below. All three apps here share one browser origin, and
+[Security](#security) below. All four apps here share one browser origin, and
 localStorage is scoped per origin, not per path.
 
 ## Rest days and declared injuries
@@ -117,20 +129,21 @@ check.
 
 ## Security
 
-The three apps in this repo are served from one GitHub Pages origin —
-`/` , `/app/` and `/backrooms/` — and a browser origin is the security boundary,
-not a directory. They share one localStorage jar, and this app's share of it
-holds the vendor API keys under `fitai.key.*`. A scripting bug in any one of the
-three could read the other two's data, so hardening one of them alone would have
-been theatre.
+The four apps in this repo are served from one GitHub Pages origin —
+`/` , `/app/`, `/backrooms/` and `/lm/` — and a browser origin is the security
+boundary, not a directory. They share one localStorage jar, and this app's share
+of it holds the vendor API keys under `fitai.key.*`. A scripting bug in any one
+of the four could read the other three's data, so hardening one of them alone
+would have been theatre.
 
-All three now carry a Content-Security-Policy with **`script-src 'self'` and no
+All four now carry a Content-Security-Policy with **`script-src 'self'` and no
 `'unsafe-inline'`**, which is the directive that decides whether HTML that
 reaches the DOM is markup or code. This app and the game needed nothing but the
 policy — no generated event handlers, no `eval`, and exactly one inline `style`
-attribute each (in their `<noscript>` blocks, now a CSS class), so both also run
-`style-src 'self'` with no inline styles at all. `connect-src` names the two
-vendors this app actually calls and nothing else; the game's is `'none'`.
+attribute each (in their `<noscript>` blocks, now a CSS class) — and `lm/` was
+written to the same rule from its first line, so all three run `style-src 'self'`
+with no inline styles at all. `connect-src` names the two vendors this app
+actually calls and nothing else; the game's and the playground's are `'none'`.
 `app/` needed a larger change and has [its own account](app/README.md#security).
 
 The single-file builds in `dist/` inline their script and stylesheet, so they
@@ -142,10 +155,10 @@ which also works from `file://`, where `'self'` means nothing.
 node tools/csp-check.mjs
 ```
 
-drives all three pages, requires each to raise no violations of its own, and
+drives all four pages, requires each to raise no violations of its own, and
 then tries to execute code the way an injection would — an inline handler, a
 `javascript:` URL, `eval`, and a remote script — and requires all four to fail.
-Currently 24 of 24.
+Currently 32 of 32.
 
 Two things this deliberately does not claim:
 
@@ -153,7 +166,7 @@ Two things this deliberately does not claim:
   tag and needs a real response header, which GitHub Pages cannot set. Writing
   it in anyway would only look like clickjacking was handled.
 - **The keys are still on a shared origin.** The policies make it much harder to
-  get script running on any of the three, but the honest fix for billable
+  get script running on any of the four, but the honest fix for billable
   credentials sitting beside a game is a separate origin. Until then, an XSS
   anywhere here is a key-disclosure bug and should be treated at that severity.
 
@@ -303,11 +316,17 @@ src/
   vision/    photo-scan prompt, response normaliser, plan translation
   ui/        wizard, quickstart, plan, exercise cards, nutrition, guide, scan
   styles/    design tokens and components
+lm/
+  index.html        the character-level model that trains in the browser
+  src/              model, tokenizer, corpus, chart, seeded rng
 tools/
   validate.js       cross-checks the data and engine layers
   vision-audit.mjs  proves a photo scan cannot break the engine's rules
   ai-audit.mjs      provider request shapes, and that a filled form stays legal
   smoke.mjs         drives the real app in Chromium
+  lm-check.mjs      the toy model's gradients, against numeric ones
+  lm-train.mjs      trains the toy model from the command line
+  lm-smoke.mjs      drives the toy model's page in Chromium
   build-single.js   bundles everything into dist/fitai.html
   fetch-fonts.js    regenerates the embedded font subsets
 docs/
@@ -321,7 +340,9 @@ node tools/validate.js                                  # data + engine contract
 node tools/vision-audit.mjs                             # photo-scan containment
 node tools/ai-audit.mjs                                 # providers + intake containment
 node tools/build-single.js                              # single-file bundle
+node tools/lm-check.mjs                                 # the toy model's arithmetic
 NODE_PATH=/opt/node22/lib/node_modules node tools/smoke.mjs --shots
+NODE_PATH=/opt/node22/lib/node_modules node tools/lm-smoke.mjs
 ```
 
 `validate.js` verifies exercise ids, equipment tokens, injury tags and warm-up
@@ -359,6 +380,18 @@ renders, that every exercise card carries a YouTube link pointing at the right
 search and opening away from the app, that the detail sheet still opens from the
 exercise name, that the age floor holds where a trainee meets it, and that
 swapping and ticking survive a reload.
+
+`lm-check.mjs` covers the one thing in `lm/` that no amount of looking would
+catch. A backward pass with a term missing still trains — a wrong gradient with
+the right sign is still downhill — so the model still improves, the samples still
+get better, and the bug shows up only as a plateau nobody can explain. So it
+nudges individual weights and compares the slope it measures against the
+gradient the code computed, to eleven digits, on every tensor. Each of the
+mutations you would expect to matter (an embedding gradient that overwrites
+instead of accumulating, a missing `1 - tanh²`, a factor of 1.0001 on one term)
+was applied on purpose and watched fail here before the check was trusted.
+`lm-smoke.mjs` then drives the page itself, including the round trip a trained
+model makes through a file and back into a resumed run.
 
 None of them is sufficient alone, and the gap is not the kind a tool closes. A
 plan can satisfy every rule here and still be wrong for the person holding it —

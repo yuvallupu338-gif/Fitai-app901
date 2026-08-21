@@ -1,13 +1,14 @@
 #!/usr/bin/env node
 /*
- * csp-check.mjs — the three pages on this origin, checked against their own
+ * csp-check.mjs — the four pages on this origin, checked against their own
  * Content-Security-Policy.
  *
  * localStorage is per-origin, not per-path. GitHub Pages serves the plan app at
- * /, this repo's larger FitAI at /app/ and the game at /backrooms/, and they
- * share one storage jar — which holds, among other things, the vendor API keys
- * this app keeps under `fitai.key.*`. A policy on one page secures nothing
- * while a neighbour has none, so all three are checked together.
+ * /, this repo's larger FitAI at /app/, the game at /backrooms/ and the
+ * language-model playground at /lm/, and they share one storage jar — which
+ * holds, among other things, the vendor API keys this app keeps under
+ * `fitai.key.*`. A policy on one page secures nothing while a neighbour has
+ * none, so all four are checked together.
  *
  * For each page: drive it, collect every securitypolicyviolation the browser
  * raises, and then try to run code the way an injection would — an inline
@@ -46,6 +47,18 @@ const PAGES = [
       const start = page.locator('button', { hasText: /התחל|Start|שחק/ }).first();
       if (await start.count()) await start.click().catch(() => {});
       await page.waitForTimeout(2500);
+    } },
+  { name: 'toy model  /lm/',        url: `${BASE}/lm/index.html`,
+    drive: async page => {
+      /* Train for a moment, stop, and write — the three things this page does,
+       * one of which allocates a blob URL for the download. */
+      await page.waitForTimeout(1200);
+      await page.click('#train', { timeout: 5000 }).catch(() => {});
+      await page.waitForTimeout(2500);
+      await page.click('#train', { timeout: 5000 }).catch(() => {});
+      await page.click('#write', { timeout: 5000 }).catch(() => {});
+      await page.click('#export', { timeout: 5000 }).catch(() => {});
+      await page.waitForTimeout(600);
     } },
 ];
 
@@ -126,5 +139,5 @@ for (const p of PAGES) {
 }
 
 await browser.close();
-console.log(failures ? `\n✗ ${failures} check(s) failed` : '\n✓ all three pages carry a policy and none of them will run injected code');
+console.log(failures ? `\n✗ ${failures} check(s) failed` : '\n✓ all four pages carry a policy and none of them will run injected code');
 process.exit(failures ? 1 : 0);
