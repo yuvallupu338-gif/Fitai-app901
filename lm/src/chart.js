@@ -33,6 +33,12 @@ function reduce(points, width) {
 export function createChart(canvas) {
   const ctx = canvas.getContext('2d');
   let css = { w: 0, h: 0 };
+  /* The last series drawn, kept so a resize can put it back. Setting
+   * canvas.width — which resizing must do, or the drawing is stretched — also
+   * clears the canvas, and outside a training run there is nothing coming along
+   * behind to redraw it. Without this, turning a phone sideways after a run
+   * leaves a black rectangle where the curve was. */
+  let last = { train: [], val: [], baseline: null };
 
   const colors = () => {
     const s = getComputedStyle(canvas);
@@ -54,7 +60,9 @@ export function createChart(canvas) {
     ctx.setTransform(dpr, 0, 0, dpr, 0, 0);
   }
 
-  function draw({ train = [], val = [], baseline = null }) {
+  function draw(series) {
+    last = series;
+    const { train = [], val = [], baseline = null } = series;
     if (!css.w || Math.abs(canvas.getBoundingClientRect().width - css.w) > 1) resize();
     const { w, h } = css;
     const c = colors();
@@ -141,7 +149,7 @@ export function createChart(canvas) {
     line(val, c.val, 2.2);
   }
 
-  window.addEventListener('resize', resize);
+  window.addEventListener('resize', () => { resize(); draw(last); });
   resize();
   return { draw, resize };
 }

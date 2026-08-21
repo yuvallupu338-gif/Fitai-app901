@@ -67,6 +67,8 @@ const context = await browser.newContext({ acceptDownloads: true, viewport: { wi
 const page = await context.newPage();
 
 const problems = [];
+const requested = [];
+page.on('request', (r) => requested.push(r.url()));
 page.on('console', (m) => { if (m.type() === 'error') problems.push(`console: ${m.text()}`); });
 page.on('pageerror', (e) => problems.push(`pageerror: ${e.message}`));
 await page.addInitScript(() => {
@@ -82,6 +84,15 @@ await page.addInitScript(() => {
 await page.goto(`http://127.0.0.1:${port}/lm/index.html`, { waitUntil: 'networkidle' });
 
 /* ---------------------------------------------------------------- start */
+
+/* Nothing large may be on the critical path. Together the corpora and the
+ * trained model are well over a megabyte, and a page that pulls them before
+ * anyone has asked for a corpus or pressed a button is a page nobody opens
+ * twice on a phone. */
+const eager = requested.filter((u) => /\/(code|general|agents)\.js/.test(u));
+check(eager.length === 0, `loaded before being asked for: ${eager.join(', ')}`);
+const boot = requested.filter((u) => u.endsWith('.js')).length;
+notes.push(`first paint pulled ${boot} modules, none of them a corpus`);
 
 const paramsText = await page.textContent('#params');
 check(/משקלים/.test(paramsText), `the parameter count did not render: ${paramsText}`);
@@ -138,6 +149,27 @@ check(await page.textContent('#train') === 'המשך אימון', 'stopping did 
 const stopped = await page.textContent('#s-steps');
 await page.waitForTimeout(400);
 check(await page.textContent('#s-steps') === stopped, 'the model kept training after stop');
+
+/* The curve has to survive a resize. Setting a canvas's width clears it, and
+ * when nothing is training there is no next frame to draw it again — so a phone
+ * turned sideways, or a window dragged wider, used to leave an empty box where
+ * the run was. Count the lit pixels, resize, count them again. */
+const litPixels = () => page.evaluate(() => {
+  const c = document.querySelector('#chart');
+  const d = c.getContext('2d').getImageData(0, 0, c.width, c.height).data;
+  let n = 0;
+  for (let i = 3; i < d.length; i += 4) if (d[i] > 8) n++;
+  return n;
+});
+const beforeResize = await litPixels();
+check(beforeResize > 500, `the loss curve drew only ${beforeResize} pixels`);
+await page.setViewportSize({ width: 900, height: 1000 });
+await page.waitForTimeout(300);
+const afterResize = await litPixels();
+check(afterResize > 500, `the loss curve vanished on resize: ${beforeResize} pixels before, ${afterResize} after`);
+await page.setViewportSize({ width: 1280, height: 1000 });
+await page.waitForTimeout(300);
+notes.push(`curve pixels: ${beforeResize} drawn, ${afterResize} after a resize`);
 
 /* ---------------------------------------------------------------- writing */
 
@@ -198,6 +230,29 @@ if (download) {
   notes.push(`resumed training at loss ${resumed} (random guessing is ${baseline.toFixed(2)})`);
 }
 
+/* The model that ships with the page: a module imported on demand, so that a
+ * visitor who does not want to wait for training can see a trained one write.
+ * The manifest that labels the button must describe the model the button
+ * actually loads — they are generated together and can drift apart if one is
+ * regenerated alone. */
+await page.reload({ waitUntil: 'networkidle' });
+const trainedNote = await page.textContent('#trained-note');
+check(/צעדים/.test(trainedNote), `the trained model is not described: ${trainedNote}`);
+
+await page.click('#load-trained');
+await page.waitForFunction(
+  () => /נטען מודל/.test(document.querySelector('#file-msg').textContent),
+  null, { timeout: 30000 },
+);
+const trainedMsg = await page.textContent('#file-msg');
+const notedSteps = (trainedNote.match(/[\d,]+/) || ['0'])[0];
+check(notedSteps.length > 0 && trainedMsg.includes(notedSteps),
+  `the button promised ${notedSteps} steps and loaded: ${trainedMsg}`);
+await page.click('#write');
+const trainedText = await page.textContent('#out');
+check(trainedText.length > 100, 'the shipped trained model wrote nothing');
+notes.push(`shipped model: ${trainedNote.trim()} → ${JSON.stringify(trainedText.slice(0, 60))}`);
+
 /* A file that is not a model must be refused with a message, not a stack trace. */
 await page.setInputFiles('#import', {
   name: 'not-a-model.json',
@@ -209,6 +264,56 @@ await page.waitForFunction(
   null, { timeout: 8000 },
 );
 check(/לא נטען/.test(await page.textContent('#file-msg')), 'a junk model file was not refused clearly');
+
+/* ---------------------------------------------------------------- corpora */
+
+/* The three agent-written corpora are ES modules imported on demand, which is
+ * the only way this page can load half a megabyte of text while keeping
+ * connect-src at 'none'. What that buys has to be checked from the page: that
+ * choosing one really replaces the text, that the model is rebuilt around its
+ * larger alphabet, and that it trains. */
+await page.reload({ waitUntil: 'networkidle' });
+const options = await page.$$eval('#corpus-pick option', (os) => os.map((o) => o.value));
+check(options.join(',') === 'log,code,general,both,custom', `the picker offers ${options.join(', ')}`);
+
+await page.selectOption('#corpus-pick', 'code');
+await page.waitForFunction(
+  () => document.querySelector('#corpus').value.length > 50000 && !document.querySelector('#corpus-pick').disabled,
+  null, { timeout: 30000 },
+);
+check(requested.some((u) => /\/code\.js/.test(u)), 'choosing the code corpus did not import it');
+const codeText = await page.inputValue('#corpus');
+check(/function |def |const /.test(codeText), 'the code corpus does not look like code');
+check(/^(?:\/\/|#|--) ?[\w@][\w./@-]*\.\w{1,5}$/m.test(codeText), 'the code corpus lost the file-path headers its snippets are split on');
+check(number(await page.textContent('#s-steps')) === 0, 'switching corpus did not start a fresh model');
+notes.push(`code corpus in the page: ${codeText.length.toLocaleString()} characters, ${new Set(codeText).size} distinct`);
+
+await page.click('#train');
+await page.waitForFunction(() => {
+  const steps = Number(document.querySelector('#s-steps').textContent.replace(/[^\d]/g, ''));
+  return steps >= 400;
+}, null, { timeout: 60000 });
+await page.click('#train');
+const codeLoss = number(await page.textContent('#s-train'));
+const codeBaseline = Math.log(new Set(codeText).size);
+check(codeLoss < codeBaseline - 0.8, `training on code went from ${codeBaseline.toFixed(2)} to ${codeLoss} in 400 steps`);
+notes.push(`code corpus after 400 steps: ${codeLoss} against random guessing ${codeBaseline.toFixed(2)}`);
+
+await page.selectOption('#corpus-pick', 'both');
+await page.waitForFunction(
+  () => document.querySelector('#corpus').value.length > 100000 && !document.querySelector('#corpus-pick').disabled,
+  null, { timeout: 30000 },
+);
+const bothText = await page.inputValue('#corpus');
+check(/[֐-׿]/.test(bothText) && /function |def |const /.test(bothText),
+  'the combined corpus is missing one of its two halves');
+check(bothText.length > codeText.length, 'the combined corpus is no larger than the code corpus alone');
+notes.push(`combined corpus: ${bothText.length.toLocaleString()} characters, ${new Set(bothText).size} distinct`);
+
+/* Typing over a chosen corpus makes it yours, and the picker has to say so. */
+await page.fill('#corpus', 'שלום שלום שלום שלום שלום שלום שלום שלום שלום שלום');
+await page.waitForTimeout(200);
+check(await page.inputValue('#corpus-pick') === 'custom', 'editing the text left the picker claiming a corpus it no longer holds');
 
 /* ---------------------------------------------------------------- edges */
 

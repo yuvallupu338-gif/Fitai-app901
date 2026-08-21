@@ -49,9 +49,19 @@
     <section class="panel">
       <h2><b>1</b> הטקסט</h2>
       <p class="sub">
-        זה כל מה שהמודל אי פעם יידע. שים כאן מה שבא לך — שירים, הודעות ווטסאפ,
-        קוד, יומן אימונים. ככל שיש יותר, וככל שהוא יותר עקבי, כך ילמד מהר יותר.
+        זה כל מה שהמודל אי פעם יידע. שלושה מהטקסטים כאן נכתבו במיוחד בשבילו על
+        ידי מאה סוכנים שרצו במקביל — 75 כתבו קוד, 25 כתבו שאלות ותשובות בעברית —
+        ואפשר גם להדביק כל טקסט אחר.
       </p>
+
+      <div class="field">
+        <label for="corpus-pick">
+          מקור הטקסט
+          <span class="val" id="corpus-note">—</span>
+        </label>
+        <select id="corpus-pick"></select>
+        <span class="note" id="corpus-hint"></span>
+      </div>
 
       <div class="field">
         <label for="corpus">
@@ -65,10 +75,6 @@
       <div class="field">
         <label for="file">או קובץ טקסט מהמחשב</label>
         <input type="file" id="file" accept=".txt,.md,.csv,text/plain">
-      </div>
-
-      <div class="buttons">
-        <button type="button" id="default-text">החזר את טקסט ברירת המחדל</button>
       </div>
 
       <p class="msg" id="text-msg" hidden></p>
@@ -195,13 +201,14 @@
 
     <!-- ------------------------------------------------------------- file -->
     <section class="panel">
-      <h2><b>5</b> שמירה</h2>
+      <h2><b>5</b> מודל מוכן, ושמירה</h2>
       <p class="sub">
-        המודל המאומן הוא קובץ JSON אחד — משקלים ואוצר מילים. שום דבר לא נשמר
-        בדפדפן מעצמו: תסגור את הלשונית בלי לשמור, והאימון הלך.
+        אין חובה לאמן מאפס: המודל שלמטה כבר אומן על מה שהסוכנים כתבו, ואפשר
+        לטעון אותו ולראות מיד מה יוצא. <span id="trained-note">—</span>
       </p>
       <div class="buttons">
-        <button type="button" id="export">שמור מודל לקובץ</button>
+        <button type="button" class="primary" id="load-trained">טען מודל מאומן</button>
+        <button type="button" id="export">שמור את המודל הנוכחי</button>
       </div>
       <div class="field spaced">
         <label for="import">טען מודל מקובץ</label>

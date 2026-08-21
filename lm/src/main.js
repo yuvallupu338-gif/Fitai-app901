@@ -20,6 +20,8 @@
  */
 
 import { buildCorpus } from './corpus.js';
+import { CORPORA, corpusById } from './corpora/index.js';
+import { MODEL as TRAINED } from './models/manifest.js';
 import { buildVocab, encode, splitData, makeBatcher, fixedBatch, pickPad, positions } from './tokenizer.js';
 import { createModel, createTrainer, generate, serialize, deserialize, paramCount } from './model.js';
 import { makeRng } from './rng.js';
@@ -39,6 +41,11 @@ const EVAL_WINDOWS = 512;    // held-out windows per measurement
 const state = {
   text: '',
   chars: [], stoi: new Map(),
+  /* The encoded stream, cached against the text it came from. Counting the
+   * characters of a megabyte corpus and encoding it is a tenth of a second, and
+   * nudging the hidden-layer slider changes neither — so without this, every
+   * slider release on a large corpus spends it again to reach the same array. */
+  data: null,
   train: null, val: null,
   model: null, trainer: null, fill: null,
   xs: null, ys: null, evalSet: null,
@@ -86,26 +93,87 @@ const settings = () => ({
 });
 
 /* ------------------------------------------------------------------ *
+ * Where the text comes from
+ *
+ * Four ready-made corpora and whatever you paste. Three of the four are the
+ * work of a hundred writing agents and live in modules that are imported only
+ * when chosen — half a megabyte should not be on the critical path of a page
+ * that might never be asked for it.
+ * ------------------------------------------------------------------ */
+
+function fillPicker() {
+  const pick = $('corpus-pick');
+  for (const c of CORPORA) {
+    const option = document.createElement('option');
+    option.value = c.id;
+    option.textContent = c.label;
+    pick.appendChild(option);
+  }
+}
+
+/** Mark the text as the user's own without reloading anything. */
+function markCustom() {
+  if ($('corpus-pick').value === 'custom') return;
+  $('corpus-pick').value = 'custom';
+  describeCorpus('custom');
+}
+
+function describeCorpus(id) {
+  const c = corpusById(id);
+  $('corpus-note').textContent = c.note;
+  $('corpus-hint').textContent = c.hint;
+}
+
+async function pickCorpus(id) {
+  const c = corpusById(id);
+  if (!c.load) { describeCorpus(id); return; }
+
+  stop();
+  const pick = $('corpus-pick');
+  pick.disabled = true;
+  $('corpus-note').textContent = 'טוען…';
+  /* One frame before the import, so the "loading" state actually paints:
+   * parsing a large module and re-encoding the text both block. */
+  await new Promise((r) => requestAnimationFrame(r));
+
+  try {
+    const text = await c.load();
+    $('corpus').value = text;
+    $('text-note').textContent = `${c.label} · ${c.note}`;
+    describeCorpus(id);
+    buildModel();
+  } catch (err) {
+    say('text-msg', `הטקסט לא נטען: ${err.message}`, 'bad');
+    describeCorpus(id);
+  } finally {
+    pick.disabled = false;
+  }
+}
+
+/* ------------------------------------------------------------------ *
  * The text
  * ------------------------------------------------------------------ */
 
 function readText() {
   const text = $('corpus').value;
   const { context } = settings();
-  state.text = text;
 
-  const vocab = buildVocab(text);
-  state.chars = vocab.chars;
-  state.stoi = vocab.stoi;
+  if (text !== state.text || !state.data) {
+    state.text = text;
+    const vocab = buildVocab(text);
+    state.chars = vocab.chars;
+    state.stoi = vocab.stoi;
+    state.data = vocab.chars.length >= 2 ? encode(text, vocab.stoi) : null;
+  }
 
-  if (vocab.chars.length < 2) {
+  if (state.chars.length < 2 || !state.data) {
     state.train = state.val = null;
     $('text-stats').textContent = '—';
     say('text-msg', 'צריך טקסט אמיתי, לפחות שני תווים שונים.', 'bad');
     return false;
   }
 
-  const data = encode(text, vocab.stoi);
+  const data = state.data;
   const { train, val } = splitData(data, { valFraction: 0.1, context });
   state.train = train;
   state.val = val;
@@ -117,7 +185,7 @@ function readText() {
   }
 
   $('text-stats').textContent =
-    `${data.length.toLocaleString('he-IL')} תווים · ${vocab.chars.length} שונים`;
+    `${data.length.toLocaleString('he-IL')} תווים · ${state.chars.length} שונים`;
   const held = val.length
     ? `${val.length.toLocaleString('he-IL')} תווים בסוף הטקסט נשמרים לבדיקה — עליהם הוא לא מתאמן.`
     : 'הטקסט קצר מדי כדי לשמור חלק לבדיקה, אז הפסד הבדיקה יישאר ריק.';
@@ -334,59 +402,93 @@ function exportModel() {
   say('file-msg', `נשמר: ${(JSON.stringify(file).length / 1048576).toFixed(2)} MB, ${steps.toLocaleString('he-IL')} צעדים.`, 'good');
 }
 
+/** Describe the model that ships with the page, without loading it. */
+function describeTrained() {
+  const mb = (TRAINED.bytes / 1048576).toFixed(1);
+  $('trained-note').textContent =
+    `${TRAINED.steps.toLocaleString('he-IL')} צעדים על ${TRAINED.source} · הפסד ${TRAINED.heldOutLoss} · ${mb} מגה להוריד.`;
+}
+
+async function loadTrained() {
+  const button = $('load-trained');
+  button.disabled = true;
+  say('file-msg', 'טוען את המודל המאומן…', '');
+  await new Promise((r) => requestAnimationFrame(r));
+  try {
+    const json = (await import('./models/agents.js')).default;
+    adopt(deserialize(json), `המודל המאומן: ${TRAINED.steps.toLocaleString('he-IL')} צעדים`);
+  } catch (err) {
+    say('file-msg', `המודל המאומן לא נטען: ${err.message}`, 'bad');
+  } finally {
+    button.disabled = false;
+  }
+}
+
 async function importModel(file) {
   stop();
   try {
     const json = JSON.parse(await file.text());
-    const { model, meta } = deserialize(json);
-    state.model = model;
-    state.chars = model.chars;
-    state.stoi = model.stoi;
-
-    /* The file brings its own vocabulary, and the text in the box was tokenised
-     * against a different one. Everything downstream of the token ids has to be
-     * rebuilt against the model's vocabulary, or the first training step would
-     * be teaching it that ז means ד. */
-    $('ctx').value = model.context;
-    $('emb').value = model.embed;
-    $('hidden').value = model.hidden;
-    const cfg = settings();
-    const data = encode(state.text, model.stoi);
-    const { train, val } = splitData(data, { valFraction: 0.1, context: model.context });
-    state.train = train;
-    state.val = val;
-
-    const covered = [...state.text].length ? data.length / [...state.text].length : 1;
-    state.trainer = createTrainer(model, { batch: cfg.batch, lr: cfg.lr });
-    state.fill = positions(train, model.context) > 0
-      ? makeBatcher(train, { context: model.context, rng: makeRng(cfg.seed + 1) })
-      : null;
-    state.xs = new Int32Array(cfg.batch * model.context);
-    state.ys = new Int32Array(cfg.batch);
-    state.evalSet = val.length
-      ? fixedBatch(val, { context: model.context, count: EVAL_WINDOWS, seedRng: makeRng(cfg.seed + 2) })
-      : { xs: new Int32Array(0), ys: new Int32Array(0), count: 0 };
-    state.history = { train: [], val: [] };
-    state.baseline = Math.log(model.chars.length);
-    state.ema = NaN;
-    state.elapsed = 0;
-    state.lastSampleAt = -1;
-
-    const trained = meta.steps ? `${Number(meta.steps).toLocaleString('he-IL')} צעדים` : 'מקור לא ידוע';
-    const warn = covered < 0.5
-      ? ' רוב התווים בטקסט שבתיבה לא קיימים באוצר המילים של המודל הזה, אז אימון נוסף עליו יילמד עיוות.'
-      : '';
-    say('file-msg', `נטען מודל: ${model.chars.length} תווים, חלון ${model.context}, ${trained}.${warn}`,
-      warn ? 'bad' : 'good');
-
-    if (!state.fill) say('train-msg', 'הטקסט שבתיבה קצר מחלון ההקשר של המודל שנטען, אז אפשר רק לכתוב איתו.', '');
-    refresh();
-    stats();
-    chart.draw({ train: [], val: [], baseline: state.baseline });
-    writeSample({ auto: true });
+    adopt(deserialize(json), `נטען מקובץ: ${file.name}`);
   } catch (err) {
     say('file-msg', `הקובץ לא נטען: ${err.message}`, 'bad');
   }
+}
+
+/**
+ * Take a deserialised model as the live one.
+ *
+ * The file brings its own vocabulary, and the text in the box was tokenised
+ * against a different one. Everything downstream of the token ids has to be
+ * rebuilt against the model's vocabulary, or the first training step would be
+ * teaching it that ז means ד.
+ */
+function adopt({ model, meta }, label) {
+  stop();
+  state.model = model;
+  state.chars = model.chars;
+  state.stoi = model.stoi;
+  /* The cached stream was encoded against the vocabulary this page built from
+   * the text. The model brought its own, and the two disagree about which
+   * number means which letter, so the cache has to go. */
+  state.data = null;
+
+  $('ctx').value = model.context;
+  $('emb').value = model.embed;
+  $('hidden').value = model.hidden;
+  const cfg = settings();
+  const data = encode(state.text, model.stoi);
+  const { train, val } = splitData(data, { valFraction: 0.1, context: model.context });
+  state.train = train;
+  state.val = val;
+
+  const covered = [...state.text].length ? data.length / [...state.text].length : 1;
+  state.trainer = createTrainer(model, { batch: cfg.batch, lr: cfg.lr });
+  state.fill = positions(train, model.context) > 0
+    ? makeBatcher(train, { context: model.context, rng: makeRng(cfg.seed + 1) })
+    : null;
+  state.xs = new Int32Array(cfg.batch * model.context);
+  state.ys = new Int32Array(cfg.batch);
+  state.evalSet = val.length
+    ? fixedBatch(val, { context: model.context, count: EVAL_WINDOWS, seedRng: makeRng(cfg.seed + 2) })
+    : { xs: new Int32Array(0), ys: new Int32Array(0), count: 0 };
+  state.history = { train: [], val: [] };
+  state.baseline = Math.log(model.chars.length);
+  state.ema = NaN;
+  state.elapsed = 0;
+  state.lastSampleAt = -1;
+
+  const trained = meta.steps ? `${Number(meta.steps).toLocaleString('he-IL')} צעדים` : 'מקור לא ידוע';
+  const warn = covered < 0.5
+    ? ' רוב התווים בטקסט שבתיבה לא קיימים באוצר המילים של המודל הזה, אז אימון נוסף עליו יילמד עיוות.'
+    : '';
+  say('file-msg', `נטען מודל: ${model.chars.length} תווים, חלון ${model.context}, ${trained}. ${label}.${warn}`,
+    warn ? 'bad' : 'good');
+
+  if (!state.fill) say('train-msg', 'הטקסט שבתיבה קצר מחלון ההקשר של המודל שנטען, אז אפשר רק לכתוב איתו.', '');
+  refresh();
+  stats();
+  chart.draw({ train: [], val: [], baseline: state.baseline });
+  writeSample({ auto: true });
 }
 
 /* ------------------------------------------------------------------ *
@@ -395,22 +497,20 @@ async function importModel(file) {
 
 let textTimer = 0;
 $('corpus').addEventListener('input', () => {
+  markCustom();
   clearTimeout(textTimer);
   textTimer = setTimeout(() => buildModel(), 500);
 });
+
+$('corpus-pick').addEventListener('change', (e) => pickCorpus(e.target.value));
 
 $('file').addEventListener('change', async (e) => {
   const file = e.target.files && e.target.files[0];
   if (!file) return;
   const text = await file.text();
   $('corpus').value = text;
-  $('text-note').textContent = `נטען: ${file.name}`;
-  buildModel();
-});
-
-$('default-text').addEventListener('click', () => {
-  $('corpus').value = buildCorpus();
-  $('text-note').textContent = 'ברירת המחדל: יומן אימונים שנוצר כאן במקום, כדי שיהיה במה להתחיל.';
+  markCustom();
+  $('text-note').textContent = `נטען: ${file.name} · ${text.length.toLocaleString('he-IL')} תווים`;
   buildModel();
 });
 
@@ -435,6 +535,7 @@ $('train').addEventListener('click', () => (state.running ? stop() : start()));
 $('reset').addEventListener('click', () => buildModel());
 $('write').addEventListener('click', () => writeSample({ auto: false }));
 $('export').addEventListener('click', exportModel);
+$('load-trained').addEventListener('click', loadTrained);
 $('import').addEventListener('change', (e) => {
   const file = e.target.files && e.target.files[0];
   if (file) importModel(file);
@@ -452,6 +553,10 @@ document.addEventListener('keydown', (e) => {
   }
 });
 
+fillPicker();
+describeTrained();
+$('corpus-pick').value = 'log';
+describeCorpus('log');
 $('corpus').value = buildCorpus();
 buildModel();
 stats();

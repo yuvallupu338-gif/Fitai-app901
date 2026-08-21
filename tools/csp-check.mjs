@@ -50,15 +50,21 @@ const PAGES = [
     } },
   { name: 'toy model  /lm/',        url: `${BASE}/lm/index.html`,
     drive: async page => {
-      /* Train for a moment, stop, and write — the three things this page does,
-       * one of which allocates a blob URL for the download. */
+      /* Everything this page does that a policy could stop: train, write, save
+       * a model through a blob URL, and — the two that matter most here — pull
+       * a corpus and a trained model in as dynamic imports. Those are the pages
+       * only way to load a megabyte of text with connect-src at 'none', and if
+       * script-src ever stopped allowing them this is where it would show. */
       await page.waitForTimeout(1200);
       await page.click('#train', { timeout: 5000 }).catch(() => {});
       await page.waitForTimeout(2500);
       await page.click('#train', { timeout: 5000 }).catch(() => {});
       await page.click('#write', { timeout: 5000 }).catch(() => {});
       await page.click('#export', { timeout: 5000 }).catch(() => {});
-      await page.waitForTimeout(600);
+      await page.selectOption('#corpus-pick', 'general', { timeout: 5000 }).catch(() => {});
+      await page.waitForTimeout(2000);
+      await page.click('#load-trained', { timeout: 5000 }).catch(() => {});
+      await page.waitForTimeout(2500);
     } },
 ];
 

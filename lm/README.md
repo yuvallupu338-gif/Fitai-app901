@@ -7,6 +7,10 @@
 שלך. ברירת המחדל מתאמנת בערך מאה צעדים בשנייה, ותוך פחות מדקה כבר רואים אותה
 עוברת מרעש אקראי לשורות שנראות כמו יומן אימונים.
 
+שלושה מהטקסטים שהיא מתאמנת עליהם נכתבו במיוחד בשבילה על ידי מאה סוכנים שרצו
+במקביל: 75 כתבו קוד, 25 כתבו שאלות ותשובות בעברית. אפשר גם לטעון מודל שכבר
+אומן על הכל, בלחיצה אחת, ולראות מיד מה יוצא.
+
 </div>
 
 Open `lm/index.html` over http (ES modules do not load from `file://`):
@@ -72,9 +76,14 @@ be pointed at a file too big to paste:
 
 ```bash
 node tools/lm-train.mjs                                     # the built-in corpus
+node tools/lm-train.mjs --corpus code --steps 20000         # what the 75 code writers made
 node tools/lm-train.mjs --in book.txt --out lm/book.json --steps 20000
 node tools/lm-train.mjs --in book.txt --ctx 12 --hidden 256 --lr 0.01
 ```
+
+`--corpus` takes `log`, `code`, `general` or `both`, and reads them through the
+same registry the page's picker uses — so a loss measured here and a loss
+measured there are measured on the same characters in the same order.
 
 It prints the loss, the held-out loss and a writing sample as it goes, and
 writes a model file. Load it with **טען מודל מקובץ** on the page and keep
@@ -92,10 +101,20 @@ of that shared storage jar holds vendor API keys, and a toy that writes
 megabytes of weights into the same quota would be a good way to break the app
 next door.
 
+One trained model ships with the page, in `lm/src/models/`, as a module rather
+than as a `.json` file for the same reason the corpora are modules: the page
+cannot fetch anything under `connect-src 'none'`, but it can import. Pressing
+**טען מודל מאומן** imports it — and nothing before that, since it is about a
+megabyte and most visitors would rather train their own. `tools/lm-train.mjs`
+writes that module, and a small manifest beside it, whenever `--out` ends in
+`.js`; the manifest is what the button reads to say how long the model trained
+and how much it weighs, without loading it to find out.
+
 ## Checks
 
 ```bash
 node tools/lm-check.mjs                                   # the arithmetic
+node tools/lm-corpus.mjs --verify --audit                 # the corpora
 NODE_PATH=/opt/node22/lib/node_modules node tools/lm-smoke.mjs   # the page
 ```
 
@@ -110,11 +129,20 @@ sampling really stays inside the top k, and that a model file with a lie in it �
 a length that does not match its shape, a weight that is a string, a hidden size
 of a billion — is refused rather than allocated.
 
+`lm-corpus.mjs --verify` loads the built corpora, checks them against their own
+manifest, and asserts the Hebrew half still holds its question-and-answer shape.
+`--audit` splits the code half back into the snippets it was assembled from and
+hands each one to a real parser — `node --check` for JavaScript, `py_compile`
+for Python, `bash -n` for shell, `JSON.parse` for JSON — because "the agents
+were told to write valid code" is not evidence that they did.
+
 `lm-smoke.mjs` drives the real page: that the loss on screen falls below random
 guessing, that a click lands while training is running, that saving produces a
 file the page can load back and resume training from at the loss it left off,
-and that the whole thing raises no CSP violation. The page's policy is checked
-alongside its neighbours by `tools/csp-check.mjs`.
+that choosing a corpus imports it and that nothing imports it before then, that
+the loss curve survives the window being resized, and that the whole thing
+raises no CSP violation. The page's policy is checked alongside its neighbours
+by `tools/csp-check.mjs`.
 
 ## Layout
 
@@ -128,5 +156,8 @@ lm/
     corpus.js     the built-in text, generated on the spot
     chart.js      the loss curve
     rng.js        a seeded generator, so a run can be repeated
+    corpora/      what the hundred agents wrote: index.js, code.js,
+                  general.js, manifest.js — the last three generated
+    models/       one trained model as a module, and its manifest — generated
     styles/lm.css
 ```

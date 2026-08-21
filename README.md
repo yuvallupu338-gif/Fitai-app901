@@ -71,9 +71,15 @@ text you paste in, with the backward pass written out by hand and checked
 against numerically measured gradients. It is deliberately the dumbest thing
 that still learns — thirty thousand weights, no attention, no memory past its
 context window — and it goes from random guessing to something that looks like
-Hebrew in under a minute of watching the loss fall. It talks to nothing:
-`connect-src 'none'`, no key, no credits, and nothing written to storage. Served
-at `/lm/`. See [`lm/README.md`](lm/README.md).
+Hebrew in under a minute of watching the loss fall.
+
+Its training text was written for it by a hundred agents running in parallel:
+seventy-five wrote code across a dozen languages, twenty-five wrote Hebrew
+questions and answers. Those corpora ship as ES modules rather than as text
+files, and one already-trained model ships beside them, because the page talks
+to nothing — `connect-src 'none'`, no key, no credits, nothing written to
+storage — and a module is something it can import when asked. Served at `/lm/`.
+See [`lm/README.md`](lm/README.md).
 
 Its *code* does not, which is not the same as saying it cannot — see
 [Security](#security) below. All four apps here share one browser origin, and
@@ -319,6 +325,8 @@ src/
 lm/
   index.html        the character-level model that trains in the browser
   src/              model, tokenizer, corpus, chart, seeded rng
+  src/corpora/      the code and Hebrew corpora the hundred agents wrote
+  src/models/       one trained model, as a module the page can import
 tools/
   validate.js       cross-checks the data and engine layers
   vision-audit.mjs  proves a photo scan cannot break the engine's rules
@@ -326,6 +334,7 @@ tools/
   smoke.mjs         drives the real app in Chromium
   lm-check.mjs      the toy model's gradients, against numeric ones
   lm-train.mjs      trains the toy model from the command line
+  lm-corpus.mjs     assembles the agents' slices, and parses the code in them
   lm-smoke.mjs      drives the toy model's page in Chromium
   build-single.js   bundles everything into dist/fitai.html
   fetch-fonts.js    regenerates the embedded font subsets
@@ -341,6 +350,7 @@ node tools/vision-audit.mjs                             # photo-scan containment
 node tools/ai-audit.mjs                                 # providers + intake containment
 node tools/build-single.js                              # single-file bundle
 node tools/lm-check.mjs                                 # the toy model's arithmetic
+node tools/lm-corpus.mjs --verify --audit               # the agent-written corpora
 NODE_PATH=/opt/node22/lib/node_modules node tools/smoke.mjs --shots
 NODE_PATH=/opt/node22/lib/node_modules node tools/lm-smoke.mjs
 ```
