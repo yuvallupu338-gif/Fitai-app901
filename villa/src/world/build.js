@@ -205,7 +205,10 @@ function wallPanel(mb, e, t0, t1, y0, y1, mat, ao) {
   addQuad(mb,
     [a[0], y0, a[1]], [b[0], y0, b[1]], [b[0], y1, b[1]], [a[0], y1, a[1]],
     [0, 0], [len, 0], [len, y1 - y0], [0, y1 - y0],
-    mat, { sub: Math.max(1, Math.round(Math.max(len, y1 - y0) * 1.4)), ao });
+    /* At least two subdivisions in each direction: a panel with only corner
+     * vertices has nowhere to put a gradient, so the strip above a door came
+     * out one flat tone however carefully the AO was computed. */
+    mat, { sub: Math.max(2, Math.round(Math.max(len, y1 - y0) * 1.4)), ao });
 }
 
 /*
@@ -439,6 +442,14 @@ export function buildVilla(mat) {
 
     for (const e of edges) {
       const mine = holes.filter((h) => h.edge === e.side).sort((a, b) => a.t0 - b.t0);
+      /*
+       * One closure per panel, not one per wall run. wallAO(y0, y1) maps the
+       * quad's own t back to a real height, so a closure built for 0..2.7 and
+       * handed to the strip above a door (2.06..2.70) reads t=0 as floor level
+       * and t=1 as ceiling — both ends land in the dark band and the whole
+       * strip comes out flat black, while the apron under a window gets a
+       * bright stripe across its middle.
+       */
       const ao = wallAO(0, WALL_H);
       let cursor = 0;
       for (const h of mine) {
@@ -447,12 +458,14 @@ export function buildVilla(mat) {
           skirting(mb, e, cursor, h.t0, mat.trim);
         }
         if (h.y0 > 0.001) {
-          wallPanel(mb, e, h.t0, h.t1, 0, h.y0, mat[finish.wall], ao);
+          wallPanel(mb, e, h.t0, h.t1, 0, h.y0, mat[finish.wall], wallAO(0, h.y0));
           /* A window's wall carries on down to the floor, so the skirting
            * runs behind it rather than stopping at the reveal. */
           skirting(mb, e, h.t0, h.t1, mat.trim);
         }
-        if (h.y1 < WALL_H - 0.001) wallPanel(mb, e, h.t0, h.t1, h.y1, WALL_H, mat[finish.wall], ao);
+        if (h.y1 < WALL_H - 0.001) {
+          wallPanel(mb, e, h.t0, h.t1, h.y1, WALL_H, mat[finish.wall], wallAO(h.y1, WALL_H));
+        }
 
         /*
          * A doorway is cut from both rooms that share it, and each room's

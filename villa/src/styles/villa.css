@@ -278,6 +278,15 @@ button:focus-visible, input:focus-visible {
   letter-spacing: 0.16em;
   color: var(--dim);
 }
+/* The overlay covers the screen and sits above the touch controls, so without
+   a way out of its own it is a softlock on any device with no keyboard — the
+   night carries on running behind it and every tap is swallowed. */
+.mapover-close {
+  position: absolute;
+  top: 1rem;
+  left: 1rem;
+  pointer-events: auto;
+}
 
 /* ================================================================== *
  * Game layout (2D map mode)
@@ -586,6 +595,11 @@ button:focus-visible, input:focus-visible {
 @media (pointer: coarse) {
   .controls { display: none !important; }
 }
+
+/* At the prompt there is nothing to aim, walk or fire — but there still has to
+   be a way to pause, which on a phone is the only route to the menu. */
+#touch.text-mode .tb { display: none; }
+#touch.text-mode #t-pause { display: grid; }
 
 /* On a touch device the HUD's action chips become the number keys. */
 .hud3.touch .h3-act { pointer-events: auto; cursor: pointer; }

@@ -45,7 +45,7 @@ export const MATERIALS = [
 
   /* --- fittings --- */
   { name: 'doorPaint',  kind: 'door',     color: '#6e6a60', bump: 1.2, seed: 81 },
-  { name: 'glass',      kind: 'glass',    color: '#0b1016', bump: 0.5, seed: 82 },
+  { name: 'glass',      kind: 'glass',    color: '#0b1016', bump: 0.5, cutout: true, seed: 82 },
   { name: 'night',      kind: 'night',    color: '#05070c', bump: 0.2, seed: 83 },
   { name: 'brickOuter', kind: 'brick',    color: '#6d4a3c', bump: 2.0, seed: 84 },
   { name: 'metalDark',  kind: 'metal',    color: '#5a5d61', bump: 1.0, gloss: 0.30, rust: 0.22, seed: 85 },
@@ -71,4 +71,4 @@ export const MATERIAL_INDEX = Object.fromEntries(MATERIALS.map((m, i) => [m.name
 
 /* Which materials are drawn in the cut-out pass. Only the tape, which needs to
  * be a strip with feathered edges rather than a rectangle of plastic. */
-export const CUTOUT_MATERIALS = new Set(['tapeStrip']);
+export const CUTOUT_MATERIALS = new Set(['tapeStrip', 'glass', 'muzzleFlash']);

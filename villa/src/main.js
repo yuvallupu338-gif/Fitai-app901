@@ -80,6 +80,13 @@ const SCREENS = ['loading', 'menu', 'how', 'brief', 'pause', 'over', 'won'];
 
 function show(name) {
   for (const s of SCREENS) qs(`#screen-${s}`).hidden = (s !== name);
+  /*
+   * Refreshed here rather than once at boot, because every route back to the
+   * menu changes the answer: dying clears the save, and playing a night
+   * creates one. Set once, the button offered to continue a run that had been
+   * deleted — silently starting a brand new one — and hid a run that existed.
+   */
+  if (name === 'menu') qs('#btn-continue').hidden = !store.hasRun();
   const playing = !name;
   running = playing;
   qs('#controls').hidden = !playing;
@@ -87,7 +94,8 @@ function show(name) {
   const touch = qs('#touch');
   if (touch) {
     const coarse = window.matchMedia && window.matchMedia('(pointer: coarse)').matches;
-    touch.hidden = !(playing && mode === 'fp' && coarse);
+    touch.hidden = !(playing && coarse);
+    touch.classList.toggle('text-mode', mode === 'text');
   }
   if (hud) hud.root.hidden = !playing || mode !== 'fp';
   if (con) con.root.hidden = !playing || mode !== 'text';
@@ -108,6 +116,15 @@ function show(name) {
  */
 async function loadWorld() {
   if (world) return;
+  /*
+   * No renderer means no WebGL2, and the game runs at the Hebrew prompt
+   * instead — which it announces on the menu. Everything below this line
+   * dereferences the renderer, so without the guard the first click raised
+   * the loading card and then threw inside an un-awaited async function: an
+   * unhandled rejection, no state, no phase, and a menu already hidden behind
+   * a screen that says "רגע" forever.
+   */
+  if (!renderer) return;
   show('loading');
   const fill = qs('#load-fill');
   const note = qs('#load-note');
@@ -145,6 +162,7 @@ async function loadWorld() {
     tape: null,
     entities: null,
     gun: null,
+    flash: null,
     sig: '',
   };
 
@@ -176,12 +194,19 @@ async function startRun(resumed) {
   lastNight = 0;
   clockTime = 0;
 
-  /* Standing at the front door, looking into the house. */
-  const e = roomRect(ROOM_BY_ID.entrance);
-  player = new Player((e.x0 + e.x1) / 2, e.z1 - 1.6, 0);
-  player.torch = true;
-  rifle = new ViewModel();
-  state.player.room = 'entrance';
+  /* Standing at the front door, looking into the house. A resumed run keeps
+   * the room it was saved in — teleporting it back to the entrance discards
+   * the one piece of position the save actually carries. */
+  if (world) {
+    const e = roomRect(ROOM_BY_ID.entrance);
+    player = new Player((e.x0 + e.x1) / 2, e.z1 - 1.6, 0);
+    player.torch = true;
+    rifle = new ViewModel();
+    if (resumed && state.player.room) placeInRoom(state.player.room);
+    else state.player.room = 'entrance';
+  } else if (!resumed) {
+    state.player.room = 'entrance';
+  }
 
   if (con) clearConsole(con);
   drain(state);
@@ -322,10 +347,12 @@ function frame(now) {
   requestAnimationFrame(frame);
   const dt = Math.min((now - lastFrame) / 1000, 0.25);
   lastFrame = now;
-  if (!state || !world) return;
+  if (!state) return;
   clockTime += dt;
 
-  if (running && mode === 'fp') {
+  /* `world` is null when there is no renderer. The prompt still needs its
+   * heartbeat, so only the first-person half is gated on the geometry. */
+  if (running && mode === 'fp' && world) {
     const gdt = dt * speed;
 
     /* --- the player --- */
@@ -408,13 +435,21 @@ function buildView(target, dt) {
    * the camera, so it is lit by the room the player is standing in. */
   const gun = rifle.build(player, state.inv.ammo, MATERIAL_INDEX);
   gpu.gun = renderer.uploadDynamic(gpu.gun, gun.data);
+  gpu.flash = renderer.uploadDynamic(gpu.flash, gun.flashData);
 
+  /*
+   * Glass and the muzzle flash are cut-out materials and must be drawn in the
+   * cut-out pass. Glass especially: as an opaque quad it sat five centimetres
+   * inside every window, writing depth, and hid everything the pocket of night
+   * behind it exists to show.
+   */
   const meshes = [
     { mesh: gpu.building }, { mesh: gpu.props }, { mesh: gpu.barricade },
     { mesh: gpu.entities && gpu.entities.count ? gpu.entities : null },
     { mesh: gpu.gun && gpu.gun.count ? gpu.gun : null },
-    { mesh: gpu.glass },
+    { mesh: gpu.glass, cutout: true },
     { mesh: gpu.tape, cutout: true },
+    { mesh: gpu.flash && gpu.flash.count ? gpu.flash : null, cutout: true },
   ];
 
   /*
@@ -548,6 +583,9 @@ function onCommand(line) {
 
   if (state.phase === PHASE.OVER || state.phase === PHASE.WON) { finish(); return; }
   if (before === PHASE.DAY && state.phase === PHASE.NIGHT) print(con, ['השמש שקעה.'], 'bad');
+  /* The autosave lives in the first-person frame loop, which does not run
+   * here — without this a whole week played at the prompt is unresumable. */
+  store.saveRun(state);
   print(con, statusLines(state), 'status');
 }
 
@@ -622,19 +660,40 @@ function setMode(next) {
   con.root.hidden = !running || mode !== 'text';
   qs('#mapover').hidden = !(running && mode === 'fp' && mapOpen);
   const coarse = window.matchMedia && window.matchMedia('(pointer: coarse)').matches;
-  qs('#touch').hidden = !(running && mode === 'fp' && coarse);
+  /* The prompt needs its own controls on a phone, where the top bar is gone. */
+  qs('#touch').hidden = !(running && coarse);
+  qs('#touch').classList.toggle('text-mode', mode === 'text');
   if (mode === 'text' && state) {
     if (document.pointerLockElement) document.exitPointerLock();
     print(con, statusLines(state), 'status');
     con.input.focus();
   }
+  if (mode === 'fp') relock();
   lastFrame = performance.now();
 }
 
 function toggleMap() {
   mapOpen = !mapOpen;
   qs('#mapover').hidden = !(running && mode === 'fp' && mapOpen);
-  if (mapOpen && document.pointerLockElement) document.exitPointerLock();
+  if (mapOpen) {
+    if (document.pointerLockElement) document.exitPointerLock();
+    return;
+  }
+  /*
+   * Opening the map releases the pointer, and closing it has to ask for the
+   * pointer back — otherwise the player is standing in a ticking night with a
+   * mouse that no longer turns the house and nothing on screen saying why.
+   * The request can be refused (a stale gesture, or Chrome's cooldown right
+   * after an exit), which is what the click-to-relock path on the canvas is
+   * for, so the rejection is swallowed rather than logged.
+   */
+  relock();
+}
+
+function relock() {
+  if (!running || mode !== 'fp' || mapOpen) return;
+  const r = input.ref.requestLock();
+  if (r && typeof r.catch === 'function') r.catch(() => {});
 }
 
 function doPause() {
@@ -707,10 +766,16 @@ function boot() {
   }
   qs('#btn-continue').hidden = !store.hasRun();
 
-  qs('#btn-start').addEventListener('click', () => { audio.start(); store.clearRun(); startRun(null); });
+  qs('#btn-start').addEventListener('click', () => {
+    audio.start();
+    store.clearRun();
+    startRun(null).catch(onBootFailure);
+  });
   qs('#btn-continue').addEventListener('click', () => {
     audio.start();
-    startRun(store.loadRun());
+    const saved = store.loadRun();
+    if (!saved) { qs('#btn-continue').hidden = true; return; }
+    startRun(saved).catch(onBootFailure);
   });
   qs('#btn-how').addEventListener('click', () => show('how'));
   qs('#btn-how-back').addEventListener('click', () => show('menu'));
@@ -725,6 +790,13 @@ function boot() {
 
   qs('#btn-speed').addEventListener('click', () => cycleSpeed());
   qs('#btn-map').addEventListener('click', toggleMap);
+  qs('#map-close').addEventListener('click', toggleMap);
+  /* A tap on the dark surround closes the plan; a tap on the plan itself does
+   * not, because reading it is the point. */
+  qs('#mapover').addEventListener('pointerdown', (e) => {
+    if (e.target.closest('.mapover-inner')) return;
+    toggleMap();
+  });
   qs('#btn-mode').addEventListener('click', () => setMode(mode === 'fp' ? 'text' : 'fp'));
   qs('#btn-mute').addEventListener('click', () => toggleMute());
   qs('#btn-pause').addEventListener('click', doPause);
@@ -736,8 +808,8 @@ function boot() {
     setMode(mode === 'fp' ? 'text' : 'fp'); resume(state); show(null);
   });
   qs('#btn-quit').addEventListener('click', () => { resume(state); show('menu'); });
-  qs('#btn-retry').addEventListener('click', () => startRun(null));
-  qs('#btn-again').addEventListener('click', () => startRun(null));
+  qs('#btn-retry').addEventListener('click', () => startRun(null).catch(onBootFailure));
+  qs('#btn-again').addEventListener('click', () => startRun(null).catch(onBootFailure));
   qs('#btn-over-menu').addEventListener('click', () => show('menu'));
   qs('#btn-won-menu').addEventListener('click', () => show('menu'));
 
@@ -806,6 +878,13 @@ function boot() {
 
   show('menu');
   requestAnimationFrame(frame);
+}
+
+/* Anything that goes wrong while building the world must land the player back
+ * on a menu they can use, not on a loading card that never finishes. */
+function onBootFailure(err) {
+  console.error(err);
+  show('menu');
 }
 
 function pickRenderScale() {

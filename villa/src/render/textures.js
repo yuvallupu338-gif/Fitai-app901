@@ -327,6 +327,14 @@ const KINDS = {
     o.r = mix(c[0], 0.19, dirt); o.g = mix(c[1], 0.19, dirt); o.b = mix(c[2], 0.18, dirt);
     o.rough = mix(0.05, 0.55, dirt) + 0.05 * ripple;
     o.h = 0.5 + 0.05 * ripple;
+    /*
+     * Glass is mostly a hole. Kept opaque only at the frame edge and in the
+     * heaviest grime, it still reads as a pane — a rim, some smears, a
+     * specular crawl — while letting the night behind it through. Drawn solid,
+     * this quad sat five centimetres inside every window and hid the things
+     * that come to them, which is most of what the openings are for.
+     */
+    o.mask = Math.max(edge, sstep(0.80, 0.97, grime)) > 0.45 ? 1 : 0;
   },
 
   /* Brick, seen through a broken opening. Stretcher bond: every other course

@@ -97,13 +97,26 @@ export function buildBarricade(mb, anchor, planks, tape, mat) {
   const midY = anchor.ny ? anchor.y : (anchor.y0 + anchor.y1) / 2;
 
   /* Two boards per plank the player nailed on. */
+  /*
+   * How far the boards are spread. For a wall opening that is its height; for
+   * a hole in a floor or a ceiling there is no height — the anchor is four
+   * centimetres thick — so spreading across `span` puts eight 15 cm boards
+   * inside a 4 cm slot, stacked on each other and z-fighting. Half the hidden
+   * openings in the game are floor or ceiling ones. Those spread across the
+   * hole's width instead, which is what boarding a hatch actually looks like.
+   */
+  const layout = anchor.ny ? anchor.width : span;
   const boards = planks * 2;
   for (let i = 0; i < boards; i++) {
     const frac = (i + 0.5) / boards;
     /* Along `up` from one edge of the opening to the other, with a nudge. */
-    const off = (frac - 0.5) * (span - BOARD_H * 2.6) + jitter(anchor.id, i, span * 0.035);
+    const off = (frac - 0.5) * Math.max(0.12, layout - BOARD_H * 2.6)
+      + jitter(anchor.id, i, layout * 0.035);
     const tilt = jitter(anchor.id, i + 40, 0.075);
-    const depth = 0.028 + (i % 2) * 0.012;
+    /* Every board at its own depth, not alternating between two — with eight
+     * boards the alternating pattern put four of them at an identical depth
+     * with coplanar faces. */
+    const depth = 0.026 + i * 0.0055;
 
     /* Rotate right/up about the normal by `tilt`. */
     const ct = Math.cos(tilt), st = Math.sin(tilt);

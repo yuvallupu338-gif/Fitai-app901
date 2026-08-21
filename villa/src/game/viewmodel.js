@@ -76,6 +76,14 @@ export class ViewModel {
    */
   build(player, ammo, mat) {
     const mb = new MeshBuilder(600);
+    /*
+     * The flash goes in its own builder. It is a cut-out material, and the
+     * renderer runs cut-outs as a separate pass with a discard threshold — a
+     * flash submitted with the opaque rifle never gets that discard, its mask
+     * is baked and thrown away, and every shot draws a flat yellow rectangle
+     * across the corner of the screen.
+     */
+    const flashMb = new MeshBuilder(64);
 
     /* Camera basis, matching core/math.js viewFromEuler exactly. Using the
      * swayed angles rather than the live ones is what produces the lag. */
@@ -205,7 +213,7 @@ export class ViewModel {
           muzzle[1] + a[1] * sa * x + b[1] * sb * y,
           muzzle[2] + a[2] * sa * x + b[2] * sb * y,
         ];
-        addQuad(mb, P(-1, -1), P(1, -1), P(1, 1), P(-1, 1),
+        addQuad(flashMb, P(-1, -1), P(1, -1), P(1, 1), P(-1, 1),
           [0, 0], [1, 0], [1, 1], [0, 1], mat.muzzleFlash, { ao: () => 1 });
       }
     }
@@ -222,6 +230,7 @@ export class ViewModel {
 
     return {
       data: mb.finish(),
+      flashData: flashMb.empty ? null : flashMb.finish(),
       muzzle,
       flash: this.flash,
     };

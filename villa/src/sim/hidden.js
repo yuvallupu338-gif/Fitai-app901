@@ -50,8 +50,17 @@ export function rollPersistence(state) {
   const kept = [];
   for (const o of state.openings) {
     if (!o.hidden || !o.present) continue;
-    if (state.rng() < GAME_CONFIG.HIDDEN_PERSIST_CHANCE) kept.push(o.id);
-    else emit(state, 'hidden_gone', { id: o.id, name: o.name });
+    /*
+     * The draw happens for every hidden opening whether or not the player
+     * ever found it — moving it inside the guard would change the random
+     * stream and with it every seed and the headless test. Only the telling
+     * is gated: being informed at dawn that a crack you never searched for
+     * has closed gives away that it was there, which is the one thing the
+     * whole `revealed` flag exists to withhold.
+     */
+    const stays = state.rng() < GAME_CONFIG.HIDDEN_PERSIST_CHANCE;
+    if (stays) kept.push(o.id);
+    else if (o.revealed) emit(state, 'hidden_gone', { id: o.id, name: o.name });
   }
   state.hiddenCarry = kept;
   return kept;
@@ -61,8 +70,15 @@ export function tickHidden(state, dt) {
   for (const o of state.openings) {
     if (!o.hidden || !o.present || o.awake) continue;
 
-    /* The warning. It names the room and the sound, never the spot. */
-    if (!o.hinted && state.clock >= o.wakeAt - GAME_CONFIG.HIDDEN_HINT_LEAD) {
+    /*
+     * The warning. It names the room and the sound, never the spot — and only
+     * for something still unfound. Searching a room reveals an opening but
+     * leaves it asleep, so without the `revealed` test the game went on
+     * telling the player to go and search a room whose hole they had already
+     * found and boarded, and searching again returned nothing while costing
+     * fifteen seconds of the night.
+     */
+    if (!o.hinted && !o.revealed && state.clock >= o.wakeAt - GAME_CONFIG.HIDDEN_HINT_LEAD) {
       o.hinted = true;
       emit(state, 'noise', {
         id: o.id,

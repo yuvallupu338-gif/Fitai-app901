@@ -35,6 +35,10 @@ import { MATERIALS, MATERIAL_INDEX } from '../villa/src/render/materials.js';
 import { MATERIAL_KINDS, bakeMaterial } from '../villa/src/render/textures.js';
 import { GAME_CONFIG, regularCount, hiddenCount, threatCount, breachRate } from '../villa/src/data/config.js';
 import { newRun, step, perform, canPerform, PHASE } from '../villa/src/sim/sim.js';
+import { CUTOUT_MATERIALS } from '../villa/src/render/materials.js';
+import { addBox, addCylinder } from '../villa/src/render/meshbuilder.js';
+import { parse } from '../villa/src/ui/text.js';
+import { drain } from '../villa/src/core/events.js';
 
 const failures = [];
 let checks = 0;
@@ -332,6 +336,113 @@ for (let n = 2; n <= GAME_CONFIG.NIGHTS_TOTAL; n++) {
     }
   }
   check(ended === 5, `${5 - ended} of 5 unattended runs never reached an ending`);
+}
+
+/* ------------------------------------------------------------------ *
+ * Regressions
+ *
+ * Each of these was a shipped bug. They are here rather than in a comment
+ * because every one of them was invisible in a screenshot.
+ * ------------------------------------------------------------------ */
+
+/*
+ * Texel density. addBox's UV axes were transposed against its geometry, so a
+ * face was stretched by sx/sy — eleven to one on a shelf board. The invariant
+ * is that one metre of surface is one unit of UV on every face of any box.
+ */
+{
+  const mb = new MeshBuilder(256);
+  addBox(mb, 0, 0, 0, 2.0, 0.1, 0.2, 0, 0);
+  const f = mb.finish();
+  const V = 15;
+  let worst = 1;
+  for (let q = 0; q * 4 + 3 < f.vertexCount; q++) {
+    const at = (i) => ({
+      p: [f.vertices[i * V], f.vertices[i * V + 1], f.vertices[i * V + 2]],
+      uv: [f.vertices[i * V + 6], f.vertices[i * V + 7]],
+    });
+    const a = at(q * 4);
+    for (const o of [at(q * 4 + 1), at(q * 4 + 3)]) {
+      const dp = Math.hypot(o.p[0] - a.p[0], o.p[1] - a.p[1], o.p[2] - a.p[2]);
+      const du = Math.hypot(o.uv[0] - a.uv[0], o.uv[1] - a.uv[1]);
+      if (dp > 1e-6 && du > 1e-6) worst = Math.max(worst, Math.max(du / dp, dp / du));
+    }
+  }
+  check(worst < 1.01, `a box face stretches its texture ${worst.toFixed(1)}:1`);
+}
+
+/* Tangent handedness on the hand-authored primitives. addQuad derives the
+ * sign from the UV gradient; addCylinder writes it by hand and had it
+ * backwards, mirroring the normal map on every round prop. */
+{
+  const mb = new MeshBuilder(256);
+  addCylinder(mb, 0, 0, 0, 0.2, 1, 8, 0);
+  const f = mb.finish();
+  const V = 15;
+  let wrong = 0;
+  for (let i = 0; i < f.vertexCount; i++) {
+    const n = [f.vertices[i * V + 3], f.vertices[i * V + 4], f.vertices[i * V + 5]];
+    const t = [f.vertices[i * V + 8], f.vertices[i * V + 9], f.vertices[i * V + 10]];
+    const w = f.vertices[i * V + 11];
+    /* cross(n, t) * w must point along +v, which for the side wall is up and
+     * for the cap is +Z. Both come out negative without w = -1. */
+    const c = [
+      n[1] * t[2] - n[2] * t[1],
+      n[2] * t[0] - n[0] * t[2],
+      n[0] * t[1] - n[1] * t[0],
+    ];
+    const up = Math.abs(n[1]) > 0.5 ? c[2] * w : c[1] * w;
+    if (up < 0) wrong++;
+  }
+  check(wrong === 0, `${wrong} cylinder vertices have a mirrored bitangent`);
+}
+
+/* Glass and the muzzle flash must be drawn in the cut-out pass. As opaque
+ * geometry the glass sat inside every window and hid everything outside it,
+ * and the flash drew a flat yellow rectangle. */
+for (const name of ['glass', 'muzzleFlash', 'tapeStrip']) {
+  check(CUTOUT_MATERIALS.has(name), `${name} is not in CUTOUT_MATERIALS`);
+  const m = MATERIALS.find((x) => x.name === name);
+  check(m && m.cutout === true, `${name} does not declare cutout: true`);
+}
+
+/* A bare `ציוד` is the kit report the help text promises, not "take
+ * supplies" — the word was in two verb tables and the first one won. */
+{
+  const s = newRun(3);
+  const cases = [
+    ['ציוד', 'report_kit'], ['קח ציוד', 'gather'], ['קח', 'gather'],
+    ['פתחים', 'report_openings'], ['זמן', 'report_time'],
+    ['לך למטבח', 'move'], ['חסום דלת הכניסה', 'tape'],
+  ];
+  for (const [line, want] of cases) {
+    const r = parse(line, s);
+    check(r.action && r.action.type === want,
+      `"${line}" parses as ${r.action ? r.action.type : r.error}, not ${want}`);
+  }
+}
+
+/*
+ * Hidden openings must not be given away. Dawn used to announce every hole
+ * that closed, found or not, and the "go and search that room" hint kept
+ * firing for one already found and boarded.
+ */
+{
+  const s = newRun(77);
+  s.phase = PHASE.NIGHT;
+  const hidden = s.openings.filter((o) => o.hidden && o.present);
+  if (hidden.length) {
+    for (const o of hidden) { o.revealed = false; o.hinted = false; }
+    drain(s);
+    /* Run past every wake-up, then read what the player was told. */
+    for (let i = 0; i < 4000; i++) step(s, 0.5);
+    const told = drain(s);
+    const leaked = told.filter((e) => e.kind === 'hidden_gone'
+      && !(s.openings.find((o) => o.id === e.id) || {}).revealed);
+    check(leaked.length === 0,
+      `${leaked.length} unfound hidden openings were announced at dawn`);
+  }
+  checks++;
 }
 
 /* ------------------------------------------------------------------ *

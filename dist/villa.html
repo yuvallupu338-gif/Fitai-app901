@@ -18,7 +18,7 @@
      and connect-src is 'none'. frame-ancestors is omitted on purpose, because
      it is ignored in a meta tag and writing it in would only look like
      clickjacking had been handled. -->
-<meta http-equiv="Content-Security-Policy" content="default-src 'none'; script-src 'sha256-CE75iAPFsxLG9nKH6SeqlIFtc1Z58V887dNIK1eaeDc='; style-src 'sha256-eX532I1zBIPC+r60EAmZ65H/Rv7r/v3eTGpGeGdYXIg='; img-src 'self' data:; font-src 'self' data:; connect-src 'none'; media-src 'none'; frame-src 'none'; worker-src 'none'; object-src 'none'; base-uri 'none'; form-action 'none'">
+<meta http-equiv="Content-Security-Policy" content="default-src 'none'; script-src 'sha256-h6VHHuQY7VCcxRrC5bZtfatoI5kY0R/jg8diLb2+ImU='; style-src 'sha256-ImwRh7spdtpTsL1oYSW6eCh5P+oVtN7A1IgvrZm7AAU='; img-src 'self' data:; font-src 'self' data:; connect-src 'none'; media-src 'none'; frame-src 'none'; worker-src 'none'; object-src 'none'; base-uri 'none'; form-action 'none'">
 <link rel="icon" href="data:image/svg+xml,<svg xmlns='http://www.w3.org/2000/svg' viewBox='0 0 32 32'><rect width='32' height='32' fill='%2306080c'/><path d='M4 14 L16 5 L28 14 L28 28 L4 28 Z' fill='none' stroke='%23e8a33d' stroke-width='2'/><rect x='13' y='19' width='6' height='9' fill='%23ffb457'/></svg>">
 <style>
 /*
@@ -300,6 +300,15 @@ button:focus-visible, input:focus-visible {
   font-size: 0.78rem;
   letter-spacing: 0.16em;
   color: var(--dim);
+}
+/* The overlay covers the screen and sits above the touch controls, so without
+   a way out of its own it is a softlock on any device with no keyboard — the
+   night carries on running behind it and every tap is swallowed. */
+.mapover-close {
+  position: absolute;
+  top: 1rem;
+  left: 1rem;
+  pointer-events: auto;
 }
 
 /* ================================================================== *
@@ -610,6 +619,11 @@ button:focus-visible, input:focus-visible {
   .controls { display: none !important; }
 }
 
+/* At the prompt there is nothing to aim, walk or fire — but there still has to
+   be a way to pause, which on a phone is the only route to the menu. */
+#touch.text-mode .tb { display: none; }
+#touch.text-mode #t-pause { display: grid; }
+
 /* On a touch device the HUD's action chips become the number keys. */
 .hud3.touch .h3-act { pointer-events: auto; cursor: pointer; }
 .hud3.touch .h3-act:active { background: rgba(232, 163, 61, 0.28); }
@@ -912,8 +926,9 @@ button:focus-visible, input:focus-visible {
        whole interface is the in-game map here: one key, and you can see what
        you cannot see from inside a dark room. -->
   <div class="mapover" id="mapover" hidden>
+    <button class="tb tiny mapover-close" id="map-close" type="button">✕</button>
     <div class="mapover-inner"><div class="stage" id="stage"></div></div>
-    <div class="mapover-hint">מפת הווילה · Tab</div>
+    <div class="mapover-hint" id="mapover-hint">מפת הווילה · Tab</div>
   </div>
 
   <!-- the same game, as a prompt -->
@@ -2994,8 +3009,17 @@ function rollPersistence(state) {
   const kept = [];
   for (const o of state.openings) {
     if (!o.hidden || !o.present) continue;
-    if (state.rng() < GAME_CONFIG.HIDDEN_PERSIST_CHANCE) kept.push(o.id);
-    else emit(state, 'hidden_gone', { id: o.id, name: o.name });
+    /*
+     * The draw happens for every hidden opening whether or not the player
+     * ever found it — moving it inside the guard would change the random
+     * stream and with it every seed and the headless test. Only the telling
+     * is gated: being informed at dawn that a crack you never searched for
+     * has closed gives away that it was there, which is the one thing the
+     * whole `revealed` flag exists to withhold.
+     */
+    const stays = state.rng() < GAME_CONFIG.HIDDEN_PERSIST_CHANCE;
+    if (stays) kept.push(o.id);
+    else if (o.revealed) emit(state, 'hidden_gone', { id: o.id, name: o.name });
   }
   state.hiddenCarry = kept;
   return kept;
@@ -3005,8 +3029,15 @@ function tickHidden(state, dt) {
   for (const o of state.openings) {
     if (!o.hidden || !o.present || o.awake) continue;
 
-    /* The warning. It names the room and the sound, never the spot. */
-    if (!o.hinted && state.clock >= o.wakeAt - GAME_CONFIG.HIDDEN_HINT_LEAD) {
+    /*
+     * The warning. It names the room and the sound, never the spot — and only
+     * for something still unfound. Searching a room reveals an opening but
+     * leaves it asleep, so without the `revealed` test the game went on
+     * telling the player to go and search a room whose hole they had already
+     * found and boarded, and searching again returned nothing while costing
+     * fifteen seconds of the night.
+     */
+    if (!o.hinted && !o.revealed && state.clock >= o.wakeAt - GAME_CONFIG.HIDDEN_HINT_LEAD) {
       o.hinted = true;
       emit(state, 'noise', {
         id: o.id,
@@ -4876,6 +4907,14 @@ const KINDS = {
     o.r = mix(c[0], 0.19, dirt); o.g = mix(c[1], 0.19, dirt); o.b = mix(c[2], 0.18, dirt);
     o.rough = mix(0.05, 0.55, dirt) + 0.05 * ripple;
     o.h = 0.5 + 0.05 * ripple;
+    /*
+     * Glass is mostly a hole. Kept opaque only at the frame edge and in the
+     * heaviest grime, it still reads as a pane — a rim, some smears, a
+     * specular crawl — while letting the night behind it through. Drawn solid,
+     * this quad sat five centimetres inside every window and hid the things
+     * that come to them, which is most of what the openings are for.
+     */
+    o.mask = Math.max(edge, sstep(0.80, 0.97, grime)) > 0.45 ? 1 : 0;
   },
 
   /* Brick, seen through a broken opening. Stretcher bond: every other course
@@ -5679,7 +5718,7 @@ const MATERIALS = [
 
   /* --- fittings --- */
   { name: 'doorPaint',  kind: 'door',     color: '#6e6a60', bump: 1.2, seed: 81 },
-  { name: 'glass',      kind: 'glass',    color: '#0b1016', bump: 0.5, seed: 82 },
+  { name: 'glass',      kind: 'glass',    color: '#0b1016', bump: 0.5, cutout: true, seed: 82 },
   { name: 'night',      kind: 'night',    color: '#05070c', bump: 0.2, seed: 83 },
   { name: 'brickOuter', kind: 'brick',    color: '#6d4a3c', bump: 2.0, seed: 84 },
   { name: 'metalDark',  kind: 'metal',    color: '#5a5d61', bump: 1.0, gloss: 0.30, rust: 0.22, seed: 85 },
@@ -5705,7 +5744,7 @@ const MATERIAL_INDEX = Object.fromEntries(MATERIALS.map((m, i) => [m.name, i]));
 
 /* Which materials are drawn in the cut-out pass. Only the tape, which needs to
  * be a strip with feathered edges rather than a rectangle of plastic. */
-const CUTOUT_MATERIALS = new Set(['tapeStrip']);
+const CUTOUT_MATERIALS = new Set(['tapeStrip', 'glass', 'muzzleFlash']);
 
   return {
     "MATERIALS": MATERIALS,
@@ -5886,9 +5925,18 @@ function addBox(mb, cx, cy, cz, sx, sy, sz, rot, mat, opts = {}) {
 
   const A = P(-hx, -hy, -hz), B = P(hx, -hy, -hz), C = P(hx, hy, -hz), D = P(-hx, hy, -hz);
   const E = P(-hx, -hy, hz), F = P(hx, -hy, hz), G = P(hx, hy, hz), H = P(-hx, hy, hz);
-  const uvW = [[0, 0], [sx, 0], [sx, sy], [0, sy]];
-  const uvD = [[0, 0], [sz, 0], [sz, sy], [0, sy]];
-  const uvT = [[0, 0], [sx, 0], [sx, sz], [0, sz]];
+  /*
+   * u runs along p0->p1 and v along p0->p3, and for every face below the
+   * first of those is the *vertical* edge. Writing the horizontal extent into
+   * u therefore stretched each face by sx/sy: a shelf board 0.44 x 0.04 came
+   * out at eleven to one, and a 2 m plank at twenty to one, so the grain on
+   * the furniture ran the wrong way and at the wrong scale. The comment above
+   * — that a big crate and a small crate show the same grain — only held for
+   * a cube.
+   */
+  const uvW = [[0, 0], [sy, 0], [sy, sx], [0, sx]];
+  const uvD = [[0, 0], [sy, 0], [sy, sz], [0, sz]];
+  const uvT = [[0, 0], [sz, 0], [sz, sx], [0, sx]];
 
   /*
    * Winding matters and was wrong here for a long time: every one of these six
@@ -5916,10 +5964,16 @@ function addCylinder(mb, cx, cy, cz, radius, height, segments, mat, opts = {}) {
     const nx = Math.cos(a), nz = Math.sin(a);
     const px = cx + nx * radius, pz = cz + nz * radius;
     const u = (i / seg) * circ;
-    /* Tangent runs around the circumference; bitangent is straight up. */
+    /*
+     * Tangent runs around the circumference; bitangent is straight up. The
+     * handedness is -1, not +1: the shader builds the bitangent as
+     * `cross(aNrm, aTan.xyz) * aTan.w`, and here cross(N, T) with N=(nx,0,nz)
+     * and T=(-nz,0,nx) comes out (0,-1,0) while v increases upwards. With +1
+     * the normal map was mirrored vertically on every round prop in the house.
+     */
     const tx = -nz, tz = nx;
-    mb.vertex(px, cy, pz, nx, 0, nz, u, 0, tx, 0, tz, 1, ao(0, 0), mat, -1);
-    mb.vertex(px, cy + height, pz, nx, 0, nz, u, height, tx, 0, tz, 1, ao(0, 1), mat, -1);
+    mb.vertex(px, cy, pz, nx, 0, nz, u, 0, tx, 0, tz, -1, ao(0, 0), mat, -1);
+    mb.vertex(px, cy + height, pz, nx, 0, nz, u, height, tx, 0, tz, -1, ao(0, 1), mat, -1);
   }
   for (let i = 0; i < seg; i++) {
     /* Same inversion as the box had: (a, a+2, a+3, a+1) faces inward. */
@@ -5928,11 +5982,14 @@ function addCylinder(mb, cx, cy, cz, radius, height, segments, mat, opts = {}) {
   }
   if (opts.cap !== false) {
     const top = mb.vn;
-    const cIdx = mb.vertex(cx, cy + height, cz, 0, 1, 0, 0, 0, 1, 0, 0, 1, ao(0, 1), mat, -1);
+    /* Same handedness correction as the side wall: N=(0,1,0), T=(1,0,0),
+     * cross(N,T)=(0,0,-1), and v here is sin(a)*radius, which grows towards
+     * +Z. */
+    const cIdx = mb.vertex(cx, cy + height, cz, 0, 1, 0, 0, 0, 1, 0, 0, -1, ao(0, 1), mat, -1);
     for (let i = 0; i <= seg; i++) {
       const a = (i / seg) * Math.PI * 2;
       mb.vertex(cx + Math.cos(a) * radius, cy + height, cz + Math.sin(a) * radius,
-        0, 1, 0, Math.cos(a) * radius, Math.sin(a) * radius, 1, 0, 0, 1, ao(0, 1), mat, -1);
+        0, 1, 0, Math.cos(a) * radius, Math.sin(a) * radius, 1, 0, 0, -1, ao(0, 1), mat, -1);
     }
     for (let i = 0; i < seg; i++) mb.tri(cIdx, top + 1 + i + 1, top + 1 + i);
   }
@@ -6244,7 +6301,10 @@ function wallPanel(mb, e, t0, t1, y0, y1, mat, ao) {
   addQuad(mb,
     [a[0], y0, a[1]], [b[0], y0, b[1]], [b[0], y1, b[1]], [a[0], y1, a[1]],
     [0, 0], [len, 0], [len, y1 - y0], [0, y1 - y0],
-    mat, { sub: Math.max(1, Math.round(Math.max(len, y1 - y0) * 1.4)), ao });
+    /* At least two subdivisions in each direction: a panel with only corner
+     * vertices has nowhere to put a gradient, so the strip above a door came
+     * out one flat tone however carefully the AO was computed. */
+    mat, { sub: Math.max(2, Math.round(Math.max(len, y1 - y0) * 1.4)), ao });
 }
 
 /*
@@ -6478,6 +6538,14 @@ function buildVilla(mat) {
 
     for (const e of edges) {
       const mine = holes.filter((h) => h.edge === e.side).sort((a, b) => a.t0 - b.t0);
+      /*
+       * One closure per panel, not one per wall run. wallAO(y0, y1) maps the
+       * quad's own t back to a real height, so a closure built for 0..2.7 and
+       * handed to the strip above a door (2.06..2.70) reads t=0 as floor level
+       * and t=1 as ceiling — both ends land in the dark band and the whole
+       * strip comes out flat black, while the apron under a window gets a
+       * bright stripe across its middle.
+       */
       const ao = wallAO(0, WALL_H);
       let cursor = 0;
       for (const h of mine) {
@@ -6486,12 +6554,14 @@ function buildVilla(mat) {
           skirting(mb, e, cursor, h.t0, mat.trim);
         }
         if (h.y0 > 0.001) {
-          wallPanel(mb, e, h.t0, h.t1, 0, h.y0, mat[finish.wall], ao);
+          wallPanel(mb, e, h.t0, h.t1, 0, h.y0, mat[finish.wall], wallAO(0, h.y0));
           /* A window's wall carries on down to the floor, so the skirting
            * runs behind it rather than stopping at the reveal. */
           skirting(mb, e, h.t0, h.t1, mat.trim);
         }
-        if (h.y1 < WALL_H - 0.001) wallPanel(mb, e, h.t0, h.t1, h.y1, WALL_H, mat[finish.wall], ao);
+        if (h.y1 < WALL_H - 0.001) {
+          wallPanel(mb, e, h.t0, h.t1, h.y1, WALL_H, mat[finish.wall], wallAO(h.y1, WALL_H));
+        }
 
         /*
          * A doorway is cut from both rooms that share it, and each room's
@@ -6959,13 +7029,26 @@ function buildBarricade(mb, anchor, planks, tape, mat) {
   const midY = anchor.ny ? anchor.y : (anchor.y0 + anchor.y1) / 2;
 
   /* Two boards per plank the player nailed on. */
+  /*
+   * How far the boards are spread. For a wall opening that is its height; for
+   * a hole in a floor or a ceiling there is no height — the anchor is four
+   * centimetres thick — so spreading across `span` puts eight 15 cm boards
+   * inside a 4 cm slot, stacked on each other and z-fighting. Half the hidden
+   * openings in the game are floor or ceiling ones. Those spread across the
+   * hole's width instead, which is what boarding a hatch actually looks like.
+   */
+  const layout = anchor.ny ? anchor.width : span;
   const boards = planks * 2;
   for (let i = 0; i < boards; i++) {
     const frac = (i + 0.5) / boards;
     /* Along `up` from one edge of the opening to the other, with a nudge. */
-    const off = (frac - 0.5) * (span - BOARD_H * 2.6) + jitter(anchor.id, i, span * 0.035);
+    const off = (frac - 0.5) * Math.max(0.12, layout - BOARD_H * 2.6)
+      + jitter(anchor.id, i, layout * 0.035);
     const tilt = jitter(anchor.id, i + 40, 0.075);
-    const depth = 0.028 + (i % 2) * 0.012;
+    /* Every board at its own depth, not alternating between two — with eight
+     * boards the alternating pattern put four of them at an identical depth
+     * with coplanar faces. */
+    const depth = 0.026 + i * 0.0055;
 
     /* Rotate right/up about the normal by `tilt`. */
     const ct = Math.cos(tilt), st = Math.sin(tilt);
@@ -7717,6 +7800,14 @@ class ViewModel {
    */
   build(player, ammo, mat) {
     const mb = new MeshBuilder(600);
+    /*
+     * The flash goes in its own builder. It is a cut-out material, and the
+     * renderer runs cut-outs as a separate pass with a discard threshold — a
+     * flash submitted with the opaque rifle never gets that discard, its mask
+     * is baked and thrown away, and every shot draws a flat yellow rectangle
+     * across the corner of the screen.
+     */
+    const flashMb = new MeshBuilder(64);
 
     /* Camera basis, matching core/math.js viewFromEuler exactly. Using the
      * swayed angles rather than the live ones is what produces the lag. */
@@ -7846,7 +7937,7 @@ class ViewModel {
           muzzle[1] + a[1] * sa * x + b[1] * sb * y,
           muzzle[2] + a[2] * sa * x + b[2] * sb * y,
         ];
-        addQuad(mb, P(-1, -1), P(1, -1), P(1, 1), P(-1, 1),
+        addQuad(flashMb, P(-1, -1), P(1, -1), P(1, 1), P(-1, 1),
           [0, 0], [1, 0], [1, 1], [0, 1], mat.muzzleFlash, { ao: () => 1 });
       }
     }
@@ -7863,6 +7954,7 @@ class ViewModel {
 
     return {
       data: mb.finish(),
+      flashData: flashMb.empty ? null : flashMb.finish(),
       muzzle,
       flash: this.flash,
     };
@@ -8362,7 +8454,15 @@ function updateHud3d(hud, state, ctx) {
   let psig = 'none';
   if (t) psig = t.kind + ':' + t.id + ':' + (t.opening
     ? `${t.opening.planks}:${t.opening.tape}:${Math.round(t.opening.integrity * 20)}:${t.opening.breached}`
-    : '') + ':' + sig;
+    : '') + ':' + sig + ':' + state.phase + ':' + state.neighbor.status
+    + ':' + (state.stock.tape + state.stock.planks + state.stock.nails);
+  /*
+   * The prompt for a prop has no opening clause, so it was rebuilt only when
+   * one of six inventory numbers changed. But whether the telephone can be
+   * used depends on the phase (he cannot be called in daylight) and on his
+   * status (not while he is already on his way), and neither was in the key —
+   * so the reason under the button stayed whatever it had been at dusk.
+   */
   if (psig !== hud.promptSig) {
     hud.promptSig = psig;
     clear(el.prompt);
@@ -8823,7 +8923,12 @@ const VERBS = [
   { type: 'repair', words: ['תקן', 'תתקן', 'דחוף', 'חזק'], target: 'opening' },
   { type: 'shoot', words: ['ירה', 'תירה', 'ירי', 'רובה'], target: 'opening' },
   { type: 'call', words: ['התקשר', 'תתקשר', 'טלפן', 'טלפון', 'שכן'] },
-  { type: 'gather', words: ['קח', 'אסוף', 'תיקח', 'ציוד'] },
+  /* `ציוד` belongs to the report below, not here: VERBS.find returns the
+   * first match, so listing it in both made a bare "ציוד" gather supplies —
+   * or fail with "not in this room" — while the help text promises a kit
+   * report. Taking supplies still has קח / אסוף / תיקח, and the two-word
+   * form `קח ציוד` is matched by PHRASES before this table is consulted. */
+  { type: 'gather', words: ['קח', 'אסוף', 'תיקח'] },
   { type: 'wait', words: ['המתן', 'חכה', 'תחכה', 'המתנה'] },
   { type: 'ready', words: ['התחל', 'לילה', 'מוכן', 'סיים'] },
   /* Reports. Free, and deliberately so — looking at what you already know
@@ -9505,6 +9610,13 @@ const SCREENS = ['loading', 'menu', 'how', 'brief', 'pause', 'over', 'won'];
 
 function show(name) {
   for (const s of SCREENS) qs(`#screen-${s}`).hidden = (s !== name);
+  /*
+   * Refreshed here rather than once at boot, because every route back to the
+   * menu changes the answer: dying clears the save, and playing a night
+   * creates one. Set once, the button offered to continue a run that had been
+   * deleted — silently starting a brand new one — and hid a run that existed.
+   */
+  if (name === 'menu') qs('#btn-continue').hidden = !store.hasRun();
   const playing = !name;
   running = playing;
   qs('#controls').hidden = !playing;
@@ -9512,7 +9624,8 @@ function show(name) {
   const touch = qs('#touch');
   if (touch) {
     const coarse = window.matchMedia && window.matchMedia('(pointer: coarse)').matches;
-    touch.hidden = !(playing && mode === 'fp' && coarse);
+    touch.hidden = !(playing && coarse);
+    touch.classList.toggle('text-mode', mode === 'text');
   }
   if (hud) hud.root.hidden = !playing || mode !== 'fp';
   if (con) con.root.hidden = !playing || mode !== 'text';
@@ -9533,6 +9646,15 @@ function show(name) {
  */
 async function loadWorld() {
   if (world) return;
+  /*
+   * No renderer means no WebGL2, and the game runs at the Hebrew prompt
+   * instead — which it announces on the menu. Everything below this line
+   * dereferences the renderer, so without the guard the first click raised
+   * the loading card and then threw inside an un-awaited async function: an
+   * unhandled rejection, no state, no phase, and a menu already hidden behind
+   * a screen that says "רגע" forever.
+   */
+  if (!renderer) return;
   show('loading');
   const fill = qs('#load-fill');
   const note = qs('#load-note');
@@ -9570,6 +9692,7 @@ async function loadWorld() {
     tape: null,
     entities: null,
     gun: null,
+    flash: null,
     sig: '',
   };
 
@@ -9601,12 +9724,19 @@ async function startRun(resumed) {
   lastNight = 0;
   clockTime = 0;
 
-  /* Standing at the front door, looking into the house. */
-  const e = roomRect(ROOM_BY_ID.entrance);
-  player = new Player((e.x0 + e.x1) / 2, e.z1 - 1.6, 0);
-  player.torch = true;
-  rifle = new ViewModel();
-  state.player.room = 'entrance';
+  /* Standing at the front door, looking into the house. A resumed run keeps
+   * the room it was saved in — teleporting it back to the entrance discards
+   * the one piece of position the save actually carries. */
+  if (world) {
+    const e = roomRect(ROOM_BY_ID.entrance);
+    player = new Player((e.x0 + e.x1) / 2, e.z1 - 1.6, 0);
+    player.torch = true;
+    rifle = new ViewModel();
+    if (resumed && state.player.room) placeInRoom(state.player.room);
+    else state.player.room = 'entrance';
+  } else if (!resumed) {
+    state.player.room = 'entrance';
+  }
 
   if (con) clearConsole(con);
   drain(state);
@@ -9747,10 +9877,12 @@ function frame(now) {
   requestAnimationFrame(frame);
   const dt = Math.min((now - lastFrame) / 1000, 0.25);
   lastFrame = now;
-  if (!state || !world) return;
+  if (!state) return;
   clockTime += dt;
 
-  if (running && mode === 'fp') {
+  /* `world` is null when there is no renderer. The prompt still needs its
+   * heartbeat, so only the first-person half is gated on the geometry. */
+  if (running && mode === 'fp' && world) {
     const gdt = dt * speed;
 
     /* --- the player --- */
@@ -9833,13 +9965,21 @@ function buildView(target, dt) {
    * the camera, so it is lit by the room the player is standing in. */
   const gun = rifle.build(player, state.inv.ammo, MATERIAL_INDEX);
   gpu.gun = renderer.uploadDynamic(gpu.gun, gun.data);
+  gpu.flash = renderer.uploadDynamic(gpu.flash, gun.flashData);
 
+  /*
+   * Glass and the muzzle flash are cut-out materials and must be drawn in the
+   * cut-out pass. Glass especially: as an opaque quad it sat five centimetres
+   * inside every window, writing depth, and hid everything the pocket of night
+   * behind it exists to show.
+   */
   const meshes = [
     { mesh: gpu.building }, { mesh: gpu.props }, { mesh: gpu.barricade },
     { mesh: gpu.entities && gpu.entities.count ? gpu.entities : null },
     { mesh: gpu.gun && gpu.gun.count ? gpu.gun : null },
-    { mesh: gpu.glass },
+    { mesh: gpu.glass, cutout: true },
     { mesh: gpu.tape, cutout: true },
+    { mesh: gpu.flash && gpu.flash.count ? gpu.flash : null, cutout: true },
   ];
 
   /*
@@ -9973,6 +10113,9 @@ function onCommand(line) {
 
   if (state.phase === PHASE.OVER || state.phase === PHASE.WON) { finish(); return; }
   if (before === PHASE.DAY && state.phase === PHASE.NIGHT) print(con, ['השמש שקעה.'], 'bad');
+  /* The autosave lives in the first-person frame loop, which does not run
+   * here — without this a whole week played at the prompt is unresumable. */
+  store.saveRun(state);
   print(con, statusLines(state), 'status');
 }
 
@@ -10047,19 +10190,40 @@ function setMode(next) {
   con.root.hidden = !running || mode !== 'text';
   qs('#mapover').hidden = !(running && mode === 'fp' && mapOpen);
   const coarse = window.matchMedia && window.matchMedia('(pointer: coarse)').matches;
-  qs('#touch').hidden = !(running && mode === 'fp' && coarse);
+  /* The prompt needs its own controls on a phone, where the top bar is gone. */
+  qs('#touch').hidden = !(running && coarse);
+  qs('#touch').classList.toggle('text-mode', mode === 'text');
   if (mode === 'text' && state) {
     if (document.pointerLockElement) document.exitPointerLock();
     print(con, statusLines(state), 'status');
     con.input.focus();
   }
+  if (mode === 'fp') relock();
   lastFrame = performance.now();
 }
 
 function toggleMap() {
   mapOpen = !mapOpen;
   qs('#mapover').hidden = !(running && mode === 'fp' && mapOpen);
-  if (mapOpen && document.pointerLockElement) document.exitPointerLock();
+  if (mapOpen) {
+    if (document.pointerLockElement) document.exitPointerLock();
+    return;
+  }
+  /*
+   * Opening the map releases the pointer, and closing it has to ask for the
+   * pointer back — otherwise the player is standing in a ticking night with a
+   * mouse that no longer turns the house and nothing on screen saying why.
+   * The request can be refused (a stale gesture, or Chrome's cooldown right
+   * after an exit), which is what the click-to-relock path on the canvas is
+   * for, so the rejection is swallowed rather than logged.
+   */
+  relock();
+}
+
+function relock() {
+  if (!running || mode !== 'fp' || mapOpen) return;
+  const r = input.ref.requestLock();
+  if (r && typeof r.catch === 'function') r.catch(() => {});
 }
 
 function doPause() {
@@ -10132,10 +10296,16 @@ function boot() {
   }
   qs('#btn-continue').hidden = !store.hasRun();
 
-  qs('#btn-start').addEventListener('click', () => { audio.start(); store.clearRun(); startRun(null); });
+  qs('#btn-start').addEventListener('click', () => {
+    audio.start();
+    store.clearRun();
+    startRun(null).catch(onBootFailure);
+  });
   qs('#btn-continue').addEventListener('click', () => {
     audio.start();
-    startRun(store.loadRun());
+    const saved = store.loadRun();
+    if (!saved) { qs('#btn-continue').hidden = true; return; }
+    startRun(saved).catch(onBootFailure);
   });
   qs('#btn-how').addEventListener('click', () => show('how'));
   qs('#btn-how-back').addEventListener('click', () => show('menu'));
@@ -10150,6 +10320,13 @@ function boot() {
 
   qs('#btn-speed').addEventListener('click', () => cycleSpeed());
   qs('#btn-map').addEventListener('click', toggleMap);
+  qs('#map-close').addEventListener('click', toggleMap);
+  /* A tap on the dark surround closes the plan; a tap on the plan itself does
+   * not, because reading it is the point. */
+  qs('#mapover').addEventListener('pointerdown', (e) => {
+    if (e.target.closest('.mapover-inner')) return;
+    toggleMap();
+  });
   qs('#btn-mode').addEventListener('click', () => setMode(mode === 'fp' ? 'text' : 'fp'));
   qs('#btn-mute').addEventListener('click', () => toggleMute());
   qs('#btn-pause').addEventListener('click', doPause);
@@ -10161,8 +10338,8 @@ function boot() {
     setMode(mode === 'fp' ? 'text' : 'fp'); resume(state); show(null);
   });
   qs('#btn-quit').addEventListener('click', () => { resume(state); show('menu'); });
-  qs('#btn-retry').addEventListener('click', () => startRun(null));
-  qs('#btn-again').addEventListener('click', () => startRun(null));
+  qs('#btn-retry').addEventListener('click', () => startRun(null).catch(onBootFailure));
+  qs('#btn-again').addEventListener('click', () => startRun(null).catch(onBootFailure));
   qs('#btn-over-menu').addEventListener('click', () => show('menu'));
   qs('#btn-won-menu').addEventListener('click', () => show('menu'));
 
@@ -10231,6 +10408,13 @@ function boot() {
 
   show('menu');
   requestAnimationFrame(frame);
+}
+
+/* Anything that goes wrong while building the world must land the player back
+ * on a menu they can use, not on a loading card that never finishes. */
+function onBootFailure(err) {
+  console.error(err);
+  show('menu');
 }
 
 function pickRenderScale() {

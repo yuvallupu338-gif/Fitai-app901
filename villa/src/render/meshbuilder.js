@@ -169,9 +169,18 @@ export function addBox(mb, cx, cy, cz, sx, sy, sz, rot, mat, opts = {}) {
 
   const A = P(-hx, -hy, -hz), B = P(hx, -hy, -hz), C = P(hx, hy, -hz), D = P(-hx, hy, -hz);
   const E = P(-hx, -hy, hz), F = P(hx, -hy, hz), G = P(hx, hy, hz), H = P(-hx, hy, hz);
-  const uvW = [[0, 0], [sx, 0], [sx, sy], [0, sy]];
-  const uvD = [[0, 0], [sz, 0], [sz, sy], [0, sy]];
-  const uvT = [[0, 0], [sx, 0], [sx, sz], [0, sz]];
+  /*
+   * u runs along p0->p1 and v along p0->p3, and for every face below the
+   * first of those is the *vertical* edge. Writing the horizontal extent into
+   * u therefore stretched each face by sx/sy: a shelf board 0.44 x 0.04 came
+   * out at eleven to one, and a 2 m plank at twenty to one, so the grain on
+   * the furniture ran the wrong way and at the wrong scale. The comment above
+   * — that a big crate and a small crate show the same grain — only held for
+   * a cube.
+   */
+  const uvW = [[0, 0], [sy, 0], [sy, sx], [0, sx]];
+  const uvD = [[0, 0], [sy, 0], [sy, sz], [0, sz]];
+  const uvT = [[0, 0], [sz, 0], [sz, sx], [0, sx]];
 
   /*
    * Winding matters and was wrong here for a long time: every one of these six
@@ -199,10 +208,16 @@ export function addCylinder(mb, cx, cy, cz, radius, height, segments, mat, opts 
     const nx = Math.cos(a), nz = Math.sin(a);
     const px = cx + nx * radius, pz = cz + nz * radius;
     const u = (i / seg) * circ;
-    /* Tangent runs around the circumference; bitangent is straight up. */
+    /*
+     * Tangent runs around the circumference; bitangent is straight up. The
+     * handedness is -1, not +1: the shader builds the bitangent as
+     * `cross(aNrm, aTan.xyz) * aTan.w`, and here cross(N, T) with N=(nx,0,nz)
+     * and T=(-nz,0,nx) comes out (0,-1,0) while v increases upwards. With +1
+     * the normal map was mirrored vertically on every round prop in the house.
+     */
     const tx = -nz, tz = nx;
-    mb.vertex(px, cy, pz, nx, 0, nz, u, 0, tx, 0, tz, 1, ao(0, 0), mat, -1);
-    mb.vertex(px, cy + height, pz, nx, 0, nz, u, height, tx, 0, tz, 1, ao(0, 1), mat, -1);
+    mb.vertex(px, cy, pz, nx, 0, nz, u, 0, tx, 0, tz, -1, ao(0, 0), mat, -1);
+    mb.vertex(px, cy + height, pz, nx, 0, nz, u, height, tx, 0, tz, -1, ao(0, 1), mat, -1);
   }
   for (let i = 0; i < seg; i++) {
     /* Same inversion as the box had: (a, a+2, a+3, a+1) faces inward. */
@@ -211,11 +226,14 @@ export function addCylinder(mb, cx, cy, cz, radius, height, segments, mat, opts 
   }
   if (opts.cap !== false) {
     const top = mb.vn;
-    const cIdx = mb.vertex(cx, cy + height, cz, 0, 1, 0, 0, 0, 1, 0, 0, 1, ao(0, 1), mat, -1);
+    /* Same handedness correction as the side wall: N=(0,1,0), T=(1,0,0),
+     * cross(N,T)=(0,0,-1), and v here is sin(a)*radius, which grows towards
+     * +Z. */
+    const cIdx = mb.vertex(cx, cy + height, cz, 0, 1, 0, 0, 0, 1, 0, 0, -1, ao(0, 1), mat, -1);
     for (let i = 0; i <= seg; i++) {
       const a = (i / seg) * Math.PI * 2;
       mb.vertex(cx + Math.cos(a) * radius, cy + height, cz + Math.sin(a) * radius,
-        0, 1, 0, Math.cos(a) * radius, Math.sin(a) * radius, 1, 0, 0, 1, ao(0, 1), mat, -1);
+        0, 1, 0, Math.cos(a) * radius, Math.sin(a) * radius, 1, 0, 0, -1, ao(0, 1), mat, -1);
     }
     for (let i = 0; i < seg; i++) mb.tri(cIdx, top + 1 + i + 1, top + 1 + i);
   }

@@ -89,7 +89,12 @@ const VERBS = [
   { type: 'repair', words: ['תקן', 'תתקן', 'דחוף', 'חזק'], target: 'opening' },
   { type: 'shoot', words: ['ירה', 'תירה', 'ירי', 'רובה'], target: 'opening' },
   { type: 'call', words: ['התקשר', 'תתקשר', 'טלפן', 'טלפון', 'שכן'] },
-  { type: 'gather', words: ['קח', 'אסוף', 'תיקח', 'ציוד'] },
+  /* `ציוד` belongs to the report below, not here: VERBS.find returns the
+   * first match, so listing it in both made a bare "ציוד" gather supplies —
+   * or fail with "not in this room" — while the help text promises a kit
+   * report. Taking supplies still has קח / אסוף / תיקח, and the two-word
+   * form `קח ציוד` is matched by PHRASES before this table is consulted. */
+  { type: 'gather', words: ['קח', 'אסוף', 'תיקח'] },
   { type: 'wait', words: ['המתן', 'חכה', 'תחכה', 'המתנה'] },
   { type: 'ready', words: ['התחל', 'לילה', 'מוכן', 'סיים'] },
   /* Reports. Free, and deliberately so — looking at what you already know

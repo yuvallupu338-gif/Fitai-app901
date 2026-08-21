@@ -108,7 +108,15 @@ export function updateHud3d(hud, state, ctx) {
   let psig = 'none';
   if (t) psig = t.kind + ':' + t.id + ':' + (t.opening
     ? `${t.opening.planks}:${t.opening.tape}:${Math.round(t.opening.integrity * 20)}:${t.opening.breached}`
-    : '') + ':' + sig;
+    : '') + ':' + sig + ':' + state.phase + ':' + state.neighbor.status
+    + ':' + (state.stock.tape + state.stock.planks + state.stock.nails);
+  /*
+   * The prompt for a prop has no opening clause, so it was rebuilt only when
+   * one of six inventory numbers changed. But whether the telephone can be
+   * used depends on the phase (he cannot be called in daylight) and on his
+   * status (not while he is already on his way), and neither was in the key —
+   * so the reason under the button stayed whatever it had been at dusk.
+   */
   if (psig !== hud.promptSig) {
     hud.promptSig = psig;
     clear(el.prompt);
